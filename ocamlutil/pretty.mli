@@ -42,7 +42,7 @@
 - Format the [doc] to a certain width and emit it as a string, to an output 
   stream or pass it to a user-defined function
 
- The formating algorithm is not optimal but it does a pretty good job while 
+ The formatting algorithm is not optimal but it does a pretty good job while 
  still operating in linear time. The original version was based on a pretty 
  printer by Philip Wadler which turned out to not scale to large jobs. 
 *)
@@ -162,7 +162,7 @@ val insert       : unit -> doc -> doc
     argument (of type [('a, unit, doc) format]; if you insist on 
     understanding what that means see the module [Printf]). The format string 
     is like that for the [printf] function in C, except that it understands a 
-    few more formating controls, all starting with the \@ character. 
+    few more formatting controls, all starting with the \@ character. 
 
  The following special formatting characters are understood (these do not 
  correspond to arguments of the function):
@@ -174,7 +174,7 @@ val insert       : unit -> doc -> doc
 -  \@<  Inserts a [leftflush]. Should be used immediately after \@! or "\n"
 -  \@\@ : inserts a \@ character
 
- In addition to the usual [printf] % formating characters the following two 
+ In addition to the usual [printf] % formatting characters the following two 
  new characters are supported:
 - %t Corresponds to an argument of type [unit -> doc]. This argument is 
      invoked to produce a document
@@ -211,7 +211,7 @@ d_stmt: unit -> statement -> doc
 val dprintf: ('a, unit, doc) format -> 'a  
 
 
-(** Next come functions that perform the formating and emit the result *)
+(** Next come functions that perform the formatting and emit the result *)
 
 (** Format the document to the given width and emit it to the given channel *)
 val fprint: out_channel -> width:int -> doc -> unit
@@ -229,7 +229,7 @@ val printf: ('a, unit, doc) format -> 'a
 val eprintf: ('a, unit, doc) format -> 'a 
 
 (** Like [dprintf] but more general. It also has a function that is invoked 
-  * on the constructed document but before any formating is done. *) 
+  * on the constructed document but before any formatting is done. *) 
 val gprintf: (doc -> doc) -> ('a, unit, doc) format -> 'a
 
 
@@ -249,5 +249,5 @@ val flushOften   : bool ref  (* If true the it flushes after every print *)
 
 val withPrintDepth : int -> (unit -> unit) -> unit
 
-(** A descrptive string with version, flags etc. *)
+(** A descriptive string with version, flags etc. *)
 val getAboutString : unit -> string

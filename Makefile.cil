@@ -58,7 +58,45 @@ testcil: $(EXECUTABLE)$(EXE)
 
 .PHONY: odoc
 odoc:
-	odoc -d doc/cil -g odoc_fhtml.cmo -t "CIL Documentation" \
+	rm -rf doc/cil-api
+	mkdir doc/cil-api
+	odoc -d doc/cil-api -g odoc_fhtml.cmo -t "CIL Documentation" \
 	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
 	  	    src/pretty.mli src/stats.mli
+
+#----------------------------------------------------------------------
+# Generate the CIL distribution
+
+.PHONY: cil-distrib
+
+DISTRIB-SRC1 = cil.ml cil.mli clist.ml clist.mli errormsg.ml errormsg.mli \
+               logcalls.ml logcalls.mli logwrites.ml pretty.ml pretty.mli \
+               stats.ml stats.mli trace.ml trace.mli 
+DISTRIB-SRC2 = heapify.ml main.ml util.ml
+
+DISTRIB-SRC-FRONTC = cabs2cil.ml cabs2cil.mli cabs.ml cabsvisit.ml \
+                     cabsvisit.mli clexer.mli clexer.mll combine.ml \
+                     combine.mli cparser.mly cparser.output cprint.ml \
+                     frontc.ml frontc.mli maincombiner.ml merger.ml patch.ml \
+                     patch.mli
+cil-distrib: odoc
+	rm -rf cil-distrib cil.distrib.tar.gz cil-api.tar.gz
+	mkdir cil-distrib cil-distrib/src cil-distrib/obj cil-distrib/doc \
+              cil-distrib/obj/.depend cil-distrib/src/frontc
+
+	cp cil-distrib.Makefile cil-distrib/Makefile
+	cp Makefile.ocaml cil-distrib/Makefile.ocaml
+
+	cp $(patsubst %,src/%,$(DISTRIB-SRC1)) cil-distrib/src
+
+	for i in $(DISTRIB-SRC2); do cp src/cil-distrib.$$i \
+		cil-distrib/src/$$i; done
+
+	cp $(patsubst %,src/frontc/%,$(DISTRIB-SRC-FRONTC)) \
+             cil-distrib/src/frontc
+
+	cd doc; hevea cil-distrib.tex
+	cp -r doc/cil-api/* cil-distrib/doc
+	tar cvfz cil-distrib.tar.gz cil-distrib
+	cd doc; tar cvfz ../cil-api.tar.gz cil-api
 

@@ -1,0 +1,118 @@
+\documentclass{article}
+\usepackage{hevea}
+
+%----------------------------------------------------------------------
+% MACROS
+
+\newcommand{\hsp}{\hspace{0.5in}}
+\newcommand{\t}[1]{{\tt #1}}
+
+%----------------------------------------------------------------------
+\title{CIL}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+ CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation
+along with a set of tools that permit easy analysis and source-to-source
+transformation of C programs.
+
+ CIL is both lower-level than abstract-syntax trees, by clarifying ambiguous
+constructs and removing redundant ones, and also higher-level than typical
+intermediate languages designed for compilation, by maintaining types and a
+close relationship with the source program. CIL has only a few core constructs
+and a syntax-directed type system that makes it easy to analyze and manipulate
+C programs, and emit them in a form that can be compiled by a C compiler and
+easily correlated with the original source. At the same time we provide a
+front-end that translates to CIL not only ANSI C programs but also those using
+Microsoft C or GNU C extensions.
+
+ In essence, CIL is a highly-structured, ``clean'' subset of C. CIL features a
+reduced number of syntactic and conceptual forms. For example, all looping
+constructs are reduced to a single form, all function bodies are given
+explicit {\tt return} statements, syntactic sugar like {\tt "->"} is
+eliminated and function arguments with array types become pointers. This
+reduces the number of cases that must be considered when manipulating a C
+program. However, the external representation for CIL will often put back such
+syntactic sugar in order to stay faithful to the original source. CIL also
+separates type declarations from code and flattens scopes within function
+bodies. This structures the program in a manner more amenable to rapid
+analysis and transformation. CIL computes the types of all program
+expressions, and makes all type promotions and casts explicit. CIL supports
+all GCC and MSVC extensions except for nested functions. Finally, CIL
+organizes C's imperative features into expressions, instructions and
+statements based on the presence and absence of side-effects and control-flow.
+Every statement can be annotated with successor and predecessor
+information. Thus CIL provides an integrated program representation that can
+be used with routines that require an AST (e.g. type-based analyses and
+pretty-printers), as well as with routines that require a CFG (e.g., dataflow analyses).
+
+\section{Distribution}
+
+The file \ahref{cil-distrib.tar.gz}{cil-distrib.tar.gz} contains the complete source CIL
+distribution, consisting of the following files:
+
+\begin{tabbing}
+FilenameXXXXXXXXXXXXXXXXXXXXXXXXX \= DescriptionXXX \kill
+\t{Makefile}                    \= Makefile for building CIL \\
+\t{Makefile.ocaml}              \= A file that is included by \t{Makefile} \\
+\t{doc/}                        \= HTML documentation of the CIL API \\
+\t{obj/}                        \= Directory that will contain the compiled
+                                   CIL modules and executables\\
+\t{src/cil.ml,mli}              \= Definition of CIL abstract syntax and
+                                   utilities for manipulating it\\
+\t{src/clist.ml,mli}            \= Utilities for efficiently managing lists
+                                   that need to be concatenated often\\
+\t{src/errormsg.ml,mli}         \= Utilities for error reporting \\
+\t{src/frontc/}                 \= The parser and CIL converter \\
+\t{src/heapify.ml}              \= A CIL transformation that moves array local
+                                   variables from the stack to the heap \\
+\t{src/logcalls.ml,mli}         \= A CIL transformation that logs every
+                                   function call \\
+\t{src/logwrites.ml}            \= A CIL transformation that logs every memory
+                                   write \\
+\t{src/main.ml}                 \= A test application called \t{cilly} \\
+\t{src/pretty.ml,mli}           \= Utilities for pretty printing \\
+\t{src/stats.ml,mli}            \= Utilities for maintaining timing statistics
+\\
+\t{src/trace.ml,mli}            \= Utilities useful for printing debugging
+                                   information\\
+\t{src/util.ml}                 \= Miscellaneous functions and global variables
+\end{tabbing}
+
+\section{Installation}
+
+You will need OCaml release 3.02 or higher to build CIL. 
+
+\begin{enumerate}
+\item Unzip and untar the source distribution. This will create a directory
+      called \t{cil-distrib}. \\
+      \hsp\verb!gzip -d cil-distrib.tar.gz!\\
+      \hsp\verb!tar xvf cil.distrib.tar!
+\item Create an environment variable \t{ARCHOS} and set it to either
+      \t{X86\_LINUX} or \t{x86\_WIN32}.
+\item Enter the \t{cil-distrib} directory and run GNU make to build the 
+      distribution.\\
+      \hsp\verb!cd cil-distrib!\\
+      \hsp\verb!make!\\
+      \hsp\verb!make RELEASE=1!\\
+
+\item You can now run either the bytecode or native code version of the
+      \t{cilly} test application on a preprocessed C source file. For example,
+      to invoke \t{cilly} on \t{foo.i}, do one of the following:\\
+      \hsp\verb!obj/cilly.byte.exe foo.i!\\
+      \hsp\verb!obj/cilly.asm.exe foo.i!\\
+      You can give the option \verb!-help! to get a list of all
+      the options accepted by \t{cilly}.
+\end{enumerate}
+
+\section{CIL API Documentation} 
+Online documentation of the CIL API is available~\ahref{cil-api}{here}. This
+documentation is also included in the distribution, in the \t{doc}
+subdirectory. 
+
+\end{document}
+
+

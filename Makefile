@@ -39,10 +39,14 @@ clean:
 	\) -exec rm {} \;
 
 # build ocamldoc documentation tree
+
+.PHONY: odoc cil-distrib 
 odoc:
 	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
 	make -f Makefile.cil odoc $(MAKEOVERRIDES)
 
+cil-distrib:
+	make -f Makefile.cil cil-distrib $(MAKEOVERRIDES)
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
