@@ -280,6 +280,9 @@ $TEST->add3Tests("testrun/linux_signal", "_GNUCC=1");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
+$TEST->addTests("testrun/localinit", "", ['cil']);
+   $TEST->addBadComment("testrun/localinit-cil", "CIL bug: CIL moves definitions of locals to the beginning of the scope, even when this move is unsafe.");
+
 $TEST->addTests('testrun/longBlock', '', ['cil']);
 $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
