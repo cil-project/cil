@@ -1734,7 +1734,12 @@ let integerArrayLength (leno: exp option) : int =
         E.s (error "Initializing non-constant-length array\n  length=%a\n"
                d_exp len)
   end
-  
+
+(* sm: I'm sure something like this already exists, but ... *)
+let isNone (o : 'a option) : bool =
+  match o with
+  | None -> true
+  | Some _ -> false
 
 
 let annonCompFieldNameId = ref 0
@@ -3990,7 +3995,14 @@ and doInit
       let charinits =
 	let init c = A.NEXT_INIT, A.SINGLE_INIT(A.CONSTANT (A.CONST_CHAR [c]))
 	in
-	let collector = ref [init Int64.zero] in
+	let collector =
+	  (* ISO 6.7.8 para 14: final NUL added only if no size specified, or
+	   * if there is room for it; btw, we can't rely on zero-init of
+	   * globals, since this array might be a local variable *)
+          if ((isNone leno) or ((String.length s) < (integerArrayLength leno)))
+            then ref [init Int64.zero]
+            else ref []  
+        in
 	for pos = String.length s - 1 downto 0 do
 	  collector := init (Int64.of_int (Char.code (s.[pos]))) :: !collector
 	done;
@@ -4054,6 +4066,9 @@ and doInit
       normalSubobj so';
       let acc', initl' = doInit isconst setone so' acc charinits in
       if initl' <> [] then 
+        (* sm: see above regarding ISO 6.7.8 para 14, which is not implemented
+         * for wchar_t because, as far as I can tell, we don't even put in
+         * the automatic NUL (!) *)
         ignore (warn "Too many initializers for wchar_t array %t" whoami);
       (* Advance past the array *)
       advanceSubobj so;
