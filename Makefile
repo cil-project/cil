@@ -77,6 +77,8 @@ PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
 BASEDIR=/home/weimer/cvs/
+OLDPATCH=1
+PATCHINCLUDES=1
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), galvatron) # jlee's 
