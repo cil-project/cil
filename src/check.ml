@@ -903,6 +903,7 @@ let checkFile flags fl =
   H.clear compNames;
   H.clear compUsed;
   H.clear enumUsed;
+  H.clear typUsed;
   varNamesList := [];
   if !E.verboseFlag then 
     ignore (E.log "Finished checking file %s\n" fl.fileName);
