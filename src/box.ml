@@ -6,11 +6,11 @@ module H = Hashtbl
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)
 type expRes = 
-    typ * instr list * exp
+    typ * stmt list * exp
 
             (* Same for offsets *)
 type offsetRes = 
-    typ * instr list * offset
+    typ * stmt list * offset
 
 
 (*** Helpers *)            
@@ -29,7 +29,13 @@ let makeNewTypeName base =
 
    (* Make a type name, for use in type defs *)
 let typeName = function
-    Typedef (n, _, _, _) -> n
+    Typedef (n, _, _, _) -> 
+      let l = String.length n in
+      if l >= 7 && String.sub n 0 7 = "struct " then
+        "struct_" ^ String.sub n 7 (l - 7)
+      else if l >= 6 && String.sub n 0 6 = "union " then
+        "union_" ^ String.sub n 7 (l - 6) 
+      else n
   | TVoid(_) -> "void"
   | TInt(IInt,_) -> "int"
   | TInt(IUInt,_) -> "uint"
@@ -75,7 +81,7 @@ let fatPointerType base attrs =
                        };
                        { fstruct = tname;
                          fname   = "_b";
-                         ftype   = voidPtr;
+                         ftype   = voidPtrType;
                          fattr   = [];
                        }; ], 0, []) 
     in
@@ -95,13 +101,14 @@ let taggedType base attrs =
     H.find taggedTypes base
   with Not_found -> begin
     let tname = "tag_" ^ (typeName base) in (* The name *)
-    let sz = intSizeOf base in
+    let sz = intSizeOfNoExc base in
     let words = (sz + 3) lsr 2 in
+    let tagbytes = (words + 7) lsr 3 in
     let t = 
       TStruct(tname, [ { fstruct = tname;
                          fname   = "_t";
                          ftype   = TArray(charType, 
-                                          Some (integer words), []);
+                                          Some (integer tagbytes), []);
                          fattr   = [];
                        };
                        { fstruct = tname;
@@ -124,36 +131,60 @@ let taggedType base attrs =
 
 
 (**** FIXUP TYPE ***)
-let rec fixupType = function
-    (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) as t -> t
-  | TPtr (t, a) -> fatPointerType t a
-                                        (* No change since we will change the 
-                                         * type underneath  *)
-  | Typedef _ as t -> t
-  | TStruct(n, flds, _, a) as t -> 
+let rec fixupType t = 
+  match t with 
+    (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
+  | TPtr (t', a) -> fatPointerType (fixupType t') a
+                                        (* Hopefully all circularities are 
+                                         * through a pointer *)
+  | Typedef (_, _, rt, _) -> (* rt := fixupType (!rt);*)  t
+
+  | TStruct(n, flds, _, a) -> 
       List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) flds;
       t
 
-  | TUnion (n, flds, _, a) as t -> 
+  | TUnion (n, flds, _, a) -> 
       List.iter (fun fi -> fi.ftype <- fixupType fi.ftype) flds;
       t
 
-  | TArray(t, l, a) -> TArray(fixupType t, l, a)
+  | TArray(t', l, a) -> TArray(fixupType t', l, a)
 
   | TFun(rt,args,isva,a) -> 
       List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+      (* no tag on functions *)
       TFun(fixupType rt, args, isva, a)
 
-      
 
-          (* Check whether a type is represented by fat pointers *)
-let hasBase = function
-    TPtr _ -> true
-  | TArray _ -> true
+
+
+(**** We know in what function we are ****)
+let currentFunction : fundec ref  = ref dummyFunDec
+
+    (* Test if a type is FAT *)
+let isFatType t = 
+  match unrollType t with
+    TStruct(_, [p;b], _,_) when p.fname = "_p" && b.fname = "_b" -> true
   | _ -> false
 
+let getPtrFieldOfFat t = 
+  match unrollType t with
+    TStruct(_, [p;b], _,_) when p.fname = "_p" && b.fname = "_b" -> p
+  | _ -> E.s (E.bug "getPtrFieldOfFat %a\n" d_type t)
 
-(*
+   (* Test if we must check the return value *)
+let mustCheckReturn tret =
+  match unrollType tret with
+    TPtr _ -> true
+  | TArray _ -> true
+  | _ -> isFatType tret
+
+
+
+
+
+
+(*************************************88
+*****************************************
           (* A fat pointer type to be used for returning pointers *)
 let fatPointerPtrField = 
   { fstruct = "__fatptr";
@@ -215,41 +246,7 @@ let boxFile (fl: file) =
     (************ EXPRESSIONS **************)
     let rec boxexp (e : exp) : expRes = 
       match e with 
-        Const ((Int _ | Chr _), _) -> (TInt (IInt, []), [], e, zero)
-      | Const (Real _, _) -> (TFloat (FDouble, []), [], e, zero)
-      | Const (Str s, l) -> 
-          (* Add a tag to the string *)
-          let l = 1 + String.length s in 
-          let wrds = (l + 3) lsr 2 in   (* Number of words *)
-          let tagbytes = wrds lsr 2 in  (* Tag bytes *)
-          let tag = String.create (tagbytes + 4 + l) in
-          (* Zero out the tag *)
-          String.fill tag 0 tagbytes (Char.chr 0);
-          (* Write the length *)
-          String.set tag (tagbytes + 0) (Char.chr ((wrds)       land 255));
-          String.set tag (tagbytes + 1) (Char.chr ((wrds lsr  8) land 255));
-          String.set tag (tagbytes + 2) (Char.chr ((wrds lsr  16) land 255));
-          String.set tag (tagbytes + 3) (Char.chr ((wrds lsr  24) land 255));
-          (* Copy the original string *)
-          String.blit s 0 tag (tagbytes + 4) l;
-          let t1 = newTempVar fatStringType in
-          let t1ptr = Var(t1, Field(fatStringPtrField, NoOffset), l) in
-          let t1base = Var(t1, Field(fatStringBaseField, NoOffset), l) in
-          (TPtr (TInt(IChar,[]),[]), 
-           [ Set (t1ptr, Const (Str tag, l), l) ;
-             Set (t1ptr, 
-                  AddrOf (Var(t1, Field(fatStringPtrField, 
-                                        Index(Const(Int (tagbytes + 4), l),
-                                              NoOffset)))), l) ;
-             Set (t1base, LVar(t1ptr), l)],
-           LVal(t1ptr), LVal(t1base))
 
-      | LVal (Var(vi, off, l)) ->       (* Reading a variable *)
-          let (rest, dooff, off', off'base) = boxoffset off vi.vtype in
-          (rest, 
-           dooff, 
-           LVal(Var(vi, off', l)), 
-           if hasBase rest then LVal(Var(vi, off'base, l)) else zero)
                                         (* Reading a memory address *)
       | LVal (Mem(addr, off, l)) -> 
           let (addrt, doaddr, addr', addr'base) = boxexp addr in
@@ -312,141 +309,185 @@ let boxFile (fl: file) =
            AddrOf (Mem(e', off', l), l'), 
            e'base)
 
-    (************ LVALUE OFFSETS ***********)
-    and boxoffset (off : offset) (basety : typ) : offsetRes = 
-      match off with 
-        NoOffset -> 
-          if hasBase basety then
-            let ptrField, baseField = getFatPointerType basety in
-            (basety, [], 
-             Field (ptrField, NoOffset), 
-             Field (baseField, NoOffset))
-          else
-            (basety, [], NoOffset, NoOffset)
-             
-      | Index (e, resto) ->
-          let rest =                    (* The result type *)
-            match basety with
-              TPtr (t, _) -> t
-            | TArray (t, _, _) -> t
-            | _ -> E.i (E.bug "Index")
-          in
-          let (_, doe, e', _) = boxexp e in
-          let (rest, doresto, off', off'base) = boxoffset resto t in
-          (rest, doe @ doresto, Index(e', off'), Index(e', off'base))
-
-      | Field (fi, resto) ->
-          let (rest, doresto, off', off'base) = boxoffset resto fi.ftype in
-          (rest, doresto, Field(fi, off'), Field(fi, off'base))
-
-          
-
-    (************* STATEMENTS **************)
-    and boxstmt (s : stmt) : stmt = 
-      let makeStatement il = 
-        Compound (List.map (fun i -> Instruction i) il)
-      in
-      match s with 
-        Compound sl -> Compound (List.map boxstms sl)
-
-      | (Label _ | Jump _ | Case _ | Default) -> s
-
-      | While (e, s) -> 
-          let (et, doe, e', e'base) = boxexp e in
-          (* We allow casts from pointers to integers here *)
-          makeStatement (doe @ [While (e', boxstmt s)])
-
-      | IfThenElse (e, st, sf) -> 
-          let (et, doe, e', e'base) = boxexp e in
-          (* We allow casts from pointers to integers here *)
-          makeStatement (doe @ [IfThenElse (e', boxstmt st, boxstmt sf)])
-
-      | Return e -> 
-          let (_, doe, e', e'base) = boxexp e in
-          let doe' = 
-            match fdec.stype with 
-              TFun(tRes, _, _, _) when hasBase tRes -> 
-                doe @ 
-                (* check the safety of the access *)
-                [Call (None, Const (Str "CHECK_SAFERET", l),
-                       [ e'; e'base ], l)]
-            | _ -> doe
-          in
-          makeStatement (doe' @ [Return e'])
-
-      | Instruction (Set(Var(vi, off, l), e, l')) ->
-          let (rest, dooff, off', off'base) = boxoffset off vi.vtype in
-          let (_, doe, e', e'base) = boxexp (CastE (e, rest)) in
-          makeStatement (dooff @ doe @ 
-                         (Set(Var(vi, off', l), e', l') ::
-                          (if hasBase rest then 
-                            [Set(Var(vi,off'base,l), e'base, l')]
-                          else
-                            [])))
-
-      | Instruction (Set(Mem(addr, off, l), e, l')) ->
-          let (addrt, doaddr, addr', addr'base) = boxexp addr in
-          let (rest, dooff, off', off'base) = boxoffset off addrt in
-          let newlval = Mem(addr', off', l) in
-          let setbase, check = 
-            if hasBase rest then
-              [Set(Mem(addr',off'base,l), e'base, l')], "CHECK_SAFEWRFAT"
-            else
-              [], "CHECK_SAFEWRLEAN"
-          in
-          makeStatement (doaddr @ dooff @ 
-                         (Call (None, Const (Str check, l),
-                                [ AddrOf(LVal(newlval)); 
-                                  addr'base;
-                                  e']) ::
-                          Set(newlval, e', l') :: setbase))
-          
-
-      | Instruction (Call(vi, f, args, l)) ->
-          let (ft, dof, f', _) = boxexp f in
-          let (ftret, ftargs) =
-            match ft with 
-              TFun(fret, fargs, _, _) -> (fret, fargs) 
-            | _ -> E.i (E.bug "call of a non-function") 
-          in
-          let rec doArgs restargs restargst = 
-            match restargs, restargst with
-              [], [] -> [], []
-            | a :: resta, t :: restt -> 
-                let (_, doa, a', a'base) = boxexp a in
-                let (doresta, resta') = doArgs resta restt in
-                (doa @ doresta, 
-                 a' :: (if hasBase t then  a'base :: resta' else resta'))
-            | _ -> E.i (E.bug "vararg")
-          in
-          let (doargs, args') = doArgs args ftargs in
-          makeStatement 
-            (dolv @ dof @ doargs @ [Call (vi, f', args', l)])
-    in
-    let newfunc = { fdec with sbody = boxstmt fdec.sbody} 
-    in
-    newfunc
-
-  in
-    (* Now the processing of globals *)
-  let doGlobal = function
-    | GFun f -> GFun (boxFunc f)
-    | x -> x
-  in
-  List.map doGlobal fl
 *)
 
+    (************* STATEMENTS **************)
+let rec boxstmt (s : stmt) : stmt = 
+  try
+    match s with 
+      Sequence sl -> mkSeq (List.map boxstmt sl)
+          
+    | (Label _ | Goto _ | Case _ | Default | Skip | Return None) -> s
+          
+    | Loop s -> Loop (boxstmt s)
+          
+    | IfThenElse (e, st, sf) -> 
+        let (_, doe, e') = boxexp (CastE(intType, e, lu)) in
+          (* We allow casts from pointers to integers here *)
+        mkSeq (doe @ [IfThenElse (e', boxstmt st, boxstmt sf)])
+          
+    | Return (Some e) -> 
+        let (_, doe, e') = boxexp e in
+        let doe' = 
+          match !currentFunction.stype with 
+            TFun(tRes, _, _, _) when mustCheckReturn tRes -> 
+              let whichcheck = 
+                if isFatType tRes then 
+                  "CHECK_SAFERETFAT" 
+                else 
+                  "CHECK_SAFERET"
+              in
+              doe @ 
+                (* check the safety of the access *)
+              [call None (Const (CStr whichcheck, lu)) [ e' ]]
+          | _ -> doe
+        in
+        mkSeq (doe' @ [Return (Some e')])
+          
+    | Instruction (Set(Var(vi, off, l), e, l')) ->
+        let (rest, dooff, off') = boxoffset off vi.vtype in
+        let (_, doe, e') = boxexp (CastE (rest, e, l)) in
+        mkSeq (dooff @ doe @ [Instruction(Set(Var(vi, off', l), e', l'))])
+(*        
+  | Instruction (Set(Mem(addr, off, l), e, l')) ->
+      let (addrt, doaddr, addr') = boxexp addr in
+      let (rest, dooff, off') = boxoffset off addrt in
+      let newlval = Mem(addr', off', l) in
+      let setbase, check = 
+        if hasBase rest then
+          [Set(Mem(addr',off'base,l), e'base, l')], "CHECK_SAFEWRFAT"
+        else
+          [], "CHECK_SAFEWRLEAN"
+      in
+      makeStatement (doaddr @ dooff @ 
+                     (Call (None, Const (Str check, l),
+                            [ AddrOf(LVal(newlval)); 
+                              addr'base;
+                              e']) ::
+                      Set(newlval, e', l') :: setbase))
+        
+*)        
+    | Instruction (Call(vi, f, args, l)) ->
+        let (ft, dof, f') = boxexp f in
+        let (ftret, ftargs) =
+          match ft with 
+            TFun(fret, fargs, _, _) -> (fret, fargs) 
+          | _ -> E.s (E.unimp "call of a non-function") 
+        in
+        let rec doArgs restargs restargst = 
+          match restargs, restargst with
+            [], [] -> [], []
+          | a :: resta, t :: restt -> 
+              let (_, doa, a') = boxexp a in
+              let (doresta, resta') = doArgs resta restt in
+              (doa @ doresta,  a' :: resta')
+          | _ -> E.s (E.unimp "vararg")
+        in
+        let (doargs, args') = doArgs args ftargs in
+        mkSeq (dof @ doargs @ [call vi f' args'])
+          
+    | s -> E.s (E.unimp "boxstmt: %a\n" d_stmt s)
+  with e -> begin
+    ignore (E.log "boxstmt (%s)\n" (Printexc.to_string e));
+    Instruction(Asm(["booo statement"], false, [], [], []))
+  end
+
+and boxoffset (off : offset) (basety : typ) : offsetRes = 
+  match off with 
+    NoOffset -> 
+      if isFatType basety then
+        let fi = getPtrFieldOfFat basety in
+        (fi.ftype, [], Field (getPtrFieldOfFat basety, NoOffset))
+      else
+        (basety, [], NoOffset)
+             
+  | Index (e, resto) ->
+      let rest =                    (* The result type *)
+        match basety with
+          TPtr (t, _) -> t
+        | TArray (t, _, _) -> t
+        | _ -> E.s (E.bug "Index")
+      in
+      let (_, doe, e') = boxexp e in
+      let (rest', doresto, off') = boxoffset resto rest in
+      (rest', doe @ doresto, Index(e', off'))
+        
+  | Field (fi, resto) ->
+      let (rest, doresto, off') = boxoffset resto fi.ftype in
+      (rest, doresto, Field(fi, off'))
+        
+  | _ -> begin
+      ignore (E.log "boxoffset\n");
+      (charPtrType, [], NoOffset) 
+  end 
+        
+
+and boxexp (e : exp) : expRes = 
+  match e with
+  | Lval (Var(vi, off, l)) ->       (* Reading a variable *)
+      let (rest, dooff, off') = boxoffset off vi.vtype in
+      (rest, dooff, Lval(Var(vi, off', l)))
+
+  | Const ((CInt _ | CChr _), _) -> (intType, [], e)
+  | Const (CReal _, _) -> (doubleType, [], e)
+(*
+  | Const (CStr s, l) -> 
+          (* Add a tag to the string *)
+      let l = 1 + String.length s in 
+      let wrds = (l + 3) lsr 2 in   (* Number of words *)
+      let tagbytes = wrds lsr 2 in  (* Tag bytes *)
+      let tag = String.create (tagbytes + 4 + l) in
+          (* Zero out the tag *)
+      String.fill tag 0 tagbytes (Char.chr 0);
+          (* Write the length *)
+      String.set tag (tagbytes + 0) (Char.chr ((wrds)       land 255));
+      String.set tag (tagbytes + 1) (Char.chr ((wrds lsr  8) land 255));
+      String.set tag (tagbytes + 2) (Char.chr ((wrds lsr  16) land 255));
+      String.set tag (tagbytes + 3) (Char.chr ((wrds lsr  24) land 255));
+          (* Copy the original string *)
+      String.blit s 0 tag (tagbytes + 4) l;
+      let t1 = newTempVar fatStringType in
+      let t1ptr = Var(t1, Field(fatStringPtrField, NoOffset), l) in
+      let t1base = Var(t1, Field(fatStringBaseField, NoOffset), l) in
+      (charPtrType, 
+       [ mkSet t1ptr (mkString tag) ;
+         mkSet t1ptr 
+              AddrOf (Var(t1, Field(fatStringPtrField, 
+                                    Index(Const(Int (tagbytes + 4), l),
+                                          NoOffset)))), l) ;
+         Set (t1base, LVar(t1ptr), l)],
+       LVal(t1ptr), LVal(t1base))
+*)
+  | _ -> begin
+      ignore (E.log "boxexp: %a\n" d_exp e);
+      (charPtrType, [], mkString "booo expression")
+  end
 
 let boxFile globals =
   let doGlobal = function
     | GVar (vi, init) as g -> 
-        let newType = fixupType vi.vtype in
+        let newType = 
+          let fixtype = fixupType vi.vtype in
+          match fixtype with
+            TFun _ -> fixtype           (* No tagging on prototypes *)
+          | _ -> taggedType fixtype []
+        in
         vi.vtype <- newType;
         theFile := g :: !theFile
     | GType (n, t) as g -> 
         theFile := GType (n, fixupType t) :: !theFile
 
-    | x -> theFile := x :: !theFile
+    | GFun f -> 
+        (* Fixup the types of locals *)
+        List.iter (fun l -> l.vtype <- fixupType l.vtype) f.slocals;
+        (* Fixup the return type as well *)
+        f.stype <- fixupType f.stype;
+        currentFunction := f;           (* so that maxid and locals can be 
+                                         * updated in place *)
+        f.sbody <- boxstmt f.sbody;
+        theFile := GFun f :: !theFile
+
+    | (GAsm s) as g -> theFile := g :: !theFile
   in
   List.iter doGlobal globals;
   List.rev (!theFile)

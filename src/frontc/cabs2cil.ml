@@ -7,26 +7,6 @@ open Pretty
 open Cil
 
 
-(*** Helper ***)
-let var vi = Var(vi,NoOffset,locUnknown)
-let lu = locUnknown
-let integer n = Const(CInt(n, None), lu)
-let mkSet lv e = Instruction(Set(lv,e,lu))
-let intType = TInt(IInt,[])
-let assign vi e = mkSet (var vi) e
-
-let mkSeq sl = 
-  let rec removeSkip = function 
-      [] -> []
-    | Skip :: rest -> removeSkip rest
-    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
-    | s :: rest -> s :: removeSkip rest
-  in
-  match removeSkip sl with 
-    [] -> Skip
-  | [s] -> s
-  | sl' -> Sequence(sl')
-
 
 (*** EXPRESSIONS *************)
 (*** As we translate expressions we need an environment ***)
@@ -1219,38 +1199,6 @@ and doBody (decls, s) : stmt list =
     end
 
 
-(*** Take a statement and fix the vaddrof fields or variables *)
-let fixAddrOf body = 
-  let rec fExp = function
-      (Const _|SizeOf _) -> ()
-    | Lval lv -> fLval lv
-    | UnOp(_,e,_,_) -> fExp e
-    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
-    | CastE(_, e,_) -> fExp e
-    | Compound (_, el) -> List.iter fExp el
-    | AddrOf (Var(vi,off,_),_) -> fOff off; vi.vaddrof <- true
-    | AddrOf (Mem(e,off,_),_) -> fExp e; fOff off
-  and fLval = function
-      Var(_,off,_) -> fOff off
-    | Mem(e,off,_) -> fExp e; fOff off
-  and fOff = function
-      Field (_, o) -> fOff o
-    | Index (e, o) -> fExp e; fOff o
-    | CastO (_, o) -> fOff o
-    | NoOffset -> ()
-  and fStmt = function
-      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
-    | Sequence s -> List.iter fStmt s
-    | Loop s -> fStmt s
-    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
-    | Return(Some e) -> fExp e
-    | Switch (e, s) -> fExp e; fStmt s
-    | Instruction(Set(lv,e,_)) -> fLval lv; fExp e
-    | Instruction(Call(_,f,args,_)) -> fExp f; List.iter fExp args
-    | Instruction(Asm(_,_,_,ins,_)) -> 
-        List.iter (fun (_, e) -> fExp e) ins
-  in
-  fStmt body
     
 (* Translate a file *)
 let convFile dl = 
@@ -1395,7 +1343,12 @@ let convFile dl =
                          stype    = ftype;
                        } 
             in
-            fixAddrOf fdec.sbody;
+            (* Fix the vaddrof flag *)
+            let fixAddrExp = function
+                AddrOf (Var(vi, _, _), _) -> vi.vaddrof <- true
+              | _ -> ()
+            in
+            iterExp fixAddrExp fdec.sbody;
             theFile := GFun fdec :: !theFile
           with e -> begin
             ignore (E.log "error in collectFunction %s: %s\n" 

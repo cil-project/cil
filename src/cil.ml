@@ -191,19 +191,20 @@ and stmt =
         
 type fundec = 
     { sname: string;                    (* function name *)
-      slocals: varinfo list;            (* locals *)
-      smaxid: int;                      (* max local id. Starts at 0 *)
-      sbody: stmt;                      (* the body *)
-      stype: typ;                       (* the function type *)
-      sstorage: storage;
-      sattr: attribute list;
+      mutable slocals: varinfo list;    (* locals *)
+      mutable smaxid: int;              (* max local id. Starts at 0 *)
+      mutable sbody: stmt;              (* the body *)
+      mutable stype: typ;               (* the function type *)
+      mutable sstorage: storage;
+      mutable sattr: attribute list;
     } 
 
 type global = 
     GFun of fundec
   | GType of string * typ               (* A typedef *)
   | GVar of varinfo * exp option        (* A global variable with 
-                                         * initializer. Includes function prototypes *)
+                                         * initializer. Includes function 
+                                         * prototypes  *)
   | GAsm of string                      (* Global asm statement *)
     
 type file = global list
@@ -628,13 +629,35 @@ let lu = locUnknown
 let integer i = Const (CInt(i, None), lu)
 let zero = integer 0
 
-let voidPtr = TPtr(TVoid([]), [])
+let voidType = TVoid([])
 let intType = TInt(IInt,[])
 let charType = TInt(IChar, [])
-let charPtr = TPtr(charType,[])
+let charPtrType = TPtr(charType,[])
+let voidPtrType = TPtr(voidType, [])
+let doubleType = TFloat(FDouble, [])
+
+let var vi = Var(vi,NoOffset,locUnknown)
+let mkSet lv e = Instruction(Set(lv,e,lu))
+let assign vi e = mkSet (var vi) e
+let call res f args = Instruction(Call(res,f,args,lu))
+
+let mkString s = Const(CStr s, lu)
+
+let mkSeq sl = 
+  let rec removeSkip = function 
+      [] -> []
+    | Skip :: rest -> removeSkip rest
+    | Sequence (sl) :: rest -> removeSkip (sl @ rest)
+    | s :: rest -> s :: removeSkip rest
+  in
+  match removeSkip sl with 
+    [] -> Skip
+  | [s] -> s
+  | sl' -> Sequence(sl')
+
 
   (* Compute some sizeOf to help with constant folding *)
-let rec intSizeOf = function
+let rec intSizeOf = function            (* Might raise Not_found *)
     TInt((IUChar|IChar|ISChar), _) -> 1
   | TInt((IShort|IUShort), _) -> 2
   | TInt((ILong|IULong), _) -> 4
@@ -654,9 +677,63 @@ let rec intSizeOf = function
       loop flds
   | _ -> raise Not_found
 
+and intSizeOfNoExc t = 
+  try
+    intSizeOf t
+  with Not_found -> 
+    E.s (E.unimp "Cannot compute the sizeof(%a)\n" d_type t)
+
 and sizeOf t = 
   try
     integer (intSizeOf t) 
   with Not_found -> SizeOf(t, lu)
 
 and align n = ((n + 3) lsr 2) lsl 2
+
+
+ (* Scan all the expressions in a statement *)
+let iterExp (f: exp -> unit) (body: stmt) : unit = 
+  let rec fExp e = f e; fExp' e
+  and fExp' = function
+      (Const _|SizeOf _) -> ()
+    | Lval lv -> fLval lv
+    | UnOp(_,e,_,_) -> fExp e
+    | BinOp(_,e1,e2,_,_) -> fExp e1; fExp e2
+    | CastE(_, e,_) -> fExp e
+    | Compound (_, el) -> List.iter fExp el
+    | AddrOf (lv,_) -> fLval lv
+
+  and fLval = function
+      Var(_,off,_) -> fOff off
+    | Mem(e,off,_) -> fExp e; fOff off
+  and fOff = function
+      Field (_, o) -> fOff o
+    | Index (e, o) -> fExp e; fOff o
+    | CastO (_, o) -> fOff o
+    | NoOffset -> ()
+  and fStmt = function
+      (Skip|Break|Continue|Label _|Goto _|Case _|Default|Return None) -> ()
+    | Sequence s -> List.iter fStmt s
+    | Loop s -> fStmt s
+    | IfThenElse (e, s1, s2) -> fExp e; fStmt s1; fStmt s2
+    | Return(Some e) -> fExp e
+    | Switch (e, s) -> fExp e; fStmt s
+    | Instruction(Set(lv,e,_)) -> fLval lv; fExp e
+    | Instruction(Call(_,f,args,_)) -> fExp f; List.iter fExp args
+    | Instruction(Asm(_,_,_,ins,_)) -> 
+        List.iter (fun (_, e) -> fExp e) ins
+  in
+  fStmt body
+
+
+    (* A dummy function declaration handy for initialization *)
+let dummyFunDec = 
+  { sname = "@dummy";
+    stype = TFun(voidType, [], false,[]);
+    sattr = [];
+    smaxid = 0;
+    slocals = [];
+    sstorage = NoStorage;
+    sbody = Skip;
+  } 
+
