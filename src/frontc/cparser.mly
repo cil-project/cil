@@ -27,13 +27,6 @@ let smooth_expression lst =
   | [expr] -> expr
   | _ -> COMMA (lst)
 
-let list_expression expr =
-  match expr with
-    COMMA lst -> lst
-  | NOTHING -> []
-  | _ -> [expr]
-
-
 
 let currentFunctionName = ref "<outside any function>"
     
@@ -97,7 +90,7 @@ let doFunctionDef (loc: cabsloc)
 
 
 let doOldParDecl (names: string list)
-                 (pardefs: name_group list) : single_name list =
+                 ((pardefs: name_group list), (isva: bool)) : single_name list * bool =
   let findOneName n =
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
@@ -112,7 +105,7 @@ let doOldParDecl (names: string list)
     in
     loopGroups pardefs
   in
-  List.map findOneName names
+  (List.map findOneName names, isva)
 
 let checkConnective (s : string) : unit =
 begin
@@ -209,7 +202,7 @@ end
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression
 %type <Cabs.init_expression> init_expression
-%type <Cabs.expression list> comma_expression paren_comma_expression
+%type <Cabs.expression list> comma_expression paren_comma_expression arguments
 %type <Cabs.expression list> bracket_comma_expression
 %type <string> string_list
 
@@ -223,7 +216,6 @@ end
 
 
 %type <Cabs.name> old_proto_decl
-%type <Cabs.single_name list> parameter_list
 %type <Cabs.single_name> parameter_decl
 %type <Cabs.enum_item> enumerator
 %type <Cabs.enum_item list> enum_list
@@ -274,10 +266,10 @@ global:
     * scope it looks too much like a function call  *) */
 | location   IDENT LPAREN old_parameter_list RPAREN old_pardef_list SEMICOLON
                            { (* Convert pardecl to new style *)
-                             let pardecl = doOldParDecl $4 $6 in
+                             let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE, pardecl,false), []),
+                               [(($2, PROTO(JUSTBASE, pardecl,isva), []),
                                  NO_INIT)]
                             }
 /* transformer for a toplevel construct */
@@ -347,8 +339,8 @@ expression:
 		        { GNU_BODY $2 }
 |		paren_comma_expression
 		        {(smooth_expression $1)}
-|		expression LPAREN opt_expression RPAREN
-			{CALL ($1, list_expression $3)}
+|		expression LPAREN arguments RPAREN
+			{CALL ($1, $3)}
 |		expression bracket_comma_expression
 			{INDEX ($1, smooth_expression $2)}
 |		expression QUEST opt_expression COLON expression
@@ -477,6 +469,10 @@ gcc_init_designators:  /*(* GCC supports these strange things *)*/
    id_or_typename COLON                 { INFIELD_INIT($1, NEXT_INIT) }
 ;
 
+arguments: 
+                /* empty */         { [] }
+|               comma_expression    { $1 }
+;
 
 opt_expression:
 	        /* empty */
@@ -753,14 +749,7 @@ rest_par_list1:
                                         }  
 ;    
 
-parameter_list_ne: /* (* ISO 6.7.5 *) */
-|   parameter_decl                        { [$1] }
-|   parameter_list_ne COMMA parameter_decl   { $1 @ [$3] }
-;
-parameter_list: 
-|   /* empty */                           { [] }
-|  parameter_list_ne                      { $1 }
-;
+
 parameter_decl: /* (* ISO 6.7.5 *) */
    decl_spec_list declarator              { ($1, $2) }
 |  decl_spec_list abstract_decl           { let d, a = $2 in
@@ -776,31 +765,32 @@ old_proto_decl:
 ;
 direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list RPAREN old_pardef_list
-                                   { let par_decl = doOldParDecl $3 $5 in
+                                   { let par_decl, isva = doOldParDecl $3 $5 in
                                      let n, decl = $1 in
-                                     (n, PROTO(decl, par_decl, false), [])
+                                     (n, PROTO(decl, par_decl, isva), [])
                                    }
 ;
 
 old_parameter_list: 
 |  IDENT                                       { [$1] }
-|  old_parameter_list COMMA IDENT              { $1 @ [$3]} 
-;
-
-old_pardef_list_ne: 
-|  decl_spec_list old_pardef SEMICOLON old_pardef_list   
-                                     {($1, $2) :: $4 }
+|  IDENT COMMA old_parameter_list              { let rest = $3 in
+                                                 ($1 :: rest) }
 ;
 
 old_pardef_list: 
-   /* empty */                            { [] }
-|  old_pardef_list_ne                     { $1 }
+   /* empty */                            { ([], false) }
+|  decl_spec_list old_pardef SEMICOLON ELLIPSIS
+                                          { ([($1, $2)], true) }  
+|  decl_spec_list old_pardef SEMICOLON old_pardef_list  
+                                          { let rest, isva = $4 in
+                                            (($1, $2) :: rest, isva) 
+                                          }
 ;
 
 old_pardef: 
    declarator                             { [$1] }
-|  error                                  { [] }
 |  declarator COMMA old_pardef            { $1 :: $3 }
+|  error                                  { [] }
 ;
 
 
@@ -873,20 +863,23 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                               ($1, $2, $3) 
                             } 
 /* (* New-style function that does not have a return type *) */
-| location        IDENT LPAREN parameter_list RPAREN 
-                           { let fdec = ($2, PROTO(JUSTBASE, $4, false), []) in
+| location        IDENT parameter_list_startscope rest_par_list RPAREN 
+                           { let (params, isva) = $4 in
+                             let fdec = 
+                               ($2, PROTO(JUSTBASE, params, isva), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
                              ($1, defSpec, fdec) 
                            }
+
 /* (* No return type and old-style parameter list *) */
 | location        IDENT LPAREN old_parameter_list RPAREN old_pardef_list
                            { (* Convert pardecl to new style *)
-                             let pardecl = doOldParDecl $4 $6 in
+                             let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              let fdec = ($2, 
-                                         PROTO(JUSTBASE, pardecl,false), []) in
+                                         PROTO(JUSTBASE, pardecl,isva), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in

@@ -4476,7 +4476,8 @@ let convFile fname dl =
                   | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
                       Some (doCastT zero intType rt)
                   | _ ->
-                      E.s (unimp "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname)
+                      ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" fdec.svar.vname);
+                      None
                 in
                 fdec.sbody.bstmts <- 
                    fdec.sbody.bstmts 

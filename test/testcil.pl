@@ -68,17 +68,23 @@ my %commonerrors =
              $_[1]->{ErrorCode} = $_[1]->{instage};
          }},
     
-    "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
+    "[sS]yntax error" => sub { $_[1]->{ErrorCode} = 1000; },
     
          # Collect some more parameters
          # Now error messages
-    "^(Bug: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(Error: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(Unimplemented: .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(.+ : error .+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(.+:\\d+: [^w].+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^(.+: fatal error.+)\$" => sub { $_[1]->{ErrorMsg} = $_[2]; },
-    "^stackdump: Dumping stack trace" => sub { $_[1]->{ErrorMsg} = $_[2]; },
+    "^((Error|Bug|Unimplemented): .+)\$" 
+                      => sub { if(! defined $_[1]->{ErrorMsg}) {
+                                 $_[1]->{ErrorMsg} = $_[2];} },
+    "^(.+ : error .+)\$" => sub { if(! defined $_[1]->{ErrorMsg}) {
+                                     $_[1]->{ErrorMsg} = $_[2];} },
+    "^(.+:\\d+: (Error|Unimplemented|Bug):.+)\$" 
+                     => sub { if(! defined $_[1]->{ErrorMsg}) {
+                                       $_[1]->{ErrorMsg} = $_[2];} },
+    "^(.+: fatal error.+)\$" => sub { if(! defined $_[1]->{ErrorMsg}) {
+                                         $_[1]->{ErrorMsg} = $_[2];} },
+    "^stackdump: Dumping stack trace" => 
+                   sub { if(! defined $_[1]->{ErrorMsg}) {
+                         $_[1]->{ErrorMsg} = $_[2];} },
 
 #
 # Now collect some parameters
@@ -204,6 +210,10 @@ $TEST->add2Tests("testrun/vararg2");
 $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
+$TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
+$TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
+$TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
+$TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
 $TEST->add3Tests("test/seq");
 $TEST->add3Tests("test/sized");
@@ -436,14 +446,37 @@ $TEST->addTests("scott/unionassign", "", ['inferbox', 'box']);
 my $ctorture = '/usr/local/src/gcc/gcc/testsuite/gcc.c-torture';
 if(-d $ctorture && 
    defined $TEST->{option}->{group} &&
-   grep { $_ eq 'ctorture'} @{$TEST->{option}->{group}}) {
+    grep { $_ eq 'ctorture'} @{$TEST->{option}->{group}}) {
     
+    # Omit some tests because they use __complex__
+    my @omit = ('compile/20000804-1', 'compile/20001222-1', 'compile/941019-1',
+                'compile/981223-1', 'compile/991213-1', 'compile/20010605-2',
+                'compile/960512-1', 'compile/complex-1', 
+                'compile/complex-2', 'compile/complex-4', 
+                'compile/complex-5');
+
+    # Also omit those with inner functions
+    push @omit, 
+    ('compile/951116-1', 'compile/920415-1',
+     'execute/920415-1', 'compile/20010605-1', 
+     'execute/20010605-1', 'compile/20011023-1',
+     'compile/20010903-2', 'execute/comp-goto-2', 'execute/nestfunc-2',
+     'execute/921215-1', 'execute/920428-2', 'execute/921017-1',
+     'execute/nest-stdar-1', 'execute/nestfunc-3', 'execute/920501-7', 
+     'execute/920721-4', 'execute/920612-2', 'execute/20010209', 
+     'execute/931002-1', 'execute/nestfunc-1', 'execute/20000822-1');
+
     # Read the compile tests 
    my @tortures;
    foreach my $tortdir ('compile', 'execute', 'compat') { 
        @tortures = 
            map { $_ =~ m|$ctorture/$tortdir/(.+)\.c|; $1 } 
                  (glob "$ctorture/$tortdir/*.c");
+       # Remove those that were produced in previous runs
+       @tortures = grep { $_ !~ m|cil$| } @tortures;
+       # Remove those that we know should fail
+       @tortures = grep { my $t = "$tortdir/$_"; 
+                          ! grep { $_ =~ m|$t|} @omit } @tortures;
        foreach my $tst (@tortures) {
            $TEST->addTests("tort/$tortdir/$tst", "_GNUCC=1", ['cil']); 
            $TEST->addGroups("tort/$tortdir/$tst-cil", 'ctorture');
@@ -666,3 +699,5 @@ sub add2Group {
 
 
 1;
+
+
