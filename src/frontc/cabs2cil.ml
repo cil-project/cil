@@ -1021,8 +1021,8 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TPtr _, TArray(_,_,_) -> (nt, e)
 
   | TEnum _, TInt _ -> (nt, e)
-  | TFloat _, TInt _ -> (nt, doCastT e ot nt)
-  | TInt _, TFloat _ -> (nt, doCastT e ot nt)
+  | TFloat _, (TInt _|TEnum _) -> (nt, doCastT e ot nt)
+  | (TInt _|TEnum _), TFloat _ -> (nt, doCastT e ot nt)
   | TFloat _, TFloat _ -> (nt, doCastT e ot nt)
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
