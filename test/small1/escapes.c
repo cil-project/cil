@@ -13,6 +13,16 @@ char escapes[]=
    "\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f";
 
 
+//This fails on CCured when i gets to 0x80 because of sign extension problems.
+//CCured drops some intermediate casts, assuming that they have no effect, 
+//but this is a problem for sign extension on scalars.  In this case,
+//   (unsigned char)escapes[i]  != i 
+//becomes 
+//   (int)(unsigned char)escapes[i]  != (int)i 
+//in BinOp.  But CCured then omits the unsigned char cast and does this:
+//   (int)escapes[i]  != (int)i 
+//which does a sign-extended conversion to it when it shouldn't.
+
 int main(){
   unsigned char i;
   for (i = 0; i < 144; i++){
