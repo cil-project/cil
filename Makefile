@@ -1134,7 +1134,7 @@ compress: defaulttarget mustbegcc
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                   --keep=safeccout $(OPT_O2)
+                   --keep=safeccout
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \

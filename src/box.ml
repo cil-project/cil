@@ -632,10 +632,10 @@ let freeFun =
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
-(* sm: for tagged heapified areas; this isn't the best soln, but it works *)
-let free_wFun =
-  let fdec = emptyFunction "free_w" in
-  let argp  = makeLocalVar fdec "area" voidPtrType in   (* e.g. this ptr type is wrong *)
+(* sm: for tagged heapified areas *)
+let freeMinus4Fun =
+  let fdec = emptyFunction "free_minus4" in
+  let argp  = makeLocalVar fdec "area" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
   fdec
 
@@ -4040,7 +4040,7 @@ let boxFile file =
                       * that's hard)  *)
                      call None 
                        (Lval (var 
-                                (if istagged then free_wFun.svar 
+                                (if istagged then freeMinus4Fun.svar 
                                 else freeFun.svar)))
                        [Lval (var heapVar)] 
                      :: !heapifiedFree;
