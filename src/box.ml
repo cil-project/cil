@@ -23,6 +23,7 @@ let currentFunction : fundec ref  = ref dummyFunDec
 let currentFile     : file ref = ref dummyFile
 let currentFileId     = ref 0
 
+let extraGlobInit : stmt list ref = ref []
 
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
@@ -57,9 +58,12 @@ let d_fexp () = function
       dprintf "FM(%a, %a, %a, %a)" N.d_pointerkind k d_exp ep d_exp eb d_exp ee
   | FC(_, k, _, _, e) ->  dprintf "FC(%a, %a)" N.d_pointerkind k d_exp e
   
-let leaveAlone =
-  ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
-   "_CrtDbgReport" (*; "_IO_2_1_stdin_"*) ]
+let leaveAlone : (string, bool) H.t =
+  let h = H.create 17 in
+  List.iter (fun s -> H.add h s true)
+    ["printf"; "fprintf"; "sprintf"; "snprintf"; "sscanf"; "_snprintf";
+      "_CrtDbgReport" ];
+  h
 
 (* sm: the above appears to be for functions only *)
 let leaveAloneGlobVars = [
@@ -1701,7 +1705,7 @@ let fixupGlobName vi =
     | TForward _ -> acc (* Do not go into recursive structs *)
   in
   if vi.vglob && vi.vstorage <> Static &&
-    not (List.exists (fun la -> la = vi.vname) leaveAlone) &&
+    not (H.mem leaveAlone vi.vname) &&
     not (H.mem mangledNames vi.vname) then
     begin
       let quals = qualNames [] vi.vtype in
@@ -1794,8 +1798,7 @@ and boxinstr (ins: instr) (l: location): stmt =
         in
         let leavealone = 
           match f' with
-            Lval(Var vf, NoOffset) 
-              when List.exists (fun s -> s = vf.vname) leaveAlone -> true
+            Lval(Var vf, NoOffset) -> H.mem leaveAlone vf.vname
           | _ -> false 
         in
         let (doargs, args') =
@@ -2157,7 +2160,7 @@ and boxfunctionexp (f : exp) =
       (* Sometimes it is possible that we have not seen this varinfo. Maybe 
        * it was introduced by the type inferencer to mark an independent copy 
        * of the function *)
-      if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
+      if not (H.mem leaveAlone vi.vname) then begin
         vi.vtype <- fixupType vi.vtype;
         fixupGlobName vi
       end;
@@ -2174,15 +2177,15 @@ and boxfunctionexp (f : exp) =
 
 
 (********** Initialize variables ***************)
+let iterVars : (int, varinfo) H.t = H.create 13
 let makeIterVar f = 
-  let iVar : varinfo option ref = ref None in (* Memoize *)
   fun () -> 
-    match !iVar with
-      Some i -> i
-    | None -> begin
-        let i = makeTempVar f ~name:"iter" intType in
-        iVar := Some i;
-        i
+    try
+      H.find iterVars f.svar.vid
+    with Not_found -> begin
+      let i = makeTempVar f ~name:"iter" intType in
+      H.add iterVars f.svar.vid i;
+      i
     end
 
 (* Create and accumulate the initializer for a variable *)
@@ -2192,8 +2195,6 @@ let initializeVar (mkivar: unit -> varinfo)
                    : stmt list = 
   (* Maybe it must be tagged *)
   if mustBeTagged v then begin
-    let newtype = tagType v.vtype in
-    v.vtype <- newtype;
    (* Generates code that initializes vi. Needs "iter", an integer variable 
     * to be used as a for loop index  *)
     let iter = mkivar () in
@@ -2221,6 +2222,7 @@ let initializeVar (mkivar: unit -> varinfo)
           match comp.cfields with
             [s; a] when s.fname = "_size" && a.fname = "_array" ->
               (* Sized arrays *)
+              (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
               let bt, l = match unrollType a.ftype with
                 TArray(bt, Some l, _) -> bt, l
               | _ -> E.s (E.unimp "Sized array of unknown length")
@@ -2247,7 +2249,7 @@ let initializeVar (mkivar: unit -> varinfo)
                 comp.cfields
       end
       | TArray(bt, Some l, a) -> 
-          if filterAttributes "nullterm" a <> [] then begin
+          if filterAttributes "nullterm" a <> [] && not v.vglob then begin
             (* Write a zero at the very end *)
             (match unrollType bt with
               TInt((IChar|ISChar|IUChar), _) -> ()
@@ -2264,7 +2266,7 @@ let initializeVar (mkivar: unit -> varinfo)
             in
             initForType bt doforarray acc
           
-      | TPtr (bt, a) when not v.vglob -> begin
+      | TPtr (bt, a) -> begin
           (* If a non-wild pointer then initialize to zero *)
         let mustinit = 
           not v.vglob &&
@@ -2278,6 +2280,7 @@ let initializeVar (mkivar: unit -> varinfo)
         else 
           acc
       end
+      | TFun _ -> acc (* Probably a global function prototype *)
       | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
     in
     initForType v.vtype 
@@ -2349,6 +2352,8 @@ let boxFile file =
             let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
             l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
             l.vtype <- fixupType newt;
+            if mustBeTagged l then
+              l.vtype <- tagType l.vtype;
 
             (* sm: eliminate the annoying warnings about taking the address
              * of a 'register' variable, by removing the 'register' storage
@@ -2368,7 +2373,7 @@ let boxFile file =
             end;
           )
           f.slocals;
-        (* We fix the formals only if the function is not vararg *)
+        (* We fix the formals *)
         List.iter (fun l -> 
           l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
           l.vtype <- fixupType l.vtype) f.sformals;
@@ -2398,9 +2403,12 @@ let boxFile file =
         in
         setFormals f newformals;
         f.sbody <- mkSeq newbody;
+        (* Do the body *)
         let boxbody = boxstmt f.sbody in
+        (* Initialize the locals *)
         let inilocals = 
-          List.fold_left (initializeVar (makeIterVar f)) [boxbody] f.slocals in
+          List.fold_left 
+            (initializeVar (makeIterVar f)) [boxbody] f.slocals in
         f.sbody <- mkSeq inilocals;
         theFile := GFun (f, l) :: !theFile
 
@@ -2411,7 +2419,7 @@ let boxFile file =
       ignore (E.log "Boxing GVar(%s)\n" vi.vname);
         (* Leave alone some functions *)
     let origType = vi.vtype in
-    if not (List.exists (fun s -> s = vi.vname) leaveAlone) then begin
+    if not (H.mem leaveAlone vi.vname) then begin
       (* Remove the format attribute from functions that we do not leave
        * alone  *)
       let newa, newt = moveAttrsFromDataToType vi.vattr vi.vtype in
@@ -2419,6 +2427,8 @@ let boxFile file =
             (dropAttribute newa (ACons("__format__", [])))
             ;
       vi.vtype <- fixupType newt;
+      if mustBeTagged vi then
+        vi.vtype <- tagType vi.vtype
     end;
           (* If the type has changed and this is a global variable then we
            * also change its name *)
@@ -2427,30 +2437,34 @@ let boxFile file =
     let init' = 
       match init with
         None -> None
-      | Some e -> 
-          let e' = boxGlobalInit e origType in
-          Some e'
+      | Some e -> Some (boxGlobalInit e origType)
     in
-    (* Tag some globals *)
+    (* Initialize the global *)
+    if isdef && vi.vstorage <> Extern then begin
+      extraGlobInit := 
+         initializeVar 
+           (fun () ->
+             let gi = getGlobInit file in
+             makeIterVar gi ()) !extraGlobInit vi;
+    end;
+    (* Tag some globals. We should probably move this code into the 
+     * initializeVar but for now we keep it here *)
     if not (mustBeTagged vi) then
       if isdef then begin
         theFile := GVar(vi, init',l) :: !theFile
       end else
         theFile := GDecl (vi, l) :: !theFile
     else begin
-      vi.vtype <- tagType vi.vtype;
       if not isdef && vi.vstorage <> Extern then
         theFile := GDecl (vi, l) :: !theFile
       else begin
           (* Make the initializer *)
           (* Add it to the tag initializer *)
         let varinit = 
-          if vi.vstorage = Extern 
-          then None 
-          else begin
+          if vi.vstorage = Extern then None 
+          else
             let (x, _) = makeTagCompoundInit vi.vtype init' in
             Some x
-          end
         in
         theFile := GVar(vi, varinit,l) :: !theFile
       end
@@ -2464,6 +2478,7 @@ let boxFile file =
       theFile := GAsm ("booo_global", lu) :: !theFile
     end 
   in
+  extraGlobInit := [];
   H.clear taggedTypes;
   (* Create the preamble *)
   preamble ();
@@ -2473,12 +2488,19 @@ let boxFile file =
   (* Now finish the globinit *)
   let newglobinit = 
     match file.globinit with
-      None -> None
+      None -> 
+        if !extraGlobInit <> [] then
+          let gi = getGlobInit file in
+          gi.sbody <- mkSeq !extraGlobInit;
+          Some gi
+        else
+          None
     | Some g -> begin
         match !theFile with
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
                                 added) *)
+            gi.sbody <- mkSeq (gi.sbody :: !extraGlobInit);
             Some gi
         | _ -> E.s (E.bug "box: Cannot find global initializer\n")
     end
@@ -2489,6 +2511,7 @@ let boxFile file =
   H.clear typeNames;
   H.clear fixedTypes;
   H.clear taggedTypes;
+  extraGlobInit := [];
   {file with globals = res; globinit = newglobinit}
 
   
