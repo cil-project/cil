@@ -585,19 +585,7 @@ promotions and conversions that a compiler must insert:
 new-style definitions. This will make the compiler less forgiving when
 checking function calls, and will catch for example cases when a function is
 called with too few arguments. This happens in old-style code for the purpose
-of implementing variable argument functions. To make the code compile after
-CIL we insert dummy arguments for the missing ones:
-\begin{cilcode}[global]
-#include <stdio.h>
-int f(s1, s2) char *s1, *s2; {
-  printf(s1, s2);
-}
-
-int main() {
-    f("hello %s!\n", "world");
-    f("hello again\n"); // f called with only one argument
-}
-\end{cilcode}
+of implementing variable argument functions.
  
 \item Since CIL sees the source after preprocessing the code after CIL does
 not contain the comments and the preprocessing directives.
