@@ -1,5 +1,5 @@
 
-#pragma boxvararg_printf("printk", sizeof(union printf_union), 0)
+#pragma boxvararg_printf("printk", 0)
 
 __attribute__ ((regparm(0)))
      int  printk   (const char * fmt, ...)

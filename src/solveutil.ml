@@ -223,6 +223,11 @@ let wild_solve (node_ht : (int,node) Hashtbl.t) = begin
           when ci.cname = "__ccured_va_list" -> 
             n.kind <- Safe; n.why_kind <- Default; raise Not_found
       | _ -> ());
+      (* Do not make WILD the return value of ccured_va_arg *)
+      (match n.where with 
+        PGlob("__ccured_va_arg"), 1 -> 
+          n.kind <- Safe; n.why_kind <- Default; raise Not_found
+      | _ -> ());
       n.kind <- Wild ; 
       n.why_kind <- Default 
     with Not_found -> ()) node_ht;

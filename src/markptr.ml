@@ -537,7 +537,7 @@ and doExpAndCastCall e t callid =
   expToType (doExp e') t callid
 
 
-let debugInstantiate = false
+let debugInstantiate = true
 
 (* Keep track of all instantiations that we did, so we can copy the bodies *)
 let instantiations: (string * varinfo) list ref = ref []
@@ -552,19 +552,22 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
   (* The args might be shared with other declarations and with formals for 
    * defined functions. Make shallow copies of all of them  *)
   let dropNodeAttrs a = dropAttribute a (Attr("_ptrnode", [])) in
-  let shallowCopyFunctionType t = 
-    match unrollType t with
-      TFun (rt, args, isva, fa) -> 
-        TFun (rt, 
-              List.map (fun a -> {a with vname = a.vname}) args,
-              isva, fa)
-    | _ -> E.s (bug "instantiating a non-function (%s)\n" fvi.vname)
-  in
   (* Copy a type but drop the existing nodes *)
   let rec copyTypeNoNodes (t: typ) = 
     match t with
       TPtr(bt, a) -> TPtr(copyTypeNoNodes bt, dropNodeAttrs a)
     | t -> t
+  in
+  let shallowCopyFunctionType t = (* Drop the nodes as well, just in case we 
+                                   * have already boxed this type *)
+    match unrollType t with
+      TFun (rt, args, isva, fa) -> 
+        TFun (copyTypeNoNodes rt, 
+              List.map (fun a -> {a with vname = a.vname;
+                                         vtype = copyTypeNoNodes a.vtype}) 
+                       args,
+              isva, fa)
+    | _ -> E.s (bug "instantiating a non-function (%s)\n" fvi.vname)
   in
   let old_name = fvi.vname in
   let newvi, ispoly = 
@@ -946,7 +949,7 @@ class processVarargClass (fdec: fundec) = object
               SkipChildren
             end
           | _ -> E.s (error "Invalid call to %s\n" fvi.vname)
-        end else if fvi.vname = "__ccured_va_arg" then begin
+        end else if "__ccured_va_arg" = fvi.vname then begin
           (* Find the type of the desired argument *)
           let markervi, desiredt = 
             match args with 
