@@ -202,6 +202,12 @@ endif
 ifdef EMITBROWSER
   CCURED+= --emitbrowser
 endif
+ifdef BROWSER_SOURCE_FILE_SIZE
+  CCURED+= --browserSourceFileSize=$(BROWSER_SOURCE_FILE_SIZE)
+endif
+ifdef BROWSER_NODE_FILE_SIZE
+  CCURED+= --browserNodeFileSize=$(BROWSER_NODE_FILE_SIZE)
+endif
 ifdef CABSONLY
   CCURED+= --cabsonly
   CILLY+= --cabsonly

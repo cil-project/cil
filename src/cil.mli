@@ -1726,8 +1726,8 @@ class type cilPrinter = object
     (** Invoked on each instruction occurrence. *)
 
   method pStmt: unit -> stmt -> Pretty.doc
-    (** Control-flow statement. This can be slow and is used by 
-     * {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+    (** Control-flow statement. This is used by 
+     * {!Cil.printGlobal} and by {!Cil.dumpGlobal}. *)
 
   method dStmt: out_channel -> int -> stmt -> unit
     (** Dump a control-flow statement to a file with a given indentation. 
