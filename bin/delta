@@ -5,24 +5,18 @@ use strict;
 # http://www.st.cs.uni-sb.de/dd/
 
 
-# NOTE: This ought to be a Perl module where you can plug in your own
+# FIX: 1) Want to hash the marker boundary points, not the string
+# itself. 2) Want to build up the string by writing it out to disk,
+# not by building in memory first.
+
+# FIX: This ought to be a Perl module where you can plug in your own
 # test function, but for now, just take this script and hack the test
 # function yourself.
 
-
-
-# FIX: It might be a faster implementation to not hash the input to
-# the test to see if the test_cache has it already, but instead to
-# somehow hash the set of markers, as it is much smaller.  Then again,
-# I'm sure the hashing algorithm in Perl for strings is very
-# optimized.
-
-# FIX: There might be times when you can be sure you won't find
-# anything in the cache ever again and you can just dump it.
-
 # FIX: There might be more opportunites to prevent extra string
 # copying that I don't see, or the places where I think I'm preventing
-# it I might not be.
+# it I might not be.  I'm not sure I understand Perl references
+# completely.
 
 # FIX: I don't understand why in test I say
 #  sub test (\$) {
@@ -32,7 +26,13 @@ use strict;
 #  sub run (\$) {
 #      my $line_ref = shift;
 #      print $line_ref, "\n";
-#  Note that when used one has a $$ prefix and the other a $.
+#  Note that when used one must have a $$ prefix whereas the other
+#  only one $.  Why?
+
+# NOTE: There might be times when you can be sure you won't find
+# anything in the cache ever again and you can just dump it.  Come to
+# think of it, I don't see any opportunity for this.
+
 
 # Global State ****************
 
@@ -43,22 +43,26 @@ my $tmp_index = 0;              # Cache the last index used to make a tmp file.
 my $tmpdir_index = 0;           # Cache the last index used to make a tmp directory.
 
 my $tmpdir;                     # Temporary directory for external programs.
+my $logfile = "Log";            # File in $tmpdir where log of successful runs is written.
 my $granularity = "line";       # What is the size of an input chunk?
 my $dump_input = 0;             # Dump out the input after reading it in.
+my $cp_minimal;                 # Copy the minimal successful test to the current dir.
 my $verbose = 0;                # Be more verbose.
 
 my $help_message = <<END
     Delta Debugging
     delta.pl implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
     Implemented by Daniel Wilkerson.
-    You can get help by specifying the help flag.
+    To get help.
       -help
-    For verbose output:
+    For verbose output.
       -verbose
-    It can read input in line or C top-level form granularity.
+    To read input in line or C-top-level-form granularity.
       -granularity=line or -granularity=top_form
     To dump the input after reading.
       -dump_input
+    To copy the minimal successful test to the current directory when done.
+      -cp_minimal=<filename>
 END
 ;
 
@@ -69,18 +73,18 @@ sub test (\$) {
     my $test_data_ref = shift;  # NOTE: I'm careful to not copy the input.
     my $cached_result = $test_cache{$$test_data_ref}; # This has to be slow for big strings.
     if (defined $cached_result) {return $cached_result;}
-#    print "\nRunning test on data ****************\n", $$test_data_ref, "****************\n";
-    my $filename = unused_tempfile();
-    put_into_file($$test_data_ref, "${tmpdir}/$filename");
     my @command_lines = ();
     my @tmp_files = ();
+#    print "\nRunning test on data ****************\n", $$test_data_ref, "****************\n";
 
     # Test case.
-    my $result = 0;
-    my $input = "${tmpdir}/$filename"; push @tmp_files, $input;
+    my $filename = unused_tempfile();
+    my $input = "${tmpdir}/${filename}.c"; push @tmp_files, $input;
+    put_into_file($$test_data_ref, $input);
     my $cmp_output = "${tmpdir}/${filename}.cmp"; push @tmp_files, $cmp_output;
     my $command = "gcc $input &> $cmp_output";
     push @command_lines, $command;
+    my $result = 0;
     if (run($command)) {        # Only interesting if it compiles
         my $run_output = "${tmpdir}/${filename}.run"; push @tmp_files, $run_output;
         $command = "./a.out &> $run_output";
@@ -99,8 +103,8 @@ sub test (\$) {
 
     # Keep around info on successful runs.
     if ($result) {
-        print "\tSUCCESS\n";
-        open LOG, ">>${tmpdir}/log" or die $!;
+        print "\tSUCCESS ****************\n";
+        open LOG, ">>${tmpdir}/${logfile}" or die $!;
         print LOG "\n$filename\n";
         print LOG join("\n", @command_lines), "\n";
         close LOG or die $!;
@@ -112,13 +116,57 @@ sub test (\$) {
     return $result;
 }
 
+# Append the marker-delimited data to the data string.  This modifies
+# it second argument.
+sub append_marker ($\$) {
+  my $marker = shift;
+  my $data_ref = shift;
+  for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
+    $$data_ref .= $chunks[$i];
+  }
+}
+
+sub run (\$) {
+    my $line_ref = shift;
+    print $line_ref, "\n";
+    my $unix_ret_val = system $line_ref;
+    return $unix_ret_val ? 0 : 1;
+}
+
+sub put_into_file {
+  my ($data, $filename) = @_;
+#  die if -f $filename;
+  open F, ">$filename" or die $!;
+  print F $data;
+  close F or die $!;
+}
+
+sub unused_tempfile {
+    die unless defined $tmpdir;
+    my $filename;
+    do {
+        $filename = sprintf("%03d", $tmp_index);
+        $tmp_index++;
+    } while -e "${tmpdir}/$filename";
+    # FIX: This should be generalized.
+    die if -f "${tmpdir}/${filename}";
+    die if -f "${tmpdir}/${filename}.cmp";
+    die if -f "${tmpdir}/${filename}.run";
+    return $filename;
+}
+
+sub unused_tempdir {
+  my $dirname;
+  for (; $dirname = "deltatmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
+  return $dirname;
+}
+
 sub parse_command_line {
     my $str;
     my @non_flags = ();
     while(defined ($str = shift @ARGV)) {
         if ($str=~/^-([^=]+)(=(.+))?/) {
             my ($flag, $argument) = ($1, $3);
-#      warn "\tflag:$flag\n";
             if ($flag eq "help") {
                 print $help_message;
                 exit 0;
@@ -130,6 +178,8 @@ sub parse_command_line {
                 if ($argument eq "line" || $argument eq "top_form") {
                     $granularity = $argument;
                 }
+            } elsif ($flag eq "cp_minimal") {
+                $cp_minimal = $argument;
             } else {die "Illegal flag: $flag \n"}
         } else {push @non_flags, $str;}
     }
@@ -142,20 +192,6 @@ sub dump_settings {
   print "\tgranularity: $granularity\n";
   print "\tinput: ", join (" ", @ARGV), "\n";
   print "\n";
-}
-
-sub save_minimal_test {
-  my ($marked) = @_;
-  my $output_file = "minimal_test.c";
-  print "Minimal test saved in $output_file\n";
-  put_into_file($marked, $output_file);
-}
-
-sub run (\$) {
-    my $line_ref = shift;
-    print $line_ref, "\n";
-    my $unix_ret_val = system $line_ref;
-    return $unix_ret_val ? 0 : 1;
 }
 
 sub read_input_chunks {
@@ -193,40 +229,20 @@ sub dump_input {
   print "****************\n";
 }
 
+sub save_minimal_test {
+  my ($marked) = @_;
+  if (defined $cp_minimal) {
+      print "Copying minimal run to $cp_minimal\n";
+      put_into_file($marked, $cp_minimal);
+  }
+}
+
 sub dump_markers {
   my $i = 0;
   foreach my $marker (@markers) {
     print "\t$i [", $marker->{start}, ", ", $marker->{stop}, "]\n";
     ++$i;
   }
-}
-
-sub unused_tempfile {
-    die unless defined $tmpdir;
-    my $filename;
-    do {
-        $filename = "tmp${tmp_index}.c";
-        $tmp_index++;
-    } while -e "${tmpdir}/$filename";
-    # FIX: This should be generalized.
-    die if -f "${tmpdir}/${filename}";
-    die if -f "${tmpdir}/${filename}.cmp";
-    die if -f "${tmpdir}/${filename}.run";
-    return $filename;
-}
-
-sub unused_tempdir {
-  my $dirname;
-  for (; $dirname = "deltatmp.${tmpdir_index}", -e $dirname; ++$tmpdir_index) {}
-  return $dirname;
-}
-
-sub put_into_file {
-  my ($data, $filename) = @_;
-#  die if -f $filename;
-  open F, ">$filename" or die $!;
-  print F $data;
-  close F or die $!;
 }
 
 sub increase_granularity {
@@ -251,16 +267,6 @@ sub increase_granularity {
   dump_markers();
   print "\n";
   return $split_one;
-}
-
-# Append the marker-delimited data to the data string.  This modifies
-# it second argument.
-sub append_marker ($\$) {
-  my $marker = shift;
-  my $data_ref = shift;
-  for (my $i=$marker->{start}; $i<$marker->{stop}; ++$i) {
-    $$data_ref .= $chunks[$i];
-  }
 }
 
 # Main ****************
@@ -299,6 +305,7 @@ big_loop: {
       if (increase_granularity()) {redo big_loop;}
       else {
         print "Could not increase granularity; we are done.\n";
+        print "A log of successful runs is in ${tmpdir}/${logfile}\n";
         save_minimal_test($marked);
         exit 0;
       }
@@ -326,6 +333,7 @@ big_loop: {
     redo big_loop;
   } else {
     print "Could not increase granularity; we are done.\n";
+    print "A log of successful runs is in ${tmpdir}/${logfile}\n";
     my $marked = "";
     foreach my $marker (@markers) {append_marker($marker, $marked);}
     save_minimal_test($marked);
