@@ -1022,8 +1022,8 @@ em3d-clean:
 
 em3d:  mustbegcc
 	cd $(EM3DDIR); \
-            make clean em3d.exe CC="$(EM3DDSAFECC)" \
-                                LD="$(EM3DDSAFECC)"
+            make clean em3d.exe CC="$(EM3DSAFECC)" \
+                                LD="$(EM3DSAFECC)"
 	cd $(EM3DDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./em3d.exe 2000 100 6; done"
 
