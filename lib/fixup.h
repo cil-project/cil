@@ -128,6 +128,11 @@
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
   #pragma boxpoly("memmove")
+  #pragma boxpoly("memcmp")
+  #pragma boxpoly("write")
+  #pragma boxpoly("read")
+  #pragma boxpoly("fread")
+  #pragma boxpoly("fwrite")
 
   #pragma boxpoly("memset_seq_model")
   static inline
@@ -151,6 +156,36 @@
     dest = src; // Make sure they are both have the same type
     return dest;
   }
+
+  #pragma boxpoly("qsort")
+  static inline
+  void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
+          int (*compar)(const void *, const void *))
+        __BOXMODEL("qsort");
+  static inline
+  void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
+          int (*compar)(const void *, const void *)) 
+  {
+      void *end = __endof(base);
+      return;
+  }
+
+  #define MAKE_QSORT(name,namestr,elt_type) \
+  static inline\
+  void name (elt_type *base, unsigned int nmemb, unsigned int size,\
+          int (*compar)(const elt_type *, const elt_type *));\
+  static inline\
+  void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
+          int (*compar)(const elt_type *, const elt_type *))\
+        __BOXMODEL(namestr);\
+  static inline\
+  void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
+          int (*compar)(const elt_type *, const elt_type *)) \
+  {\
+      elt_type *end = __endof(base);\
+      return;\
+  }
+
 
 #pragma boxexported("main")
 #endif

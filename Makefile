@@ -438,7 +438,7 @@ $(CILLIB) : lib/cillib.c
 	ranlib $@
 
 SAFECPATCHER += --mode gcc
-PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h string.h stdarg.h
+PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h fcntl.h string.h stdarg.h
 includes: cleanincludes
 	$(SAFECPATCHER) --patch=$(CCUREDHOME)/lib/safec_gcc.patch \
                         --dest=$(CCUREDHOME)/include \
@@ -967,7 +967,7 @@ apache/gzip : defaulttarget
 	rm -f $(APACHETEST)/mod_gzip.$(OBJ)
 	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
-                        $(DOOPT) \
+                        --usecil --cilout=this.cil $(DOOPT) \
                         $(APACHECFLAGS) \
                         $(CONLY) $(OBJOUT)./mod_gzip.$(OBJ) \
                         mod_gzip.c

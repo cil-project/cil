@@ -41,6 +41,44 @@ class collectCureStats = object (self)
 
 end
 
+(* weimer: visitor routines to check and see if major types have
+ * changed *)
+let typeSizeHT = Hashtbl.create 555
+class typeSizeSetVisitor = object
+  inherit nopCilVisitor 
+  method vglob g = 
+    match g with
+      GType (s, t, _) when s <> "" -> begin
+        let bs = try bitsSizeOf t with _ -> 0 in
+        Hashtbl.add typeSizeHT s bs;
+        SkipChildren
+      end
+    | _ -> SkipChildren
+end
+
+class typeSizeCheckVisitor = object
+  inherit nopCilVisitor 
+  method vglob g =
+    match g with 
+      GType (s, t, l) when s <> "" && Hashtbl.mem typeSizeHT s ->  begin
+        let new_bs = try bitsSizeOf t with _ -> 0 in
+        let old_bs = Hashtbl.find typeSizeHT s in
+        if (new_bs <> old_bs) then begin
+          ignore (printf "Sizeof %s changed from %d to %d\n" s old_bs new_bs);
+          let used_in_interface = ref None in
+          Hashtbl.iter (fun k n -> 
+            if n.Ptrnode.btype = t && Ptrnode.hasFlag n Ptrnode.pkInterface then
+              used_in_interface := Some(n.Ptrnode.where)
+                   ) Ptrnode.idNode ; 
+          match !used_in_interface with
+            None -> ()
+          | Some(p,i) -> ignore (printf "  and is used in interface function %a\n" Ptrnode.d_place p)
+        end;
+        SkipChildren
+      end
+    | _ -> SkipChildren
+end
+
 let print (f: file) = 
   H.clear counters;
   ignore (visitCilFile (new collectCureStats) f);
