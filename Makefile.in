@@ -488,3 +488,4 @@ cil.spec: cil.spec.in
 
 rpms: distrib
 	rpmbuild -ta $(CIL_TAR_GZ)
+
