@@ -339,11 +339,11 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
 
 
   
-let structId = ref 0
+let lastStructId = ref 0
 let anonStructName (k: string) (suggested: string) = 
-  incr structId;
+  incr lastStructId;
   "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "") 
-  ^ "_" ^ (string_of_int (!structId))
+  ^ "_" ^ (string_of_int (!lastStructId))
 
 
 let constrExprId = ref 0
@@ -359,6 +359,7 @@ let startFile () =
   H.clear env;
   H.clear genv;
   H.clear alphaTable;
+  lastStructId := 0;
   resetLocals ()
 
 
@@ -2599,18 +2600,34 @@ and doExp (isconst: bool)    (* In a constant *)
 
         | A.CONST_WSTRING wstr ->
             let len = String.length wstr in 
-            let wide_factor = (bitsSizeOf (wcharType ())) / 8 in
-            (* the +1 here is for the trailing wide-null *) 
-            let dest = String.make ((len + 1)* wide_factor) '\000' in 
-            for i = 0 to len-1 do 
-              dest.[i*wide_factor] <- wstr.[i] ;
-            done ; 
-            (* weimer: this turns L"Hi" into "H\0i\0", but in order to
-             * make sure that L"Hi"[1] is the same as L'i', we must
-             * cast the result to a wchar_t pointer (so that the pointer
-             * artimetic correctly moves over wide characters) *)
-            finishExp empty (CastE(wcharPtrType (),Const(CStr(dest)))) 
-              (wcharPtrType ())
+            let wchar_t = !wcharType in
+            let wide_factor = (bitsSizeOf wchar_t) / 8 in
+            (* We will make an array big enough to contain the wide 
+             * characters and the wide-null terminator *)
+            let ws_t = TArray(wchar_t, Some (integer (1 + len)), []) in
+            let ws = 
+              makeGlobalVar ("wide_string" ^ string_of_int !lastStructId)
+                ws_t
+            in
+            incr lastStructId;
+            (* Make the initializer. Idx is a wide_char index.  *)
+            let rec loop (idx: int) = 
+              if idx > len then [] 
+              else begin
+                let this_chr = if idx = len then Char.chr 0 else wstr.[idx]
+                in
+                (Index(integer idx, NoOffset), 
+                 SingleInit (mkCast (Const(CChr this_chr)) wchar_t))
+                :: loop (idx + 1)
+              end
+            in
+            (* Add the definition for the array *)
+            cabsPushGlobal (GVar(ws, 
+                                 Some (CompoundInit(ws_t,
+                                                    loop 0)),
+                                 !currentLoc));
+            finishExp empty (StartOf(Var ws, NoOffset))
+              (TPtr(wchar_t, []))
 
         | A.CONST_STRING s -> 
             (* Maybe we burried __FUNCTION__ in there *)
@@ -3744,7 +3761,7 @@ and doInit
          [(A.NEXT_INIT, 
            A.SINGLE_INIT(A.CONSTANT 
                            (A.CONST_WSTRING s)))])) :: restil
-     when (unrollType bt = (wcharType ())) 
+     when (unrollType bt = !wcharType) 
       (* wcharType contains no looping, so this equality check is OK *) 
     -> 
       let chars = explodeString true s in

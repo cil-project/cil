@@ -1081,11 +1081,9 @@ val charType: typ
 (** char * *)
 val charPtrType: typ
 
-(** wchar_t (depends on architecture) *)
-val wcharType: unit -> typ
-
-(** wchar_t * *)
-val wcharPtrType: unit -> typ
+(** wchar_t (depends on architecture) and is set when you call 
+ * {!Cil.initCIL}. *)
+val wcharType: typ ref 
 
 (** char const * *)
 val charConstPtrType: typ
@@ -1103,7 +1101,7 @@ val uintPtrType: typ
 val doubleType: typ
 
 (* An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode} 
- *  and is set when you call {!Cil.initCIL}.*)
+ *  and is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
 (* An unsigned integer type that is the type of sizeof. Depends on 

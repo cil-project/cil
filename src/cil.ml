@@ -1012,13 +1012,7 @@ let longType = TInt(ILong,[])
 let ulongType = TInt(IULong,[])
 let charType = TInt(IChar, [])
 let charPtrType = TPtr(charType,[])
-let wcharType () = 
-  match (if !msvcMode then M.MSVC.sizeof_wchar_t else M.GCC.sizeof_wchar_t) with
-  | 1 -> TInt(IChar, [])
-  | 2 -> TInt(IShort, [])
-  | 4 -> TInt(ILong, [])
-  | i -> E.s (unimp "Unsupported wchar_t size %d\n" i)
-let wcharPtrType () = TPtr(wcharType (),[])
+
 let charConstPtrType = TPtr(charType,[Attr("const", [])])
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
@@ -1129,6 +1123,9 @@ let parseInt (str: string) : exp =
 
 (* An integer type that fits pointers. Initialized by initCIL *)
 let upointType = ref voidType 
+
+(* An integer type that fits wchar_t. Initialized by initCIL *)
+let wcharType = ref voidType 
 
 
 (* An integer type that is the type of sizeof. Initialized by initCIL *)
@@ -5145,26 +5142,43 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : stmt list =
   res
 
 let initCIL () = 
-  let szptr, szlong, szint, sizeof_is_long = 
+  let sz_ptr, sz_long, sz_longlong, sz_int, sz_short, 
+      sz_sizeof, sz_wchar  = 
     if !msvcMode then 
-      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,
-      M.MSVC.sizeof_int,M.MSVC.ikind_sizeof_is_long
+      M.MSVC.sizeof_ptr,
+      M.MSVC.sizeof_long,
+      M.MSVC.sizeof_longlong,
+      M.MSVC.sizeof_int,
+      M.MSVC.sizeof_short,
+      M.MSVC.sizeof_sizeof,
+      M.MSVC.sizeof_wchar
     else
-      M.GCC.sizeof_ptr,M.GCC.sizeof_long,
-      M.GCC.sizeof_int,M.GCC.ikind_sizeof_is_long 
+      M.GCC.sizeof_ptr,
+      M.GCC.sizeof_long,
+      M.GCC.sizeof_longlong,
+      M.GCC.sizeof_int,
+      M.GCC.sizeof_short,
+      M.GCC.sizeof_sizeof,
+      M.GCC.sizeof_wchar 
   in
-  upointType := 
-     if szlong = szptr then 
-       TInt(IULong, []) 
-     else if szint = szptr then 
-       TInt(IUInt, [])
-     else
-       E.s(E.unimp "Cannot find the size of the integer as wide as a pointer");
-  typeOfSizeOf := 
-     if sizeof_is_long then 
-       TInt(IULong, [])
-     else
-       uintType
+  (* Find the right ikind given the size *)
+  let findIkind (unsigned: bool) (sz: int) : ikind = 
+    if sz = sz_longlong then
+      if unsigned then IULongLong else ILongLong
+    else if sz = sz_long then 
+      if unsigned then IULong else ILong
+    else if sz = sz_int then 
+      if unsigned then IUInt else IInt 
+    else if sz = sz_short then
+      if unsigned then IUShort else IShort
+    else if sz = 1 then 
+      if unsigned then IUChar else IChar 
+    else 
+      E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
+  in      
+  upointType := TInt(findIkind true sz_ptr, []);
+  typeOfSizeOf := TInt(findIkind true sz_sizeof, []);
+  wcharType := TInt(findIkind false sz_wchar, [])
     
 
 (* We want to bring all type declarations before the data declarations. This 

@@ -52,8 +52,8 @@ int main() {
   printf("\tlet sizeof_ptr       = %d\n", sizeof(int *));
   printf("\tlet sizeof_enum      = %d\n", sizeof(enum { ONE, TWO }));
   printf("\tlet sizeof_longdouble  = %d\n", sizeof(long double));
-  printf("\tlet sizeof_wchar_t   = %d\n", sizeof(wchar_t));
-
+  printf("\tlet sizeof_wchar     = %d\n", sizeof(wchar_t));
+  printf("\tlet sizeof_sizeof    = %d\n", sizeof(sizeof(int)));
   // The alignment of long long
   {
     struct longlong {
@@ -90,14 +90,10 @@ int main() {
       char c;
       wchar_t w;
     };
-    printf("\tlet alignof_wchar_t = %d\n",
+    printf("\tlet alignof_wchar = %d\n",
            (int)(&((struct s1*)0)->w));
   }    
 
-
-  // The type of sizeof
-  printf("\tlet ikind_sizeof_is_long = %s\n",
-         sizeof(int) == sizeof(sizeof(long)) ? "true" : "false");
 
   // Whether char is unsigned
   printf("\tlet char_is_unsigned = %s\n", 
@@ -106,3 +102,9 @@ int main() {
 
   exit(0);
 }
+
+
+
+
+
+ 
