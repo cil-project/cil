@@ -1180,6 +1180,7 @@ altAddTest("scott/errorinfn");
 altAddTest("scott/unionassign $box");
 altAddTest("scott/unionassign $wildbox");
 altAddTest("scott/readv $box");
+altFailTest("FSEQ incompleteness", "scott/bloop $box");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
