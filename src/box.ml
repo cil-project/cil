@@ -3162,7 +3162,8 @@ and boxstmt (s: Cil.stmt) : stmt clist =
         CConsL(s, 
                append doe3 
                  (CConsL(unregisterStmt (), 
-                         single (mkStmt (Return (Some e2, l))))))
+                         CSeq(CList !heapifiedFree, 
+                              single (mkStmt (Return (Some e2, l)))))))
                       
     | Loop (b, l) -> 
         currentLoc := l;
