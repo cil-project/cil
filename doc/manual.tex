@@ -83,7 +83,7 @@ currently are:
     \item \t{none}. No cure. This is the default. In that case the
            \t{--includedir} and the \t{--nocure} options have no effect. 
     \item \t{infer}. This is the regular cure. Use the inferencer.
-    \item \t{wild}. This makes all pointers \DYNAMIC{}.
+    \item \t{wild}. This makes all pointers ma\DYNAMIC{}.
    \end{itemize}
 \item \t{--emitinfer}. This means that the result of inference is also
 printed. 
@@ -100,6 +100,7 @@ those options the following might be of interest:
 funtions as are called. 
 \item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CCured
 application. By default \t{stderr} is used.
+\item \t{--stages}. Print the stages that CCured is performing.
 \item \t{--keepunused}. Do not attempt to remove the unused variables and
 types from CIL. 
 \item \t{--noPrintLn}. Do not print line numbers.
@@ -145,6 +146,7 @@ your configuration is for Microsoft Visual C. This has no effect on Linux.
 \item \t{RELEASE=1}. To make sure you run the optimized executables. Do
 \t{make setup RELEASE=1} to build the executables first.
 \item \t{VERBOSE=1}. Passes the \t{--verbose} flag to CCured.
+\item \t{PRINTSTAGES=1}. Passes the \t{--stages} flag to CCured.
 \item \t{NOREMAKE=1}. Does not attempt to check the freshness and to make the
 underlying CCured application. This is useful in test cases that you want to
 run while working on the CCured sources.

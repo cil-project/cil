@@ -426,7 +426,7 @@ sub addTests {
         $theargs .= " NOREMAKE=1";
     }
     # Turn on the verbose flag
-    $theargs .= " VERBOSE=1 ";
+    $theargs .= " VERBOSE=1 PRINTSTAGES=1 ";
 
     my %patterns = %commonerrors;
     my $kind;

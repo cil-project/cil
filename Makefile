@@ -147,6 +147,9 @@ endif
 ifdef VERBOSE
   CCURED+= --verbose
 endif
+ifdef PRINTSTAGES
+  CCURED+= --stages
+endif
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
 ifdef TRACE
   CCURED+= --tr="$(TRACE)"
@@ -647,9 +650,8 @@ endif
 APACHE_INCLUDES := httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
 apachesetup:
 	cd $(APACHETEST); \
-            $(PATCHER) \
-                        $(APACHECFLAGS) \
-                        $(APATCHES) --patch=$(CCUREDHOME)/lib/$(PATCHFILE) \
+            $(PATCHER)  $(APACHECFLAGS) \
+                        $(APATCHES) \
                         --dest=$(APACHEBASE)/include \
 	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
 

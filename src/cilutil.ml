@@ -8,6 +8,9 @@ let logWrites = ref false (* Whether to produce a log with all the mem
 
 let printStats = ref false
 
+
+let printStages = ref false
+
 (* A tryFinally function *)
 let tryFinally 
     (main: 'a -> 'b) (* The function to run *)
