@@ -79,11 +79,11 @@ int main() {
     union { 
       struct { int a; int b; int c; } one;
       struct { int p; int q; int r; int s; } two; 
-    } *aa;
+    } adata, *aa = &adata;
     union { 
       struct { int a; int b; } one;
       struct { int p; int q; int s; } two; 
-    } *bb;
+    } bdata, *bb = &bdata;
 #if ERROR == 10
     aa = bb; 
     if(! HAS_KIND(aa, SAFE_KIND)) E(10); //ERROR(10):Error 10

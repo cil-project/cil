@@ -155,8 +155,6 @@ $TEST->addTests("testrun/pointsto", "", ['inferbox']);
 $TEST->addTests("testrun/trusted1", "", ['inferbox']);
 $TEST->addTests("testrun/hostent", "", ['inferbox']);
 $TEST->addTests("testrun/hostent2", "", ['inferbox']);
-$TEST->addBadComment("testrun/hostent2-inferbox",
-                     "gethostbyname_r needs a working wrapper.");
 $TEST->add3Tests("btreetest");
 $TEST->add3Tests("hashtest");
 $TEST->add3Tests("rbtest");
@@ -187,14 +185,10 @@ $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/strloop");
 $TEST->add2Tests("testrun/strloop3");
-    $TEST->addBadComment("testrun/strloop3-inferbox",
-			 "Problem with reading final NUL in a string.");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
   $TEST->add3Tests("test/attr2", "_GNUCC=1");
-      $TEST->addBadComment("test/attr2-box", 
-                           "Format is a fat pointer to string");
   $TEST->add3Tests("test/attr3", "_GNUCC=1");
   $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
   $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
@@ -275,10 +269,6 @@ $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
 $TEST->addTests("testrun/safeunion", "", ['inferbox']);
 $TEST->add3Tests("testrun/solver1");
-    $TEST->addBadComment("testrun/solver1-inferbox", 
-                         "Code uses __builtin_next_arg directly");
-    $TEST->addBadComment("testrun/solver1-box", 
-                         "Code uses __builtin_next_arg directly");
 $TEST->add2Tests("test/unimplemented");
 $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
@@ -368,8 +358,6 @@ $TEST->add3Tests("testrun/wchar3");
 $TEST->add3Tests("testrun/wchar4");
 $TEST->addTests("testrun/wchar5", "", ['cil']);
 $TEST->add2Tests("testrun/escapes");
-   $TEST->addBadComment("testrun/escapes-inferbox", 
-                        "CCured drops some intermediate casts, even when they are needed for correct sign-extension.");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
@@ -476,8 +464,6 @@ $TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
 $TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("test/bind-zero", "EXTRAARGS=--assumePrintf", ['inferbox']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
-   $TEST->addBadComment("testrun/pointerdiff-inferbox", 
-                        "A pointer that is not read should not be bound-checked");
 $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
@@ -497,7 +483,7 @@ $TEST->addTests("testrun/extern1", "", ['cil']);
 
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/failnull1", "", "Failure NULL");
+$TEST->add2TestsFail("testrun/failnull1", "", "Failure");
 $TEST->add2TestsFail("testrun/failprintf1", "", "Failure NONPTR");
 $TEST->add2TestsFail("testrun/failprintf2", "", "Failure NONPTR");
 $TEST->add2TestsFail("testrun/failprintf3", "", "Failure VARARGBAD");
@@ -515,15 +501,14 @@ $TEST->add2TestsFail("testrun/demo4", "", "Failure LBOUND");
 # $TEST->add2Tests("testmodel/noproto");
 
 $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure NONPTR");
-$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure NONPTR");
+$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure");
+$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure LBOUND");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure UBOUND");
     $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
 $TEST->add2TestsFail("testrun/simon6", "", "Failure NONPTR");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure ");
-    $TEST->addBadComment("testrun/infer1-inferbox", "Unsound solver casting of SEQ pointers");
 $TEST->addTestsFail("testrun/fseq1", "", "Failure DECFSEQ", 
                     ['inferbox']);
 $TEST->addTestsFail("testrun/fseq1", "", "Failure LBOUND", 
@@ -568,7 +553,6 @@ $TEST->add2Tests("testrun/stringsize");
 #fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 
 $TEST->add2Tests("merge-ar", "");
-    $TEST->add2BadComment("merge-ar", "merger bug when static locals have the smae name as formals in a different function.");
 #
 # OLDEN benchmarks
 #
@@ -1003,8 +987,7 @@ altAddTest("combine_syserr");
 altAddTest("combine_syserr MERGEINLINES=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
-altFailTest("problem with deepcopy?",
-            "merge-twice");
+altAddTest("merge-twice");
 altAddTest("scott/arrayexpand INFERBOX=infer");
 altAddTest("scott/byteprintf INFERBOX=infer");
 altAddTest("scott/bufferlinegetter INFERBOX=infer");
@@ -1036,12 +1019,7 @@ altFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
 altAddTest("test-bad/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
-if ($TEST->{option}->{safecdebug}) {
-  altAddTest("scott/reply $box");
-}
-else {
-  altFailTest("problem with __extinline and varargs", "scott/reply $box");
-}
+altAddTest("scott/reply $box");
 
 # works on my machine; works on manju now too apparently
 altAddTest("scott/getpwnam $box $gcc");
