@@ -969,7 +969,7 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
     TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
   | TInt _ -> t
   | TEnum (_, a) -> TInt(IInt, a)
-  | _ -> E.s (error "integralPromotion")
+  | t -> E.s (error "integralPromotion: not expecting %a" d_type t)
   
 
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
