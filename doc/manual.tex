@@ -1,14 +1,203 @@
 \documentclass{book}
+\usepackage{hevea}
+
 \def\t#1{{\tt #1}}
 \def\DYNAMIC{\t{DYNAMIC}}
 \title{CCured: User Manual}
 
+% Make sure that all documents show up in the main frame
+%HEVEA \AtBeginDocument{\@print{<base target="main">}}
+
 \begin{document}
 \maketitle
-\chapter{Installing CCured}
+\chapter{Introduction}
 
+CCured is a source-to-source translator for C, which instruments the source C
+code with runtime checks to catch memory safety violations at run time. As a
+novel enhancement, the system infers when some (or all!) of the checks can be
+safely omitted.
+
+The translator itself is written in Ocaml (a dialect of ML).  There is
+also a Perl script, safecc.pl, which functions as a drop-in
+replacement for 'cc', so that software packages' existing Makefiles
+can be used unmodified.  Finally, various runtime functions (including
+the Boehm-Weiser conservative garbage collector) are provided by C
+code which we write and is linked with the translated executable.
 
 \chapter{Using CCured}
+
+ At the moment the main interface to CCured is through the Makefile. The
+Makefile has lots of targets. About 1/4 are used to build the translator
+itself, and 3/4 are used to build instrumented versions of various benchmarks.
+Typical usage is to explicitly specify the name of a benchmark to build. For
+example
+
+\begin{verbatim}
+  % make go [options]
+\end{verbatim}
+
+This will build the 'go' benchmark.
+
+If you don't specify any options, the translator operates in 'cil' mode:
+it reads the file in, translates it into our intermediate format, and
+then spits it right back out (no instrumentation).  This is primarily a
+test of the parser and the intermediate format.
+
+To add instrumentation, use "INFERBOX=4" or "INFERBOX=wild".  The former
+uses type inference to try to remove many of the runtime checks.  The
+latter does not try to remove any checks.  Generally, "INFERBOX=4" is
+what you want:
+
+\begin{verbatim}
+  % make go INFERBOX=4
+\end{verbatim}
+
+There are a bunch of other options strewn throughout the Makefile; they
+look like this in the Makefile:
+
+\begin{verbatim}
+  ifeq ($(INFERBOX), 4)
+      SAFECC+= --safec=-solver --safec=fourth
+  endif
+\end{verbatim}%$
+
+One target of note is the one I use for making the small test programs
+that comprise the bulk of 'regrtest': scott/% (the '%' is a pattern
+wildcard).  When you drop a .c file, say foo.c, into test/small2, you
+can invoke the translator on it by using this target:
+
+\begin{verbatim}
+  % make scott/foo [options]
+\end{verbatim}
+
+If you construct a test case to exhibit some current bug, current
+practice is to drop that file into test/small2 so we can use the scott/%
+target to run it.
+
+\chapter{Using CCured on new software packages}
+
+TODO: Add some info about putting new packages into the repository.
+
+Once a package is in the repository and has its own Makefile target,
+you can run the translator on it.  I'll use the 6/29/01 version of ftpd
+as my example.
+
+First we try to run it without our tool involved:
+
+\begin{verbatim}
+  % make ftpd-clean
+  % cd test/ftpd/ftpd
+  % make
+\end{verbatim}
+  
+This succeeds, generating an 'ftpd' binary.  In the case of 'ftpd', 
+running it is slightly complicated:
+
+\begin{verbatim}
+  % ./ftpd -D -d -p 3333
+  (then in another window)
+  % telnet localhost 3333
+  Trying 127.0.0.1...
+  Connected to localhost.
+  Escape character is '^]'.
+  220 madrone.cs.berkeley.edu FTP server (Version 6.5/OpenBSD, linux port 0.3.2) ready.
+  (etc)
+\end{verbatim}
+  
+This is (to our way of measuring) success.
+
+Now we try it in 'cil' mode:
+
+\begin{verbatim}
+  % cd cil
+  % make ftpd-clean
+  % make ftpd
+\end{verbatim}
+  
+At the moment, this also works, producing another 'ftpd' binary.  We test
+it the same way, and rejoice at its success.
+
+Finally, we dare to try it in 'box' mode, meaning the instrumentation
+module will be used:
+
+\begin{verbatim}
+  % make ftpd-clean
+  % make ftpd INFERBOX=4
+\end{verbatim}
+  
+After crunching for a while, it reports this error (you have to scroll
+back a bit to see the right one):
+
+\begin{verbatim}
+  ./ls_all.c:1338: Bug: Calling non-wild ioctl with too many args
+\end{verbatim}
+
+This is an error from the 'box' module, complaining about what it
+perceives to be a type error.  If we investigate the named source
+line, we see
+
+\begin{verbatim}
+  if(ioctl(1, 0x5413, & win) == 0 && win.ws_col > 0)
+\end{verbatim}
+
+confirming that 'ioctl' is involved.  Since the \t{*\_all.c} files are the
+output of our tool, and do not themselves \t{\#include} any files, we can
+simply search in this file for ioctl's declaration.  We do so, and see
+
+\begin{verbatim}
+  extern int ioctl(int __fd , unsigned long int __request , ...) ;
+\end{verbatim}
+  
+Hmmm... looks like it was declared to accept any number (>=2) of args, so
+this looks like a bug in the 'box' module; it should accept this code,
+but it does not.
+
+The next step is to write a tiny C program which calls ioctl (see
+test/small2/ioctl.c), and verify it fails the same way
+
+\begin{verbatim}
+  % make scott/ioctl INFERBOX=4
+  [...]
+  ioctl.c:9: Bug: Calling non-wild ioctl with too many args
+  [...]
+\end{verbatim}
+  
+Yep, same problem.  Now we report this to George, since typically he's
+much faster at identifying the problem, since he wrote the 'box' module.
+
+In the meantime (waiting for George to magically fix the problem), we
+could temporarily comment-out the call so we can proceed to find other
+bugs.  Or, perhaps we change the ioctl call to instead call a wrapper
+function (wrappers are defined in lib/safec.c, which gets linked into
+the translated program).
+
+Eventually (see "make go INFERBOX=4") we'll get an executable.  If it
+runs correctly, celebration is in order.  If not, it will usually fail
+because of a failed runtime check (this one is from a test vector for
+which go fails);
+
+\begin{verbatim}
+  % make go INFERBOX=4
+  % cd test/spec/099.go/src
+  % ./go 5 4
+  [...]
+  array bug: index is 5980 (vs 5980)
+  Failure: Ubound
+  Abort
+\end{verbatim}
+
+Tracking down the source of such failures is the most timeconsuming
+part of pushing a program through.  Sometimes it's a bug in the
+translator, in which case ideally a test case can be isolated for easy
+diagnosis.  
+
+Sometimes (more and more often) it's a bug in the original program (go
+had 10 array bounds violation bugs at last count).  In this case you
+have to change the original code to fix the bug; this may be easy or
+hard.  If it's hard, try just surrounding the offending statement with
+an explicit bounds check in an 'if' statement, so the program skips
+the bad statements (that is what I did to cause all of the "array bug"
+outputs in the "5 4" case above).
 
 \chapter{Customizing CCured}
 
@@ -182,5 +371,802 @@ which is substituted with the pattern that matched.
 
   \chapter{Using the combiner}
 
+ The easiest way to use CCured is when you want to process a whole program and
+thus allow the inferencer to see all of the uses of all defined functions and
+variables. This way CCured is able to infer the best representation for such
+globals. There are many other program analyses that are more effective when
+done on the whole program.
 
+ The combiner is a tool that combines all of the C source files in a project
+into a single C file. There are two tasks that a combiner must solve:
+\begin{enumerate}
+\item Detect what are all the sources that make a project and with what
+compiler arguments they are compiled.
+
+\item Combine all of the source files into a single file. 
+\end{enumerate}
+
+ For the first task the combiner impersonates a compiler and a linker (both a
+GCC and a Microsoft Visual C mode are supported) and it expect to be invoked
+(from a build script or a Makefile) on all sources of the project. When
+invoked to compile a source the combiner just preprocesses the source and
+saves using the name of the requested object file. By preprocessing this early
+the combiner is able to take into account variations in the command line
+arguments that affect preprocessing of different source files. 
+
+ When the combiner is invoked in the place of the linker it collects the
+preprocessed sources that were stored with the names of the object files, and
+invoked the second part of the combiner. Note that arguments that affect the
+compilation or linking must be the same for all source files.
+
+ For the second task, the combiner essentially concatenates the preprocessed
+sources with care to rename conflicting file-local declarations (we call this
+process alpha-conversion or a file). The combiner also attempts to remove
+duplicate global declarations and definitions. Specifically the following
+actions are taken: 
+
+\begin{itemize}
+\item File-scope names (\t{static} globals, names of types defined with
+\t{typedef}, and structure/union/enumeration tags) are given new names if they
+conflict with declarations from previously processed sources. The new name is
+formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
+identifier. Then the new names are applied to their occurences in the file. 
+
+\item Non-static declarations of globals are never renamed. But we try to
+remove duplicate ones. The equality check is done on the whole structure of
+the declaration (including the line-number information) after the body of the
+declaration has been alpha-converted. This process is intended to remove those
+declarations that originate from the same include file. Similarly, we try to
+eliminate duplicate definitions of \t{inline} functions, since these
+occasionally appear in include files.
+
+\item Names of types and tags of structures or unions or enumerations are
+considered to have file scope and thus are candidate for renaming. However, if
+we detect an existing declaration with the same body from a previously
+processed file, we reuse it.
+
+\item In rare situations, it can happen that a file-local global in
+encountered first and it is not renamed, only to discover later when
+processing another file that there is an external symbol with the same name.
+In this case, a second pass is made over the combined file to rename the
+file-local symbol. 
+\end{itemize}
+
+\chapter{Using the Regression Tester}\label{ch-regtest}
+
+ The regression tester is a program that allows you to do two things: 
+\begin{itemize}
+\item Run a list of shell commands and capture their standard and error output
+ in a log file, and
+
+\item Analyze such log files and extract various information, among which the
+ most important is which test cases have succeeded and which have failed. 
+\end{itemize}
+
+ Since the running of the tests and the analysis of the output is separated
+you can easily do things like compare the results on multiple runs, extract
+various reports from a single output (like what tests have succeeded, which
+have failed, plus such information split by test groups). You can also extract
+some data from each test (such as the running time) and make simple reports. 
+
+ Test cases can have comments associated with them (such as reminders of why
+it fails) and can be associated with zero or more test groups.
+
+ \section{Running the regression}
+
+ The regression tester is implemented in Perl as "\t{testsafec.pl}", which in
+turn contains simple wrappers for functions provided by the more generic
+\t{RegTest.pm}.
+
+ The regression tester uses relative paths so it must be run in the
+ \t{cil/test} directory.
+
+ The basic command for running the tests is "\t{testsafec --run}". This runs
+all of the test cases, saving the log in the file "\t{safec.log}". Before
+creating this file, it renames previous versions of this file as
+"\t{safec.log.<n>}" where n is an integer starting from 1 to a maximum number
+that is configurable.
+
+ The following command line options are useful for running the tests (see
+ "\t{testsafec --help}" for a complete list:
+
+\begin{verbatim}
+ --one <testname>       : runs only the named test
+ --gory                 : shows lots of details about the execution of the
+                          test, such as the commands executed
+ --dryrun               : only pretends to run the test. Useful to see what
+                          would be run
+ --log                  : select the base name of the log file (default
+                          "safec.log")
+ --logversions <n>      : keep logs up to version <n>. Default is 5.
+ --noremake             : runs the commands without trying to remake the safec
+                          compiler before each test. Useful if you want to 
+                          work on the compiler while the tests are running
+ --safecdebug           : uses the DEBUG version of the safec compiler and
+                          uses the C compiler in debug mode. By default it
+                          used the RELEASE version and the optimizing compiler.
+
+
+
+ --group <groupname>    : adds all the tests in the named group to the list of 
+                          tests to be run or to participate in the analysis of
+                          the log. (Right now we have groups: apache,
+                          bad, cil, box, infer.) If no such option is
+                          specified then all tests are selected. Multiple such
+                          options can be given and are cumulative. 
+ --nogroup <groupname>  : excludes the tests in the named group from running
+                          or from the analysis. Multiple such options can be
+                          given and are cumulative. These options are
+                          processed after all --group options have 
+                          been processed. 
+
+ --listtests            : list the tests that are enabled along with their
+                          group membership. This is useful to find out what
+                          tests and groups exist.
+\end{verbatim}
+
+ \section{Analysing the results}
+
+ The basic command for analyzing log files is "\t{testsafec}". This will
+prompt the user to select one of the several log files that exist in the
+current directory and then (by default) it will print a list of the failed
+test cases, with a short (user provided) comment and the last error message
+detected in the output for that test case.
+
+ The following commands are useful during analysis:
+\begin{verbatim}
+ --log                  : select the log file (see above)
+ --group, --nogroup     : select groups (see above)
+ --listtests            : list tests and groups (see above)
+ --failures             : show the failures (default)
+ --successes            : show the successes (they are not shown by defauls)
+ --param=<pnames>       : show a report about the successes, with the columns
+                          being the named parameters (separated by ,). Run
+                          "testsafec --help" to see what parameters are
+                          available. 
+ --sort=<pnames>        : sorts the report by the given parameters. 
+\end{verbatim}
+
+ 
+ \section{Configuring the regression}
+
+
+ For this you have to edit testsafec.pl. You will see a large section in the
+ middle of the file containing lines like:
+
+\begin{verbatim}
+\$TEST->add3Tests("test/array1");
+\end{verbatim}
+
+
+ (check out the definintion of \t{add3Tests} at the bottom of the file). This
+ adds three tests named "\t{test/array1-cil}", "\t{test/array1-box}" and
+ \t{test/array1-inferbox}", each one containing one command that invokes
+ "\t{make test/array1 ...}", where \t{...} are appropriate parameters.
+
+ A second optional string parameter to \t{add2Tests} is something to be added
+ to the command line.
+
+ A third optional array parameters is a list of patterns to be used in
+scanning the output of the test cases. This is an advanced feature and you are
+on your own. 
+
+
+ To add just one test do (as in the body of add3Tests):
+
+\begin{verbatim}
+    $TEST->newTest(Name => "mytestname",
+                   Dir => "..",
+                   Cmd => "make something",
+                   Enabled => 1,
+                   Comm => "Print this along with the test name",
+                   Group => ["cil", "othergroup"],
+                   Patterns => \%mypatterns);
+\end{verbatim} % $
+ Sometimes you might want to add just a comment or to add one group to a
+ certain test. Use the following simple functions: 
+
+\begin{verbatim}
+ $TEST->addGroups("mytestname", "group1", "group2");
+ $TEST->addComment("mytestname", "Another line of comment");
+\end{verbatim}
+
+ There are soem wrappers defined at the end of testsafec.pl:
+
+\begin{verbatim}
+   $TEST->add3BadComment("test/scope3", "missing prototype");
+\end{verbatim}%$
+
+ (this one adds a comment and the group "bad" to all three test cases)
+
+\begin{verbatim}
+  $TEST->addBadComment("li-box", "bug in box.ml");
+\end{verbatim}%$
+
+ (the same but just for one test)
+   
+\begin{verbatim}
+  $TEST->enable("li-box", 0);   (disable the li-box test case)
+\end{verbatim}%$
+
+
+ For more advanced customization, read the Perl code. It is fairly easy to
+ understand, especially the testsafec.pl. 
+
+ \section{A simpler regression tester}
+        
+ Scott has implemented a simpler regression tester. You can use it if you want
+ but you should also make sure that whenever you make changes the main
+ regression test passes. To use Scott's regression tester:
+
+\begin{verbatim}
+  % cd cil
+  % ./regrtest
+\end{verbatim}
+
+This should run to completion and report something like:
+
+\begin{verbatim}
+  All 93 regression tests passed!
+  11 tests failed as expected
+\end{verbatim}
+
+If a particular test fails (or unexpectedly succeeds), you can tell
+the regression tester to skip past that one to proceed with the rest.
+For example, if it stops like this:
+
+\begin{verbatim}
+  [74] A regression test command failed:
+    make test/attr4 INFERBOX=4
+\end{verbatim}
+
+then it failed on the 75th test (they're numbered from 0), so restart
+the script with:
+
+\begin{verbatim}
+  % ./regrtest -skip 75
+\end{verbatim}
+
+And of course, report these to us!
+
+        \chapter{Getting Started}
+
+\section{Get OCaml}
+
+The first step for most people is to download and install the Ocaml
+compiler system.  This is available at:
+
+  \ahrefurl{http://caml.inria.fr/ocaml/}
+
+At the time of writing, the current version is 3.02.
+
+Be sure to compile and install the native code compiler in addition
+to the bytecode compiler.  The native code compiler is used by the
+regression test scripts.
+
+To test your ocaml distribution, try:
+
+\begin{verbatim}
+  % which ocaml
+  /usr/local/bin/ocaml
+
+  % ocaml
+        Objective Caml version 3.00
+
+  # exit 0;;    <-- you type "exit 0;;", and press enter
+\end{verbatim}
+
+\section{Get the C-Cured sources via CVS}
+
+You'll need CVS (Concurrent Version System) installed; version 1.10 or
+greater is recommended.  If you don't have it (try "which cvs"), you can
+get it from
+
+  \ahrefurl{http://www.cvshome.org/}
+
+Next you'll need an account on brooksie.cs.berkeley.edu; talk to Rahul
+(\mailto{sprahul@cs.berkeley.edu}) to get an account.
+
+Next, configure your cvs to use 'ssh' as your connection method.  If you're
+using csh/tcsh, use
+
+\begin{verbatim}
+  setenv CVS_RSH ssh
+\end{verbatim}
+
+  
+and for sh/bash, use
+
+\begin{verbatim}
+  export CVS_RSH=ssh
+\end{verbatim}
+
+This should probably be put into your .cshrc or .bashrc so it gets run
+every time the shell starts.
+
+Now, checkout the repository.  As an example, here's how I do it:
+
+
+\begin{verbatim}
+  % cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
+                ^^^^^^^
+         use your username instead
+\end{verbatim}
+
+This will checkout all the sources into a new directory called cil/, off
+the current directory.
+
+
+\subsection{Using CVS with SSH on Windows}
+
+It has been observed that the cygwin version of ssh doesn't behave well
+with cvs because of some CR-LF translation problems. Hence, you will need 
+putty, puttygen, pageant, pscp and plink, all of which are available from:
+
+  \ahrefurl{http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html}
+
+All of the following steps are necessary to get CVS over SSH working:
+\begin{itemize}
+\item Create a key pair if you dont already have one using puttygen. You will
+end up with the public and private key files "identity" and "identity.pub" in
+a directory named \t{\%HOMEPATH\%/.ssh}
+
+\item Setup pageant (putty ssh-agent): Add a shortcut to the following command
+line (add/change paths as necessary) in your startup folder -
+
+\begin{verbatim}
+      pageant.exe  C:\.ssh\identity 
+\end{verbatim}
+
+c. Add your public key in the "\t{authorized\_keys}" file on the CVS server:
+   Use the following command line:
+
+\begin{verbatim}
+       plink -ssh -pw your-password username@cvs-host "cat >> ~/.ssh/authorized_keys" <  C:\.ssh\identity.pub
+\end{verbatim}
+  
+   This appends your identity.pub file to \t{\home{}/.ssh/authorized\_keys} file
+   on the server. You may do this in any other way you like. You {\bf have} to
+   type your password on the command line if you do it this way, though.
+
+\item Create a "session profile" in putty for the CVS server:
+  \begin{itemize}
+  \item Start putty to see the configuration screen with a category tree on
+   the left 
+  \item Session category: fill in the hostname (brooksie) and protocol (SSH) 
+  \item Connection category: Fill in the auto-login-username field
+  \item Connection/SSH category: Check "allow agent forwarding"
+  \item Session category: Save this session under a name (say, "brooksie")
+  \end{itemize}
+
+
+\item Test your session:
+  \begin{itemize}
+  \item Start pageant if its not already running. It should ask you for a
+    password for your private key (identity). 
+  \item Execute the ls command on the server:
+
+\begin{verbatim}
+	     plink @brooksie "ls -a"
+\end{verbatim}
+
+     The command should execute without asking for a password and return to the 
+     windows prompt after executing "ls -a"
+
+   \item Also, the command-line
+\begin{verbatim}
+	   putty @brooksie
+\end{verbatim}
+     should log you in directly now.
+  \end{itemize}
+
+\item Set the environment variables. Note that these are different than the
+usual UNIX settings. The @brooksie part means "use the brooksie session from
+putty"
+
+\begin{verbatim}
+       CVSROOT=:ext:@brooksie:/home/cvs-repository
+       CVS_RSH=plink
+\end{verbatim}
+
+\item At this point you should be able to run cvs:
+
+\begin{verbatim}
+      cvs checkout cil
+\end{verbatim}
+
+\item If you have previously been using cvs in pserver mode, cvs might have
+created CVS/Root files in all subdirectories under its control. This file
+simply stores the value of the CVSROOT environment variable when you had
+checked-out the project for the first time. If CVS finds this file, it seems
+to ignore the environment CVSROOT variable and as a result, might be using
+pserver mode without letting you know.
+   
+   A solution is to delete all the CVS/Root files.
+
+   Another symptom of the CVS/Root problem is the following error message:
+   cvs checkout: warning: unrecognized response `SSH-1.5-1.2.26' from cvs server
+   cvs checkout: warning: unrecognized response `Protocol mismatch.' from cvs	
+   server
+
+   Again, deleting the CVS/Root files should work.
+
+
+(Send corrections/comments/questions to \mailto{ab@amanb.net})
+\end{itemize}
+
+
+\section{Customize the Makefile}
+
+ You must set the environment variable \t{CCUREDHOME} to point to the
+directory in which you installed CCured. In that directory you will find a
+file called \t{.ccuredrc\_model}. Make a copy of it called \t{.ccuredrc} and
+place it in the same directory. Edit \t{.ccuredrc} according to your needs. If
+you use \t{gcc} on Linux you typically don't need to change anything. In this
+case you don't even need to have the \t{.ccuredrc} file. {\bf Never check in
+\t{ccuredrc} in the repository since here you will have your own
+configuration options.}.
+
+\section{Compile CCured}
+
+Go into the cil/ directory, and run GNU make:
+
+\begin{verbatim}
+  % cd cil
+  % gmake setup       (or maybe just 'make setup')
+\end{verbatim}
+
+
+\section{Run the regression tests}
+
+Go into \t{cil/test} and run
+\begin{verbatim}
+ testsafec --run
+\end{verbatim}
+
+ See Chapter~\ref{ch-regtest} (Using the regression tester) for more details. 
+
+ This will take between half an hour and two hours. It produces a log
+(safec.log) which can be used to review why individual tests failed.
+
+
+
+
+
+
+\appendix
+
+
+
+\chapter{A Tour of the Source Code}
+\begin{verbatim}
+src/: (ML code)
+  box: insert runtime checks
+  check: a consistency checker for CIL. The most precise "documentation" of
+  the meaning of CIL.
+  cil: representation of intermediate lang (C but no side
+       effects in expressions); includes cil -> doc
+  cilparse: parsing our stuff?
+  errormsg: A few utilities for reporting error messages and for logging
+  frontc: C parser (C source -> cabs -> cil)
+  globinit: add initializers to modules?
+  main: entry point to 'safec' tool; processes command-line flags
+  markptr: marks pointers based on usage (input to inferencer)
+  mllex: ?
+  notes.txt: describes syntax of 'asm' statements in gcc
+  oneret: a simple program transformation that pull all return statements to
+  the end of the function body. A good example of how to use CIL.
+  optim: rahul's bounds-check elim stuff
+  pretty: generic pretty-printer (doc -> string)
+  ptrnode: graph for inference algorithm
+  rmtmps: remove unused temporaries introduced by 'box'
+  secondsolve: 2nd solver?
+  simplesolve: 1st solver; decides which pointer flavors to use
+    based on how those pointers were used by programmer
+  stats: a few utilities for timing the execution
+  thirdsolve: 3rd solver (currently used; INFERBOX=3)
+  trace: something for debugging output
+  util: ?
+  wildsolve: ?
+
+lib/: (C code for use at runtime)
+  fixup.h: prepended to every input source file before boxing
+  safec.c: library wrappers (e.g. fopen_w)
+  safec_gcc.patch: patching nonsense (for GCC)
+  safec_msvc.patch: patching nonsense (for MSVC)
+  safecc.pl: intended to be drop-in replacement for 'gcc' and for MS 'cl'
+  safeccheck.h: "inline" macros for doing runtime checks
+  safecmain.c: wrapper for 'main' in case it takes arguments
+  scaninfer: ?
+  gc/: boehm-weiser garbage collector (http://www.hpl.hp.com/personal/Hans_Boehm/gc/)
+\end{verbatim}
+
+
+\chapter{Using CVS}
+CVS is used to synchronize changes to the project across multiple
+developers.  See the CVS website for detailed information
+
+  \ahrefurl{http://www.cvshome.org/}
+  
+There are a few common commands you'll need.  Each of these is to be run
+in the base 'cil' directory (the one with 'regrtest'):
+
+\begin{itemize}
+\item \t{cvs [-n] update -d [filename]}
+
+    This retrieves any changes recently committed by others.  This is
+    usually necessary before you can commit your own changes.  It is a
+    good idea to run the fast regression test ('regrtest') before and
+    after doing "cvs update" so you can know whether it was you or the
+    update which broke something.
+
+    The optional -n flag tells CVS to not actually change any of your
+    files.  This is useful for querying the status of the repository.
+
+    The -d argument tells cvs to create on your machine any new directories
+    that somebody might have checked in. By default cvs does not create new
+    directories. This flag is so useful that many people find it useful to
+    create a ~/.cvsrc file with one line containing "update -d" in it. This way
+    you don't have to specify the flag all the time.
+
+    If you specify a filename (after cd'ing to the directory containing it),
+    only that file will be updated, otherwise everything in the current
+    directory and below is updated. Run this in the top-level project
+    directory to update the entire project. A useful idiom for undoing all of
+    your changes is "cd dir; rm file; cvs update file".
+
+    
+\item \t{cvs commit [filename]}
+
+    This pushes your changes into the repository, so that the next time
+    someone does "cvs update" they will get your changes.  Please try to
+    only commit when the regression test script passes.
+    
+    If you specify a filename, only that file will be committed, otherwise
+    everything in the current directory and below is checked in. Run this in
+    the top-level project directory to check all of your changes in.
+
+\item  \t{cvs add filename}
+
+    This adds a new file to the repository.  It isn't visible in the
+    repository until you do a commit.
+\end{itemize}
+
+
+\chapter{Useful Links}
+\begin{itemize}
+ \item  Tutorial on ML: 
+   \ahrefurl{http://www.dcs.napier.ac.uk/course-notes/sml/manual.html}
+
+        
+
+  \item Documentation and sources for Ocaml: 
+        \ahrefurl{http://caml.inria.fr/ocaml/} 
+
+        
+
+  \item Documentation and sources for CVS:
+        \ahrefurl{http://www.cvshome.org/}
+
+    
+
+  \item Manual for GNU make:
+        \ahrefurl{http://www.gnu.org/manual/make/html\_chapter/make\_toc.html}
+
+    
+ \end{itemize}
+
+\chapter{Using attributes with CIL}
+
+ In CIL you can attach attributes to types and to names (variables, functions
+and fields). The following syntax of attributes is currently supported: 
+
+\begin{verbatim}
+ attribute ::= IDENT | IDENT ( [attrarg ,]+ )
+ attrarg   ::= IDENT | IDENT ( [attrarg ,]+) | "STRING" | INT
+             | attrarg binop attrarg | unop attrarg
+             | sizeof attrarg | sizeof type
+\end{verbatim}
+
+ The attribute names (IDENT above) must start with a letter and should not
+start or end with underscore.
+
+ The attributes are specified in declarations. This is unfortunate since the C
+syntax for declarations is already quite complicated and after writing the
+parser and elaborator for declarations I am convinced that few C programmers
+understand it completely. Anyway, this seems to be the easiest way to support
+attributes. 
+
+ Name attributes must be specified at the very end of the declaration, just
+before the = for the initializer or before the , the separates a declaration
+in a group of declarations or just before the ; that terminates the
+declaration. A name attribute for a function being defined can be specified
+just before the brace that starts the function body. 
+
+ For example (in the following examples A1,...,An are type attributes and N
+  is a name attribute. We'll talk soon about how these attributes can be
+  written in the source program): 
+
+\begin{verbatim}
+ int x N1;
+ int x Nx, * y Ny = 0, z[] Nz;
+ extern void exit() N;
+ int fact(int x) N { ... }
+\end{verbatim}
+
+
+ Type attributes can be specified along with the type using the following
+ rules: 
+\begin{enumerate}
+ \item The type attributes for a base type (int, float, named type, reference
+    to struct or union or enum) must be specified immediately following the
+    type (actually it is Ok to mix attributes with the specification of the
+    type, in between unsigned and int for example).
+
+  For example:
+\begin{verbatim}
+  int A1 x N1;  /* A1 applies to the type int. An example is an attribute
+                   "even" restricting the type int to even values. */
+  struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
+\end{verbatim}
+ 
+ \item The type attributes for a pointer type must be specified immediately
+ after the * symbol.
+\begin{verbatim}
+ /* A pointer (A1) to an int (A2) */
+ int A2 * A1 x;
+ /* A pointer (A1) to a pointer (A2) to a float (A3) */
+ float A3 * A2 * A1 x;
+\end{verbatim}
+
+
+ Note: The attributes for base types and for pointer types are a strict
+ extension of the ANSI C type qualifiers (const, volatile and restrict). In
+ fact the is special support to parse these qualifiers as attributes. 
+
+  \item The attributes for a function type or for an array type can be
+     specified using parenthesized declarators.
+
+   For example:
+\begin{verbatim}
+   /* A function (A1) from int (A2) to float (A3) */
+   float A3 (A1 f)(int A2);
+
+   /* An array (A1) of int (A2) */
+   int A2 (A1 x0)[]
+
+   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
+    * return a pointer (A5) to int (A6)  */
+   int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
+
+
+   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   extern int A7 * A6 (A4 x2)(float A5 x);
+
+   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
+    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
+      return & x2;
+   }
+\end{verbatim}
+
+\end{enumerate}
+
+ Note: ANSI C does not allow the specification of type qualifiers for function
+and array types, although it allows for the parenthesized declarator. With
+just a bit of thought (looking at the first few examples above) I hope that
+the placement of attributes for function and array types will seem intuitive.
+
+ This extension is not without problems however. If you want to refer just to
+a type (in a cast for example) then you leave the name out. But this leads to
+strange conflicts due to the parentheses that we introduce to scope the
+attributes. Take for example the type of x0 from above. It should be written
+as: 
+ 
+\begin{verbatim}
+        int A2 (A1 )[]
+\end{verbatim}
+
+ But this will lead most C parsers into deep confusion because the parentheses
+around A1 will be confused for parentheses of a function designator. To push
+this problem around (I don't know a solution) whenever we are about to print a
+parenthesized declarator with no name but with attributes, we comment out the
+attributes so you can see them (for whatever is worth) without confusing the
+compiler. For example, here is how we would print the above type:
+
+\begin{verbatim}
+        int A2 /*(A1 )*/[]
+\end{verbatim}
+
+ 
+ \section{Source-level representation of attributes}
+
+ GCC already has extensive support for attributes, so we are going to extend
+it to handle arbitrary attributes. A GCC attribute has the syntax:
+ 
+\begin{verbatim}
+ gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
+\end{verbatim}
+
+ Since GCC and MSVC both support various flavors of each attribute (with or
+without leading or trailing \_) we first strip ALL leading and trailing \_ from
+the attribute name (the IDENT in the non-terminal "attribute", but not the
+IDENT in the attribute arguments "attrarg"). When we print attributes, for GCC
+we add two leading and two trailing \_; for MSVC we add just two leading \_.
+ 
+ There is support in CIL so that you can control the printing of attributes.
+This custom-printing support is now used to print the "const" qualifier as
+"\t{const}" and not "\t{\_\_attribute\_\_((const))}". 
+
+
+ \section{Handling of predefined GCC attributes}
+
+ GCC already supports attributes in a lot of places in declarations. The only
+place where we support attributes and GCC does not is right before the \{ that
+starts a function body. 
+
+ GCC classifies its attributes in attributes for functions, for variables and
+for types, although the latter category is only usable in definition of struct
+or union types and is not nearly as powerful as the CIL type attributes. We
+have made an effort to reclassify GCC attributes in name and type attributes
+(they only apply for function types). Here is what we came up with:
+
+\begin{itemize}
+  \item GCC name attributes:
+   
+   section, constructor, destructor, unused, weak, no\_instrument\_function,
+   noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
+   model
+
+      Note: the "noreturn" attribute would be more appropriately qualified as a
+      function type attribute. But we classify it as a name attribute to make
+      it easier to support a similarly named MSVC attribute. 
+  
+  \item GCC function type attributes:
+
+    fconst (printed as "const"), format, regparm, stdcall,
+    cdecl, longcall
+
+  I was not able to completely decipher the position in which these attributes
+  must go. So, the CIL elaborator knows these names and applies the following
+  rules: 
+  \begin{itemize}
+  \item All of the name attributes that appear anywhere in the declaration are
+  collected and associated with the declared name. This was easy since each
+  declaration declares exactly one name.
+
+  \item More complicated is the handling of the function type attributes, since
+     there can be more than one function in a single declaration (a function
+     returning a pointer to a function). Lacking any real understanding of how
+     GCC handles this, I attach the function type attribute to the "nearest"
+     function. This means that if a pointer to a function is "nearby" the
+     attribute will be correctly associated with the function. In truth I pray
+     that nobody uses declarations as that of x3 above. 
+  \end{itemize}
+\end{itemize}
+
+\section{Handling of predefined MSVC attributes}
+
+  MSVC has two kinds of attributes, declaration modifiers to be printed before
+  the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
+  function type attributes, printed almost as our CIL function type
+  attributes. 
+
+   The following are the name attributes that are printed using
+   \t{\_\_declspec} right before the storage designator of the declaration:
+   thread, naked, dllimport, dllexport, noreturn
+
+
+   The following are the function type attributes supported by MSVC: 
+   fastcall, cdecl, stdcall
+
+   It is not worth going into the obscure details of where MSVC accepts these
+   type attributes. The parser thinks it knows these details and it pulls
+   these attributes from whereever they might be placed. The important thing
+   is that MSVC will accept if we print them according to the rules of the CIL
+   attributes ! 
+ 
+ 
 \end{document}

@@ -1,34 +1,26 @@
-#ifdef WIN32
-#	include <stdlib.h>
-#endif
-#if __STDC__
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include <stdarg.h>
-#else /*__STDC__*/
-#include <varargs.h>
-#endif /*__STDC__*/
-#ifdef __VMS
-#  include <errno.h>
-#endif
-#include <sys/errno.h>
 
+#include "testharness.h"
 
 char* progname = "vararg3";
 int showmessages = 1;
 
 
-void
-pm_error( char* format, ... )
-    {
-    va_list args;
+void pm_error( char* format, ... )     {
+  va_list args;
 
-    va_start( args, format );
-
-    fprintf( stderr, "%s: ", THEPROGNAME );
-    (void) vfprintf( stderr, format, args );
-    fputc( '\n', stderr );
-    va_end( args );
-    exit( 1 );
-    }
+  va_start( args, format );
+  
+  fprintf( stderr, "%s: ", progname );
+  (void) vfprintf( stderr, format, args );
+  fputc( '\n', stderr );
+  va_end( args );
+  exit( 1 );
+}
 
 
 /* Portable mini-vfprintf, for systems that don't have either vfprintf or
@@ -36,12 +28,7 @@ pm_error( char* format, ... )
 ** you might consider getting a new stdio library.
 */
 
-int
-vfprintf( stream, format, args )
-    FILE* stream;
-    char* format;
-    va_list args;
-    {
+int vfprintf(FILE *stream, char const *format, va_list args ) {
     int n;
     char* ep;
     char fchar;
@@ -162,6 +149,6 @@ vfprintf( stream, format, args )
 	    format = ep + 1;
 	    }
 	}
-    return nc;
+    return n;
     }
 
