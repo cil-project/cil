@@ -73,6 +73,265 @@ one. This makes it easy to do whole-program analysis.
 copies of the system include files. The preprocessor can then be told how to 
 \end{itemize}
 
+ CIL has been tested very extensively. It is able to process the SPECINT95
+benchmarks, the Linux kernel, GIMP and other open-source projects. It is also
+able to process the few Microsoft NT device drivers that we have had access
+to. CIL was tested against GCC's c-torture testsuite and (except for the tests
+involving complex numbers and inner functions, which CIL does not currently
+implement) CIL passes most of the tests. In fact it passes more tests that
+\t{gcc 2.95.3}! A total of 1400 regression test cases are run automatically on
+each change to the CIL sources.
+
+\section{Compiling C to CIL}\label{sec-cabs2cil}
+
+ In this section we try to describe a few of the many transformations that
+are applied to a C program to convert it to CIL. The module that implements
+this conversion is about 5000 lines of OCaml code. In contrast a simple
+program transformation that instruments all functions to keep a shadow stack
+of the true return address (thus preventing stack smashing) is only 70 lines
+of code. This is both because the analysis has to handle only a few simple C
+constructs and also because it can leverage on CIL infrastructure such as
+vistors and pretty-printers. 
+
+ In no particular order these are a few of the most significant ways in which
+ C programs are compiled into CIL:
+\begin{enumerate}
+\item CIL will eliminate all declarations for unused entities. This means that
+just because your hello world program includes \t{stdio.h} it does not mean
+that your analysis has to handle all the ugly stuff from \t{stdio.h}.
+
+\item Type specifiers are interpreted and normalized:
+\begin{cilcode}[global]
+int long signed x;
+signed long extern x;
+long static int long y;
+\end{cilcode}
+
+\item Anonymous structure and union declarations are given a name. 
+\begin{cilcode}[global]
+ struct { int x; } s;
+\end{cilcode}
+
+\item Nested structure tag definitions are pulled apart. This means that all
+structure tag definitions can be found by a simple scan of the globals.
+
+\begin{cilcode}[global]
+struct foo {
+   struct bar {
+      union baz { 
+          int x1; 
+          double x2;
+      } u1;
+      int y;
+   } s1;
+   int z;
+} f;
+\end{cilcode}
+
+\item All structure, union, enumeration definitions and the type definitions
+from inners scopes are moved to global scope (with appropriate renaming). This
+facilitates moving around of the references to these entities.
+
+\begin{cilcode}[global]
+int main() {
+  struct foo { 
+        int x; } foo; 
+  {
+     struct foo { 
+        double d;
+     };
+     return foo.x;
+  }      
+}
+\end{cilcode}
+
+\item Prototypes are added for those functions that are called before being
+defined. Furthermore, if a prototype exists but does not specify the type of
+parameters that is fixed. But CIL will not be able to add prototypes for those
+functions that are neither declared nor defined (but are used!).
+\begin{cilcode}[global]
+  int f();  // Prototype without arguments
+  int f(double x) {
+      return g(x);
+  }
+  int g(double x) {
+     return x;
+  } 
+\end{cilcode}
+
+\item Array lengths are computed based on the initializers or by constant
+folding.
+\begin{cilcode}[global]
+  int a1[] = {1,2,3};
+  int a2[sizeof(int) >= 4 ? 8 : 16];
+\end{cilcode}
+
+\item Enumeration tags are computed using constant folding:
+\begin{cilcode}[global]
+  enum { 
+     FIVE = 5, 
+     SIX, SEVEN, 
+     FOUR = FIVE - 1, 
+     EIGHT = sizeof(double)
+  };
+\end{cilcode}
+
+\item Initializers are normalized to include specific initialization for the
+missing elements:
+\begin{cilcode}[global]
+  int a1[5] = {1,2,3};
+  struct foo { int x, y; } s1 = { 4 };
+\end{cilcode}
+
+\item Initializer designators are interpreted and eliminated. Subobjects are
+properly marked with braces. CIL implements
+the whole ISO C99 specification for initializer (neither GCC nor MSVC do) and
+a few GCC extensions. 
+\begin{cilcode}[global]
+  struct foo { 
+     int x, y; 
+     int a[5];
+     struct inner {
+        int z;
+     } inner;
+  } s = { 0, .inner.z = 3, .a[1 ... 2] = 5, 4, y : 8 };
+\end{cilcode}
+
+\item String initializers for arrays of characters are processed
+
+\begin{cilcode}[global]
+char foo[] = "foo plus bar";
+\end{cilcode}
+
+\item String constants are concatenated
+
+\begin{cilcode}[global]
+char *foo = "foo " " plus " " bar ";
+\end{cilcode}
+
+\item Initializers for local variables are turned into assignments. This is in
+order to separate completely the declarative part of a function body from the
+statements. This has the unfortunate effect that we have to drop the \t{const}
+qualifier from local variables !
+
+\begin{cilcode}[local]
+  int x = 5; 
+  struct foo { int f1, f2; } a [] = {1, 2, 3, 4, 5 };
+\end{cilcode}
+
+\item Local variables in inner scopes are pulled to function scope (with
+appropriate renaming). Local scopes thus disappear. This makes it easy to find
+and operate on all local variables in a function.
+
+\begin{cilcode}[global]
+  int x = 5; 
+  int main() {
+    int x = 6;
+    { 
+      int x = 7;
+      return x;
+    }
+    return x;
+  } 
+\end{cilcode}
+
+\item Global declarations in local scopes are moved to global scope:
+\begin{cilcode}[global]
+  int x = 5; 
+  int main() {
+    int x = 6;
+    { 
+      static int x = 7;
+      return x;
+    }
+    return x;
+  } 
+\end{cilcode}
+
+\item Return statements are added for functions that are missing them. If the
+return type is not a base type then a \t{return} without a value is added.
+The guaranteed presence of return statements makes it easy to implement a
+transformation that inserts some code to be executed immediately before
+returning from a function.
+\begin{cilcode}[global]
+  int foo() {
+    int x = 5;
+  } 
+\end{cilcode}
+
+\item One of the most significant transformations is that expressions that
+contain side-effects are separated into statements. 
+
+\begin{cilcode}[local]
+   int x, f(int);
+   return (x ++ + f(x));
+\end{cilcode}
+
+ Internally, the \t{x ++} statement is turned into an assignment which the
+pretty-printer prints like the original. CIL has only three forms of basic
+statements: assignments, function calls and inline assembly.
+
+\item Shortcut evaluation of boolean expressions and the \t{?:} operator are
+compiled into explicit conditionals:
+\begin{cilcode}[local]
+  int x;
+  int y = x ? 2 : 4;
+  int z = x || y;
+  // Here we duplicate the return statement
+  if(x && y) { return 0; } else { return 1; }
+  // To avoid excessive duplication, CIL uses goto's for 
+  // statement that have more than 5 instructions
+  if(x && y || z) { x ++; y ++; z ++; x ++; y ++; return z; }
+\end{cilcode}
+
+\item GCC's conditional expression with missing operands are also compiled
+into conditionals:
+\begin{cilcode}[local]
+  int f();;
+  return f() ? : 4;
+\end{cilcode}
+
+\item GCC's 
+
+\item All forms of loops (\t{while}, \t{for} and \t{do}) are compiled
+internally as a single \t{while(1)} looping construct with explicit \t{break}
+statement for termination. For simple \t{while} loops the pretty printer is
+able to print back the original:
+\begin{cilcode}[local]
+   int x, y;
+   for(int i = 0; i<5; i++) {
+      if(i == 5) continue;
+      if(i == 4) break;
+      i += 2;
+   } 
+   while(x < 5) {
+     if(x == 3) continue;
+     x ++;
+   }
+\end{cilcode}
+
+\item GCC's block expressions are compiled away. (That's right there is an
+infinite loop in this code.)
+
+\begin{cilcode}[local]
+   int x = 5, y = x;
+   int z = ({ x++; L: y -= x; y;});
+   return ({ goto L; 0; });
+\end{cilcode}
+
+\item CIL contains support for both MSVC and GCC inline assembly (both in one
+internal construct)
+
+\item CIL compiles away the GCC extension that allows many kinds of constructs
+to be used as lvalues:
+
+\begin{cilcode}[local]
+   int x, y, z;
+   return &(x ? y : z) - & (x ++, x);
+\end{cilcode}
+
+\end{enumerate}
+
 \section{CIL API Documentation}\label{sec-cil} 
 
  The CIL API is documented in the file \t{src/cil.mli}. We also have an

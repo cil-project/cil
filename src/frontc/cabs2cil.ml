@@ -3881,7 +3881,6 @@ and createLocal (specs: A.spec_elem list)
       let vi = createGlobal specs init_name in
       (* Add it to the local environment to ensure that it shadows previous 
        * local variables *)
-      ignore (E.log "Created vi=%s for extern %s\n" vi.vname n);
       addLocalToEnv n (EnvVar vi);
       empty
 
