@@ -103,6 +103,7 @@
 
 #pragma boxpoly("memcpy")
 #pragma boxpoly("memset")
+#pragma boxpoly("memmove")
 
 #pragma boxexported("main")
 #endif
@@ -129,7 +130,40 @@
     // flow argument to result
     return fn;
   }
-#endif // BEFOREBOXc
+
+  #pragma boxpoly("memset_seq_model")
+  static inline
+  void* memset_seq_model(void* dest, int towrite, unsigned int size)
+     __BOXMODEL("memset");     
+  static inline
+  void* memset_seq_model(void* dest, int towrite, unsigned int size)
+  {
+    void *end = __endof(dest); // Make sure it has an end
+    return dest;
+  }
+
+  #pragma boxpoly("memcpy_seq_model")
+  static inline
+  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
+       __BOXMODEL("memcpy") __BOXMODEL("memmove");
+  static inline 
+  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
+  {
+    void *end = __endof(dest);
+    dest = src; // Make sure they are both have the same type
+    return dest;
+  }
+
+  static inline
+  char *strpbrk_model(char const *s, char const *accept) __BOXMODEL("strpbrk");
+  static inline 
+  char *strpbrk_model(char const *s, char const *accept)
+  {
+    int someInt = (int)(*accept);   // make sure 'accept' can be read from
+    return s;                       // connect s to retval
+  }
+
+#endif // BEFOREBOX
 
 #ifdef BEFOREBOX
 #pragma boxpoly("__endof")
@@ -140,3 +174,5 @@ void *__startof(void *ptr); // Get the start of a pointer
 #define __startof(p) p
 #define __endof(p) p
 #endif
+
+
