@@ -383,6 +383,11 @@ and print_name_group (typ, sto, names) =
   print_commas false print_name names
     
 and print_single_name (typ, sto, name) =
+  (* Added by Raymond for printing inline *)
+  if (contains_inline name) then begin
+      print "inline";
+      space ()
+  end;
   if sto <> NO_STORAGE then begin
     print (get_storage sto);
     space ()
@@ -731,6 +736,20 @@ and print_attribute (name,args) =
     print_commas false (fun e -> print_expression e 1) args;
     print ")"
   end
+
+(* Added by Raymond for printing inline *)
+and contains_inline ((id, typ, attr, exp) : name) =
+  let tofind = ["inline"] in
+  let rec loop = function
+      [] -> false
+    | ((an, _) as a) :: rest ->
+        if List.exists (fun n -> n = an) tofind then
+          true
+        else
+          loop rest
+    in 
+  loop attr
+
 
 and print_attributes attrs = 
     (* Remove some attributes for now *)
