@@ -677,7 +677,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	@true "first try the succeed case"
 	cd $(TESTDIR)/bad; $(CCURED) --separate --keep=. \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
+                 -g $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	echo $(TESTDIR)/bad/$*
