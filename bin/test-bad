@@ -68,7 +68,7 @@ srcfilenoext=`echo $srcfile | sed s/.c\$//`
 tmpname="$srcfilenoext-tmp"
 
 # for GCC, use "# xx foo.c".  For MSVC, use "#line xx foo.c"
-if [ "$_MSVC" == "1" ]; then 
+if [ "$_MSVC" != "" ]; then 
   LINEOPT="line"
   OUTFLAG="/Fe"
   OUTEXT=".exe"
@@ -114,7 +114,6 @@ while [ $i -le $numcases ]; do
        sed "s|ERROR($i)|(selected: $i)|" | \
        perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "#'$LINEOPT' $ln\n"; } else { print $_; }}' \
          > "$tmpname.c"
-#    | grep -v "ERROR(" 
   chmod a-w "$tmpname.c"
 
   # Grab the errorline for this test case

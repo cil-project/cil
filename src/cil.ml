@@ -2214,6 +2214,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
 *)
         
+  (** What terminator to print after an instruction. sometimes we want to 
+   * print sequences of instructions separated by comma *)
+  val mutable printInstrTerminator = ";"
+
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
@@ -2224,20 +2228,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             when lv == lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
-                ++ text " ++;"
+                ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
                 Const(CInt64(one,_,_)), _) 
             when lv == lv' && one = Int64.one && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLval () lv
-                    ++ text " --;"
+                    ++ text (" --" ^ printInstrTerminator) 
 
         | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
             when lv == lv' && mone = Int64.minus_one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
-                ++ text " --;"
+                ++ text (" --" ^ printInstrTerminator)
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
@@ -2247,14 +2251,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text " " ++ d_binop () bop
                     ++ text "= "
                     ++ self#pExp () e
-                    ++ text ";"
+                    ++ text printInstrTerminator
                     
         | _ ->
             self#pLineDirective l
               ++ self#pLval () lv
               ++ text " = "
               ++ self#pExp () e
-              ++ text ";"
+              ++ text printInstrTerminator
               
     end
       (* In cabs2cil we have turned the call to builtin_va_arg into a 
@@ -2280,7 +2284,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               ++ chr ',' ++ break 
                               ++ self#pType None () t
                               ++ unalign)
-            ++ text ");"
+            ++ text (")" ^ printInstrTerminator)
 
       (* In cabs2cil we have dropped the last argument in the call to 
        * __builtin_stdarg_start. *)
@@ -2321,7 +2325,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
              ++ (docList (chr ',' ++ break) 
                    (self#pExp ()) () args)
              ++ unalign)
-        ++ text ");"
+        ++ text (")" ^ printInstrTerminator)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
         if !msvcMode then
@@ -2330,7 +2334,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ (align
                   ++ (docList line text () tmpls)
                   ++ unalign)
-            ++ text "};"
+            ++ text ("}" ^ printInstrTerminator)
         else
           self#pLineDirective l
             ++ text ("__asm__ ") 
@@ -2369,7 +2373,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                              ()
                              clobs)))
                   ++ unalign)
-            ++ text ");"
+            ++ text (")" ^ printInstrTerminator)
             
 
   (**** STATEMENTS ****)
@@ -2600,11 +2604,17 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ text "__try "
           ++ align 
           ++ self#pBlock () b
-          ++ text " __e" ++ align ++ text "xcept("
+          ++ text " __e" ++ align ++ text "xcept(" ++ line
           ++ align
-          ++ (docList (chr ',' ++ break) (self#pInstr ())
-                () il)
-          ++ (if il <> [] then chr ',' ++ break else nil)
+          (* Print the instructions but with a comma at the end, instead of 
+           * semicolon *)
+          ++ (printInstrTerminator <- ","; 
+              let res = 
+                (docList line (self#pInstr ())
+                   () il) 
+              in
+              printInstrTerminator <- ";";
+              res)
           ++ self#pExp () e
           ++ text ") " ++ unalign
           ++ self#pBlock () h

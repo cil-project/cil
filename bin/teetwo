@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # run a command, sending stdout to one file and stderr to another,
 # but also sending both to this process' stdout/stderr, respectively
 
@@ -27,8 +27,10 @@ trap handler SIGUSR1
 exec 3>&1
 exec 4>&2
 
+
 # run the command with tees to duplicate the data
 mypid=$$
-(("$command" "$@" || kill -USR1 $mypid) | tee "$stdoutFile" >&3) 2>&1 | tee "$stderrFile" >&4
+# echo "mypid = $mypid, command=$command, args=$@, stdout=$stdoutFile, stderr=$stderrFile"
+(("$command" "$@" || kill -s USR1 $mypid) | tee "$stdoutFile" >&3) 2>&1 | tee "$stderrFile" >&4
 
 exit $result
