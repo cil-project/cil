@@ -1086,7 +1086,7 @@ and doExp (isconst: bool)    (* In a constant *)
           Mem(addr), NoOffset -> addr, TPtr(t, [])
         | _, _ -> mkAddrOfAndMark lv, TPtr(t, [])
     end
-    | Compound _, TArray(t', _, a) -> e, t
+(*    | Compound _, TArray(t', _, a) -> e, t *)
     | _, (TArray _ | TFun _) -> 
         E.s (E.unimp "Array or function expression is not lval: %a@!"
                d_plainexp e)
@@ -1326,18 +1326,18 @@ and doExp (isconst: bool)    (* In a constant *)
             end
         end
           (* This is not intended to be a constant. It can have expressions 
-           * with side-effects inside *)
+           * with side-effects inside *
         | A.CONST_COMPOUND initl -> begin
-            match what with (* Peek at the expected return type *)
+            match what with
               AExp (Some typ) -> 
-                let s, e, t, restinitl = 
+                let s, i, t, restinitl = 
                   doInitializer typ empty [A.NO_INIT, e] in
                 if restinitl <> [] then
                   E.s (E.warn "Unused initializers\n");
                 finishExp s e t
 
             | _ -> E.s (E.unimp "CONST_COMPUND. Not AExp")
-        end
+        end *)
     end          
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
@@ -1367,8 +1367,8 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let what' = 
           match e with 
-            (* We treat the case when e is COMPOUND differently *)
-            A.CONSTANT (A.CONST_COMPOUND _) -> AExp (Some typ)
+            (* We treat the case when e is COMPOUND differently
+            A.CONSTANT (A.CONST_COMPOUND _) -> AExp (Some typ) *)
           | _ -> begin
               match what with
                 AExp (Some _) -> AExp (Some typ)
@@ -1917,14 +1917,15 @@ and doPureExp (e : A.expression) : exp =
 
 (* Process an initializer. *)
 and doInitializer 
+  (isconst: bool)
   (typ: typ) (* expected type *)
   (acc: chunk) (* Accumulate here the chunk so far *)
-  (initl: (A.init * A.expression) list) (* Some initializers, might consume 
-                                         * one or more *)
+  (initl: (A.initwhat * A.init_expression) list) (* Some initializers, might 
+                                              * consume one or more  *)
 
     (* Return some statements, the initializer expression with the new type 
      * (might be different for arrays), and the residual initializers *)
-  : chunk * exp * typ * (A.init * A.expression) list = 
+  : chunk * init * typ * (A.initwhat * A.init_expression) list = 
 
   (* Look at the type to be initialized *)
    (* ARRAYS *)
@@ -1942,13 +1943,13 @@ and doInitializer
       in
       let rec initArray 
          (nextidx: int) (* The index of the element to be initialized next *)
-         (sofar: exp list) (* Array elements already initialized, in reverse 
+         (sofar: init list) (* Array elements already initialized, in reverse 
                             * order  *)
          (acc: chunk) 
-         (initl: (A.init * A.expression) list)
+         (initl: (A.initwhat * A.init_expression) list)
                      (* Return the array elements, the nextidx and the 
                       * remaining initializers *)
-         : chunk * exp list * int * (A.init * A.expression) list = 
+         : chunk * init list * int * (A.initwhat * A.init_expression) list = 
         let isValidIndex (i: int) = 
           match leno with Some len -> i < len | _ -> true
         in
@@ -1958,9 +1959,10 @@ and doInitializer
             acc, List.rev sofar, nextidx, initl
               
            (* Check if we have a field designator *)         
-        | (A.INDEX_INIT (idxe, A.NO_INIT), ie) :: restinitl ->
+        | (A.ATINDEX_INIT (idxe, A.NEXT_INIT), ie) :: restinitl ->
             let nextidx', doidx = 
-              let (doidx, idxe', _) = doExp true idxe (AExp(Some intType)) in
+              let (doidx, idxe', _) = 
+                doExp isconst idxe (AExp(Some intType)) in
               match constFold idxe' with
                 Const(CInt(x, _, _)) -> x, doidx
               | _ -> E.s (E.unimp 
@@ -1978,20 +1980,20 @@ and doInitializer
             (* now recurse *)
             initArray nextidx' (loop nextidx sofar) 
               (acc @@ doidx) 
-              ((A.NO_INIT, ie) :: restinitl)
+              ((A.NEXT_INIT, ie) :: restinitl)
               
         (* Now do the regular case *)
-        | (A.NO_INIT, ie) :: restinitl -> begin
+        | (A.NEXT_INIT, ie) :: restinitl -> begin
                   (* If the element type is Char and the initializer is a 
                    * string literal, split the string into characters, 
                    * including the terminal 0 *)
             let isStringLiteral : string option = 
               match ie with
-                A.CONSTANT (A.CONST_STRING s) -> Some s
+                A.SCALAR_INIT(A.CONSTANT (A.CONST_STRING s)) -> Some s
                  (* The string literal may be enclosed in braces *)
-              | A.CONSTANT (A.CONST_COMPOUND 
-                              [(A.NO_INIT, 
-                                A.CONSTANT (A.CONST_STRING s))]) 
+              | A.COMPOUND_INIT [(A.NEXT_INIT, 
+                                  A.SCALAR_INIT(A.CONSTANT 
+                                                  (A.CONST_STRING s)))]
                 -> Some s
               | _ -> None
             in
@@ -2003,13 +2005,15 @@ and doInitializer
                     (fun c -> 
                       let cs = String.make 1 c in
                       let cs = Cprint.escape_string cs in 
-                      (A.NO_INIT, A.CONSTANT (A.CONST_CHAR cs))) chars in
+                      (A.NEXT_INIT, 
+                       A.SCALAR_INIT(A.CONSTANT 
+                                       (A.CONST_CHAR cs)))) chars in
                 initArray nextidx sofar acc (inits' @ restinitl)
             | _ ->   
                 (* Recurse and consume some initializers for the purpose of 
                  * initializing one element *)
 (*                ignore (E.log "Do the array init for %d\n" nextidx); *)
-                let acc', ie', _, initl' = doInitializer elt acc initl in
+                let acc', ie', _, initl' = doInitializer false elt acc initl in
                 (* And continue with the array *)
                 initArray (nextidx + 1) 
                   (ie' :: sofar) 
@@ -2022,7 +2026,7 @@ and doInitializer
        * initializer for the entire array *)
       let acc', inits, nextidx, restinitl = 
         match initl with
-          (A.NO_INIT, A.CONSTANT (A.CONST_COMPOUND initl_e)) :: restinitl -> 
+          (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
             let acc', inits, nextidx, rest' = 
               initArray 0 [] acc initl_e in
             if rest' <> [] then
@@ -2035,19 +2039,19 @@ and doInitializer
           None -> TArray(elt, Some(integer nextidx), a)
         | Some _ -> oldt 
       in
-      acc', Compound(newt, inits), newt, restinitl
+      acc', CompoundInit(newt, inits), newt, restinitl
   (* STRUCT or UNION *)
   | TComp comp ->  
       let rec initStructUnion
          (nextflds: fieldinfo list) (* Remaining fields *)
-         (sofar: exp list) (* The initializer expressions so far, in reverse 
+         (sofar: init list) (* The initializer expressions so far, in reverse 
                           * order *)
          (acc: chunk)
-         (initl: (A.init * A.expression) list) 
+         (initl: (A.initwhat * A.init_expression) list) 
        
           (* Return the list of initializer expressions and the remaining 
            * initializers  *)
-         : chunk * exp list * (A.init * A.expression) list = 
+         : chunk * init list * (A.initwhat * A.init_expression) list = 
         match initl with
           (* Check if we are done *)
         | _ when 
@@ -2057,9 +2061,10 @@ and doInitializer
               acc, List.rev sofar, initl
 
           (* Check if we have a field designator *)
-        | (A.FIELD_INIT (fn, A.NO_INIT), ie) :: restinitl when comp.cstruct ->
+        | (A.INFIELD_INIT (fn, A.NEXT_INIT), ie) :: restinitl 
+                                                      when comp.cstruct ->
             let nextflds', sofar' = 
-              let rec findField (sofar: exp list) = function
+              let rec findField (sofar: init list) = function
                   [] -> E.s 
                       (E.unimp "Cannot find designated field %s"  fn)
                 | f :: restf when f.fname = fn -> 
@@ -2073,11 +2078,11 @@ and doInitializer
             (* Now recurse *)
             initStructUnion nextflds' sofar' 
               acc
-              ((A.NO_INIT, ie) :: restinitl)
+              ((A.NEXT_INIT, ie) :: restinitl)
 
            (* Now the regular case *)
          
-        | (A.NO_INIT, _) :: _  ->
+        | (A.NEXT_INIT, _) :: _  ->
             let nextflds', thisexpt = 
               match nextflds with
                 [] -> E.s (E.unimp "Too many initializers")
@@ -2087,12 +2092,13 @@ and doInitializer
             in
              (* Now do the expression. Give it a chance to consume some 
               * initializers  *)
-            let acc', ie', _, initl' = doInitializer thisexpt acc initl in
+            let acc', ie', _, initl' = 
+              doInitializer isconst thisexpt acc initl in
              (* And continue with the remaining fields *)
             initStructUnion nextflds' (ie' :: sofar) acc' initl'
 
            (* And the error case *)
-        | (A.INDEX_INIT _, _) :: _ -> 
+        | (A.ATINDEX_INIT _, _) :: _ -> 
             E.s (E.unimp "INDEX designator in struct\n");
         | _ -> E.s (E.unimp "Invalid designator for struct")
       in
@@ -2100,7 +2106,7 @@ and doInitializer
        * initializer for the entire array *)
       let acc', inits, restinitl = 
         match initl with
-          (A.NO_INIT, A.CONSTANT (A.CONST_COMPOUND initl_e)) :: restinitl -> 
+          (A.NEXT_INIT, A.COMPOUND_INIT initl_e) :: restinitl -> 
             let acc', inits, rest' = 
               initStructUnion comp.cfields [] acc initl_e in
             if rest' <> [] then
@@ -2108,14 +2114,14 @@ and doInitializer
             acc', inits, restinitl
         | _ -> initStructUnion comp.cfields [] acc initl 
       in
-      acc', Compound(typ, inits), typ, restinitl
+      acc', CompoundInit(typ, inits), typ, restinitl
 
    (* REGULAR TYPE *)
   | typ' -> begin
       match initl with 
-        (A.NO_INIT, oneinit) :: restinitl -> 
-          let se, init', t' = doExp true oneinit (AExp(Some typ')) in
-          (se @@ acc), doCastT init' t' typ', typ', restinitl
+        (A.NEXT_INIT, A.SCALAR_INIT oneinit) :: restinitl -> 
+          let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
+          (se @@ acc), ScalarInit (doCastT init' t' typ'), typ', restinitl
       | _ -> E.s (E.unimp "Cannot find the initializer\n")
   end
 
@@ -2128,19 +2134,19 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
             (* Make a first version of the varinfo *)
     let vi = makeVarInfo true locUnknown sname in
             (* Do the initializer and complete the array type if necessary *)
-    let init = 
-      if e = A.NOTHING then 
+    let init : init option = 
+      if e = A.NO_INIT then 
         None
       else 
-        let se, e', et, restinitl = 
-          doInitializer vi.vtype empty [ (A.NO_INIT, e) ] in
+        let se, ie', et, restinitl = 
+          doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
         if restinitl <> [] then
           E.s (E.bug "Unused initializer in createGlobal\n");
         (* Maybe we now have a better type *)
         vi.vtype <- et;
         if isNotEmpty se then 
           E.s (E.unimp "global initializer");
-        Some e'
+        Some ie'
     in
 
     (* sm: if it's a function prototype, and the storage class *)
@@ -2193,15 +2199,19 @@ and createLocal = function
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
       ignore (E.log "static local: %s\n" vi.vname);
-      let init = 
-        if e = A.NOTHING then 
+      let init : init option = 
+        if e = A.NO_INIT then 
           None
         else begin 
-          let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
+          let se, ie', et, restinitl = 
+            doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
+          if restinitl <> [] then
+            E.s (E.bug "Unused initializer in createGlobal\n");
+          (* Maybe we now have a better type *)
+          vi.vtype <- et;
           if isNotEmpty se then 
             E.s (E.unimp "global static initializer");
-          let (_, e'') = castTo et vi.vtype e' in
-          Some e''
+          Some ie'
         end
       in
       theFile := GVar(vi, init, lu) :: !theFile;
@@ -2210,22 +2220,23 @@ and createLocal = function
   | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
       let vi = makeVarInfo false locUnknown sname in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
-      if e = A.NOTHING then
+      if e = A.NO_INIT then
         skipChunk
       else begin
-        let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
-        (match vi.vtype, e', et with 
+        let se, ie', et, _ = 
+          doInitializer false vi.vtype empty [ (A.NEXT_INIT, e) ] in
+        (match vi.vtype, ie', et with 
             (* We have a length now *)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
             (* Initializing a local array *)
         | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-             Const(CStr s), _ -> 
+             ScalarInit(Const(CStr s)), _ -> 
                vi.vtype <- TArray(bt, 
                                   Some (integer (String.length s + 1)),
                                   a)
         | _, _, _ -> ());
-        let (_, e'') = castTo et vi.vtype e' in
-        se @@ (doAssign (Var vi, NoOffset) e'')
+        (* Now create assignments instead of the initialization *)
+        se @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
           
           
@@ -2271,10 +2282,28 @@ and doOnlyTypedef (bt: A.base_type) : unit =
     theFile := GAsm ("booo_typedef", lu) :: !theFile
   end
 
-and doAssign (lv: lval) : exp -> chunk = function   
-                             (* We must break the compound assignment into 
-                              * atomic ones  *)
-  | Compound (t, initl) -> begin
+and assignInit (lv: lval) 
+               (ie: init) 
+               (iet: typ) 
+               (acc: chunk) : chunk = 
+  match ie with
+    ScalarInit e -> 
+      let (_, e'') = castTo iet (typeOfLval lv) e in 
+      acc +++ (Set(lv, e'', lu))
+  | CompoundInit (t, initl) -> 
+      foldLeftCompound
+        (fun off i it acc -> 
+          assignInit (addOffsetLval off lv) i it acc)
+        t
+        initl
+        acc
+
+(*
+and doAssign (lv: lval) (ie: init) (iet: typ) : chunk = 
+   match ie with 
+                              * We must break the compound assignment into 
+                              * atomic ones  *
+  | CompoundInit (t, initl) -> begin
       match unrollType t with 
         TArray(t, _, _) -> 
           let rec loop = function
@@ -2287,7 +2316,7 @@ and doAssign (lv: lval) : exp -> chunk = function
                   match newlv with 
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
                 in
-                (doAssign newlv e) @@ res
+                (doAssign newlv e t) @@ res
           in
           loop (0, initl)
 
@@ -2296,19 +2325,19 @@ and doAssign (lv: lval) : exp -> chunk = function
               [], [] -> empty
             | f :: fil, e :: el -> 
                 let res = loop (fil, el) in
-                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e) @@ res
+                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e f.ftype) @@ res
             | _, _ -> E.s (E.unimp "fields in doAssign")
           in
           loop (comp.cfields, initl)
       | _ -> E.s (E.bug "Unexpected type of Compound")
   end
 
-   (* An array initialized with a string *)
-  | Const(CStr s) as e -> begin
+   * An array initialized with a string *
+  | ScalarInit (Const(CStr s) as e) -> begin
       let lvt = typeOfLval lv in
       match unrollType lvt with 
         TArray(_, Some _, _) ->
-          (* See if strncpy was already declared *)
+          * See if strncpy was already declared *
           if not (H.mem env "strncpy") then begin
             theFile := GDecl (strncpyFun.svar, lu) :: !theFile;
             H.add env "strncpy" (EnvVar strncpyFun.svar)
@@ -2319,7 +2348,10 @@ and doAssign (lv: lval) : exp -> chunk = function
       | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
       | _ -> i2c (Set(lv, e, lu))
   end
-  | e -> i2c (Set(lv, e, lu))
+  | ScalarInit e -> 
+      let (_, e'') = castTo iet (typeOfLval lv) e in 
+      i2c (Set(lv, e'', lu))
+*)
 
   (* Now define the processors for body and statement *)
 and doBody (b : A.body) : chunk = 

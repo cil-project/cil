@@ -422,10 +422,12 @@ let rec readFieldsOfFat (e: exp) (et: typ)
           (Question(e1,e2',e3'), 
            Question(e1,e2'',e3''), 
            Question(e1, e2e,e3e))
+(*
       | Compound (t, [p; b]) when isFatType t -> 
           p, b, zero
       | Compound (t, [p; b; e]) when isFatType t -> 
           p, b, e
+*)
       | _ -> E.s (E.unimp "split _p field offset: %a" d_plainexp e)
     in
     (fptr.ftype, ptre, basee, ende)
@@ -1230,7 +1232,8 @@ let unregisterStmt () =
 
 
 (* Create a compound initializer for a tagged type *)
-let splitTagType tagged = 
+let splitTagType (tagged: typ) 
+    : fieldinfo * fieldinfo * fieldinfo * exp * exp  = 
   (* Get the data field, the length field, and a tag field *)
   let dfld, lfld, tfld = 
     match unrollType tagged with
@@ -1245,14 +1248,15 @@ let splitTagType tagged =
             (* Now create the tag initializer *)
   dfld, lfld, tfld, words, tagwords
 
-let makeTagCompoundInit tagged datainit = 
+let makeTagCompoundInit (tagged: typ) 
+                        (datainit: init option) : init * fieldinfo = 
   let dfld, lfld, tfld, words, _ = splitTagType tagged in
-  Compound (tagged, 
+  CompoundInit (tagged, 
                   (* Now the length *)
-            words ::
-            (match datainit with 
-              None -> []
-            | Some e -> [e]))
+                ScalarInit words ::
+                (match datainit with 
+                  None -> []
+                | Some e -> [e]))
             (* Leave the rest alone since it will be initialized with 0 *)
     ,
   dfld
@@ -2350,7 +2354,7 @@ let rec stringLiteral (s: string) (strt: typ) : stmt list * fexp =
       let gvar = makeGlobalVar (newStringName ()) newt in
       gvar.vstorage <- Static;
       let varinit, dfield = 
-        makeTagCompoundInit newt (Some (Const(CStr s))) in
+        makeTagCompoundInit newt (Some (ScalarInit(Const(CStr s)))) in
       theFile := GVar (gvar, Some varinit, lu) :: !theFile;
       let result = StartOf (Var gvar, Field(dfield, NoOffset)) in
       let voidStarResult = castVoidStar result in
@@ -3112,28 +3116,44 @@ and boxexpf (e: exp) : stmt list * fexp =
         let (et3, doe3, e3') = boxexp e3 in
         let result = mkFexp1 et2 (Question (e1', e2', e3')) in
         (doe1 @ doe2 @ doe3, result)
-          
-    | Compound (t, initl) as t' -> 
-        let t' = fixupType t in
-        (* Construct a new initializer list *)
-        let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
-          boxGlobalInit ei tei :: acc
-        in
-        let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
-        ([], L(t', N.Scalar, Compound(t', newinitl)))
   with exc -> begin
     ignore (E.log "boxexpf (%s): %a in %s\n" 
               (Printexc.to_string exc) d_exp e !currentFunction.svar.vname);
     ([], L(charPtrType, N.String, dExp (dprintf "booo_exp: %a" d_exp e)))
   end 
             
-          
-and boxGlobalInit e et = 
+      
+and boxinit (ei: init) : init =
+  try
+    match ei with
+      ScalarInit e ->
+        let e't, doe, e', e'base, e'len = boxexpSplit e in
+        if doe <> [] then
+          E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
+        ScalarInit e'
+
+    | CompoundInit (t, initl) -> 
+        let t' = fixupType t in
+        (* Construct a new initializer list *)
+        let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
+          boxinit ei :: acc
+        in
+        let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
+        CompoundInit (t', newinitl)
+
+  with exc -> begin
+    ignore (E.log "boxinit (%s): %a in %s\n" 
+              (Printexc.to_string exc) d_init ei !currentFunction.svar.vname);
+    ScalarInit (dExp (dprintf "booo_init: %a" d_init ei))
+  end 
+
+(*    
+and boxGlobalInit (ei: init) (et: typ) = 
   let et' = fixupType et in
   let (e't, doe, e', e'base, e'len) = boxexpSplit e in
   if doe <> [] then
     E.s (E.unimp "Non-pure initializer %a\n"  d_exp e);
-  let comptype = 
+  let compoundtype = 
   match unrollType et' with
     TComp comp when comp.cstruct -> begin
       match comp.cfields with 
@@ -3144,10 +3164,11 @@ and boxGlobalInit e et =
     end
   | _ -> None
   in
-  match comptype with
+  match compoundtype with
     None -> e'
   | Some ct -> 
-      Compound(ct, [ e'; castVoidStar e'base])
+      CompoundInit(ct, [ e'; ScalarInit(castVoidStar e'base)])
+*)
 
 and fexp2exp (fe: fexp) (doe: stmt list) : expRes = 
   match fe with
@@ -3406,7 +3427,7 @@ let boxFile file =
     let init' = 
       match init with
         None -> None
-      | Some e -> Some (boxGlobalInit e origType)
+      | Some e -> Some (boxinit e)
     in
     (* Initialize the global *)
     if isdef && vi.vstorage <> Extern then begin

@@ -490,17 +490,6 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | _ -> E.s (E.bug "StartOf on a non-array or non-function")
       end
             
-      | Compound (t, initl) -> 
-          checkType t CTSizeof;
-          let checkOneExp (oo: offset) (ei: exp) (et: typ) _ : unit = 
-            let ot = checkOffset t oo in
-            typeMatch et ot;
-            checkExpType true ei et
-          in
-          (* foldLeftCompound will check that t is a TComp or a TArray *)
-          foldLeftCompound checkOneExp t initl ();
-          t
-
       | CastE (tres, e) -> begin
           let et = checkExp isconst e in
           checkType tres CTExp;
@@ -514,6 +503,28 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end)
     () (* The argument of withContext *)
 
+and checkInit  (i: init) : typ = 
+  E.withContext 
+    (fun _ -> dprintf "checkInit: %a" d_init i)
+    (fun _ ->
+      match i with
+        ScalarInit e -> checkExp true e
+      | CompoundInit (t, initl) -> 
+          checkType t CTSizeof;
+          let checkOneInit (oo: offset) (ei: init) (et: typ) _ : unit = 
+            let ot = checkOffset t oo in
+            checkInitType ei ot
+          in
+          (* foldLeftCompound will check that t is a TComp or a TArray *)
+          foldLeftCompound checkOneInit t initl ();
+          t)
+    () (* The arguments of withContext *)
+
+
+and checkInitType (i: init) (t: typ) : unit = 
+  let it = checkInit i in
+  typeMatch it t
+  
 and checkStmt (s: stmt) = 
   E.withContext 
     (fun _ -> 
@@ -662,7 +673,7 @@ let rec checkGlobal = function
           (* Check the initializer *)
           begin match init with
             None -> ()
-          | Some i -> ignore (checkExpType true i vi.vtype)
+          | Some i -> ignore (checkInitType i vi.vtype)
           end;
           (* Cannot be a function *)
           if isFunctionType vi.vtype then

@@ -21,6 +21,7 @@ class nopCilVisitor = object
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)
   method vglob (g:global) = true      (* global (vars, types, etc.) *)
+  method vinit (i:init) = true        (* global initializer *)
   method vtype (t:typ) = true         (* use of some type *)
   method vtdec (s:string) (t:typ) = true    (* typedef *)
 end

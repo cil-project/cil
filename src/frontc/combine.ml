@@ -143,9 +143,9 @@ and combine_onlytype typ =
 and combine_name ((id, typ, attr, exp) : name) = begin
  if id = "___missing_field_name"
   then
-    (id, combine_type typ, attr, combine_expression exp)
+    (id, combine_type typ, attr, combine_init_expression exp)
   else
-    (lookup_id id, combine_type typ, attr, combine_expression exp)
+    (lookup_id id, combine_type typ, attr, combine_init_expression exp)
 end
         
 and combine_name_group (typ, sto, names) =
@@ -162,15 +162,33 @@ end
 
 (* Raymond added declare_id and lookup_id here *)    
 and combine_old_params pars = begin
-  List.iter (fun id -> declare_id (NO_TYPE, NO_STORAGE, (id, NO_TYPE, [], NOTHING)) false) pars;
+  List.iter (fun id -> 
+    declare_id (NO_TYPE, NO_STORAGE, (id, NO_TYPE, [], NO_INIT)) false) pars;
   List.map lookup_id pars
 end
         
 and combine_exps exps =
   List.map combine_expression exps
 
+and combine_init_expression (iexp: init_expression) : init_expression = 
+  match iexp with
+    NO_INIT -> NO_INIT
+  | SCALAR_INIT e -> SCALAR_INIT (combine_expression e)
+  | COMPOUND_INIT initexps ->
+      let doinitexp = function
+          NEXT_INIT, e -> (NEXT_INIT, combine_init_expression e)
+        | i, e -> 
+            let rec doinit = function
+                NEXT_INIT -> NEXT_INIT
+              | INFIELD_INIT (fn, i) -> INFIELD_INIT(fn, doinit i)
+              | ATINDEX_INIT (e, i) -> 
+                  ATINDEX_INIT(combine_expression e, doinit i)                              in
+            (doinit i, combine_init_expression e)
+      in
+      COMPOUND_INIT (List.map doinitexp initexps)
+        
 (* No need to rename fields *)    
-and combine_expression (exp : expression) =
+and combine_expression (exp : expression) : expression =
   match exp with
     NOTHING ->
       NOTHING
@@ -192,20 +210,7 @@ and combine_expression (exp : expression) =
         CONST_INT i -> CONST_INT i
       | CONST_FLOAT r -> CONST_FLOAT r
       | CONST_CHAR c -> CONST_CHAR c
-      | CONST_STRING s -> CONST_STRING s
-      | CONST_COMPOUND initexps ->
-          let doinitexp = function
-              NO_INIT, e -> (NO_INIT, combine_expression e)
-            | i, e -> 
-                let rec doinit = function
-                    NO_INIT -> NO_INIT
-                  | FIELD_INIT (fn, i) -> FIELD_INIT(fn, doinit i)
-                  | INDEX_INIT (e, i) -> 
-                      INDEX_INIT(combine_expression e, doinit i)                              in
-                (doinit i, combine_expression e)
-          in
-          CONST_COMPOUND(List.map doinitexp initexps)
-        ))
+      | CONST_STRING s -> CONST_STRING s))
 
   | VARIABLE name -> 
       VARIABLE(lookup_id name)

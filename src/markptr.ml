@@ -305,7 +305,7 @@ let doVarinfo vi =
 (* Do an expression. Return an expression, a type and a node. The node is 
  * only meaningful if the type is a TPtr _. In that case the node is also 
  * refered to from the attributes of TPtr  *)
-let rec doExp (e: exp) = 
+let rec doExp (e: exp) : exp * typ * N.node= 
   match e with 
     Lval lv -> 
       let lv', lvn = doLvalue lv false in
@@ -370,17 +370,29 @@ let rec doExp (e: exp) =
       let newt', _ = doType charPtrType (N.anonPlace ()) 0 in
       CastE (newt', e), newt', nodeOfType newt'
 
-  | Compound (t, initl) -> 
-      let t', _ = doType t (N.anonPlace ()) 0 in
-        (* Construct a new initializer list *)
-      let doOneInit (off: offset) (ei: exp) (tei: typ) acc = 
-        doExpAndCast ei tei :: acc
-      in
-      let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
-      Compound (t', newinitl), t', nodeOfType t'
-      
   | _ -> (e, typeOf e, N.dummyNode)
 
+
+(* Do initializers. All the initliazers at this point better be non-pointers *)
+and doInit (i: init) : init * typ = 
+  match i with 
+  | ScalarInit e -> 
+      let e', t, n = doExp e in
+      if n != N.dummyNode then 
+        E.s (E.bug "Found pointer initializer: %a\n" d_init i);
+      ScalarInit e', t
+          
+  | CompoundInit (t, initl) -> 
+      let t', _ = doType t (N.anonPlace ()) 0 in
+      if nodeOfType t' != N.dummyNode then
+        E.s (E.bug "found pointer initializer: %a\n" d_init i);
+        (* Construct a new initializer list *)
+      let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
+        let ei', _ = doInit ei in
+        ei' :: acc
+      in
+      let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
+      CompoundInit (t', newinitl), t'
 
 (* Do an lvalue. We assume conservatively that this is for the purpose of 
  * taking its address. Return a modifed lvalue and a node that stands for & 
@@ -825,7 +837,9 @@ let doGlobal (g: global) : global =
           let init' = 
             match init with
               None -> None
-            | Some i -> Some (doExpAndCast i vi.vtype)
+            | Some i -> 
+                let i', _ = doInit i in
+                Some i'
           in
           GVar (vi, init', l)
       | GFun (fdec, l) -> 

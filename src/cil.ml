@@ -259,16 +259,6 @@ and exp =
                                         * initializers)  *)
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
-                                        (* Used only for initializers of 
-                                         * structures and arrays. For a 
-                                         * structure we have a list of 
-                                         * initializers for a prefix of all 
-                                         * fields, for a union we have 
-                                         * one initializer for the first 
-                                         * field, and for an array we have 
-                                         * some prefix of the initializers  *)
-  | Compound   of typ * exp list
-
   | AddrOf     of lval
 
   | StartOf    of lval                  (* There is no C correspondent for 
@@ -281,6 +271,19 @@ and exp =
                                          * is just an explicit form of the 
                                          * above mentioned implicit 
                                          * convertions *)
+
+(* Initializers for global variables *)
+and init = 
+  | ScalarInit   of exp                 (* A single initializer *)
+                                        (* Used only for initializers of 
+                                         * structures and arrays. For a 
+                                         * structure we have a list of 
+                                         * initializers for a prefix of all 
+                                         * fields, for a union we have 
+                                         * one initializer for the first 
+                                         * field, and for an array we have 
+                                         * some prefix of the initializers  *)
+  | CompoundInit   of typ * init list
 
 
 (* L-Values denote contents of memory addresses. A memory address is 
@@ -456,7 +459,7 @@ type global =
                                          * Either has storage Extern or 
                                          * there must be a definition (Gvar 
                                          * or GFun) in this file  *)
-  | GVar  of varinfo * exp option * location      
+  | GVar  of varinfo * init option * location      
                                         (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
@@ -495,6 +498,7 @@ class type cilVisitor = object
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
+  method vinit : init -> bool        (* initializers for globals *)
   method vtype : typ -> bool         (* use of some type *)
   method vtdec : string -> typ -> bool    (* typedef *)
 end
@@ -512,6 +516,7 @@ class nopCilVisitor = object
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)
   method vglob (g:global) = true      (* global (vars, types, etc.) *)
+  method vinit (i:init) = true        (* global initializers *)
   method vtype (t:typ) = true         (* use of some type *)
   method vtdec (s:string) (t:typ) = true    (* typedef *)
 end
@@ -886,8 +891,6 @@ let addrOfLevel = 30
 let bitwiseLevel = 75
 let additiveLevel = 60
 let getParenthLevel = function
-  | Compound _ -> 100
-
   | Question _ -> 80
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
@@ -1122,15 +1125,18 @@ and d_exp () e =
   | CastE(t,e) -> dprintf "(%a)%a" d_type t (d_expprec level) e
   | SizeOf (t) -> dprintf "sizeof(%a)" d_type t
   | SizeOfE (e) -> dprintf "sizeof(%a)" d_exp e
-  | Compound (t, initl) -> 
-      (* We do not print the type of the Compound *)
-      let dinit e = d_exp () e in
-      dprintf "{@[%a@]}"
-        (docList (chr ',' ++ break) dinit) initl
   | AddrOf(lv) -> 
       dprintf "& %a" (d_lvalprec addrOfLevel) lv
 
   | StartOf(lv) -> d_lval () lv
+
+and d_init () = function
+    ScalarInit e -> d_exp () e
+  | CompoundInit (t, initl) -> 
+      (* We do not print the type of the Compound *)
+      let dinit e = d_init () e in
+      dprintf "{@[%a@]}"
+        (docList (chr ',' ++ break) dinit) initl
 
 and d_binop () b =
   match b with
@@ -1500,14 +1506,25 @@ begin
   | BinOp(_,e1,e2,t) -> fExp e1; fExp e2; fTyp t
   | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
   | CastE(t, e) -> fTyp t; fExp e
-  | Compound (t, initl) ->
-      fTyp t;
-      List.iter fExp initl
-
   | AddrOf (lv) -> (visitCilLval vis lv)
   | StartOf (lv) -> (visitCilLval vis lv)
 end
 
+and visitCilInit (vis: cilVisitor) (i: init) : unit = 
+  (* visit the initializer itself *)
+  if (vis#vinit i) then
+
+  (* and visit its subexpressions *)
+  let fExp e = visitCilExpr vis e in
+  let fInit i = visitCilInit vis i in
+  let fTyp t = visitCilType vis t in
+  match i with
+  | ScalarInit e -> fExp e
+  | CompoundInit (t, initl) ->
+      fTyp t;
+      List.iter fInit initl
+
+  
 and visitCilLval (vis: cilVisitor) (lv: lval) : unit =
 begin
   if (vis#vlval lv) then
@@ -1684,7 +1701,7 @@ begin
     )
   | GDecl(v, _) -> (visitCilVarDecl vis v)
   | GVar (v, None, _) -> (visitCilVarDecl vis v)
-  | GVar (v, Some e, _) -> (visitCilVarDecl vis v); (visitCilExpr vis e)
+  | GVar (v, Some i, _) -> (visitCilVarDecl vis v); (visitCilInit vis i)
   | _ -> ()
 end
 
@@ -1861,10 +1878,10 @@ let d_global () = function
       else 
         dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
           
-  | GVar (vi, eo, _) -> dprintf "%a %a;"
+  | GVar (vi, io, _) -> dprintf "%a %a;"
         d_videcl vi 
-        insert (match eo with None -> nil | Some e -> 
-            dprintf " = %a" d_exp e)
+        insert (match io with None -> nil | Some i -> 
+            dprintf " = %a" d_init i)
   | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
   | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
   | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
@@ -1971,7 +1988,6 @@ let rec typeOf (e: exp) : typ =
   | BinOp (_, _, _, t) -> t
   | Question (_, e2, _) -> typeOf e2
   | CastE (t, _) -> t
-  | Compound (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
@@ -1980,6 +1996,11 @@ let rec typeOf (e: exp) : typ =
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array or non-function")
   end
       
+and typeOfInit (i: init) : typ = 
+  match i with 
+    ScalarInit e -> typeOf e
+  | CompoundInit (t, _) -> t
+
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
@@ -2302,22 +2323,22 @@ let increm (e: exp) (i: int) =
   
 
 (*** Make a initializer for zeroe-ing a data type ***)
-let rec makeZeroInit t = 
+let rec makeZeroInit (t: typ) : init = 
   match unrollType t with
-    TInt (ik, _) -> Const(CInt(0, ik, None))
-  | TFloat(fk, _) -> Const(CReal(0.0, fk, None))
-  | (TEnum _ | TBitfield _) -> zero
+    TInt (ik, _) -> ScalarInit(Const(CInt(0, ik, None)))
+  | TFloat(fk, _) -> ScalarInit(Const(CReal(0.0, fk, None)))
+  | (TEnum _ | TBitfield _) -> ScalarInit zero
   | TComp comp as t' when comp.cstruct -> 
-      Compound (t', 
-                List.map (fun f -> makeZeroInit f.ftype) 
-                  comp.cfields)
+      CompoundInit (t', 
+                    List.map (fun f -> makeZeroInit f.ftype) 
+                      comp.cfields)
   | TComp comp as t' when not comp.cstruct -> 
       let fstfield = 
         match comp.cfields with
           f :: _ -> f
         | [] -> E.s (E.unimp "Cannot create init for empty union")
       in
-      Compound(t, [makeZeroInit fstfield.ftype])
+      CompoundInit(t, [makeZeroInit fstfield.ftype])
 
   | TArray(bt, Some len, _) as t' -> 
       let n = 
@@ -2330,21 +2351,21 @@ let rec makeZeroInit t =
         if i >= n then acc
         else loopElems (initbt :: acc) (i + 1) 
       in
-      Compound(t', loopElems [] 0)
-  | TPtr _ as t -> CastE(t, zero)
+      CompoundInit(t', loopElems [] 0)
+  | TPtr _ as t -> ScalarInit(CastE(t, zero))
   | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
 
 (**** Fold over the list of initializers in a Compound ****)
-let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
+let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
     (ct: typ) 
-    (initl: exp list)
+    (initl: init list)
     (acc: 'a) : 'a = 
   match unrollType ct with
     TArray(bt, _, _) -> 
       let rec foldArray  
           (nextidx: exp) 
-          (initl: exp list)
+          (initl: init list)
           (acc: 'a) : 'a  =
         let incrementIdx = function
             Const(CInt(n, ik, _)) -> Const(CInt(n + 1, ik, None))
@@ -2354,7 +2375,7 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
           [] -> acc
         | ie :: restinitl ->
             (* Now do the initializer expression *)
-            let acc' = doexp (Index(nextidx, NoOffset)) ie bt acc in
+            let acc' = doinit (Index(nextidx, NoOffset)) ie bt acc in
             foldArray (incrementIdx nextidx) restinitl acc'
       in
       foldArray zero initl acc
@@ -2363,7 +2384,7 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
       let rec foldFields 
           (allflds: fieldinfo list) 
           (nextflds: fieldinfo list) 
-          (initl: exp list)
+          (initl: init list)
           (acc: 'a) : 'a = 
         match initl with 
           [] -> acc   (* We are done *)
@@ -2376,7 +2397,7 @@ let foldLeftCompound (doexp: offset -> exp -> typ -> 'a -> 'a)
               end
             in
             (* Now do the initializer expression *)
-            let acc' = doexp thisoff ie thisexpt acc in
+            let acc' = doinit thisoff ie thisexpt acc in
             foldFields allflds nextfields restinitl acc'
       in
       foldFields comp.cfields comp.cfields initl acc

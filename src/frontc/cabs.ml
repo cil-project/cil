@@ -46,9 +46,9 @@ and base_type =
  | ATTRTYPE of base_type * attribute list(* Type with attributes *)
  | TYPEOF of expression                 (* GCC __typeof__ *)
 
-and name = string * base_type * attribute list * expression
-
 and name_group = base_type * storage * name list
+
+and name = string * base_type * attribute list * init_expression
 
 and single_name = base_type * storage * name
 
@@ -144,12 +144,17 @@ and constant =
   | CONST_FLOAT of string
   | CONST_CHAR of string
   | CONST_STRING of string
-  | CONST_COMPOUND of (init * expression) list
 
-and init = 
-    NO_INIT
-  | FIELD_INIT of string * init
-  | INDEX_INIT of expression * init
+and init_expression = 
+  | NO_INIT
+  | SCALAR_INIT of expression
+  | COMPOUND_INIT of (initwhat * init_expression) list
+
+and initwhat = 
+    NEXT_INIT
+  | INFIELD_INIT of string * initwhat
+  | ATINDEX_INIT of expression * initwhat
+
 
                                         (* Each attribute has a name and some 
                                          * optional arguments *)

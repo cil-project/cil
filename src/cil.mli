@@ -259,16 +259,6 @@ and exp =
                                         * into IfThenElse  *)
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
-                                        (* Used only for initializers of 
-                                         * structures and arrays. For a 
-                                         * structure we have a list of 
-                                         * initializers for a prefix of all 
-                                         * fields, for a union we have 
-                                         * one initializer for the first 
-                                         * field, and for an array we have 
-                                         * some prefix of the initializers  *)
-  | Compound   of typ * exp list
-
   | AddrOf     of lval                 (* Always use mkAddrOf to construct
                                          * one of these *)
 
@@ -283,6 +273,19 @@ and exp =
                                          * above mentioned implicit
                                          * convertions. You can use mkAddrOf
                                          * to construct one of these *)
+
+(* Initializers for global variables *)
+and init = 
+  | ScalarInit   of exp                 (* A single initializer *)
+                                        (* Used only for initializers of 
+                                         * structures, unions and arrays. For 
+                                         * a structure we have a list of 
+                                         * initializers for a prefix of all 
+                                         * fields, for a union we have one 
+                                         * initializer for the first field, 
+                                         * and for an array we have some 
+                                         * prefix of the initializers *)
+  | CompoundInit   of typ * init list
 
 
 (* L-Values denote contents of memory addresses. A memory address is
@@ -471,7 +474,7 @@ type global =
                                          * Either has storage Extern or 
                                          * there must be a definition (Gvar 
                                          * or GFun) in this file  *)
-  | GVar  of varinfo * exp option * location
+  | GVar  of varinfo * init option * location
                                         (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
@@ -635,6 +638,7 @@ val d_type: unit -> typ -> Pretty.doc
 (* exp *)
 
 val d_exp: unit -> exp -> Pretty.doc
+val d_init: unit -> init -> Pretty.doc
 val d_binop: unit -> binop -> Pretty.doc
 
 
@@ -690,6 +694,7 @@ class type cilVisitor = object
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
+  method vinit : init -> bool        (* initializers for globals *)
   method vtype : typ -> bool         (* use of some type *)
   method vtdec : string -> typ -> bool    (* typedef *)
 end
@@ -708,6 +713,7 @@ val visitCilType: cilVisitor -> typ -> unit
 val visitCilVarDecl: cilVisitor -> varinfo -> unit
 val visitCilFunction: cilVisitor -> fundec -> unit
 val visitCilGlobal: cilVisitor -> global -> unit
+val visitCilInit: cilVisitor -> init -> unit
 val visitCilStmt: cilVisitor -> stmt -> unit
 
    (* Make a local variable and add it to a function *)
@@ -813,15 +819,16 @@ val doCast: e:exp -> newt:typ -> exp (* Like doCastT but use typeOf to get
                                       * oldt *)  
 
 (*** Make a initializer for zeroe-ing a data type ***)
-val makeZeroInit: typ -> exp
+val makeZeroInit: typ -> init
 
 
-(* Fold over the list of initializers in a Compound. doexp is called on every 
- * present initializer, even if it is of compound type. *)
+(* Fold over the list of initializers in a Compound. doinit is called on 
+ * every present initializer, even if it is of compound type. This is much 
+ * like a a List.fold_left except we also pass the type of the initializer *)
 val foldLeftCompound: 
-    (doexp: offset -> exp -> typ -> 'a -> 'a) ->
+    (doinit: offset -> init -> typ -> 'a -> 'a) ->
      ct: typ ->
-    initl: exp list ->
+    initl: init list ->
     acc: 'a -> 'a
 
 

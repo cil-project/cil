@@ -397,10 +397,10 @@ and print_name ((id, typ, attr, exp) : name) =
   begin
     print_type (fun _ -> if id <> "___missing_field_name" then print id) typ;
     print_attributes attr;
-    if exp <> NOTHING then begin
+    if exp <> NO_INIT then begin
       space ();
       print "= ";
-      print_expression exp 1
+      print_init_expression exp
     end else ()
   end
       
@@ -527,6 +527,31 @@ and get_operator exp =
 and print_comma_exps exps =
   print_commas false (fun exp -> print_expression exp 1) exps
     
+and print_init_expression (iexp: init_expression) : unit = 
+  match iexp with 
+    NO_INIT -> ()
+  | SCALAR_INIT e -> print_expression e 1
+  | COMPOUND_INIT  initexps ->
+      let doinitexp = function
+          NEXT_INIT, e -> print_init_expression e
+        | i, e -> 
+            let rec doinit = function
+                NEXT_INIT -> ()
+              | INFIELD_INIT (fn, i) -> print ("." ^ fn); doinit i
+              | ATINDEX_INIT (e, i) -> 
+                  print "[";
+                  print_expression e 1;
+                  print "]";
+                  doinit i
+                in
+            doinit i; print " = "; 
+            print_init_expression e
+      in
+      print "{";
+      print_commas false doinitexp initexps;
+      print "}"
+
+
 and print_expression (exp : expression) (lvl : int) =
   let (txt, lvl') = get_operator exp in
   let _ = if lvl > lvl' then print "(" else () in
@@ -574,26 +599,7 @@ and print_expression (exp : expression) (lvl : int) =
 	CONST_INT i -> print i
       | CONST_FLOAT r -> print r
       | CONST_CHAR c -> print ("'" ^ (escape_string c) ^ "'")
-      | CONST_STRING s -> print_string s
-      | CONST_COMPOUND initexps ->
-          let doinitexp = function
-              NO_INIT, e -> print_expression e 1
-            | i, e -> 
-                let rec doinit = function
-                    NO_INIT -> ()
-                  | FIELD_INIT (fn, i) -> print ("." ^ fn); doinit i
-                  | INDEX_INIT (e, i) -> 
-                      print "[";
-                      print_expression e 1;
-                      print "]";
-                      doinit i
-                in
-                doinit i; print " = "; 
-                print_expression e 1
-          in
-	  print "{";
-          print_commas false doinitexp initexps;
-	  print "}")
+      | CONST_STRING s -> print_string s)
 
   | VARIABLE name ->
       print name

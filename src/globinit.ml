@@ -58,10 +58,10 @@ let doFile (fl: file) : file =
           let rec initone (baseoff: offset) off what t acc = 
             let off' = addOffset off baseoff in
             match what with
-              Compound (t, initl) -> 
+              CompoundInit (t, initl) -> 
                 foldLeftCompound (initone off') t initl acc
-            | _ -> 
-                mkStmt (Instr [Set ((Var vi, off'), what, locUnknown)]) 
+            | ScalarInit ei -> 
+                mkStmt (Instr [Set ((Var vi, off'), ei, locUnknown)]) 
                 :: acc
           in
           let inits = initone NoOffset NoOffset init vi.vtype finit.sbody in 

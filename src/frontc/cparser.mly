@@ -108,8 +108,8 @@ let emptySpec =
     sattr = [];
   } 
 
-let emptyName = ("", NO_TYPE, [], NOTHING)
-let missingFieldDecl = ("___missing_field_name", NO_TYPE, [], NOTHING) 
+let emptyName = ("", NO_TYPE, [], NO_INIT)
+let missingFieldDecl = ("___missing_field_name", NO_TYPE, [], NO_INIT) 
 
 (* Keep attributes sorted *)
 let addAttribute ((n, args) as q) a = 
@@ -127,7 +127,7 @@ let addAttribute ((n, args) as q) a =
   in
   if n = "cdecl" then a else
   insertSorted a
-
+ 
 let addAttributes a ats = 
   List.fold_left (fun acc a -> addAttribute a acc) ats a
 
@@ -168,9 +168,9 @@ let applyTypedef spec =
       parse_error "Typedef along with storage specifier"; 
       raise Parsing.Parse_error
 
-let applyInitializer i' ((n,bt,a,i) as name) = 
+let applyInitializer (i': init_expression) ((n,bt,a,i) as name) = 
   match i with 
-    NOTHING -> (n, bt, a, i')
+    NO_INIT -> (n, bt, a, i')
   | _ -> parse_error "Multiple initializers"; 
       raise Parsing.Parse_error 
       
@@ -269,7 +269,7 @@ let isTypeAttr (n, _) =
 let nameOfIdent (n: string) (al: attribute list) : name = 
   (n, 
    (if al = [] then NO_TYPE else ATTRTYPE (NO_TYPE, al)), 
-   [], NOTHING)
+   [], NO_INIT)
   
 let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
   (* Move some GCC attributes from the specifier to names *)
@@ -309,7 +309,7 @@ let doFunctionDecl (n: name) (pardecl: single_name list) (va: bool) : name =
 let doFunctionDef (spec: specifier) (n: name) 
                   (b: body) : definition = 
   (match n with 
-    (_, _, _, NOTHING) -> ()
+    (_, _, _, NO_INIT) -> ()
   | _ -> parse_error "Initializer in function definition"; 
       raise Parsing.Parse_error);
   let n' = (* Associate the inline attribute with the function itself *)
@@ -330,7 +330,7 @@ let doOldParDecl (names: string list)
         [] -> (* parse_error ("Cannot find definition of parameter " ^
                               n ^ " in old style prototype\n")*)
                (INT(NO_SIZE,NO_SIGN), NO_STORAGE, 
-                (n, INT(NO_SIZE,NO_SIGN), [], NOTHING))
+                (n, INT(NO_SIZE,NO_SIGN), [], NO_INIT))
       | (bt, st, names) :: restgroups -> 
           let rec loopNames = function
               [] -> loopGroups restgroups
@@ -424,13 +424,13 @@ let doOldParDecl (names: string list)
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression 
-%type <Cabs.expression> init_expression
+%type <Cabs.init_expression> init_expression
 %type <Cabs.expression list> comma_expression
 %type <string> string_list
 
-%type <Cabs.init * Cabs.expression> initializer
-%type <(Cabs.init * Cabs.expression) list> initializer_list
-%type <Cabs.init> init_designators init_designators_opt
+%type <Cabs.initwhat * Cabs.init_expression> initializer
+%type <(Cabs.initwhat * Cabs.init_expression) list> initializer_list
+%type <Cabs.initwhat> init_designators init_designators_opt
 
 %type <specifier> decl_spec_list
 %type <typeSpecifier> type_spec
@@ -603,10 +603,11 @@ string_list:
 |   string_list CST_STRING		{$1 ^ $2}
 |   string_list FUNCTION__              {$1 ^ __functionString}
 ;
+
 init_expression:
-     expression                                 { $1 }
+     expression         { SCALAR_INIT $1 }
 |    LBRACE initializer_list RBRACE
-			{CONSTANT (CONST_COMPOUND $2)}
+			{ COMPOUND_INIT $2}
 
 initializer_list:    /* ISO 6.7.8. Allow a trailing COMMA */
     initializer                             { [$1] }
@@ -618,15 +619,15 @@ initializer_list_opt:
 ;
 initializer: 
     init_designators EQ init_expression { ($1, $3) }
-|                       init_expression { (NO_INIT, $1) }
+|                       init_expression { (NEXT_INIT, $1) }
 ;
 init_designators: 
-    DOT IDENT init_designators_opt      { FIELD_INIT($2, $3) }
-|   LBRACKET  init_expression RBRACKET init_designators_opt
-                                        { INDEX_INIT($2, $4) }
+    DOT IDENT init_designators_opt      { INFIELD_INIT($2, $3) }
+|   LBRACKET  expression RBRACKET init_designators_opt
+                                        { ATINDEX_INIT($2, $4) }
 ;
 init_designators_opt:
-   /* empty */                          { NO_INIT }
+   /* empty */                          { NEXT_INIT }
 |  init_designators                     { $1 }
 ;
 
@@ -807,16 +808,16 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
 |   declarator                             { $1 } 
 |   declarator COLON expression            {  (match $1 with
-                                               (n, t, [], NOTHING) -> 
+                                               (n, t, [], NO_INIT) -> 
                                                 ( n, BITFIELD (t, $3), 
-                                                     [], NOTHING)
+                                                     [], NO_INIT)
                                                | _ -> parse_error "bitfield"; 
                                                    raise Parsing.Parse_error) 
                                            } 
 |              COLON expression            {  (match missingFieldDecl with
-                                               (n, t, [], NOTHING) -> 
+                                               (n, t, [], NO_INIT) -> 
                                                 ( n, BITFIELD (t, $2), 
-                                                     [], NOTHING)
+                                                     [], NO_INIT)
                                                | _ -> parse_error "bitfield"; 
                                                    raise Parsing.Parse_error) 
                                            }
@@ -852,7 +853,7 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                      ($2, 
                                       (if $1 = [] then NO_TYPE
                                        else ATTRTYPE (NO_TYPE, $1)), 
-                                      [], NOTHING) }
+                                      [], NO_INIT) }
 |   LPAREN declarator RPAREN       { $2 }
 |   LPAREN msqual_list pointer direct_decl RPAREN       
                                    { addAttributesTypeOfName $2
