@@ -601,8 +601,7 @@ smAddTest("scott/models $box");
 smAddTest("scott/qsort $box");
 smAddTest("scott/strpbrk $box");
 smAddTest("scott/fgets $box");
-smFailTest("problem inferring FSEQ where WILD is expected; problem with FSEQ too?",
-           "test-bad/sockets $box");
+smAddTest("test-bad/sockets $box");
 
 # more stuff, mostly from ftpd
 if ($TEST->{option}->{safecdebug}) {
