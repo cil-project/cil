@@ -4,8 +4,7 @@
 #endif
 
 extern int printf(const char*, ...);
-//extern int strcmp(const char*, const char*);
-#include <string.h>
+extern int strcmp(const char*, const char*);
 extern int exit(int);
 
 /* run this with COMPATMODE=1 if compiling directly, since neither GCC nor 
