@@ -568,6 +568,13 @@ btreetest-optimvariant.%: mustbegcc
 # sm: this is my little test program
 hola: scott/hola
 
+# ww: Scott's structs-edg-stl.c example
+structs : mustbemanju
+	cd /usr/src/big-examples/; $(CCURED) --separate \
+               $(STANDARDPATCH) \
+	       $(CONLY) $(CFLAGS) structs-edg-stl.c 
+	echo SUCCESS
+
 # sm: some project members don't want the testing targets to depend
 # on quickbuild (which rebuilds translator components whose dependencies
 # have changed), and others do..
