@@ -5289,7 +5289,9 @@ and doStatement (s : A.statement) : chunk =
             (fun (c, e) -> 
               let (se, e', t) = doExp false e (AExp None) in
               let lv = 
-                match e' with Lval x -> x
+                match e' with
+		| Lval lval
+		| StartOf lval -> lval
                 | _ -> E.s (error "Expected lval for ASM outputs")
               in
               stmts := !stmts @@ se;
