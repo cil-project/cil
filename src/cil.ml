@@ -56,6 +56,7 @@ let charIsUnsigned = ref false        (* Whether CHAR is unsigned. Default
 let ilongFitsUInt = ref false         (* Whether a signed long can fit an 
                                        * unsigned integer. True only if a 
                                        * long uses more bits than an int  *)
+let newCil = ref true
 
 type location = { 
     line: int;				(* -1 means "do not know" *)
@@ -494,7 +495,8 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : ostmt -> bool        (* constrol-flow statement *)
+  method vostmt : ostmt -> bool        (* constrol-flow statement. Old *)
+  method vstmt : stmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
@@ -511,7 +513,8 @@ class nopCilVisitor = object
   method vlval (l:lval) = true        (* lval (base is 1st field) *)
   method voffs (o:offset) = true      (* lval offset *)
   method vinst (i:instr) = true       (* imperative instruction *)
-  method vstmt (s:ostmt) = true        (* constrol-flow statement *)
+  method vostmt (s:ostmt) = true        (* constrol-flow statement *)
+  method vstmt (s:stmt) = true        (* constrol-flow statement *)
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)
   method vglob (g:global) = true      (* global (vars, types, etc.) *)
@@ -937,6 +940,9 @@ let setCustomPrint custom f =
 
 let printShortTypes = ref false
 
+(* Make an statement that we'll use as an invalid statement during printing *)
+let invalidStmt = {dummyStmt with sid = -2}
+
 let rec d_decl (docName: unit -> doc) () this = 
   let parenth outer_t doc = 
     let typ_strength = function         (* binding strength of type 
@@ -1242,7 +1248,7 @@ and d_instr () i =
                               (fun x -> dprintf "\"%s\"" (escape_string x))) 
               clobs)
        
-and d_stmt () s =
+and d_ostmt () s =
   let doThen a = (* Want to print { } in the "then" branch to avoid 
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
@@ -1254,16 +1260,16 @@ and d_stmt () s =
   match s with
     Skip -> dprintf ";"
   | Sequence(lst) -> dprintf "@[{ @[@!%a@]@!}@]" 
-        (docList line (d_stmt ())) lst
+        (docList line (d_ostmt ())) lst
   | Loops(Sequence(IfThenElse(e,Skip,Break,_) :: rest)) -> 
-      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_stmt (Sequence rest)
+      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_ostmt (Sequence rest)
   | Loops(stmt) -> 
-      dprintf "wh@[ile (1)@!%a@]" d_stmt stmt
+      dprintf "wh@[ile (1)@!%a@]" d_ostmt stmt
   | IfThenElse(e,a,(Skip|Sequence([Skip])),_) -> 
-      dprintf "if@[ (%a)@!%a@]" d_exp e d_stmt (doThen a)
+      dprintf "if@[ (%a)@!%a@]" d_exp e d_ostmt (doThen a)
   | IfThenElse(e,a,b,_) -> 
       dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
-        d_exp e d_stmt (doThen a) d_stmt b
+        d_exp e d_ostmt (doThen a) d_ostmt b
   | Labels(s) -> dprintf "%s:" s
   | Cases(i,_) -> dprintf "case %d: " i
   | Gotos(s) -> dprintf "goto %s;" s
@@ -1271,10 +1277,81 @@ and d_stmt () s =
   | Continue -> dprintf "continue;"
   | Returns(None,_) -> text "return;"
   | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
-  | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
+  | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_ostmt s
   | Defaults -> dprintf "default:"
   | Instrs(i,_) -> d_instr () i
+  | Block blk -> (d_block invalidStmt invalidStmt) () blk
 
+and d_stmt (next: stmt) (break: stmt) (cont: stmt) () (s: stmt) = 
+  dprintf "%a%a"
+    (* print the labels *)
+    (docList line (fun l -> d_label () l)) s.labels
+    (* print the statement itself *)
+    (d_stmtkind s next break cont) s.skind
+
+and d_label () = function
+    Label (s, _) -> dprintf "%s:" s
+  | Case (i, _) -> dprintf "case %d:" i
+  | Default _ -> text "default:"
+
+and d_block (break: stmt) (cont: stmt) () blk = 
+  let rec dofirst () = function
+      [] -> nil
+    | [x] -> d_stmt invalidStmt break cont () x
+    | x :: rest -> dorest nil x rest
+  and dorest acc prev = function
+      [] -> acc ++ line ++ (d_stmt invalidStmt break cont () prev)
+    | x :: rest -> 
+        dorest (acc ++ line ++ (d_stmt x break cont () prev)) x rest
+  in
+  dprintf "@[{ @[@!%a@]@!}@]" dofirst blk
+
+and d_stmtkind (this:stmt) 
+               (next: stmt) (break: stmt) (cont: stmt) () = function
+    Return(None, _) -> text "return;"
+  | Return(Some e, _) -> dprintf "return (%a);" d_exp e
+  | Goto (sref, _) -> 
+      if !sref == break then text "break;" else
+      if !sref == cont then text "continue;" else
+      d_goto !sref
+  | Instr il -> 
+      dprintf "@[%a@]" 
+        (docList line (fun (i, l) -> d_instr () i)) il
+  | If(be,t,[],_) -> 
+      dprintf "if@[ (%a)@!%a@]" d_exp be (d_block break cont) t
+  | If(be,t,[{skind=Goto(gref,_)} as s],_) 
+      when s.labels == [] && !gref == next -> 
+      dprintf "if@[ (%a)@!%a@]" d_exp be (d_block break cont) t
+  | If(be,[],e,_) -> 
+      dprintf "if@[ (%a)@!%a@]" d_exp (UnOp(LNot,be,intType)) 
+        (d_block break cont) e
+  | If(be,[{skind=Goto(gref,_)} as s],e,_) 
+      when s.labels == [] && !gref == next -> 
+      dprintf "if@[ (%a)@!%a@]" d_exp  (UnOp(LNot,be,intType)) 
+          (d_block break cont) e
+  | If(be,t,e,_) -> 
+      dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
+        d_exp be (d_block break cont) t (d_block break cont) e
+  | Switch(e,b,_,_) -> 
+      dprintf "@[switch (%a)@!%a@]" d_exp e (d_block next cont) b
+  | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _) 
+    when !gref == next && brk.labels == [] -> 
+      dprintf "wh@[ile (%a)@!%a@]" d_exp e (d_block next this) rest
+  | Loop(b, _) -> 
+      dprintf "wh@[ile (1)@!%a@]" (d_block next this) b
+
+and d_goto (s: stmt) = 
+  (* Grab one of the labels *)
+  let rec pickLabel = function
+      [] -> None
+    | Label (l, _) :: _ -> Some l
+    | _ :: rest -> pickLabel rest
+  in
+  match pickLabel s.labels with
+    Some l -> dprintf "goto %s;" l
+  | None -> 
+      ignore (E.warn "Cannot find label for target of goto\n");
+      text "goto __invalid_label;"
 
 and d_fun_decl () f = 
   let pre, post = separateAttributes f.svar.vattr in
@@ -1296,7 +1373,7 @@ and d_fun_decl () f =
     (* locals. *)
     (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
     (* the body *)
-    d_stmt f.sbody
+    d_ostmt f.sbody
 
 and d_videcl () vi = 
   let pre, post = separateAttributes vi.vattr in 
@@ -1636,28 +1713,33 @@ begin
 end
 
 (* visit all nodes in a Cil statement tree in preorder *)
-and visitCilStmt (vis: cilVisitor) (body: ostmt) : unit =
+and visitCilOStmt (vis: cilVisitor) (body: ostmt) : unit =
 begin
   let rec fExp e = (visitCilExpr vis e)
   and fLval lv = (visitCilLval vis lv)
   and fOff o = (visitCilOffset vis o)
   and fInst i = (visitCilInstr vis i)   (* compiler doesn't like this curried..? *)
+  and fStmt (s: stmt) = (visitCilStmt vis s)
 
-  and fStmt s = if (vis#vstmt s) then fStmt' s
-  and fStmt' = begin function
+  and fOStmt s = if (vis#vostmt s) then fOStmt' s
+  and fOStmt' = begin function
       (Skip|Break|Continue|Labels _|Gotos _
        |Cases _|Defaults|Returns (None,_)) -> ()
-    | Sequence s -> List.iter fStmt s
-    | Loops s -> fStmt s
-    | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
+    | Sequence s -> List.iter fOStmt s
+    | Loops s -> fOStmt s
+    | IfThenElse (e, s1, s2, _) -> fExp e; fOStmt s1; fOStmt s2
     | Returns(Some e, _) -> fExp e
-    | Switchs (e, s, _) -> fExp e; fStmt s
+    | Switchs (e, s, _) -> fExp e; fOStmt s
     | Instrs(i, _) -> fInst i
+    | Block blk -> List.iter fStmt blk
   end
 
   in
-  fStmt body
+  fOStmt body
 end
+
+and visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
+    ()
 
 and visitCilType (vis : cilVisitor) (t : typ) : unit =
 begin
@@ -1719,7 +1801,7 @@ begin
       (fun (v : varinfo) ->
         (visitCilVarDecl vis v))       (* visit local declarations *)
       f.slocals);
-    (visitCilStmt vis f.sbody);        (* visit the body *)
+    (visitCilOStmt vis f.sbody);        (* visit the body *)
     (ignore (vis#vfuncPost f))         (* postorder visit *)
   )
 end

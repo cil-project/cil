@@ -515,18 +515,18 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end)
     () (* The argument of withContext *)
 
-and checkStmt (s: ostmt) = 
+and checkStmto (s: ostmt) = 
   E.withContext 
     (fun _ -> 
       (* Print context only for certain small statements *)
       match s with 
         Sequence _ | Loops _ | IfThenElse _ | Switchs _  -> nil
-      | _ -> dprintf "checkStmt: %a" d_stmt s)
+      | _ -> dprintf "checkStmto: %a" d_ostmt s)
     (fun _ -> 
       match s with
         Skip | Break | Continue | Defaults | Cases _ -> ()
-      | Sequence ss -> List.iter checkStmt ss
-      | Loops s -> checkStmt s
+      | Sequence ss -> List.iter checkStmto ss
+      | Loops s -> checkStmto s
       | Labels l -> begin
           if H.mem labels l then
             ignore (E.warn "Multiply defined label %s" l);
@@ -536,8 +536,8 @@ and checkStmt (s: ostmt) =
       | IfThenElse (e, st, sf,_) -> 
           let te = checkExp false e in
           checkBooleanType te;
-          checkStmt st;
-          checkStmt sf
+          checkStmto st;
+          checkStmto sf
       | Returns (re,_) -> begin
           match re, !currentReturnType with
             None, TVoid _  -> ()
@@ -547,10 +547,20 @@ and checkStmt (s: ostmt) =
       end
       | Switchs (e, s, _) -> 
           checkExpType false e intType;
-          checkStmt s
+          checkStmto s
             
-      | Instrs (i,l) -> checkInstr i)
+      | Instrs (i,l) -> checkInstr i
+
+      | Block blk -> List.iter checkStmt blk)
+
     () (* argument of withContext *)
+
+and checkStmt (s: stmt) = 
+  E.withContext 
+    (fun _ -> dprintf "checkStmt")
+    (fun _ -> ())
+    ()
+
 
 and checkInstr (i: instr) = 
   match i with 
@@ -706,7 +716,7 @@ let rec checkGlobal = function
             in
             List.iter (doLocal CTFArg) fd.sformals;
             List.iter (doLocal CTDecl) fd.slocals;
-            checkStmt fd.sbody;
+            checkStmto fd.sbody;
             (* Now check that all gotos have a target *)
             H.iter 
               (fun k _ -> if not (H.mem labels k) then 

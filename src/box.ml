@@ -2397,7 +2397,7 @@ let rec boxstmt (s : ostmt) : ostmt =
   with e -> begin
     ignore (E.log "boxstmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
-    Instrs(dInstr (dprintf "booo_statement(%a)" d_stmt s), lu)
+    Instrs(dInstr (dprintf "booo_statement(%a)" d_ostmt s), lu)
   end
 
   

@@ -47,6 +47,7 @@ val charIsUnsigned : bool ref         (* Whether CHAR is unsigned. Default
 val ilongFitsUInt : bool ref         (* Whether a signed long can fit an 
                                        * unsigned integer. True only if a 
                                        * long uses more bits than an int  *)
+val newCil : bool ref
 
 type location = { 
     line: int;				(* -1 means "do not know" *)
@@ -643,7 +644,7 @@ val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it
        
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
-val d_stmt: unit -> ostmt -> Pretty.doc
+val d_ostmt: unit -> ostmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
 val d_videcl: unit -> varinfo -> Pretty.doc
 val printFile: out_channel -> file -> unit
@@ -682,7 +683,8 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : ostmt -> bool        (* constrol-flow statement *)
+  method vostmt : ostmt -> bool        (* constrol-flow statement. old *)
+  method vstmt : stmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
@@ -691,20 +693,20 @@ class type cilVisitor = object
 end
 
 (* visit all nodes in a Cil statement tree in preorder *)
-val visitCilStmt: cilVisitor -> ostmt -> unit
+val visitCilOStmt: cilVisitor -> ostmt -> unit
 
 (* other cil constructs *)
-val visitCilFile : cilVisitor -> file -> unit
-val visitCilFileInReverse : cilVisitor -> file -> unit
-val visitCilExpr : cilVisitor -> exp -> unit
-val visitCilLval : cilVisitor -> lval -> unit
-val visitCilOffset : cilVisitor -> offset -> unit
+val visitCilFile: cilVisitor -> file -> unit
+val visitCilFileInReverse: cilVisitor -> file -> unit
+val visitCilExpr: cilVisitor -> exp -> unit
+val visitCilLval: cilVisitor -> lval -> unit
+val visitCilOffset: cilVisitor -> offset -> unit
 val visitCilInstr: cilVisitor -> instr -> unit
-val visitCilType : cilVisitor -> typ -> unit
-val visitCilVarDecl : cilVisitor -> varinfo -> unit
-val visitCilFunction : cilVisitor -> fundec -> unit
-val visitCilGlobal : cilVisitor -> global -> unit
-
+val visitCilType: cilVisitor -> typ -> unit
+val visitCilVarDecl: cilVisitor -> varinfo -> unit
+val visitCilFunction: cilVisitor -> fundec -> unit
+val visitCilGlobal: cilVisitor -> global -> unit
+val visitCilStmt: cilVisitor -> stmt -> unit
 
    (* Make a local variable and add it to a function *)
 val makeLocalVar: fundec -> string -> typ -> varinfo

@@ -413,11 +413,7 @@ module BlockChunk =
       else
         let rec toLast = function
             [{skind=Instr il} as s] as stmts -> 
-              let rec revOnto acc = function
-                  [] -> acc
-                | x :: rest -> revOnto (x :: acc) rest
-              in
-              s.skind <- Instr (revOnto il c.postins);
+              s.skind <- Instr (il @ (List.rev c.postins));
               stmts
 
           | [] -> [mkStmt (Instr (List.rev c.postins))]
@@ -435,7 +431,30 @@ module BlockChunk =
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      { stmts = pushPostIns c1 @ c2.stmts;
+      (* Try to compress statements *)
+      let rec compress (leftover: stmt) = function
+          [] -> if leftover == dummyStmt then [] else [leftover]
+        | ({skind=Instr il} as s) :: rest ->
+            if leftover == dummyStmt then
+              compress s rest
+            else
+              if s.labels == [] then
+                match leftover.skind with 
+                  Instr previl -> 
+                    leftover.skind <- Instr (previl @ il);
+                    compress leftover rest
+                | _ -> E.s (E.bug "cabs2cil: compress")
+              else
+                (* This one has labels. Cannot attach to prev *)
+                leftover :: compress s rest
+        | s :: rest -> 
+            let res = s :: compress dummyStmt rest in
+            if leftover == dummyStmt then
+              res
+            else
+              leftover :: res
+      in
+      { stmts = compress dummyStmt (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
         fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
         fixcont = (fun b -> c1.fixcont b; c2.fixcont b); 
@@ -461,7 +480,23 @@ module BlockChunk =
         cases = t.cases @ e.cases;
       } 
 
-    let canDuplicate (c: chunk) = false
+    let canDuplicate (c: chunk) = 
+                        (* We can duplicate a statement if it is small and 
+                         * does not contain label definitions  *)
+      let rec cost = function
+          [] -> 0
+        | s :: rest -> 
+            let one = 
+              if s.labels <> [] then 100 else
+              match s.skind with
+                Instr il -> List.length il
+              | Goto _ | Return _ -> 1
+              | _ -> 100
+            in
+            one + cost rest
+      in
+      cost c.stmts + List.length c.postins <= 3
+
     let canDrop (c: chunk) = false
 
     let loopChunk (body: chunk) : chunk = 
@@ -587,6 +622,7 @@ module BlockChunk =
       } 
 
     let mkFunctionBody (c: chunk) : ostmt = 
+      resolveGotos (); initLabels ();
       if c.cases <> [] then
         E.s (E.bug "Swtich cases not inside a switch statement\n");
       Block (pushPostIns c)
