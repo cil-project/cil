@@ -70,6 +70,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     e.ekind = ENull || e.ekind = EIndex) l in
 
   for i = 1 to 2 do begin
+
   let update_kind n k why = 
     if (height k) > (height n.kind) then begin
       if (n.why_kind = UserSpec || n.locked) then begin
@@ -125,7 +126,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   in 
 
-  if i = 2 then 
+  if i = 1 then 
   (* _(2)_ mark all interface char * nodes as [ro]strings and mark all of
    * the posarith/intcast pointers as seq/fseq *)
   Hashtbl.iter (fun id n -> 
@@ -138,7 +139,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   ) node_ht ;
 
-  if i = 2 then 
+  if i = 1 then 
   Hashtbl.iter (fun id n ->
     if n.kind = String || n.kind = ROString then mark_string n
   ) node_ht ;
