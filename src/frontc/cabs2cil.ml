@@ -188,6 +188,11 @@ let mustTurnIntoDef: (int, bool) H.t = H.create 117
 (* Globals that have already been defined. Indexed by the variable name. *)
 let alreadyDefined: (string, location) H.t = H.create 117
 
+(* Globals that were created due to static local variables. We chose their 
+ * names to be distinct from any global encountered at the time. But we might 
+ * see a global with conflicting name later in the file. *)
+let staticLocals: (string, varinfo) H.t = H.create 13
+
 let popGlobals () = 
   let rec revonto (tail: global list) = function
       [] -> tail
@@ -419,15 +424,33 @@ let docEnv () =
 
 (* Add a new variable. Do alpha-conversion if necessary *)
 let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
+(*
+  ignore (E.log "%t: alphaConvert(addtoenv=%b) %s" d_thisloc addtoenv vi.vname);
+*)
   (* Announce the name to the alpha conversion table *)
   let newname = newAlphaName (addtoenv && vi.vglob) "" vi.vname in
   (* Make a copy of the vi if the name has changed. Never change the name for 
    * global variables *)
   let newvi = 
-    if vi.vglob || vi.vname = newname then 
+    if vi.vname = newname then 
       vi 
-    else 
-      copyVarinfo vi newname
+    else begin
+      if vi.vglob then begin
+        (* Perhaps this is because we have seen a static local which happened 
+         * to get the name that we later want to use for a global. *)
+        try 
+          let static_local_vi = H.find staticLocals vi.vname in
+          H.remove staticLocals vi.vname;
+          (* Use the new name for the static local *)
+          static_local_vi.vname <- newname;
+          (* And continue using the last one *)
+          vi
+        with Not_found -> 
+          E.s (E.error "The alpha conversion wants to change the name of global %s" 
+                 vi.vname);
+      end else
+        copyVarinfo vi newname
+    end
   in
   (* Store all locals in the slocals (in reversed order). We'll reverse them 
    * and take out the formals at the end of the function *)
@@ -439,6 +462,9 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
       addGlobalToEnv vi.vname (EnvVar newvi)
     else
       addLocalToEnv vi.vname (EnvVar newvi));
+(*
+  ignore (E.log "  new=%s\n" newvi.vname);
+*)
 (*  ignore (E.log "After adding %s alpha table is: %a\n"
             newvi.vname docAlphaTable alphaTable); *)
   newvi
@@ -4327,10 +4353,9 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
       (* sm: if it's a function prototype, and the storage class *)
       (* isn't specified, make it 'extern'; this fixes a problem *)
       (* with no-storage prototype and static definition *)
-      if vi.vstorage = NoStorage then (
+      if vi.vstorage = NoStorage then 
         (*(trace "sm" (dprintf "adding extern to prototype of %s\n" n));*)
         vi.vstorage <- Extern;
-        );
     end;
     let vi, alreadyInEnv = makeGlobalVarinfo (inite != A.NO_INIT) vi in
 (*
@@ -4436,6 +4461,9 @@ and createLocal ((_, sto, _, _) as specs)
   in
   match ndt with 
     _ when sto = Static -> 
+      if debugGlobal then 
+        ignore (E.log "createGlobal (local static): %s\n" n);
+
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
       let newname = newAlphaName true "" n in
@@ -4443,6 +4471,10 @@ and createLocal ((_, sto, _, _) as specs)
       let vi = makeVarInfoCabs ~isformal:false
                                ~isglobal:true 
                                loc specs (newname, ndt, a) in
+      (* However, we have a problem if a real global appears later with the 
+       * name that we have happened to choose for this one. Remember these names 
+       * for later. *)
+      H.add staticLocals vi.vname vi;
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -4462,7 +4494,6 @@ and createLocal ((_, sto, _, _) as specs)
           Some ie'
         end
       in
-      (* It is possible that the initializer refers to the *)
       cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
       empty
 
@@ -5336,6 +5367,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear enumInfoNameEnv;
   H.clear mustTurnIntoDef;
   H.clear alreadyDefined;
+  H.clear staticLocals;
   H.clear isomorphicStructs;
   annonCompFieldNameId := 0;
   if !E.verboseFlag || !Util.printStages then 
@@ -5400,6 +5432,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
   H.clear isomorphicStructs;
+  H.clear staticLocals;
   H.clear env;
   H.clear genv;
   if false then ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
