@@ -1118,8 +1118,18 @@ and d_fun_decl () f =
 
 and d_videcl () vi = 
   let pre, post = separateAttributes vi.vattr in 
-  dprintf "%a%a %a" d_storage vi.vstorage
-    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre vi.vname)) vi.vtype
+  (* Now take out the inline *)
+  let isinline, pre' = 
+    match List.partition (fun a -> a = AId("inline")) pre with
+      [], _ -> false, pre
+    | _, pre' -> true, pre'
+  in
+  dprintf "%s%a%a %a"
+    (if isinline then 
+      if !msvcMode then "__inline " else "inline " 
+     else "")
+    d_storage vi.vstorage
+    (d_decl (fun _ -> dprintf "%a %s" d_attrlistpre pre' vi.vname)) vi.vtype
     d_attrlistpost post
     
 and d_fielddecl () fi = 
