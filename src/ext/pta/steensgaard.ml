@@ -314,12 +314,6 @@ let global_tau = get_global
 
 let global_lvalue lv = get_global lv.contents
 
-(** First of a pair *)
-let fst (x,y) = x
-
-(** Second of a pair *)
-let snd (x,y) = y
-
 (** Return true if e is a member of l (according to uref equality) *)
 let rec ulist_mem e l =
   match l with

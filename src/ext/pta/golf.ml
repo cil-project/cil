@@ -357,12 +357,6 @@ let die s =
     assert(false)
   end
 
-(** First of a pair *)
-let fst (x,y) = x
-
-(** Second of a pair *)
-let snd (x,y) = y
-
 let fresh_appsite () : int =
   incr appsite_index;
   ! appsite_index
