@@ -53,10 +53,6 @@ let outChannel : out_channel option ref = ref None
 let mergedChannel : out_channel option ref = ref None
 let keepFiles = ref false
 let heapify = ref false
-let smalloc_vmalloc = ref false    
-let smalloc_stack = ref Smalloc.stacknone
-let smalloc_setjmp = ref false
-let smalloc_pthread = ref false
 let stackguard = ref false
 let doCallGraph = ref false
 let testcil = ref ""
@@ -110,10 +106,6 @@ let rec processOneFile (cil: C.file) =
     if (!heapify) then begin
       Heapify.default_heapify cil 
     end ;
-
-    (* matth: always call smalloc to clean up EQ_tainted if nothing else *)
-    Smalloc.default_smalloc_xform cil !smalloc_stack !smalloc_vmalloc
-      !smalloc_setjmp !smalloc_pthread;
     
     if (!stackguard) then begin
       Heapify.default_stackguard cil 
@@ -221,22 +213,6 @@ let rec theMain () =
                      "turns on generation of code to log memory writes in CIL";
     "--heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
-    "--smalloc", Arg.Unit (fun _ -> smalloc_stack := Smalloc.stackshadow;
-			            smalloc_vmalloc := true ;
-                                    smalloc_setjmp := true), 
-                                        "apply the `smalloc' xform to gcc attribute tagged nodes.  Equivalent to \"--smalloc_stackshadow --smalloc_vmalloc --smalloc_setjmp.\"";
-    "--smalloc_stackheap", Arg.Unit (fun _ -> smalloc_stack := 
-                                                Smalloc.stackheap), 
-                                     "move sensitive information to the heap.";
-    "--smalloc_stackshadow", Arg.Unit (fun _ -> smalloc_stack := 
-                                                  Smalloc.stackshadow), 
-                            "move sensitive information to a shadow stack.";
-    "--smalloc_vmalloc", Arg.Unit (fun _ -> smalloc_vmalloc := true), 
-                                     "replace malloc/free with smalloc/sfree.";
-    "--smalloc_setjmp", Arg.Unit (fun _ -> smalloc_setjmp := true), 
-                                    "modify setjmp to save shadow stack ptr";
-    "--smalloc_pthreads", Arg.Unit (fun _ -> smalloc_pthread := true), 
-                                    "add pthreads support to smalloc";
     "--stackguard", Arg.Unit (fun _ -> stackguard := true),
 					"apply the `stackguard' transformation";    "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
 		       "Fix some C-isms so that the result is C++ compliant.";
