@@ -468,8 +468,16 @@ val mkCompInfo: bool ->       (* whether it is a struct or a union *)
 
 (* Scans a type by applying the function on all elements. Care is taken to 
  * apply the function only once on each composite type, thus avoiding 
- * circularity. When the function returns true, the scan stops with true *)
-val existsType: (typ -> bool) -> typ -> bool
+ * circularity. When the function returns ExistsTrue, the scan stops with true 
+ * *)
+type existsAction = 
+    ExistsTrue                          (* We have found it *)
+  | ExistsFalse                         (* Stop processing this branch *)
+  | ExistsMaybe                         (* This node is not what we are 
+                                         * looking for but maybe its 
+                                         * successors are *)
+
+val existsType: (typ -> existsAction) -> typ -> bool
 
 val var: varinfo -> lval
 val mkSet: lval -> exp -> stmt

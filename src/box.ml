@@ -126,7 +126,7 @@ let hostsOfBitfields : (int * string, fieldinfo * fieldinfo) H.t = H.create 17
 let bundleid = ref 0
 let bitfieldCompinfo comp = 
   let containsPointer t = 
-    existsType (function TPtr _ -> true | _ -> false) t in
+    existsType (function TPtr _ -> ExistsTrue | _ -> ExistsMaybe) t in
   if comp.cstruct &&
     List.exists (fun fi -> 
       match fi.ftype with 
@@ -359,11 +359,14 @@ let mustCheckReturn tret =
    (* Test if we have changed the type *)
 let rec typeHasChanged t =
   existsType 
-    (function TComp comp -> begin
-      match comp.cfields with
-        [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> true
-      | _ -> false
-    end | _ -> false)
+    (function TComp comp -> 
+      begin
+        match comp.cfields with
+          [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> 
+            ExistsTrue
+        | _ -> ExistsMaybe
+      end 
+      | _ -> ExistsMaybe)
     t
 (*
     List.exists (fun f -> typeHasChanged f.ftype) comp.cfields
