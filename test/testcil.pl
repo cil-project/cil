@@ -628,6 +628,7 @@ smAddTest("bad/fseq $box");
 smAddTest("bad/calloc $box");
 smAddTest("bad/stackaddr $box");
 smAddTest("test-bad/trivial-tb");
+smAddTest("test-bad/retptr $box");
 
 # simple test of combiner
 smAddTest("comb");

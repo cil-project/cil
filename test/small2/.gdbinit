@@ -1,5 +1,5 @@
 # .gdbinit
 
-file popen
+file retptr
 break main
 run

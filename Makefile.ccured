@@ -38,14 +38,14 @@ MODULES    += main
 EXTRACLEAN += $(OBJDIR)/*.obj $(OBJDIR)/*.a $(OBJDIR)/*.o
 
 ifneq ($(ARCHOS), x86_WIN32)
-ifneq ($(ARCHOS), x86_LINUX) 
-   $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
-endif
+  ifneq ($(ARCHOS), x86_LINUX) 
+    $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
+  endif
 endif
 
-    # Include now the common set of rules for OCAML
-    # This file will add the rules to make $(EXECUTABLE)$(EXE) along with 
-    # cleancaml and realcleancaml
+# Include now the common set of rules for OCAML
+# This file will add the rules to make $(EXECUTABLE)$(EXE) along with 
+# cleancaml and realcleancaml
 include Makefile.ocaml
 
 
@@ -69,7 +69,7 @@ endif
 
 # Now include the compiler specific stuff
 ifdef _MSVC
- include Makefile.msvc
+  include Makefile.msvc
 else
   ifdef _GNUCC
     include Makefile.gcc
@@ -82,7 +82,6 @@ ifdef RELEASELIB
 else
   COMPILEREXT := $(COMPILERNAME)_debug
 endif
-
 
 
 PATCHER +=--mode=$(COMPILERNAME)
@@ -134,6 +133,11 @@ endif
 # NO_FPFAIL_SYSLOG means the syslog(2) call in safec.c will be omitted
 ifdef NO_FPFAIL_SYSLOG
   CCUREDLIBARG+= $(DEF)NO_FPFAIL_SYSLOG
+endif
+
+# FP_FAIL_IS_VERBOSE adds line and function info to the failure messages
+ifdef FP_FAIL_IS_VERBOSE
+  CCUREDLIBARG+= $(DEF)FP_FAIL_IS_VERBOSE
 endif
 
 # we build the library from source each time, so that we don't end up

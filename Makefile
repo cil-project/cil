@@ -60,11 +60,11 @@ cil-distrib:
 
 # sm: infer CCUREDHOME when not set, to ease having multiple trees
 ifndef CCUREDHOME
- ifeq ($(ARCHOS), x86_WIN32)
-  $(error You have not defined the CCUREDHOME variable)
- else
-  export CCUREDHOME := $(shell pwd)
- endif
+  ifeq ($(ARCHOS), x86_WIN32)
+    $(error You have not defined the CCUREDHOME variable)
+  else
+    export CCUREDHOME := $(shell pwd)
+  endif
 endif
 
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
@@ -195,6 +195,11 @@ ifdef VERBOSE
 endif
 ifdef PRINTSTAGES
   CCURED+= --stages
+endif
+ifdef FP_FAIL_IS_VERBOSE
+  # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
+  # affects the instrumented code *and* the support library
+  CCURED+= $(DEF)FP_FAIL_IS_VERBOSE
 endif
 
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
@@ -598,7 +603,8 @@ bad/%: test/bad/%.c $(TARGET_DEP)
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
-	if test/bad/$*; then \
+	echo test/bad/$*
+	@if test/bad/$*; then \
 		echo "(worked as expected, when FAIL not defined)"; exit 0; \
 	else \
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
@@ -609,7 +615,8 @@ bad/%: test/bad/%.c $(TARGET_DEP)
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
-	if test/bad/$*; then \
+	echo test/bad/$*
+	@if test/bad/$*; then \
 		echo "That should have failed!"; exit 2; \
 	else \
 		echo "(failed as expected)"; exit 0; \
