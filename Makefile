@@ -176,7 +176,9 @@ CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
 ifeq ($(COMPUTERNAME), madrone_amanb) # Aman's *top
+ifndef BASEDIR
 BASEDIR=/home/amanb/safec
+endif
 SAFECCDIR=$(BASEDIR)
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
@@ -611,6 +613,14 @@ testc/% : $(SMALL1)/%.c  defaulttarget
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
+# Aman's optim tests
+OPTIMTESTDIR=test/optim
+optim/% : $(OPTIMTESTDIR)/%.c defaulttarget
+	cd $(OPTIMTESTDIR); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $(DOOPT) $*.c $(EXEOUT)$*.exe
+	$(OPTIMTESTDIR)/$*.exe
+
 
 
 hashtest: test/small2/hashtest.c defaulttarget
@@ -624,6 +634,7 @@ hashtest: test/small2/hashtest.c defaulttarget
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
+
 
 rbtest: test/small2/rbtest.c defaulttarget
 	rm -f $(PCCTEST)/rbtest.exe
