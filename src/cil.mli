@@ -598,6 +598,7 @@ val d_plainexp: unit -> exp -> Pretty.doc
 val d_plainlval: unit -> lval -> Pretty.doc
 val d_plainoffset: unit -> offset -> Pretty.doc
 val d_plaintype: unit -> typ -> Pretty.doc
+val d_global: unit -> global -> Pretty.doc
 
 (******************
  ******************

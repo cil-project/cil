@@ -97,6 +97,7 @@ type node =
                                          * leads to INDEX pointers. *)
       
       mutable can_reach_string : bool;  (* used by the solvers *)
+      mutable locked : bool;            (* do not change this kind later *)
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
     }       
@@ -423,6 +424,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             null    = false;
             intcast = false;
             interface = false;
+            locked = false;
             succ = [];
             kind = kind;
             why_kind = why_kind; 

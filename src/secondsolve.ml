@@ -5,6 +5,8 @@
 open Cil
 open Ptrnode
 
+let warn = ref false  
+
 (*          
  * In this diagram, X <- Y means that Y can be cast to X. This may involve
  * a run-time check. 
@@ -67,14 +69,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   let eNI_edges_only l = List.filter (fun e ->
     e.ekind = ENull || e.ekind = EIndex) l in
 
+  for i = 1 to 2 do begin
   let update_kind n k why = 
     if (height k) > (height n.kind) then begin
-      if (n.why_kind = UserSpec) then begin
-        ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_pointerkind k d_node n) ;
+      if (n.why_kind = UserSpec || n.locked) then begin
+        (if (!warn) then ignore (E.warn "Pointer Kind Inference would upgrade to %a for\n%a" d_pointerkind k d_node n)) ;
         false
       end else begin
         n.kind <- k ;
         n.why_kind <- why ;
+        ( if i = 1 then n.locked <- true ) ;
         true
       end
     end else false
@@ -106,8 +110,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         | _ -> E.s (E.bug "update")
       else b 
     in 
-    if update_kind a true_b c then
+    if update_kind a true_b c then begin
       finished := false
+    end
   in 
 
   let rec mark_string a = 
@@ -120,6 +125,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   in 
 
+  if i = 2 then 
   (* _(2)_ mark all interface char * nodes as [ro]strings and mark all of
    * the posarith/intcast pointers as seq/fseq *)
   Hashtbl.iter (fun id n -> 
@@ -132,10 +138,12 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end
   ) node_ht ;
 
+  if i = 2 then 
   Hashtbl.iter (fun id n ->
     if n.kind = String || n.kind = ROString then mark_string n
   ) node_ht ;
 
+  if i = 2 then 
   Hashtbl.iter (fun id n -> 
     if n.posarith || (n.null && n.intcast) then 
       (update n FSeq BoolFlag)
@@ -144,6 +152,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   ) node_ht ;
 
   (* _(3)_ Now we do wild pointers *)
+  if i = 2 then 
   Hashtbl.iter (fun id cur ->
     (* pick out all successors of our current node *)
     List.iter (fun e -> 
@@ -249,13 +258,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht
   done ;
 
+
   (* _(5)_
    * All other nodes are safe. *)
+  if i = 2 then
   Hashtbl.iter (fun id n -> 
     if n.kind = Unknown then begin
       ignore (update_kind n Safe Unconstrained)
     end
   ) node_ht ;
+  end done ; (* for i = 1 to 2 do *) 
 
   (* Check! *)
   Hashtbl.iter (fun id n ->

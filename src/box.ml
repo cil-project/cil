@@ -3066,7 +3066,7 @@ let boxFile file =
   let doGlobal x = 
     try doGlobal x with e -> begin
       ignore (E.log "boxglobal (%s)\n" (Printexc.to_string e));
-      theFile := GAsm ("booo_global", lu) :: !theFile
+      theFile := GAsm (sprint 2 (dprintf "booo_global %a" d_global x), lu) :: !theFile
     end 
   in
   extraGlobInit := [];

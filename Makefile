@@ -706,4 +706,8 @@ li: defaulttarget
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
 
-
+liinfer: li
+	cd $(LIDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 trial_li.c \
+                 $(EXEOUT)trial_li.exe
