@@ -35,6 +35,13 @@
  *
  *)
 
+(** This file was originally part of Hugues Casee's frontc 2.0, and has been 
+ * extensively changed since. 
+**
+** 1.0	3.22.99	Hugues Cassé	First version.
+** 2.0  George Necula 12/12/00: Many extensions
+ **)
+
 (*
 ** Types
 *)

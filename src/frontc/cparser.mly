@@ -34,7 +34,12 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- **)*/
+ **)
+(**
+** 1.0	3.22.99	Hugues Cassé	First version.
+** 2.0  George Necula 12/12/00: Many extensions
+*)
+*/
 %{
 open Cabs
 module E = Errormsg
