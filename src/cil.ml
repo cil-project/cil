@@ -928,7 +928,7 @@ let mkFor (start: stmt list) (guard: exp) (next: stmt list)
      (mkWhile guard (body @ next)))
 
     
-let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
+let mkForIncr (iter : varinfo) (first: exp) (past: exp) (incr: exp) 
     (body: stmt list) : stmt list = 
       (* See what kind of operator we need *)
   let compop, nextop = 

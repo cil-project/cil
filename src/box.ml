@@ -22,6 +22,13 @@ let compactBlocks = true
 let lu = locUnknown
 let isSome = function Some _ -> true | _ -> false
 
+(* Have a loop constructor that yields nothing if the body is empty *)
+let mkForIncrOptim ~iter:(iter:varinfo) ~first:(first: exp) 
+                   ~past:(past: exp) ~incr:(incr: exp) 
+                   ~body:(body: stmt list) : stmt list = 
+  if body = [] then []
+  else mkForIncr iter first past incr body
+
 let wildpVoidType = ref voidType
 
 (* Match two names, ignoring the polymorphic prefix *)
@@ -2482,10 +2489,10 @@ let rec checkMem (why: checkLvWhy)
                   in
                   append
                     (fromList
-                       (mkForIncr 
+                       (mkForIncrOptim 
                           ~iter: it
                           ~first: zero
-                          ~stopat: len
+                          ~past: len
                           ~incr: one
                           ~body: (toList initone)))
                     acc)
@@ -2663,7 +2670,7 @@ let rec initializeType
               (fun iter -> 
                 append
                   (fromList
-                     (mkForIncr iter zero l one
+                     (mkForIncrOptim iter zero l one
                         (toList
                            (initone 
                               (addOffsetLval (Index (Lval(var iter), 
@@ -2711,7 +2718,7 @@ let rec initializeType
             (fun iter -> 
               append
                 (fromList
-                   (mkForIncr iter zero l one
+                   (mkForIncrOptim iter zero l one
                       (toList
                          (initone 
                             (addOffsetLval (Index (Lval(var iter), 
