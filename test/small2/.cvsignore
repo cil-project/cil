@@ -37,4 +37,7 @@ cof
 lexnum
 funcptr
 ptrkinds
+transpunion
+sockaddr
+oldstyle
 

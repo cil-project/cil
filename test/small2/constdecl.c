@@ -4,8 +4,13 @@
 static int foo(char const *a, char const *b);
 
 // now define it using old-style args
-int foo(a, b)           
-  char const *a, *b;   // looks like we're not associating 'const' with 'b'?
+int foo(a, b)
+  #if 1
+    char *a, *b;   // looks like we're not associating 'const' with 'b'?
+  #else
+    char const *a;       // actually, this fails too..
+    char const *b;
+  #endif
 {
   return strlen(a) + strlen(b);
 }
