@@ -155,6 +155,7 @@ CPPSTART=gcc -E %i -Dx86_LINUX -D_GNUCC  -I/usr/include/sys
 CPPOUT=-o %o
 CPP=$(CPPSTART) $(CPPOUT)
 INC=-I
+PATCHFILE=safec_gcc.patch
 endif
 
 
@@ -176,6 +177,7 @@ CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
 EXTRAARGS += --safec=-msvc
+PATCHFILE=safec_msvc.patch
 endif
 
 ifdef RELEASE
@@ -366,7 +368,9 @@ endif
 ############ Small tests
 SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
-	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+	cd $(SMALL1); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 SMALL2=test/small2
 
@@ -375,18 +379,18 @@ hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-DOPATCH=--patch=../../lib/safec.patch
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOPATCH) \
+                 --patch=../../lib/$(PATCHFILE) \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
@@ -401,6 +405,7 @@ btreetest: test/small2/testbtree.c \
 	rm -f test/small2/btreetest.exe
 	cd test/small2; $(SAFECC) --keep=. \
                  $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
 	test/small2/btreetest.exe
@@ -445,6 +450,7 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
                  $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/io.c \
                  $(PCCDIR)/src/huffman.c \
@@ -460,6 +466,7 @@ wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
                  $(EXEOUT)wes-rbtest.exe
@@ -470,6 +477,7 @@ wes-hashtest: test/small2/wes-hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE) \
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
+                 --patch=../../lib/$(PATCHFILE) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \
                  $(EXEOUT)wes-hashtest.exe

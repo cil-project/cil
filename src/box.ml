@@ -1175,13 +1175,6 @@ let checkMem (towrite: exp option)
 let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
 
-(* A major hack for MSVC *)
-let getIOBFunction = 
-  let fdec = emptyFunction "__get_iob" in
-  let argn = makeLocalVar fdec "n" intType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argn ], false, []);
-  theFile := GDecl fdec.svar :: !theFile;
-  fdec
 
 (* A run-time function to coerce scalars into pointers. Scans the heap and 
  * (in the future the stack) *)
@@ -1437,11 +1430,8 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
     | _ -> E.s (E.unimp "toIndex on unexpected pointer kind %a"
                   P.d_pointerkind pkind)
   in
-  (* As we go along we need to go into tagged and sized types. Never call 
-   * this on an Index pointer *)
+  (* As we go along we need to go into tagged and sized types. *)
   let goIntoTypes ((btype, pkind, mklval, base, bend, stmts) as input) = 
-    if pkind = P.Index then
-      E.s (E.bug "goIntoTypes is called on an Index pointer");
     match 
       (match unrollType btype with
         TComp comp when comp.cstruct -> comp.cfields
@@ -1613,36 +1603,6 @@ and boxexpf (e: exp) : stmt list * fexp =
         let t' = fixupType t in
         ([], L(intType, P.Scalar, SizeOf(t', l)))
           
-   (* Intercept references of _iob. A major hack !!!!! *)
-    | AddrOf ((Var vi,
-               Index(Const(CInt _, _) as n, NoOffset)) as lv, 
-              _) when !msvcMode && vi.vname = "_myiob" -> 
-        let fileType = 
-          (* iob is always a sized array *)
-(*          let s, a = getFieldsOfSized vi.vtype in *)
-          let rec getBaseType t =
-              match unrollType t with
-                TArray(x, _, _) -> x
-              | TComp comp when comp.cstruct -> begin
-                  match comp.cfields with
-                    [s; a] when s.fname = "_size" && a.fname = "_array" ->
-                      getBaseType a.ftype
-                  | l :: d :: _ when l.fname = "_len" && d.fname = "_data" 
-                    -> getBaseType d.ftype
-                  | _ -> E.s (E.unimp "iob comp type")
-              end
-              | _ -> E.s (E.bug "iob does not have an array type: %a"
-                            d_plaintype vi.vtype)
-          in
-          getBaseType vi.vtype
-        in
-        let tres = TPtr(fileType, [AId("safe")]) in
-        let tmp1 = makeTempVar !currentFunction voidPtrType in
-        let tmp2 = makeTempVar !currentFunction tres in
-        let seq  = 
-          [ boxstmt (call (Some tmp1) (Lval(var getIOBFunction.svar)) [ n ]);
-            boxstmt (assign tmp2 (CastE(tres, Lval(var tmp1), lu))) ] in
-        (seq, FS(tres, P.Safe, Lval(var tmp2)))
           
     | AddrOf (lv, l) ->
         let (lvt, lvkind, lv', baseaddr, bend, dolv) = boxlval lv in

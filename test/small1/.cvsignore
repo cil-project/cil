@@ -15,3 +15,9 @@
 t.c
 hashtestbox
 *.rtl
+*box.c
+*infer.c
+*cil.c
+*.i
+*_ppp.c
+*.origi
