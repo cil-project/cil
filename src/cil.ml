@@ -3611,6 +3611,14 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   if vis#unqueueInstr () <> [] then 
     ignore (warn "visitCilStmt: losing some accumInstr\n");
   let res = doVisit vis vis#vstmt childrenStmt s in
+  (* Now see if we have saved some instructions *)
+  let toPrepend = vis#unqueueInstr () in
+  (match toPrepend with 
+    [] -> () (* Return the same statement *)
+  | _ -> 
+      (* Make our statement contain the instructions to prepend *)
+      res.skind <- Block { battrs = []; bstmts = [ mkStmt (Instr toPrepend);
+                                                   mkStmt res.skind ] });
   currentLoc := oldloc;
   res
   
@@ -3620,31 +3628,23 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   let fOff o = (visitCilOffset vis o) in
   let fBlock b = visitCilBlock vis b in
   let fInst i = visitCilInstr vis i in
-  (* Will save the new instructions that were generated *)
-  let savedInstr : instr list ref = ref [] in
   (* Just change the statement kind *)
   let skind' = 
     match s.skind with
       Break _ | Continue _ | Goto _ | Return (None, _) -> s.skind
     | Return (Some e, l) -> 
         let e' = fExp e in
-        (* Save the accumulated instructions *)
-        savedInstr := vis#unqueueInstr ();
         if e' != e then Return (Some e', l) else s.skind
     | Loop (b, l, s1, s2) -> 
         let b' = fBlock b in
         if b' != b then Loop (b', l, s1, s2) else s.skind
     | If(e, s1, s2, l) -> 
         let e' = fExp e in 
-        (* Save the accumulated instructions *)
-        savedInstr := vis#unqueueInstr ();
         let s1'= fBlock s1 in let s2'= fBlock s2 in
         if e' != e || s1' != s1 || s2' != s2 then 
           If(e', s1', s2', l) else s.skind
     | Switch (e, b, stmts, l) -> 
         let e' = fExp e in 
-        (* Save the accumulated instructions *)
-        savedInstr := vis#unqueueInstr ();
         let b' = fBlock b in
         (* Don't do stmts, but we better not change those *)
         if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
@@ -3657,8 +3657,6 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
-  if vis#unqueueInstr () <> [] then 
-    ignore (warn "childrenStmt: losing some accumulated instructions");
   let labels' = 
     let fLabel = function
         Case (e, l) as lb -> 
@@ -3669,16 +3667,7 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
     mapNoCopy fLabel s.labels
   in
   if labels' != s.labels then s.labels <- labels';
-  (* Accumulate the instructions produced while doing the labels *)
-  let toPrepend = !savedInstr @ vis#unqueueInstr () in
-  (* Now see if we have saved some instructions *)
-  match toPrepend with 
-    [] -> s (* Return the same statement *)
-  | _ -> 
-      (* Make our statement contain the instructions to prepend *)
-      s.skind <- Block { battrs = []; bstmts = [ mkStmt (Instr toPrepend);
-                                                 mkStmt skind' ] };
-      s 
+  s
       
     
  
