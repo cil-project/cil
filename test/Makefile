@@ -246,6 +246,18 @@ ifdef NO_PERF_CHANGES
   CCURED+= $(DEF)NO_PERF_CHANGES
 endif
 
+# when SEPARATE is defined, merging is disabled
+ifdef SEPARATE
+  CCURED+= --separate
+endif
+
+# when UNTAGGEDFNS is defined, and the WILD solver is being used,
+# functions are *never* tagged, even when they're used unsafely
+ifdef UNTAGGEDFNS
+  CCURED+= --wildUntaggedFns
+endif
+
+
 # enable the new tree-based patcher
 ifdef NEWPATCH
   # at the moment, the new patcher is kinda shoehorned into this Makefile..

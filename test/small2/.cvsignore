@@ -138,3 +138,4 @@ name-capture-bitand
 dblarg.int
 wildfun2
 gdb.log
+decl_inl

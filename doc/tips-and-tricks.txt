@@ -1,6 +1,7 @@
 This file is meant to collect the various "here's how to do X" advice
 we like to send around in emails and then promptly forget.
 
+
 ----------------------- slicer for globals ----------------------
 
 I (Scott) just implemented a simple extension to cilly.asm.exe
@@ -34,6 +35,18 @@ slice on a type, add at the end of the file
 
 then the slicer will retain 'typeOfInterest'.
 
+
+------------------- trusted expressions ------------------
+
+> Here's another idea: can we mark certain expressions as "trusted"?
+
+Yes. Enclose the expression (say, "x=a;") as follows:
+
+        { __NOBOXBLOCK x=a; }
+
+This causes markptr to ignore the expression (so no edges/flags are
+generated and thus the solver won't become upset by anything that happens
+there) and boxing to ... do the best it can, with everything in there lean.
 
 
 --------------------- invoking the Ocaml debugger ----------------------
