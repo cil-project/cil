@@ -23,8 +23,8 @@ let withTimeout (secs: float) (* Seconds for timeout *)
     Sys.set_signal Sys.sigalrm oldHandler;
   in
   ignore (Unix.setitimer Unix.ITIMER_REAL 
-              { Unix.it_value    = secs;
-                Unix.it_interval = 0.0;});
+            { Unix.it_value    = secs;
+              Unix.it_interval = 0.0;});
   (* ignore (Unix.alarm 2); *)
   try
     let res = f arg in 
