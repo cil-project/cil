@@ -101,10 +101,10 @@ let features : C.featureDescr list =
     Heapify.feature1;
     Heapify.feature2;
     Oneret.feature;
+    makeCFGFeature; (* ww: make CFG *must* come before Partial *) 
     Partial.feature;
     Simplemem.feature;
     Simplify.feature;
-    makeCFGFeature; 
   ] 
   @ Feature_config.features 
 

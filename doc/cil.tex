@@ -110,7 +110,8 @@ control-flow. Every statement can be annotated with successor and predecessor
 information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow
-analyses).
+analyses). CIL also supports even lower-level representations (e.g.,
+three-address code), see \secref{Extension}. 
 
  CIL comes accompanied by a number of Perl scripts that perform generally
 useful operations on code:
@@ -671,6 +672,8 @@ let features : C.featureDescr list =
 \end{verbatim}
  Standard code in \t{cilly} takes care of adding command-line arguments,
  printing the description, and calling your function automatically. 
+ Note: do not worry about introducing new bugs into CIL by adding a single
+ line to the feature list. 
 
  \item Now you can invoke the \t{cilly} application on a preprocessed file, or
  instead use the \t{cilly} driver which provides a convenient compiler-like
@@ -716,7 +719,8 @@ $ ocamlopt -o main unix.cmxa \
 
 The first line compiles your analysis, the second line links it against CIL
 (as a library) and the Ocaml Unix library. For more information about
-compiling and linking Ocaml programs, see the Ocaml home page. 
+compiling and linking Ocaml programs, see the Ocaml home page
+at \ahrefurl{http://caml.inria.fr/ocaml/}. 
 
 In the next section we give an overview of the API that you can use
 to write your analysis and transformation. 
@@ -1793,6 +1797,55 @@ transforms the following code:
     int ***three;
     int **two;
     ***three = **two; 
+  } 
+\end{cilcode}
+
+\subsection{Simple Three-Address Code} 
+
+The \t{simplify.ml} module further reduces the complexity of program
+expressions and gives you a form of three-address code. After this
+transformation all expressions will adhere to the following grammar: 
+\begin{verbatim}
+ basic::=
+    Const _ 
+    Addrof(Var v, NoOffset)
+    StartOf(Var v, NoOffset)
+    Lval(Var v, off), where v is a variable whose address is not taken
+                      and off contains only "basic"
+
+ exp::=
+    basic
+    Lval(Mem basic, NoOffset)
+    BinOp(bop, basic, basic)
+    UnOp(uop, basic)
+    CastE(t, basic)
+   
+ lval ::= 
+    Mem basic, NoOffset
+    Var v, off, where v is a variable whose address is not taken and off
+                contains only "basic"
+\end{verbatim}
+In addition, all \t{sizeof} and \t{alignof} forms are turned into
+constants. Accesses to arrays and variables whose address is taken are
+turned into "Mem" accesses. All field and index computations are turned
+into address arithmetic.
+
+For a concrete example, you can see how \t{cilly --dosimplify} 
+transforms the following code:
+
+\begin{cilcode}[global] --dosimplify
+  int main() {
+    struct mystruct {
+      int a;
+      int b;
+    } m;
+    int local;
+    int arr[3];
+    int *ptr;
+
+    ptr = &local;
+    m.a = local + sizeof(m) + arr[2];
+    return m.a; 
   } 
 \end{cilcode}
 
