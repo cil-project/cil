@@ -202,6 +202,8 @@ texdoc:
 	cd doc/html/ccured; hevea -exec xxdate.exe ../../ccured
 	cd doc/html/ccured; hevea -exec xxdate.exe ../../ccured
 	cd doc/html/ccured; hacha -o ccuredtoc.html ccured.html
+	cd doc/html/ccured; hevea -exec xxdate.exe ../../setup
+	cd doc/html/ccured; hevea -exec xxdate.exe ../../setup
 	cp doc/ccuredindex.html doc/html/ccured/index.html
 	cp doc/ccuredheader.html doc/html/ccured
 
