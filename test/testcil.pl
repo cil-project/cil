@@ -1213,8 +1213,11 @@ altAddTest("scott/structattr3");
 altAddTest("scott/enumerator_sizeof");
 altAddTest("testrun/decl_mix_stmt");
 altFailTest("output makes GCC unhappy", "scott/enumattr");
-altFailTest("alignment-related unsoundness", "scott/alignprob $box");
+altAddTest("scott/alignprob $box");
 altAddTest("scott/doublefree $box RELEASE=1");
+altAddTest("scott/alignok $box");
+altAddTest("scott/subtypebug1 $box");
+altAddTest("scott/subtypebug2 $box");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug

@@ -6,6 +6,8 @@
 CFLAGS = -g -Wall -Igc/include
 CC = gcc $(CFLAGS)
 
+all: getrusage
+
 splay: splay.c
 	$(CC) -o splay -DTEST_SPLAY splay.c
 
@@ -24,3 +26,6 @@ mymark.i: mymark.c
 
 mymarki: mymark.i
 	$(CC) -o mymarki mymark.i gc/gc.a
+
+getrusage: getrusage.c
+	$(CC) -o $@ getrusage.c
