@@ -1386,11 +1386,11 @@ sub arArguments {
     if($arg =~ /[^crv]/) {
 	warn "Error: CCured's AR mode supports only the c, r, and v flags.";
     }
-    if($arg =~ v) {
+    if($arg =~ /v/) {
 	$self->{VERBOSE} = 1;
     }
 
-    if($arg =~ c)
+    if($arg =~ /c/)
     {
 	# Command is "cr":
         # Get the name of the library
