@@ -1015,6 +1015,9 @@ li-optimvariant.%: mustbegcc
                  li.exe_combcured.$*.optim.c \
                  $(CCUREDHOME)/obj/ccured_$(COMPILERNAME)_release.$(LIBEXT) \
                  $(EXEOUT)li.exe
+	sh -c "time $(LIDIR)/src/li.exe \
+            <$(LIDIR)/data/train/input/train.lsp \
+            >$(LIDIR)/data/train/input/train.out"
 
 li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
