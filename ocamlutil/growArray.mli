@@ -90,6 +90,13 @@ val iteri : (int -> 'a -> unit) -> 'a t -> unit
    function is applied to the index of the element as first argument,
    and the element itself as second argument. *)
 
+val iter2 : (int -> 'a -> 'b -> unit) -> 'a t -> 'b t -> unit
+(** Same as {!GrowArray.iteri}, but the function is applied to two arrays.
+  [iter2 f a b]  is equivalent to
+  [f 0 a.(0) b.(0); f 1 a.(1) b.(1); ...;  f n a.(n) b.(n); ()]
+  where n is the larger of (max_init_index a) or (max_init_index b).
+  The shorter array will grow to match the longer.*)
+
 val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
 (** [GrowArray.fold_left f x a] computes
    [f (... (f (f x a.(0)) a.(1)) ...) a.(n-1)],
