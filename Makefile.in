@@ -165,6 +165,9 @@ $(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
 ifdef USE_BLOCKINGGRAPH
 	echo "   Blockinggraph.feature;" >> $@  
 endif
+ifdef USE_RAND
+	echo "   Rand.feature;" >> $@  
+endif
 	echo "]"   >>$@ 
 
 

@@ -70,7 +70,7 @@ val computeGraph : Cil.file -> callgraph
 val printGraph : out_channel -> callgraph -> unit
 
 
-
+val feature: Cil.featureDescr
 (*
  *
  * Copyright (c) 2001-2002 by

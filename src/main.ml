@@ -52,17 +52,8 @@ open Trace
 let outChannel : out_channel option ref = ref None
 let mergedChannel : out_channel option ref = ref None
 let keepFiles = ref false
-let doCallGraph = ref false
 let dumpFCG = ref false
 let testcil = ref ""
-
-let ptrAnalysis = ref false
-let ptrResults = ref false
-let ptrTypes = ref false
-
-let doEpicenter = ref false
-let epicenterName = ref ""
-let epicenterHops = ref 0
 
 exception Done_Processing
 
@@ -72,7 +63,7 @@ let parseOneFile (fname: string) : C.file =
   if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
   
-  if (not !doEpicenter) then (
+  if (not !Epicenter.doEpicenter) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
     (trace "sm" (dprintf "removing unused temporaries\n"));
@@ -100,7 +91,11 @@ let makeCFGFeature : C.featureDescr =
   } 
 
 let features : C.featureDescr list = 
-  [ Logcalls.feature;
+  [ Epicenter.feature;
+    Ptranal.feature;
+    Canonicalize.feature;
+    Callgraph.feature;
+    Logcalls.feature;
     Logwrites.feature;
     Heapify.feature1;
     Heapify.feature2;
@@ -114,38 +109,23 @@ let features : C.featureDescr list =
 let rec processOneFile (cil: C.file) =
   try begin
 
-    if !doCallGraph then (
-      let graph:Callgraph.callgraph = (Callgraph.computeGraph cil) in
-      (Callgraph.printGraph stdout graph)
-    );
-    
-    if !doEpicenter then (
-      (Epicenter.sliceFile cil !epicenterName !epicenterHops)
-    );
-
     if !Util.doCheck then begin
       ignore (E.log "First CIL check\n");
       ignore (CK.checkFile [] cil);
     end;
 
-    if (!ptrAnalysis) then begin
-      Ptranal.analyze_file cil;
-      Ptranal.compute_results (!ptrResults);
-(*       Ptranal.compute_aliases true;
-*)    if (!ptrTypes) then 
-	Ptranal.print_types ()
-    end;		
-
-    if (!Canonicalize.cpp_canon) then begin
-      Canonicalize.canonicalize cil
-    end ;
-      
     (* Scan all the features configured from the Makefile and, if they are 
      * enabled then run them on the current file *)
     List.iter 
       (fun fdesc -> 
-        if ! (fdesc.C.fd_enabled) then 
-          fdesc.C.fd_doit cil)
+        if ! (fdesc.C.fd_enabled) then begin
+          fdesc.C.fd_doit cil;
+          (* See if we need to do some checking *)
+          if !Util.doCheck then begin
+            ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
+            ignore (CK.checkFile [] cil);
+          end
+        end)
       features;
 
 
@@ -163,10 +143,6 @@ let rec processOneFile (cil: C.file) =
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
 
-    if !Util.doCheck then begin
-      ignore (E.log "Final CIL check\n");
-      ignore (CK.checkFile [] cil);
-    end
   end with Done_Processing -> ()
         
 (***** MAIN *****)  
@@ -261,22 +237,6 @@ let rec theMain () =
                      "turns on consistency checking of CIL";
     "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
-    "--ptr_analysis",Arg.Unit (fun _ -> ptrAnalysis := true),
-                     "Turns on alias analysis";
-    "--ptr_may_aliases", Arg.Unit (fun _ -> Ptranal.debug_may_aliases := true),
-                  "Print out results of may alias queries";
-    "--ptr_unify", Arg.Unit (fun _ -> Ptranal.no_sub := true),
-                  "Make the alias analysis unification-based";
-    "--ptr_conservative", Arg.Unit (fun _ -> Ptranal.conservative_undefineds := true),
-                  "Treat undefineds conservatively in alias analysis";
-    "--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
-                     "print the results of the alias analysis"; 
-    "--ptr_mono", Arg.Unit (fun _ -> Ptranal.analyze_mono := true),
-                    "run alias analysis monomorphically"; 
-    "--ptr_types",Arg.Unit (fun _ -> ptrTypes := true),
-                    "print inferred points-to analysis types";
-    "--cppcanon", Arg.Unit (fun _ -> Canonicalize.cpp_canon := true),
-     "Fix some C-isms so that the result is C++ compliant.";
     "--nodebug", Arg.String (setDebugFlag false),
                       "<xxx> turns off debugging flag xxx";
     "--testcil", Arg.String (fun s -> testcil := s),
@@ -315,12 +275,6 @@ let rec theMain () =
                "do not try to simplify the CIL when printing";
     "--sliceGlobal", Arg.Unit (fun _ -> Util.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
-    "--doCallGraph", Arg.Unit (fun _ -> doCallGraph := true),
-               "compute and print a static call graph" ;
-    "--epicenter", Arg.String (fun s -> doEpicenter := true; epicenterName := s),
-               "<name>: do an epicenter slice starting from function <name>";
-    "--hops", Arg.Int (fun n -> epicenterHops := n),
-               "<n>: specify max # of hops for epicenter slice";
     (* sm: some more debugging options *)
     "--tr",         Arg.String Trace.traceAddMulti,
                      "<sys>: subsystem to show debug printfs for";

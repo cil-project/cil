@@ -65,7 +65,12 @@ ifndef CCUREDHOME
   endif
 endif
 
-CCURED := $(CCUREDHOME)/bin/ccured
+ifdef USECILLY
+ CCURED := $(CCUREDHOME)/bin/cilly
+else
+ CCURED := $(CCUREDHOME)/bin/ccured
+endif
+
 CILLY := $(CCUREDHOME)/bin/cilly
 PATCHER := $(CCUREDHOME)/bin/patcher
 
@@ -146,7 +151,9 @@ ifneq ($(INFERBOX),none)
      CCURED+= --noemitbrowser
   endif
 else
-  CCURED+= --nocure
+  ifndef USECILLY
+     CCURED+= --nocure
+  endif
 endif
 
 ifdef NOCURE
@@ -253,7 +260,9 @@ endif
 # Do STATS= to disable the stats.
 STATS := 1
 ifdef STATS
-  CCURED+= --stats
+  ifndef USECILLY
+    CCURED+= --stats
+  endif
 endif
 
 # enable logging of all fn calls in the application

@@ -694,4 +694,40 @@ let absloc_lval_aliases lv = A.absloc_points_to (lvalue_of_lval lv)
 let absloc_eq a b = A.absloc_eq(a,b)
 
 
+let ptrAnalysis = ref false
+let ptrResults = ref false
+let ptrTypes = ref false
 
+
+
+
+
+(** Turn this into a CIL feature *)
+let feature : featureDescr = 
+  { fd_name = "ptranal";
+    fd_enabled = ptrAnalysis;
+    fd_description = "alias analysis";
+    fd_extraopt = [
+    ("--ptr_may_aliases", 
+     Arg.Unit (fun _ -> debug_may_aliases := true),
+     "Print out results of may alias queries");
+    ("--ptr_unify", Arg.Unit (fun _ -> no_sub := true),
+     "Make the alias analysis unification-based");
+    ("--ptr_conservative", 
+     Arg.Unit (fun _ -> conservative_undefineds := true),
+     "Treat undefineds conservatively in alias analysis");
+    ("--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
+                     "print the results of the alias analysis"); 
+    ("--ptr_mono", Arg.Unit (fun _ -> analyze_mono := true),
+                    "run alias analysis monomorphically"); 
+    ("--ptr_types",Arg.Unit (fun _ -> ptrTypes := true),
+                    "print inferred points-to analysis types");];
+    fd_doit = 
+    (function (f: file) -> 
+      analyze_file f;
+      compute_results (!ptrResults);
+(*       compute_aliases true;
+*)    if (!ptrTypes) then 
+         print_types ()
+    )
+  } 

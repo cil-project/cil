@@ -182,6 +182,19 @@ begin
   (Hashtbl.iter printNode g)
 end
 
+let doCallGraph = ref false
+
+let feature : featureDescr = 
+  { fd_name = "callgraph";
+    fd_enabled = doCallGraph;
+    fd_description = "generation of a static call graph";
+    fd_extraopt = [];
+    fd_doit = 
+    (function (f: file) -> 
+      let graph:callgraph = computeGraph f in
+      printGraph stdout graph)
+  } 
+
 
 (*
  *

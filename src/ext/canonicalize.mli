@@ -45,6 +45,4 @@
  *
  ************************************************************************)
 
-val cpp_canon: bool ref
-
-val canonicalize: Cil.file -> unit
+val feature: Cil.featureDescr

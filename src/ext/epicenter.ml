@@ -50,6 +50,27 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
   Util.sliceGlobal := true;
   Rmtmps.removeUnusedTemps ~markRoots:markRoots f
 
+let doEpicenter = ref false
+let epicenterName = ref ""
+let epicenterHops = ref 0
+
+let feature : featureDescr = 
+  { fd_name = "epicenter";
+    fd_enabled = doEpicenter;
+    fd_description = "generation of code to log function calls";
+    fd_extraopt = 
+    [
+    ("--epicenter-name", 
+     Arg.String (fun s -> epicenterName := s),
+               "<name>: do an epicenter slice starting from function <name>");
+    ("--epicenter-hops", Arg.Int (fun n -> epicenterHops := n),
+     "<n>: specify max # of hops for epicenter slice");
+    ];
+
+    fd_doit =
+    (fun f -> 
+      sliceFile f !epicenterName !epicenterHops)
+  } 
 
 
 (*

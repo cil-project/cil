@@ -379,8 +379,8 @@ NEWLINE="\\
 # Set the defaults
 
 
-# Give a list of features with the defaults
-features="blockinggraph=no,rand=no"
+# Give a space-separated list of features with the defaults
+features="blockinggraph=no rand=no"
 
 AC_ARG_WITH(blockinggraph,
     AC_HELP_STRING([--with-blockinggraph],

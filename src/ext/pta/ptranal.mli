@@ -146,3 +146,6 @@ val compute_alias_frequency : unit -> unit
 *)
 
 val compute_aliases : bool  -> unit
+
+
+val feature: Cil.featureDescr

@@ -44,16 +44,62 @@ module H = Hashtbl
 let enabled = ref false
 
 let doit (f: file) = 
-  let rec doOneFunction (fi: funinfo) = 
-    (* First compute the CFG *)
-    prepareCFG fi;
-    let stmts = computeCFGInfo fi false in
-    ()
-  in 
+  let rec doOneFunction (fi: fundec) = 
+    ignore (E.log "RAND: doing function %s\n" fi.svar.vname);
+    (* Let's do a topological sort of the statements. We scan statements and 
+     * we remember those that we have done. We also keep a todo list. These 
+     * are statements that are waiting on some predecessor to be done *)
+    let root: stmt option = 
+      match fi.sbody.bstmts with 
+        [] -> (* Empty function *) None
+      | f :: _ -> Some f
+    in
+    let todo: stmt list ref = 
+      ref (match root with None -> [] | Some r -> [r]) in
+    let doneStmts : (int, unit) H.t = H.create 13 in
+    let doOneStatement (s: stmt) = 
+      if H.mem doneStmts s.sid then () else begin
+        ignore (E.log " %d," s.sid);
+        H.add doneStmts s.sid ();
+        (* Now add all successors to the todo list *)
+        todo := s.succs @ !todo 
+      end
+    in
+    let rec loop () = 
+      match !todo with 
+        [] -> (* We are done *) ()
+      | n :: rest -> 
+          (* Pick one that has all the predecessors done *)
+          let ready, notready = 
+            List.partition
+              (fun n -> 
+                H.mem doneStmts n.sid || 
+                List.for_all (fun p -> H.mem doneStmts p.sid) n.preds)
+              !todo
+          in
+          (* See if there are no ready statements *)
+          if ready = [] then begin
+            (* Break a cycle on the first element in todo *)
+            ignore (E.log "(*)");
+            todo := rest;
+            doOneStatement n;
+            loop ();
+          end else begin
+            todo := notready; (* notready is shorter now *)
+            (* Do all the ready ones *)
+            List.iter doOneStatement ready;
+            loop ()
+          end
+    
+    in 
+    loop ();
+    ignore (E.log "\n");
+  in
   List.iter 
-    (match g with 
-      GFun (fi, _) -> doOneFunction fi
-    | _ -> ())
+    (fun g -> 
+      match g with 
+        GFun (fi, _) -> doOneFunction fi
+      | _ -> ())
     f.globals
 
 

@@ -280,6 +280,14 @@ let canonicalize (f:file) =
 	  ^" #define __restrict\n" (* "restrict" doesn't work *)
 	  ^" #define __inline inline\n"
 	  ^"#endif")
-    ::f.globals;
+    ::f.globals
 
 
+
+let feature : featureDescr = 
+  { fd_name = "canonicalize";
+    fd_enabled = cpp_canon;
+    fd_description = "fixing some C-isms so that the result is C++ compliant.";
+    fd_extraopt = [];
+    fd_doit = canonicalize;
+  } 
