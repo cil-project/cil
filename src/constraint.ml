@@ -125,8 +125,8 @@ let rec rsolveLT (ca : limit) (cb : limit) : bool =
 
 (* Try to prove an equal-to relation *)
 and rsolveEQ (ca : limit) (cb : limit) : bool =
-  rsolveLTE ca cb &&
-  rsolveLTE cb ca
+  (rsolveLTE ca cb &&
+  rsolveLTE cb ca)
 
 (* Try to prove a less-than-or-equal relation *)
 and rsolveLTE (ca : limit) (cb : limit) : bool =
@@ -146,6 +146,7 @@ and rsolveLTE (ca : limit) (cb : limit) : bool =
       |	_,_ ->
 	  set_contains lt !sconstraints ||
 	  rsolveLT ca cb ||
+	  ca = cb ||
 	  List.fold_left
 	    (fun acc lim -> 
 	      acc ||
