@@ -60,12 +60,15 @@ let usePathCompression = false
 let mergeInlines = (
   (* sm: right now this still causes problems, so I want it to default
    * to off until we've got the problem resolved *)
-  try
-    (ignore (Sys.getenv "MERGEINLINES"));
-    (Printf.printf "Cil.mergeInlines is enabled\n");
-    true
-  with Not_found ->
-    false
+  (*   try*)
+  (*     (ignore (Sys.getenv "MERGEINLINES"));*)
+  (*     (Printf.printf "Cil.mergeInlines is enabled\n");*)
+  (*     true*)
+  (*   with Not_found ->*)
+  (*     false*)
+  
+  (* sm: ok, seems to be working in general, re-enabling *)
+  true
 )
 
 let mergeInlinesRepeat = mergeInlines && true
