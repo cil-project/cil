@@ -70,24 +70,34 @@ my $inferbox = 4;
 
 # Start with a few tests that must be run first
 $TEST->newTest(
-    Name => "\@\@inittests0",
+    Name => "!inittests0",
     Dir => "..",
-    Cmd => "make defaulttarget RELEASE=");
+    Cmd => "make setup RELEASE=");
 if($TEST->{option}->{safecdebug}) {
     $TEST->newTest(
-                   Name => "\@\@inittests2",
+                   Name => "!inittests2",
                    Dir => "..",
-                   Cmd => "make defaulttarget _GNUCC=1");
+                   Cmd => "make setup _GNUCC=1");
 } else {
     $TEST->newTest(
-                   Name => "\@\@inittests1",
+                   Name => "!inittests1",
                    Dir => "..",
                    Cmd => "make defaulttarget RELEASE=1");
     $TEST->newTest(
-                   Name => "\@\@inittests2",
+                   Name => "!inittests2",
                    Dir => "..",
-                   Cmd => "make defaulttarget RELEASE=1 _GNUCC=1");
+                   Cmd => "make setup RELEASE=1 _GNUCC=1");
 }
+$TEST->newTest(
+    Name => "apache!1",
+    Dir => "..",
+    Groups => ["apache", "slow"],
+    Cmd => "make apachesetup");
+$TEST->newTest(
+    Name => "apache!2",
+    Dir => "..",
+    Groups => ["apache", "slow"],
+    Cmd => "make apachesetup _GNUCC=1");
     
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
@@ -234,6 +244,7 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
 $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->add2Group("vortex", "slow");
   $TEST->addBadComment("vortex-inferbox", "function pointers");
+
 
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache", "slow");

@@ -75,6 +75,7 @@ TVDIR=$(BASEDIR)/Source/TransVal
 CILDIR=$(SAFECCDIR)/cil
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
+PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop
 BASEDIR=/home/weimer/cvs/
@@ -303,12 +304,26 @@ SAFECLIB=obj/safecdebug.$(LIBEXT)
 CILLIB=obj/cillibdebug.$(LIBEXT)
 endif
 
+ifdef PATCHINCLUDES
+STANDARDPATCH= --patchinclude=$(CILDIR)/include
+else
+STANDARDPATCH= --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+endif
 
 # By default take manual box definitions into consideration
 ifdef INFERBOX
 MANUALBOX=1
 endif
 
+######################
+.PHONY : defaulttarget
+ifdef NOREMAKE
+defaulttarget : 
+else
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
+endif
+
+setup: defaulttarget includes
 
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
@@ -499,6 +514,7 @@ ifndef RELEASE
 SAFECLIBARG=$(DEF)_DEBUG
 endif
 
+SAFECPATCHER=perl $(CILDIR)/lib/safecpatch.pl
 ifdef _MSVC
 $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c 
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
@@ -510,6 +526,15 @@ $(CILLIB) : lib/cillib.c
 	cl $(DOOPT) /I./lib /Gy /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/cillib.o lib/cillib.c
 	lib /OUT:$@ obj/cillib.o
+
+SAFECPATCHER += --mode mscl 
+PATCH_SYSINCLUDES=stdio.h ctype.h string.h
+includes: cleanincludes
+	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_msvc.patch \
+                        --dest=$(CILDIR)/include \
+	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+cleanincludes: 
+	$(SAFECPATCHER) --dest=$(CILDIR)/include --clean
 endif
 
 # Libraries on GCC
@@ -531,8 +556,15 @@ $(CILLIB) : lib/cillib.c
 	ar -r $@ obj/cillib.o
 	ranlib $@
 
+SAFECPATCHER += --mode gcc
+PATCH_SYSINCLUDES=stdio.h ctype.h sys/fcntl.h string.h
+includes: cleanincludes
+	$(SAFECPATCHER) --patch=$(CILDIR)/lib/safec_gcc.patch \
+                        --dest=$(CILDIR)/include \
+	                $(foreach file,$(PATCH_SYSINCLUDES), --sfile=$(file))
+cleanincludes: 
+	$(SAFECPATCHER) --dest=$(CILDIR)/include --clean
 endif
-
 # new patching specification wants to be run through preprocessor before use
 ifdef NEWPATCH
 $(PATCHFILE2): lib/$(PATCHFILE)2
@@ -588,7 +620,7 @@ ifdef _MSVC
 MSLINK=--mode=mscl
 endif
 PCCSAFECC=$(SAFECC) $(DEF)CCURED \
-                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --combine \
+                    $(STANDARDPATCH) --combine \
                     --keep=$(CILDIR)/test/PCCout \
                     --nobox=pccbox --nobox=alloc
 pcc : defaulttarget
@@ -677,7 +709,7 @@ endif
 SMALL1=test/small1
 test/% : $(SMALL1)/%.c defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
+               $(STANDARDPATCH) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
 
 testnopatch/% : $(SMALL1)/%.c defaulttarget
@@ -686,13 +718,13 @@ testnopatch/% : $(SMALL1)/%.c defaulttarget
 
 testexe/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
+               $(STANDARDPATCH) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c 
 
 
 testrun/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
+               $(STANDARDPATCH) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 
@@ -701,21 +733,21 @@ combine%_3: defaulttarget
           $(SAFECC) $(DOOPT) \
                     combine$*_1.c combine$*_2.c combine$*_3.c \
                     --combine  \
-                    --patch=../../lib/$(PATCHFILE) \
+                    $(STANDARDPATCH) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
+               $(STANDARDPATCH) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 # Aman's optim tests
 OPTIMTESTDIR=test/optim
 optim/% : $(OPTIMTESTDIR)/%.c defaulttarget
 	cd $(OPTIMTESTDIR); $(SAFECC)   \
-               --patch=../../lib/$(PATCHFILE) \
+               $(STANDARDPATCH) \
 	       $(DOOPT) $*.c $(EXEOUT)$*.exe
 	$(OPTIMTESTDIR)/$*.exe
 
@@ -726,7 +758,7 @@ hashtest: test/small2/hashtest.c defaulttarget
 	cd $(PCCTEST); $(SAFECC) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
@@ -739,7 +771,7 @@ rbtest: test/small2/rbtest.c defaulttarget
 	@true "compile with gcc for better error diagnostics (ha!)"
 	cd $(PCCTEST); $(SAFECC) --combine \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
@@ -752,7 +784,7 @@ btreetest: test/small2/testbtree.c \
 	rm -f test/small2/btreetest.exe
 	cd test/small2; $(SAFECC) --combine --keep=. \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
 	test/small2/btreetest.exe
@@ -766,7 +798,7 @@ scott/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -776,7 +808,7 @@ scott-nolink/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) $(CONLY) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -789,7 +821,7 @@ bad/%: test/bad/%.c defaulttarget
 	cd test/bad; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
 	cd test/bad; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -800,7 +832,7 @@ bad/%: test/bad/%.c defaulttarget
 	fi
 	@true "now try the failure case"
 	cd test/bad; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
@@ -817,7 +849,7 @@ bads/%: test/small2/%.c defaulttarget
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	@true "first try the succeed case"
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -828,7 +860,7 @@ bads/%: test/small2/%.c defaulttarget
 	fi
 	@true "now try the failure case"
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
-                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
@@ -841,7 +873,7 @@ bads/%: test/small2/%.c defaulttarget
 
 
 # sm: trivial test of combiner
-MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+MYSAFECC = $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(STANDARDPATCH)
 comb: test/small2/comb1.c test/small2/comb2.c defaulttarget
 	rm -f test/small2/comb
 	cd test/small2; \
@@ -914,7 +946,7 @@ hufftest: test/small2/hufftest.c defaulttarget
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/io.c \
                  $(PCCDIR)/src/huffman.c \
@@ -929,7 +961,7 @@ wes-rbtest: test/small2/wes-rbtest.c defaulttarget
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
                  $(EXEOUT)wes-rbtest.exe
@@ -939,7 +971,7 @@ wes-hashtest: test/small2/wes-hashtest.c defaulttarget
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
-                 --patch=../../lib/$(PATCHFILE) \
+                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \
                  $(EXEOUT)wes-hashtest.exe
@@ -970,20 +1002,35 @@ spr/% : defaulttarget
 ################# Apache test cases
 APACHETEST=test/apache
 APACHEBASE=apache_1.3.19/src
-APATCH=--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --patch=apache.patch 
+APATCHES=--patch=apache.patch 
 ifdef _MSVC
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
          $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
          $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
          $(DEF)"WIN32_LEAN_AND_MEAN"
-APATCH += --patch=apache_msvc.patch
+APATCHES += --patch=apache_msvc.patch
 else
 APACHECFLAGS=-Wall -D_GNUCC -g \
          $(INC)"$(APACHEBASE)/include" $(INC)"$(APACHEBASE)/os/unix" \
          $(DEF)"_DEBUG" \
          $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
-APATCH += --patch=apache_gcc.patch
+APATCHES += --patch=apache_gcc.patch
+endif
+
+APACHE_INCLUDES=httpd.h ap_alloc.h http_config.h http_log.h http_protocol.h
+apachesetup:
+	cd $(APACHETEST); \
+            $(SAFECPATCHER) \
+                        $(APACHECFLAGS) \
+                        $(APATCHES) --patch=$(CILDIR)/lib/$(PATCHFILE) \
+                        --dest=$(APACHEBASE)/include \
+	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
+
+ifdef PATCHINCLUDES
+APATCH = $(STANDARDPATCH) --patchinclude=$(APACHEBASE)/include
+else
+APATCH = $(STANDARDPATCH) $(APATHCES)
 endif
 
 apache/urlcount : defaulttarget
@@ -1050,7 +1097,7 @@ apache/rewrite: defaulttarget
 COMBINESAFECC = $(SAFECC) --combine
 
 # sm: trying to collapse where are specifications are
-PATCHARG=`$(PATCHECHO) --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)`
+PATCHARG=`$(PATCHECHO) $(STANDARDPATCH)`
 
 #
 # OLDEN benchmarks
@@ -1272,8 +1319,6 @@ compress-noclean: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make CC="$(COMBINESAFECC)" build
 	cd $(COMPRESSDIR)/src; sh -c "time ./compress < input.data > combine-compress.out"
 
-# sm: removed this because it's now just a cvs'd file: 
-#   echo "1400000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 compress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; \
                make CC="$(COMBINESAFECC) $(PATCHARG)" clean build
@@ -1568,5 +1613,10 @@ ftpd: defaulttarget mustbegcc
 	cd $(FTPDDIR); \
             make CC="$(FTPDSAFECC)" \
                  LD="$(FTPDSAFECC)"
+
+
+
+
+
 
 
