@@ -21,3 +21,6 @@ int fun2()
 
 
 
+int main() {
+  return 0;
+}

@@ -5000,6 +5000,8 @@ let uniqueVarNames (f: file) : unit =
           in
           (* Do the formals first *)
           List.iter processLocal fdec.sformals;
+          (* Fix the type again *)
+          setFormals fdec fdec.sformals;
           (* And now the locals *)
           List.iter processLocal fdec.slocals;
           (* Undo the changes to the global table *)

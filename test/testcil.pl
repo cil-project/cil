@@ -370,7 +370,6 @@ $TEST->add2Tests("testrun/escapes");
    $TEST->addBadComment("testrun/escapes-inferbox", 
                         "CCured drops some intermediate casts, even when they are needed for correct sign-extension.");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
-$TEST->add3Tests("testrun/tablebug", "TABLE=A");
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
 $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
@@ -859,7 +858,6 @@ sub altFailTest {
 my $box =       "INFERBOX=infer";
 my $manualbox = "INFERBOX=infer";
 my $wildbox =   "INFERBOX=wild";
-my $table =     "INFERBOX=wild TABLE=A";
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 # self-contained tests of specific things which had problems before
@@ -1080,14 +1078,6 @@ altAddTest("comb $box $gcc");
 # test combiner's ability to detect inconsistency
 altAddTest("baddef");
 
-# test for lean fats ("table")
-altAddTest("scott/ptrtolocal $table");
-altAddTest("scott/ptrinint $table");
-altAddTest("scott/simplewild $table");
-altAddTest("scott/ptrmanip $table");
-altAddTest("scott/regthenprintf $table");
-altAddTest("scott/twoprintfs $table");
-altAddTest("scott/nested $table");
 
 # These take too long if we turn off strings
 ## hashtest and rbtest with TABLE

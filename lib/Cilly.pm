@@ -646,7 +646,7 @@ sub expandLibraries {
             open(FILES, "<$src.files") || die "Cannot read $src.files";
             while(<FILES>) {
                 # Put them back in the "tolink" to process them recursively
-                if($_ =~ m|\n$|) {
+                while($_ =~ m|[\r\n]$|) {
                     chop;
                 }
                 unshift @tolink, $_;
