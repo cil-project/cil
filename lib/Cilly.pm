@@ -505,6 +505,7 @@ sub straight_preprocess {
     if($self->{MODENAME} eq "MSVC") {
         $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
     } else {
+#        print Dumper($self);
         my $cmd = $self->{CPP} . " " . 
             join(' ', @{$ppargs}) . " $src " . $self->{OUTCPP} . $dest;
         $self->runShell($cmd);
@@ -1400,7 +1401,7 @@ sub new {
       CC => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -c",
       LD => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC ",
       LDLIB => "ld -r -o ",
-      CPP => ($::docxx ? $::ccx : $::cc) . " -D_GNUCC -E ",
+      CPP => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",

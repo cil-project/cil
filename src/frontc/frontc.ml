@@ -158,9 +158,10 @@ and parse_to_cabs_inner (fname : string) =
     let file = open_in fname in
     E.hadErrors := false;
     let initparser, theparser = 
-      if !Cprint.cxxMode then 
+      if !Cprint.cxxMode then begin
+        if !E.verboseFlag then ignore (E.log "Using the C++ front end\n");
         Cxxlexer.init, Cxxparser.file Cxxlexer.initial 
-      else 
+      end else 
         Clexer.init, Cparser.file Clexer.initial 
     in
     let lexbuf: Lexing.lexbuf = initparser fname file in
@@ -198,7 +199,7 @@ begin
     match d with
     | Cabs.FUNDEF(name, _, loc) -> (
         match name with
-        | (_, (funcname, Cabs.PROTO(_,_,_), _)) -> (
+        | (_, (funcname, Cabs.PROTO(_,_,_,_), _)) -> (
             incr counter;          
             ignore (fprintf chan "\n/* %s from %s:%d */\n"
                                  funcname loc.Cabs.filename loc.Cabs.lineno);

@@ -80,9 +80,12 @@ and decl_type =
  | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is
                                            * never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
- | PROTO of decl_type * single_name list * bool
+ | PROTO of decl_type * single_name list * bool 
+            * (specifier * decl_type) list option
                                           (* Prints "decl (args[, ...])".
-                                           * decl is never a PTR. *)
+                                           * decl is never a PTR. The last 
+                                           * one is the C++ exception 
+                                           * specification *)
 
 
 (* The base type and the storage are common to all names. Each name might

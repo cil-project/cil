@@ -2193,7 +2193,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         in
         doDeclType (TArray(bt, lo, [])) acc d
 
-    | A.PROTO (d, args, isva) -> 
+    | A.PROTO (d, args, isva, exc) -> 
+        if exc != None && !cxxMode then 
+          ignore (E.warn "dropping exception specification");
         (* Start a scope for the parameter names *)
         enterScope ();
         (* Intercept the old-style use of varargs.h. On GCC this means that 
@@ -2283,7 +2285,7 @@ and isVariableSizedArray (dt: A.decl_type)
     | PTR (al, dt) -> PTR (al, findArray dt)
     | JUSTBASE -> JUSTBASE
     | PARENTYPE (prea, dt, posta) -> PARENTYPE (prea, findArray dt, posta)
-    | PROTO (dt, f, a) -> PROTO (findArray dt, f, a)
+    | PROTO (dt, f, a, exc) -> PROTO (findArray dt, f, a, exc)
   in
   let dt' = findArray dt in
   match !res with 
@@ -4207,8 +4209,8 @@ and createLocal ((_, sto, _, _) as specs)
   (* Check if we are declaring a function *)
   let rec isProto (dt: decl_type) : bool = 
     match dt with
-    | PROTO (JUSTBASE, _, _) -> true
-    | PROTO (x, _, _) -> isProto x
+    | PROTO (JUSTBASE, _, _, _) -> true
+    | PROTO (x, _, _, _) -> isProto x
     | PARENTYPE (_, x, _) -> isProto x
     | ARRAY (x, _) -> isProto x
     | PTR (_, x) -> isProto x

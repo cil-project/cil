@@ -61,8 +61,12 @@ val currentFile: string ref
 val currentLine: int ref 
 
 val push_context: unit -> unit (* Start a context *)
+
 val add_type: string -> unit (* Add a new string as a type name *)
+val add_class: string -> unit (* Add a new string as a class name *)
+val add_namespace: string -> unit (* Add a new string as a namespace *)
 val add_identifier: string -> unit (* Add a new string as a variable name *)
+
 val pop_context: unit -> unit (* Remove all names added in this context *)
 (* This is the main parser function *)
 val initial: Lexing.lexbuf -> Cxxparser.token

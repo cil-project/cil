@@ -101,10 +101,11 @@ sub CillyCommand {
     my $aftercil = "$dir$base" . "cil.c";
     my $cmd = $CilCompiler::compiler;
     if($::docxx) { 
-        $cmd .= " --docxx";
+        $cmd .= " --cxx";
     }
     if($self->{CABSONLY}) {
-        $cmd .= " --cabsonly $dir$base" . "cabs.c";
+        $aftercil = "$dir$base" . "cabs.c";
+        $cmd .= " --cabsonly $aftercil";
     }
     return ($cmd . " --out $aftercil", $aftercil);
 }

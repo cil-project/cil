@@ -91,13 +91,54 @@ let init_lexicon _ =
        * defined *)
       ("__builtin_va_list", (NAMED_TYPE "__builtin_va_list"));
       ("__builtin_va_arg", BUILTIN_VA_ARG);
-    ]
+    ];
+  (* And now the C++ keywords *)
+  if !Cprint.cxxMode then begin
+    List.iter 
+      (fun (key, token) -> StringHashtbl.add lexicon key token)
+      [ ("bool", NAMED_TYPE "bool");
+        ("catch", CATCH);
+        ("class", CLASS);
+        ("const_class", CONST_CLASS);
+        ("delete", DELETE);
+        ("dynamic_cast", DYNAMIC_CAST);
+        ("explicit", EXPLICIT);
+        ("false", FALSE);
+        ("friend", FRIEND);
+        ("mutable", MUTABLE);
+        ("namespace", NAMESPACE);
+        ("new", NEW);
+        ("operator", OPERATOR);
+        ("private", PRIVATE);
+        ("protected", PROTECTED);
+        ("public", PUBLIC);
+        ("reinterpret_cast", REINTERPRET_CAST);
+        ("static_cast", STATIC_CAST);
+        ("template", TEMPLATE);
+        ("this", THIS);
+        ("throw", THROW);
+        ("true", TRUE);
+        ("try", TRY);
+        ("typeid", TYPEID);
+        ("typename", TYPENAME);
+        ("using", USING);
+        ("virtual", VIRTUAL); ] 
+  end
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 
  * be reinstated when we exit this context *)
 let add_type name =
    (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
    StringHashtbl.add lexicon name (NAMED_TYPE name)
+
+let add_class name =
+   (* ignore (print_string ("adding class name " ^ name ^ "\n"));  *)
+  StringHashtbl.add lexicon name (NAMED_CLASS name)
+
+let add_namespace name =
+   (* ignore (print_string ("adding namespace name " ^ name ^ "\n"));  *)
+  StringHashtbl.add lexicon name (NAMED_NAMESPACE name)
+
 
 let context : string list list ref = ref []
 
@@ -127,8 +168,10 @@ let add_identifier name =
 ** Useful primitives
 *)
 let rem_quotes str = String.sub str 1 ((String.length str) - 2)
-let scan_ident id = try StringHashtbl.find lexicon id
-	with Not_found -> IDENT id  (* default to variable name, as opposed to type *)
+let scan_ident id = 
+  try StringHashtbl.find lexicon id
+  with Not_found -> IDENT id  (* default to variable name, 
+                                 as opposed to type *)
 
 (* Change \ into / in file names. To avoid complications with escapes *)
 let cleanFileName str = 
@@ -228,7 +271,6 @@ let init ~(filename: string)
   init_lexicon ();
   let lexbuf = Lexing.from_channel inchannel in
   currentLexBuf := lexbuf;
-  ignore (E.log "initializing the C++ parser\b"); 
   lexbuf
 
 
@@ -391,6 +433,7 @@ rule initial =
 |		'|'				{PIPE}
 |		'^'				{CIRC}
 |		'?'				{QUEST}
+|               "::"                            {COLON_COLON}
 |		':'				{COLON}
 |		'~'				{TILDE}
 	

@@ -39,10 +39,10 @@ let announceFunctionName ((n, decl, _):name) =
   Cxxlexer.push_context ();
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
-      PROTO (d, args, _) when isJUSTBASE d -> 
+      PROTO (d, args, _, _) when isJUSTBASE d -> 
         List.iter (fun (_, (an, _, _)) -> Cxxlexer.add_identifier an) args
 
-    | PROTO (d, _, _) -> findProto d
+    | PROTO (d, _, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
     | PTR (_, d) -> findProto d
     | ARRAY (d, _) -> findProto d
@@ -68,7 +68,17 @@ let applyPointer (ptspecs: attribute list list) (dt: decl_type)
   in
   loop ptspecs
 
-let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : definition = 
+let doDeclaration (loc: cabsloc) (specs: spec_elem list) 
+    (nl: init_name list) : definition = 
+  (* In C++ we must also take the names of structs and unions and make them 
+   * type names *)
+  let rec findStructNames = function
+      [] -> ()
+    | SpecType (Tstruct (n, _)) :: rest -> Cxxlexer.add_type n
+    | SpecType (Tunion (n, _)) :: rest -> Cxxlexer.add_type n
+    | _ :: rest -> findStructNames rest
+  in
+  if !Cprint.cxxMode then findStructNames specs;
   if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
     List.iter (fun ((n, _, _), _) -> Cxxlexer.add_type n) nl;
@@ -132,6 +142,8 @@ end
 %token <string> CST_STRING
 %token <string> CST_WSTRING
 %token <string> NAMED_TYPE
+%token <string> NAMED_CLASS
+%token <string> NAMED_NAMESPACE
 
 %token EOF
 %token CHAR INT DOUBLE FLOAT VOID INT64 INT32
@@ -169,6 +181,14 @@ end
 
 /* sm: cabs tree transformation specification keywords */
 %token AT_TRANSFORM AT_TRANSFORMEXPR AT_SPECIFIER AT_EXPR AT_NAME
+
+
+/* C++ keywords */
+%token BOOL CATCH CLASS CONST_CLASS DELETE DYNAMIC_CAST EXPLICIT
+%token EXPORT FALSE FRIEND MUTABLE NAMESPACE NEW OPERATOR PRIVATE PROTECTED
+%token PUBLIC REINTERPRET_CAST STATIC_CAST TEMPLATE THIS THROW TRUE TRY
+%token TYPEID TYPENAME USING VIRTUAL 
+%token COLON_COLON
 
 /* operator precedence */
 %nonassoc 	IF
@@ -242,6 +262,10 @@ end
 %type <Cabs.decl_type * Cabs.attribute list> abstract_decl
 %type <attribute list list> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
 %type <Cabs.cabsloc> location
+
+
+%type <(Cabs.spec_elem list * Cabs.decl_type) list> type_id_list
+%type <(Cabs.spec_elem list * Cabs.decl_type) list option> exc_spec_opt
 %%
 
 interpret:
@@ -274,14 +298,14 @@ global:
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE, pardecl,isva), []),
+                               [(($2, PROTO(JUSTBASE, pardecl,isva, None), []),
                                  NO_INIT)]
                             }
 /* (* Old style function prototype, but without any arguments *) */
 | location  IDENT LPAREN RPAREN  SEMICOLON
                            { (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE,[],false), []),
+                               [(($2, PROTO(JUSTBASE,[],false, None), []),
                                  NO_INIT)]
                             }
 /* transformer for a toplevel construct */
@@ -296,6 +320,8 @@ global:
   }
 | location EXTERN CST_STRING LBRACE globals RBRACE  
                            { LINKAGE ($3, $5, $1) }
+| location EXTERN CST_STRING global 
+                           { LINKAGE ($3, [$4], $1) }
 | location error SEMICOLON { PRAGMA (VARIABLE "parse_error", $1) }
 ;
 
@@ -676,6 +702,7 @@ type_spec:   /* ISO 6.7.2 */
 |   DOUBLE          { Tdouble }
 |   SIGNED          { Tsigned }
 |   UNSIGNED        { Tunsigned }
+/*
 |   STRUCT id_or_typename 
                     { Tstruct ($2, None) }
 |   STRUCT id_or_typename LBRACE struct_decl_list RBRACE
@@ -688,6 +715,7 @@ type_spec:   /* ISO 6.7.2 */
                     { Tunion ($2, Some $4) }
 |   UNION          LBRACE struct_decl_list RBRACE
                     { Tunion ("", Some $3) }
+*/
 |   ENUM id_or_typename   { Tenum ($2, None) }
 |   ENUM id_or_typename LBRACE enum_list maybecomma RBRACE
                     { Tenum ($2, Some $4) }
@@ -697,6 +725,7 @@ type_spec:   /* ISO 6.7.2 */
 |   TYPEOF LPAREN expression RPAREN     { TtypeofE $3 } 
 |   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
                                           TtypeofT (s, d) } 
+|   class_spec                          { Tvoid }
 ;
 struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
                       * also allow missing field names. *)
@@ -741,22 +770,20 @@ declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
 direct_decl: /* (* ISO 6.7.5 *) */
                                    /* (* We want to be able to redefine named
                                     * types as variable names *) */
-|   id_or_typename                 { ($1, JUSTBASE) }
-
+|   namespace_id_or_typename       { ($1, JUSTBASE) }
 |   LPAREN attributes declarator RPAREN
                                    { let (n,decl,al) = $3 in
                                      (n, PARENTYPE($2,decl,al)) }
-
 |   direct_decl bracket_comma_expression
                                    { let (n, decl) = $1 in
                                      (n, ARRAY(decl, smooth_expression $2)) }
 |   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
                                      (n, ARRAY(decl, NOTHING)) }
-|   direct_decl parameter_list_startscope rest_par_list RPAREN
+|   direct_decl parameter_list_startscope rest_par_list RPAREN exc_spec_opt
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
                                      Cxxlexer.pop_context ();
-                                     (n, PROTO(decl, params, isva))
+                                     (n, PROTO(decl, params, isva, $5))
                                    }
 ;
 parameter_list_startscope: 
@@ -794,11 +821,12 @@ direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
                                    { let par_decl, isva = doOldParDecl $3 $5 in
                                      let n, decl = $1 in
-                                     (n, PROTO(decl, par_decl, isva), [])
+                                     (n, PROTO(decl, par_decl, isva, None), 
+                                      [])
                                    }
 | direct_decl LPAREN                       RPAREN
                                    { let n, decl = $1 in
-                                     (n, PROTO(decl, [], false), [])
+                                     (n, PROTO(decl, [], false, None), [])
                                    }
 ;
 
@@ -862,10 +890,10 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 |   abs_direct_decl_opt bracket_comma_expression
                                    { ARRAY($1, smooth_expression $2) }
 |   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
-|   abs_direct_decl parameter_list_startscope rest_par_list RPAREN
+|   abs_direct_decl parameter_list_startscope rest_par_list RPAREN exc_spec_opt
                                    { let (params, isva) = $3 in
                                      Cxxlexer.pop_context ();
-                                     PROTO ($1, params, isva)
+                                     PROTO ($1, params, isva, $5)
                                    } 
 ;
 abs_direct_decl_opt:
@@ -877,7 +905,7 @@ function_def:  /* (* ISO 6.9.1 *) */
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
             Cxxlexer.pop_context (); (* The context pushed by 
-                                    * announceFunctionName *)
+                                      * announceFunctionName *)
             doFunctionDef loc specs decl $2
           } 
 
@@ -888,44 +916,47 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                               ($1, $2, $3)
                             } 
 
-/* (* Old-style function prototype *) */
+/* (* Old-style function prototype *) 
 | location decl_spec_list old_proto_decl 
                             { announceFunctionName $3;
                               ($1, $2, $3) 
-                            } 
+                            } */
 /* (* New-style function that does not have a return type *) */
-| location        IDENT parameter_list_startscope rest_par_list RPAREN 
+| location    IDENT  
+              parameter_list_startscope rest_par_list RPAREN 
+                    exc_spec_opt
                            { let (params, isva) = $4 in
                              let fdec = 
-                               ($2, PROTO(JUSTBASE, params, isva), []) in
+                               ($2, PROTO(JUSTBASE, params, isva, None), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
                              ($1, defSpec, fdec) 
                            }
 
-/* (* No return type and old-style parameter list *) */
+/* (* No return type and old-style parameter list *) 
 | location        IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list
                            { (* Convert pardecl to new style *)
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              let fdec = ($2, 
-                                         PROTO(JUSTBASE, pardecl,isva), []) in
+                                         PROTO(JUSTBASE, pardecl,isva, None), 
+                                         []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
-                             ($1, defSpec, fdec) 
-                            }
-/* (* No return type and no parameters *) */
-| location        IDENT LPAREN                      RPAREN
+                             ($1, defSpec, fdec)
+                            }   */
+/* (* No return type and no parameters *) 
+| location        IDENT LPAREN                      RPAREN exc_spec_opt
                            { (* Make the function declarator *)
                              let fdec = ($2, 
-                                         PROTO(JUSTBASE, [], false), []) in
+                                         PROTO(JUSTBASE, [], false, $5), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
                              ($1, defSpec, fdec) 
-                            }
+                            } */
 ;
 
 /*** GCC attributes ***/
@@ -1057,7 +1088,111 @@ asmcloberlst_ne:
    CST_STRING                           { [$1] }
 |  CST_STRING COMMA asmcloberlst_ne     { $1 :: $3 }
 ;
-  
+
+
+/* (********************** C++ stuff **************************) */  
+exc_spec_opt: 
+    /* nothing */                       { None }
+| THROW LPAREN type_id_list RPAREN      { Some $3 }
+;
+
+/* (* Allow a trailing comma *) */
+type_id_list: 
+   /* nothing */                         { [] }
+| type_name COMMA type_id_list           { $1 :: $3 }
+;
+
+
+class_spec: 
+  class_head                             { () }  %prec COMMA /* (* Use a 
+                                                              * lower 
+                                                              * precedence 
+                                                              * than COLON *)*/ 
+| class_head  base_clause_opt LBRACE member_spec_opt RBRACE %prec COLON
+                                         { () }
+;
+
+class_head: 
+    class_key id_or_typename             { Cxxlexer.add_class $2;
+                                           ()
+                                          }
+;
+
+class_key: 
+  CLASS                                  { () }
+| STRUCT                                 { () }
+| UNION                                  { () }
+;
+
+base_clause_opt:
+  /* nothing */                           { [] }
+| COLON base_specifier_list               { $2 }
+;
+base_specifier_list:
+  base_specifier                            { [ $1 ] }
+| base_specifier COMMA base_specifier_list  { $1 :: $3 }
+;
+base_specifier: 
+  namespace_typename                         { $1 }
+;
+
+member_spec_opt:
+  /* nothing */                             { [] }
+| member_declaration member_spec_opt        { () :: $2 }
+| access_specifier COLON member_spec_opt    { $1 :: $3 }
+;
+member_declaration:
+|  NAMED_TYPE LPAREN RPAREN       SEMICOLON { ([], []) }
+|  decl_spec_list                 SEMICOLON 
+                                           { ($1, 
+                                               [(missingFieldDecl, None)]) }
+|  decl_spec_list member_decl_list SEMICOLON
+                                            { ($1, $2) }
+;
+
+member_decl_list:
+    member_decl                            { [$1] }
+|   member_decl COMMA member_decl_list     { $1 :: $3 }
+;
+member_decl: 
+|   declarator member_init               { ($1, None) }
+|   declarator COLON expression          { ($1, Some $3) }    
+|              COLON expression          { (missingFieldDecl, Some $2) }
+;
+member_init:
+    /* nothing */                        { () }
+|  EQ expression                         { () }
+;
+access_specifier:
+  PRIVATE                                    { () }
+| PROTECTED                                  { () }
+| PUBLIC                                     { () }
+;
+
+namespace_ident:
+  nested_name_spec IDENT                     { $1 ^ $2 }
+;
+
+namespace_id_or_typename:
+  id_or_typename                             { $1 }
+| NAMED_TYPE COLON_COLON namespace_typename  { $1 ^ "::" ^ $3 }
+;
+
+namespace_typename:
+  NAMED_TYPE                                 { $1 }
+| NAMED_TYPE COLON_COLON namespace_typename  { $1 ^ "::" ^ $3 }
+;
+
+nested_name_spec:
+| COLON_COLON nested_name_spec_nocol   { "::" ^ $2 }
+|             nested_name_spec_nocol   {        $1 }
+;
+nested_name_spec_nocol:
+    /* empty */                                       { "" }
+|   NAMED_TYPE COLON_COLON nested_name_spec_nocol     { $1 ^ "::" ^ $3 }
+;
+named_type: 
+  NAMED_TYPE                    { $1 }
 %%
 
 

@@ -41,6 +41,9 @@ val setCxxMode: unit -> unit
    (* Parse a file in *)
 exception ParseError of string
 
+   (* Raised when the front-end is requested to print the CABS and return *)
+exception CabsOnly
+
     (* additional command line arguments *)
 val args: (string * Arg.spec * string) list
 

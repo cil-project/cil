@@ -543,6 +543,12 @@ sub smAddTest {
   return $tname;
 }
 
+sub addCXXTest {
+    my $tname = &smAddTest(@_);
+    my $self = $main::globalTEST;
+    $self->addGroups($tname, 'cxx');
+}
+
 # here 'why' is a human-readable explanation for why the test fails,
 # rather than a regexp to match the error message because:
 #   - I don't care if the error message changes while it's a failing test
@@ -855,6 +861,12 @@ smAddTest("scott/errorinfn");
 smAddTest("scott/unionassign $box");
 smAddTest("scott/unionassign $wildbox");
 
+
+addCXXTest("cxx/hello");
+addCXXTest("cxx/exc1");
+addCXXTest("cxx/exspec1");
+addCXXTest("cxx/structname");
+addCXXTest("cxx/class1");
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");

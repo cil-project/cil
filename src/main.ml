@@ -175,7 +175,7 @@ let rec theMain () =
                      "turns on consistency checking of CIL";
     "--nocheck", Arg.Unit (fun _ -> Util.doCheck := false),
                      "turns off consistency checking of CIL";
-    "--docxx", Arg.Unit (fun _ -> C.cxxMode := true; F.setCxxMode ()),
+    "--cxx", Arg.Unit (fun _ -> C.cxxMode := true; F.setCxxMode ()),
                      "turns on the C++ mode";
     "--logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
                      "turns on generation of code to log function calls in CIL";
@@ -284,7 +284,8 @@ let main () =
     try 
       theMain (); 
       fun () -> exit (if !failed then 1 else 0)
-    with e ->  
+    with F.CabsOnly -> (* This is Ok *) exit 0
+    | e ->  
       (fun () -> 
         print_string ("Uncaught exception: " ^ (Printexc.to_string e)
                       ^ "\n");

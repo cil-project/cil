@@ -37,10 +37,10 @@ let announceFunctionName ((n, decl, _):name) =
   Clexer.push_context ();
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
-      PROTO (d, args, _) when isJUSTBASE d -> 
+      PROTO (d, args, _, _) when isJUSTBASE d -> 
         List.iter (fun (_, (an, _, _)) -> Clexer.add_identifier an) args
 
-    | PROTO (d, _, _) -> findProto d
+    | PROTO (d, _, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
     | PTR (_, d) -> findProto d
     | ARRAY (d, _) -> findProto d
@@ -272,14 +272,14 @@ global:
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE, pardecl,isva), []),
+                               [(($2, PROTO(JUSTBASE, pardecl,isva,None), []),
                                  NO_INIT)]
                             }
 /* (* Old style function prototype, but without any arguments *) */
 | location  IDENT LPAREN RPAREN  SEMICOLON
                            { (* Make the function declarator *)
                              doDeclaration $1 []
-                               [(($2, PROTO(JUSTBASE,[],false), []),
+                               [(($2, PROTO(JUSTBASE,[],false,None), []),
                                  NO_INIT)]
                             }
 /* transformer for a toplevel construct */
@@ -752,7 +752,7 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
                                      Clexer.pop_context ();
-                                     (n, PROTO(decl, params, isva))
+                                     (n, PROTO(decl, params, isva, None))
                                    }
 ;
 parameter_list_startscope: 
@@ -790,11 +790,11 @@ direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
                                    { let par_decl, isva = doOldParDecl $3 $5 in
                                      let n, decl = $1 in
-                                     (n, PROTO(decl, par_decl, isva), [])
+                                     (n, PROTO(decl, par_decl, isva, None), [])
                                    }
 | direct_decl LPAREN                       RPAREN
                                    { let n, decl = $1 in
-                                     (n, PROTO(decl, [], false), [])
+                                     (n, PROTO(decl, [], false, None), [])
                                    }
 ;
 
@@ -861,7 +861,7 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 |   abs_direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
                                      Clexer.pop_context ();
-                                     PROTO ($1, params, isva)
+                                     PROTO ($1, params, isva, None)
                                    } 
 ;
 abs_direct_decl_opt:
@@ -893,7 +893,7 @@ function_def_start:  /* (* ISO 6.9.1 *) */
 | location        IDENT parameter_list_startscope rest_par_list RPAREN 
                            { let (params, isva) = $4 in
                              let fdec = 
-                               ($2, PROTO(JUSTBASE, params, isva), []) in
+                               ($2, PROTO(JUSTBASE, params, isva, None), []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
@@ -906,7 +906,8 @@ function_def_start:  /* (* ISO 6.9.1 *) */
                              let pardecl, isva = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              let fdec = ($2, 
-                                         PROTO(JUSTBASE, pardecl,isva), []) in
+                                         PROTO(JUSTBASE, pardecl,isva, None), 
+                                         []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
@@ -916,7 +917,8 @@ function_def_start:  /* (* ISO 6.9.1 *) */
 | location        IDENT LPAREN                      RPAREN
                            { (* Make the function declarator *)
                              let fdec = ($2, 
-                                         PROTO(JUSTBASE, [], false), []) in
+                                         PROTO(JUSTBASE, [], false, None), 
+                                         []) in
                              announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in

@@ -56,6 +56,7 @@ ifndef CCUREDHOME
 endif
 
 CCURED := $(CCUREDHOME)/bin/ccured
+CILLY := $(CCUREDHOME)/bin/cilly
 PATCHER := $(CCUREDHOME)/bin/patcher
 
 # Now do the user-specific customization
@@ -195,6 +196,10 @@ ifdef PRINTSTAGES
 endif
 ifdef EMITBROWSER
   CCURED+= --emitbrowser
+endif
+ifdef CABSONLY
+  CCURED+= --cabsonly
+  CILLY+= --cabsonly
 endif
 ifdef FP_FAIL_IS_VERBOSE
   # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
@@ -427,6 +432,8 @@ endif
 
 ############ Small tests
 SMALL1 := $(TESTDIR)/small1
+CXXDIR := $(TESTDIR)/cxx
+
 test/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CCURED) --separate \
                $(STANDARDPATCH) \
@@ -448,6 +455,12 @@ testrun/% : $(SMALL1)/%.c
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
+cxx/% : $(CXXDIR)/%.cc  
+	cd $(CXXDIR); $(CILLY) --separate --cxx \
+               $(CFLAGS) $(EXEOUT)$*.exe $*.cc
+	cd $(CXXDIR); ./$*.exe
 	echo SUCCESS
 
 
@@ -1727,7 +1740,6 @@ mustbemanju:
 	@if ! test -d $(LINUXSRC) ; then  \
                 echo You dont have the Linux sources in $(LINUXSRC); exit 3; fi
 
-CILLY := $(CCUREDHOME)/bin/cilly
 ifdef NOLINES
   CILLY+= --noPrintLn
 endif

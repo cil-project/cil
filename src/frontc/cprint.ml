@@ -290,12 +290,20 @@ and print_decl (n: string) = function
       print "[";
       if e <> NOTHING then print_expression e 1;
       print "]"
-  | PROTO(d, args, isva) ->
+  | PROTO(d, args, isva, exc_spec) ->
       comprint "proto(";
       print_decl n d;
       print "(";
       print_params args isva;
       print ")";
+      if !cxxMode then begin
+        match exc_spec with
+          None -> ()
+        | Some l -> 
+            print " throw(";
+            print_list (fun _ -> print ",") print_onlytype l;
+            print ")"
+      end;
       comprint ")"
 
 
