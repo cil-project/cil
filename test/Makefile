@@ -1858,7 +1858,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR := $(TESTDIR)/ftpd/ftpd
-FTPDSAFECC := $(CCURED)  
+FTPDSAFECC := $(CCURED)  --allowInlineAssembly 
 ifeq ($(ARCHOS), x86_WIN32)
   FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
