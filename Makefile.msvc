@@ -4,7 +4,7 @@
 COMPILERNAME=MSVC
 
 CC:=cl /nologo
-ifdef RELEASE
+ifdef RELEASELIB
   CFLAGS:=/DRELEASE /D_MSVC /Ox /Ob2 /G6
 else
   CFLAGS:=/D_DEBUG /D_MSVC /Zi /MLd
