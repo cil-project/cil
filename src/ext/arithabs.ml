@@ -456,7 +456,35 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
       | e -> super#pExp () e
             
-    method pInstr () = function
+    method pInstr () (i: instr) = 
+      (* Print a call *)
+      let printCall (dest: varinfo option) 
+                    (f: varinfo) (args: exp list) (l: location) = 
+        currentLoc := l;
+        let gwt: varinfo list = getGlobalsWrittenTransitive f in
+        let grt: varinfo list = getGlobalsReadTransitive f in
+
+        let gwt' = 
+          match dest with 
+            Some dest -> gwt @ [dest] 
+          | _ -> gwt 
+
+        in 
+        (* Prepare the arguments first *)
+        let argdoc: doc = 
+          (docList ~sep:break (self#pExp ())) 
+            ()
+            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+        in 
+        dprintf "%a = (%s @[%a@]);"
+          (docList 
+             (fun v -> 
+               text (self#variableDef varRenameState v)))
+          gwt'
+          f.vname
+          insert argdoc
+      in     
+      match i with 
       | Set ((Var v, NoOffset), e, l) when considerVariable v -> 
           currentLoc := l;
           (* We must do the use first *)
@@ -465,45 +493,20 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             ++ text "=" ++ use ++ text ";"
             
       | Call (Some (Var v, NoOffset), 
-              Lval (Var f, NoOffset), args, l) ->
-          currentLoc := l;
-          let gwt: varinfo list = getGlobalsWrittenTransitive f in
-          let grt: varinfo list = getGlobalsReadTransitive f in
+              Lval (Var f, NoOffset), args, l) when considerVariable v ->
+          printCall (Some v)
+                    f args l      
 
-          let gwt' = 
-            if considerVariable v then gwt @ [v] else gwt in 
-          (* Prepare the arguments first *)
-          let argdoc: doc = 
-            (docList ~sep:break (self#pExp ())) 
-              ()
-              (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
-          in 
-          dprintf "%a = (%s @[%a@]);"
-            (docList 
-               (fun v -> 
-                 text (self#variableDef varRenameState v)))
-            gwt'
-            f.vname
-            insert argdoc
+       (* Ignore the result if not a variable we are considering *)
+      | Call (_, Lval (Var f, NoOffset), args, l) -> 
+          printCall None f args l
             
-      | Call (None, Lval (Var f, NoOffset), args, l) -> 
-          currentLoc := l;
-          let gwt: varinfo list = getGlobalsWrittenTransitive f in
-          let grt: varinfo list = getGlobalsReadTransitive f in
-          (* Prepare the arguments first *)
-          let argdoc: doc = 
-            (docList ~sep:break (self#pExp ())) 
-              ()
-              (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
-          in 
-          dprintf "%a = (%s @[%a@]);"
-            (docList 
-               (fun v -> 
-                 text (self#variableDef varRenameState v)))
-            gwt
-            f.vname
-            insert argdoc
-            
+      | Call (_, _, _, l) -> 
+          (*
+          ignore (E.log "ignoring call in %a\n" d_loc l);
+          *)
+          nil
+
       | _ -> nil (* Ignore the other instructions *)        
             
 
