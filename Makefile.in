@@ -12,8 +12,11 @@ all:  quickbuild cillib
 
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
-Makefile.cil: Makefile.cil.in
+Makefile.cil: Makefile.cil.in config.status
 	./config.status
+
+config.status: configure.in
+	configure
 
 @DEFAULT_COMPILER@=1
 
