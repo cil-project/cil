@@ -4974,7 +4974,6 @@ and doStatement (s : A.statement) : chunk =
   end
 
 
-
 (* Translate a file *)
 let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   (* Clean up the global types *)
@@ -4990,11 +4989,17 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   if !E.verboseFlag || !Util.printStages then 
     ignore (E.log "Converting CABS->CIL\n");
   (* Setup the built-ins, but do not add their prototypes to the file *)
-  let _ =
-    let fdec = emptyFunction "__builtin_constant_p" in
-    fdec.svar.vtype <- TFun(intType, Some [ ("x", intType, []) ], false, []);
-    alphaConvertVarAndAddToEnv true fdec.svar
-  in
+  List.iter 
+    (fun (name, resTyp, argTypes) ->
+      let v = 
+        makeGlobalVar name (TFun(resTyp, 
+                                 Some (List.map (fun at -> ("", at, [])) 
+                                         argTypes),
+                                 false, [])) in
+      ignore (alphaConvertVarAndAddToEnv true v))
+    [ ("__builtin_constant_p", intType, [ intType ]);
+      ("__builtin_fabs", doubleType, [ doubleType ]);
+    ];
   let globalidx = ref 0 in
   let doOneGlobal (d: A.definition) = 
     let s = doDecl true d in

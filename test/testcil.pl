@@ -556,6 +556,7 @@ $TEST->add2Tests("apache/gzip");
 
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->addTests("testrun/seq1", "", ['inferbox']);
+$TEST->addTests("testrun/builtin", "", ['cil']);
 
 # HERE
 
