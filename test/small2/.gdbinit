@@ -1,5 +1,5 @@
 # .gdbinit
 
-file nested
+file fprintf
 break main
 run

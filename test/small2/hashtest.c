@@ -36,6 +36,7 @@ int main() {
   //  int *foo, *foo1;
   
   /* Add and delete random numbers from the hash table */
+  printf("inserting...\n");
   TIMESTART(clk);
   for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
@@ -44,9 +45,11 @@ int main() {
 //    }
     AddToHash(h, k, (void*)k);
   }
+
   // Now try to read from foo
   //  foo1 = foo + 1;
   //  i = *foo1;
+  printf("finding...\n");
   for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
@@ -55,6 +58,8 @@ int main() {
     }
   }
   sz = SizeHash(h);
+  
+  printf("freeing...\n");
   FreeHash(h);
   TIMESTOP(clk);
   fprintf(stderr, "Hash has %d elements. Found %d times\n",
