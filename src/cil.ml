@@ -1453,11 +1453,11 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
     else if dnwhat = DNNothing then
       (* Cannot print the attributes in this case *)
       text "/*(" 
-        ++ d_attrlistpre () a
+        ++ d_attrlist_pre () a
         ++ text ")*/"
     else begin
       text "(" 
-        ++ d_attrlistpre () a
+        ++ d_attrlist_pre () a
         ++ docName ()
         ++ text ")"
     end
@@ -1465,37 +1465,37 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
   match this with 
     TVoid a ->
       text "void"
-       ++ d_attrlistpost () a 
+       ++ d_attrlist () a 
         ++ text " " 
         ++ docName ()
 
   | TInt (ikind,a) -> 
       d_ikind () ikind 
-        ++ d_attrlistpost () a 
+        ++ d_attrlist () a 
         ++ text " "
         ++ docName ()
 
   | TFloat(fkind, a) -> 
     d_fkind () fkind 
-        ++ d_attrlistpost () a 
+        ++ d_attrlist () a 
         ++ text " " 
         ++ docName ()
 
   | TComp (comp, a) -> (* A reference to a struct *)
       let su = if comp.cstruct then "struct" else "union" in
     text (su ^ " " ^ comp.cname ^ " ") 
-        ++ d_attrlistpre () a 
+        ++ d_attrlist_pre () a 
         ++ docName()
 
   | TEnum (enum, a) -> 
      text ("enum " ^ enum.ename ^ " ")
-        ++ d_attrlistpre () a 
+        ++ d_attrlist_pre () a 
         ++ docName ()
 
   | TPtr (bt, a)  -> 
       d_decl 
         (fun _ -> 
-          text "* " ++ d_attrlistpre () a ++ docName ())
+          text "* " ++ d_attrlist_pre () a ++ docName ())
         DNStuff
         () 
         bt
@@ -1529,7 +1529,7 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
         restyp
 
   | TNamed (n, _, a) ->
-        text n ++ d_attrlistpost () a ++ text " " ++ docName ()
+        text n ++ d_attrlist () a ++ text " " ++ docName ()
 
 
 (* Only a type (such as for a cast). There seems to be a problem with 
@@ -1737,9 +1737,9 @@ and d_attrlistgen (block: bool) (pre: bool) () al =
   else
     if pre then res ++ text " " else text " " ++ res
     
-and d_attrlist pre () al = d_attrlistgen false pre () al
-and d_attrlistpre () al = d_attrlist true () al
-and d_attrlistpost () al = d_attrlist false () al
+and d_attrlist_pos pre () al = d_attrlistgen false pre () al
+and d_attrlist () al = d_attrlist_pos false () al
+and d_attrlist_pre () al = d_attrlist_pos true () al
 
 (* lvalue *)
 and d_lvalprec contextprec () lv = 
@@ -2073,11 +2073,11 @@ end
 and d_videcl () vi = 
   let stom, rest = separateStorageModifiers vi.vattr in
     (* First the storage modifiers *)
-    (d_attrlistpre () stom)
+    (d_attrlist_pre () stom)
     ++ d_storage () vi.vstorage
     ++ (d_decl (fun _ -> text vi.vname) DNString () vi.vtype)
     ++ text " "
-    ++ d_attrlistpost () rest
+    ++ d_attrlist () rest
 
 and d_fielddecl () fi = 
   (d_decl 
@@ -2087,7 +2087,7 @@ and d_fielddecl () fi =
     ++ text " "
     ++ (match fi.fbitfield with None -> nil 
                              | Some i -> text ": " ++ num i ++ text " ")
-    ++ d_attrlistpost () fi.fattr
+    ++ d_attrlist () fi.fattr
     ++ text ";"
 
    (* Some plain pretty-printers. Unlike the above these expose all the 
@@ -2130,20 +2130,20 @@ and d_plaintype () (t: typ) =
                                                     * going into infinite 
                                                     * loop *)
   let rec scanType () = function
-    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlistpost a
+    TVoid a -> dprintf "TVoid(@[%a@])" d_attrlist a
   | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" 
-        d_ikind ikind d_attrlistpost a
+        d_ikind ikind d_attrlist a
   | TFloat(fkind, a) -> 
-      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlistpost a
+      dprintf "TFloat(@[%a,@?%a@])" d_fkind fkind d_attrlist a
   | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@])" n scanType t d_attrlistpost a
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlistpost a
+      dprintf "TNamed(@[%s,@?%a,@?%a@])" n scanType t d_attrlist a
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlist a
   | TArray(t,l,a) -> 
       let dl = match l with 
         None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
       dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        scanType t insert dl d_attrlistpost a
-  | TEnum(enum,a) -> dprintf "Enum(%s,@[%a@])" enum.ename d_attrlistpost a
+        scanType t insert dl d_attrlist a
+  | TEnum(enum,a) -> dprintf "Enum(%s,@[%a@])" enum.ename d_attrlist a
   | TFun(tr,args,isva,a) -> 
       dprintf "TFun(@[%a,@?%a%s,@?%a@])"
         scanType tr 
@@ -2153,12 +2153,12 @@ and d_plaintype () (t: typ) =
                  (fun a -> dprintf "%s: %a" a.vname scanType a.vtype)) 
                  () 
                  (argsToList args))
-        (if isva then "..." else "") d_attrlistpost a
+        (if isva then "..." else "") d_attrlist a
   | TComp (comp, a) -> 
       if H.mem donecomps comp.ckey then 
         dprintf "TCompLoop(%s %s, _, %a)" 
           (if comp.cstruct then "struct" else "union") comp.cname 
-          d_attrlistpost comp.cattr
+          d_attrlist comp.cattr
       else begin
         H.add donecomps comp.ckey (); (* Add it before we do the fields *)
         dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
@@ -2166,8 +2166,8 @@ and d_plaintype () (t: typ) =
           (docList (chr ',' ++ break) 
              (fun f -> dprintf "%s : %a" f.fname scanType f.ftype)) 
           comp.cfields
-          d_attrlistpost comp.cattr
-          d_attrlistpost a
+          d_attrlist comp.cattr
+          d_attrlist a
       end
   in
   scanType () t
@@ -2177,22 +2177,22 @@ let rec d_typsig () = function
       dprintf "TSArray(@[%a,@?%a,@?%a@])" 
         d_typsig ts 
         insert (match eo with None -> text "None" | Some e -> d_exp () e)
-        d_attrlistpre al
+        d_attrlist_pre al
   | TSPtr (ts, al) -> 
       dprintf "TSPtr(@[%a,@?%a@])"
-        d_typsig ts d_attrlistpre al
+        d_typsig ts d_attrlist_pre al
   | TSComp (iss, name, al) -> 
       dprintf "TSComp(@[%s %s,@?%a@])"
         (if iss then "struct" else "union") name
-        d_attrlistpre al
+        d_attrlist_pre al
   | TSFun (rt, args, isva, al) -> 
       dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
         d_typsig rt
         (docList (chr ',' ++ break) (d_typsig ())) args isva
-        d_attrlistpre al
+        d_attrlist_pre al
   | TSEnum (n, al) -> 
       dprintf "TSEnum(@[%s,@?%a@])"
-        n d_attrlistpre al
+        n d_attrlist_pre al
   | TSBase t -> dprintf "TSBase(%a)" d_type t
 
 let _ = 
@@ -2847,7 +2847,7 @@ let d_global () = function
   | GEnumTag (enum, l) ->
      d_line l ++
      text "enum" ++ align ++ text (" " ^ enum.ename) ++
-        d_attrlistpost () enum.eattr ++ text " {" ++ line
+        d_attrlist () enum.eattr ++ text " {" ++ line
         ++ (docList line 
               (fun (n,i) -> 
                 text (n ^ " = ") 
@@ -2864,11 +2864,11 @@ let d_global () = function
       in
       d_line l ++
       text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
-                     ++ (d_attrlistpost () comp.cattr)
                      ++ text " {" ++ line
                      ++ ((docList line (d_fielddecl ())) () comp.cfields)
                      ++ unalign)
-        ++ line ++ text "};"
+        ++ line ++ text "}" ++
+        (d_attrlist () comp.cattr) ++ text ";"
 
   | GVar (vi, io, l) ->
       d_line l ++

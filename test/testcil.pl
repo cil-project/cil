@@ -188,6 +188,8 @@ $TEST->add3Tests("test/strcpy");
 $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
+$TEST->addTests("testrun/align1", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/align2", "_GNUCC=1 EXTRAARGS=-O2", ['cil']);
 $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task", "_GNUCC=1");
 $TEST->add3Tests("test/power1");

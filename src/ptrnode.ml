@@ -449,7 +449,7 @@ let nodeOfAttrlist al =
     [] -> None
   | [Attr(_, [AInt n])] -> findnode n
   | (Attr(_, [AInt n]) :: _) as filtered -> 
-      ignore (E.warn "nodeOfAttrlist(%a)" (d_attrlist true) filtered);
+      ignore (E.warn "nodeOfAttrlist(%a)" d_attrlist filtered);
       findnode n
   | _ -> E.s (E.bug "nodeOfAttrlist")
 

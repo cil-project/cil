@@ -171,7 +171,8 @@ and typ =
                    The attributes given are those pertaining to this use of 
                    the type. The attributes that were given at the definition 
                    of the type are stored in the compinfo. Always make sure 
-                   there is a GTag for each structure or union that you use. *)
+                   there is a GCompTag for each structure or union that 
+                   you use. *)
 
   | TFun of typ * varinfo list option * bool * attribute list
                (** Function type. Indicates the type of the result, the 
@@ -1177,10 +1178,12 @@ val d_attr: unit -> attribute -> Pretty.doc
 val d_attrarg: unit -> attrarg -> Pretty.doc
 
 (** Pretty-print a list of attributes *)
-val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it 
-                                                              * comes before 
-                                                              * or after 
-                                                              * stuff  *) 
+val d_attrlist: unit -> attribute list -> Pretty.doc 
+
+(** Like d_attrlist but when attribute comes before the  
+  * qualified entity. The only difference is in how spaces are printed *)
+val d_attrlist_pre: unit -> attribute list -> Pretty.doc  
+
 (** Pretty-print a statement *)
 val d_stmt: unit -> stmt -> Pretty.doc
 

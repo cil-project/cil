@@ -1768,10 +1768,10 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> 
               if a1f <> [] && not a1fadded then
                 E.s (error "Invalid position for (prefix) function type attributes:%a" 
-                       (d_attrlist true) a1f);
+                       d_attrlist a1f);
               if a2f <> [] then
                 E.s (error "Invalid position for (post) function type attributes:%a"
-                       (d_attrlist true) a2f);
+                       d_attrlist a2f);
               restyp
         in
         (* Now add the name attributes and return *)
@@ -1791,7 +1791,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> 
               if af <> [] then
                 E.s (error "Invalid position for function type attributes:%a"
-                       (d_attrlist true) af);
+                       d_attrlist af);
               restyp
         in
         (* Now add the name attributes and return *)
@@ -1885,7 +1885,7 @@ and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
   let tres, nattr = doType AttrType bt' (A.PARENTYPE(attrs, dt, [])) in
   if nattr <> [] then
     E.s (error "Name attributes in only_type: %a"
-           (d_attrlist false) nattr);
+           d_attrlist nattr);
   tres
 
 
@@ -1932,17 +1932,18 @@ and makeCompType (isstruct: bool)
   let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
   if comp.cfields <> [] then begin
     (* This appears to be a multiply defined structure. This can happen from 
-     * a construct like "typedef struct foo { ... } A, B;". This is dangerous 
-     * because at the time B is processed some forward references in { ... } 
-     * appear as backward references, which coild lead to circularity in 
-     * the type structure. We do a thourough check and then we reuse the type 
-     * for A *)
+    * a construct like "typedef struct foo { ... } A, B;". This is dangerous 
+    * because at the time B is processed some forward references in { ... } 
+    * appear as backward references, which coild lead to circularity in 
+    * the type structure. We do a thourough check and then we reuse the type 
+    * for A *)
     let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
     if fieldsSig comp.cfields <> fieldsSig flds then
       ignore (warn "%s seems to be multiply defined" (compFullName comp))
   end else 
     comp.cfields <- flds;
 
+(*  ignore (E.log "makeComp: %s: %a\n" comp.cname d_attrlist a); *)
   comp.cattr <- a;
   let toplevel_typedef = false in
   let res = TComp (comp, []) in
@@ -3573,6 +3574,24 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
     if nattr <> [] then
       ignore (warn "Ignoring identifier attribute");
            (* doSpec will register the type. Put a special GType in the file *)
+    (* Move some attributes from the defined type into composite types *)
+    let restyp = 
+      match restyp with 
+        TComp(ci, al) -> 
+          (* Check that we had a definition of a compTag here *)
+          if List.exists 
+              (function 
+                  A.SpecType(A.Tstruct(_, Some _)) -> true
+                | A.SpecType(A.Tunion(_, Some _)) -> true
+                | _ -> false) specs then 
+            begin
+              ci.cattr <- addAttributes ci.cattr al; 
+              TComp (ci, [])
+            end
+          else
+            restyp
+      | _ -> restyp
+    in
     pushGlobal (GType ("", restyp, !currentLoc))
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"

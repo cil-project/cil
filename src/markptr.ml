@@ -134,7 +134,7 @@ let registerFunction (fi: funinfo) =
         (Attr("boxformat", [AInt format_idx])) fvi
     end
   | [] -> ()
-  | al -> ignore (warn "Do not understand %a" (d_attrlist true) al));
+  | al -> ignore (warn "Do not understand %a" d_attrlist al));
 
   (try
     let f = H.find applyToFunctionMemory fvi.vname in
