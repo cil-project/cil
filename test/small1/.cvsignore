@@ -36,3 +36,4 @@ vararg.out
 array.a.files
 *.browser
 
+test-bad.err test-bad.out
