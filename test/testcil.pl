@@ -151,13 +151,17 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 $TEST->add3Tests("bh", "_GNUCC=1");
+   $TEST->add3Group("bh", "slow");
    $TEST->addBadComment("bh-box", "CRASHES");
 $TEST->add3Tests("li", "_GNUCC=1");
+  $TEST->add3Group("li", "slow");
   $TEST->addBadComment("li-box", "bug in box.ml");
   $TEST->addBadComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
+  $TEST->add3Group("compress", "slow");
 #   $TEST->addBadComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
+   $TEST->add3Group("go", "slow");
    $TEST->addBadComment("go-box", "CRASHES with LBound");
    $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
 $TEST->add3Tests("apache/gzip");

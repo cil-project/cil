@@ -91,6 +91,7 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
+USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), leetch) # scott's laptop
 BASEDIR=/home/scott/wrk/safec
@@ -100,6 +101,7 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 USE_GC=1
+USER_SCOTT=1
 endif
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
@@ -264,9 +266,9 @@ trval: $(TVDIR)/obj/transval.asm.exe
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 # sm: I like -g always
-#ifdef _GNUCC
-#  SAFECC+= -g
-#endif
+ifdef USER_SCOTT
+  SAFECC+= -g
+endif
 
 ifdef PROFILE
 SAFECC+= --profile 
@@ -546,7 +548,7 @@ testrun/% : $(SMALL1)/%.c  defaulttarget
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(DOOPT) $(EXEOUT)$*.exe $*.c
-	cd $(SMALL1); $*.exe
+	cd $(SMALL1); ./$*.exe
 
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  defaulttarget
@@ -598,7 +600,7 @@ hola: scott/hola
 # sm: attempt at a single rule for my testing purposes
 scott/%: test/small2/%.c defaulttarget
 	rm -f test/small2/$*
-	cd test/small2; $(CC) $(CONLY) $(DEF)$(ARCHOS) $*.c
+	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
                  $(DOOPT) $(WARNALL) \

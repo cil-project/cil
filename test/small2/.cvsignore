@@ -29,3 +29,7 @@ regthenprintf
 nested
 debug_table
 s59
+tmp.c
+tmp
+putc
+bogus_redef
