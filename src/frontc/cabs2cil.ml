@@ -1442,13 +1442,16 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     let oldvi, oldloc = lookupGlobalVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
-    let newstorage =
+    let newstorage = (** See 6.2.2 *)
       match oldvi.vstorage, vi.vstorage with
+        (* Extern and something else is that thing *)
       | Extern, other
+      | other, Extern -> other
+
       | NoStorage, other
-      | other, Extern
-      | other, NoStorage ->
-	  other
+      | other, NoStorage ->  other
+
+
       | _ ->
 	  if vi.vstorage != oldvi.vstorage then
             ignore (warn
