@@ -2517,8 +2517,8 @@ and doExp (isconst: bool)    (* In a constant *)
             A.SINGLE_INIT e -> doExp isconst e what'
           | A.NO_INIT -> E.s (error "missing expression in cast")
           | A.COMPOUND_INIT il -> begin
-              (* Pretend that we are declaring and initializing a local *)
-              let local = "__constr_expr_" ^ string_of_int (!constrExprId) in
+              (* Pretend that we are declaring and initializing a brand new variablel *)
+              let newvar = "__constr_expr_" ^ string_of_int (!constrExprId) in
               incr constrExprId;
               (* Maybe specs contains an unnamed composite. Replace with the 
                * name *)
@@ -2534,10 +2534,16 @@ and doExp (isconst: bool)    (* In a constant *)
                         | s -> s) specs
                 | _ -> specs
               in
-              let se1 = createLocal specs1 ((local, dt, []), ie) in
+              let se1 = 
+                if !scopes == [] then begin
+                  ignore (createGlobal specs1 ((newvar, dt, []), ie));
+                  empty
+                end else
+                  createLocal specs1 ((newvar, dt, []), ie) 
+              in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
-              let se, e', t' = doExp isconst (A.VARIABLE local) what' in
+              let se, e', t' = doExp isconst (A.VARIABLE newvar) what' in
               (* If typ is an array then the doExp above has already added a 
                * StartOf. We must undo that now so that it is done once by 
                * the finishExp at the end of this case *)
