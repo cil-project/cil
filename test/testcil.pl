@@ -285,6 +285,7 @@ $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
 $TEST->add2Tests("test/pure");
 $TEST->add3Tests("test/pointers");
+$TEST->add3Tests("testrun/post-assign");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
