@@ -296,6 +296,7 @@ SAFECC += --optim
 endif
 
 # garbage collector options
+ifneq ($(COMPUTERNAME), RAW)   # George's workstation
 ifdef _GNUCC
   ifndef NO_GC
     # enable the garbage collector by default for gcc
@@ -317,7 +318,7 @@ else
   #    include gc.a
   GCLIB =
 endif
-
+endif
 
 SAFECC+= $(EXTRAARGS)
 
