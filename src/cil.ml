@@ -1541,6 +1541,7 @@ let d_storage () = function
 
 (* sm: need this value below *)
 let mostNeg32BitInt : int64 = (Int64.of_string "-0x80000000")
+let mostNeg64BitInt : int64 = (Int64.of_string "-0x8000000000000000")
 
 (* constant *)
 let d_const () c = 
@@ -1577,6 +1578,9 @@ let d_const () c =
           (* in gcc this avoids a warning, but it might avoid a real problem *)
           (* on another compiler or a 64-bit architecture *)
           text "(-0x7FFFFFFF-1)"
+        else if (i = mostNeg64BitInt) then
+          (* The same is true of the largest 64-bit negative. *)
+          text "(-0x7FFFFFFFFFFFFFFF-1)"
         else
           text (Int64.to_string i ^ suffix ik)
       )
