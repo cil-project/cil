@@ -99,7 +99,7 @@ let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
   res.nrep <- res; (* Make the self cycle *)
   H.add eq (fidx, name) res; (* Add it to the proper table *)
   if mergeSynonyms && not (prefix "__anon" name) then 
-    H.add syn name res;
+    H.add syn name res; 
   res
 
 (* Find the representative with or without path compression *)
