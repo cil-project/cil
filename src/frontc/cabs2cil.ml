@@ -2211,12 +2211,26 @@ and doAttr (a: A.attribute) : attribute list =
   | (s, el) -> 
       let rec attrOfExp (strip: bool) (a: A.expression) : attrparam =
         match a with
-          A.VARIABLE n -> ACons ((if strip then stripUnderscore n else n), [])
+          A.VARIABLE n -> begin
+            let n' = if strip then stripUnderscore n else n in
+            (** See if this is an enumeration *)
+            try
+              match H.find env n' with 
+                EnvEnum (tag, _), _ -> begin
+                  match isInteger (constFold true tag) with 
+                    Some i64 -> AInt (Int64.to_int i64)
+                  |  _ -> ACons(n', [])
+                end
+              | _ -> ACons (n', [])
+            with Not_found -> ACons(n', [])
+          end
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
-        | A.CALL(A.VARIABLE n, args) -> 
-            ACons ((if strip then stripUnderscore n else n), 
-                   List.map ae args)
+        | A.CALL(A.VARIABLE n, args) -> begin
+            let n' = if strip then stripUnderscore n else n in
+            let ae' = List.map ae args in
+            ACons(n', ae')
+        end
         | A.EXPR_SIZEOF e -> ASizeOfE (ae e)
         | A.TYPE_SIZEOF (bt, dt) -> ASizeOf (doOnlyType bt dt)
         | A.EXPR_ALIGNOF e -> AAlignOfE (ae e)

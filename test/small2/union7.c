@@ -2,11 +2,14 @@
 
 // NUMERRORS 12
 
+enum tags {
+  TAG_ZERO = 0,
+};
 
 struct host {
   int tag; // 0 for integer, 1 for pointer to int, 2 for structure 
   union __SELECTOR("tag") bar {
-    int anint __SELECTEDWHEN(0);
+    int anint __SELECTEDWHEN(TAG_ZERO);
     int * ptrint; // Missing SELECTEDWHEN is obtained by increment
     struct str {
       int * * ptrptr;
