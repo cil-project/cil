@@ -20,6 +20,10 @@
 # we're in the right directory
 AC_INIT(src/cil.mli)
 
+# sm: require a late-enough autoconf; this is the version number
+# that's on manju, so I assume it's ok
+AC_PREREQ(2.50)
+
 #
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
@@ -172,6 +176,30 @@ fi
 # ------------------- Perl ----------------
 #
 AC_MSG_CHECKING([for Perl])
+  if ! binaryExists perl; then
+    AC_MSG_ERROR([
+      perl not found.
+      You need perl version 5.6.0 or later for CCured.
+      You can get perl at http://www.cpan.org/src/index.html .
+    ])
+  fi
+
+  # sm: we need 5.6.0 or later because CCured.pm uses
+  # the 'our' scoping operator
+  #
+  # sm: oh how nice it would be to just say "use English;
+  # print($PERL_VERSION)", but that appears broken on 5.6.1.. so I'm
+  # trying to say "caret right-bracket", but then that would run afoul
+  # of autoconf's quoting characters, so I use the "quadrigraph" @:>@
+  # to stand for right-bracket.  what a mess.
+  perlver=`perl -e 'print($@:>@);'`
+  if perl -e "exit( $perlver >= 5.006 );"; then
+    AC_MSG_ERROR([
+      Found perl version $perlver, but at least 5.6.0 (aka 5.006) is required.
+      You can get a newer perl at http://www.cpan.org/src/index.html .
+    ])
+  fi
+
   perlport=`perl -e "print $^O;"`
   case "$perlport" in
     cygwin)
@@ -188,7 +216,7 @@ AC_MSG_CHECKING([for Perl])
         cygwin, Win32 (ActivePerl) and linux are the supported ports.
       ])
   esac
-AC_MSG_RESULT([found port $perlport])
+AC_MSG_RESULT([found version $perlver, port $perlport])
 
         # The cygwin port has some bugs in the File::Spec module
 if test "$perlport" = "cygwin" ;then
