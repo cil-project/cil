@@ -288,6 +288,65 @@ let lookupEnumField n =
   H.find enumFields n                   (* might raise Not_found *)
   
 
+(***************************)
+(* Each conversion of an AST statement produces a "chunk". chunks can be 
+ * concatenated and converted to statements *)
+type chunk = float * stmt list
+let  c2s (_, s) = s
+let  s2c s = (0.0, s)
+let  i2c i l = (0.0, [Instr(i, l)])
+
+(* An empty chunk *)
+let empty : chunk = s2c []
+
+(* Adding an instruction to the front of a chunk *)
+let (++) (i: instr) (c: chunk) : chunk = 
+  s2c (Instr(i, lu) :: c2s c)
+
+(* Chunk concatenation *)
+let (@@) (c1: chunk) (c2: chunk) : chunk = s2c ((c2s c1) @ (c2s c2))
+let chunkConcat (cl : chunk list) = 
+  s2c (List.concat (List.map c2s cl))
+
+(* Check if a chunk is empty *)
+let isEmpty (c: chunk) : bool = (c2s c) == []
+let isNotEmpty (c: chunk) : bool = (c2s c) != []
+
+
+(* Add a label to the beginning of a chunk *)
+let consLabel l c = s2c (Label l :: c2s c)
+
+let mkStatement (c: chunk) : stmt = mkSeq (c2s c)
+
+
+(* A skip *)
+let skipChunk : chunk = s2c [Skip]
+
+(* A break *)
+let breakChunk : chunk = s2c [Break]
+
+
+(* A loop *)
+let loopChunk (body: chunk) : chunk = 
+  s2c [Loop (mkStatement body)]
+
+
+let gotoChunk (l: string) : chunk = 
+  s2c [Goto l]
+
+let returnChunk (what: exp option) (l: location) : chunk = 
+  s2c [Returns (what, l)]
+
+
+let caseChunk (i: int) (l: location) (next: chunk) = 
+    s2c (Case (i,lu) :: (c2s next))
+
+let defaultChunk (next: chunk) = 
+  s2c (Default :: c2s next)
+
+let switchChunk (e: exp) (body: chunk) (l: location) = 
+  (s2c [Switchs (e, mkStatement body, l)])
+
 (************ Labels ***********)
 (* Since we turn dowhile and for loops into while we need to take care in 
  * processing the continue statement. For each loop that we enter we place a 
@@ -314,11 +373,11 @@ let doContinue () : stmt =
       end;
       Goto !lr
   
-let labContinue () = 
+let consLabContinue (c: chunk) = 
   match !continues with
     [] -> E.s (E.bug "labContinue not in a loop")
-  | While :: rest -> Skip
-  | NotWhile lr :: rest -> if !lr = "" then Skip else Label !lr
+  | While :: rest -> c
+  | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c
 
 let exitLoop () = 
   match !continues with
@@ -527,7 +586,7 @@ let makeGlobalVarinfo (vi: varinfo) =
 
 
 (**** PEEP-HOLE optimizations ***)
-let afterConversion (s: stmt list) : stmt list = 
+let afterConversion (s: chunk) : chunk = 
 
   let collapseCallCast = function
       Instr(Call(Some(vi, false), f, args), loc1),
@@ -540,7 +599,7 @@ let afterConversion (s: stmt list) : stmt list =
       -> Some [Instr(Call(Some(destv, true), f, args), loc1)]
     | _ -> None
   in
-  peepHole2 collapseCallCast s
+  s2c (peepHole2 collapseCallCast (c2s s))
 
 
 let rec makeVarInfo (isglob: bool) 
@@ -619,7 +678,7 @@ and doType (a : attribute list) = function
         | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
       in
       let width = match doExp true e (AExp None) with
-        ([], Const(CInt(i,_,_)),_) -> i
+        (c, Const(CInt(i,_,_)),_) when isEmpty c -> i
       | _ -> E.s (E.unimp "bitfield width is not an integer")
       in
       TBitfield (ikind, width, a)
@@ -693,7 +752,7 @@ and doType (a : attribute list) = function
         | (kname, e) :: rest ->
             let i = 
               match doExp true e (AExp None) with
-                [], e', _ -> e'
+                c, e', _ when isEmpty c -> e'
               | _ -> E.s (E.unimp "enum with non-const initializer")
             in
             recordEnumField kname i intType;
@@ -731,8 +790,8 @@ and doType (a : attribute list) = function
       | typ -> TNamed(n, typ, a)
   end
   | A.TYPEOF e -> 
-      let (se, _, t) = doExp false e (AExp None) in
-      if se <> [] then
+      let (c, _, t) = doExp false e (AExp None) in
+      if not (isEmpty c) then
         E.s (E.unimp "typeof for a non-pure expression\n");
       t
 
@@ -782,7 +841,7 @@ and makeCompType (iss: bool)
       * extract the effects as separate statements  *)
 and doExp (isconst: bool)    (* In a constant *)
           (e : A.expression) 
-          (what: expAction) : (stmt list * exp * typ) = 
+          (what: expAction) : (chunk * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
    * Similarly an expression of function type is turned into StartOf *)
   let processStartOf e t = 
@@ -814,7 +873,7 @@ and doExp (isconst: bool)    (* In a constant *)
         | _ -> 
             let (e', t') = processStartOf e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se @ [mkSet lv e''], e'', t'')
+            (se @@ s2c [mkSet lv e''], e'', t'')
     end
   in
   let findField n fidlist = 
@@ -824,21 +883,22 @@ and doExp (isconst: bool)    (* In a constant *)
   in
   try
     match e with
-    | A.NOTHING when what = ADrop -> finishExp [] (integer 0) intType
+    | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
         ignore (E.log "doExp nothing\n");
-        finishExp [] (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
+        finishExp empty 
+          (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
 
     (* Do the potential lvalues first *)          
     | A.VARIABLE n -> begin
         (* See if this is an enum field *)
         try 
           let (idx, typ) = lookupEnumField n in
-          finishExp [] idx typ    (* It is *)
+          finishExp empty idx typ    (* It is *)
         with Not_found -> 
           try                           (* It must be a real variable *)
             let vi = lookup n in
-            finishExp [] (Lval(var vi)) vi.vtype
+            finishExp empty (Lval(var vi)) vi.vtype
           with Not_found -> begin 
             ignore (E.log "Cannot resolve variable %s.\n" n);
             raise Not_found
@@ -848,7 +908,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Recall that doExp turns arrays into StartOf pointers *)
         let (se1, e1', t1) = doExp false e1 (AExp None) in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
-        let se = se1 @ se2 in
+        let se = se1 @@ se2 in
         let (e1'', e2'', tresult) = 
           match unrollType t1, unrollType t2 with
             TPtr(t1e,_), (TInt _|TEnum _ |TBitfield _) -> e1', e2', t1e
@@ -917,7 +977,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
           
     | A.CONSTANT ct -> begin
-        let finishCt c t = finishExp [] (Const(c)) t in
+        let finishCt c t = finishExp empty (Const(c)) t in
         let hasSuffix str = 
           let l = String.length str in
           fun s -> 
@@ -1033,11 +1093,10 @@ and doExp (isconst: bool)    (* In a constant *)
           (* This is not intended to be a constant. It can have expressions 
            * with side-effects inside *)
         | A.CONST_COMPOUND initl -> begin
-            let slist : stmt list ref = ref [] in
+            let slist : chunk ref = ref empty in
             let doPureExp t e = 
               let (se, e', t') = doExp true e (AExp(Some t)) in
-              if se <> [] then
-                slist := !slist @ se;
+              slist := !slist @@ se;
               doCastT e' t' t
             in
             (* Now recurse to find the complete offset and the type  *)
@@ -1173,13 +1232,13 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.TYPE_SIZEOF bt -> 
         let typ = doType [] bt in
-        finishExp [] (SizeOf(typ)) uintType
+        finishExp empty (SizeOf(typ)) uintType
           
     | A.EXPR_SIZEOF e -> 
         let (se, e', t) = doExp isconst e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we 
            * drop the potential size-effects *)
-        if se <> [] then 
+        if isNotEmpty se then 
           ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
         let e'' = 
           match e' with                 (* If we are taking the sizeof an 
@@ -1187,7 +1246,7 @@ and doExp (isconst: bool)    (* In a constant *)
             StartOf(lv) -> Lval(lv)
           | _ -> e'
         in
-        finishExp [] (SizeOfE(e'')) uintType
+        finishExp empty (SizeOfE(e'')) uintType
 
     | A.CAST (bt, e) -> 
         let se1, typ = 
@@ -1195,7 +1254,7 @@ and doExp (isconst: bool)    (* In a constant *)
             A.TYPEOF et ->              (* might have side-effects *)
               let (se1, _, typ) = doExp isconst e (AExp None) in
               se1, typ
-          | _ -> [],  doType [] bt
+          | _ -> empty,  doType [] bt
         in
         let what' = 
           match e with 
@@ -1213,7 +1272,7 @@ and doExp (isconst: bool)    (* In a constant *)
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
           |  _ -> castTo t typ e'
         in
-        finishExp (se1 @ se) e'' t''
+        finishExp (se1 @@ se) e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
         let (se, e', t) = doExp isconst e (AExp None) in
@@ -1270,7 +1329,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se @ [mkSet lv (doCastT result tresult t)])
+        finishExp (se @@ (s2c [mkSet lv (doCastT result tresult t)]))
           (Lval(lv))
           tresult   (* Should this be t instead ??? *)
           
@@ -1290,11 +1349,11 @@ and doExp (isconst: bool)    (* In a constant *)
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
-            se @ [mkSet (var tmp) (Lval(lv))], Lval(var tmp)
+            se @@ (s2c [mkSet (var tmp) (Lval(lv))]), Lval(var tmp)
           else
             se, Lval(lv)
         in
-        finishExp (se' @ [mkSet lv (doCastT opresult tresult t)])
+        finishExp (se' @@ (s2c [mkSet lv (doCastT opresult tresult t)]))
           result
           tresult   (* Should this be t instead ??? *)
           
@@ -1310,7 +1369,7 @@ and doExp (isconst: bool)    (* In a constant *)
                         d_plainexp e1')
         in
         let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt')) in
-        finishExp (se1 @ se2) (Lval(lv)) lvt'
+        finishExp (se1 @@ se2) (Lval(lv)) lvt'
           
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
@@ -1336,7 +1395,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se1, e1', t1) = doExp isconst e1 (AExp None) in
         let (se2, e2', t2) = doExp isconst e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @ se2) result tresult
+        finishExp (se1 @@ se2) result tresult
           
     | A.BINARY((A.ADD_ASSIGN|A.SUB_ASSIGN|A.MUL_ASSIGN|A.DIV_ASSIGN|
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
@@ -1363,14 +1422,14 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @ se2 @ [mkSet lv1 result])
+        finishExp (se1 @@ se2 @@ (s2c [mkSet lv1 result]))
           (Lval(lv1))
           tresult
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e [mkSet tmp (integer 1)] 
-                                 [mkSet tmp (integer 0)]) 
+        finishExp (doCondition e (s2c [mkSet tmp (integer 1)])
+                                 (s2c [mkSet tmp (integer 0)]))
           (Lval tmp)
           intType
           
@@ -1398,8 +1457,9 @@ and doExp (isconst: bool)    (* In a constant *)
             A.VARIABLE n -> begin
               try
                 let vi = lookup n in
-                ([], Lval(var vi), vi.vtype) (* Found. Do not use finishExp. 
-                                              * Simulate what = AExp None *)
+                (empty, Lval(var vi), vi.vtype) (* Found. Do not use 
+                                                 * finishExp. Simulate what = 
+                                                 * AExp None  *)
               with Not_found -> begin
                 ignore (E.log 
                           "Warning: Calling function %s without prototype\n"
@@ -1407,7 +1467,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 let ftype = TFun(intType, [], true, []) in
                 (* Add a prototype *)
                 let proto = makeGlobalVar n ftype in 
-                ([], Lval(var proto), ftype)
+                (empty, Lval(var proto), ftype)
               end
             end
           | _ -> doExp false f (AExp None) 
@@ -1434,18 +1494,18 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
-          -> (stmt list * exp list) = function
-            | ([], []) -> ([], [])
+          -> (chunk * exp list) = function
+            | ([], []) -> (empty, [])
             | (varg :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
                 let (sa, a', att) = doExp false a (AExp (Some varg.vtype)) in
                 let (at'', a'') = castTo att varg.vtype a' in
-                (ss @ sa, a'' :: args')
+                (ss @@ sa, a'' :: args')
                   
             | ([], a :: args) when isvar -> (* No more types *)
                 let (ss, args') = loopArgs ([], args) in
                 let (sa, a', at) = doExp false a (AExp None) in
-                (ss @ sa, a' :: args')
+                (ss @@ sa, a' :: args')
             | _ -> E.s (E.unimp 
                           "Too few or too many arguments in call to %a" 
                           d_exp f')
@@ -1455,13 +1515,14 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with 
             ADrop -> 
               finishExp 
-                (sf @ sargs @ [Instr(Call(None,f'',args'), lu)])
+                (sf @@ sargs @@ (i2c (Call(None,f'',args')) lu))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) -> 
               let mustCast = typeSig resType' <> typeSig vtype in
               finishExp 
-                (sf @ sargs @ [Instr(Call(Some (vi, mustCast),f'',args'), lu)])
+                (sf @@ sargs 
+                 @@ (i2c (Call(Some (vi, mustCast),f'',args')) lu))
                 (Lval(lv))
                 vtype
 
@@ -1470,7 +1531,7 @@ and doExp (isconst: bool)    (* In a constant *)
               match f'', args' with     (* Some constant folding *)
                 Lval(Var fv, NoOffset), [Const _] 
                   when fv.vname = "__builtin_constant_p" ->
-                    finishExp (sf @ sargs) (integer 1) intType
+                    finishExp (sf @@ sargs) (integer 1) intType
               | _ -> 
                   let tmp, restyp', iscast = 
                     match what with
@@ -1479,8 +1540,8 @@ and doExp (isconst: bool)    (* In a constant *)
                         typeSig t <> typeSig resType'
                     | _ -> newTempVar resType', resType', false
                   in
-                  let i = Instr(Call(Some (tmp, iscast),f'',args'), lu) in
-                  finishExp (sf @ sargs @ [i]) (Lval(var tmp)) restyp'
+                  let i = Call(Some (tmp, iscast),f'',args') in
+                  finishExp (sf @@ sargs @@ (i2c i lu)) (Lval(var tmp)) restyp'
           end
         end
           
@@ -1490,13 +1551,13 @@ and doExp (isconst: bool)    (* In a constant *)
         let rec loop sofar = function
             [e] -> 
               let (se, e', t') = doExp false e what in (* Pass on the action *)
-              finishExp (sofar @ se) e' t' (* does not hurt to do it twice *)
+              finishExp (sofar @@ se) e' t' (* does not hurt to do it twice *)
           | e :: rest -> 
               let (se, _, _) = doExp false e ADrop in
-              loop (sofar @ se) rest
+              loop (sofar @@ se) rest
           | [] -> E.s (E.unimp "empty COMMA expression")
         in
-        loop [] el
+        loop empty el
           
     | A.QUESTION (e1,e2,e3) when what = ADrop -> 
         if isconst then
@@ -1504,7 +1565,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let (se3,_,_) = doExp false e3 ADrop in
         let se2 = 
           match e2 with 
-            A.NOTHING -> [Skip]
+            A.NOTHING -> skipChunk
           | _ -> let (se2,_,_) = doExp false e2 ADrop in se2
         in
         finishExp (doCondition e1 se2 se3) (integer 0) intType
@@ -1523,12 +1584,12 @@ and doExp (isconst: bool)    (* In a constant *)
               let tmp = var (newTempVar tresult) in
               let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
               let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
-              finishExp (se1 @ [IfThenElse(Lval(tmp), Skip, 
-                                           mkSeq se3, lu)])
+              finishExp (se1 @@ (s2c [IfThenElse(Lval(tmp), Skip, 
+                                                 mkStatement se3, lu)]))
                 (Lval(tmp))
                 tresult
         | _ -> 
-            if se2 = [] && se3 = [] && isconst then begin 
+            if isEmpty se2 && isEmpty se3 && isconst then begin 
                                        (* Use the Question *)
               let se1, e1', t1 = doExp isconst e1 (AExp None) in
               ignore (checkBool t1 e1');
@@ -1582,7 +1643,7 @@ and doExp (isconst: bool)    (* In a constant *)
     end
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
-    ([dStmt (dprintf "booo_exp(%s)" (Printexc.to_string e))], 
+    (s2c [dStmt (dprintf "booo_exp(%s)" (Printexc.to_string e))], 
      integer 0, intType)
   end
     
@@ -1715,15 +1776,15 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 
 (* A special case for conditionals *)
 and doCondition (e: A.expression) 
-                (st: stmt list)
-                (sf: stmt list) : stmt list = 
+                (st: chunk)
+                (sf: chunk) : chunk = 
   let canDuplicate sl = (* We can duplicate a statement if it is small and 
-                        * does not contain label definitions  *)
+                         * does not contain label definitions  *)
     let rec costOne = function
         Skip -> 0
       | Sequence sl -> costMany sl
       | Loop stmt -> 100
-      | IfThenElse (_, _, _, _) -> 100
+      | IfThenElse (_, _, _, _) | Block _ -> 100
       | Label _ -> 10000
       | Switchs _ -> 100
       | (Goto _|Returns _|Case _|Default|Break|Continue|Instr _) -> 1
@@ -1745,12 +1806,12 @@ and doCondition (e: A.expression)
   | A.BINARY(A.AND, e1, e2) ->
       let (sf1, sf2) = 
         (* If sf is small then will copy it *)
-        if canDuplicate sf then
+        if canDuplicate (c2s sf) then
           (sf, sf)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          ([Goto lab], Label lab :: sf)
+          (s2c [Goto lab], consLabel lab sf)
         end
       in
       let st' = doCondition e2 st sf1 in
@@ -1760,12 +1821,12 @@ and doCondition (e: A.expression)
   | A.BINARY(A.OR, e1, e2) ->
       let (st1, st2) = 
         (* If st is small then will copy it *)
-        if canDuplicate st then
+        if canDuplicate (c2s st) then
           (st, st)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          ([Goto lab], Label lab :: st)
+          (s2c [Goto lab], consLabel lab st)
         end
       in
       let st' = st1 in
@@ -1778,14 +1839,14 @@ and doCondition (e: A.expression)
       let (se, e, t) as rese = doExp false e (AExp None) in
       ignore (checkBool t e);
       match e with 
-        Const(CInt(i,_,_)) when i <> 0 && canDrop sf -> se @ st
-      | Const(CInt(0,_,_)) when canDrop st -> se @ sf
-      | _ -> se @ [IfThenElse(e, mkSeq st, mkSeq sf, lu)]
+        Const(CInt(i,_,_)) when i <> 0 && canDrop (c2s sf) -> se @@ st
+      | Const(CInt(0,_,_)) when canDrop (c2s st) -> se @@ sf
+      | _ -> se @@ (s2c [IfThenElse(e, mkStatement st, mkStatement sf, lu)])
   end
 
 and doPureExp (e : A.expression) : exp = 
   let (se, e', _) = doExp true e (AExp None) in
-  if se <> [] then
+  if isNotEmpty se then
    E.s (E.unimp "doPureExp: not pure");
   e'
 
@@ -1800,7 +1861,7 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
         None
       else 
         let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
-        if se <> [] then 
+        if isNotEmpty se then 
           E.s (E.unimp "global initializer");
         let (_, e'') = castTo et vi.vtype e' in
         match vi.vtype, e', et with
@@ -1874,20 +1935,20 @@ and createLocal = function
           None
         else begin 
           let (se, e', et) = doExp true e (AExp (Some vi.vtype)) in
-          if se <> [] then 
+          if isNotEmpty se then 
             E.s (E.unimp "global static initializer");
           let (_, e'') = castTo et vi.vtype e' in
           Some e''
         end
       in
       theFile := GVar(vi, init, lu) :: !theFile;
-      []
+      empty
 
   | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
       let vi = makeVarInfo false locUnknown sname in
       let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
       if e = A.NOTHING then
-        [Skip]
+        skipChunk
       else begin
         let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
         (match vi.vtype, e', et with 
@@ -1901,26 +1962,26 @@ and createLocal = function
                                   a)
         | _, _, _ -> ());
         let (_, e'') = castTo et vi.vtype e' in
-        se @ (doAssign (Var vi, NoOffset) e'')
+        se @@ (doAssign (Var vi, NoOffset) e'')
       end
           
           
-and doDecl : A.definition -> stmt list = function
+and doDecl : A.definition -> chunk = function
   | A.DECDEF ng ->
       let stmts = doNameGroup createLocal ng in
-      List.concat stmts
+      chunkConcat stmts
         
   | _ -> E.s (E.unimp "doDecl")
     
 
-and doAssign (lv: lval) : exp -> stmt list = function   
+and doAssign (lv: lval) : exp -> chunk = function   
                              (* We must break the compound assignment into 
                               * atomic ones  *)
   | Compound (t, initl) -> begin
       match unrollType t with 
         TArray(t, _, _) -> 
           let rec loop = function
-              _, [] -> []
+              _, [] -> empty
             | i, (None, e) :: el -> 
                 let res = loop ((i + 1), el) in
                 let newlv = mkMem (mkAddrOfAndMark lv) 
@@ -1929,17 +1990,17 @@ and doAssign (lv: lval) : exp -> stmt list = function
                   match newlv with 
                     Lval x -> x | _ -> E.s (E.bug "doAssign: mem")
                 in
-                (doAssign newlv e) @ res
+                (doAssign newlv e) @@ res
             | _ -> E.s (E.unimp "doAssign. Compound")
           in
           loop (0, initl)
 
       | TComp comp when comp.cstruct ->
           let rec loop = function
-              [], [] -> []
+              [], [] -> empty
             | f :: fil, (None, e) :: el -> 
                 let res = loop (fil, el) in
-                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e) @ res
+                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e) @@ res
             | _, _ -> E.s (E.unimp "fields in doAssign")
           in
           loop (comp.cfields, initl)
@@ -1956,34 +2017,35 @@ and doAssign (lv: lval) : exp -> stmt list = function
             theFile := GDecl (strncpyFun.svar, lu) :: !theFile;
             H.add env "strncpy" strncpyFun.svar
           end;
-          [Instr(Call(None, Lval (var strncpyFun.svar),
-                      [ StartOf lv; e; SizeOf (lvt) ]), lu)]
+          i2c (Call(None, Lval (var strncpyFun.svar),
+                    [ StartOf lv; e; SizeOf (lvt) ])) lu
+
       | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
-      | _ -> [Instr(Set(lv, e), lu)]
+      | _ -> i2c (Set(lv, e)) lu
   end
-  | e -> [Instr(Set(lv, e), lu)]
+  | e -> i2c (Set(lv, e)) lu
 
   (* Now define the processors for body and statement *)
-and doBody (b : A.body) : stmt list = 
+and doBody (b : A.body) : chunk = 
   startScope ();
     (* Do the declarations and the initializers and the statements. *)
   let rec loop = function
-      [] -> []
+      [] -> empty
     | A.BDEF d :: rest -> 
         let res = doDecl d in  (* !!! @ evaluates its arguments backwards *)
-        res @ loop rest
+        res @@ loop rest
     | A.BSTM s :: rest -> 
         let res = doStatement s in
-        res @ loop rest
+        res @@ loop rest
   in
   let res = afterConversion (loop b) in
   exitScope ();
   res
       
-and doStatement (s : A.statement) : stmt list = 
+and doStatement (s : A.statement) : chunk = 
   try
     match s with 
-      A.NOP -> [Skip]
+      A.NOP -> skipChunk
     | A.COMPUTATION e -> 
         let (lasts, data) = !gnu_body_result in
         if lasts == s then begin      (* This is the last in a GNU_BODY *)
@@ -1999,7 +2061,7 @@ and doStatement (s : A.statement) : stmt list =
     | A.BLOCK b -> doBody b
 
     | A.SEQUENCE (s1, s2) -> 
-        (doStatement s1) @ (doStatement s2)
+        (doStatement s1) @@ (doStatement s2)
 
     | A.IF(e,st,sf) -> 
         let st' = doStatement st in
@@ -2010,70 +2072,70 @@ and doStatement (s : A.statement) : stmt list =
         startLoop true;
         let s' = doStatement s in
         exitLoop ();
-        [Loop(mkSeq ((doCondition e [Skip] [Break]) @ s'))]
+        loopChunk ((doCondition e skipChunk
+                      breakChunk) 
+                   @@ s')
           
     | A.DOWHILE(e,s) -> 
         startLoop false;
         let s' = doStatement s in
-        let s'' = labContinue () :: (doCondition e [Skip] [Break])
+        let s'' = consLabContinue (doCondition e skipChunk breakChunk)
         in
         exitLoop ();
-        [Loop(mkSeq (s' @ s''))]
+        loopChunk (s' @@ s'')
           
     | A.FOR(e1,e2,e3,s) -> begin
         let (se1, _, _) = doExp false e1 ADrop in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
         let s' = doStatement s in
-        let s'' = labContinue () :: se3 in
+        let s'' = consLabContinue se3 in
         exitLoop ();
         match e2 with
           A.NOTHING -> (* This means true *)
-            se1 @ [Loop(mkSeq (s' @ s''))]
+            se1 @@ loopChunk (s' @@ s'')
         | _ -> 
-            se1 @ [Loop(mkSeq ((doCondition e2 [Skip] [Break])
-                               @ s' @ s''))]
+            se1 @@ loopChunk ((doCondition e2 skipChunk breakChunk)
+                              @@ s' @@ s'')
     end
-    | A.BREAK -> [Break]
+    | A.BREAK -> breakChunk
           
-    | A.CONTINUE -> [doContinue ()]
+    | A.CONTINUE -> s2c [doContinue ()]
           
-    | A.RETURN A.NOTHING -> [Returns (None, lu)]
+    | A.RETURN A.NOTHING -> returnChunk None lu
     | A.RETURN e -> 
         let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
-        se @ [Returns (Some e'', lu)]
+        se @@ (returnChunk (Some e'') lu)
                
     | A.SWITCH (e, s) -> 
         let (se, e', et) = doExp false e (AExp (Some intType)) in
         let (et'', e'') = castTo et intType e' in
         let s' = doStatement s in
-        se @ [Switchs (e'', mkSeq s', lu)]
+        se @@ (switchChunk e'' s' lu)
                
     | A.CASE (e, s) -> 
         let (se, e', et) = doExp false e (AExp None) in
           (* let (et'', e'') = castTo et (TInt(IInt,[])) e' in *)
         let i = 
           match se, e' with
-            [], Const (CInt (i,_, _)) -> i
-          | [], Const (CChr c) -> Char.code c
+            ch, Const (CInt (i,_, _)) when isEmpty ch -> i
+          | ch, Const (CChr c) when isEmpty ch -> Char.code c
           | _ -> E.s (E.unimp "non-int case")
         in
-        Case (i,lu) :: (doStatement s)
+        caseChunk i lu (doStatement s)
                     
-    | A.DEFAULT s -> 
-        Default :: (doStatement s)
+    | A.DEFAULT s -> defaultChunk (doStatement s)
                      
     | A.LABEL (l, s) -> 
-        Label l :: (doStatement s)
+        consLabel l (doStatement s)
                      
-    | A.GOTO l -> 
-        [Goto l]
+    | A.GOTO l -> gotoChunk l
           
     | A.ASM (tmpls, isvol, outs, ins, clobs) -> 
       (* Make sure all the outs are variables *)
         let temps : (lval * varinfo) list ref = ref [] in
-        let stmts : stmt list list ref = ref [] in
+        let stmts : chunk ref = ref empty in
         let outs' = 
           List.map 
             (fun (c, e) -> 
@@ -2082,7 +2144,7 @@ and doStatement (s : A.statement) : stmt list =
                 match e' with Lval x -> x
                 | _ -> E.s (E.unimp "Expected lval for ASM outputs")
               in
-              stmts := se :: !stmts;
+              stmts := !stmts @@ se;
               (c, lv)) outs 
         in
       (* Get the side-effects out of expressions *)
@@ -2090,15 +2152,15 @@ and doStatement (s : A.statement) : stmt list =
           List.map 
             (fun (c, e) -> 
               let (se, e', et) = doExp false e (AExp None) in
-              stmts := se :: !stmts;
+              stmts := !stmts @@ se;
               (c, e'))
             ins
         in
-        List.concat (List.rev !stmts) @ 
-        [Instr(Asm(tmpls, isvol, outs', ins', clobs), lu)]
+        !stmts @@ 
+        (i2c (Asm(tmpls, isvol, outs', ins', clobs)) lu)
   with e -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-    [Label "booo_statement"]
+    s2c [Label "booo_statement"]
   end
 
 
@@ -2204,8 +2266,9 @@ let convFile fname dl =
                          slocals  = locals;
                          sformals = formals';
                          smaxid   = maxid;
-                         sbody    = (match mkSeq s with (Sequence _) as x -> x 
-                                     | x -> Sequence [x]);
+                         sbody    = mkStatement s; (*
+                         s2c (match mkSeq s with (Sequence _) as x -> x 
+                         | x -> Sequence [x]); *)
                        } 
             in
             setFormals fdec formals'; (* To make sure sharing is proper *)

@@ -1237,7 +1237,6 @@ and d_stmt () s =
   | Instr(i,_) -> d_instr () i
 
 
-        
 and d_fun_decl () f = 
   let pre, post = separateAttributes f.svar.vattr in
   (* Now take out the inline *)
