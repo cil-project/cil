@@ -1971,8 +1971,6 @@ let rec checkMem (towrite: exp option)
   (* Maybe it is a table. In that case, get the true base and end *)
   (* See if a table pointer *)
   let newk = N.stripT pkind in 
-  ignore (E.log "checkMem on %a : %a. pokind=%a\n"
-            d_lval lv d_type lvt N.d_opointerkind pkind);
   if newk <> pkind then begin (* A table pointer *)
     let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
     stmts @ (checkMem towrite lv base bend lvt newk)

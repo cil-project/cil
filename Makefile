@@ -850,7 +850,7 @@ compress: defaulttarget mustbegcc
 	sh -c "time $(COMPRESSDIR)/exe/base/compress95.v8 < $(COMPRESSDIR)/exe/base/input.data > $(COMPRESSDIR)/src/combine-compress.out"
 
 LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(SAFECC) --combine --keep=safeccout
+LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -883,7 +883,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
-GOSAFECC=$(SAFECC) --combine --keep=safeccout
+GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
 
 goclean: 	
 	cd $(GODIR)/src; make clean
