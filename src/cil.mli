@@ -275,7 +275,6 @@ and attributes = attribute list
 and attrparam = 
   | AInt of int                          (** An integer constant *)
   | AStr of string                       (** A string constant *)
-  | AVar of varinfo                      (** A reference to a variable *)
   | ACons of string * attrparam list       (** Constructed attributes. These 
                                              are printed [foo(a1,a2,...,an)]. 
                                              The list of parameters can be 

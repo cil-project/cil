@@ -215,7 +215,6 @@ and attributes = attribute list
 and attrparam = 
   | AInt of int                          (** An integer constant *)
   | AStr of string                       (** A string constant *)
-  | AVar of varinfo                      (** A reference to a variable *)
   | ACons of string * attrparam list       (** Constructed attributes. These 
                                              are printed [foo(a1,a2,...,an)]. 
                                              The list of parameters can be 
@@ -1910,7 +1909,6 @@ and d_attr () (Attr(an, args): attribute) =
 and d_attrparam () = function
   | AInt n -> num n
   | AStr s -> text ("\"" ^ escape_string s ^ "\"")
-  | AVar vi -> text vi.vname
   | ACons(s, []) -> text s
   | ACons(s,al) ->
       text (s ^ "(")
@@ -2929,9 +2927,6 @@ and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute =
   let rec doarg (aa: attrparam) = 
     match aa with 
       AInt _ | AStr _ -> aa
-    | AVar v -> 
-        let v' = doVisit vis vis#vvrbl (fun _ x -> x) v in
-        if v' != v then AVar v' else aa
     | ACons(n, args) -> 
         let args' = mapNoCopy doarg args in
         if args' != args then ACons(n, args') else aa

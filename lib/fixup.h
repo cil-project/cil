@@ -146,9 +146,9 @@ extern long double __builtin_fabsl(long double);
 
 
   #pragma boxpoly("__startof")
-  void *__startof(void *ptr); // Get the start of a pointer
+  void *__startof(void *ptr) __BOXMODEL; // Get the start of a pointer
   #pragma boxpoly("__endof")
-  void *__endof(void *);
+  void *__endof(void *) __BOXMODEL;
   #pragma boxpoly("ccured_kind_of")
   char *  ccured_kind_of(void *);
   #pragma boxalloc("malloc", nozero, sizein(1))

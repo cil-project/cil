@@ -1927,13 +1927,7 @@ and doAttr (a: A.attribute) : attribute list =
   | (s, el) -> 
       let rec attrOfExp (strip: bool) (a: A.expression) : attrparam =
         match a with
-          A.VARIABLE n -> begin
-            try 
-              let vi, _ = lookupVar n in
-              AVar vi
-            with Not_found -> 
-              ACons ((if strip then stripUnderscore n else n), [])
-          end
+          A.VARIABLE n -> ACons ((if strip then stripUnderscore n else n), [])
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
         | A.CALL(A.VARIABLE n, args) -> 
