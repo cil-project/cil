@@ -434,7 +434,7 @@ checkdistrib:
 
 
 ## Publish the distribution
-CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
+CILHTMLDEST=/var/www/cil
 publish_distrib: publish_doc
 	if test -d $(CILHTMLDEST); then \
            cp -rf doc/html/cil/* $(CILHTMLDEST); \
