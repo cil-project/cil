@@ -437,7 +437,8 @@ hufftest: test/small2/hufftest.c $(EXECUTABLE)$(EXE) \
 	cd $(PCCTEST); ./hufftest.exe \
                              $(SAFECCDIR)/cil/src/frontc/cparser.output
 
-wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
+wes-rbtest: test/small2/wes-rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)\
+            $(SAFECLIB)
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(DOOPT) \

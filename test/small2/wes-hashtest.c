@@ -229,6 +229,10 @@ extern  int   __mmId;
 //#include "hash.h"
 typedef int HASH_KEY;
 
+
+
+
+
 #ifdef SMALLMEM
 #define  BUCKETS_SHIFT 5
 #define  BUCKET_SIZE 4

@@ -1825,8 +1825,8 @@ and castTo (fe: fexp) (newt: typ)
         (P.Scalar|P.Safe), (P.Scalar|P.Safe) -> 
           (doe, L(newt, P.Scalar, castP p))
 
-        (* SCALAR -> INDEX, WILD *)
-      | P.Scalar, (P.Index|P.Wild) ->
+        (* SCALAR -> INDEX, WILD, SEQ *)
+      | P.Scalar, (P.Index|P.Wild|P.Seq) ->
           if not (isZero p) then
             ignore (E.warn "Casting scalar (%a) to pointer (in %s)!" 
                       d_exp p !currentFunction.svar.vname);
@@ -1843,6 +1843,10 @@ and castTo (fe: fexp) (newt: typ)
               CastE(voidPtrType, zero, lu), doe
           in
           (doe', FM (newt, newkind, castP p, newbase, zero))
+
+       (* SCALAR -> FSEQ *)
+      | P.Scalar, P.FSeq when isZero p ->
+          (doe, FM(newt, newkind, castP p, zero, zero))
 
        (* WILD, INDEX, SEQ, FSEQ -> SCALAR *)
       | (P.Index|P.Wild|P.FSeq|P.Seq), P.Scalar ->
