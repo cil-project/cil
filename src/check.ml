@@ -50,6 +50,16 @@ type ctxAttr =
   | CAGlobal                            (* Attribute of a global variable *)
   | CAType                              (* Attribute of a type *)
 
+let valid = ref true
+
+let warn fmt =
+  valid := false;
+  Cil.warn fmt
+
+let warnContext fmt =
+  valid := false;
+  Cil.warnContext fmt
+
 let checkAttributes (attrs: attribute list) : unit = 
   let rec loop lastname = function
       [] -> ()
@@ -861,6 +871,7 @@ let rec checkGlobal = function
 
 let checkFile flags fl = 
   if !E.verboseFlag then ignore (E.log "Checking file %s\n" fl.fileName);
+  valid := true;
   List.iter 
     (function
         NoCheckGlobalIds -> checkGlobalIds := false)
@@ -870,14 +881,20 @@ let checkFile flags fl =
   H.iter 
     (fun k (comp, isadef) -> 
       if !isadef = Used then 
-        ignore (E.warn "Compinfo %s is referenced but not defined" 
-                  (compFullName comp))) 
+	begin
+	  valid := false;
+          ignore (E.warn "Compinfo %s is referenced but not defined" 
+                    (compFullName comp))
+	end)
     compUsed;
   (* Check that for all enum tags there is a definition *)
   H.iter 
     (fun k (enum, isadef) -> 
       if !isadef = Used then 
-        ignore (E.warn "Enuminfo %s is referenced but not defined" enum.ename))
+	begin
+	  valid := false;
+          ignore (E.warn "Enuminfo %s is referenced but not defined" enum.ename)
+	end)
     enumUsed;
   (* Clean the hashes to let the GC do its job *)
   H.clear typeDefs;
@@ -889,5 +906,5 @@ let checkFile flags fl =
   varNamesList := [];
   if !E.verboseFlag then 
     ignore (E.log "Finished checking file %s\n" fl.fileName);
-  ()
+  !valid
   

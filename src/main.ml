@@ -70,7 +70,7 @@ let rec processOneFile (cil: C.file) =
 
     if !Util.doCheck then begin
       ignore (E.log "First CIL check\n");
-      CK.checkFile [] cil;
+      ignore (CK.checkFile [] cil);
     end;
 
     if (!Util.logCalls) then begin
@@ -98,7 +98,7 @@ let rec processOneFile (cil: C.file) =
 
     if !Util.doCheck then begin
       ignore (E.log "Final CIL check\n");
-      CK.checkFile [] cil;
+      ignore (CK.checkFile [] cil);
     end
   end with Done_Processing -> ()
         
