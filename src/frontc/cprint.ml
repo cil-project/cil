@@ -106,7 +106,14 @@ let indent _ =
 		spaces := !tab;
 		roll := !roll + 1
 	end
-	
+
+let indentline _ =
+	new_line ();
+	if !spaces >= !max_indent then begin
+		spaces := !tab;
+		roll := !roll + 1
+	end
+
 let unindent _ =
 	new_line ();
 	spaces := !spaces - !tab;
@@ -114,7 +121,7 @@ let unindent _ =
 		spaces := ((!max_indent - 1) / !tab) * !tab;
 		roll := !roll - 1
 	end
-			
+
 let space _ = commit ()
 
 let print str =
@@ -122,32 +129,38 @@ let print str =
 	current_len := !current_len + (String.length str);
 	if (!spaces + !follow + !line_len + 1 + !current_len) > !width
 	then begin
-		if !line_len = 0 then commit (); 
+		if !line_len = 0 then commit ();
 		flush ();
 		addline();
 		output_char !out '\n';
 		if !follow = 0 then follow := !tab
-	end 
+	end
 
 let setLoc (l : cabsloc) =
-	unindent();
+	let tempcur = current in
 	if (l.filename <> !curLoc.filename) && !printLines then begin
+		spaces := 0;
+		new_line();
 	        print "#";
 	        if !msvcMode then print "line";
 	        print " ";
                 print (string_of_int l.lineno);
                 print " \"";
                 print l.filename;
-                print "\"\n";
+                print "\"";
+                new_line();
 	        curLoc := l
-	end 
+	end
         else if (l.lineno <> !curLoc.lineno) && !printLines then begin
-		print "#";
+        	(*spaces := !tab;
+        	unindent();*)
+        	if (!spaces = 0) then print "#"
+                else print "\n#";
 		if !msvcMode then print "line";
 		print " ";
                 print (string_of_int l.lineno);
-                print "\n";
-	        curLoc := l
+                indentline();
+                curLoc := l
 	end
 
 
