@@ -247,6 +247,11 @@ begin
                   (visitCilType vis t);           (* root; trace it *)
                   true                            (* used; keep it *)
                 )
+                else if (H.mem usedTypes t) then (
+                  (trace "usedType" (dprintf "keeping typedef %s because un-typedef'd type is used\n" s));
+                  (visitCilType vis t);           (* root; trace it *)
+                  true                            (* used; keep it *)
+                )
                 else (
                   (* not used, remove it *)
                   (trace "usedType" (dprintf "removing typedef %s\n" s));
