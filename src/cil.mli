@@ -1025,7 +1025,7 @@ val pushGlobal: global -> types: global list ref
 (** {b Values for manipulating initializers} *)
 
 
-(** Make a initializer for zero-ing a data type ***)
+(** Make a initializer for zero-ing a data type *)
 val makeZeroInit: typ -> init
 
 
@@ -1052,7 +1052,7 @@ val foldLeftCompoundAll:
 
 
 
-(** {b Values for manipulating types} *****)
+(** {b Values for manipulating types} *)
 
 (** void *)
 val voidType: typ
@@ -1215,7 +1215,7 @@ val splitFunctionTypeVI:
     varinfo -> typ * (string * typ * attributes) list option * bool * attributes
 
 
-(** {b Type signatures} ****)
+(** {b Type signatures} *)
 
 (** Type signatures. Two types are identical iff they have identical 
  * signatures. These contain the same information as types but canonicalized. 
