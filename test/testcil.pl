@@ -111,7 +111,7 @@ $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
 $TEST->add3Tests("test/tags");
 $TEST->add3Tests("test/task");
- $TEST->add3Comment("test/task", "undefined structure");
+    $TEST->add3Comment("test/task", "undefined structure");
 $TEST->add3Tests("test/scope1");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
@@ -268,6 +268,16 @@ sub add3Comment {
     $self->addComment($name . "-cil", $comm);
     $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
+}
+
+sub prepend3Command {
+    my ($self, $name, $comm) = @_;
+    my $tst = $self->getTest($name . "-cil");
+    $tst->{Cmd} = $comm . $tst->{Cmd};
+    my $tst = $self->getTest($name . "-box");
+    $tst->{Cmd} = $comm . $tst->{Cmd};
+    my $tst = $self->getTest($name . "-inferbox");
+    $tst->{Cmd} = $comm . $tst->{Cmd};
 }
 
 1;
