@@ -25,7 +25,7 @@ AC_SUBST(NEWLINE)
 # this simply names a file somewhere in the source tree to verify
 # we're in the right directory
 AC_INIT(src/cil.mli)
-
+AC_CONFIG_HEADERS(config.h)
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
@@ -35,7 +35,7 @@ AC_PREREQ(2.50)
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=0
-CIL_VERSION_REV=9
+CIL_VERSION_REV=11
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
@@ -213,6 +213,8 @@ AC_MSG_CHECKING([for Perl])
         ;;
     freebsd)
         ;;
+    darwin) # Mac OS X
+        ;;
     *)
       AC_MSG_ERROR([
         Unsupported Perl port $perlport -- sorry.
@@ -295,7 +297,7 @@ AC_CHECK_TYPE(__builtin_va_list,
 
 # checks for header files
 AC_HEADER_STDC
-AC_CHECK_HEADERS(strings.h sys/time.h unistd.h)
+AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h)
 
 # checks for typedefs, structures, and compiler characteristics
 AC_C_CONST
@@ -316,6 +318,13 @@ case "$target" in
     AC_MSG_RESULT(configuring for linux/x86)
 
     ARCHOS=x86_LINUX
+    ;;
+
+  # Mac OS X
+  *powerpc*darwin*)
+    AC_MSG_RESULT(configuring for powerpc/darwin, which we treat like linux/x86)
+
+    ARCHOS=ppc_DARWIN
     ;;
 
   # cygwin

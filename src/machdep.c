@@ -35,8 +35,17 @@
  *
  */
 
+#include "../config.h"
+
 #include <stdio.h>
-#include <wchar.h> //wchar_t
+
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_WCHAR_H
+#include <wchar.h>
+#endif
 
 #ifdef _GNUCC
 #define LONGLONG long long
