@@ -384,6 +384,7 @@ $TEST->addTestsFail("testrun/string1", "", "Failure: Ubound", ['inferbox']);
 $TEST->addTestsFail("testrun/fseq3", "", "Failure: Integer arithmetic overflow", ['inferbox']);
 $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
 
 #
 # OLDEN benchmarks
