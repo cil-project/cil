@@ -712,6 +712,8 @@ smAddTest("scott/chararr2 $box");
 smAddTest("scott/thing");
 smAddTest("scott/strerror1 $box");
 smAddTest("scott/bsearch $box");
+smFailTest("cast of integers to function pointers is not working.",
+           "scott/signal $box");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
