@@ -1306,7 +1306,13 @@ let wildToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   p, zero, zero, 
   call None (Lval (var checkStringMax.svar))
     [ castVoidStar p; b ] :: acc
-  
+
+(* weimer: is this right?! *)
+let indexToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  p, zero, zero, 
+  call None (Lval (var checkStringMax.svar))
+    [ castVoidStar p; b ] :: acc
 
 let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
   (* This is almost like indexToSafe, except that we have the length already 
@@ -1649,6 +1655,10 @@ let castTo (fe: fexp) (newt: typ)
 
       | N.Wild, N.ROString -> 
           let p', b', bend', acc' = wildToROString p b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')
+
+      | N.Index, N.ROString -> 
+          let p', b', bend', acc' = indexToROString p b bend [] in
           finishDoe acc', L(newt, newkind, castP p')
 
       | N.ROString, (N.FSeq|N.FSeqN) -> 

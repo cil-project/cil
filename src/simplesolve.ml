@@ -195,38 +195,7 @@ let can_cast (n1 : node) (n2 : node) = begin
   end
 end
 
-(* this is the heart of the Simple Solver
- * currently it is very un-optimized! *)
-let solve (node_ht : (int,node) Hashtbl.t) = begin
-
-  ignore (E.log "Solving constraints\n");
-
-  (* returns true if k2 is "farther from safe" than k1: in particular, this
-   * tells us if we should do an update of the kind of some node from k1 to
-   * k2 *)
-  let moving_up k1 k2 =
-    if k1 = k2 || k2 = Unknown then false
-    else match k1 with
-      Wild -> false
-    | Safe | Unknown -> true
-    | ROString -> not (k2 = Safe)
-    | String -> not (k2 = Safe) && not (k2 = ROString)
-    | FSeq | FSeqN -> not (k2 = Safe) && not (k2 = ROString)
-    | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) && not (k2 = ROString)
-    | Index -> k2 = Wild
-    | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
-  in
-
-  (* filters an edgelist so that it contains only ECast edges *)
-  let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l in
-  let non_safe_edges_only l = List.filter (fun e -> e.ekind <> ESafe) l in 
-  let ecastandenull_edges_only l = 
-    List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l in
-  let eCNI_edges_only l = List.filter (fun e -> e.ekind = ECast || 
-    e.ekind = ENull || e.ekind = EIndex) l in
-  let eNI_edges_only l = List.filter (fun e ->
-    e.ekind = ENull || e.ekind = EIndex) l in
-
+let set_flags (node_ht : (int,node) Hashtbl.t) = begin
   (* Setup:
    *        int *x,*y,*z;
    *        x = y;
@@ -317,6 +286,43 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end 
     ) node_ht
   done ;
+end
+
+(* this is the heart of the Simple Solver
+ * currently it is very un-optimized! *)
+let solve (node_ht : (int,node) Hashtbl.t) = begin
+
+  ignore (E.log "Solving constraints\n");
+
+  (* returns true if k2 is "farther from safe" than k1: in particular, this
+   * tells us if we should do an update of the kind of some node from k1 to
+   * k2 *)
+  let moving_up k1 k2 =
+    if k1 = k2 || k2 = Unknown then false
+    else match k1 with
+      Wild -> false
+    | Safe | Unknown -> true
+    | ROString -> not (k2 = Safe)
+    | String -> not (k2 = Safe) && not (k2 = ROString)
+    | FSeq | FSeqN -> not (k2 = Safe) && not (k2 = ROString)
+    | Seq | SeqN -> not (k2 = Safe || k2 = FSeq || k2 = FSeqN) && not (k2 = ROString)
+    | Index -> k2 = Wild
+    | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
+  in
+
+  (* filters an edgelist so that it contains only ECast edges *)
+  let ecast_edges_only l = List.filter (fun e -> e.ekind = ECast) l in
+  let non_safe_edges_only l = List.filter (fun e -> e.ekind <> ESafe) l in 
+  let ecastandenull_edges_only l = 
+    List.filter (fun e -> e.ekind = ECast || e.ekind = ENull) l in
+  let eCNI_edges_only l = List.filter (fun e -> e.ekind = ECast || 
+    e.ekind = ENull || e.ekind = EIndex) l in
+  let eNI_edges_only l = List.filter (fun e ->
+    e.ekind = ENull || e.ekind = EIndex) l in
+
+
+  (* set all of the boolean flags correctly *)
+  set_flags node_ht ; 
 
   (* OK, now we have all of those attributes propagated. Now it's time to
    * assign qualifiers to the pointers. *)
@@ -333,6 +339,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         end
     end else false
   in
+
+  let finished = ref false in (* we repeat until things settle down *)
 
   Hashtbl.iter (fun id cur ->
     (* pick out all successors of our current node *)
@@ -437,7 +445,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   while not !finished do 
     finished := true ; 
     Hashtbl.iter (fun id cur ->
-    if (cur.kind = String || cur.kind = ROString || cur.kind = FSeqN || cur.kind = SeqN) then begin
+    if (cur.kind = String (* || cur.kind = ROString *) ||  cur.kind = FSeqN || cur.kind = SeqN) then begin
       (* mark all of the predecessors of y along ECast with "String" *)
       let why = SpreadFromEdge(cur) in
       let f = (fun n -> 
@@ -448,9 +456,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
             else update_kind n (if is_array n then SeqN else cur.kind) why) then
               finished := false) in
       let contaminated_list = 
-        (List.map (fun e -> e.efrom) (non_safe_edges_only  cur.pred))
-        (* @ 
-        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   *)
+        (List.map (fun e -> e.efrom) (non_safe_edges_only cur.pred)) @
+        (List.map (fun e -> e.eto) (ecast_edges_only cur.succ))   
         in
       List.iter f contaminated_list ;
       (* mark all cast edges at least equal to this! *)

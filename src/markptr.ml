@@ -835,7 +835,7 @@ let markFile fl =
   newfile
 
         
-
+let solver = ref "simple"
 
 (* A special file printer *)
 let printFile (c: out_channel) fl = 
@@ -850,7 +850,9 @@ let printFile (c: out_channel) fl =
       (* N.printGraph c; 
       output_string c "/* End of graph */\n"; *)
       output_string c "/* Now the solved graph (simplesolve) */\n";
-      Stats.time "simple solver" Simplesolve.solve N.idNode ; 
+      (match !solver with
+        "second" -> Stats.time "second solver" Secondsolve.solve N.idNode 
+      | _ -> Stats.time "simple solver" Simplesolve.solve N.idNode) ;
       Stats.time "printgraph" N.printGraph c;
       printIndent := opi;
       output_string c "/* End of solved graph*/\n#endif\n";

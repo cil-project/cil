@@ -21,7 +21,7 @@ MLYS        =
 # ast clex cparse
 # sm: trace: utility for debug-time printfs
 MODULES     = pretty trace errormsg stats util cil check ptrnode \
-              simplesolve globinit box markptr optim
+              simplesolve secondsolve globinit box markptr optim
 EXECUTABLE  = $(OBJDIR)/safec
 CAMLUSEUNIX = 1
 ifdef RELEASE
@@ -225,6 +225,11 @@ trval: $(TVDIR)/obj/transval.asm.exe
 SAFECC=perl $(CILDIR)/lib/safecc.pl
 
 
+# weimer: support for other solvers
+ifeq ($(INFERBOX), 2)
+    SAFECC+= --safec="-solver second"
+endif
+
 ifdef SHOWCABS
 SAFECC+= --cabs
 endif
@@ -418,6 +423,12 @@ test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC)   \
                --patch=../../lib/$(PATCHFILE) \
 	       $(CONLY) $(DOOPT) $(ASMONLY)$*.s $*.c 
+
+# weimer: test, compile and run
+testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
+	cd $(SMALL1); $(SAFECC)   \
+               --patch=../../lib/$(PATCHFILE) \
+	       $(DOOPT) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 
 HASHTESTCC = $(SAFECC) --keep=.  --patch=../../lib/$(PATCHFILE) \
