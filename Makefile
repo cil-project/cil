@@ -277,7 +277,7 @@ INC=/I
 CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
 CPP=$(CPPSTART) $(CPPOUT)
-EXTRAARGS += --safec=-msvc
+SAFECC += --safec=-msvc
 PATCHFILE=safec_msvc.patch
 PATCHECHO=echo
 endif
@@ -385,7 +385,7 @@ ifdef BOX
 SAFECC+= --box
 endif
 ifdef INFERBOX
-EXTRAARGS+= $(DEF)INFERBOX
+SAFECC+= $(DEF)INFERBOX
 SAFECC+= --inferbox --box
 else
 ifndef MANUALBOX
@@ -393,13 +393,13 @@ SAFECC+= --safec=-boxdefaultwild
 endif
 endif
 ifdef MANUALBOX
-EXTRAARGS+= $(DEF)MANUALBOX
+SAFECC+= $(DEF)MANUALBOX
 endif
 ifdef NO_TAGS
 SAFECC+= $(DEF)NO_TAGS
 endif
 ifdef CHECK
-EXTRAARGS += --safec=-check
+SAFECC += --safec=-check
 endif
 ifdef RELEASE
 SAFECC+= --release
@@ -419,6 +419,9 @@ endif
 
 # sm: can't figure out why passing this via EXTRAARGS screws
 # up other things (e.g. -DMANUALBOX)
+# update: reason was we were modifying EXTRAARGS in here -- we
+# should only set EXTRAARGS when invoking the Makefile, and
+# in here just use SAFECC+= ...
 ifdef LOGCALLS
 SAFECC+= --safec=-logcalls
 endif
@@ -1131,7 +1134,7 @@ compress: defaulttarget mustbegcc
 
 LIDIR=$(SPECDIR)/130.li
 LISAFECC=$(SAFECC) --combine --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
-                   --keep=safeccout $(NOPRINTLN)
+                   --keep=safeccout $(OPT_O2)
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \

@@ -818,7 +818,19 @@ let checkUBoundFun =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
-let checkBoundsFun = 
+(* sm: check ubound, or allow NULL pointer (modified from above) *)
+let checkUBoundOrNullFun =
+  let fdec = emptyFunction "CHECK_UBOUND_OR_NULL" in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls :=
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
+let checkBoundsFun =
   let fdec = emptyFunction "CHECK_BOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argbend  = makeLocalVar fdec "bend" voidPtrType in
@@ -1641,7 +1653,9 @@ let fseqToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt clist)
       | _ -> E.s (bug "fseqToSafe: expected pointer type")
   in
   p, zero, zero, 
-  CConsL (call None (Lval (var checkUBoundFun.svar))
+  (* sm: changed to the OrNull variant so we allow casts of *)
+  (* NULL FSEQs to NULL SAFEs *)
+  CConsL (call None (Lval (var checkUBoundOrNullFun.svar))
             [ castVoidStar bend;   (* sm: bugfix: was 'b' *)
               castVoidStar p; SizeOf (baset)],
           acc)
