@@ -617,8 +617,7 @@ let checkFetchLength =
   fdec.svar.vstorage <- Static;
   fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fun tmplen base -> 
-    let ptr = ptrOfBase base in
+  fun tmplen ptr base -> 
     call (Some (tmplen, false)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
@@ -648,7 +647,8 @@ let checkFetchEnd =
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun tmplen base -> 
-    let ptr = ptrOfBase base in
+    let ptr = ptrOfBase base in (* we used to use this and worked, but when 
+                                 * we added tables stoped working *)
     call (Some (tmplen, false)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
@@ -1644,15 +1644,23 @@ let pkArithmetic (ep: exp)
                  (ek: N.opointerkind) (* kindOfType et *)
                  (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
                  (e2: exp) : (fexp * stmt list) = 
-  let ptype, ptr, fb, fe = readFieldsOfFat ep et in
+  let ptype, ek, ptr, fb, fe, s1 = 
+    let newk = N.stripT ek in
+    if ek <> newk then 
+      let fb, fe, s1 = fromTable ek ep in
+      et, newk, ep, fb, fe, s1
+    else
+      let ptype, ptr, fb, fe = readFieldsOfFat ep et in
+      ptype, ek, ptr, fb, fe, []
+  in
   match ek with
     N.Wild|N.Index -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero,   []
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero, s1
   | (N.Seq|N.SeqN) -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe,   []
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, s1
   | (N.FSeq|N.FSeqN) -> 
       mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
-      [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
+      s1 @ [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
   | N.Safe ->
       E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
              d_exp ep)
@@ -1674,7 +1682,7 @@ let pkArithmetic (ep: exp)
       let et' = fixupType ptype' in
 (*      ignore (E.log "pkArith: %a\n" d_plaintype ptype'); *)
       let p'' = BinOp(bop, p', e2, ptype') in
-      mkFexp3 et' p'' b' bend', List.rev acc'
+      mkFexp3 et' p'' b' bend', s1 @ List.rev acc'
       
   | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_opointerkind ek)
         
@@ -1688,12 +1696,7 @@ let rec checkBounds
                 (lv: lval)
                 (lvt: typ) 
                 (pkind: N.opointerkind) : stmt list = 
-  (* See if a table pointer *)
-  let newk = N.stripT pkind in 
-  if newk <> pkind then (* A table pointer *)
-    let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
-    stmts @ (checkBounds iswrite mktmplen base bend lv lvt newk)
-  else begin
+  begin
     let lv', lv't = getHostIfBitfield lv lvt in
     (* Do not check the bounds when we access variables without array 
      * indexing  *)
@@ -1998,137 +2001,146 @@ let withIterVar (f: fundec) (doit: varinfo -> 'a) : 'a =
   res
   
   
-let checkMem (towrite: exp option) 
-             (lv: lval) (base: exp) (bend: exp)
-             (lvt: typ) (pkind: N.opointerkind) : stmt list = 
-  (* Fetch the length field in a temp variable. But do not create the 
-   * variable until certain that it is needed *)
+let rec checkMem (towrite: exp option) 
+                 (lv: lval) (base: exp) (bend: exp)
+                 (lvt: typ) (pkind: N.opointerkind) : stmt list = 
   (* ignore (E.log "checkMem: lvt: %a\n" d_plaintype lvt); *)
-  let lenExp : exp option ref = ref None in
-  let getLenExp = 
-    fun () -> begin
-      match !lenExp with
-        Some x -> x
-      | None -> begin
-          let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
-          let x = Lval(var len) in
-          lenExp := Some x;
-          x
+  (* Maybe it is a table. In that case, get the true base and end *)
+  (* See if a table pointer *)
+  let newk = N.stripT pkind in 
+  if newk <> pkind then (* A table pointer *)
+    let base, bend, stmts = fromTable pkind (mkAddrOf lv) in
+    stmts @ (checkMem towrite lv base bend lvt newk)
+  else begin
+    (* Fetch the length field in a temp variable. But do not create the 
+     * variable until certain that it is needed  *)
+    let lenExp : exp option ref = ref None in
+    let getLenExp = 
+      fun () -> begin
+        match !lenExp with
+          Some x -> x
+        | None -> begin
+            let len = makeTempVar !currentFunction ~name:"_tlen" uintType in
+            let x = Lval(var len) in
+            lenExp := Some x;
+            x
+        end
       end
-    end
-  in
-  let getVarOfExp e = 
-    match e with
-      Lval(Var vi, NoOffset) -> vi
-    | _ -> E.s (E.bug "getLen");
-  in
-  (* Now the tag checking. We only care about pointers. We keep track of what 
-   * we write in each field and we check pointers in a special way. *)
-  let rec doCheckTags (towrite: exp option) (where: lval) 
-                      (t: typ) (pkind: N.opointerkind) acc = 
-    match unrollType t with 
-    | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
+    in
+    let getVarOfExp e = 
+      match e with
+        Lval(Var vi, NoOffset) -> vi
+      | _ -> E.s (E.bug "getLen");
+    in
+    (* Now the tag checking. We only care about pointers. We keep track of 
+     * what we write in each field and we check pointers in a special way.  *)
+    let rec doCheckTags (towrite: exp option) (where: lval) 
+        (t: typ) (pkind: N.opointerkind) acc = 
+      match unrollType t with 
+      | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
 (*    | TFun _ -> acc *)
-    | TComp comp when isFatComp comp -> begin (* A fat pointer *)
-        match towrite with
-          None -> (* a read *)
-            if pkind = N.Wild then
-              (checkFatPointerRead base 
-                 (AddrOf(where)) (getLenExp ())) :: acc
-            else
-              acc
-        | Some towrite -> (* a write *)
-            let _, whatp, whatb, _ = readFieldsOfFat towrite t in
-            if pkind = N.Wild then
-              (checkFatPointerWrite base (AddrOf(where)) 
-                 whatb whatp (getLenExp ())) :: acc
-            else
-              checkFatStackPointer whatp whatb :: acc
-    end 
-    | TComp comp when comp.cstruct -> 
-        let doOneField acc fi = 
-          let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
-          let newtowrite = 
-            match towrite with 
-              None -> None
-            | Some (Lval whatlv) -> 
-                Some (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
-                  (* sometimes in Asm outputs we pretend that we write 0 *)
-            | Some (Const(CInt(0, _, _))) -> None
-            | Some e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
-          in
-          doCheckTags newtowrite newwhere fi.ftype pkind acc
-        in
-        List.fold_left doOneField acc comp.cfields
-
-    | TArray(bt, lo, a) -> begin
-        match unrollType bt with
-          TInt _ | TFloat _ | TEnum _ | TBitfield _ -> acc
-        | _ -> begin (* We are reading or writing an array *)
-            let len = 
-              match lo with Some len -> len 
-              | _ -> E.s (E.unimp "Reading or writing an incomplete type") in
-            (* Make an interator variable for this function *)
-            withIterVar !currentFunction
-              (fun it -> 
-                let itvar = Lval (var it) in
-                (* make the body to initialize one element *)
-                let initone = 
-                  let towriteelem = 
-                    match towrite with
-                      None -> None
-                    | Some (Lval whatlv) -> 
-                        Some (Lval (addOffsetLval (Index(itvar, NoOffset)) 
-                                      whatlv))
-                    | Some e -> E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
-                  in
-                  doCheckTags towriteelem
-                    (addOffsetLval (Index(itvar, NoOffset)) where)
-                    bt
-                    pkind (* ??? *)
-                    []
-                in
-                (mkForIncr 
-                   ~iter: it
-                   ~first: zero
-                   ~stopat: len
-                   ~incr: one
-                   ~body: initone) @ acc)
-        end
-    end
-
-    | TPtr(_, _) -> (* This can only happen if we are writing to an untagged 
-                     * area. All other areas contain only fat pointers *)
-        begin
+      | TComp comp when isFatComp comp -> begin (* A fat pointer *)
           match towrite with
-            Some x -> checkLeanStackPointer x :: acc
-          | None -> acc
-        end
-    | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
-  in
+            None -> (* a read *)
+              if pkind = N.Wild then
+                (checkFatPointerRead base 
+                   (AddrOf(where)) (getLenExp ())) :: acc
+              else
+                acc
+          | Some towrite -> (* a write *)
+              let _, whatp, whatb, _ = readFieldsOfFat towrite t in
+              if pkind = N.Wild then
+                (checkFatPointerWrite base (AddrOf(where)) 
+                   whatb whatp (getLenExp ())) :: acc
+              else
+                checkFatStackPointer whatp whatb :: acc
+      end 
+      | TComp comp when comp.cstruct -> 
+          let doOneField acc fi = 
+            let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
+            let newtowrite = 
+              match towrite with 
+                None -> None
+              | Some (Lval whatlv) -> 
+                  Some (Lval (addOffsetLval (Field(fi, NoOffset)) whatlv))
+                  (* sometimes in Asm outputs we pretend that we write 0 *)
+              | Some (Const(CInt(0, _, _))) -> None
+              | Some e -> E.s (E.unimp "doCheckTags (%a)" d_exp e)
+            in
+            doCheckTags newtowrite newwhere fi.ftype pkind acc
+          in
+          List.fold_left doOneField acc comp.cfields
+            
+      | TArray(bt, lo, a) -> begin
+          match unrollType bt with
+            TInt _ | TFloat _ | TEnum _ | TBitfield _ -> acc
+          | _ -> begin (* We are reading or writing an array *)
+              let len = 
+                match lo with Some len -> len 
+                | _ -> E.s (E.unimp "Reading or writing an incomplete type") in
+            (* Make an interator variable for this function *)
+              withIterVar !currentFunction
+                (fun it -> 
+                  let itvar = Lval (var it) in
+                (* make the body to initialize one element *)
+                  let initone = 
+                    let towriteelem = 
+                      match towrite with
+                        None -> None
+                      | Some (Lval whatlv) -> 
+                          Some (Lval (addOffsetLval (Index(itvar, NoOffset)) 
+                                        whatlv))
+                      | Some e -> E.s (E.unimp "doCheckTags: write (%a)" d_exp e)
+                    in
+                    doCheckTags towriteelem
+                      (addOffsetLval (Index(itvar, NoOffset)) where)
+                      bt
+                      pkind (* ??? *)
+                      []
+                  in
+                  (mkForIncr 
+                     ~iter: it
+                     ~first: zero
+                     ~stopat: len
+                     ~incr: one
+                     ~body: initone) @ acc)
+          end
+      end
+            
+      | TPtr(_, _) -> (* This can only happen if we are writing to an untagged 
+                         * area. All other areas contain only fat pointers *)
+          begin
+            match towrite with
+              Some x -> checkLeanStackPointer x :: acc
+            | None -> acc
+          end
+      | _ -> E.s (E.unimp "unexpected type in doCheckTags: %a\n" d_type t)
+    in
   (* See first what we need in order to check tags *)
-  let zeroAndCheckTags = 
+    let zeroAndCheckTags = 
     (* Call doCheckTags anyway because even for safe writes it needs to check 
-     * when pointers are written *)
-    let dotags = doCheckTags towrite lv lvt pkind [] in
-    if pkind = N.Wild then
-      match towrite with 
-        None -> dotags
-      | Some _ -> (checkZeroTags base (getLenExp ()) lv lvt) :: dotags
-    else
-      dotags
-  in
+       * when pointers are written *)
+      let dotags = doCheckTags towrite lv lvt pkind [] in
+      if pkind = N.Wild then
+        match towrite with 
+          None -> dotags
+        | Some _ -> (checkZeroTags base (getLenExp ()) lv lvt) :: dotags
+      else
+        dotags
+    in
   (* Now see if we need to do bounds checking *)
-  let iswrite = (match towrite with Some _ -> true | _ -> false) in
-  let checkb = 
-    (checkBounds iswrite getLenExp base bend lv lvt pkind) 
-    @ zeroAndCheckTags in
+    let iswrite = (match towrite with Some _ -> true | _ -> false) in
+    let checkb = 
+      (checkBounds iswrite getLenExp base bend lv lvt pkind) 
+      @ zeroAndCheckTags in
   (* See if we need to generate the length *)
-  (match !lenExp with
-    None -> checkb
-  | Some _ -> 
-      (checkFetchLength (getVarOfExp (getLenExp ())) base) :: checkb)
-  
+    (match !lenExp with
+      None -> checkb
+    | Some _ -> 
+        let ptr = ptrOfBase base in
+        (checkFetchLength (getVarOfExp (getLenExp ())) 
+                          (mkAddrOf lv) base) :: checkb)
+  end
   
           
     (* Check a write *)
