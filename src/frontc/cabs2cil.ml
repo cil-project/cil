@@ -540,7 +540,7 @@ let createCompInfo (iss: bool) (n: string) : compinfo * bool =
   try
     H.find compInfoNameEnv key, false (* Only if not already in *)
   with Not_found -> begin
-    (* Create a compinfo *)
+    (* Create a compinfo. This will have "cdefined" false. *)
     let res = mkCompInfo iss n (fun _ -> []) [] in
     H.add compInfoNameEnv key res;
     res, true
@@ -2374,6 +2374,8 @@ and makeCompType (isstruct: bool)
   comp.cattr <- a;
   let toplevel_typedef = false in
   let res = TComp (comp, []) in
+  (* This compinfo is defined, even if there are no fields *)
+  comp.cdefined <- true;
   (* Create a typedef for this one *)
   cabsPushGlobal (GCompTag (comp, !currentLoc));
 

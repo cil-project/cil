@@ -262,6 +262,8 @@ and compinfo = {
     mutable cattr:   attributes;        (** The attributes that are defined at
                                             the same time as the composite
                                             type *)
+    mutable cdefined: bool;             (** Whether this is a defined 
+                                         * compinfo. *)
     mutable creferenced: bool;          (** True if used. Initially set to 
                                          * false *)
   }
@@ -1311,7 +1313,10 @@ let mkCompInfo
    (* Make a new self cell and a forward reference *)
    let comp = 
      { cstruct = isstruct; cname = ""; ckey = 0; cfields = [];
-       cattr = a; creferenced = false; } in
+       cattr = a; creferenced = false; 
+       (* Make this compinfo undefined by default *)
+       cdefined = false; } 
+   in
    compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
    let flds = 
@@ -1322,6 +1327,7 @@ let mkCompInfo
             fbitfield = fb;
             fattr = fa }) (mkfspec comp) in
    comp.cfields <- flds;
+   if flds <> [] then comp.cdefined <- true;
    comp
 
 (**** Utility functions ******)
@@ -4345,8 +4351,14 @@ and bitsSizeOf t =
   | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
     -> 8 * alignOf_int t
   | TNamed (t, _) -> bitsSizeOf t.ttype
-  | TComp (comp, _) when comp.cfields = [] -> 
-      raise (SizeOfError t) (*abstract type*)
+  | TComp (comp, _) when comp.cfields = [] -> begin
+      (* Empty structs are allowed in msvc mode *)
+      if not comp.cdefined || !msvcMode then
+        raise (SizeOfError t) (*abstract type*)
+      else
+        0
+  end
+
   | TComp (comp, _) when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 
@@ -4390,7 +4402,8 @@ and bitsSizeOf t =
   end
 
 
-  | TArray (_, None, _) | TFun _ | TVoid _ -> raise (SizeOfError t)
+  | TVoid _ -> 8 * !theMachine.M.sizeof_void
+  | TArray (_, None, _) | TFun _ -> raise (SizeOfError t)
 
 
 and addTrailing nrbits roundto = 

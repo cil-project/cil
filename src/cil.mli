@@ -336,6 +336,10 @@ and compinfo = {
     (** The attributes that are defined at the same time as the composite 
      * type. These attributes can be supplemented individually at each 
      * reference to this [compinfo] using the [TComp] type constructor. *)
+    mutable cdefined: bool;
+    (** This boolean flag can be used to distringuish between structures
+     that have not been defined and those that have been defined but have
+     no fields (such things are allowed in gcc). *)
     mutable creferenced: bool;          
     (** True if used. Initially set to false. *)
   }
@@ -1112,12 +1116,13 @@ val typeOfSizeOf: typ ref
 val isSigned: ikind -> bool
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 
-    (1) a boolean indicating whether it is a struct or a union, (2) the name 
-    (always non-empty), (3) a function that when given a
-    representation of the structure type constructs the type of the
-    fields recursive type (the first argument is only useful when some fields 
-   need to refer to the type of the structure itself), 
-   and (4) a list of attributes to be associated with the composite type. *)
+ * (1) a boolean indicating whether it is a struct or a union, (2) the name 
+ * (always non-empty), (3) a function that when given a representation of the 
+ * structure type constructs the type of the fields recursive type (the first 
+ * argument is only useful when some fields need to refer to the type of the 
+ * structure itself), and (4) a list of attributes to be associated with the 
+ * composite type. The resulting compinfo has the field "cdefined" only if 
+ * the list of fields is non-empty. *)
 val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                string ->     (* empty for anonymous structures *)
                (compinfo -> (string * typ * int option * attributes) list) ->
@@ -2015,24 +2020,30 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
 (** Raised when one of the bitsSizeOf functions cannot compute the size of a 
     type. This can happen because the type contains array-length expressions 
     that we don't know how to compute or because it is a type whose size is 
-    not defined (e.g. TVoid or TFun)  *)        
+    not defined (e.g. TFun or an undefined compinfo)  *)        
 exception SizeOfError of typ
 
-(** The size of a type, in bits. Trailing padding is added for structs and
-    arrays. Raises {!Cil.SizeOfError} when it cannot compute the size. *)
+(** The size of a type, in bits. Trailing padding is added for structs and 
+ * arrays. Raises {!Cil.SizeOfError} when it cannot compute the size. This 
+ * function is architecture dependent, so you should only call this after you 
+ * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
 (** The size of a type, in bytes. Does not raises {!Cil.SizeOfError} but uses 
- * instead a sizeof expression. *)
+ * instead a sizeof expression. This function is architecture dependent, so 
+ * you should only call this after you call {!Cil.initCIL}. *)
 val sizeOf: typ -> exp
 
-(** The minimum alignment (in bytes) for a type *)
+(** The minimum alignment (in bytes) for a type. This function is 
+ * architecture dependent, so you should only call this after you call 
+ * {!Cil.initCIL}. *)
 val alignOf_int: typ -> int
 
 (** Give a type of a base and an offset, returns the number of bits from the 
  * base address and the width (also expressed in bits) for the subobject 
  * denoted by the offset. Raises {!Cil.SizeOfError} when it cannot compute 
- * the size. *)
+ * the size. This function is architecture dependent, so you should only call 
+ * this after you call {!Cil.initCIL}. *)
 val bitsOffset: typ -> offset -> int * int
 
 

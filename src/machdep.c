@@ -41,6 +41,8 @@
 #define LONGLONG __int64
 #endif
 
+/* The type for the machine dependency structure is generated from the
+   Makefile */
 int main() {
   fprintf(stderr, "Generating machine dependency information for CIL\n");
 
@@ -55,6 +57,7 @@ int main() {
   printf("\t sizeof_longdouble  = %d;\n", sizeof(long double));
   printf("\t sizeof_wchar     = %d;\n", sizeof(wchar_t));
   printf("\t sizeof_sizeof    = %d;\n", sizeof(sizeof(int)));
+  printf("\t sizeof_void      = %d;\n", sizeof(void));
   // The alignment of long long
   {
     struct longlong {
