@@ -270,8 +270,10 @@ CC=$(CCL) $(CONLY)
 
 ifdef RELEASE
 SAFECLIB=obj/safec.$(LIBEXT)
+CILLIB=obj/cillib.$(LIBEXT)
 else
 SAFECLIB=obj/safecdebug.$(LIBEXT)
+CILLIB=obj/cillibdebug.$(LIBEXT)
 endif
 
 
@@ -285,7 +287,7 @@ endif
 ifdef NOREMAKE
 defaulttarget : 
 else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB)
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
 endif
 
 .PHONY: trval
@@ -444,6 +446,10 @@ $(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h lib/splay.c
 	cl $(DOOPT) /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
                                            $(OBJOUT)obj/splay.o lib/splay.c
 	lib /OUT:$@ obj/safec.o obj/splay.o 
+$(CILLIB) : lib/cillib.c
+	cl $(DOOPT) /I./lib /Gy /c $(DEF)_MSVC $(SAFECLIBARG) \
+                                           $(OBJOUT)obj/cillib.o lib/cillib.c
+	lib /OUT:$@ obj/cillib.o
 endif
 
 # Libraries on GCC
@@ -458,6 +464,11 @@ $(SAFECLIB) : lib/safec.c $(GCLIB) lib/splay.o
 		rm -f $@; \
 	fi
 	ar -r $@ obj/safec.o lib/splay.o
+	ranlib $@
+
+$(CILLIB) : lib/cillib.c
+	$(CC) $(OBJOUT)obj/cillib.o $<
+	ar -r $@ obj/cillib.o
 	ranlib $@
 
 endif
