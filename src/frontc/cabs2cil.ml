@@ -1372,8 +1372,14 @@ let rec collectInitializer
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
                  !pMaxIdx len);
-        (* len could be extremely big. So try to use tail recursion to avoid 
-         * stack overflow. Start from the end *)
+        (* len could be extremely big. So omit the last initializers, if they 
+         * are many (more than 16) *)
+        let endAt = 
+          if len - 1 > !pMaxIdx + 16 then 
+            !pMaxIdx 
+          else
+            len - 1
+        in
         (* Make one zero initializer to be used next *)
         let oneZeroInit = makeZeroInit bt in
         let rec collect (acc: (offset * init) list) (idx: int) = 
@@ -1385,7 +1391,8 @@ let rec collectInitializer
             in
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
-        CompoundInit (thistype, collect [] (len - 1))
+        
+        CompoundInit (thistype, collect [] endAt)
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function

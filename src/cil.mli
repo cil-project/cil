@@ -670,7 +670,7 @@ A special kind of expressions are those that can appear as initializers for
 global variables (initialization of local variables is turned into
 assignments). The initializers are represented as type {!Cil.init}. You
 can create initializers with {!Cil.makeZeroInit} and you can conveniently
-scan compound initializers them with {!Cil.foldLeftCompound}. 
+scan compound initializers them with {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. 
 *)
 (** Initializers for global variables. *)
 and init = 
@@ -685,7 +685,7 @@ and init =
      * one initializer. If the initializer is not for the first field then a 
      * field designator is printed, so you better be on GCC since MSVC does 
      * not understand this. You can scan an initializer list with 
-     * {!Cil.foldLeftCompound}. *)
+     * {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. *)
 
 (** {b Function definitions.} 
 A function definition is always introduced with a [GFun] constructor at the
@@ -946,9 +946,21 @@ val makeZeroInit: typ -> init
 
 
 (** Fold over the list of initializers in a Compound. [doinit] is called on 
-    every present initializer, even if it is of compound type. This is much 
-    like [List.fold_left] except we also pass the type of the initializer *)
+ * every present initializer, even if it is of compound type. In the case of 
+ * arrays there might be missing zero-initializers at the end of the list. 
+ * These are not scanned. This is much like [List.fold_left] except we also 
+ * pass the type of the initializer *)
 val foldLeftCompound: 
+    doinit: (offset -> init -> typ -> 'a -> 'a) ->
+    ct: typ ->
+    initl: (offset * init) list ->
+    acc: 'a -> 'a
+
+
+(** Fold over the list of initializers in a Compound, like 
+ * {!Cil.foldLeftCompound} but in the case of an array it scans even missing 
+ * zero initializers at the end of the array *)
+val foldLeftCompoundAll: 
     doinit: (offset -> init -> typ -> 'a -> 'a) ->
     ct: typ ->
     initl: (offset * init) list ->

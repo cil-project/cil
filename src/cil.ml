@@ -497,10 +497,12 @@ and init =
             (** Used only for initializers of structures, unions and arrays. 
              * The offsets are all of the form [Field(f, NoOffset)] or 
              * [Index(i, NoOffset)] and specify the field or the index being 
-             * initialized. For structures and arrays all fields (indices) 
+             * initialized. For structures all fields
              * must have an initializer (except the unnamed bitfields), in 
              * the proper order. This is necessary since the offsets are not 
-             * printed. For unions there must be exactly one initializer. If 
+             * printed. For arrays the list must contain a prefix of the 
+             * initializers; the rest are 0-initialized. 
+             * For unions there must be exactly one initializer. If 
              * the initializer is not for the first field then a field 
              * designator is printed, so you better be on GCC since MSVC does 
              * not understand this. You can scan an initializer list with 
@@ -2636,6 +2638,8 @@ let doVisit (vis: cilVisitor)
         ChangeDoChildrenPost (_, f) -> f nodepost
       | _ -> nodepost
 
+(* mapNoCopy is like map but avoid copying the list if the function does not 
+ * change the elements. *)
 let rec mapNoCopy (f: 'a -> 'a) = function
     [] -> []
   | (i :: resti) as li -> 
@@ -3981,7 +3985,9 @@ let rec makeZeroInit (t: typ) : init =
   | _ -> E.s (E.unimp "makeZeroCompoundInit: %a" d_plaintype t)
 
 
-(**** Fold over the list of initializers in a Compound ****)
+(**** Fold over the list of initializers in a Compound. In the case of an 
+ * array initializer only the initializers present are scanned (a prefix of 
+ * all initializers) *)
 let foldLeftCompound 
     ~(doinit: offset -> init -> typ -> 'a -> 'a)
     ~(ct: typ) 
@@ -3991,6 +3997,51 @@ let foldLeftCompound
     TArray(bt, _, _) -> 
       List.fold_left (fun acc (o, i) -> doinit o i bt acc) acc initl
 
+  | TComp (comp, _) -> 
+      let getTypeOffset = function
+          Field(f, NoOffset) -> f.ftype
+        | _ -> E.s (bug "foldLeftCompound: malformed initializer")
+      in
+      List.fold_left 
+        (fun acc (o, i) -> doinit o i (getTypeOffset o) acc) acc initl
+
+  | _ -> E.s (unimp "Type of Compound is not array or struct or union")
+
+(**** Fold over the list of initializers in a Compound. Like foldLeftCompound 
+ * but scans even the zero-initializers that are missing at the end of the 
+ * array *)
+let foldLeftCompoundAll 
+    ~(doinit: offset -> init -> typ -> 'a -> 'a)
+    ~(ct: typ) 
+    ~(initl: (offset * init) list)
+    ~(acc: 'a) : 'a = 
+  match unrollType ct with
+    TArray(bt, leno, _) -> begin
+      let part = 
+        List.fold_left (fun acc (o, i) -> doinit o i bt acc) acc initl in
+      (* See how many more we have to do *)
+      match leno with 
+        Some lene -> begin
+          match constFold true lene with 
+            Const(CInt64(i, _, _)) -> 
+              let len_array = Int64.to_int i in
+              let len_init = List.length initl in
+              if len_array > len_init then 
+                let zi = makeZeroInit bt in
+                let rec loop acc i = 
+                  if i >= len_array then acc
+                  else 
+                    loop (doinit (Index(integer i, NoOffset)) zi bt acc) 
+                         (i + 1)
+                in
+                loop part (len_init + 1)
+              else
+                part
+          | _ -> E.s (unimp "foldLeftCompoundAll: array with initializer and non-constant length\n")
+        end
+          
+      | _ -> E.s (unimp "foldLeftCompoundAll: TArray with initializer and no length")
+    end
   | TComp (comp, _) -> 
       let getTypeOffset = function
           Field(f, NoOffset) -> f.ftype
