@@ -1890,6 +1890,33 @@ openssh-noclean: mustbegcc mustbelinux mustbemanju
 openssh-gcc: mustbelinux mustbemanju opensshclean
 	cd $(OPENSSHSRC) ; make CC=gcc
 
+#### ------------- APACHE HTTP SERVER --------------
+
+#website: www.apache.org
+
+APACHESRC := /usr/local/src/apache_1.3.22
+
+apacheclean:
+	cd $(APACHESRC); make clean
+	-cd $(APACHESRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+apache: mustbegcc mustbelinux mustbemanju apacheclean
+	cd $(APACHESRC) ; make CC="$(CILLY)"
+
+apache-noclean: mustbegcc mustbelinux mustbemanju
+	cd$(APACHESRC) ; make CC="$(CILLY)"
+
+apache-gcc: mustbelinux mustbemanju apacheclean
+	cd $(APACHESRC) ; make CC=gcc
+
 #### ------------- GIMP AND FRIENDS ----------------
 
 # downloads:
