@@ -196,7 +196,7 @@ AC_MSG_CHECKING([for Perl])
   # of autoconf's quoting characters, so I use the "quadrigraph" @:>@
   # to stand for right-bracket.  what a mess.
   perlver=`perl -e 'print($@:>@);'`
-  if perl -e "exit( $perlver >= 5.006 );"; then
+  if perl -e "exit( $perlver >= 5.008 );"; then
     AC_MSG_ERROR([
       Found perl version $perlver, but at least 5.6.1 (aka 5.008) is required.
       You can get a newer perl at http://www.cpan.org/src/index.html .
