@@ -218,7 +218,7 @@ let main () = begin
 
     "--noMerge", Arg.Unit (fun () -> doMerge := false),
         "do not merge multiple input files" ; 
-    "--noGlobInit", Arg.Unit (fun () -> doInfer := false),
+    "--noGlobInit", Arg.Unit (fun () -> doGlobInit := false),
         "do not pull out global initializers" ;
     "--noInfer", Arg.Unit (fun () -> doInfer := false),
         "do not infer pointer annotations" ;
@@ -231,7 +231,7 @@ let main () = begin
 
     "--doMerge", Arg.Unit (fun () -> doMerge := true),
         "do merge multiple input files" ; 
-    "--doGlobInit", Arg.Unit (fun () -> doInfer := true),
+    "--doGlobInit", Arg.Unit (fun () -> doGlobInit := true),
         "do pull out global initializers" ;
     "--doInfer", Arg.Unit (fun () -> doInfer := true),
         "do infer pointer annotations" ;
