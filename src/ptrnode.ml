@@ -104,6 +104,7 @@ and whykind = (* why did we give it this kind? *)
   | BoolFlag
   | Default
   | UserSpec
+  | Unconstrained
 
 and edge = 
     { mutable efrom:    node;
@@ -162,6 +163,7 @@ let d_whykind () = function
   | SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
   | Default -> text "by_default"
   | UserSpec -> text "user_spec"
+  | Unconstrained -> text "unconstrained"
 
 let d_node () n = 
   dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 

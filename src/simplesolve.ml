@@ -20,8 +20,8 @@ open Ptrnode
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
-let rec type_congruent (t1 : typ) (t2 : typ) = begin
-
+let rec type_congruent (t1 : typ) (q1 : pointerkind) 
+                       (t2 : typ) (q2 : pointerkind) = begin
   (* t[n] and struct { t ; t[n-1] ; } are congruent *)
   let array_helper_function t eo al x = begin
     match eo with
@@ -40,17 +40,19 @@ let rec type_congruent (t1 : typ) (t2 : typ) = begin
             { fcomp = our_compinfo ; fname = "" ;
               ftype = TArray(t,(Some(Const(CInt(n-1,a,b),c))),[]) ;
               fattr = [] ; } ] ; 
-        type_congruent t (TComp(our_compinfo))
+        type_congruent t q1 (TComp(our_compinfo)) q2
       end
     | _ -> false
   end in 
-
-  match (t1,t2) with
+  if (q1 = Wild && q2 = Wild) then 
+    true
+  else match (t1,t2) with
     (* unions can be reordered without loss *)
   | TComp(c1),TComp(c2) when (not c1.cstruct) && (not c2.cstruct) -> begin
       let fields_match l1 l2 = 
         List.for_all (fun l1_elt ->
-          List.exists (fun l2_elt -> type_congruent l1_elt.ftype l2_elt.ftype)
+          List.exists (fun l2_elt -> type_congruent l1_elt.ftype q1 
+                                                    l2_elt.ftype q2)
             l2) l1
       in
         (fields_match c1.cfields c2.cfields) &&
@@ -60,28 +62,28 @@ let rec type_congruent (t1 : typ) (t2 : typ) = begin
     (* structures match if all of their fields match in order *)
   | TComp(c1),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype f2.ftype) 
+    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields
   | TForward(c1,_),TForward(c2,_) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype f2.ftype) 
+    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields
   | TForward(c1,_),TComp(c2) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype f2.ftype) 
+    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields
   | TComp(c1),TForward(c2,_) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
-    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype f2.ftype) 
+    List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
       c1.cfields c2.cfields
 
     (* t and t[1] are the same *)
-  | (x,TArray(t,eo,al)) when (type_congruent x t) -> begin
+  | (x,TArray(t,eo,al)) when (type_congruent x q1 t q2) -> begin
     match eo with
       Some(Const(CInt(1,_,_),_)) -> true
     | _ -> false
   end
-  | (TArray(t,eo,al),x) when (type_congruent x t) -> begin
+  | (TArray(t,eo,al),x) when (type_congruent x q2 t q1) -> begin
     match eo with
       Some(Const(CInt(1,_,_),_)) -> true
     | _ -> false
@@ -98,9 +100,8 @@ let rec type_congruent (t1 : typ) (t2 : typ) = begin
   | TFun(_),TFun(_) -> true
   | TPtr(_),TPtr(_) -> true
 
-(*  | TNamed(_,t1,_),TNamed(_,t2,_) -> type_congruent t1 t2 *)
-  | TNamed(_,t1,_),_ -> type_congruent t1 t2
-  | _,TNamed(_,t2,_) -> type_congruent t1 t2
+  | TNamed(_,t1,_),_ -> type_congruent t1 q1 t2 q2
+  | _,TNamed(_,t2,_) -> type_congruent t1 q1 t2 q2
 
   | _ -> false
 end
@@ -113,9 +114,12 @@ let rec sublist l n = begin
   | hd :: tl -> hd :: (sublist tl (n-1))
 end
 
-(* do we have t1 <= t2 (as in infer.tex)? *)
-let subtype (t1 : typ) (t2 : typ) =
-  match (t1,t2) with 
+(* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
+let subtype (t1 : typ) (q1 : pointerkind) 
+            (t2 : typ) (q2 : pointerkind) =
+  if (type_congruent t1 q1 t2 q2) then
+    true
+  else match (t1,t2) with 
     (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
     TComp(c1),TComp(c2) -> begin
       (* is t2 congruent to a prefix of t1? *)
@@ -124,7 +128,7 @@ let subtype (t1 : typ) (t2 : typ) =
       for l = 1 to (List.length c1.cfields) do 
         if (not (!found_one)) then begin
           let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 (TComp(prefix_struct_c1))) then
+          if (type_congruent t2 q2 (TComp(prefix_struct_c1)) q1) then
             found_one := true
         end
       done ; !found_one
@@ -136,12 +140,12 @@ let subtype (t1 : typ) (t2 : typ) =
       for l = 1 to (List.length c1.cfields) do 
         if (not (!found_one)) then begin
           let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 (TComp(prefix_struct_c1))) then
+          if (type_congruent t2 q2 (TComp(prefix_struct_c1)) q1) then
             found_one := true
         end
       done ; !found_one
   end
-  | _,_ -> type_congruent t1 t2
+  | _,_ -> false
 
 (* see infer.tex : this predicate checks to see if the little attributes
  * match when casting *)
@@ -164,22 +168,13 @@ let can_cast (n1 : node) (n2 : node) = begin
   let t2 = n2.btype in 
   if is_malloc n2 then
     (Safe,Safe)
-  else if not (q_predicate n1 n2) then 
-    (Wild,Wild)
-  else if subtype t1 t2 then 
+  else if subtype t1 Safe t2 Safe then
     (Safe,Safe)
-  else if subtype (TArray(t1,(Some(Const(CInt(1024,ILong,None),locUnknown))),[])) t2 then
-    (Index,Safe)
-  else begin
-    let s1 = try sizeOf t1 with _ -> Const(CInt(1,ILong,None),locUnknown) in
-    let s2 = try sizeOf t2 with _ -> Const(CInt(1,ILong,None),locUnknown) in
-    let a1 = (TArray(t1,(Some(s2)),[])) in
-    let a2 = (TArray(t2,(Some(s1)),[])) in 
-    if subtype a1 a2 then
-      (Index,Index)
-    else
-      (Wild,Wild)
-  end
+  else if subtype t1 Safe 
+     (TArray(t2,(Some(Const(CInt(1024,ILong,None),locUnknown))),[])) Safe then
+    (Seq,Seq)
+  else
+    (Wild,Wild)
 end
 
 let solve (node_ht : (int,node) Hashtbl.t) = begin
@@ -299,7 +294,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     if (n.kind = Unknown) ||
        ((n.kind = Safe) && (k <> Safe)) ||
        ((n.kind = Seq) && (k <> Seq) && (k <> Safe)) ||
-       ((n.kind = Index) && (k = Wild)) then begin
+       ((n.kind = Index) && (k <> Index) && (k <> Safe)) then begin
         if (n.why_kind = UserSpec) then begin
           ignore (E.warn "Pointer Kind Inference would override user-specified kind for\n%a" d_node n) ;
           false
@@ -346,19 +341,19 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     worklist := List.tl !worklist 
   done ;
 
-  (* now take all of the arith/posarith pointers and make them index *)
+  (* now take all of the arith/posarith pointers and make them seq *)
   Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
   while (!worklist <> []) do
     (* pick out our current node *)
     let cur = List.hd !worklist in
     (* arithmetic can make something an index *)
     if (cur.arith || cur.posarith) then begin
-      ignore (update_kind cur Index BoolFlag)
+      ignore (update_kind cur Seq BoolFlag)
     end ;
     (* being the target of an EIndex edge can as well *)
     List.iter (fun e -> 
       if e.ekind = EIndex then 
-        ignore (update_kind cur Index (SpreadFromEdge(e.efrom)))
+        ignore (update_kind cur Seq (SpreadFromEdge(e.efrom)))
       ) cur.pred ;
     worklist := List.tl !worklist 
   done ;
@@ -368,17 +363,16 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
   while (!worklist <> []) do
     (* pick out our current node *)
     let cur = List.hd !worklist in
-    if (cur.kind = Index) then begin
+    if (cur.kind = Seq || cur.kind = Index) then begin
       (* mark all of the predecessors of y along ECast with "index" *)
       let why = SpreadFromEdge(cur) in
-      let f = (fun n -> if (update_kind n Index why) then add_node n) in
+      let f = (fun n -> if (update_kind n cur.kind why) then add_node n) in
       let contaminated_list = 
         (List.map (fun e -> e.efrom) (ecast_edges_only cur.pred)) in
       List.iter f contaminated_list ;
     end ;
     worklist := List.tl !worklist 
   done ;
-
 
   (* now take all of the intcast pointers and make them seq *)
   Hashtbl.iter (fun id n -> all := n :: !all) node_ht ;
@@ -390,6 +384,13 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     end ;
     worklist := List.tl !worklist 
   done ;
+
+  (* all otherwise unconstrained nodes become safe *)
+  Hashtbl.iter (fun id n -> 
+    if n.kind = Unknown then begin
+      n.kind <- Safe ;
+      n.why_kind <- Unconstrained 
+    end) node_ht ;
 
 
 end
