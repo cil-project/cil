@@ -1,4 +1,6 @@
 /* An example with various kinds of pointers */
+extern int main(void);
+typedef struct list LIST;
 
 typedef struct list {
   struct list *next; // We'll use this safely
