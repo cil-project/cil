@@ -81,7 +81,7 @@ sub extraHelpMessage {
     my ($scriptname, $extra) = $self->SUPER::extraHelpMessage();
     return ("testsafec",
             $extra . << "EOF");
-  --safec
+  Default log file is safec.log
 
 SafeC test harness
 EOF
