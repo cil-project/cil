@@ -79,3 +79,12 @@ ope.m
 *cured.c
 *cured.optim.c
 *.stackdump
+fmtstr
+bisonerror
+errorinfn
+globalprob
+invalredef*
+kernel?
+main
+memberofptr
+xcheckers
