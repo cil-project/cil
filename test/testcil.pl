@@ -412,6 +412,7 @@ $TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkret", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("scott/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 
 #
