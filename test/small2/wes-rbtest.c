@@ -1,3 +1,4 @@
+
 #ifndef MANUALBOX
 #define WILD
 #define SAFE
@@ -9,7 +10,7 @@
 #define malloc_safe malloc
 #define calloc_fseq calloc
 #define free_safe   free
-#define calloc_rbnodes calloc
+#define calloc_rbnode calloc
 #else
 #define WILD   __attribute__((wild))
 #define SAFE   __attribute__((safe))
@@ -20,7 +21,7 @@
 #define FSEQ   __attribute__((fseq))
 #endif
 
-
+/* A special purpose main */
 //#include "main.h"
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
@@ -117,13 +118,13 @@ typedef int BOOL;
 #define EXIT(v, n)      exit(n)
 
 #define ERRLINE    {fprintf(stderr, "Error at %s(%d):",__FILE__,__LINE__);\
-		    ERR_SET;}
+                    ERR_SET;}
 #define WARNLINE   {fprintf(stderr, "Warning at %s(%d):",__FILE__,__LINE__);}
 
 #define ERROR0(v, txt)              {ERRLINE;\
-			  	     fprintf(stderr,txt);EXIT(v,1);}
+                                     fprintf(stderr,txt);EXIT(v,1);}
 #define ERROR1(v, txt, d1)          {ERRLINE;\
-				     fprintf(stderr,txt, d1);EXIT(v,1);}
+                                     fprintf(stderr,txt, d1);EXIT(v,1);}
 
 typedef long clock_t;
  clock_t __cdecl clock(void);
@@ -134,8 +135,8 @@ typedef long clock_t;
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
 void * SAFE  malloc_safe(unsigned int);
-void * SAFE  __cdecl calloc_safe(unsigned int, unsigned int);
-void * FSEQ  __cdecl calloc_fseq(unsigned int, unsigned int);
+void * SAFE  calloc_safe(unsigned int, unsigned int);
+void * FSEQ  calloc_fseq(unsigned int, unsigned int);
 void   __cdecl free_safe(void * SAFE);
 
 int __cdecl dup(int);
@@ -168,6 +169,11 @@ extern  int   debugMM;
 
 #define SETDBGOUT   int _stdout; fflush(stdout);_stdout=dup(1);dup2(2,1);
 #define RESTOREOUT  fflush(stdout); dup2(_stdout, 1); close(_stdout);
+#ifdef _DEBUG
+#define IFDEBUG(txt) {if(debug) {SETDBGOUT; txt; RESTOREOUT;}}
+#else  /* _DEBUG */
+#define IFDEBUG(txt) {;}
+#endif  /* _DEBUG */
 
 
 extern  char* __stackInit;
@@ -233,7 +239,9 @@ extern  int   __mmId;
 #endif
 
 
-// #include "redblack.h"
+
+
+//#include "redblack.h"
 typedef struct rbNode {
   struct rbNode * SAFE left, * SAFE right, * SAFE parent;
   U32    key;
@@ -241,24 +249,22 @@ typedef struct rbNode {
   char data[1] SIZED;
 } RBNode;
 
-extern void * __cdecl SAFE
-calloc_rbnodes(unsigned int nrelem, unsigned int size);
+extern void * SAFE calloc_rbnode(unsigned int nrelem, unsigned int size);
 
 /*** KEYS are compared using unsigned comparisons ****/
 
 /* Creates a new RB node. The node has room for some data but nothing is put 
  * in there. The pointer to the data is returned. Start with NULL as an 
  * empty tree */
-char * FSEQ insertRB(RBNode * SAFE * SAFE tree, U32 key, int datalen);
+char * FSEQ insertRB(RBNode * * tree, U32 key, int datalen);
 
 
 /* Finds a node. Returns a pointer to the data */
-char * FSEQ findRB(RBNode * SAFE tree, U32 key);
+char * FSEQ findRB(RBNode * tree, U32 key);
 
 /* Pass freeData=NULL if the data does not contain pointers that need to be 
  * deallocated */
-int freeRB(RBNode * SAFE tree, int (* SAFE freeData)(U32 key,
-                                                     char * FSEQ data));
+int freeRB(RBNode * tree, int (* freeData)(U32 key, char * FSEQ data));
 
 // A non-recursive scanner for RB trees
 #define FORALLRBNODES(tree, donode) {\
@@ -284,13 +290,66 @@ int freeRB(RBNode * SAFE tree, int (* SAFE freeData)(U32 key,
  }\
 }
 
+/* Some globals that PCC needs */
+int error_level, anerror;
+void myexit(int n) {
+  exit(n);
+}
+#ifdef _MSVC
+#define random rand
+#else
+/* weimer: not needed: extern int random(void); */
+#endif
+int __mmId;
+int debugMM;
+int debug;
+
+
+#define DATASIZE 16   // This is the size of the data that is reserved in
+                      // each node
+
+int main() {
+  /* Test hash tables */
+  RBNode *t = NULL;
+  int i;
+  double clk;
+  int count = 0;
+  int sz;
+  
+  /* Add and delete random numbers from the hash table */
+  TIMESTART(clk);
+  for(i=0;i<500000;i++) {
+    int k = random() & 0x7FFFL;
+    insertRB(& t, k, DATASIZE);
+  }
+  for(i=0;i<500000;i++) {
+    int k = random() & 0x7FFFL;
+    void *data = NULL;
+    if(findRB(t, k)) {
+      count ++;
+    }
+  }
+  sz = 0;
+  FORALLRBNODES(t, { sz ++; });
+  freeRB(t, NULL);
+  TIMESTOP(clk);
+  fprintf(stderr, "Hash has %d elements. Found %d times\n",
+          sz, count);
+  printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
+  fprintf(stderr, "Hello\n");
+  exit (0);
+  return 0;
+}
+
+
+// redblack.c
 
 #define Red   0
 #define Black 1
 
 
-static RBNode * SAFE leftRotate(RBNode * SAFE r) {
-  RBNode * SAFE t;
+static RBNode *leftRotate(RBNode *r) {
+  RBNode *t;
   _ASSERT(r->right);
   t        = r->right;
   r->right = t->left; if(t->left) {t->left->parent = r; }
@@ -307,7 +366,7 @@ static RBNode * SAFE leftRotate(RBNode * SAFE r) {
   return     t;  // like r = t  
 }
 
-static RBNode * SAFE rightRotate(RBNode * SAFE r) {
+static RBNode *rightRotate(RBNode *r) {
   RBNode *t;
   _ASSERT(r->left);
   t         = r->left;
@@ -325,9 +384,10 @@ static RBNode * SAFE rightRotate(RBNode * SAFE r) {
   return     t;
 }
 
-static RBNode * SAFE fixupRB(RBNode * SAFE x);
+static RBNode * fixupRB(RBNode *x);
+#ifdef _DEBUG
 /* Check the tree and return the black height */
-static int checkRBTreeRec(RBNode * SAFE tree, U32 minKey, U32 maxKey) {
+static int checkRBTreeRec(RBNode *tree, U32 minKey, U32 maxKey) {
   int bhl, bhr;
   if(! tree) return 1;
   _ASSERT((! tree->left || tree->left->parent == tree) &&
@@ -343,7 +403,7 @@ static int checkRBTreeRec(RBNode * SAFE tree, U32 minKey, U32 maxKey) {
   return tree->color == Black ? bhl + 1 : bhl;
 }
 
-static int checkRBTree(RBNode * SAFE tree) {
+static int checkRBTree(RBNode *tree) {
   _ASSERT(tree->color == Black);
   checkRBTreeRec(tree, 0, (U32)(-1));
   return 1;
@@ -358,7 +418,7 @@ static int printRBIndent(U32 address) {
   return 1;
 }
 
-static int printRBTree(RBNode * SAFE tree, U32 address) {
+static int printRBTree(RBNode *tree, U32 address) {
   printRBIndent(address);
   if(tree) {
     printf(":%s - 0x%08lx\n",
@@ -370,11 +430,12 @@ static int printRBTree(RBNode * SAFE tree, U32 address) {
   }
   return 1;
 }
+#endif
 
-char * FSEQ insertRB(RBNode * SAFE * SAFE tree, U32 key, int datalen) {
-  RBNode * SAFE x, * SAFE t;
-  CALLOC(calloc_rbnodes, x, NULL, 1, sizeof(RBNode) + datalen,
-         RBNode * SAFE, "RBNode");
+char * FSEQ insertRB(RBNode **tree, U32 key, int datalen) {
+  RBNode *x, *t;
+  CALLOC(calloc_rbnode,
+         x, NULL, 1, sizeof(RBNode) + datalen, RBNode*, "RBNode");
   x->left = NULL;
   x->right = NULL;
   x->parent = NULL;
@@ -383,8 +444,8 @@ char * FSEQ insertRB(RBNode * SAFE * SAFE tree, U32 key, int datalen) {
 
   // Now insert as if it were a simple binary search tree
   {
-    RBNode * SAFE * SAFE p = tree;
-    RBNode * SAFE parent = NULL;
+    RBNode **p = tree;
+    RBNode *parent = NULL;
     while(*p) {               /* We have not reached a NIL */
       parent = *p;
       if(key <= (*p)->key) {
@@ -402,17 +463,19 @@ char * FSEQ insertRB(RBNode * SAFE * SAFE tree, U32 key, int datalen) {
   }
   _ASSERT(*tree);
   (*tree)->color = Black;
-  checkRBTree(*tree);
+  //  IFDEBUG(printf("Tree after insert of key=0x%08lx is\n", key);
+  //        printRBTree(*tree, 1););
+  IFDEBUG(checkRBTree(*tree));
   return & x->data[0];        /* Return the allocated node */
 }
 
 
-static RBNode * SAFE fixupRB(RBNode * SAFE x) {
+static RBNode * fixupRB(RBNode *x) {
   // Now fixup. We know that x is always RED. The root is always Black
   while(x->parent && x->parent->color == Red) {
-    RBNode * SAFE par  = x->parent;
-    RBNode * SAFE gpar = par->parent;
-    RBNode * SAFE uncle;
+    RBNode *par  = x->parent;
+    RBNode *gpar = par->parent;
+    RBNode *uncle;
     _ASSERT(x->color == Red);
     _ASSERT(gpar);  // the root is always black, so we must have a grand par
     _ASSERT(gpar->color == Black);
@@ -463,7 +526,7 @@ static RBNode * SAFE fixupRB(RBNode * SAFE x) {
   return x;
 }
 
-char * FSEQ findRB(RBNode * SAFE tree, U32 key) {
+char* FSEQ findRB(RBNode *tree, U32 key) {
   while(tree) {
     if(tree->key == key)
       return & tree->data[0];
@@ -475,8 +538,7 @@ char * FSEQ findRB(RBNode * SAFE tree, U32 key) {
   return NULL;
 }
 
-int freeRB(RBNode * SAFE tree, int (* SAFE freeData)(U32 key,
-                                                     char * FSEQ data)) {
+int freeRB(RBNode *tree, int (*freeData)(U32 key, char * FSEQ data)) {
   if(! tree) return 1;
   freeRB(tree->left, freeData);
   freeRB(tree->right, freeData);
@@ -484,61 +546,6 @@ int freeRB(RBNode * SAFE tree, int (* SAFE freeData)(U32 key,
   if(freeData) {
     (*freeData)(tree->key, & tree->data[0]);
   }
-  free_safe(tree);
+  free(tree);
   return 1;
 }
-
-
-#include "alloc.h"
-
-/* Some globals that PCC needs */
-int error_level, anerror;
-void myexit(int n) {
-  exit(n);
-}
-#ifdef _MSVC
-#define random rand
-#else
-/* weimer: not needed: extern int random(void); */
-#endif
-int __mmId;
-int debugMM;
-int debug;
-
-
-#define DATASIZE 16   // This is the size of the data that is reserved in
-                      // each node
-
-int main() {
-  /* Test hash tables */
-  RBNode * SAFE t = NULL;
-  int i;
-  double clk;
-  int count = 0;
-  int sz;
-  
-  /* Add and delete random numbers from the hash table */
-  TIMESTART(clk);
-  for(i=0;i<500000;i++) {
-    int k = random() & 0x7FFFL;
-    insertRB(& t, k, DATASIZE);
-  }
-  for(i=0;i<500000;i++) {
-    int k = random() & 0x7FFFL;
-    void *data = NULL;
-    if(findRB(t, k)) {
-      count ++;
-    }
-  }
-  sz = 0;
-  FORALLRBNODES(t, { sz ++; });
-  freeRB(t, NULL);
-  TIMESTOP(clk);
-  printf("Hash has %d elements. Found %d times\n",
-          sz, count);
-  printf("Run hashtest in %8.3lfms\n", clk / 1000.0);
-  printf("Hello\n");
-  exit (0);
-}
-
-
