@@ -1,4 +1,5 @@
 # .gdbinit
 
-file hola
+file simplewild
+break main
 run

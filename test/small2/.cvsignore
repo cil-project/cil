@@ -19,3 +19,6 @@ staticafternostorage
 voidfree
 simplewild
 multiplestatics
+__scalar2pointer.txt
+ptrtolocal
+tprintf
