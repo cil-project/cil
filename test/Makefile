@@ -20,6 +20,10 @@ ifneq ($(ARCHOS), x86_LINUX)
 endif
 endif
 
+ifndef BIG_EXAMPLES
+ BIG_EXAMPLES := ../../big-examples/
+endif
+
 defaulttarget:
 	@echo "This Makefile is intended to be run with an explicit target."
 
@@ -972,14 +976,77 @@ spro/% : $(SPR-TESTDIR)/%.c
 	cd $(SPR-TESTDIR); $(CCURED) --nomerge  \
 	       $(CONLY) $*.c 
 	echo SUCCESS
-################# New ( Thu Sep  5 18:49:56 PDT 2002 ) Apache Test Cases
 
-apache-cil:
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) apacheclean
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) apache-cil-test
+###########################################################################
+#                                  apache 1.3.9
+###########################################################################
+APACHESRC := $(BIG_EXAMPLES)/apache_1.3.9
 
-apache-modules-ccured:
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) apache-modules-ccured
+apacheclean:
+	cd $(APACHESRC); if test -f Makefile ; then $(MAKE) clean ; else ./configure ; fi
+	-cd $(APACHESRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+	(cd $(APACHESRC)/target/bin ; ./apachectl stop) || echo "Not running."
+
+apache-cil: mustbegcc mustbelinux 
+	cd $(APACHESRC) ; ./configure --disable-module=asis --enable-module=so --prefix=`pwd`/target ; make -e \
+              CC="$(CILLY) $(STANDARDPATCH)" \
+              MAKE="make -e" \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
+                RANLIB="echo" all install
+
+# This test builds Apache using CIL and then runs the HTTP daemon and
+# serves up a webpage. We then compared the web page against what we know
+# it should look like and shut down the web server. 
+apache-cil-test: apache-cil
+	echo "Port 9999" >> $(APACHESRC)/target/conf/httpd.conf
+	cd $(APACHESRC)/target/bin ; ./apachectl start
+	cd $(APACHESRC)/test-files ; sleep 3s ; rm -f index.html ; wget http://localhost:9999/index.html 
+	cd $(APACHESRC)/target/bin ; ./apachectl stop
+	cd $(APACHESRC)/test-files ; diff index.html index.html.default 
+	echo "apache-cil-test: SUCCESS"
+
+APATCHES := --patch=apache.patch --patch=apache_$(COMPILERNAME).patch
+APACHE_INCLUDES := httpd.h alloc.h http_config.h http_log.h http_protocol.h
+
+apachesetup:
+	cd $(APACHESRC)/ccured-modules ; \
+          $(PATCHER)  $(APACHECFLAGS) \
+          $(INC)"../../$(APACHESRC)/src/include" $(INC)"../../$(APACHESRC)/src/os/unix" \
+          $(APATCHES) \
+          --dest=include \
+          $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
+
+# This test cures the give module (e.g., make a-m-c/asis loads mod_asis)
+# and then loads it into a normal apache and serves up a webpage. The
+# result is compared against a gold standard. Then we shut down teh web
+# server. 
+a-m-c/%: apachesetup
+	cd $(APACHESRC)/ccured-modules ; ( $(CCURED) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
+	cd $(APACHESRC)/test-files ; cp httpd.conf.local ../target/conf/httpd.conf ; echo "LoadModule $*_module libexec/mod_$*cured.so" >> ../target/conf/httpd.conf
+	cd $(APACHESRC)/target/bin ; echo "Failing to load because of undefined references here is not good." ; ./apachectl start
+	cd $(APACHESRC)/test-files ; sleep 3s ; rm -f index.html ; wget http://localhost:9999/index.html ; 
+	cd $(APACHESRC)/target/bin ; ./apachectl stop
+	cd $(APACHESRC)/test-files ; diff index.html index.html.default 
+	echo "a-m-c/$*: SUCCESS" 
+
+apache-modules-ccured: a-m-c/asis a-m-c/expires a-m-c/gzip a-m-c/headers a-m-c/info a-m-c/layout a-m-c/random a-m-c/urlcount a-m-c/usertrack
+
+apace-gcc: mustbegcc mustbelinux bindclean
+	cd $(APACHESRC) ; ./configure --disable-module=asis --prefix=`pwd`/target ; make -e CC=gcc | tee bind-gcc.log
+
+
+
+apache-cil: apacheclean apache-cil-test
+
 
 ################# Apache test cases
 APACHETEST := $(TESTDIR)/apache
@@ -1994,19 +2061,34 @@ linux-merge3: mustbegcc mustbelinux mustbemanju
 linux-clean3: 
 	cd $(LINUX_MERGE_SRC); make clean
 
-######################## SENDMAIL
-# source available at www.sendmail.org
+###########################################################################
+#                              Sendmail
+###########################################################################
 
-ifndef BIG_EXAMPLES_DIR
-BIG_EXAMPLES_DIR:=../../big-examples
-endif
+# this directory contains the makefile for compiling with CCured:
+SENDMAILDIR=$(BIG_EXAMPLES)/sendmail-8.12.1/comb
+
+# if the links haven't been created yet, create them
+sendmaillinks:
+	if test ! -L $(SENDMAILDIR)/main.c; \
+	then cd $(SENDMAILDIR); ./configure; fi
+
+sendmailclean:
+	cd $(SENDMAILDIR); make clean
+
+
+sendmail-inferbox: sendmaillinks sendmailclean
+	cd $(SENDMAILDIR); make USE_CCURED=1 CCURED_DIR=$(CCUREDHOME)
+
+sendmail-cil: sendmaillinks sendmailclean
+	cd $(SENDMAILDIR); make USE_CIL=1 CCURED_DIR=$(CCUREDHOME)
 
 sendmail: mustbegcc 
 ifeq ($(INFERBOX),none)
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) sendmail-cil
+	$(MAKE) sendmail-cil
 else
  ifeq ($(INFERBOX),infer)
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) sendmail-inferbox
+	$(MAKE) sendmail-inferbox
  else
 	@echo "Sendmail supports INFERBOX=none or INFERBOX=infer."
  endif
@@ -2014,11 +2096,67 @@ endif
 
 
 
-######################## OpenSSL
+###########################################################################
+#                                OpenSSL
+###########################################################################
+# 
+OPENSSLSRC := $(BIG_EXAMPLES)/openssl
 
-openssl-test-withclean:
-	$(MAKE) -C $(BIG_EXAMPLES_DIR) openssl-test-withclean
+#don't use assembly or dynamic linking
+OPENSSL_CONFIG=./config no-asm no-dso
 
+CC_SSL="$(CCURED) $(STANDARDPATCH) --stages --verbose --merge --mode=GNUCC \
+-DCCURED_FIX -DUSE_POLYMORPHIC_QSORT"
+
+AR_SSL="$(CCURED) $(STANDARDPATCH) --stages --verbose --merge --mode=AR rv"
+
+openssl-clean:
+	cd $(OPENSSLSRC); if test -f Makefile ; then $(MAKE) clean ; else $(OPENSSL_CONFIG); fi
+	-cd $(OPENSSLSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+#make openssl-clean before making this the first time to run ./config
+openssl: mustbegcc
+	cd $(OPENSSLSRC) ; make -e \
+              CC=$(CC_SSL) \
+              MAKE="make -e" \
+              LD=$(CC_SSL) \
+              AR=$(AR_SSL) \
+              RANLIB="echo" 2>&1 | tee openssl.log
+
+#also runs the tests
+openssl-test: mustbegcc
+	cd $(OPENSSLSRC) ; make -e \
+              CC=$(CC_SSL) \
+              MAKE="make -e" \
+              LD=$(CC_SSL) \
+              AR=$(AR_SSL) \
+              RANLIB="echo" \
+	      test       2>&1 | tee openssl-test.log
+
+openssl-test-withclean: mustbegcc openssl-clean
+	cd $(OPENSSLSRC) ; make -e \
+              CC=$(CC_SSL) \
+              MAKE="make -e" \
+              LD=$(CC_SSL) \
+              AR=$(AR_SSL) \
+              RANLIB="echo" \
+	      test       2>&1 | tee openssl-test.log
+
+openssl-gcc: mustbegcc openssl-clean
+	cd $(OPENSSLSRC) ; make -e CC=gcc 2>&1 | tee openssl-gcc.log
+
+openssl-gcc-test: mustbegcc openssl-clean
+	cd $(OPENSSLSRC) ; make -e CC=gcc test 2>&1 | tee openssl-gcc-test.log
+
+.PHONY: openssl-clean openssl openssl-test openssl-test-withclean openssl-gcc openssl-gcc-test
 
 #### ------------- EMACS ---------------------------
 
@@ -2076,9 +2214,6 @@ perl-noclean: mustbegcc mustbelinux mustbemanju
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
 
-ifndef BIG_EXAMPLES
- BIG_EXAMPLES := ../../big-examples/
-endif
 
 ###########################################################################
 #                                  BIND
@@ -2713,3 +2848,35 @@ blockattr: small1/blockattr.c
                              --onlyMerge --mergeKeepAnnotations \
                              --commPrintLn --verbose \
                              --mergedout - blockattr.c | grep  -v '/\\* __blockattribute' | grep '__blockattribute'
+
+###########################################################################
+#
+#                Javascript - SpiderMonkey
+#
+###########################################################################
+
+JSDIR=$(BIG_EXAMPLES)/js
+
+js-orig: mustbegcc mustbelinux 
+	cd $(JSDIR)/src ; make -f Makefile.ref
+
+js-clean: 
+	-cd $(JSDIR)/src; find . \( \
+	        -name '*.OBJ' -o \
+		-name '*cil.c' -o \
+		-name '*cured.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*infer.c' -o \
+		-name '*_all*.c' -o \
+		-name '*_comb*.c' \
+	\) -exec rm -rf {} \;
+
+js: mustbegcc mustbelinux js-clean
+	cd $(JSDIR)/src ; make -f Makefile.ref CCURED=1 \
+                CC="$(CCURED) $(STANDARDPATCH) --verbose" \
+	        LD="$(CCURED) $(STANDARDPATCH) --verbose --keepmerged" \
+                AR="$(CILLY) --mode=AR --merge --verbose --keepmerged"
+	cd $(JSDIR); ./src/Linux_All_DBG.OBJ/js -f test.js
