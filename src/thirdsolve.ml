@@ -212,7 +212,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
           end else if e.efrom.kind <> Wild && set_outside e.efrom then begin
             E.s (E.bug "Solver: bad annotation (should be wild because of predecessor edge)@!%a" d_node e.efrom)
           end else begin
-            (if (e.eto.why_kind = UserSpec) then assert (e.eto.kind = Wild)) ;
+            (if (e.efrom.why_kind = UserSpec) then assert (e.efrom.kind = Wild)) ;
             update e.efrom Wild (SpreadFromEdge cur) ;
           end
         ) cur.pred ;
@@ -229,7 +229,62 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) node_ht 
   done ;
 
+  (* Consistency check: edges work correctly ... *)
+  Hashtbl.iter (fun id cur ->
+    (* All of my successors should have a predecessor edge
+     * that points to me! *)
+    List.iter (fun e ->
+      let points_back_to_me = ref false in
+      List.iter (fun be ->
+        if be.efrom = cur then points_back_to_me := true
+      ) e.eto.pred ;
+      if (not !points_back_to_me) then begin
+        E.s (E.bug "Succ edge from %d to %d, no reverse pred edge!\n%a\n%a"
+          cur.id e.efrom.id 
+          d_node cur
+          d_node e.efrom)
+      end ;
+    ) cur.succ ;
 
+    (* all of my predecessors should have a successor edge that
+     * points forward to me! *)
+    List.iter (fun e ->
+      let points_for_to_me = ref false in
+      List.iter (fun fe ->
+        if fe.eto = cur then points_for_to_me := true
+      ) e.efrom.succ ;
+      if (not !points_for_to_me) then begin
+        E.s (E.bug "Pred edge from %d to %d, no reverse succ edge!\n%a\n%a"
+          cur.id e.efrom.id 
+          d_node cur
+          d_node e.efrom)
+      end ;
+    ) cur.pred ;
+
+  ) node_ht;
+
+  (* Consistency check: wild nodes should form strongly connected
+   * components *)
+  Hashtbl.iter (fun id cur -> 
+    if (cur.kind = Wild) then begin
+      List.iter (fun e ->
+        assert(e.eto.kind = Wild || e.eto.kind = ROString)
+      ) cur.succ ;
+      List.iter (fun e ->
+        assert(e.efrom.kind = Wild || e.efrom.kind = ROString)
+      ) cur.pred ;
+      List.iter (fun n ->
+        assert(n.kind = Wild)
+      ) cur.pointsto ;
+    end else if cur.kind <> ROString then begin
+      List.iter (fun e ->
+        assert(e.eto.kind <> Wild) ;
+      ) cur.succ ;
+      List.iter (fun e ->
+        assert(e.efrom.kind <> Wild) ; 
+      ) cur.pred ;
+    end
+  ) node_ht ;
 
   (* Step Y
    * ~~~~~~
@@ -312,8 +367,10 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       end ;
       (* consider all successor edges *)
       List.iter (fun e -> 
-        if ((e.ekind = ECast && e.eto.kind = FSeqN) || 
-           (e.ekind = ECompat && (e.eto.kind = FSeq || e.eto.kind = FSeqN))) &&
+        if (
+            (e.ekind = ECast && e.eto.kind = FSeqN) || 
+            (e.ekind = ECompat && (e.eto.kind = FSeq || e.eto.kind = FSeqN))
+           ) &&
            not (set_outside cur) then begin
           assert(not(cur.can_reach_seq)) ;
           assert(not(cur.can_reach_index)) ;
@@ -330,7 +387,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         if (e.ekind = ECast || e.ekind = ENull || e.ekind = EIndex) &&
            (e.eto.kind = FSeq || e.eto.kind = FSeqN) && 
-           not (set_outside cur) then begin
+           not (set_outside cur) &&
+           cur.kind <> ROString then begin
           assert(not(cur.can_reach_seq)) ;
           assert(not(cur.can_reach_index)) ;
           assert(not(cur.kind = Wild)) ;
@@ -344,7 +402,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
            (e.efrom.kind = String || e.efrom.kind = FSeqN) &&
            (not ((is_array e.efrom) || (cur.arith))) &&
            (cur.posarith || e.efrom.kind = FSeqN) && 
-           (not(set_outside cur)) then begin
+           (not(set_outside cur)) && 
+           cur.kind <> ROString then begin
           assert(not(cur.can_reach_seq)) ;
           assert(not(cur.can_reach_index)) ;
           assert(not(cur.kind = Wild)) ;
@@ -359,9 +418,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       (if (cur.kind = FSeqN) then 
         match nodeOfAttrlist (typeAttrs cur.btype) with
           Some(n) -> 
-            assert(not(cur.can_reach_seq)) ;
-            assert(not(cur.can_reach_index)) ;
-            assert(not(cur.kind = Wild)) ;
+            assert(not(n.can_reach_seq)) ;
+            assert(not(n.can_reach_index)) ;
             assert(cur.why_kind <> UserSpec) ; 
             assert(n.can_reach_string) ;
             update n FSeqN (SpreadToArrayFrom cur)
@@ -452,7 +510,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       List.iter (fun e -> 
         if (e.ekind = ECompat || e.ekind = ECast || e.ekind = ENull)
           && (e.efrom.kind = Seq || e.efrom.kind = SeqN) && 
-          not (set_outside cur) then begin
+          not (set_outside cur) && 
+          cur.kind <> ROString then begin
           assert(cur.kind <> Wild) ;
           assert(not(cur.can_reach_index)) ;
           assert(cur.why_kind <> UserSpec) ; 
@@ -473,8 +532,8 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       (if (cur.kind = SeqN) then 
         match nodeOfAttrlist (typeAttrs cur.btype) with
           Some(n) -> 
-            assert(not(cur.can_reach_index)) ;
-            assert(not(cur.kind = Wild)) ;
+            assert(not(n.can_reach_index)) ;
+            assert(not(n.kind = Wild)) ;
             assert(n.why_kind <> UserSpec) ; 
             update n SeqN (SpreadToArrayFrom cur)
         | None -> ()) 
