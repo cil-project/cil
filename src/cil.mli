@@ -938,6 +938,11 @@ val mapGlobals: file -> (global -> global) -> unit
   * list of the statements *)
 val computeCFGInfo: fundec -> stmt list
 
+
+(** Create a deep copy of a function. There shoudl be no sharing between the 
+ * copy and the riginal function *)
+val copyFunction: fundec -> string -> fundec 
+
 (** {b Values for manipulating initializers} *)
 
 
@@ -1456,9 +1461,6 @@ end
 
 (** Default Visitor. Traverses the CIL tree without modifying anything *)
 class nopCilVisitor: cilVisitor
-
-(** A function that makes a deep copy of a function body. Pass a new name *)
-val copyFunction: fundec -> string -> fundec
 
 (* other cil constructs *)
 
