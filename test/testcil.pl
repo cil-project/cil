@@ -1097,7 +1097,7 @@ sub testCommandExtras {
         $theargs .= " NOREMAKE=1";
     }
     # Turn on the verbose flag
-    $theargs .= " STATS=1 PRINTSTAGES=1 EXTRAARGS=--noFSEQ ";
+    $theargs .= " STATS=1 PRINTSTAGES=1 ";
 
     return $theargs;
 }
