@@ -9,6 +9,12 @@
  * 
  *****************************************************************************/
 
+/* weimer hack! */
+//#define __qaddr_t	wes__qaddr_t
+//#define __fsid_t	wes__fsid_t
+//#define __caddr_t	wes__caddr_t
+//#define __fd_set	wes__fd_set
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
@@ -180,44 +186,44 @@ extern  int anerror;
 
 
 #ifndef EMBEDDED
-#define ERRLINE    {fprintf(stderr, "Error at %s(%d):",__FILE__,__LINE__);\
+#define ERRLINE    {printf( "Error at %s(%d):",__FILE__,__LINE__);\
 		    ERR_SET;}
-#define WARNLINE   {fprintf(stderr, "Warning at %s(%d):",__FILE__,__LINE__);}
+#define WARNLINE   {printf( "Warning at %s(%d):",__FILE__,__LINE__);}
 
 #define ERROR0(v, txt)              {ERRLINE;\
-			  	     fprintf(stderr,txt);EXIT(v,1);}
+			  	     printf(txt);EXIT(v,1);}
 #define ERROR1(v, txt, d1)          {ERRLINE;\
-				     fprintf(stderr,txt, d1);EXIT(v,1);}
+				     printf(txt, d1);EXIT(v,1);}
 #define ERROR2(v, txt, d1, d2)      {ERRLINE;\
-				     fprintf(stderr,txt, d1, d2);EXIT(v,1);}
+				     printf(txt, d1, d2);EXIT(v,1);}
 #define ERROR3(v, txt, d1, d2, d3)  {ERRLINE;\
-				    fprintf(stderr,txt, d1, d2, d3);EXIT(v,1);}
+				    printf(txt, d1, d2, d3);EXIT(v,1);}
 #define ERROR4(v, txt, d1, d2, d3, d4)  \
                                {ERRLINE;\
-				fprintf(stderr,txt, d1, d2, d3, d4);EXIT(v,1);}
+				printf(txt, d1, d2, d3, d4);EXIT(v,1);}
 #define ERROR5(v, txt, d1, d2, d3, d4, d5)  \
                                {ERRLINE;\
-				fprintf(stderr,txt, d1, d2, d3, d4, d5);\
+				printf(txt, d1, d2, d3, d4, d5);\
                                 EXIT(v,1);}
 #define ERROR6(v, txt, d1, d2, d3, d4, d5, d6)  \
                                {ERRLINE;\
-				fprintf(stderr,txt, d1, d2, d3, d4, d5, d6);\
+				printf(txt, d1, d2, d3, d4, d5, d6);\
                                 EXIT(v,1);}
 
 #define WARNING0(txt)               {WARNLINE;\
-                                     fprintf(stderr,txt);}
+                                     printf(txt);}
 #define WARNING1(txt, d1)           {WARNLINE;\
-                                     fprintf(stderr,txt, d1);}
+                                     printf(txt, d1);}
 #define WARNING2(txt, d1, d2)       {WARNLINE;\
-                                     fprintf(stderr,txt, d1, d2);}
+                                     printf(txt, d1, d2);}
 #define WARNING3(txt, d1, d2, d3)   {WARNLINE;\
-                                     fprintf(stderr,txt, d1, d2, d3);}
+                                     printf(txt, d1, d2, d3);}
 #define WARNING4(txt, d1, d2, d3, d4)   {WARNLINE;\
-                                  fprintf(stderr,txt, d1, d2, d3, d4);}
+                                  printf(txt, d1, d2, d3, d4);}
 #define WARNING5(txt, d1, d2, d3, d4, d5)   {WARNLINE;\
-                                  fprintf(stderr,txt, d1, d2, d3, d4, d5);}
+                                  printf(txt, d1, d2, d3, d4, d5);}
 #define WARNING6(txt, d1, d2, d3, d4, d5, d6)   {WARNLINE;\
-                                  fprintf(stderr,txt, d1, d2, d3, d4, d5, d6);}
+                                  printf(txt, d1, d2, d3, d4, d5, d6);}
 #else
 
 #define ERROR0(v,txt)                     { myexit(1 + __LINE__); }
@@ -244,7 +250,7 @@ extern  int anerror;
 
 #ifdef _DEBUG
 #ifndef _MSVC
-#define _ASSERT(be) {if(!(be)){fprintf(stderr,"Assertion failed on line %d in file %s\n", __LINE__, __FILE__);myexit(2);}}
+#define _ASSERT(be) {if(!(be)){printf("Assertion failed on line %d in file %s\n", __LINE__, __FILE__);myexit(2);}}
 #endif
 #else
 #define _ASSERT(be) {}
@@ -616,3 +622,7 @@ char *loadFile(const char* name, UL *fileSize);
 
 #define USE_REDBLACK
 
+#undef __qaddr_t	
+#undef __fsid_t	
+#undef __caddr_t
+#undef __fd_set

@@ -13,7 +13,7 @@ void myexit(int n) {
 #ifdef _MSVC
 #define random rand
 #else
-extern int random(void);
+/* extern int random(void); -- Weimer: not needed! */
 #endif
 int __mmId;
 int debugMM;
