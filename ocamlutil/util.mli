@@ -66,6 +66,7 @@ val newGrowArray: int -> 'a growArrayFill -> 'a growArray
 val getReg: 'a growArray -> int -> 'a
 val setReg: 'a growArray -> int -> 'a -> unit
 val copyGrowArray: 'a growArray -> 'a growArray
+val deepCopyGrowArray: 'a growArray -> ('a -> 'a) -> 'a growArray
 
 
 (** hasPrefix prefix str returns true with str starts with prefix *)

@@ -239,6 +239,9 @@ let newGrowArray (initsz: int) (fill: 'a growArrayFill) : 'a growArray =
 let copyGrowArray (ga: 'a growArray) : 'a growArray = 
   { ga with gaData = Array.copy ga.gaData } 
 
+let deepCopyGrowArray (ga: 'a growArray) (copy: 'a -> 'a): 'a growArray = 
+  { ga with gaData = Array.map copy ga.gaData } 
+
 let hasPrefix (prefix: string) (what: string) : bool = 
   let pl = String.length prefix in
   try String.sub what 0 pl = prefix 
