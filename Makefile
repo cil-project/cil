@@ -1148,11 +1148,11 @@ m88kclean:
 	cd $(M88DIR)/src; make clean
 	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-m88k: defaulttarget mustbegcc
+m88k: defaulttarget mustbegcc m88kclean
 	cd $(M88DIR)/src; \
-            make clean build CC="$(M88SAFECC) $(CONLY)" \
-                             LD="$(M88SAFECC)" \
-                             EXTRA_LIBS=$(M88EXTRA) 
+            make    build CC="$(M88SAFECC) $(CONLY)" \
+                          LD="$(M88SAFECC)" \
+                          EXTRA_LIBS=$(M88EXTRA) 
 	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
 
 m88k-noclean: defaulttarget mustbegcc

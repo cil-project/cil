@@ -42,12 +42,11 @@ let list_expression expr =
 
 
 
-let __functionString = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" 
-
+let currentFunctionName = ref "<outside any function>"
     
-(* A declaration specifier *)
-
-
+let announceFunctionName ((n, _, _):name) =
+  Clexer.add_identifier n;
+  currentFunctionName := n
 
 
 
@@ -69,6 +68,7 @@ let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : 
     if nl = [] then
       ONLYTYPEDEF (specs, loc)
     else begin
+      (* Tell the lexer about the new variable names *)
       List.iter (fun ((n, _, _), _) -> Clexer.add_identifier n) nl;
       DECDEF ((specs, nl), loc)  
     end
@@ -136,7 +136,7 @@ let doOldParDecl (names: string list)
 %token WHILE DO FOR
 %token IF ELSE
 
-%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__
+%token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__
 /* weimer: gcc "__extension__" keyword */
 %token EXTENSION
 %token DECLSPEC
@@ -200,6 +200,7 @@ let doOldParDecl (names: string list)
 %type <Cabs.enum_item> enumerator
 %type <Cabs.enum_item list> enum_list
 %type <Cabs.definition> declaration function_def
+%type <cabsloc * spec_elem list * name> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
 %type <Cabs.body> block block_item_list
 %type <string list> old_parameter_list
@@ -368,11 +369,14 @@ constant:
 |   string_list				{CONST_STRING $1}
 ;
 string_list:
-    CST_STRING				{$1}
-|   string_list CST_STRING		{$1 ^ $2}
-|   string_list FUNCTION__              {$1 ^ __functionString}
+    one_string                          { $1 }
+|   string_list one_string              { $1 ^ $2 }
 ;
-
+one_string: 
+    CST_STRING				{$1}
+|   FUNCTION__                          {!currentFunctionName}
+|   PRETTY_FUNCTION__                   {!currentFunctionName}
+;    
 init_expression:
      expression         { SINGLE_INIT $1 }
 |    LBRACE initializer_list RBRACE
@@ -722,25 +726,43 @@ abs_direct_decl_opt:
 |   /* empty */                     { JUSTBASE }
 ;
 function_def:  /* (* ISO 6.9.1 *) */
-  location decl_spec_list declarator block { doFunctionDef $1 $2 $3 $4 }
+  function_def_start block    
+          { let (loc, specs, decl) = $1 in
+            currentFunctionName := "<__FUNCTION__ used outside any functions>";
+            doFunctionDef loc specs decl $2 
+          } 
+
+function_def_start:  /* (* ISO 6.9.1 *) */
+  location decl_spec_list declarator   
+                            { announceFunctionName $3;
+                              ($1, $2, $3)
+                            } 
+
 /* (* Old-style function prototype *) */
-| location decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 $4 } 
+| location decl_spec_list old_proto_decl 
+                            { announceFunctionName $3;
+                              ($1, $2, $3) 
+                            } 
 /* (* New-style function that does not have a return type *) */
-| location        IDENT LPAREN parameter_list RPAREN block
+| location        IDENT LPAREN parameter_list RPAREN 
                            { let fdec = ($2, PROTO(JUSTBASE, $4, false), []) in
+                             announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
-                             doFunctionDef $1 defSpec fdec $6 }
+                             ($1, defSpec, fdec) 
+                           }
 /* (* No return type and old-style parameter list *) */
-| location        IDENT LPAREN old_parameter_list RPAREN old_pardef_list block
+| location        IDENT LPAREN old_parameter_list RPAREN old_pardef_list
                            { (* Convert pardecl to new style *)
                              let pardecl = doOldParDecl $4 $6 in
                              (* Make the function declarator *)
                              let fdec = ($2, 
                                          PROTO(JUSTBASE, pardecl,false), []) in
+                             announceFunctionName fdec;
                              (* Default is int type *)
                              let defSpec = [SpecType Tint] in
-                             doFunctionDef $1 defSpec fdec $7 }
+                             ($1, defSpec, fdec) 
+                            }
 ;
 
 

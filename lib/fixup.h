@@ -87,7 +87,6 @@
 
 
 // ideally we could handle this better..
-#define __PRETTY_FUNCTION__ "__PRETTY_FUNCTION__ (disabled)"
 // hack: 'restrict' is a problem with glibc 2.2
 #define __restrict
 #define restrict
