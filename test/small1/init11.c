@@ -2,7 +2,7 @@
 
 
 void foo(int invok) {
-  static const int honour_longs = 4 > 4 || 4  > 4;
+  static const int honour_longs = (4 > 4) || (4 > 4);
   static int bar = 0;
   
   if(invok == 0) {

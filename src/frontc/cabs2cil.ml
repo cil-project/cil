@@ -982,7 +982,7 @@ let rec castTo ?(fromsource=false)
       TNamed(r, _), _ -> castTo r.ttype nt e
     | _, TNamed(r, _) -> castTo ot r.ttype e
     | TInt(ikindo,_), TInt(ikindn,_) -> 
-        if ikindo == ikindn then (nt, e) else result
+        if ikindo = ikindn then (nt, e) else result
 
     | TPtr (told, _), TPtr(tnew, _) -> result
           
@@ -1145,7 +1145,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) -> 
       let combineIK oldk k = 
-        if oldk == k then oldk else
+        if oldk = k then oldk else
         (* GCC allows a function definition to have a more precise integer 
          * type than a prototype that says "int" *)
         if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32 
@@ -1157,7 +1157,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
       TInt (combineIK oldik ik, cabsAddAttributes olda a)
   | TFloat (oldfk, olda), TFloat (fk, a) -> 
       let combineFK oldk k = 
-        if oldk == k then oldk else
+        if oldk = k then oldk else
         (* GCC allows a function definition to have a more precise integer 
          * type than a prototype that says "double" *)
         if not !msvcMode && oldk = FDouble && k = FFloat 
@@ -3065,13 +3065,12 @@ and doExp (isconst: bool)    (* In a constant *)
         (* We must normalize the result to 0 or 1 *)
         match ce with
           CEExp (se, Const(CInt64(i, _, _))) -> 
-            finishExp se (if i == Int64.zero then zero else one) intType
+            finishExp se (if i = Int64.zero then zero else one) intType
         | CEExp (se, e) ->
             let e' = 
               let te = typeOf e in
               let _, zte = castTo intType te zero in
-              BinOp(((*if isPointerType te then NeP else *)Ne),
-                    e, zte, te)
+              BinOp(Ne, e, zte, te)
             in
             finishExp se e' intType
         | _ -> 
@@ -3511,11 +3510,11 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
  * conditionals in the initializers *)
 and doCondExp (isconst: bool) 
               (e: A.expression) : condExpRes = 
-  let rec addChunkToCE (c0: chunk) = function
+  let rec addChunkBeforeCE (c0: chunk) = function
       CEExp (c, e) -> CEExp (c0 @@ c, e)
-    | CEAnd (ce1, ce2) -> CEAnd (addChunkToCE c0 ce1, ce2)
-    | CEOr (ce1, ce2) -> CEOr (addChunkToCE c0 ce1, ce2)
-    | CENot ce1 -> CENot (addChunkToCE c0 ce1)
+    | CEAnd (ce1, ce2) -> CEAnd (addChunkBeforeCE c0 ce1, ce2)
+    | CEOr (ce1, ce2) -> CEOr (addChunkBeforeCE c0 ce1, ce2)
+    | CENot ce1 -> CENot (addChunkBeforeCE c0 ce1)
   in
   let rec canDropCE = function
       CEExp (c, e) -> canDrop c
@@ -3529,26 +3528,34 @@ and doCondExp (isconst: bool)
       match ce1 with
         CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if not (isZero ci1) then 
-            addChunkToCE se1 ce2
+            addChunkBeforeCE se1 ce2
           else 
             (* se2 might contain labels so we cannot drop it *)
-            if canDropCE ce2 then ce1 else 
-            CEAnd (ce1, ce2)
+            if canDropCE ce2 then 
+              ce1 
+            else 
+              CEAnd (ce1, ce2)
+
       | _ -> CEAnd (ce1, ce2)
     end
+
   | A.BINARY (A.OR, e1, e2) -> begin
       let ce1 = doCondExp isconst e1 in
       let ce2 = doCondExp isconst e2 in
       match ce1 with
         CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if isZero ci1 then 
-            addChunkToCE se1 ce2
+            addChunkBeforeCE se1 ce2
           else 
             (* se2 might contain labels so we cannot drop it *)
-            if canDropCE ce2 then ce1 else 
-            CEOr (ce1, ce2)
+            if canDropCE ce2 then 
+              ce1 
+            else 
+              CEOr (ce1, ce2)
+
       | _ -> CEOr (ce1, ce2)
     end
+
   | A.UNARY(A.NOT, e1) -> begin
       match doCondExp isconst e1 with 
         CEExp (se1, (Const(CInt64 _) as ci1)) -> 
@@ -3558,6 +3565,7 @@ and doCondExp (isconst: bool)
             CEExp (se1, zero)
       | ce1 -> CENot ce1
   end
+
   | _ -> 
       let (se, e, t) as rese = doExp isconst e (AExp None) in
       ignore (checkBool t e);

@@ -18,8 +18,6 @@ Makefile.cil: Makefile.cil.in
 @DEFAULT_COMPILER@=1
 
 
-# Directory containing the *.cm[io] files for odoc.
-CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
 
 ifdef RELEASE
   NATIVECAML := 1
@@ -153,8 +151,6 @@ odoc:
 	     -I $(OBJDIR) \
                     src/pretty.mli src/errormsg.mli src/clist.mli \
 	  	    src/stats.mli src/cil.mli src/formatcil.mli
-	if test -d $(CILHTMLDEST)/api; then \
-           cp -rf doc/html/cil/api/* $(CILHTMLDEST)/api; fi
 
 # Documentation generated from latex files using "hevea"
 texdoc:
@@ -170,10 +166,9 @@ texdoc:
 	cd doc/html/cil; hacha -o ciltoc.html cil.html
 	cp doc/cilindex.html doc/html/cil/index.html
 	cp doc/cilheader.html doc/html/cil
-	if test -d $(CILHTMLDEST); then \
-           cp -rf doc/html/cil/* $(CILHTMLDEST); fi
 
 doc: texdoc odoc
+
 
 #----------------------------------------------------------------------
 # Generate the CIL distribution
@@ -266,15 +261,21 @@ distrib-nocheck: doc
 	cd $(TEMP_DIR); tar cfz $(CIL_TAR_GZ) cil
 	mv $(TEMP_DIR)/$(CIL_TAR_GZ) .
 
-	if test -d $(CILHTMLDEST); then \
-                cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
-                ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; fi
 #	rm -rf $(TEMP_DIR)
 
 ## Check a distribution
 checkdistrib:
 	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
 
+
+## Publish the distribution
+CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
+publish_distrib: doc
+	if test -d $(CILHTMLDEST); then \
+           cp -rf doc/html/cil/* $(CILHTMLDEST); \
+           cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
+           ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; \
+	fi
 
 clean: cleancaml
 	rm -f $(OBJDIR)/machdep.ml
@@ -292,3 +293,4 @@ testrun/%:
 .PHONY: quicktest
 quicktest: $(patsubst %,test/%,func init init1) \
            $(patsubst %,testrun/%,hello wchar1 vararg1)
+
