@@ -2573,13 +2573,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         self#pLineDirective l ++
           text "enum" ++ align ++ text (" " ^ enum.ename) ++
           self#pAttrs () enum.eattr ++ text " {" ++ line
-          ++ (docList line 
+          ++ (docList (chr ',' ++ line)
                 (fun (n,i, loc) -> 
                   text (n ^ " = ") 
-                    ++ self#pExp () i
-                    ++ text "," ++ break)
+                    ++ self#pExp () i)
                 () enum.eitems)
-          ++ unalign ++ break ++ text "};\n"
+          ++ unalign ++ line ++ text "};\n"
 
     | GEnumTagDecl (enum, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
