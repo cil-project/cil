@@ -3460,7 +3460,15 @@ and createGlobal (specs: A.spec_elem list)
       if debugGlobal then 
         ignore (E.log " first definition for %s\n" vi.vname);
       if init != None then begin
-        if vi.vstorage = Extern then 
+        (* weimer: Sat Dec  8 17:43:34  2001
+         * MSVC NT Kernel headers include this lovely line:
+         * extern const GUID __declspec(selectany) \
+         *  MOUNTDEV_MOUNTED_DEVICE_GUID = { 0x53f5630d, 0xb6bf, 0x11d0, { \
+         *  0x94, 0xf2, 0x00, 0xa0, 0xc9, 0x1e, 0xfb, 0x8b } };
+         * So we allow "extern" + "initializer" if "selectany" is
+         * around. *)
+        if vi.vstorage = Extern && 
+            not(hasAttribute "selectany" (typeAttrs vi.vtype)) then 
           E.s (error "%s is extern and with initializer" vi.vname);
         H.add alreadyDefined vi.vid !currentLoc;
         H.remove mustTurnIntoDef vi.vid;
@@ -4172,9 +4180,21 @@ let convFile fname dl =
 
               (* Now see whether we can fall through to the end of the 
                * function *)
+              (* weimer: Sat Dec  8 17:30:47  2001
+               * MSVC NT kernel headers include functions like
+               * long convert(x) { __asm { mov eax, x \n cdq } }
+               * That set a return value via an ASM statement. As a 
+               * result, I am changing this so a final ASM statement
+               * does not count as "fall through" for the purposes of
+               * this warninge. *)
+              let instrFallsThrough (i : instr) = match i with
+                Set _ | Call _ -> true
+              | Asm _ -> false
+              in 
               let rec stmtFallsThrough (s: stmt) = 
                 match s.skind with
-                  Instr _ -> true
+                  Instr(il) -> List.fold_left (fun acc elt -> 
+                    instrFallsThrough elt) true il
                 | Return _ | Break _ | Continue _ -> false
                 | Goto _ -> false
                 | If (_, b1, b2, _) -> 
