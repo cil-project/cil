@@ -541,6 +541,7 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure DECFSEQ",
 $TEST->addTestsFail("testrun/fseq1", "", "Failure LBOUND", 
                     ['box']);
 $TEST->addTestsFail("testrun/string1", "", "Failure UBOUND", ['inferbox']);
+$TEST->addTestsFail("testrun/string2", "", "Failure UBOUND", ['inferbox']);
 $TEST->addTestsFail("testrun/fseq3", "", "Failure NONPTR", ['inferbox']);
 $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polyfunptr", "_GNUCC=1", [ 'inferbox' ]);
