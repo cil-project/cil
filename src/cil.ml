@@ -724,7 +724,7 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrName false))
     [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
-      "exception"; "model"];
+      "exception"; "model"; "mode"];
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn" ];
   List.iter (fun a -> H.add table a (AttrFunType false))
