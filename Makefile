@@ -686,7 +686,7 @@ apache/random :
 
 apache/info : 
 	rm -f $(APACHETEST)/mod_info.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) --logcalls --logwrites --usecil --cilout=mod_infocil.c \
+	cd $(APACHETEST); $(CCURED) \
                        --keep=. $(APATCH) \
                         $(CFLAGS) \
                         $(APACHECFLAGS) \

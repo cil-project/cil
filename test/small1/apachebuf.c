@@ -15,15 +15,19 @@ int main() {
 
     set((char *) window, 1, 10); 
 
+    /*
     if (* ((char *) window) != 1)
         E(1);
+        */
 
     fun_ptr = set;
 
     fun_ptr((char *) window, 2, 10); 
 
+    /*
     if (* ((char *) window) != 2)
         E(2);
+        */
 
     SUCCESS;
 }

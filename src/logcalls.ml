@@ -22,7 +22,7 @@ class verboseLogVisitor printfFun funstr = object
   method vinst i = begin
     match i with
       Call(lo,e,al,l) -> 
-      let str1 = Pretty.sprint 80 ( Pretty.dprintf "Calling %a(@[%a@])\n" d_exp e
+      let str1 = Pretty.sprint 800 ( Pretty.dprintf "Calling %a(%a)\n" d_exp e
         (docList (chr ',' ++ break ) (fun arg -> 
           try
             match unrollType (typeOf arg) with
@@ -99,7 +99,7 @@ let logCalls (f: file) : unit =
         i := 0 ;
         name := fdec.svar.vname ; 
         let thisVisitor = new verboseLogVisitor printfFun !name in 
-        fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; 
+        (* fdec.sbody <- visitCilBlock thisVisitor fdec.sbody; *)
         fdec.sbody.bstmts <- 
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
                                 ( one :: Const(CStr(formatstr)) :: actargs),
