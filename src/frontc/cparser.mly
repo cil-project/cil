@@ -409,7 +409,7 @@ primary_expression:                     /*(* 6.5.1. *)*/
 		        {VARIABLE (fst $1), snd $1}
 |        	constant
 		        {CONSTANT (fst $1), snd $1}
-|		paren_comma_expression
+|		paren_comma_expression  
 		        {smooth_expression (fst $1), snd $1}
 ;
 postfix_expression:                     /*(* 6.5.2 *)*/
@@ -451,17 +451,17 @@ unary_expression:   /*(* 6.5.3 *)*/
 		        {EXPR_ALIGNOF (fst $2), $1}
 |	 	ALIGNOF LPAREN type_name RPAREN
 		        {let b, d = $3 in TYPE_ALIGNOF (b, d), $1}
-|		PLUS unary_expression
+|		PLUS cast_expression
 		        {UNARY (PLUS, fst $2), $1}
-|		MINUS unary_expression
+|		MINUS cast_expression
 		        {UNARY (MINUS, fst $2), $1}
-|		STAR unary_expression
+|		STAR cast_expression
 		        {UNARY (MEMOF, fst $2), $1}
-|		AND unary_expression				
+|		AND cast_expression				
 		        {UNARY (ADDROF, fst $2), $1}
-|		EXCLAM unary_expression
+|		EXCLAM cast_expression
 		        {UNARY (NOT, fst $2), $1}
-|		TILDE unary_expression
+|		TILDE cast_expression
 		        {UNARY (BNOT, fst $2), $1}
 ;
 
@@ -597,16 +597,18 @@ assignment_expression:     /*(* 6.5.16 *)*/
 			{BINARY(SHR_ASSIGN, fst $1, fst $3), snd $1}
 ;
 
-expression_new:           /*(* 6.5.17 *)*/
+expression:           /*(* 6.5.17 *)*/
                 assignment_expression
                         { $1 }
 ;
                             
-expression:
+expression_old:
         	constant     /*x*/
 		        {CONSTANT (fst $1), snd $1}
 |		IDENT    /*x*/
 		        {VARIABLE (fst $1), snd $1}
+|		paren_comma_expression              
+		        {smooth_expression (fst $1), snd $1}
 |		SIZEOF expression
 		        {EXPR_SIZEOF (fst $2), $1}
 |	 	SIZEOF LPAREN type_name RPAREN
@@ -641,8 +643,6 @@ expression:
 		        {MEMBEROF (fst $1, $3), snd $1}
 |		LPAREN block RPAREN
 		        { GNU_BODY (fst3 $2), $1 }
-|		paren_comma_expression
-		        {smooth_expression (fst $1), snd $1}
 |		expression LPAREN arguments RPAREN
 			{CALL (fst $1, $3), snd $1}
 |               BUILTIN_VA_ARG LPAREN expression COMMA type_name RPAREN
@@ -1329,58 +1329,121 @@ just_attributes:
 /** (* PRAGMAS and ATTRIBUTES *) ***/
 /* (* We want to allow certain strange things that occur in pragmas, so we 
     * cannot use directly the language of expressions *) */ 
-attr: 
-|   id_or_typename                       { VARIABLE $1 }
+primary_attr: 
+    IDENT				{ VARIABLE (fst $1) }
+    /*(* The NAMED_TYPE here creates conflicts with IDENT *)*/
+|   NAMED_TYPE				{ VARIABLE (fst $1) } 
+|   LPAREN attr RPAREN                  { $2 } 
 |   IDENT IDENT                          { CALL(VARIABLE (fst $1), [VARIABLE (fst $2)]) }
-|   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
-
-|   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) } 
-|   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
-                                         /* (* use a VARIABLE "" so that the 
-                                             * parentheses are printed *) */
-|   IDENT LPAREN  RPAREN                 { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
-|   IDENT paren_attr_list_ne             { CALL(VARIABLE (fst $1), $2) }
-
 |   CST_INT                              { CONSTANT(CONST_INT (fst $1)) }
 |   string_constant                      { CONSTANT(CONST_STRING (fst $1)) }
                                            /*(* Const when it appears in 
                                             * attribute lists, is translated 
                                             * to aconst *)*/
 |   CONST                                { VARIABLE "aconst" }
-|   SIZEOF expression                     {EXPR_SIZEOF (fst $2)}
+|   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
+
+|   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) } 
+|   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
+;
+
+postfix_attr:
+    primary_attr                         { $1 }
+                                         /* (* use a VARIABLE "" so that the 
+                                             * parentheses are printed *) */
+|   IDENT LPAREN  RPAREN                 { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
+|   IDENT paren_attr_list_ne             { CALL(VARIABLE (fst $1), $2) }
+
+|   postfix_attr ARROW id_or_typename    {MEMBEROFPTR ($1, $3)} 
+|   postfix_attr DOT id_or_typename      {MEMBEROF ($1, $3)}  
+;
+
+/*(* Since in attributes we use both IDENT and NAMED_TYPE as indentifiers, 
+ * that leads to conflicts for SIZEOF and ALIGNOF. In those cases we require 
+ * that their arguments be expressions, not attributes *)*/
+unary_attr:
+    postfix_attr                         { $1 }
+|   SIZEOF unary_expression              {EXPR_SIZEOF (fst $2) }
 |   SIZEOF LPAREN type_name RPAREN
 		                         {let b, d = $3 in TYPE_SIZEOF (b, d)}
 
-|   ALIGNOF expression                   {EXPR_ALIGNOF (fst $2)}
+|   ALIGNOF unary_expression             {EXPR_ALIGNOF (fst $2) }
 |   ALIGNOF LPAREN type_name RPAREN      {let b, d = $3 in TYPE_ALIGNOF (b, d)}
-|   PLUS expression    	                 {UNARY (PLUS, fst $2)}
-|   MINUS expression 		        {UNARY (MINUS, fst $2)}
-|   STAR expression		        {UNARY (MEMOF, fst $2)}
-|   AND expression				                 %prec ADDROF
-	                                {UNARY (ADDROF, fst $2)}
-|   EXCLAM expression		        {UNARY (NOT, fst $2)}
-|   TILDE expression		        {UNARY (BNOT, fst $2)}
-|   attr PLUS attr                      {BINARY(ADD ,$1 , $3)} 
-|   attr MINUS attr                     {BINARY(SUB ,$1 , $3)}
-|   attr STAR expression                {BINARY(MUL ,$1 , fst $3)}
-|   attr SLASH attr			{BINARY(DIV ,$1 , $3)}
-|   attr PERCENT attr			{BINARY(MOD ,$1 , $3)}
-|   attr AND_AND attr			{BINARY(AND ,$1 , $3)}
-|   attr PIPE_PIPE attr			{BINARY(OR ,$1 , $3)}
-|   attr AND attr			{BINARY(BAND ,$1 , $3)}
-|   attr PIPE attr			{BINARY(BOR ,$1 , $3)}
-|   attr CIRC attr			{BINARY(XOR ,$1 , $3)}
-|   attr EQ_EQ attr			{BINARY(EQ ,$1 , $3)}
-|   attr EXCLAM_EQ attr			{BINARY(NE ,$1 , $3)}
-|   attr INF attr			{BINARY(LT ,$1 , $3)}
-|   attr SUP attr			{BINARY(GT ,$1 , $3)}
-|   attr INF_EQ attr			{BINARY(LE ,$1 , $3)}
-|   attr SUP_EQ attr			{BINARY(GE ,$1 , $3)}
-|   attr INF_INF attr			{BINARY(SHL ,$1 , $3)}
-|   attr SUP_SUP attr			{BINARY(SHR ,$1 , $3)}
-|   attr ARROW id_or_typename           {MEMBEROFPTR ($1, $3)} 
-|   attr DOT id_or_typename             {MEMBEROF ($1, $3)}  
-|   LPAREN attr RPAREN                  { $2 } 
+|   PLUS cast_attr                      {UNARY (PLUS, $2)}
+|   MINUS cast_attr                     {UNARY (MINUS, $2)}
+|   STAR cast_attr		        {UNARY (MEMOF, $2)}
+|   AND cast_attr
+	                                {UNARY (ADDROF, $2)}
+|   EXCLAM cast_attr    	        {UNARY (NOT, $2)}
+|   TILDE cast_attr                     {UNARY (BNOT, $2)}
+;
+
+cast_attr:
+    unary_attr                           { $1 }
+;   
+
+multiplicative_attr:
+    cast_attr                           { $1 }
+|   multiplicative_attr STAR cast_attr  {BINARY(MUL ,$1 , $3)}
+|   multiplicative_attr SLASH cast_attr	  {BINARY(DIV ,$1 , $3)}
+|   multiplicative_attr PERCENT cast_attr {BINARY(MOD ,$1 , $3)}
+;
+
+
+additive_attr:
+    multiplicative_attr                 { $1 }
+|   additive_attr PLUS multiplicative_attr  {BINARY(ADD ,$1 , $3)} 
+|   additive_attr MINUS multiplicative_attr {BINARY(SUB ,$1 , $3)}
+;
+
+shift_attr:
+    additive_attr                       { $1 }
+|   shift_attr INF_INF additive_attr	{BINARY(SHL ,$1 , $3)}
+|   shift_attr SUP_SUP additive_attr	{BINARY(SHR ,$1 , $3)}
+;
+
+relational_attr:
+    shift_attr                          { $1 }
+|   relational_attr INF shift_attr	{BINARY(LT ,$1 , $3)}
+|   relational_attr SUP shift_attr	{BINARY(GT ,$1 , $3)}
+|   relational_attr INF_EQ shift_attr	{BINARY(LE ,$1 , $3)}
+|   relational_attr SUP_EQ shift_attr	{BINARY(GE ,$1 , $3)}
+;
+
+equality_attr:
+    relational_attr                     { $1 }
+|   equality_attr EQ_EQ relational_attr	    {BINARY(EQ ,$1 , $3)}
+|   equality_attr EXCLAM_EQ relational_attr {BINARY(NE ,$1 , $3)}
+;
+
+
+bitwise_and_attr:
+    equality_attr                       { $1 }
+|   bitwise_and_attr AND equality_attr	{BINARY(BAND ,$1 , $3)}
+;
+
+bitwise_xor_attr:
+    bitwise_and_attr                       { $1 }
+|   bitwise_xor_attr CIRC bitwise_and_attr {BINARY(XOR ,$1 , $3)}
+;
+
+bitwise_or_attr: 
+    bitwise_xor_attr                      { $1 }
+|   bitwise_or_attr PIPE bitwise_xor_attr {BINARY(BOR ,$1 , $3)}
+;
+
+logical_and_attr:
+    bitwise_or_attr                             { $1 }
+|   logical_and_attr AND_AND bitwise_or_attr	{BINARY(AND ,$1 , $3)}
+;
+
+logical_or_attr:
+    logical_and_attr                           { $1 }
+|   logical_or_attr PIPE_PIPE logical_and_attr {BINARY(OR ,$1 , $3)}
+;
+
+
+attr: logical_or_attr                    { $1 }
 ;
 
 attr_list_ne:
