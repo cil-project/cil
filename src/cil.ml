@@ -2373,7 +2373,7 @@ let d_global () = function
   | GEnumTag (enum, l) ->
      d_line l ++
      text "enum" ++ align ++ text (" " ^ enum.ename) ++
-        d_attrlistpost () enum.eattr ++ text " {"
+        d_attrlistpost () enum.eattr ++ text " {" ++ line
         ++ (docList line 
               (fun (n,i) -> 
                 text (n ^ " = ") 
@@ -3077,7 +3077,7 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
           raise Not_found
     in
     collectSuffix 0 (under_idx + 1)
-  with Not_found -> (* No _ in the name *)
+  with Not_found -> (* No suffix in the name *)
     (lookupname, "", -1)
 
 
