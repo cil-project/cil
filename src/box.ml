@@ -1567,7 +1567,7 @@ let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt clist)
     : exp * exp * exp * stmt clist =
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
-  p, (Lval (var tmpend)), zero,
+  p, p, (Lval (var tmpend)), 
   CConsL (call (Some (tmpend, false)) (Lval (var checkFetchStringEnd.svar))
             [ p ],
           acc)
