@@ -527,7 +527,7 @@ rbtest: $(TESTDIR)/small2/rbtest.c
 	cd $(PCCTEST); $(CCURED)  \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  `$(PATCHECHO) $(STANDARDPATCH)` \
-                 $(OPT_O2) \
+                 $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
                  ../small2/rbtest.c \
@@ -548,7 +548,7 @@ btreetest: $(TESTDIR)/small2/testbtree.c \
            $(TESTDIR)/small2/btree.c 
 	rm -f $(TESTDIR)/small2/btreetest.exe
 	cd $(TESTDIR)/small2; $(CCURED) --keep=. \
-                 $(OPT_O2) \
+                 $(CFLAGS) \
                  $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
