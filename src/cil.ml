@@ -868,14 +868,15 @@ let attributeHash: (string, attributeClass) H.t =
     [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; "mode"; "restrict"; 
-      "aconst"; "__asm__" (* Gcc uses this to 
-                                                         * specifiy the name 
-                                                         * to be used in 
-                                                         * assembly for a 
-                                                         * global *)];
+      "aconst"; "__asm__" (* Gcc uses this to specifiy the name to be used in 
+                           * assembly for a global  *)];
+
+  (* Now come the MSVC declspec attributes *)
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn";
-      "selectany" ];
+      "selectany"; "allocate"; "nothrow"; "novtable"; "property";
+      "uuid" ];
+
   List.iter (fun a -> H.add table a (AttrFunType false))
     [ "format"; "regparm"; "longcall" ];
   List.iter (fun a -> H.add table a (AttrFunType true))
