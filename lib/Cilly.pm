@@ -531,7 +531,6 @@ sub straight_preprocess {
 sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest)\n");
-    print Dumper($self);
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
         return $self->applyCilAndCompile([$src], $dest, $ppargs, $ccargs); 
