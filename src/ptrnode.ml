@@ -194,7 +194,7 @@ let d_whykind () = function
   | Unconstrained -> text "unconstrained"
 
 let d_node () n = 
-  dprintf "%d : %a (%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -202,6 +202,7 @@ let d_node () n =
     (if n.arith then "arith," else "")
     (if n.null  then "null," else "")
     (if n.intcast  then "int," else "")
+    (if n.interface  then "interface," else "")
     (if n.sized  then "sized," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
@@ -374,6 +375,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             posarith= false;
             null    = false;
             intcast = false;
+            interface = false;
             succ = [];
             kind = kind;
             why_kind = why_kind; 

@@ -211,8 +211,9 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     | BSeq -> k2 = Seq || k2 = Index || k2 = Wild
     | Seq -> k2 = Index || k2 = Wild
     | Index -> k2 = Seq || k2 = Wild
+    | String -> k2 = Wild || k2 = Seq || k2 = Index
     | Wild -> false
-    | String | Scalar -> E.s (E.bug "cannot handle strings/scalars in simplesolve")
+    | Scalar -> E.s (E.bug "cannot handle scalars in simplesolve")
   in
 
   (* filters an edgelist so that it contains only ECast edges *)
