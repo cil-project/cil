@@ -8,9 +8,10 @@ open Trace
 module H = Hashtbl
 module E = Errormsg
 
+let mainname = ref "main"
 
 (* Insert the global initializer in the main *)
-let insertGlobInit ?(mainname="main") (file: file) : unit = 
+let insertGlobInit (file: file) : unit = 
   match file.globinit with 
   | Some gi when not file.globinitcalled -> 
       let theFile : global list ref = ref [] in
@@ -19,7 +20,7 @@ let insertGlobInit ?(mainname="main") (file: file) : unit =
         begin
           fun g ->
             (match g with
-              GFun(m, lm) when m.svar.vname = mainname ->
+              GFun(m, lm) when m.svar.vname = !mainname ->
                 (* Prepend a prototype *)
                 theFile := GDecl (gi.svar, lm) :: !theFile;
                 m.sbody.bstmts <- 
@@ -37,12 +38,12 @@ let insertGlobInit ?(mainname="main") (file: file) : unit =
         file.globals;
       if not !inserted then 
         ignore (E.warn "Cannot find %s to add global initializer %s" 
-                  mainname gi.svar.vname);
+                  !mainname gi.svar.vname);
       file.globals <- List.rev !theFile
   | _ -> ()
 
 
-let doFile ?(mainname="main") (fl: file) : file = 
+let doFile (fl: file) : file = 
   let boxing = ref true in
   let rec doGlobal = function
       GVar (vi, Some init, l) as g -> 
@@ -87,7 +88,7 @@ let doFile ?(mainname="main") (fl: file) : file =
     ignore (E.log "Checking after globinit\n");
     Check.checkFile [] newfile
   end;
-  insertGlobInit ~mainname:mainname newfile;
+  insertGlobInit newfile;
   newfile
   
 

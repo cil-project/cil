@@ -9,6 +9,7 @@ let name = ref ""
 (* instrument every instruction! aie! *)
 class verboseLogVisitor printfFun funstr = object
   inherit nopCilVisitor 
+	(* overridden 
   method vinst (inst  : instr) = begin
     let str = Printf.sprintf "<5> %s::%d\n" !name !i in
     incr i ; 
@@ -18,9 +19,11 @@ class verboseLogVisitor printfFun funstr = object
     let ilist = ([ inst ; newinst ] : instr list) in
     (ChangeTo(ilist))
   end 
+	*)
   method vinst i = begin
     match i with
-      Call(lo,e,al,l) -> 
+      Call(lo,Lval(Var(vi),NoOffset),al,l) when vi.vname.[0] = 'C' -> SkipChildren
+    | Call(lo,e,al,l) -> 
       let str1 = Pretty.sprint 800 ( Pretty.dprintf "<5>Calling %a(%a)\n" d_exp e
         (docList (chr ',' ++ break ) (fun arg -> 
           try

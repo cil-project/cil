@@ -1,9 +1,10 @@
+val mainname : string ref 
 
-val doFile: ?mainname:string -> Cil.file -> Cil.file
+val doFile: Cil.file -> Cil.file
 
 
 (* Insert the global initializer in the main. Optionally you can specify the 
  * name of the function in which to insert the call to the global initializer 
  * *)
-val insertGlobInit: ?mainname: string -> Cil.file -> unit
+val insertGlobInit: Cil.file -> unit
 
