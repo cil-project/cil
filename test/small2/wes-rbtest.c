@@ -246,7 +246,7 @@ typedef struct rbNode {
   struct rbNode * SAFE left, * SAFE right, * SAFE parent;
   U32    key;
   U32    color;  // To make the data aligned
-  char data[1] SIZED;
+  char data[0] SIZED;
 } RBNode;
 
 extern void * SAFE calloc_rbnode(unsigned int nrelem, unsigned int size);
