@@ -9,21 +9,25 @@ union block {
 
 
 enum read_header {
-  HEADER_FAILURE
+  HEADER_FAILURE,
+  HEADER_SUCCESS,
+  
 } ; /*onlytypedef*/
 
 
-enum read_header read_header(void  )
+int read_header(void  )
 {
   union block *  header ; /*decdef*/
   static char *  next; /*decdef*/
-  if((header->header).typeflag == 'L' )
-    {
-      struct posix_header *  h; /*decdef*/
-      char namebuf[sizeof(h->prefix) + 1] ; /*decdef*/
-    }
+  struct posix_header *  h; /*decdef*/
+  char namebuf[sizeof(h->prefix) + 1] ; /*decdef*/
+  return sizeof(namebuf);
 }
 
+#include "../small1/testharness.h"
+
 int main () {
-  return 0;
+  if(read_header() != 156) E(1);
+  SUCCESS;
+                             
 }

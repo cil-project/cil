@@ -2727,7 +2727,7 @@ type typsig =
     TSArray of typsig * exp option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
-  | TSFun of typsig * (typsig * attribute list) list * bool * attribute list
+  | TSFun of typsig * typsig list * bool * attribute list
   | TSEnum of string * attribute list
   | TSBase of typ
 
@@ -2742,8 +2742,7 @@ let rec typeSigWithAttrs doattr t =
   | TComp (comp, a) -> 
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
-                                  List.map (fun vi -> (typeSig vi.vtype, 
-                                                       doattr vi.vattr)) args,
+                                  List.map (fun vi -> (typeSig vi.vtype)) args,
                                   isva, doattr a)
   | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
       

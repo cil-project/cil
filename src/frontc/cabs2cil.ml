@@ -891,6 +891,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
     (* Maybe we had an incomplete type before and it is complete now  *)
     let _ = 
+(*      ignore (E.log "Old type: %a\n" d_plaintype oldvi.vtype);
+      ignore (E.log "New type: %a\n" d_plaintype vi.vtype); *)
       let oldts = typeSig oldvi.vtype in
       let newts = typeSig vi.vtype in
       if oldts = newts then ()
@@ -1735,7 +1737,8 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp empty (SizeOf(typ)) uintType
           
     | A.EXPR_SIZEOF e -> 
-        let (se, e', t) = doExp isconst e (AExp None) in
+        (* Allow non-constants in sizeof *)
+        let (se, e', t) = doExp false e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we 
            * drop the potential side-effects *)
         if isNotEmpty se then 
@@ -1753,7 +1756,7 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp empty (AlignOf(typ)) uintType
           
     | A.EXPR_ALIGNOF e -> 
-        let (se, e', t) = doExp isconst e (AExp None) in
+        let (se, e', t) = doExp false e (AExp None) in
         (* !!!! The book says that the expression is not evaluated, so we 
            * drop the potential side-effects *)
         if isNotEmpty se then 
@@ -1839,16 +1842,16 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.UNARY(A.ADDROF, e) -> begin
         match e with 
           A.COMMA el -> (* GCC extension *)
-            doExp isconst 
+            doExp false 
               (A.COMMA (replaceLastInList el (fun e -> A.UNARY(A.ADDROF, e))))
               what
         | A.QUESTION (e1, e2, e3) -> (* GCC extension *)
-            doExp isconst 
+            doExp false 
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
-            let (se, e', t) = doExp isconst e (AExp None) in
+            let (se, e', t) = doExp false e (AExp None) in
             match e' with 
               Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
 (*
