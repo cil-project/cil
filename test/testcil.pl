@@ -616,7 +616,7 @@ $TEST->add2Tests("perf/perfrtti");
 $TEST->newTest(
     Name => "gimpall-world", # A CIL only test
     Dir => ".",
-    Enabled => 0,
+    Enabled => 1,
     Cmd => "make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
     Group => ['vslow'],
     Patterns => \%commonerrors);
