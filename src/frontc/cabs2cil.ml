@@ -73,11 +73,13 @@ let convLoc (l : cabsloc) =
   {line = l.lineno; file = l.filename;}
 
 
-let oldStyleVarArgName () = 
-  if !msvcMode then "va_alist" else "__builtin_va_alist"
+let isOldStyleVarArgName n = 
+  if !msvcMode then n = "va_alist"
+  else n = "__builtin_va_alist"
 
-let oldStyleVarArgTypeName () = 
-  if !msvcMode then "va_list" else "__builtin_va_alist_t"
+let isOldStyleVarArgTypeName n = 
+  if !msvcMode then n = "va_list"  || n = "__ccured_va_list" 
+  else n = "__builtin_va_alist_t"
 
 (* Weimer
  * multi-character character constants
@@ -1959,8 +1961,8 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             let newisva = ref isva in 
             let rec doLast = function
                 [([A.SpecType (A.Tnamed atn)], (an, A.JUSTBASE, []))] 
-                  when atn = oldStyleVarArgTypeName () && 
-                       an = oldStyleVarArgName () -> begin
+                  when isOldStyleVarArgTypeName atn && 
+                       isOldStyleVarArgName an -> begin
                          (* Turn it into a vararg *)
                          newisva := true;
                          (* And forget about this argument *)
@@ -2212,7 +2214,7 @@ and doExp (isconst: bool)    (* In a constant *)
               finishExp empty tag typ
           | _ -> raise Not_found
         with Not_found -> begin
-          if n = oldStyleVarArgName () then 
+          if isOldStyleVarArgName n then 
             E.s (error "Cannot resolve variable %s. This could be a CIL bug due to the handling of old-style variable argument functions.\n" n)
           else 
             E.s (error "Cannot resolve variable %s.\n" n)
@@ -2592,7 +2594,7 @@ and doExp (isconst: bool)    (* In a constant *)
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
         | A.VARIABLE s when 
-               s = oldStyleVarArgName () 
+               isOldStyleVarArgName s 
             && (match !currentFunctionVI.vtype with 
                    TFun(_, _, true, _) -> true | _ -> false) ->
             (* We are in an old-style variable argument function and we are 
@@ -2612,14 +2614,14 @@ and doExp (isconst: bool)    (* In a constant *)
               in
               let res = mkAddrOfAndMark (var last) in
               let tres = typeOf res in
-              let tres', res' = castTo tres charPtrType res in
+              let tres', res' = castTo tres (TInt(IULong, [])) res in
               (* Now we must add to this address to point to the next 
               * argument. Round up to a multiple of 4  *)
               let sizeOfLast = 
                 (((bitsSizeOf last.vtype) + 31) / 32) * 4
               in
               let res'' = 
-                BinOp(PlusPI, res', kinteger IUInt sizeOfLast, tres')
+                BinOp(PlusA, res', kinteger IULong sizeOfLast, tres')
               in
               finishExp empty res'' tres'
             end else begin (* On GCC the only reliable way to do this is to 
