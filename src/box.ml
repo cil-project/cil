@@ -388,6 +388,29 @@ let pkFields (pk: N.pointerkind) : (string * (typ -> typ)) list =
         ("_e", fun _ -> voidPtrType) ]
   | _ -> E.s (E.bug "pkFields")
   
+let mkFexp1 (t: typ) (e: exp) = 
+  let k = kindOfType t in
+  match k with
+    (N.Safe|N.Scalar|N.String) -> L  (t, k, e)
+  | (N.Index|N.Wild|N.FSeq|N.Seq) -> FS (t, k, e)
+  | _ -> E.s (E.bug "mkFexp1")
+
+let mkFexp2 (t: typ) (ep: exp) (eb: exp) = 
+  let k = kindOfType t in
+  match k with
+    (N.Safe|N.Scalar|N.String) -> L  (t, k, ep)
+  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
+  | _ -> E.s (E.bug "mkFexp2(%a)" N.d_pointerkind k)
+
+let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) = 
+  let k = kindOfType t in
+  match k with
+  | (N.Safe|N.Scalar|N.String) -> L (t, k, ep)
+  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
+  | (N.Seq|N.SeqN) -> FM (t, k, ep, eb, ee)
+  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
+                N.d_pointerkind k d_plainexp ep d_plaintype t)
+
 let pkTypePrefix (pk: N.pointerkind) = 
   match pk with
     N.Wild | N.FSeq | N.FSeqN | N.Index -> "fatp_"
@@ -410,6 +433,233 @@ let pkQualName (pk: N.pointerkind)
   | N.Scalar -> acc
   | _ -> E.s (E.bug "pkQualName")
   
+(****** the CHECKERS ****)
+
+
+let checkNullFun =   
+  let fdec = emptyFunction "CHECK_NULL" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vstorage <- Static;
+  fdec
+
+let checkSafeRetFatFun = 
+  let fdec = emptyFunction "CHECK_SAFERETFAT" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
+  fdec
+    
+  
+    
+    
+let checkSafeFatLeanCastFun = 
+  let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
+  fdec
+
+let checkFunctionPointer = 
+  let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
+  fun whatp whatb whatkind -> 
+    if whatkind = N.Safe then
+      call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
+    else
+      call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
+                                        castVoidStar whatb]
+
+(* Compute the ptr corresponding to a base. This is used only to pass an 
+ * argument to the intercept functionin the case when the base = 0 *)
+let ptrOfBase (base: exp) =  
+  let rec replaceBasePtr = function
+      Field(fip, NoOffset) when fip.fname = "_b" ->
+             (* Find the fat type that this belongs to *)
+        let pfield, _, _ = getFieldsOfFat (TComp(fip.fcomp)) in
+        Field(pfield, NoOffset)
+          
+    | Field(f', o) -> Field(f',replaceBasePtr o)
+    | _ -> raise Not_found
+  in
+  match base with
+    Lval (b, off) -> 
+      begin try Lval(b, replaceBasePtr off) with Not_found -> base end
+  | _ -> base
+
+
+let checkFetchLength = 
+  let fdec = emptyFunction "CHECK_FETCHLENGTH" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vstorage <- Static;
+  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fun tmplen base -> 
+    let ptr = ptrOfBase base in
+    call (Some tmplen) (Lval (var fdec.svar))
+      [ castVoidStar ptr; 
+        castVoidStar base ]
+
+let checkFetchStringLength = 
+  let fdec = emptyFunction "CHECK_FETCHSTRINGEND" in
+  let args  = makeLocalVar fdec "s" charPtrType in
+  fdec.svar.vstorage <- Static;
+  fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+let checkFetchEnd = 
+  let fdec = emptyFunction "CHECK_FETCHEND" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fun tmplen base -> 
+    let ptr = ptrOfBase base in
+    call (Some tmplen) (Lval (var fdec.svar))
+      [ castVoidStar ptr; 
+        castVoidStar base ]
+
+let checkLBoundFun = 
+  let fdec = emptyFunction "CHECK_LBOUND" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  fdec
+
+let checkUBoundFun = 
+  let fdec = emptyFunction "CHECK_UBOUND" in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+let checkBoundsFun = 
+  let fdec = emptyFunction "CHECK_BOUNDS" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argbend  = makeLocalVar fdec "bend" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+let checkBoundsLenFun = 
+  let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argbl  = makeLocalVar fdec "bl" uintType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" uintType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
+(* A run-time function to coerce scalars into pointers. Scans the heap and 
+ * (in the future the stack) *)
+let interceptId = ref 0
+let interceptCastFunction = 
+  let fdec = emptyFunction "__scalar2pointer" in
+  let argl = makeLocalVar fdec "l" ulongType in
+  let argf = makeLocalVar fdec "fid" intType in
+  let argid = makeLocalVar fdec "lid" intType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
+  theFile := GDecl (fdec.svar, lu) :: !theFile;
+  fdec
+
+
+(* Check a read *)
+let checkFatPointerRead = 
+  let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arglen  = makeLocalVar fdec "nrWords" uintType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  
+  fun base where len -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar base; len; castVoidStar where]
+
+let checkFatPointerWrite = 
+  let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let arglen  = makeLocalVar fdec "nrWords" uintType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argwb  = makeLocalVar fdec "wb" voidPtrType in
+  let argwp  = makeLocalVar fdec "wp" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  
+  fun base where whatbase whatp len -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar base; len; 
+        castVoidStar where; 
+        castVoidStar whatbase; castVoidStar whatp;]
+  
+let checkFatStackPointer = 
+  let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argp; argb; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  
+  fun whatp whatbase -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar whatbase; castVoidStar whatp;]
+  
+
+let checkLeanStackPointer = 
+  let fdec = emptyFunction "CHECK_LEANSTACKPOINTER" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argp; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  
+  fun whatp -> 
+    call None (Lval(var fdec.svar))
+      [ castVoidStar whatp;]
+
+let checkZeroTagsFun =
+  let fdec = emptyFunction "CHECK_ZEROTAGS" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argbl = makeLocalVar fdec "bl" uintType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argsize  = makeLocalVar fdec "size" uintType in
+  let offset  = makeLocalVar fdec "offset" uintType in
+  fdec.svar.vtype <- 
+     TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec.svar.vstorage <- Static;
+  fdec
+
+(***** Pointer arithemtic *******)
+let checkPositiveFun = 
+  let fdec = emptyFunction "CHECK_POSITIVE" in
+  let argx  = makeLocalVar fdec "x" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
+  fdec.svar.vstorage <- Static;
+  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
+  fdec
+
 
 let rec fixupType t = 
   match t with
@@ -521,6 +771,7 @@ and fixit t =
 and moveAttrsFromDataToType attrs typ = 
   let mustMove = function
       AId("sized") -> true
+    | AId("nullterm") -> true
     | _ -> false
   in
   match List.filter mustMove attrs with
@@ -637,60 +888,8 @@ and tagLength (t: typ) : (exp * exp) = (* Call only for a isCompleteType *)
 let mkPointerTypeKind (bt: typ) (k: N.pointerkind) = 
    fixupType (TPtr(bt, [N.k2attr k]))
 
-let mkFexp1 (t: typ) (e: exp) = 
-  let k = kindOfType t in
-  match k with
-    (N.Safe|N.Scalar|N.String) -> L  (t, k, e)
-  | (N.Index|N.Wild|N.FSeq|N.Seq) -> FS (t, k, e)
-  | _ -> E.s (E.bug "mkFexp1")
-
-let mkFexp2 (t: typ) (ep: exp) (eb: exp) = 
-  let k = kindOfType t in
-  match k with
-    (N.Safe|N.Scalar|N.String) -> L  (t, k, ep)
-  | (N.Index|N.Wild|N.FSeq) -> FM (t, k, ep, eb, zero)
-  | _ -> E.s (E.bug "mkFexp2")
-
-let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) = 
-  let k = kindOfType t in
-  match k with
-  | (N.Safe|N.Scalar|N.String) -> L (t, k, ep)
-  | (N.Index|N.Wild|N.FSeq) -> FM (t, k, ep, eb, zero)
-  | N.Seq -> FM (t, k, ep, eb, ee)
-  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
-                N.d_pointerkind k d_plainexp ep d_plaintype t)
-
 (***** Conversion functions *******)
 
-
-(***** Pointer arithemtic *******)
-let checkPositiveFun = 
-  let fdec = emptyFunction "CHECK_POSITIVE" in
-  let argx  = makeLocalVar fdec "x" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec
-
-let pkArithmetic (ep: exp)
-                 (et: typ)
-                 (ek: N.pointerkind) (* kindOfType et *)
-                 (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
-                 (e2: exp) : (fexp * stmt list) = 
-  let ptype, ptr, f2, f3 = readFieldsOfFat ep et in
-  match ek with
-    N.Wild|N.Index -> 
-      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2,   []
-  | N.Seq -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) f2 f3,   []
-  | N.FSeq -> 
-      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2, 
-      [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
-  | N.Safe ->
-      E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
-             d_exp ep)
-  | _ -> E.s (E.bug "pkArithmetic")
-        
 
 (***** Address of ******)
 let pkAddrOf (lv: lval)
@@ -701,9 +900,9 @@ let pkAddrOf (lv: lval)
   let ptrtype = mkPointerTypeKind lvt lvk in
   match lvk with
     N.Safe -> mkFexp1 ptrtype (AddrOf(lv)), []
-  | (N.Index | N.Wild | N.FSeq) -> 
+  | (N.Index | N.Wild | N.FSeq | N.FSeqN ) -> 
       mkFexp2 ptrtype (AddrOf(lv)) f2, []
-  | N.Seq ->  mkFexp3 ptrtype (AddrOf(lv)) f2 f3, []
+  | (N.Seq | N.SeqN)  ->  mkFexp3 ptrtype (AddrOf(lv)) f2 f3, []
   | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_pointerkind lvk)
          
          
@@ -719,7 +918,10 @@ let arrayPointerToIndex (t: typ) (k: N.pointerkind)
 
     (* If it is not sized then better have a length *)
   | TArray(elemt, Some alen, a) -> 
-      (elemt, N.Seq, mkAddrOf lv, 
+      let knd =
+        if filterAttributes "nullterm" a <> [] then N.SeqN else N.Seq 
+      in
+      (elemt, knd, mkAddrOf lv, 
        BinOp(IndexPI, mkAddrOf lv, alen, TPtr(elemt, [])))
 
   | _ -> E.s (E.bug "arrayPointerToIndex on a non-array (%a)" 
@@ -741,7 +943,7 @@ let pkStartOf (lv: lval)
             arrayPointerToIndex lvt lvk lv f2
           in
           let pres = mkPointerTypeKind t pkind in
-          if pkind = N.Seq then
+          if pkind = N.Seq || pkind = N.SeqN then
             mkFexp3 pres newp base f3, []
           else
             mkFexp2 pres newp base, []
@@ -769,18 +971,6 @@ let pkStartOf (lv: lval)
 
 (************* END of pointer qualifiers *************)
   
-(* Given a sized array type, return the size and the array field *)
-let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
-  match unrollType t with
-   TComp comp when comp.cstruct -> begin
-      match comp.cfields with 
-        s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
-      | _ -> E.s (E.bug "getFieldsOfSized")
-    end
-   | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
-  
-
-
 
 
    (* Test if we must check the return value *)
@@ -887,92 +1077,6 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
   ::
   []
 
-(****** the CHECKERS ****)
-
-
-let checkNullFun =   
-  let fdec = emptyFunction "CHECK_NULL" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
-  fdec.svar.vstorage <- Static;
-  fdec
-
-let checkSafeRetFatFun = 
-  let fdec = emptyFunction "CHECK_SAFERETFAT" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec.svar.vstorage <- Static;
-  fdec
-    
-  
-    
-    
-let checkSafeFatLeanCastFun = 
-  let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec.svar.vstorage <- Static;
-  fdec
-
-let checkFunctionPointer = 
-  let fdec = emptyFunction "CHECK_FUNCTIONPOINTER" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec.svar.vstorage <- Static;
-  fun whatp whatb whatkind -> 
-    if whatkind = N.Safe then
-      call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
-    else
-      call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
-                                        castVoidStar whatb]
-
-(* Compute the ptr corresponding to a base. This is used only to pass an 
- * argument to the intercept functionin the case when the base = 0 *)
-let ptrOfBase (base: exp) =  
-  let rec replaceBasePtr = function
-      Field(fip, NoOffset) when fip.fname = "_b" ->
-             (* Find the fat type that this belongs to *)
-        let pfield, _, _ = getFieldsOfFat (TComp(fip.fcomp)) in
-        Field(pfield, NoOffset)
-          
-    | Field(f', o) -> Field(f',replaceBasePtr o)
-    | _ -> raise Not_found
-  in
-  match base with
-    Lval (b, off) -> 
-      begin try Lval(b, replaceBasePtr off) with Not_found -> base end
-  | _ -> base
-
-
-let checkFetchLength = 
-  let fdec = emptyFunction "CHECK_FETCHLENGTH" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vstorage <- Static;
-  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fun tmplen base -> 
-    let ptr = ptrOfBase base in
-    call (Some tmplen) (Lval (var fdec.svar))
-      [ castVoidStar ptr; 
-        castVoidStar base ]
-
-let checkFetchEnd = 
-  let fdec = emptyFunction "CHECK_FETCHEND" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fun tmplen base -> 
-    let ptr = ptrOfBase base in
-    call (Some tmplen) (Lval (var fdec.svar))
-      [ castVoidStar ptr; 
-        castVoidStar base ]
-
 
 (* Since we cannot take the address of a bitfield we treat accesses to a 
  * bitfield like an access to the entire host that contains it (for the 
@@ -1000,47 +1104,59 @@ let getHostIfBitfield lv t =
     end
   | _ -> lv, t
 
-let checkLBoundFun = 
-  let fdec = emptyFunction "CHECK_LBOUND" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
-  fdec
 
-let checkUBoundFun = 
-  let fdec = emptyFunction "CHECK_UBOUND" in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec
+(* Compute the offset of first scalar field in a thing to be written. Raises 
+ * Not_found if there is no scalar *)
+let offsetOfFirstScalar (t: typ) : exp = 
+  let rec theOffset sofar t = 
+    match unrollType t with
+      (TInt _ | TFloat _ | TEnum _) -> Some sofar
+    | TPtr _ -> None
+    | TComp comp when isFatComp comp -> None
+    | TComp comp when comp.cstruct -> begin
+        let containsBitfield = ref false in
+        let doOneField acc fi = 
+          match acc, fi.ftype with
+            None, TBitfield _ -> containsBitfield := true; None
+          | None, _ -> 
+              theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
+          | Some _, _ -> acc
+        in
+        List.fold_left doOneField None comp.cfields
+    end
+    | TArray (bt, _, _) -> 
+        theOffset (addOffset (Index(zero, NoOffset)) sofar) bt
+    | _ -> E.s (E.unimp "offsetOfFirstScalar")
+  in
+  match theOffset NoOffset t with
+    None -> raise Not_found
+  | Some NoOffset -> CastE(uintType, zero)
+  | Some off -> 
+      let scalar = Mem (doCast zero intType (TPtr (t, []))), off in
+      let addrof = mkAddrOf scalar in
+      CastE(uintType, addrof)
 
-let checkBoundsFun = 
-  let fdec = emptyFunction "CHECK_BOUNDS" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbend  = makeLocalVar fdec "bend" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec
+  
+let checkZeroTags base lenExp lv t = 
+  let lv', lv't = getHostIfBitfield lv t in
+  try
+    let offexp = offsetOfFirstScalar lv't in
+    call None (Lval (var checkZeroTagsFun.svar))
+      [ castVoidStar base; lenExp ;
+        castVoidStar (AddrOf(lv')); 
+        SizeOf(lv't); offexp ] 
+  with Not_found -> 
+    Skip
+  
+let doCheckFat which arg argt = 
+  (* Take the argument and break it apart *)
+  let (_, ptr, base, _) = readFieldsOfFat arg argt in 
+  call None (Lval(var which.svar)) [ castVoidStar ptr; 
+                                     castVoidStar base; ]
 
-let checkBoundsLenFun = 
-  let fdec = emptyFunction "CHECK_BOUNDS_LEN" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbl  = makeLocalVar fdec "bl" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argpl  = makeLocalVar fdec "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec
+let doCheckLean which arg  = 
+  call None (Lval(var which.svar)) [ castVoidStar arg; ]
+
 
 
 
@@ -1098,7 +1214,31 @@ let indexToSafe (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
   let p', b', bend', acc' = indexToSeq p b bend acc in
   seqToSafe p' desttyp b' bend' acc'
     
+
+let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  (* Make a new temporary variable *)
+  let tmpend = makeTempVar !currentFunction voidPtrType in
+  p, p,  (Lval (var tmpend)),
+  call (Some tmpend) (Lval (var checkFetchStringLength.svar))
+    [ p ] :: acc
+
+let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  (* Can use the Seq version directly *)
+  stringToSeq p b bend acc
+
   
+let seqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  (* Conversion to a string is with a bounds check *)
+  seqToSafe p desttyp b bend acc
+
+let fseqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
+    : exp * exp * exp * stmt list =
+  (* Conversion to a string is with a bounds check *)
+  fseqToSafe p desttyp b bend acc
+
 
 let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt = 
   (* This is almost like indexToSafe, except that we have the length already 
@@ -1170,7 +1310,7 @@ let stringLiteral (s: string) (strt: typ) =
       ([], FM (fixChrPtrType, N.Wild,
                result, 
                doCast result (typeOf result) voidPtrType, zero))
-  | N.Seq | N.Safe | N.FSeq | N.String -> 
+  | N.Seq | N.Safe | N.FSeq | N.String | N.SeqN | N.FSeqN -> 
       let l = ((1 + String.length s) + 3) land (lnot 3) in
       let tmp = makeTempVar !currentFunction charPtrType in
             (* Make it a SEQ for now *)
@@ -1184,6 +1324,34 @@ let stringLiteral (s: string) (strt: typ) =
         
   | _ -> E.s (E.unimp "String literal to %a" N.d_pointerkind k)
 
+
+let pkArithmetic (ep: exp)
+                 (et: typ)
+                 (ek: N.pointerkind) (* kindOfType et *)
+                 (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
+                 (e2: exp) : (fexp * stmt list) = 
+  let ptype, ptr, f2, f3 = readFieldsOfFat ep et in
+  match ek with
+    N.Wild|N.Index -> 
+      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2,   []
+  | (N.Seq|N.SeqN) -> 
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) f2 f3,   []
+  | (N.FSeq|N.FSeqN) -> 
+      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2, 
+      [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
+  | N.Safe ->
+      E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
+             d_exp ep)
+  | N.String -> 
+      (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
+       * then do arithmetic and then convert back *)
+      let p', b', bend', acc' = stringToSeq ptr f2 f3 [] in
+      let p'' = BinOp(bop, p', e2, ptype) in
+      let p2, b2, bend2, acc2 = seqNToString p'' ptype b' bend' acc' in
+      mkFexp1 et p2, (List.rev acc2)
+      
+  | _ -> E.s (E.bug "pkArithmetic(%a)" N.d_pointerkind ek)
+        
 
 
 let checkBounds (mktmplen: unit -> exp)
@@ -1206,42 +1374,33 @@ let checkBounds (mktmplen: unit -> exp)
       let _, _, _, docheck = 
         indexToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
       List.rev docheck
-  | N.FSeq ->
+
+  | (N.FSeq|N.FSeqN) ->
       let _, _, _, docheck = 
         fseqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
       List.rev docheck
-  | N.Seq ->
+
+  | (N.Seq|N.SeqN) ->
       let _, _, _, docheck = 
         seqToSafe (AddrOf(lv')) (TPtr(lv't, [])) base bend [] in
       List.rev docheck
         
-  | N.Safe -> begin
+  | N.Safe | N.String -> begin
       match lv' with
         Mem addr, _ -> 
           [call None (Lval (var checkNullFun.svar)) [ castVoidStar addr ]]
       | _, _ -> []
   end
-  | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds")
+
+  | _ -> E.s (E.bug "Unexpected pointer kind in checkBounds(%a)"
+                N.d_pointerkind pkind)
 
 
 
+  
 
 (****************************************************)
 
-
-
-
-(* A run-time function to coerce scalars into pointers. Scans the heap and 
- * (in the future the stack) *)
-let interceptId = ref 0
-let interceptCastFunction = 
-  let fdec = emptyFunction "__scalar2pointer" in
-  let argl = makeLocalVar fdec "l" ulongType in
-  let argf = makeLocalVar fdec "fid" intType in
-  let argid = makeLocalVar fdec "lid" intType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
-  theFile := GDecl (fdec.svar, lu) :: !theFile;
-  fdec
 
     (* Cast an fexp to another one. Accumulate necessary statements to doe *)
 let castTo (fe: fexp) (newt: typ)
@@ -1282,7 +1441,7 @@ let castTo (fe: fexp) (newt: typ)
       match oldk, newkind with
         (* SCALAR, SAFE -> SCALAR, SAFE *)
         (N.Scalar|N.Safe|N.String), (N.Scalar|N.Safe|N.String) -> 
-          (doe, L(newt, N.Scalar, castP p))
+          (doe, L(newt, newkind, castP p))
 
         (* SAFE -> WILD. Only allowed for function pointers because we do not 
          * know how to tag functions, yet *)
@@ -1292,7 +1451,7 @@ let castTo (fe: fexp) (newt: typ)
               (doe, mkFexp2 newt (castP p) zero)
           
         (* SCALAR -> INDEX, WILD, SEQ, FSEQ *)
-      | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq) ->
+      | N.Scalar, (N.Index|N.Wild|N.Seq|N.FSeq|N.FSeqN|N.SeqN) ->
           if not (isZero p) then
             ignore (E.warn "Casting scalar (%a) to pointer in %s!"
                       d_exp p !currentFunction.svar.vname);
@@ -1312,11 +1471,11 @@ let castTo (fe: fexp) (newt: typ)
 
 
        (* WILD, INDEX, SEQ, FSEQ -> SCALAR *)
-      | (N.Index|N.Wild|N.FSeq|N.Seq), N.Scalar ->
+      | (N.Index|N.Wild|N.FSeq|N.Seq|N.FSeqN|N.SeqN), N.Scalar ->
           (doe, L(newt, newkind, castP p))
 
        (* WILD, INDEX, SEQ, FSEQ -> same_kind *)  
-      | (N.Index|N.Wild|N.FSeq|N.Seq), _ when newkind =oldk -> 
+      | (N.Index|N.Wild|N.FSeq|N.Seq|N.FSeqN|N.SeqN), _ when newkind =oldk -> 
           (doe, FM (newt, newkind, castP p, b, bend))
 
        (* INDEX -> SAFE. Must do bounds checking *)
@@ -1333,26 +1492,43 @@ let castTo (fe: fexp) (newt: typ)
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
 
        (* SEQ -> SAFE. Must do bounds checking *)
-      | N.Seq, N.Safe ->
+      | (N.Seq|N.SeqN), N.Safe ->
           let p', _, _, acc' = seqToSafe p newPointerType b bend [] in
           finishDoe acc', L(newt, newkind, castP p')      
        (* SEQ -> FSEQ *)
-      | N.Seq, N.FSeq ->
+      | (N.Seq|N.SeqN), N.FSeq ->
+          let p', b', bend', acc' = seqToFSeq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')      
+      | N.SeqN, N.FSeqN ->
           let p', b', bend', acc' = seqToFSeq p b bend [] in
           finishDoe acc', FM(newt, newkind, castP p', b', bend')      
 
        (* FSEQ -> SAFE. Must do bounds checking *)
-      | N.FSeq, N.Safe ->
+      | (N.FSeq|N.FSeqN), N.Safe ->
           let p', _, _, acc' = fseqToSafe p newPointerType b bend [] in
           finishDoe acc', L(newt, newkind, castP p')      
 
        (* FSEQ -> SEQ. *)
-      | N.FSeq, N.Seq ->
+      | (N.FSeq|N.FSeqN), N.Seq ->
+          doe, FM(newt, newkind, castP p, b, b)
+      | N.FSeqN, (N.Seq|N.SeqN) ->
           doe, FM(newt, newkind, castP p, b, b)
 
       | N.SeqN, N.String ->
-        ignore (E.warn "Warning: unsafe cast from SEQ -> STRING") ;
-          (doe, L(newt, N.String, castP p))
+          let p', b', bend', acc' = seqNToString p newPointerType b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')  
+
+      | N.FSeqN, N.String ->
+          let p', b', bend', acc' = fseqNToString p newPointerType b bend [] in
+          finishDoe acc', L(newt, newkind, castP p')  
+
+      | N.String, (N.FSeqN|N.FSeq) ->
+          let p', b', bend', acc' = stringToFseq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')  
+
+      | N.String, (N.SeqN|N.Seq) ->
+          let p', b', bend', acc' = stringToSeq p b bend [] in
+          finishDoe acc', FM(newt, newkind, castP p', b', bend')  
 
       | N.Wild, N.String -> 
         ignore (E.warn "Warning: wishful thinking cast from WILD -> STRING") ;
@@ -1368,126 +1544,6 @@ let castTo (fe: fexp) (newt: typ)
 
 
 
-(* Compute the offset of first scalar field in a thing to be written. Raises 
- * Not_found if there is no scalar *)
-let offsetOfFirstScalar (t: typ) : exp = 
-  let rec theOffset sofar t = 
-    match unrollType t with
-      (TInt _ | TFloat _ | TEnum _) -> Some sofar
-    | TPtr _ -> None
-    | TComp comp when isFatComp comp -> None
-    | TComp comp when comp.cstruct -> begin
-        let containsBitfield = ref false in
-        let doOneField acc fi = 
-          match acc, fi.ftype with
-            None, TBitfield _ -> containsBitfield := true; None
-          | None, _ -> 
-              theOffset (addOffset (Field(fi, NoOffset)) sofar) fi.ftype
-          | Some _, _ -> acc
-        in
-        List.fold_left doOneField None comp.cfields
-    end
-    | TArray (bt, _, _) -> 
-        theOffset (addOffset (Index(zero, NoOffset)) sofar) bt
-    | _ -> E.s (E.unimp "offsetOfFirstScalar")
-  in
-  match theOffset NoOffset t with
-    None -> raise Not_found
-  | Some NoOffset -> CastE(uintType, zero)
-  | Some off -> 
-      let scalar = Mem (doCast zero intType (TPtr (t, []))), off in
-      let addrof = mkAddrOf scalar in
-      CastE(uintType, addrof)
-
-  
-let checkZeroTags = 
-  let fdec = emptyFunction "CHECK_ZEROTAGS" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argbl = makeLocalVar fdec "bl" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argsize  = makeLocalVar fdec "size" uintType in
-  let offset  = makeLocalVar fdec "offset" uintType in
-  fdec.svar.vtype <- 
-     TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  fdec.svar.vstorage <- Static;
-  fun base lenExp lv t ->
-    let lv', lv't = getHostIfBitfield lv t in
-    try
-      let offexp = offsetOfFirstScalar lv't in
-      call None (Lval (var fdec.svar))
-        [ castVoidStar base; lenExp ;
-          castVoidStar (AddrOf(lv')); 
-          SizeOf(lv't); offexp ] 
-    with Not_found -> 
-      Skip
-  
-let doCheckFat which arg argt = 
-  (* Take the argument and break it apart *)
-  let (_, ptr, base, _) = readFieldsOfFat arg argt in 
-  call None (Lval(var which.svar)) [ castVoidStar ptr; 
-                                     castVoidStar base; ]
-
-let doCheckLean which arg  = 
-  call None (Lval(var which.svar)) [ castVoidStar arg; ]
-
-
-(* Check a read *)
-let checkFatPointerRead = 
-  let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arglen  = makeLocalVar fdec "nrWords" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  
-  fun base where len -> 
-    call None (Lval(var fdec.svar))
-      [ castVoidStar base; len; castVoidStar where]
-
-let checkFatPointerWrite = 
-  let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arglen  = makeLocalVar fdec "nrWords" uintType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argwb  = makeLocalVar fdec "wb" voidPtrType in
-  let argwp  = makeLocalVar fdec "wp" voidPtrType in
-  fdec.svar.vtype <- 
-     TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  
-  fun base where whatbase whatp len -> 
-    call None (Lval(var fdec.svar))
-      [ castVoidStar base; len; 
-        castVoidStar where; 
-        castVoidStar whatbase; castVoidStar whatp;]
-  
-let checkFatStackPointer = 
-  let fdec = emptyFunction "CHECK_FATSTACKPOINTER" in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- 
-     TFun(voidType, [ argp; argb; ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  
-  fun whatp whatbase -> 
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatbase; castVoidStar whatp;]
-  
-
-let checkLeanStackPointer = 
-  let fdec = emptyFunction "CHECK_LEANSTACKPOINTER" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- 
-     TFun(voidType, [ argp; ], false, []);
-  fdec.svar.vstorage <- Static;
-  checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
-  
-  fun whatp -> 
-    call None (Lval(var fdec.svar))
-      [ castVoidStar whatp;]
-  
   
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (bend: exp)
@@ -1591,6 +1647,21 @@ let checkMem (towrite: exp option)
     (* Check a write *)
 let checkRead = checkMem None
 let checkWrite e = checkMem (Some e)
+
+
+
+
+(* Given a sized array type, return the size and the array field *)
+let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
+  match unrollType t with
+   TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
+      | _ -> E.s (E.bug "getFieldsOfSized")
+    end
+   | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
+  
+
 
 
 let mangledNames : (string, unit) H.t = H.create 123
