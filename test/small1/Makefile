@@ -1,6 +1,5 @@
+%.s : %.c
+	cd ../../ ; make test/$* INFERBOX=2
 
-test : list.o
-
-%.o : %.c
-	$(CC) $(CFLAGS) -o $@ -c $^
-
+%.exe : %.c
+	cd ../../ ; make testc/$* INFERBOX=2
