@@ -286,8 +286,9 @@ AC_MSG_CHECKING([for gcc version])
 gccver=`gcc -dumpversion`
 AC_MSG_RESULT([$gccver])
 if test "${gccver}" == "2.96" ;then
-    AC_MSG_ERROR([
-      CIL and CCured do not work with gcc 2.96. Use 2.95.3 or 3.x
+    AC_MSG_WARN([
+      CIL and CCured may not work correctly with gcc 2.96, especially when
+      using variable argument functions. Use gcc 2.95.3 or 3.x.
     ])
 fi
 
