@@ -89,7 +89,7 @@ $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/structassign");
 $TEST->add3Tests("test/voidstar");
 $TEST->add1Test("test/alloc-manualinferbox",
-                "test/alloc INFERBOX=1 MANUALBOX=1",
+                "test/alloc INFERBOX=2 MANUALBOX=1",
                 %commonerrors);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
@@ -202,7 +202,7 @@ sub add3Tests {
 
     $self->newTest(Name => $name . "-inferbox",
                    Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=1 " . $theargs,
+                   Cmd => "make " . $name . " INFERBOX=2 " . $theargs,
                    Group => ["box", "infer"], 
                    Patterns => \%patterns);
 }
