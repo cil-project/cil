@@ -341,7 +341,7 @@ $TEST->addTests("combineinline2", "", ['cil']);
 $TEST->addTests("combineinline3", "", ['cil']);
 $TEST->addTests("combineinline4", "", ['cil']);
 $TEST->addTests("combinestruct1", "", ['cil']);
-$TEST->addTests("linux_combine1", "", ['cil']);
+$TEST->addTests("test/linux_combine1_1", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
@@ -374,7 +374,7 @@ $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 
-$TEST->addTestsFail("struct3", "", "Non-pointer", ['inferbox']);
+$TEST->addTestsFail("testrun/struct3", "", "Non-pointer", ['inferbox']);
 
 if($^O eq 'MSWin32') {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
