@@ -1691,9 +1691,9 @@ ijpeg:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make clean build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
-	cd $(IJPEGDIR)/src; sh ./testit ijpeg.exe
+	cd $(IJPEGDIR)/src; bash ./testit ijpeg.exe
 	cd $(IJPEGDIR)/src; \
-              sh -c "for i in $(ITERATION_ELEMS) ; \
+              bash -c "for i in $(ITERATION_ELEMS) ; \
                      do time ./ijpeg.exe \
                           -image_file ../data/ref/input/vigo.ppm \
                           -GO; done"
@@ -1706,7 +1706,7 @@ ijpeg-optimvariant: mustbegcc
                 $(CCUREDLIB) \
                 $(EXEOUT)ijpeg.exe
 	cd $(IJPEGDIR)/src; \
-              sh -c "for i in $(ITERATION_ELEMS) ; \
+              bash -c "for i in $(ITERATION_ELEMS) ; \
                      do time ./ijpeg.exe \
                           -image_file ../data/ref/input/vigo.ppm \
                           -GO; done"
@@ -1716,7 +1716,7 @@ ijpeg-combined:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             $(CCURED) ijpeg_all.c $(IJPEGEXTRA) \
                 $(EXEOUT)ijpeg
-	sh -c "time $(IJPEGDIR)/src/ijpeg \
+	bash -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
@@ -1724,7 +1724,7 @@ ijpeg-noclean:  mustbegcc
 	cd $(IJPEGDIR)/src; \
             make       build CC="$(IJPEGSAFECC) $(CONLY)" \
                              LD="$(IJPEGSAFECC)"
-	sh -c "time $(IJPEGDIR)/src/ijpeg \
+	bash -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
             -GO"
 
