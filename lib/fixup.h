@@ -97,9 +97,9 @@
 #ifdef CCURED
   #pragma boxpoly("__endof")
   void *__endof(void *);
-  #pragma boxalloc("malloc", nozero, sizein(0))
-  #pragma boxalloc("alloca", nozero, sizein(0))
-  #pragma boxalloc("calloc", zero, sizemul(0,1))
+  #pragma boxalloc("malloc", nozero, sizein(1))
+  #pragma boxalloc("alloca", nozero, sizein(1))
+  #pragma boxalloc("calloc", zero, sizemul(1,2))
   
   union printf_format {
     int             f_int;
@@ -112,6 +112,7 @@
   #pragma boxvararg_printf("snprintf", 3)
   #pragma boxvararg_printf("syslog", 2)
   #pragma boxvararg_printf("sprintf", 2)
+  #pragma boxvararg_printf("vsprintf", 2)
 
   // We want to force sprintf to carry a length
   static inline
@@ -120,6 +121,20 @@
   #pragma boxvararg("sprintf_model", sizeof(union printf_format))
   static inline 
   int sprintf_model(char *buffer, const char *format, ...) {
+    // Force buffer to carry a length
+    void* e = __endof(buffer); // buffer ++ would do the same
+    return 0;
+  }
+
+  // We want to force vsprintf to carry a length
+  static inline
+  int vsprintf_model(char *buffer, const char *format,
+                     struct __ccured_va_list *args)
+     __BOXMODEL("vsprintf");
+  #pragma boxvararg("vsprintf_model", sizeof(union printf_format))
+  static inline 
+  int vsprintf_model(char *buffer, const char *format,
+                     struct __ccured_va_list *args) {
     // Force buffer to carry a length
     void* e = __endof(buffer); // buffer ++ would do the same
     return 0;

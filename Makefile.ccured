@@ -134,10 +134,10 @@ endif
 .PHONY : combiner cilly presetup all setup includes cleanincludes
 
 combiner:
-	$(MAKE) -f Makefile.combiner $(MAKEOVERRIDES)
+	$(MAKE) -r -f Makefile.combiner $(MAKEOVERRIDES)
 
 cilly: 
-	$(MAKE) -f Makefile.cil $(MAKEOVERRIDES)
+	$(MAKE) -r -f Makefile.cil $(MAKEOVERRIDES)
 
 libraries: $(CCUREDLIB)
 

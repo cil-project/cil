@@ -627,9 +627,32 @@ and tested correctly. Good luck!
  There are three ways to control the operation of CCured: modify the cured
 code, insert type annotations, insert pragmas. 
  
- \section{CCured Type Annotations}
+  \section{CCured Type Annotations}
 
- 
+ CCured tries to infer an appropriate kind for a pointer. You have the choice
+to specify such kinds yourself, as attributes. Typically an attribute for a
+pointer goes immediately after the \t{*} symbol:
+\begin{verbatim}
+int * __FSEQ * __SAFE safe_pointer_to_forward_sequence_pointer_to_int;
+\end{verbatim}
+
+ The following kinds of pointers can be used:
+\begin{itemize}
+\item \t{\_\_SAFE} - A safe pointer represented as one word.
+\item \t{\_\_SEQ} - A sequence pointer represented as three words (the pointer,
+the start and the end of the home area). Such a pointer can be involved in
+pointer arithmetic.
+\item \t{\_\_FSEQ} - A forward sequence pointer represented as two words (the
+pointers, and the end of the home area). Such a pointer can only be moved
+forward by pointer arithmetic. This is the most frequent form of a forward
+sequence pointer. 
+\item \t{\_\_INDEX} - A sequence pointer represented as two words (the pointer
+and the start of the home area). The home area for such a pointer must store
+the length of the home area.
+\item \t{\_\_WILD} - A wild pointer that is represented as two words (the
+pointer and the start of a home area). These pointers can be involved in
+arbitrary casts. 
+\end{itemize}
 
   \section{CCured Pragmas}\label{sec-pragma}
  

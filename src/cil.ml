@@ -1095,7 +1095,7 @@ let d_storage () = function
   | Register -> text "register "
 
 (* constant *)
-let d_const () c =
+let d_const () c = 
   let suffix ik = 
     match ik with
       IUInt -> "U"

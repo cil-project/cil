@@ -190,16 +190,16 @@ let boxallocPragma (name: string) (args: attrarg list) : unit =
     | AId("nozero") :: rest -> ai.aiZeros <- false; loop rest
     | AId("zero") :: rest -> ai.aiZeros <- true; loop rest
     | ACons("sizein", [AInt n]) :: rest -> 
-        ai.aiGetSize <- getArg n; ai.aiNewSize <- replaceArg n;
+        ai.aiGetSize <- getArg (n - 1); ai.aiNewSize <- replaceArg n;
         loop rest
     | ACons("sizemul", [AInt n1; AInt n2]) :: rest -> 
         ai.aiGetSize <-
-           (fun args -> BinOp(Mult, getArg n1 args, getArg n2 args,
+           (fun args -> BinOp(Mult, getArg (n1 - 1) args, getArg (n2 - 1) args,
                               intType));
         ai.aiNewSize <-
            (fun what args -> 
-             (replaceArg n1 one 
-                (replaceArg n2 what args)));
+             (replaceArg (n1 - 1) one 
+                (replaceArg (n2 - 1) what args)));
         loop rest
     | a :: rest -> 
         (ignore (E.warn "Don't understand boxalloc atrtibute: %a@!"
@@ -3957,9 +3957,9 @@ let boxFile file =
         | Attr("interceptCasts", [ AId("off") ]) -> interceptCasts := false
         | Attr("boxalloc",  AStr(s) :: rest) -> 
             if not (H.mem allocFunctions s) then begin
-                if !E.verboseFlag then
-                  ignore (E.log "Will treat %s as an allocation function\n" s);
-                boxallocPragma s rest
+              if !E.verboseFlag then
+                ignore (E.log "Will treat %s as an allocation function\n" s);
+              boxallocPragma s rest
             end
         | Attr("box", [AId("on")]) -> boxing := true
         | Attr("box", [AId("off")]) -> boxing := false

@@ -62,9 +62,9 @@ void exit(int);
 
  
 
-#pragma boxalloc("malloc", nozero, sizein(0))
-#pragma boxalloc("alloca", nozero, sizein(0))
-#pragma boxalloc("calloc", zero, sizemul(0,1))
+#pragma boxalloc("malloc", nozero, sizein(1))
+#pragma boxalloc("alloca", nozero, sizein(1))
+#pragma boxalloc("calloc", zero, sizemul(1,2))
 
 #pragma boxprintf("printf", 0)
 #pragma boxprintf("fprintf", 1)

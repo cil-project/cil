@@ -805,6 +805,11 @@ let rec parseFormatString f start = begin
   with _ -> []  (* no more % left in format string *)
 end
 
+let checkFormatArgsFun = 
+  let fdec = emptyFunction "CHECK_FORMATARGS" in
+  let argp  = makeVarinfo "format" (TPtr(charType, [Attr("rostring",[])])) in
+  fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
+  fdec
 
 (* See if a function has a boxformat argument and return it *)
 let getFormatArg (func: exp) 
@@ -940,15 +945,7 @@ let prepareVarargArguments
               let _, instr = loopIndices 0 indices in 
               (* Generate a call to a run-time function that checks the 
                * indices  *)
-              let checkFormatFun = 
-                try 
-                  match H.find allFunctions "CHECK_FORMATARGS" with
-                    Declared vi -> vi
-                  | _ -> E.s (unimp "CHECK_FORMATARGS")
-                with Not_found -> 
-                  E.s (bug "Cannot find declaration of CHECK_FORMATARGS")
-              in
-              let call = Call(None, Lval(var checkFormatFun), 
+              let call = Call(None, Lval(var checkFormatArgsFun.svar), 
                               [ format_arg ],
                               !currentLoc)
               in
@@ -1087,8 +1084,8 @@ let processVarargBody (fdec: fundec) : unit =
                       addAttribute (Attr("boxvararg", [ASizeOf descrt])) pa);
               descrt
             with Not_found -> 
-              E.s (error "Cannot find the descriptor type for va_list local %s"
-                     l.vname)
+              E.s (error "Cannot find the descriptor type for va_list local %s in %s"
+                     l.vname fdec.svar.vname)
           end
         in
         if debugVararg then 
@@ -1451,7 +1448,11 @@ let doGlobal (g: global) : global =
           if not (H.mem polyFunc s) then begin
             if !E.verboseFlag then 
               ignore (E.log "Will treat %s as polymorphic\n" s); 
-            H.add polyFunc s (ref None)
+            (* Allocators are polymorphic *)
+            H.add polyFunc s (ref None);
+            (* And are excluded from the cure *)
+            applyToFunction s
+              (fun vi -> vi.vattr <- addAttribute (Attr("nobox",[])) vi.vattr)
           end
 
 
@@ -1643,6 +1644,8 @@ let markFile fl =
       ["free" ];
   end;
   theFile := [];
+  (* Add some prototypes *)
+  theFile := GDecl(checkFormatArgsFun.svar, lu) :: !theFile;
   List.iter (fun g -> let g' = doGlobal g in 
                       theFile := g' :: !theFile) fl.globals;
 

@@ -28,11 +28,13 @@ clean:
 		-name '*cil.c' -o \
 		-name '*box.c' -o \
 		-name '*cured.c' -o \
+                -name '*cured.optim.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*_ppp.c' -o \
 		-name '*.origi' -o \
 		-name '*.o' -o \
+		-name '*.obj' -o \
 		-name '*cabs.c' -o \
 		-name '*infer.c' -o \
 		-name '*_all*.c' -o \
@@ -225,7 +227,7 @@ endif
 
 mustbelinux:
 ifneq ($(ARCHOS), x86_LINUX)
-	error This test case works only on linux; exit 3
+	@echo This test case works only on Linux; exit 3
 endif
 
 ####### Test with PCC sources
