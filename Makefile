@@ -266,43 +266,37 @@ SAFECC+= $(EXTRAARGS)
 ###
 ifdef _MSVC
 ifdef RELEASE
-SAFECLIB=/Necula/SafeC/cil/obj/safec.lib
+SAFECLIB=obj/safec.lib
 else
-SAFECLIB=/Necula/SafeC/cil/obj/safecdebug.lib
+SAFECLIB=obj/safecdebug.lib
 SAFECLIBARG=$(DEF)_DEBUG
 endif
-$(SAFECLIB) : $(SAFECCDIR)/cil/lib/safec.c \
-              $(SAFECCDIR)/cil/lib/safec.h \
-              $(SAFECCDIR)/cil/lib/safeccheck.h
+$(SAFECLIB) : lib/safec.c lib/safec.h lib/safeccheck.h
 	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(SAFECLIBARG) \
-                                          $(OBJOUT)$(OBJDIR)/safec.o $<
-	lib /OUT:$(SAFECLIB) $(OBJDIR)/safec.o 
+                                          $(OBJOUT)obj/safec.o $<
+	lib /OUT:$@ obj/safec.o 
 
-SAFEMAINLIB=/Necula/SafeC/cil/obj/safecmain.lib
-$(SAFEMAINLIB) : $(SAFECCDIR)/cil/lib/safecmain.c \
-                 $(SAFECCDIR)/cil/lib/safec.h \
-                 $(SAFECCDIR)/cil/lib/safeccheck.h
-	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)$(OBJDIR)/safecmain.o $<
-	lib /OUT:$(SAFEMAINLIB) $(OBJDIR)/safecmain.o 
+SAFEMAINLIB=obj/safecmain.lib
+$(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
+	cl /Ox /Zi /I./lib /c $(DEF)_MSVC $(OBJOUT)obj/safecmain.o $<
+	lib /OUT:$@ obj/safecmain.o 
 endif
 
 # Libraries on GCC
 ifdef _GNUCC
 ifdef RELEASE
-SAFECLIB=$(CILDIR)/obj/safeclib.a
+SAFECLIB=obj/safeclib.a
 else
-SAFECLIB=$(CILDIR)/obj/safecdebuglib.a
+SAFECLIB=obj/safecdebuglib.a
 endif
-$(SAFECLIB) : $(CILDIR)/lib/safec.c
-	$(CC) $(OBJOUT)$(CILDIR)/obj/safec.o $<
-	ar -r $@ $(CILDIR)/obj/safec.o
+$(SAFECLIB) : lib/safec.c
+	$(CC) $(OBJOUT)obj/safec.o $<
+	ar -r $@ obj/safec.o
 
-SAFEMAINLIB=$(CILDIR)/obj/safecmain.a
-$(SAFEMAINLIB) : $(CILDIR)/lib/safecmain.c \
-                 $(CILDIR)/lib/safec.h \
-                 $(CILDIR)/lib/safeccheck.h
-	$(CC) $(OBJOUT)$(CILDIR)/obj/safecmain.o $<
-	ar -r $(SAFEMAINLIB) $(CILDIR)/obj/safecmain.o
+SAFEMAINLIB=obj/safecmain.a
+$(SAFEMAINLIB) : lib/safecmain.c lib/safec.h lib/safeccheck.h
+	$(CC) $(OBJOUT)obj/safecmain.o $<
+	ar -r $@ obj/safecmain.o
 endif
 
 
