@@ -1,7 +1,7 @@
 #include "testharness.h"
 
 
-int foo(int invok) {
+void foo(int invok) {
   static const int honour_longs = 4 > 4 || 4  > 4;
   static int bar = 0;
   

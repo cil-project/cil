@@ -672,29 +672,37 @@ module BlockChunk =
 
         (* We can duplicate a chunk if it has a few simple statements, and if 
          * it does not have cases *)
-    let canDuplicate (c: chunk) = isEmpty c
-(*
-      let oneStmt (count: int) (s: stmt) : int = 
-        if s.labels != [] then 
-          1000
-        else
-          match s.skind with 
-            If _ | Switch _ | Loop _ | Block _ -> 
-              1000
-          | Instr il -> 
-              count + List.length il
-          | _ -> count + 1
-      in
-      c.cases == [] &&
-      5 >= ((List.fold_left oneStmt 0 c.stmts) + 
-              List.length c.postins)
-*)      
+    let duplicateChunk (c: chunk) = (* raises Failure if you should not 
+                                     * duplicate this chunk *)
+      if c.cases != [] then raise (Failure "cannot duplicate: has cases") else
+      let pCount = ref (List.length c.postins) in
+      { stmts = 
+        List.map 
+          (fun s -> 
+            if s.labels != [] then 
+              raise (Failure "cannot duplicate: has labels");
+            (match s.skind with 
+              If _ | Switch _ | Loop _ | Block _ -> 
+                raise (Failure "cannot duplicate: complex stmt")
+            | Instr il -> 
+                pCount := !pCount + List.length il
+            | _ -> incr pCount);
+            if !pCount > 5 then raise (Failure ("cannot duplicate: too many instr"));
+            (* We can just copy it because there is nothing to share here. 
+             * Except mybe for the ref cell in Goto but it is Ok to share 
+             * that, I think *)
+            s) c.stmts;
+        postins = c.postins; (* There is no shared stuff in instructions *)
+        cases = []
+      } 
+
+    let duplicateChunk (c: chunk) = 
+      if isEmpty c then c else raise (Failure ("cannot duplicate: isNotEmpty"))
 
     (* We can drop a chunk if it does not have labels inside *)
-    let canDrop (c: chunk) = isEmpty c
-(*
+    let canDrop (c: chunk) =
       List.for_all canDropStatement c.stmts
-*)
+
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
       let loop = mkStmt (Loop (c2block body, !currentLoc)) in
@@ -2752,27 +2760,26 @@ and doExp (isconst: bool)    (* In a constant *)
       end
                
           
-    | A.BINARY((A.AND|A.OR), e1, e2) ->
-        let tmp = var (newTempVar intType) in
-        finishExp (doCondition isconst 
-                               e (empty +++ (Set(tmp, integer 1, 
-                                                 !currentLoc)))
-                                 (empty +++ (Set(tmp, integer 0, 
-                                                 !currentLoc))))     
-          (Lval tmp)
-          intType
+    | A.BINARY((A.AND|A.OR), e1, e2) -> begin
+        let ce = doCondExp isconst e in
+        match ce with
+          CEExp (se, e) -> finishExp se e intType
+        | _ -> 
+            let tmp = var (newTempVar intType) in
+            finishExp (compileCondExp ce
+                         (empty +++ (Set(tmp, integer 1, 
+                                         !currentLoc)))
+                         (empty +++ (Set(tmp, integer 0, 
+                                         !currentLoc))))     
+              (Lval tmp)
+              intType
+    end
           
     | A.UNARY(A.NOT, e) -> 
         let tmp = var (newTempVar intType) in
         let (se, e', t) as rese = doExp isconst e (AExp None) in
         ignore (checkBool t e');
         finishExp se (UnOp(LNot, e', intType)) intType
-(*   We could use this code but it confuses the translation validation
-        finishExp 
-          (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)])
-          (Lval tmp)
-          intType
-*)
           
     | A.CALL(f, args) -> 
         if isconst then
@@ -3125,36 +3132,47 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
  * conditionals in the initializers *)
 and doCondExp (isconst: bool) 
               (e: A.expression) : condExpRes = 
+  let rec addChunkToCE (c0: chunk) = function
+      CEExp (c, e) -> CEExp (c0 @@ c, e)
+    | CEAnd (ce1, ce2) -> CEAnd (addChunkToCE c0 ce1, ce2)
+    | CEOr (ce1, ce2) -> CEOr (addChunkToCE c0 ce1, ce2)
+    | CENot ce1 -> CENot (addChunkToCE c0 ce1)
+  in
+  let rec canDropCE = function
+      CEExp (c, e) -> canDrop c
+    | CEAnd (ce1, ce2) | CEOr (ce1, ce2) -> canDropCE ce1 && canDropCE ce2
+    | CENot (ce1) -> canDropCE ce1
+  in
   match e with 
     A.BINARY (A.AND, e1, e2) -> begin
-      match doCondExp isconst e1, doCondExp isconst e2 with
-        (CEExp (se1, ci1) as ce1), 
-        (CEExp (se2, ci2) as ce2) -> begin
+      let ce1 = doCondExp isconst e1 in
+      let ce2 = doCondExp isconst e2 in
+      match ce1 with
+        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if not (isZero ci1) then 
-            CEExp (se1 @@ se2, ci2)
-          else
+            addChunkToCE se1 ce2
+          else 
             (* se2 might contain labels so we cannot drop it *)
-            if canDrop se2 then ce1 else 
+            if canDropCE ce2 then ce1 else 
             CEAnd (ce1, ce2)
-        end
-      | ce1, ce2 -> CEAnd (ce1, ce2)
+      | _ -> CEAnd (ce1, ce2)
     end
   | A.BINARY (A.OR, e1, e2) -> begin
-      match doCondExp isconst e1, doCondExp isconst e2 with
-        (CEExp (se1, ci1) as ce1), 
-        (CEExp (se2, ci2) as ce2) -> begin
+      let ce1 = doCondExp isconst e1 in
+      let ce2 = doCondExp isconst e2 in
+      match ce1 with
+        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if isZero ci1 then 
-            CEExp (se1 @@ se2, ci2)
-          else
+            addChunkToCE se1 ce2
+          else 
             (* se2 might contain labels so we cannot drop it *)
-            if canDrop se2 then ce1 else 
+            if canDropCE ce2 then ce1 else 
             CEOr (ce1, ce2)
-        end
-      | ce1, ce2 -> CEOr (ce1, ce2)
+      | _ -> CEOr (ce1, ce2)
     end
   | A.UNARY(A.NOT, e1) -> begin
       match doCondExp isconst e1 with 
-        CEExp (se1, ci1) -> 
+        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if isZero ci1 then 
             CEExp (se1, one) 
           else
@@ -3165,9 +3183,9 @@ and doCondExp (isconst: bool)
       let (se, e, t) as rese = doExp isconst e (AExp None) in
       ignore (checkBool t e);
       CEExp (se, constFold isconst e)
-
+(*
 (* A special case for conditionals *)
-and doCondition (isconst: bool) (* If we are in constants, we do our best to 
+and doConditionOld (isconst: bool) (* If we are in constants, we do our best to 
                                  * eliminate the conditional *)
                 (e: A.expression) 
                 (st: chunk)
@@ -3176,32 +3194,28 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
   | A.BINARY(A.AND, e1, e2) ->
       let (sf1, sf2) = 
         (* If sf is small then will copy it *)
-        if canDuplicate sf then
-          (sf, sf)
-        else begin
+        try (sf, duplicateChunk sf) 
+        with Failure _ -> 
           let lab = newLabelName "_L" in
           (gotoChunk lab lu, consLabel lab sf !currentLoc false)
-        end
       in
-      let st' = doCondition isconst e2 st sf1 in
+      let st' = doConditionOld isconst e2 st sf1 in
       let sf' = sf2 in
-      doCondition isconst e1 st' sf'
+      doConditionOld isconst e1 st' sf'
 
   | A.BINARY(A.OR, e1, e2) ->
       let (st1, st2) = 
         (* If st is small then will copy it *)
-        if canDuplicate st then
-          (st, st)
-        else begin
+        try (st, duplicateChunk st) 
+        with Failure _ -> 
           let lab = newLabelName "_L" in
           (gotoChunk lab lu, consLabel lab st !currentLoc false)
-        end
       in
       let st' = st1 in
-      let sf' = doCondition isconst e2 st2 sf in
-      doCondition isconst e1 st' sf'
+      let sf' = doConditionOld isconst e2 st2 sf in
+      doConditionOld isconst e1 st' sf'
 
-  | A.UNARY(A.NOT, e) -> doCondition isconst e sf st
+  | A.UNARY(A.NOT, e) -> doConditionOld isconst e sf st
 
   | _ -> begin
       let (se, e, t) as rese = doExp isconst e (AExp None) in
@@ -3211,6 +3225,52 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
       | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc st sf
   end
+*)
+
+and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk = 
+  match ce with 
+  | CEAnd (ce1, ce2) ->
+      let (sf1, sf2) = 
+        (* If sf is small then will copy it *)
+        try (sf, duplicateChunk sf) 
+        with Failure _ -> 
+          let lab = newLabelName "_L" in
+          (gotoChunk lab lu, consLabel lab sf !currentLoc false)
+      in
+      let st' = compileCondExp ce2 st sf1 in
+      let sf' = sf2 in
+      compileCondExp ce1 st' sf'
+        
+  | CEOr (ce1, ce2) -> 
+      let (st1, st2) = 
+        (* If st is small then will copy it *)
+        try (st, duplicateChunk st) 
+        with Failure _ -> 
+          let lab = newLabelName "_L" in
+          (gotoChunk lab lu, consLabel lab st !currentLoc false)
+      in
+      let st' = st1 in
+      let sf' = compileCondExp ce2 st2 sf in
+      compileCondExp ce1 st' sf'
+        
+  | CENot ce1 -> compileCondExp ce1 sf st
+        
+  | CEExp (se, e) -> begin
+      match e with 
+        Const(CInt64(i,_,_)) when i <> Int64.zero && canDrop sf -> se @@ st
+      | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
+      | _ -> se @@ ifChunk e !currentLoc st sf
+  end
+ 
+
+(* A special case for conditionals *)
+and doCondition (isconst: bool) (* If we are in constants, we do our best to 
+                                 * eliminate the conditional *)
+                (e: A.expression) 
+                (st: chunk)
+                (sf: chunk) : chunk = 
+  compileCondExp (doCondExp isconst e) st sf
+
 
 and doPureExp (e : A.expression) : exp = 
   let (se, e', _) = doExp true e (AExp None) in

@@ -187,6 +187,7 @@ $TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init10", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init11", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
@@ -367,7 +368,7 @@ $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
-  $TEST->add2Group("vortex", "vslow", "spec");
+  $TEST->add2Group("vortex", "vslow", "spec", "slow");
   $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 
@@ -405,7 +406,7 @@ $TEST->add3Tests("scott/transpunion", "_GNUCC=1");
 $TEST->add3Tests("scott/oldstyle");
 $TEST->add3Tests("scott/typeof", "_GNUCC=1");
 $TEST->add3Tests("scott/funcname", "_GNUCC=1");
-$TEST->add3Tests("scott-nolink/asmfndecl", "_GNUCC=1");
+$TEST->add3Tests("scott/asmfndecl", "_GNUCC=1");
 $TEST->add3Tests("scott/litstruct", "_GNUCC=1");
 $TEST->add3Tests("scott/xlsubr");
 $TEST->add3Tests("scott/heapify");
