@@ -131,3 +131,4 @@ trace
 globstackptr
 complex_float
 mergeinline
+ehstack

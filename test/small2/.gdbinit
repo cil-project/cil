@@ -1,5 +1,5 @@
 # .gdbinit
 
-file badpoly-tmp
-break trueMain
+file ehstack
+break main
 run

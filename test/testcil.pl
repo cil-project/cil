@@ -641,6 +641,7 @@ smAddTest("mergeinline");
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
 smAddTest("test-bad/globstackptr $box");
+smAddTest("test-bad/ehstack $box");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
