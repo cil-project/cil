@@ -1544,15 +1544,12 @@ and doExp (isconst: bool)    (* In a constant *)
           (e : A.expression) 
           (what: expAction) : (chunk * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
-   * Similarly an expression of function type is turned into StartOf *)
+   * Similarly an expression of function type is turned into StartOf. So 
+   * essentially doExp should never return things of type TFun or TArray *)
   let processStartOf e t = 
     match e, unrollType t with
-      Lval(lv), TArray(tbase, _, a) -> StartOf lv, TPtr(tbase, a)
-    | Lval(lv), TFun _  -> begin
-        match lv with 
-          Mem(addr), NoOffset -> addr, TPtr(t, [])
-        | _, _ -> StartOf lv, TPtr(t, [])
-    end
+      Lval(lv), TArray(tbase, _, a) -> mkAddrOfAndMark lv, TPtr(tbase, a)
+    | Lval(lv), TFun _  -> mkAddrOfAndMark lv, TPtr(t, [])
     | _, (TArray _ | TFun _) -> 
         E.s (error "Array or function expression is not lval: %a@!"
                d_plainexp e)

@@ -2848,61 +2848,44 @@ let addOffsetLval toadd (b, off) : lval =
 
 
   (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
-   * TPtr(t) and the type of the resulting lval is t. An exception is when t 
-   * is a function type. Dereferencing it has no effect. *)
+   * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
+   * implicit conversion between a function and a pointer to a function does 
+   * not apply. You must do the conversion yourself using StartOf *)
 let mkMem (addr: exp) (off: offset) : lval =  
-  match addr, off with
-    AddrOf lv, _ -> addOffsetLval off lv
-  | StartOf lv, _ -> begin
-      (* lv might be a function or an array *)
-      match unrollType (typeOfLval lv) with
-        TFun _ -> Mem addr, off
-      | _ -> addOffsetLval (Index(zero, off)) lv  (* Must be an array *)
-  end
-  | _ -> Mem addr, off
-(*
-  let isarray = (* Maybe the addr is the start of an array *)
-    match addr with 
-      StartOf(lv) when 
-      (match unrollType (typeOfLval lv) with TArray _ -> true | _ -> false)
-        -> Some lv
-    | _ -> None
+  (* See if addr is a pointer to a function *)
+  let isfunptr = 
+    match unrollType (typeOf addr) with
+      TPtr (TFun _, _) -> true
+    | _ -> false
   in
   let res = 
-    match isarray, off with
-    | Some lv, Index _ -> (* index on an array *)
-        addOffsetLval off lv
-    | Some lv, _ -> (* non-index on an array *)
-        addOffsetLval (Index(zero, off)) lv
-    | None, Index(ei, resto) -> (* index on a non-array *)
-        Mem (BinOp(IndexPI, addr, ei, typeOf addr)), resto 
-    | None, _ -> begin (* non-index on a non-array *)
-        match addr with
-          AddrOf (b, addroff) -> b, addOffset off addroff
-        | _ -> Mem addr, off
-    end
+    match addr, off with
+      AddrOf lv, _ -> addOffsetLval off lv
+    | StartOf lv, _ when not isfunptr -> (* Must be an array *)
+        addOffsetLval (Index(zero, off)) lv 
+    | StartOf lv, NoOffset -> lv
+    | _, _ -> Mem addr, off
   in
 (*  ignore (E.log "memof : %a:%a\nresult = %a\n" 
             d_plainexp addr d_plainoffset off d_plainexp res); *)
   res
-*)          
-
 
 let mkAddrOf ((b, off) as lval) : exp = 
-  match unrollType (typeOfLval lval) with
-    TArray _ -> StartOf lval
-  | TFun _ -> StartOf lval
-  | _ -> begin
-      (* Never take the address of a register variable *)
-      (match lval with
-        Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage
-      | _ -> ()); 
-      (* Try to optimize some cases *)
-      match lval with
-        Mem e, NoOffset -> e
-      | b, Index(z, NoOffset) when isZero z -> StartOf (b, NoOffset)
-      | _ -> AddrOf(lval)
-  end
+  (* See if lval is a function or an array *)
+  let isfunorarray = 
+    match  unrollType (typeOfLval lval) with
+      TFun _ -> true
+    | TArray _ -> true
+    | _ -> false
+  in
+  (* Never take the address of a register variable *)
+  (match lval with
+    Var vi, off when vi.vstorage = Register -> vi.vstorage <- NoStorage
+  | _ -> ()); 
+  match lval with
+    Mem e, NoOffset -> e
+  | b, Index(z, NoOffset) when isZero z -> StartOf (b, NoOffset)(* array *)
+  | _ -> if isfunorarray then StartOf lval else AddrOf lval
 
 let isIntegralType t = 
   match unrollType t with

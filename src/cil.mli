@@ -667,7 +667,12 @@ val var: varinfo -> lval
 val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
                                          * case it construct a StartOf) and 
                                          * for scalars. *)
-(* val assign: varinfo -> exp -> stmt *)
+  (* Make a Mem, while optimizing AddrOf. The type of the addr must be 
+   * TPtr(t) and the type of the resulting lval is t. Note that in CIL the 
+   * implicit conversion between a function and a pointer to a function does 
+   * not apply. You must do the conversion yourself using StartOf *)
+val mkMem: addr:exp -> off:offset -> lval
+
 
 val mkString: string -> exp
 
@@ -882,10 +887,6 @@ val dGlobal: Pretty.doc -> location -> global
 val addOffsetLval: offset -> lval -> lval 
 val addOffset:     offset -> offset -> offset
 
-
-  (* Make a Mem, while optimizing StartOf. The type of the addr must be 
-   * TPtr(t) and the type of the resulting expression is t *)
-val mkMem: addr:exp -> off:offset -> lval
 
 
 val isIntegralType: typ -> bool
