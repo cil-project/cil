@@ -948,9 +948,7 @@ smAddTest("scott/invalredef2 $gcc");
 smAddTest("scott/errorinfn");
 smAddTest("scott/unionassign $box");
 smAddTest("scott/unionassign $wildbox");
-
-smFailTest("we don't have a wrapper for readv",
-           "scott/readv $box");
+smAddTest("scott/readv $box");
 
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
