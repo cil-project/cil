@@ -99,6 +99,7 @@ let rec processOneFile (cil: C.file) =
       ignore (Partial.globally_unique_vids cil) ; 
       Cil.iterGlobals cil (fun glob -> match glob with
         Cil.GFun(fd,_) -> Cil.prepareCFG fd ;
+                      (* jc: blockinggraph depends on this "true" arg *)
                       ignore (Cil.computeCFGInfo fd true)
       | _ -> ()) ;
     );

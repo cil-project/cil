@@ -34,7 +34,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-module H = Hashtbl
 open Cil
 open Pretty
 module E = Errormsg
@@ -75,7 +74,7 @@ type blockpt =
 let functionPointerName = "@@functionPointer@@"
 
 (* We map names to nodes *)
-let functionNodes: (string, node) H.t = H.create 113 
+let functionNodes: (string, node) Hashtbl.t = Hashtbl.create 113 
 let getFunctionNode (n: string) : node = 
   Util.memoize 
     functionNodes
@@ -84,7 +83,7 @@ let getFunctionNode (n: string) : node =
                 preds = []; succs = []; predstmts = []; })
 
 (* We map types to nodes for function pointers *)
-let functionPtrNodes: (typsig, node) H.t = H.create 113
+let functionPtrNodes: (typsig, node) Hashtbl.t = Hashtbl.create 113
 let getFunctionPtrNode (t: typ) : node =
   Util.memoize
     functionPtrNodes
@@ -96,7 +95,7 @@ let getFunctionPtrNode (t: typ) : node =
 (** Dump the function call graph. *)
 let dumpGraph = true
 let dumpFunctionCallGraph (start: node) = 
-  H.iter (fun _ x -> x.scanned <- false) functionNodes;
+  Hashtbl.iter (fun _ x -> x.scanned <- false) functionNodes;
   let rec dumpOneNode (ind: int) (n: node) : unit = 
     output_string !E.logChannel "\n";
     for i = 0 to ind do 
@@ -170,10 +169,10 @@ let endPt = { id = 0; point = mkEmptyStmt (); callfun = "end"; infun = "end";
 
 (* These values will be initialized for real in makeBlockingGraph. *)
 let curId : int ref = ref 1
-let startName = ref ""
-let blockingPoints = ref []
-let blockingPointsNew = ref []
-let blockingPointsHash = Hashtbl.create 117
+let startName : string ref = ref ""
+let blockingPoints : blockpt list ref = ref []
+let blockingPointsNew : blockpt list ref = ref []
+let blockingPointsHash : (int, blockpt) Hashtbl.t = Hashtbl.create 113
 
 let getFreshNum () : int =
   let num = !curId in
@@ -182,12 +181,12 @@ let getFreshNum () : int =
 
 let getBlockPt (s: stmt) (cfun: string) (ifun: string) : blockpt =
   try
-    Hashtbl.find blockingPointsHash s
+    Hashtbl.find blockingPointsHash s.sid
   with Not_found ->
     let num = getFreshNum () in
     let bpt = { id = num; point = s; callfun = cfun; infun = ifun;
                 leadsto = []; } in
-    Hashtbl.add blockingPointsHash s bpt;
+    Hashtbl.add blockingPointsHash s.sid bpt;
     blockingPoints := bpt :: !blockingPoints;
     blockingPointsNew := bpt :: !blockingPointsNew;
     bpt
@@ -227,7 +226,7 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
     worklist := List.tl !worklist;
     match act with
       Process (curStmt, curNode) -> begin
-        Hashtbl.add seenStmts curStmt ();
+        Hashtbl.add seenStmts curStmt.sid ();
         match getStmtNode curStmt with
           Some node -> begin
             if debug then
@@ -238,7 +237,7 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
             | BlockTrans -> begin
                 let processFundec (fd: fundec) : unit =
                   let s = List.hd fd.sbody.bstmts in
-                  if not (Hashtbl.mem seenStmts s) then
+                  if not (Hashtbl.mem seenStmts s.sid) then
                     let n = getFunctionNode fd.svar.vname in
                     worklist := Process (s, n) :: !worklist
                 in
@@ -270,7 +269,7 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
             worklist := Return curNode :: !worklist
         | _ ->
             List.iter (fun s ->
-                         if not (Hashtbl.mem seenStmts s) then
+                         if not (Hashtbl.mem seenStmts s.sid) then
                            worklist := Process (s, curNode) :: !worklist)
                       curStmt.Cil.succs
       end
@@ -352,7 +351,7 @@ let markVar (vi: varinfo) : unit =
   end
 
 let makeFunctionCallGraph (f: Cil.file) : unit = 
-  H.clear functionNodes;
+  Hashtbl.clear functionNodes;
   (* Scan the file and construct the control-flow graph *)
   List.iter
     (function
