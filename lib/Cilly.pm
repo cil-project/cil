@@ -199,7 +199,7 @@ sub collectOneArgument {
         }
         return 1;
     }
-    if($arg eq '--separate') {
+    if($arg eq '--nomerge') {
         $self->{SEPARATE} = 1;
         return 1;
     }
@@ -297,10 +297,10 @@ Options:
   --help (or -help) Prints this help message
   --verbose    Prints a lot of information about what is being done
   --keep=xxx   Keep temporary files in the given directory
-  --separate   Apply CIL separately to each source file as they are compiled. 
+  --nomerge    Apply CIL separately to each source file as they are compiled. 
                By default CIL is applied to the whole program during linking.
   --merge      Apply CIL to the merged program.
-  --keepmerged  Save the merged file. Only useful if --separate is not given.
+  --keepmerged  Save the merged file. Only useful if --nomerge is not given.
   --trueobj          Do not write preprocessed sources in .obj/.o files but
                      create some other files (e.g. foo.o_saved.c).
  

@@ -118,7 +118,6 @@ ifndef INFERBOX
   INFERBOX := none
 endif
 
-STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 
 # CCURED contains arguments that are passed to ccured
 # Pass such arguments in the command line as EXTRAARGS="..."
@@ -128,17 +127,20 @@ STANDARDPATCH := --includedir=$(CCUREDHOME)/include
 CCURED+= $(EXTRAARGS)
 
 ifneq ($(INFERBOX),none)
-  CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX
-  ifdef NOEMITBROWSER
-     CCURED+= --noemitbrowser
-  endif
   ifeq ($(INFERBOX),wild)
     # sm: some of my edg-related source changes need to know whether
     # they're being processed for the all-WILD mode
-    CCURED+= $(DEF)WILDBOX
+    CCURED+= --allwild $(DEF)WILDBOX
+  endif
+  ifdef NOEMITBROWSER
+     CCURED+= --noemitbrowser
   endif
 else
-  CCURED+= --curetype=none
+  CCURED+= --nocure
+endif
+
+ifdef NOCURE
+  CCURED+= --nocure
 endif
 
 ifdef NOMANUALBOX
@@ -268,7 +270,7 @@ endif
 
 # when SEPARATE is defined, merging is disabled
 ifdef SEPARATE
-  CCURED+= --separate
+  CCURED+= --nomerge
 endif
 
 # when UNTAGGEDFNS is defined, and the WILD solver is being used,
@@ -386,7 +388,6 @@ ifdef _MSVC
   MSLINK := --mode=mscl
 endif
 PCCSAFECC=$(CCURED) $(DEF)CCURED \
-                    $(STANDARDPATCH)  \
                     --keep=$(CCUREDHOME)/test/PCCout \
                     --leavealone=pccbox --leavealone=alloc
 pcc : 
@@ -476,8 +477,7 @@ SMALL1 := $(TESTDIR)/small1
 CXXDIR := $(TESTDIR)/cxx
 
 test/% : $(SMALL1)/%.c 
-	cd $(SMALL1); $(CCURED) --separate --commPrintLn \
-               $(STANDARDPATCH) \
+	cd $(SMALL1); $(CCURED) --nomerge --commPrintLn \
 	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 	echo SUCCESS
 
@@ -486,27 +486,24 @@ testnopatch/% : $(SMALL1)/%.c
                $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
 testexe/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --separate  --commPrintLn  \
-               $(STANDARDPATCH) \
+	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
 
 
 testrun/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --separate  --commPrintLn  \
-               $(STANDARDPATCH) \
+	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
 test_withtrusted/% : $(SMALL1)/%.c $(SMALL1)/%_trusted.c
 	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted  --commPrintLn \
-               $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c $*_trusted.c 
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
 cxx/% : $(CXXDIR)/%.cc  
-	cd $(CXXDIR); $(CILLY) --separate --cxx \
+	cd $(CXXDIR); $(CILLY) --nomerge --cxx \
                $(CFLAGS) $(EXEOUT)$*.exe $*.cc
 	cd $(CXXDIR); ./$*.exe
 	echo SUCCESS
@@ -515,14 +512,12 @@ cxx/% : $(CXXDIR)/%.cc
 
 testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c 
 	cd $(SMALL1); $(CCURED) \
-                         $(STANDARDPATCH) \
                          --leavealone=modelextern  \
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.c
 	cd $(SMALL1); ./$*.exe
 
 testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c 
 	cd $(SMALL1); $(CCURED) \
-                         $(STANDARDPATCH) \
                          --leavealone=wrapperextern  \
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
 	cd $(SMALL1); ./$*.exe
@@ -540,7 +535,6 @@ combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
           $(CCURED) $(CFLAGS) \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
-                    $(STANDARDPATCH) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
@@ -553,15 +547,13 @@ arcombine: mustbegcc
 
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --separate  \
-               $(STANDARDPATCH) \
+	cd $(SMALL1); $(CCURED) --nomerge  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c ; ./$*.exe
 
 # Aman's optim tests
 OPTIMTESTDIR := $(TESTDIR)/optim
 optim/% : $(OPTIMTESTDIR)/%.c 
-	cd $(OPTIMTESTDIR); $(CCURED) --separate  \
-               $(STANDARDPATCH) \
+	cd $(OPTIMTESTDIR); $(CCURED) --nomerge  \
 	       $(CFLAGS) $*.c $(EXEOUT)$*.exe
 	$(OPTIMTESTDIR)/$*.exe
 
@@ -572,7 +564,6 @@ hashtest: $(TESTDIR)/small2/hashtest.c
 	cd $(PCCTEST); $(CCURED)  \
                                  --keep=. $(DEF)x86_LINUX $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
@@ -598,7 +589,6 @@ rbtest: $(TESTDIR)/small2/rbtest.c
 	@true "compile with gcc for better error diagnostics (ha!)"
 	cd $(PCCTEST); $(CCURED)  \
                                  --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/redblack.c \
@@ -622,7 +612,6 @@ btreetest: $(TESTDIR)/small2/testbtree.c \
 	rm -f $(TESTDIR)/small2/btreetest.exe
 	cd $(TESTDIR)/small2; $(CCURED) --keep=. \
                  $(CFLAGS) \
-                 $(STANDARDPATCH) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
 	cd $(TESTDIR)/small2; sh -c "for i in $(ITERATION_ELEMS) ; \
@@ -644,8 +633,7 @@ hola: scott/hola
 
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju
-	cd /usr/src/big-examples/; $(CCURED) --separate \
-               $(STANDARDPATCH) \
+	cd /usr/src/big-examples/; $(CCURED) --nomerge \
 	       $(CONLY) $(CFLAGS) structs-edg-stl.c 
 	echo SUCCESS
 
@@ -666,8 +654,7 @@ endif
 scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -676,8 +663,7 @@ scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --separate $(CONLY) --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge $(CONLY) --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -687,8 +673,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 perf/%: $(TESTDIR)/small1/%.c
 	rm -f $(TESTDIR)/small1/$*
 	cd $(TESTDIR)/small1; \
-             $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+             $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -716,8 +701,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/bad/$*
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/bad; $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
                  -g $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -728,8 +712,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/bad; $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
@@ -746,8 +729,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/small2; $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
@@ -757,8 +739,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/small2; $(CCURED) --separate --keep=. \
-                 `$(PATCHECHO) $(STANDARDPATCH)` \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*
@@ -768,7 +749,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 		echo "(failed as expected)"; exit 0; \
 	fi
 
-# sm: yet another failure-test target, this time utilizing a separate
+# sm: yet another failure-test target, this time utilizing a nomerge
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 ifdef _MSVC
@@ -779,8 +760,8 @@ endif
 endif
 	cd $(TESTDIR)/small2; \
 	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --separate --commPrintLn" \
-	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+	  CCURED="$(CCURED) --nomerge --commPrintLn" \
+	  CFLAGS="$(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
@@ -788,8 +769,8 @@ endif
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small1; \
 	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --separate --commPrintLn" \
-	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+	  CCURED="$(CCURED) --nomerge --commPrintLn" \
+	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
@@ -797,15 +778,15 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c 
 	cd $(TESTDIR)/small2; \
 	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --separate --leavealone=wrapperextern --commPrintLn" \
-	  CFLAGS="wrapperextern.c "`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
+	  CCURED="$(CCURED) --nomerge --leavealone=wrapperextern --commPrintLn" \
+	  CFLAGS="wrapperextern.c $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c 
 
 
 # sm: trivial test of combiner
-MYSAFECC := $(CCURED) --keep=. $(STANDARDPATCH)
+MYSAFECC := $(CCURED) --keep=.
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
 	rm -f $(TESTDIR)/small2/comb
 	cd $(TESTDIR)/small2; \
@@ -840,7 +821,7 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 # The final grep will succeed only once the inference correctly says
 # the argument to __throw_setup is WILD.
 doThrowFv:
-	cd $(TESTDIR)/small2; $(CCURED) --separate -c doThrowFv.c
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c doThrowFv.c
 	cd $(TESTDIR)/small2; grep throw_setup doThrowFvcured.c
 	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFvcured.c
 
@@ -848,7 +829,7 @@ doThrowFv:
 # (the tagfile is called tagfile.txt)
 # update: run this with TAGFILE=tagfile.txt
 test-tagfile:
-	cd $(TESTDIR)/small2; $(CCURED) --separate -o tagfile \
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge -o tagfile \
 	  tagfile1.c tagfile2.c && ./tagfile
 
 # cfrac: a memory benchmark which factorizes into products of primes
@@ -857,8 +838,8 @@ cfrac:
 	-rm $(CFRACDIR)/*.o
 	-rm $(CFRACDIR)/cfrac
 	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --separate --keep=$(CFRACDIR)" \
-	  LD="$(CCURED) --separate --keep=$(CFRACDIR)"
+	  CC="$(CCURED) --nomerge --keep=$(CFRACDIR)" \
+	  LD="$(CCURED) --nomerge --keep=$(CFRACDIR)"
 	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
 
 comcfrac: 
@@ -898,7 +879,6 @@ hufftest: $(TESTDIR)/small2/hufftest.c
 	cd $(PCCTEST); $(HUFFCOMPILE) \
                  $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
                  $(CFLAGS) \
-                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/io.c \
                  $(PCCDIR)/src/huffman.c \
@@ -924,7 +904,6 @@ wes-rbtest: $(TESTDIR)/small2/wes-rbtest.c
 	rm -f $(PCCTEST)/wes-rbtest.exe
 	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
-                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-rbtest.c \
                  $(EXEOUT)wes-rbtest.exe
@@ -934,7 +913,6 @@ wes-hashtest: $(TESTDIR)/small2/wes-hashtest.c
 	rm -f $(PCCTEST)/wes-hashtest.exe
 	cd $(PCCTEST); $(CCURED) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
-                 $(STANDARDPATCH) \
                  $(INC)$(PCCDIR)/src \
                  ../small2/wes-hashtest.c \
                  $(EXEOUT)wes-hashtest.exe
@@ -962,22 +940,19 @@ SPR-TESTDIR := $(TESTDIR)/spr
 # Compile .c to .exe and run it
 sprrun/% : $(SPR-TESTDIR)/%.c  
 	cd $(SPR-TESTDIR); $(CCURED)   \
-               $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
 # Compile .c to .s
 sprs/% : $(SPR-TESTDIR)/%.c  
-	cd $(SPR-TESTDIR); $(CCURED) --separate  \
-               $(STANDARDPATCH) \
+	cd $(SPR-TESTDIR); $(CCURED) --nomerge  \
 	       $(ASMONLY)$*.s $*.c
 	echo SUCCESS
 
 # Compile .c to .o
 spro/% : $(SPR-TESTDIR)/%.c 
-	cd $(SPR-TESTDIR); $(CCURED) --separate  \
-               $(STANDARDPATCH) \
+	cd $(SPR-TESTDIR); $(CCURED) --nomerge  \
 	       $(CONLY) $*.c 
 	echo SUCCESS
 ################# New ( Thu Sep  5 18:49:56 PDT 2002 ) Apache Test Cases
@@ -1014,7 +989,7 @@ apachesetup:
                         --dest=$(APACHEBASE)/include \
 	                $(foreach file,$(APACHE_INCLUDES), --ufile=$(file))
 
-APATCH := $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
+APATCH := --includedir=$(APACHEBASE)/include
 
 apache/% : $(APACHETEST)/mod_%.c
 	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
@@ -1031,8 +1006,6 @@ apache/% : $(APACHETEST)/mod_%.c
 # take too long on -O3)
 COMBINECCURED := $(CCURED) --keepmerged
 
-# sm: trying to collapse where are specifications are
-PATCHARG := `$(PATCHECHO) $(STANDARDPATCH)`
 
 #
 # OLDEN benchmarks
@@ -1044,7 +1017,7 @@ all-olden: mustbegcc bh bisort em3d health mst perimeter power treeadd tsp
 BHDIR := $(TESTDIR)/olden/bh
 bh:  mustbegcc
 	cd $(BHDIR); rm -f code.exe *.o; \
-               make CC="$(COMBINECCURED) --leavealone=trusted_bh $(PATCHARG)"
+               make CC="$(COMBINECCURED) --leavealone=trusted_bh "
 	make runbh $(MAKEOVERRIDES)
 
 bh-combined:  mustbegcc
@@ -1079,7 +1052,7 @@ endif
 power:  mustbegcc
 	cd $(PWDIR); \
                make PLAIN=1 clean defaulttarget \
-                    CC="$(COMBINECCURED) $(PATCHARG)"
+                    CC="$(COMBINECCURED) "
 	cd $(PWDIR); sh ./testit ./power.exe
 	cd $(PWDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./power.exe ; done"
@@ -1108,7 +1081,7 @@ health:
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
-                    CC="$(COMBINECCURED) $(PATCHARG)"
+                    CC="$(COMBINECCURED) "
 	cd $(HEALTHDIR); sh ./testit ./health.exe
 	cd $(HEALTHDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                     do time ./health.exe 5 500 1 1; done"
@@ -1133,7 +1106,7 @@ perimeter:
 	cd $(PERIMDIR); \
                make PLAIN=1 clean defaulttarget  \
                     $(PERIMARGS) \
-                    CC="$(COMBINECCURED) $(CFLAGS) $(PATCHARG)"
+                    CC="$(COMBINECCURED) $(CFLAGS) "
 	cd $(PERIMDIR); sh ./testit ./perimeter.exe
 	cd $(PERIMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./perimeter.exe ; done"
@@ -1158,8 +1131,7 @@ voronoi :
                make PLAIN=1 clean voronoi.exe \
                     $(VORONARGS) \
                     CC="$(COMBINECCURED) \
-                        --leavealone=trusted_voronoi \
-			$(PATCHARG)"
+                        --leavealone=trusted_voronoi "
 	cd $(VORONDIR); sh -c "time ./voronoi.exe 60000 1"
 
 # Traveling salesman
@@ -1176,8 +1148,7 @@ tsp:
 	cd $(TSPDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(TSPARGS) \
-                    CC="$(COMBINECCURED) \
-			$(PATCHARG)"
+                    CC="$(COMBINECCURED) "
 	cd $(TSPDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./tsp.exe ; done"
 
@@ -1204,8 +1175,7 @@ bisort:  mustbegcc
 	cd $(BISORTDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(BISORTARGS) \
-                    CC="$(COMBINECCURED) \
-			$(PATCHARG)"
+                    CC="$(COMBINECCURED) "
 	cd $(BISORTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./bisort.exe 100000; done"
 
@@ -1222,7 +1192,7 @@ bisort-optimvariant: mustbegcc
 
 
 OLDENMSTDIR := $(TESTDIR)/olden/mst
-OLDENMSTSAFECC := $(COMBINECCURED) $(PATCHARG)
+OLDENMSTSAFECC := $(COMBINECCURED)
 ifdef _MSVC
   OLDENMSTSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   MSTARGS := _MSVC=1
@@ -1257,7 +1227,7 @@ mst-optimvariant: mustbegcc
 
 
 TREEADDIR := $(TESTDIR)/olden/treeadd
-TREEADDSAFECC := $(CCURED)  $(PATCHARG) $(NOPRINTLN)
+TREEADDSAFECC := $(CCURED) $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
   TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1285,7 +1255,7 @@ treeadd-optimvariant: mustbegcc
 
 
 EM3DDIR := $(TESTDIR)/olden/em3d
-EM3DSAFECC := $(CCURED)  $(PATCHARG)
+EM3DSAFECC := $(CCURED)  
 ifeq ($(ARCHOS), x86_WIN32)
   EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   SS_RAND := TRUE
@@ -1341,7 +1311,7 @@ compress-noclean:  mustbegcc
 
 compress:  mustbegcc
 	cd $(COMPRESSDIR)/src; \
-               make CFLAGS= CC="$(COMBINECCURED) $(PATCHARG)" clean build
+               make CFLAGS= CC="$(COMBINECCURED) " clean build
 	cd $(COMPRESSDIR)/src; sh -c "for i in $(ITERATION_ELEMS) ; \
               do time ./compress.exe <input.data >combine-compress.out ;done"
 	cd $(COMPRESSDIR)/src; if [ -e combine-compress.out ]; then diff combine-compress.out output.data >/dev/null; fi
@@ -1358,7 +1328,7 @@ compress-optimvariant: mustbegcc
 
 
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED)  $(PATCHARG)
+LISAFECC := $(CCURED)  
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
@@ -1407,7 +1377,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR := $(SPECDIR)/099.go
-GOSAFECC := $(CCURED) $(PATCHARG) --commPrintLn $(CFLAGS) $(OPT_O2)
+GOSAFECC := $(CCURED)  --commPrintLn $(CFLAGS) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1449,7 +1419,7 @@ go-optimvariant: mustbegcc
 # with George; it's a near duplicate of the section below
 # ### SPEC95 GCC
 # GCCDIR := $(SPECDIR)/126.gcc
-# GCCSAFECC := $(CCURED) $(PATCHARG) --commPrintLn $(CFLAGS) $(OPT_O2)
+# GCCSAFECC := $(CCURED)  --commPrintLn $(CFLAGS) $(OPT_O2)
 
 # gccclean: 	
 # 	cd $(GCCDIR)/src; make clean
@@ -1490,8 +1460,8 @@ go-optimvariant: mustbegcc
 
 ### SPEC95 vortex
 VORDIR := $(SPECDIR)/147.vortex
-VORSAFECC := $(CCURED)  --verbose --noRTTI $(PATCHARG)
-#VORSAFECC := $(CCURED)  $(PATCHARG)
+VORSAFECC := $(CCURED)  --verbose --noRTTI 
+#VORSAFECC := $(CCURED)  
 ifdef _GNUCC
   VOREXTRA := -lm
 endif
@@ -1569,7 +1539,7 @@ M88DIR := $(SPECDIR)/124.m88ksim
 
 # sm: 12/23/01: found that -I. and -I- don't work with m88k.. as usual I
 # have absolutely no idea why it hasn't been a problem until now ..
-M88SAFECC := $(CCURED)  $(PATCHARG) \
+M88SAFECC := $(CCURED)   \
                --leavealone=m88k_trusted --no-idashi --no-idashdot
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
@@ -1599,7 +1569,7 @@ m88k-combined:  mustbegcc
 
 ### SPEC95 ijpeg
 IJPEGDIR := $(SPECDIR)/132.ijpeg
-IJPEGSAFECC := $(CCURED)  $(PATCHARG)
+IJPEGSAFECC := $(CCURED)  
 ifeq ($(ARCHOS), x86_WIN32)
   IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1651,7 +1621,7 @@ ijpeg-noclean:  mustbegcc
 
 #### SPEC95 gcc
 GCCDIR := $(SPECDIR)/126.gcc
-GCCSAFECC := $(CCURED)  $(PATCHARG)
+GCCSAFECC := $(CCURED)  
 
 
 gccclean: 	
@@ -1730,7 +1700,7 @@ linux-cil:  mustbegcc
 
 linux-ccured: mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
-              CC="$(LINUXCC) --separate --curetype=infer"
+              CC="$(LINUXCC) --nomerge "
 
 
 linux-clean:
@@ -1745,7 +1715,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR := $(TESTDIR)/ftpd/ftpd
-FTPDSAFECC := $(CCURED)  $(PATCHARG)
+FTPDSAFECC := $(CCURED)  
 ifeq ($(ARCHOS), x86_WIN32)
   FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1762,7 +1732,7 @@ ftpd: ftpd-clean mustbegcc
 # sm: commenting this out because there's a section later on
 # which talks about 2.6.2
 # WUFTPDDIR := $(TESTDIR)/wu-ftpd-2.6.1
-# WUFTPDSAFECC := $(CCURED)  $(PATCHARG)
+# WUFTPDSAFECC := $(CCURED)  
 # ifeq ($(ARCHOS), x86_WIN32)
 #   WUFTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 # endif
@@ -1779,7 +1749,7 @@ ftpd: ftpd-clean mustbegcc
 ANAGRAMDIR := $(TESTDIR)/ptrdist-1.1/anagram
 anagram: mustbegcc
 	cd $(ANAGRAMDIR); rm -f *.o; \
-             make CC="$(CCURED) $(STANDARDPATCH) "
+             make CC="$(CCURED)  "
 	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1799,7 +1769,7 @@ anagram-optimvariant: mustbegcc
 BCDIR := $(TESTDIR)/ptrdist-1.1/bc
 bc: mustbegcc
 	cd $(BCDIR); rm -f *.o; \
-            make CC="$(CCURED) $(STANDARDPATCH) "
+            make CC="$(CCURED)  "
 	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1816,7 +1786,7 @@ bc-optimvariant: mustbegcc
 FTDIR := $(TESTDIR)/ptrdist-1.1/ft
 ft: mustbegcc
 	cd $(FTDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) "
+           make CC="$(CCURED)  "
 	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1834,7 +1804,7 @@ ft-optimvariant: mustbegcc
 KSDIR := $(TESTDIR)/ptrdist-1.1/ks
 ks: mustbegcc
 	cd $(KSDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) "
+           make CC="$(CCURED)  "
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1853,7 +1823,7 @@ ks-optimvariant: mustbegcc
 YACRDIR := $(TESTDIR)/ptrdist-1.1/yacr2
 yacr: mustbegcc
 	cd $(YACRDIR); rm -f *.o; \
-           make CC="$(CCURED) $(STANDARDPATCH) "
+           make CC="$(CCURED)  "
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1882,7 +1852,7 @@ linuxsetup: mustbelinux
                     --dest=$(LINUX_INCLUDES) \
 	            $(foreach file,$(LINUX_TOPATCH), --sfile=$(file))
 
-LINUXPATCH := $(STANDARDPATCH) --includedir=$(LINUX_INCLUDES) \
+LINUXPATCH :=  --includedir=$(LINUX_INCLUDES) \
 	-D CCURED_FAIL_IS_VERBOSE=1 --noStackChecks
 
 # CCured support library for linux modules. Holds wrappers and definitions
@@ -1974,12 +1944,12 @@ linuxclean:
 # when there's an error
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make CC="$(CILLY) --separate " \
-                              HOSTCC="$(CILLY) --separate " bzImage
+	cd $(LINUXSRC) ; make CC="$(CILLY) --nomerge " \
+                              HOSTCC="$(CILLY) --nomerge " bzImage
 
 linux-noclean:  mustbegcc mustbelinux mustbemanju
-	cd $(LINUXSRC) ; make CC="$(CILLY) --separate " \
-                              HOSTCC="$(CILLY) --separate "
+	cd $(LINUXSRC) ; make CC="$(CILLY) --nomerge " \
+                              HOSTCC="$(CILLY) --nomerge "
 
 linux-gcc: mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC); make CC=gcc HOSTCC=gcc
@@ -1991,10 +1961,10 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 LINUX_MERGE_SRC = /home/weimer/linux
 linux-merge: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --commPrintLn --verbose --curetype=none `cat merge-file-list`
+        $(CCURED) --commPrintLn --verbose --nocure `cat merge-file-list`
 linux-merge2: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --verbose --curetype=none `cat merge-file-list2`
+        $(CCURED) --verbose --nocure `cat merge-file-list2`
 
 linux-merge3: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC) ; \
@@ -2052,10 +2022,10 @@ emacsclean:
 	      	\) -exec rm -f {} \;
 
 emacs: mustbegcc mustbelinux mustbemanju emacsclean
-	cd $(EMACSSRC) ; make CC="$(CILLY) --separate -DCIL_HACKS"
+	cd $(EMACSSRC) ; make CC="$(CILLY) --nomerge -DCIL_HACKS"
 
 emacs-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(EMACSSRC) ; make CC="$(CILLY) --separate -DCIL_HACKS"
+	cd $(EMACSSRC) ; make CC="$(CILLY) --nomerge -DCIL_HACKS"
 
 emacs-gcc: mustbelinux mustbemanju emacsclean
 	cd $(EMACSSRC) ; make CC=gcc
@@ -2081,10 +2051,10 @@ perlclean:
 	      	\) -exec rm -f {} \;
 
 perl: mustbegcc mustbelinux mustbemanju perlclean
-	cd $(PERLSRC) ; make CC="$(CILLY) --separate"
+	cd $(PERLSRC) ; make CC="$(CILLY) --nomerge"
 
 perl-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(PERLSRC) ; make CC="$(CILLY) --separate"
+	cd $(PERLSRC) ; make CC="$(CILLY) --nomerge"
 
 perl-gcc: mustbelinux mustbemanju perlclean
 	cd $(PERLSRC) ; make CC=gcc
@@ -2109,7 +2079,7 @@ bindclean:
 
 bind: mustbegcc mustbelinux mustbemanju bindclean
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              CC="$(CCURED) " \
               MAKE="make -e" \
                 LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose " \
@@ -2117,7 +2087,7 @@ bind: mustbegcc mustbelinux mustbemanju bindclean
 
 bind-noclean: mustbegcc mustbelinux mustbemanju
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --curetype=infer $(STANDARDPATCH)" \
+              CC="$(CCURED) " \
               MAKE="make -e" \
                 LD="$(CILLY) --merge --verbose --commPrintLn " \
                 AR="$(CILLY) --mode=AR --merge --verbose " \
@@ -2148,10 +2118,10 @@ wuftpdclean:
 	      	\) -exec rm -f {} \;
 
 wuftpd: mustbegcc mustbelinux mustbemanju wuftpdclean
-	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --separate" lnx
+	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --nomerge" lnx
 
 wuftpd-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --separate" lnx
+	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --nomerge" lnx
 
 wuftpd-gcc: mustbelinux mustbemanju wuftpdclean
 	cd $(WUFTPDSRC) ; ./build CC=gcc lnx
@@ -2654,7 +2624,7 @@ gimpall-world: checkgimplib
 CTORTDIR := /usr/local/src/gcc/gcc/testsuite/gcc.c-torture
 # CILLY := gcc
 tort/compile/%: $(CTORTDIR)/compile/%.c mustbemanju mustbegcc
-	cd $(CTORTDIR)/compile; $(CILLY) --separate $*.c -c -o $*.o
+	cd $(CTORTDIR)/compile; $(CILLY) --nomerge $*.c -c -o $*.o
 
 tort/execute/%: $(CTORTDIR)/execute/%.c mustbemanju mustbegcc
 	rm -f $(CTORTDIR)/execute/a.exe
@@ -2673,12 +2643,11 @@ tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
 PINGDIR := $(CCUREDHOME)/test/ping
 .PHONY: ping
 ping:
-	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) $(STANDARDPATCH)"
+	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) "
 
 
 big-arrays : mustbemanju
-	cd /usr/src/big-examples/; $(CCURED) --verbose --stages --separate \
-               $(STANDARDPATCH) \
+	cd /usr/src/big-examples/; $(CCURED) --verbose --stages --nomerge \
 	       $(CONLY) $(CFLAGS) big-arrays.c
 	echo SUCCESS
 
