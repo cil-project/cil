@@ -410,11 +410,18 @@ checkdistrib:
 
 ## Publish the distribution
 CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
-publish_distrib: doc
+publish_distrib: publish_doc
 	if test -d $(CILHTMLDEST); then \
            cp -rf doc/html/cil/* $(CILHTMLDEST); \
            cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
            ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; \
+	else \
+	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
+        fi
+
+publish_doc: doc
+	if test -d $(CILHTMLDEST); then \
+           cp -rf doc/html/cil/* $(CILHTMLDEST); \
 	else \
 	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
         fi
