@@ -41,6 +41,7 @@
 #define FSEQN
 #define NULLTERM
 #define STRING
+#define SAFEUNION
 #else
 #define WILD   __attribute__((wild))
 #define SAFE   __attribute__((safe))
@@ -53,6 +54,7 @@
 #define FSEQN  __attribute__((fseqn))
 #define NULLTERM   __attribute__((nullterm))
 #define STRING  __attribute__((string))
+#define SAFEUNION __attribute__((safeunion))
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)

@@ -37,7 +37,10 @@ let addArraySizedAttribute arrayType enclosingAttr =
   if filterAttributes "sized" enclosingAttr <> [] then
     typeAddAttributes [AId("sized")] arrayType
   else
-    arrayType
+    if hasAttribute "safeunion" enclosingAttr then
+      typeAddAttributes [AId("safeunion")] arrayType
+    else
+      arrayType
 
 (* Grab the node from the attributs of a type. Returns dummyNode if no such 
  * node *)
@@ -93,6 +96,10 @@ let rec doType (t: typ) (p: N.place)
             let fftype = addArraySizedAttribute f.ftype f.fattr in 
             let t', i' = doType fftype (N.PField f) 0 in
             f.ftype <- t') comp.cfields;
+        (* Maybe we must turn this composite type into a struct *)
+        if not comp.cstruct &&
+          hasAttribute "safeunion" comp.cattr then
+          comp.cstruct <- true;
         t, nextidx
       end
         

@@ -112,7 +112,7 @@ and fieldinfo = {
 (* Information about a composite type (a struct or a union). Use mkCompInfo 
  * to create non-recursive or (potentially) recursive versions of this  *)
 and compinfo = {
-    cstruct: bool;                      (* true if struct *)
+    mutable cstruct: bool;              (* true if struct *)
     mutable cname: string;              (* the name. Always non-empty. If it 
                                          * starts with @ then it is not 
                                          * printed. Use compSetName to set 

@@ -521,6 +521,7 @@ let ptrAttrCustom printnode = function
     | AId("sized") -> Some (text "SIZED")
     | AId("tagged") -> Some (text "TAGGED")
     | AId("nullterm") -> Some (text "NULLTERM")
+    | AId("safeunion") -> Some (text "SAFEUNION")
     | a -> None
 
 

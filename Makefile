@@ -214,6 +214,8 @@ endif
 SAFEMAINLIB=obj/safecmain.$(LIBEXT)
 
 
+# By default take manual box definitions into consideration
+MANUALBOX=1
 
 ######################
 .PHONY : defaulttarget
