@@ -1,5 +1,5 @@
 # .gdbinit
 
-file noproto.exe
+file model1.exe
 break main
 run
