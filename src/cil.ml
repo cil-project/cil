@@ -138,7 +138,7 @@ and typ =
   | TFloat of fkind * attribute list
            (* name, tags with values, attributes. The tag list should be 
             * non-empty  *)
-  | TEnum of string * (string * int) list * attribute list
+  | TEnum of string * (string * exp) list * attribute list
 
   | TPtr of typ * attribute list        (* Pointer type. The attributes refer 
                                          * to the  *)
@@ -487,6 +487,8 @@ let hexinteger i =
 let zero      = integer 0
 let one       = integer 1
 let mone      = integer (-1)
+
+        
 
 let voidType = TVoid([])
 let intType = TInt(IInt,[])
@@ -886,7 +888,7 @@ let rec d_decl (docName: unit -> doc) () this =
       if not (!printShortTypes) && 
         (n' = "" || canPrintName ("enum", n')) then
         dprintf "enum@[ %s%a {%a@]@?} %t" n' d_attrlistpost a
-          (docList line (fun (n,i) -> dprintf "%s = %d,@?" n i)) kinds
+          (docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i)) kinds
           docName
       else
         dprintf "enum %s %t" n' docName
@@ -1745,6 +1747,41 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
   in
   loop t
           
+(* Try to do an increment *)
+let increm (e: exp) (i: int) =
+  if i = 0 then e
+  else 
+    let rec tryIncrem e sign = 
+      match e with
+        Const(CInt(ei, eik, _), l) -> 
+          Some (Const(CInt(ei + i * sign, eik, None), l))
+      | BinOp(((PlusA|MinusA|PlusPI|MinusPI) as bop), e1, e2, t, l) -> begin
+          let newe2sign = 
+            if bop = MinusA || bop = MinusPI then - sign else sign
+          in
+          match tryIncrem e2 newe2sign with
+            None -> begin
+              match tryIncrem e1 sign with
+                None -> None
+              | Some e1' -> Some (BinOp(bop, e1', e2, t, l))
+            end
+          | Some e2' -> Some (BinOp(bop, e1, e2', t, l))
+      end
+      | UnOp(Neg, e', t, l) -> begin
+          match tryIncrem e' (- sign) with
+            None -> None
+          | Some e'' -> Some (UnOp(Neg, e'', t, l))
+      end
+      | _ -> None
+    in
+    match tryIncrem e 1 with
+      None -> 
+        let et = typeOf e in
+        let bop = if isPointerType et then PlusPI else PlusA in
+        BinOp(bop, e, integer i, et, lu)
+    | Some e' -> e'
+  
+
   
 
 (*** Make a compound initializer for zeroe-ing a data type ***)

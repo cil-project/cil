@@ -132,8 +132,8 @@ and typ =
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
            (* name, tags with values, attributes. The tag list should be 
-            * non-empty  *)
-  | TEnum of string * (string * int) list * attribute list
+            * non-empty. The tag values must be compile time constants  *)
+  | TEnum of string * (string * exp) list * attribute list
 
   | TPtr of typ * attribute list        (* Pointer type. The attributes refer 
                                          * to the  *)
@@ -456,6 +456,8 @@ val hexinteger: int -> exp
 val zero: exp
 val one: exp
 val mone: exp
+
+val increm: exp -> int -> exp
 
 val voidType: typ
 val intType: typ

@@ -245,13 +245,13 @@ let findCompType kind n a =
 
 (**** Occasionally we see structs with no name and no fields *)
 (* Sometimes we need to lookup enum fields *)
-let enumFields : (string, (int * typ)) H.t = H.create 17
+let enumFields : (string, (exp * typ)) H.t = H.create 17
 let recordEnumField n idx typ = 
   try 
     let (idx', typ') = H.find enumFields n in
     if idx <> idx' then 
-      E.s (E.unimp "Enum key %s was encoutered before with index %d in type %a"
-             n idx' d_type typ')
+      E.s (E.unimp "Enum key %s was encoutered before with index %a in type %a"
+             n d_exp idx' d_type typ')
   with Not_found -> 
     H.add enumFields n (idx, typ)
 
@@ -589,20 +589,19 @@ and doType (a : attribute list) = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
             recordEnumField kname i intType;
-            (kname, i) :: loop (i + 1) rest
+            (kname, i) :: loop (increm i 1) rest
 
         | (kname, e) :: rest ->
             let i = 
               match doExp true e (AExp None) with
-                [], Const(CInt(i,_,_),_), _ -> i
-              | [], UnOp(Neg,Const(CInt(i,_,_), _),_,_), _ -> - i
-              | _ -> E.s (E.unimp "enum with initializer")
+                [], e', _ -> e'
+              | _ -> E.s (E.unimp "enum with non-const initializer")
             in
             recordEnumField kname i intType;
-            (kname, i) :: loop (i + 1) rest
+            (kname, i) :: loop (increm i 1) rest
       in
-      let fields = loop 0 eil in
-      let res = TEnum (n, loop 0 eil, a) in
+      let fields = loop zero eil in
+      let res = TEnum (n, fields, a) in
       List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
       recordTypeName ("enum " ^ n) res; 
       res
@@ -741,7 +740,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* See if this is an enum field *)
         try 
           let (idx, typ) = lookupEnumField n in
-          finishExp [] (integer idx) typ    (* It is *)
+          finishExp [] idx typ    (* It is *)
         with Not_found -> 
           try                           (* It must be a real variable *)
             let vi = lookup n in
