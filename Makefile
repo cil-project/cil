@@ -1741,13 +1741,13 @@ sendmail-gcc: mustbelinux mustbemanju linuxclean
 # downloads:
 #   ftp://ftp.gtk.org/pub/gtk/v1.2/glib-1.2.9.tar.gz
 #   ftp://ftp.gtk.org/pub/gtk/v1.2/gtk+-1.2.9.tar.gz
-#   ftp://ftp.gimp.org/gimp/v1.2/v1.2.2/gimp-1.2.2.tar.gz
-#   ftp://ftp.gimp.org/gimp/v1.2/v1.2.2/gimp-data-extras-1.2.0.tar.gz
-#   ftp://ftp.gimp.org/gimp/libs/jpegsrc.v6b.tar.gz
-#   ftp://ftp.gimp.org/gimp/libs/libpng-1.0.8.tar.gz
-#   ftp://ftp.gimp.org/gimp/libs/mpeg_lib-1.3.1.tar.gz
-#   ftp://ftp.gimp.org/gimp/libs/tiff-v3.5.5.tar.gz
-#   ftp://ftp.gimp.org/gimp/libs/zlib.tar.gz         (this is zlib-1.1.3)
+#   ftp://ftp.gimp.org/pub/gimp/v1.2/v1.2.2/gimp-1.2.2.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/v1.2/v1.2.2/gimp-data-extras-1.2.0.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/libs/jpegsrc.v6b.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/libs/libpng-1.0.8.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/libs/mpeg_lib-1.3.1.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/libs/tiff-v3.5.5.tar.gz
+#   ftp://ftp.gimp.org/pub/gimp/libs/zlib.tar.gz         (this is zlib-1.1.3)
 
 # library dependency tree:
 #
