@@ -466,6 +466,7 @@ val longType: typ
 val ulongType: typ
 val charType: typ
 val charPtrType: typ
+val charConstPtrType: typ
 val voidPtrType: typ
 val intPtrType: typ
 val uintPtrType: typ

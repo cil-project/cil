@@ -518,3 +518,29 @@ testserial: testlinux/generic_serial
 SPR-TESTDIR = test/spr
 spr/% : $(EXECUTABLE)$(EXE)
 	cd $(SPR-TESTDIR); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
+
+
+################# Apache test cases
+APACHETEST=test/apache
+APACHEBASE=apache_1.3.19/src
+APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
+         /I "$(APACHEBASE)\include" /I "$(APACHEBASE)\os\win32" /D "_DEBUG" \
+         /D "WIN32" /D "_WINDOWS" /D "NO_DBM_REWRITEMAP" \
+         /D "SHARED_MODULE" /D "WIN32_LEAN_AND_MEAN" /FD /c 
+
+apache/gzip : $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/mod_gzip.obj
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. \
+                        $(APACHECFLAGS) \
+                        $(OBJOUT)./mod_gzip.obj \
+                        mod_gzip.c
+
+apache/rewrite: $(EXECUTABLE)$(EXE)
+	rm -f $(APACHETEST)/mod_gzip.obj
+	cd $(APACHETEST); $(SAFECC) \
+                       --keep=. \
+                        $(APACHECFLAGS) \
+                        $(OBJOUT)./mod_rewrite.obj \
+                        $(APACHEBASE)/modules/standard/mod_rewrite.c
+

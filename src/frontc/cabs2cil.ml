@@ -178,6 +178,16 @@ let newTempVar typ =
       vstorage = NoStorage;
     } 
 
+
+(**** To initialize some local arrays we need strncpy ****)
+let strncpyFun = 
+  let fdec = emptyFunction "strncpy" in
+  let argd  = makeLocalVar fdec "dst" charPtrType in
+  let args  = makeLocalVar fdec "src" charPtrType in
+  let arglen  = makeLocalVar fdec "len" uintType in
+  fdec.svar.vtype <- TFun(charPtrType, [ argd; args; arglen ], false, []);
+  fdec
+
 (*** In order to process GNU_BODY expressions we must record that a given 
  *** COMPUTATION is interesting *)
 let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
@@ -185,7 +195,7 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 
 (*** When we do statements we need to know the current return type *)
 let currentReturnType : typ ref = ref (TVoid([]))
-let currentFunctionName : string ref = ref "no_function"
+let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 (******** GLOBAL TYPES **************)
 let typedefs : (string, typ) H.t = H.create 113 
@@ -433,7 +443,6 @@ let checkBool (ot : typ) (e : exp) : bool =
   | TBitfield _ -> true
   | TFloat _ -> true
   |  _ -> E.s (E.unimp "castToBool %a" d_type ot)
-
 
 
 (* Do types *)
@@ -877,7 +886,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 if past <= l &&
                    String.sub s start (String.length tofind) = tofind then
                   (if start > 0 then String.sub s 0 start else "") ^
-                  !currentFunctionName ^
+                  !currentFunctionVI.vname ^
                   (if past < l then String.sub s past (l - past) else "")
                 else
                   s
@@ -1648,9 +1657,16 @@ and doDecl : A.definition -> stmt list = function
           [Skip]
         else
           let (se, e', et) = doExp false e (AExp (Some vi.vtype)) in
-          (match vi.vtype, et with (* We have a length now *)
-            TArray(_,None, _), TArray(_, Some _, _) -> vi.vtype <- et
-          | _, _ -> ());
+          (match vi.vtype, e', et with 
+            (* We have a length now *)
+            TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
+            (* Initializing a local array *)
+          | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
+               Const(CStr s, _), _ -> 
+                 vi.vtype <- TArray(bt, 
+                                    Some (integer (String.length s + 1)),
+                                    a)
+          | _, _, _ -> ());
           let (_, e'') = castTo et vi.vtype e' in
           se @ (doAssign (Var vi, NoOffset) e'')
       in
@@ -1693,6 +1709,16 @@ and doAssign (lv: lval) : exp -> stmt list = function
       | _ -> E.s (E.bug "Unexpected type of Compound")
   end
 
+   (* An array initialized with a string *)
+  | Const(CStr s, l) as e -> begin
+      let lvt = typeOfLval lv in
+      match unrollType lvt with 
+        TArray(_, Some _, _) ->
+          [Instr(Call(None, Lval (var strncpyFun.svar),
+                      [ StartOf lv; e; SizeOf (lvt, l) ], l))]
+      | TArray(_, None, _) -> E.s (E.unimp "initialization with a string")
+      | _ -> [Instr(Set(lv, e, l))]
+  end
   | e -> [Instr(Set(lv, e, lu))]
 
   (* Now define the processors for body and statement *)
@@ -1702,7 +1728,7 @@ and doBody (b : A.body) : stmt list =
   let rec loop = function
       [] -> []
     | A.BDEF d :: rest -> 
-        let res = doDecl d in  (* !!! @ eveluates its arguments backwards *)
+        let res = doDecl d in  (* !!! @ evaluates its arguments backwards *)
         res @ loop rest
     | A.BSTM s :: rest -> 
         let res = doStatement s in
@@ -1886,7 +1912,7 @@ let makeGlobalVarinfo (vi: varinfo) =
 let convFile fname dl = 
   ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
-  theFile := [];
+  theFile := [GDecl strncpyFun.svar];
   H.clear typedefs;
   H.clear compInfoNameEnv;
   H.clear enumFields;
@@ -1994,7 +2020,6 @@ let convFile fname dl =
               | x -> E.s (E.bug "non-function type: %a." d_type x)
             in
             (* Record the returnType for doStatement *)
-            currentFunctionName := n;
             currentReturnType   := returnType;
             (* Setup the environment. Add the formals to the locals. Maybe 
              * they need alpha-conv *)
@@ -2019,6 +2044,7 @@ let convFile fname dl =
             in
             if alreadyDef then
               E.s (E.unimp "There is a definition already for %s" n);
+            currentFunctionVI := thisFunctionVI;
             (* Now do the body *)
             let s = doBody body in
             (* Finish everything *)
