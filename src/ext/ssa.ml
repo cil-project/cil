@@ -4,7 +4,7 @@ module E = Errormsg
 open Cil
 open Pretty
 
-let debug = true
+let debug = false
     
 (* Globalsread, Globalswritten should be closed under call graph *)
 
@@ -17,6 +17,16 @@ module StringOrder =
   end
   
 module StringSet = Set.Make (StringOrder)
+
+module IntOrder = 
+  struct
+    type t = int
+    let compare i1 i2 = 
+      if i1 = i2 then 0 else
+      if i1 < i2 then -1 else 1
+  end
+  
+module IntSet = Set.Make (IntOrder)
 
 
 type cfgInfo = {
@@ -31,7 +41,7 @@ type cfgInfo = {
 
 (** A block corresponds to a statement *)
 and cfgBlock = { 
-    bstmt: Cil.stmt;
+    bstmt: Cil.stmt; 
 
     (* We abstract the statement as a list of def/use instructions *)
     instrlist: instruction list;
@@ -50,6 +60,8 @@ and reg = int
 type idomInfo = int array  (* immediate dominator *)
 
 and dfInfo = (int list) array  (* dominance frontier *)
+
+and sccInfo = (int * int list) list (* list of (# back edges * nodes in a SCC) *)
 
 (* Muchnick's Domin_Fast, 7.16 *)
 
@@ -395,3 +407,201 @@ let add_ssa_info (f: cfgInfo): unit =
                 b.livevars))
       f.blocks;
   end
+
+
+let set2list s = 
+  let result = ref([]) in
+  IntSet.iter (fun element -> result := element::!result) s;
+  !result
+
+
+
+
+let preorderDAG (nrNodes: int) (successors: (int list) array): int list = 
+  let processed = Array.make nrNodes false in
+  let revResult = ref ([]) in
+  let predecessorsSet = Array.make nrNodes (IntSet.empty) in
+  for i = 0 to nrNodes -1 do 
+    List.iter (fun s -> predecessorsSet.(s) <- IntSet.add i predecessorsSet.(s)) successors.(i);
+  done;
+  let predecessors = Array.init nrNodes (fun i -> set2list predecessorsSet.(i)) in
+  let workList = ref([]) in
+  for i = 0 to nrNodes - 1 do
+    if (predecessors.(i) = []) then workList := i::!workList;
+  done;
+  while (!workList != []) do
+    let x = List.hd !workList in
+    workList := List.tl !workList;
+    revResult := x::!revResult;
+    processed.(x) <- true;
+    List.iter (fun s -> 
+      if (List.for_all (fun p -> processed.(p)) predecessors.(s)) then
+	workList := s::!workList;
+	      ) successors.(x);
+  done;
+  List.rev !revResult
+
+
+      
+let preorder (nrNodes: int) (successors: (int list) array) (r: int): int * int list = 
+  if debug then begin
+    ignore (E.log "Inside preorder \n");
+    for i = 0 to nrNodes - 1 do 
+      ignore (E.log "succ(%d) = %a" i (docList (fun i -> num i)) successors.(i)); 
+    done;
+  end;
+  let i = ref(0) in
+  let j = ref(0) in 
+  let pre = Array.make nrNodes (-1) in
+  let post = Array.make nrNodes (-1) in
+  let visit = Array.make nrNodes (false) in
+  let nrBackEdges = ref (0) in
+  let rec depth_first_search_pp (x:int) =      
+    visit.(x) <- true; 
+    pre.(x) <- !j;
+    incr j;
+    List.iter (fun (y:int) -> 
+      if (not visit.(y)) then
+	(depth_first_search_pp y)
+      else 
+	(if (post.(y) = -1) then incr nrBackEdges) 
+	      ) successors.(x);
+    post.(x) <- !i;
+    incr i;
+  in
+  depth_first_search_pp r;
+  let nodes = Array.make nrNodes (-1) in
+  for y = 0 to nrNodes - 1 do
+    if (pre.(y) != -1) then nodes.(pre.(y)) <- y;
+  done;
+  let nodeList = List.filter (fun i -> (i != -1)) (Array.to_list nodes) in
+  (!nrBackEdges, nodeList)
+    
+
+
+
+exception Finished
+
+
+let stronglyConnectedComponents (f: cfgInfo): sccInfo = 
+  let size = f.size in
+  let lowlink = Array.make size (-1) in
+  let dfn = Array.make size (-1) in  
+  let all_scc = ref([]) in
+  let stack = ref([]) in  
+  let nextdfn = ref(-1) in
+
+  let rec strong_components (x:int) =
+    try
+      incr nextdfn;
+      lowlink.(x) <- !nextdfn;
+      dfn.(x) <- !nextdfn;
+      stack := x::!stack;
+      List.iter (fun y ->
+	if dfn.(y) = 0 then begin 
+	  strong_components y;
+	  lowlink.(x) <- min lowlink.(x) lowlink.(y);
+	end
+	else if dfn.(y) < dfn.(x) then lowlink.(x) <- min lowlink.(x) dfn.(y)      
+		) f.successors.(x);
+      if lowlink.(x) = dfn.(x) then begin 
+	let scc = ref(IntSet.empty) in
+	while (!stack != []) do
+	  let z = List.hd !stack in
+	  if dfn.(z) < dfn.(x) then begin 
+	    all_scc := !scc::!all_scc; 
+	    raise Finished;
+	  end;
+	  stack := List.tl !stack;
+	  scc := IntSet.add z !scc; 
+	done;
+	all_scc := !scc::!all_scc;
+      end
+    with Finished -> ()
+  in
+  for x = 0 to size -1 do 
+    dfn.(x) <- 0;
+    lowlink.(x) <- 0;
+  done;
+  nextdfn := 0;
+  stack := [];
+  all_scc := [];
+  for x = 0 to size - 1 do
+    if dfn.(x) = 0 then strong_components x;
+  done;
+  if (debug) then List.iter (fun nodes -> ignore (E.log "Emitting SCC: %a\n" (docList (fun n -> num n)) (set2list nodes))) !all_scc;
+  let all_sccArray = Array.of_list !all_scc in
+
+  if (debug) then begin 
+    ignore (E.log "Computed SCCs\n");
+    for i = 0 to (Array.length all_sccArray) - 1 do
+      ignore(E.log "SCC #%d: " i);
+      IntSet.iter (fun i -> ignore(E.log "%d, " i)) all_sccArray.(i);
+      ignore(E.log "\n");
+    done;
+  end;
+  
+
+  (* Construct sccId: Node -> Scc Id *)
+  let sccId = Array.make size (-1) in
+  Array.iteri (fun i scc -> 
+    IntSet.iter (fun n -> sccId.(n) <- i) scc; 
+	      ) all_sccArray;
+  
+  if (debug) then begin 
+    ignore (E.log "Computed SCC IDs\n");
+  end;
+  
+
+  (* Construct sccCFG *)
+  let nrScc = Array.length all_sccArray in
+  let rootScc = Array.make nrScc (-1) in
+  let successors = Array.make nrScc [] in
+  if (debug) then ignore (E.log "nrScc = %d\n" nrScc);
+  rootScc.(0) <- f.start;
+  for x = 0 to nrScc - 1 do
+    successors.(x) <- 
+      let s = ref(IntSet.empty) in 
+      IntSet.iter (fun y ->
+	List.iter (fun z -> 
+	  let sy = sccId.(y) in
+	  let sz = sccId.(z) in
+	  if (not(sy = sz)) then begin 
+	    s := IntSet.add sz !s;
+	    if (rootScc.(sz) = -1) then rootScc.(sz) <- z
+	  end
+		  ) f.successors.(y) 
+		  ) all_sccArray.(x);
+      set2list !s
+  done;
+
+  if (debug) then begin 
+    ignore (E.log "Computed SCC CFG\n");
+  end;
+
+  (* Order SCCs. The graph is a DAG here *)
+  let sccorder = preorderDAG nrScc successors in
+
+  if (debug) then begin 
+    ignore (E.log "Computed Preorder SCCs\n");
+    ignore (E.log "sccorder = %a \n" (docList (fun i -> num i)) sccorder);
+  end;
+  
+  (* Order nodes of each SCC. The graph is a SCC here. So choosing any root is fine *)
+  let scclist = List.map (fun i -> 
+    let successors = Array.create size [] in
+    for j = 0 to size - 1 do 
+      successors.(j) <- List.filter (fun x -> IntSet.mem x all_sccArray.(i)) f.successors.(j);
+    done;
+    if (rootScc.(i) = -1) then rootScc.(i) <- IntSet.choose all_sccArray.(i);
+    preorder f.size successors rootScc.(i)  
+	   ) sccorder in
+  if (debug) then begin 
+    ignore (E.log "Computed Preorder for Nodes of each SCC\n");
+  end;
+  scclist
+    
+    
+    
+	
+    

@@ -222,8 +222,8 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
   ci
 
 (* Compute strongly-connected components *)
-let stronglyConnectedComponents (cfg: S.cfgInfo) : (int * int list) list = 
-  []
+let stronglyConnectedComponents (cfg: S.cfgInfo) : S.sccInfo = 
+  S.stronglyConnectedComponents cfg
 
 
 let globalsDumped = IH.create 13
@@ -315,7 +315,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
     
     method pExp () = function
       | Const (CInt64(i, _, _)) -> text (Int64.to_string i)
-      | Const (CStr _) -> text "(rand)"
+      | Const (CStr _) -> text "(@rand)"
       | BinOp (bop, e1, e2, _) -> 
           dprintf "(%a @[%a@?%a@])" 
             d_binop bop
@@ -329,7 +329,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           text (self#variableUse varRenameState v)
             
             (* We ignore all other Lval *)
-      | Lval _ -> text "(rand)"
+      | Lval _ -> text "(@rand)"
             
       | e -> super#pExp () e
             
@@ -421,7 +421,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
                 (docList ~sep:line 
                    (fun pv -> 
                      let (lhs, rhs) = getPhiAssignment pv in 
-                     dprintf "%s := (@@phi %a)" 
+                     dprintf "%s = (@@phi %a);" 
                        lhs (docList ~sep:break text) rhs))
                 phivars
                 );
@@ -434,7 +434,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
               pd ~ind:ind (self#pInstr () i ++ line))
             il
       | Block b -> List.iter (self#dStmt out ind) b.bstmts
-      | Goto (s, _) -> ignore (p ~ind:ind "goto %d\n" !s.sid)
+      | Goto (s, _) -> ignore (p ~ind:ind "<goto %d>\n" !s.sid)
       | Return (what, _) -> begin
 
           let glob_written_trans = 
@@ -442,7 +442,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             with Not_found -> assert false) in 
           IH.iter
             (fun _ g -> 
-              ignore (p ~ind:ind "%s := %s;\n" g.vname
+              ignore (p ~ind:ind "%s = %s;\n" g.vname
                         (self#variableUse varRenameState g)))
             glob_written_trans;
 
@@ -451,7 +451,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             (match what with
               None -> ()
             | Some (Lval (Var v, NoOffset)) when v.vname = "__retres" -> 
-                ignore (p ~ind:ind "%s := %s;\n" v.vname
+                ignore (p ~ind:ind "%s = %s;\n" v.vname
                           (self#variableUse varRenameState v))
             |  _ -> E.s (E.bug "Found return with no __retres"))
           in
@@ -566,9 +566,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         
             
         (* The header *)
-        pd (self#pLineDirective ~forcefile:true l);
+        pd (self#pLineDirective ~forcefile:true l); 
 
-        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <othervars %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n  %a"
+        ignore (p "<function %s\n  <formals %a>\n  <globalsreadtransitive %a>\n  <locals %a>\n  <globalsread %a>\n  <globalswritten %a>\n  <globalswrittentransitive %a>\n  <calls %a>\n  <calledby %a>\n  %a"
           fdec.svar.vname
           (docList (fun v -> text v.vname)) fdec.sformals
           (d_list "," (fun () (_, v) -> text v.vname)) 
