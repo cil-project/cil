@@ -2222,7 +2222,6 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
 (*************** Handle Allocation ***********)
 let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                (vi:  varinfo)   (* Where to put the result *)
-               (vtype: typ)     (* The type of the result *)
                (f:  exp)        (* The allocation function *)
                (args: exp list) (* The arguments passed to the allocation *) 
     : stmt list = 
@@ -2245,9 +2244,9 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let ptrtype, ptroff = 
     match k with 
       N.Wild | N.Seq | N.FSeq | N.SeqN | N.FSeqN | N.Index -> 
-        let fptr, fbase, fendo = getFieldsOfFat vtype in 
+        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in 
         fptr.ftype, Field(fptr, NoOffset)
-    | N.Safe | N.String -> vtype, NoOffset
+    | N.Safe | N.String -> vi.vtype, NoOffset
     | _ -> E.s (E.unimp "pkAllocate: ptrtype (%a)" N.d_pointerkind k)
   in
   (* Get the base type *)
@@ -2289,7 +2288,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let assign_base = 
     match k with 
       N.Wild | N.Seq | N.SeqN | N.Index -> 
-        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
         (mkSet (Var vi, Field(fbase, NoOffset))
            (doCast tmpvar voidPtrType))
     | _ -> mkEmptyStmt ()
@@ -2395,13 +2394,13 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   let assign_end = 
     match k with 
       N.Seq | N.SeqN -> begin
-        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
         match fendo with
           None -> mkEmptyStmt ()
         | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
       end
     | N.FSeq | N.FSeqN -> 
-        let fptr, fbase, fendo = getFieldsOfFat vtype in
+        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
     | _ -> mkEmptyStmt ()
   in
@@ -2567,7 +2566,7 @@ and boxinstr (ins: instr) (l: location): stmt list =
         in
         dolv @ doe3 @ check @ [mkSet lv' e3]
 
-    | Call(vi, f, args) ->
+    | Call(vio, f, args) ->
         let (ft, dof, f') = boxfunctionexp f in
         let (ftret, ftargs, isva) =
           match ft with 
@@ -2621,57 +2620,51 @@ and boxinstr (ins: instr) (l: location): stmt list =
             in
             doArgs args ftargs  
         in
-        (* Maybe the result is tagged *)
-        let vi', restype, setvi = 
-          match vi with
-            None -> None, intType (* not an alloc, so it does not matter *), []
-          | Some (vi, iscast) -> begin
-              match boxlval (Var vi, NoOffset) with
-                (_, _, (Var _, NoOffset), _, _, _) -> 
-                  (* If the type is a structure and different from the 
-                   * function return type then we must split the call *)
-                  (* ignore 
-                       (E.log "vi=%s, iscast=%b,@! ftret=%a,@!vi.vtype=%a@!"
-                            vi.vname iscast d_plaintype ftret 
-                            d_plaintype vi.vtype); *)
-                  if (* iscast && *)
-                     typeSigBox(ftret) <> typeSigBox (vi.vtype) &&
-                     (not (isSome isallocate)) && 
-                    (match unrollType vi.vtype, unrollType ftret with
+        let finishcall = 
+          match vio with 
+            None -> [call None f' args']
+          | Some (vi, _) -> begin
+             (* If the destination variable gets tags then we must put the 
+              * result of the call into a temporary first  *)
+             (* Compute the destination of the call and some code to use 
+              * after the call  *)
+              let (vi1: varinfo), (setvi1: stmt list) = 
+                match boxlval (Var vi, NoOffset) with
+                  (_, _, (Var _, NoOffset), _, _, _) -> 
+                    vi, []
+                      
+                | (_, _, 
+                   ((Var vi', Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
+                     let tmp = makeTempVar !currentFunction dfld.ftype in
+                     tmp, 
+                     [ mkSet newlv (Lval (var tmp)) ]
+                | _ ->  E.s (E.bug "Result of call is not a variable")
+              in
+              (* If the function is not an allocation function then we must 
+               * watch for the case when the return type or the variable type 
+               * is a struct. In that case we cannot use direct casts. For 
+               * allocation functions pkAllocate knows how to handle casts  *)
+              match isallocate with
+                None -> 
+                  (* See if at least one of the types is a composite type. In 
+                   * that case we cannot use casts.  *)
+                  let somecomp = 
+                    match unrollType vi1.vtype, unrollType ftret with
                       TComp _, _ -> true
                     | _, TComp _ -> true
-                    | _ -> false) then
-                    (* Drop cdecl from the return type *)
-                    let ftret' = 
-                      typeRemoveAttributes [AId("cdecl"); 
-                                             AId("__cdecl__")] ftret in
-                    let tmp = makeTempVar !currentFunction ftret' in
-                    Some (tmp, false), 
-                    vi.vtype,
-                    boxinstr (Set((Var vi, NoOffset), 
-                                   Lval (var tmp))) l
+                    | _ -> false
+                  in
+                  let iscast = typeSigBox(ftret) <> typeSigBox vi1.vtype in
+                  if somecomp && iscast then 
+                    let tmp = makeTempVar !currentFunction ftret in
+                    call (Some(tmp,false)) f' args' ::
+                    (* Use boxinstr to do the proper cast *)
+                    boxinstr (Set((Var vi1, NoOffset), 
+                                  Lval (var tmp))) l @ setvi1
                   else
-                    Some (vi, iscast), vi.vtype, []
-
-              | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
-                  let tmp = makeTempVar !currentFunction dfld.ftype in
-                  Some (tmp, iscast), 
-                  dfld.ftype,
-                  (* Call boxinstr to add the necessary cast *)
-                  boxinstr (Set((Var vi, NoOffset),
-                                Lval (var tmp))) l
-              | _ -> E.s (E.bug "Result of call is not a variable")
-          end
-        in
-        (* Now see if it is an allocation function *)
-        let finishcall = 
-          match isallocate with
-            None -> (call vi' f' args') :: setvi
-          | Some ai -> begin
-              match vi' with
-                Some (vi'', _) -> 
-                  (pkAllocate ai vi'' restype f' args') @ setvi
-              | _ -> E.s (E.bug "Allocator cannot be subroutine")
+                    call (Some(vi1,iscast)) f' args' :: setvi1
+                                                          
+              | Some ai -> (pkAllocate ai vi1 f' args') @ setvi1
           end
         in
         dof @ doargs @ finishcall

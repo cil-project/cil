@@ -858,7 +858,7 @@ let markFile fl =
   else begin
     (* Otherwise we start with some defaults *)
     List.iter (fun s -> H.add polyFunc s (ref None)) 
-      ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
+      ["free" ];
   end;
   (* initialize the default printf-like functions *)
   List.iter (fun (s,i) -> H.add printfFunc s i)
