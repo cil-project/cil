@@ -188,7 +188,7 @@ $TEST->add3Tests("compress", "_GNUCC=1");
 
 $TEST->add3Tests("go", "_GNUCC=1");
    $TEST->add3Group("go", "slow");
-   $TEST->addComment("go-box", "CRASHES with LBound (only on Win)");
+   $TEST->addComment("go-box", "CRASHES (only on Win)");
 #   $TEST->addBadComment("go-inferbox", "CRASHES with LBound");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
