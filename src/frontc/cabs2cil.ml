@@ -2209,15 +2209,19 @@ and doAttr (a: A.attribute) : attribute list =
     String.sub n st (fin - st + 1)
   in
   match a with
-(*    ("restrict", []) -> [] *)
   | (s, []) -> [Attr (stripUnderscore s, [])]
   | (s, el) -> 
-      let rec attrOfExp (strip: bool) (a: A.expression) : attrparam =
+      
+      let rec attrOfExp (strip: bool) 
+                        ?(foldenum=true) 
+                        (a: A.expression) : attrparam =
         match a with
           A.VARIABLE n -> begin
             let n' = if strip then stripUnderscore n else n in
             (** See if this is an enumeration *)
             try
+              if not foldenum then raise Not_found;
+
               match H.find env n' with 
                 EnvEnum (tag, _), _ -> begin
                   match isInteger (constFold true tag) with 
@@ -2254,8 +2258,8 @@ and doAttr (a: A.attribute) : attribute list =
             withCprint Cprint.print_expression a;
             E.s (error "cabs2cil: invalid expression")
 
-      and ae (e: A.expression) = attrOfExp false e
-      in
+      and ae (e: A.expression) = attrOfExp false e in
+
       (* Sometimes we need to convert attrarg into attr *)
       let arg2attr = function
         | ACons (s, args) -> Attr (s, args)
@@ -2264,13 +2268,13 @@ and doAttr (a: A.attribute) : attribute list =
                    d_attrparam a);
       in
       if s = "__attribute__" then (* Just a wrapper for many attributes*)
-        List.map (fun e -> arg2attr (attrOfExp true e)) el
+        List.map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
       else if s = "__blockattribute__" then (* Another wrapper *)
-        List.map (fun e -> arg2attr (attrOfExp true e)) el
+        List.map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
       else if s = "__declspec" then
-        List.map (fun e -> arg2attr (attrOfExp false e)) el
+        List.map (fun e -> arg2attr (attrOfExp false ~foldenum:false e)) el
       else
-        [Attr(stripUnderscore s, List.map (attrOfExp false) el)]
+        [Attr(stripUnderscore s, List.map (attrOfExp ~foldenum:false false) el)]
 
 and doAttributes (al: A.attribute list) : attribute list =
   List.fold_left (fun acc a -> cabsAddAttributes (doAttr a) acc) [] al

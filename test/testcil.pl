@@ -218,6 +218,7 @@ if (!$egcs) {
   $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
 }
 $TEST->addTests("test/attr6", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/attr7", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");
