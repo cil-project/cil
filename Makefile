@@ -931,6 +931,25 @@ voronoi : defaulttarget
 			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
 	cd $(VORONDIR); ./voronoi.exe
 
+# Traveling salesman
+TSPDIR=test/olden/tsp
+ifdef BOX
+TSPEXTRA=$(CILDIR)/$(SAFEMAINLIB)
+else
+TSPEXTRA=
+endif
+ifdef _MSVC
+TSPARGS = _MSVC=1
+endif
+tsp : defaulttarget
+	cd $(TSPDIR); \
+               make PLAIN=1 clean defaulttarget \
+                    EXTRA_LIBS=$(TSPEXTRA) \
+	            $(TSPARGS) \
+                    CC="$(COMBINESAFECC) \
+			--patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)"
+	cd $(TSPDIR); ./tsp.exe
+
 
 
 # SPEC95
