@@ -1051,9 +1051,8 @@ class processVarargClass (fdec: fundec) = object
                            fvi.vname)
         in
         if fvi.vname = "__ccured_va_start" then begin
-          match getNthArg 0, getNthArg 2 with 
-            Lval (Var markervi, NoOffset),
-            AddrOf (Var last, NoOffset) -> begin
+          match getNthArg 0 with 
+            Lval (Var markervi, NoOffset) -> begin
               let markerdescrt = 
                 try getValistDescriptorType markervi 
                 with Not_found -> 
@@ -1066,8 +1065,6 @@ class processVarargClass (fdec: fundec) = object
               in
               if markerdescrt <> fundescrt then
                 E.s (error "Cannot match the descriptor types in va_start");
-              if last != !lastformal then
-                E.s (error "va_start used on something other than the last formal");
               SkipChildren
             end
           | _ -> E.s (error "Invalid call to %s\n" fvi.vname)
