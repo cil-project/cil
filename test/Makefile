@@ -1447,7 +1447,7 @@ compress-optimvariant: mustbegcc
 
 
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED)  
+LISAFECC := $(CCURED) --allowInlineAssembly 
 li:  mustbegcc
 	cd $(LIDIR)/src; \
             make clean build CC="$(LISAFECC) $(CONLY)" \
