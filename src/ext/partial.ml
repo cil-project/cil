@@ -492,22 +492,39 @@ module MakePartial =
 
       | If(e,b1,b2,loc) -> 
           let e' = S.evaluate state e in 
+          Pretty.printf "%a evals to %a\n" d_exp e d_exp e' ; 
 
           (* helper function to remove an IF branch *)
           let remove b remains = begin 
             changed_cfg := true ; 
-            (match remains.bstmts with
-            | [] -> stmt.succs <- []
-            | hd :: tl -> stmt.succs <- [hd]
+            (match b.bstmts with
+            | [] -> ()
+            | hd :: tl -> 
+              stmt.succs <- List.filter (fun succ -> succ.sid <> hd.sid)
+                stmt.succs 
             ) 
           end in 
 
           if (e' = one) then begin
-            stmt.skind <- Block(b1) ;
+            if b2.bstmts = [] && b2.battrs = [] then 
+              stmt.skind <- Block(b1)
+            else 
+              stmt.skind <- Block( 
+              { bstmts = 
+                [ mkStmt (Block(b1)) ;
+                  mkStmt (If(zero,b2,{bstmts=[];battrs=[];},loc)) ] ;
+                battrs = [] } ) ;
             remove b2 b1 ;
             state
           end else if (e' = zero) then begin
-            stmt.skind <- Block(b2) ;
+            if b1.bstmts = [] && b1.battrs = [] then 
+              stmt.skind <- Block(b2)
+            else 
+            stmt.skind <- Block(
+            { bstmts = 
+              [ mkStmt (Block(b2)) ;
+                mkStmt (If(zero,b1,{bstmts=[];battrs=[];},loc)) ] ;
+              battrs = [] } ) ;
             remove b1 b2 ; 
             state
           end else begin
@@ -574,7 +591,11 @@ module MakePartial =
         while not (Heap.is_empty worklist) do
           let (p,s) = Heap.extract_max worklist in 
           if debug then begin 
-            ignore (Pretty.printf "Working on stmt %d %a@!" s.sid d_stmt s) ; 
+            ignore (Pretty.printf "Working on stmt %d (%a) %a@!" 
+              s.sid 
+              (docList (chr ',' ++ break) (fun s -> dprintf "%d" s.sid))
+              s.succs
+              d_stmt s) ; 
             flush stdout ;
           end ; 
           let si = get_sinfo s in 

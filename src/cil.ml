@@ -4707,7 +4707,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
           match lab_list with
             [] -> handle_choices stmt_tl 
           | Case(ce,cl) :: lab_tl -> 
-              let pred = BinOp(Eq,e,ce,voidType) in
+              let pred = BinOp(Eq,e,ce,intType) in
               let then_block = mkBlock [ mkStmt (Goto(ref stmt_hd,cl)) ] in
               let else_block = mkBlock [ mkStmt (handle_labels lab_tl) ] in
               If(pred,then_block,else_block,cl)
