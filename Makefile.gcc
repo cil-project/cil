@@ -42,9 +42,9 @@ AR := ar
 LIBOUT := -rs 
 
 # The system include files to be patched
-PATCH_SYSINCLUDES := stdio.h ctype.h sys/fcntl.h fcntl.h string.h \
-                     stdarg.h pwd.h stdlib.h varargs.h netdb.h time.h \
-                     sys/socket.h signal.h unistd.h sys/ioctl.h sys/stat.h \
-		     arpa/inet.h malloc.h
+PATCH_SYSINCLUDES := ctype.h fcntl.h malloc.h netdb.h pwd.h signal.h \
+                     stdarg.h stdio.h stdlib.h string.h \
+                     time.h unistd.h varargs.h arpa/inet.h \
+		     sys/fcntl.h sys/ioctl.h sys/socket.h sys/stat.h sys/uio.h
 
 
