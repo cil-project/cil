@@ -92,10 +92,13 @@ these patched copies instead of the standard ones.
 \end{itemize}
 
  CIL has been tested very extensively. It is able to process the SPECINT95
-benchmarks, the Linux kernel, GIMP and other open-source projects. This adds
-to about 1,000,000 lines of code that we tested it on. It is also able to
-process the few Microsoft NT device drivers that we have had access to. CIL
-was tested against GCC's c-torture testsuite and (except for the tests
+benchmarks, the Linux kernel, GIMP and other open-source projects. All of
+these programs are compiled to the simple CIL and then passed to \t{gcc} and
+they still run! We consider the compilation of Linux a major feat especially
+since Linux contains many of the ugly GCC extensions (see \secref{ugly-ugly}).
+This adds to about 1,000,000 lines of code that we tested it on. It is also
+able to process the few Microsoft NT device drivers that we have had access
+to. CIL was tested against GCC's c-torture testsuite and (except for the tests
 involving complex numbers and inner functions, which CIL does not currently
 implement) CIL passes most of the tests. Specifically CIL fails 23 tests out
 of the 904 c-torture tests that it should pass. GCC itself fails 19 tests. A
@@ -164,7 +167,7 @@ Filename   & Description \\
 \t{doc/}                        & HTML documentation of the CIL API \\
 \t{obj/}                        & Directory that will contain the compiled
                                    CIL modules and executables\\
-\t{bin/cilly.pl.in}             & The \t{configure} source for a Perl script 
+\t{bin/cilly.in}                & The \t{configure} source for a Perl script 
                                   that can be invoked with the 
                                   same arguments as either \t{gcc} or
                                   Microsoft Visual C and will convert the
@@ -172,13 +175,13 @@ Filename   & Description \\
                                   transformations, emit it and compile it as
                                   usual. \\
 \t{lib/CompilerStub.pm}         & A Perl class that can be used to write code
-                                  that impersonates a compiler. \t{cilly.pl}
+                                  that impersonates a compiler. \t{cilly}
                                   uses it.  \\
 \t{lib/Merger.pm}               &  A subclass of \t{CompilerStub.pm} that can
                                   be used to merge source files into a single
-                                  source file.\t{cilly.pl}
+                                  source file.\t{cilly}
                                   uses it. \\
-\t{bin/patcher.pl}              & A Perl script that applies specified patches
+\t{bin/patcher.in}              & A Perl script that applies specified patches
                                   to standard include files.\\
 \t{src/check.ml,mli}            & Checks the well-formedness of a CIL file \\
 \t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
@@ -541,8 +544,8 @@ Assuming that you have written \t{logwrites.ml} here is how you use it:
  \t{obj/cilly.byte.exe} and in \t{obj/cilly.asm.exe} respectively).
 
  \item Now you can invoke the \t{cilly} application on a preprocessed file, or
- instead use the \t{cilly.pl} driver which provides a convenient compiler-like
- interface to \t{cilly}. See \secref{driver} for details using \t{cilly.pl}.
+ instead use the \t{cilly} driver which provides a convenient compiler-like
+ interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
  \end{enumerate}
 
  In the next section we give an overview of the API that you can use
@@ -555,8 +558,8 @@ to write your analysis and transformation.
 index below the main types that are used to represent C programs in CIL: 
 
 \begin{itemize}
-\item \ahref{api/index_types.html}{An index of all types}
-\item \ahref{api/index_values.html}{An index of all values}
+\item \ahref{api/index\_types.html}{An index of all types}
+\item \ahref{api/index\_values.html}{An index of all values}
 \item \ciltyperef{file} is the representation of a file.
 \item \ciltyperef{global} is the representation of a global declaration or
 definitions. 
@@ -852,13 +855,13 @@ CIL you will obtain the file \t{obj/cilly.asm.exe}.
 
  We wrote a driver for this executable that makes it easy to invoke your
 analysis on existing C code with very little manual intervention. This driver
-is \t{bin/cilly.pl} and is quite powerful. Note that the \t{cilly.pl} script
+is \t{bin/cilly} and is quite powerful. Note that the \t{cilly} script
 is configured during installation with the path where CIL resides. This means
 that you can move it to any place you want. 
 
  A simple use of the driver is:
 \begin{verbatim}
-perl bin/cilly.pl -D HAPPY_MOOD -I myincludes hello.c -o hello
+bin/cilly -D HAPPY_MOOD -I myincludes hello.c -o hello
 \end{verbatim}
 
  This performs the following actions: 
@@ -871,56 +874,56 @@ coverts it to CIL and the pretty-prints it to \t{hellocil.c}
 \item a linking phase with the result in \t{hello}
 \end{itemize}
  
- Note that \t{cilly.pl} behaves like the \t{gcc} compiler with the additional
+ Note that \t{cilly} behaves like the \t{gcc} compiler with the additional
 effect that CIL sees all the source code. This makes it easy
 to use it with existing \t{Makefiles}:
 \begin{verbatim}
-make CC="perl bin/cilly.pl" LD="perl bin/cilly.pl"
+make CC="bin/cilly" LD="bin/cilly"
 \end{verbatim}
 
- \t{cilly.pl} can also behave as the Microsoft Visual C compiler, if the first
+ \t{cilly} can also behave as the Microsoft Visual C compiler, if the first
  argument is \t{--mode=MSVC}:
 \begin{verbatim}
-perl bin/cilly.pl --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
+bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 \end{verbatim}
 
  (This in turn will pass a \t{--MSVC} flag to the underlying \t{cilly.asm}
  process which will make it understand the Microsoft Visual C extensions)
 
- \t{cilly.pl} can also behave as the archiver \t{ar}, if it is passed an
+ \t{cilly} can also behave as the archiver \t{ar}, if it is passed an
 argument \t{--mode=AR}. Note that only the \t{cr} mode is supported (create a
 new archive and replace all files in there). Note that the previous version of
 the archive is lost. 
 
- Furthermore, \t{cilly.pl} allows you to pass some arguments on to the
+ Furthermore, \t{cilly} allows you to pass some arguments on to the
 underlying \t{cilly.asm} process. As a general rule all arguments that start
-with \t{--} and that \t{cilly.pl} itself does not process, are passed on. For
+with \t{--} and that \t{cilly} itself does not process, are passed on. For
 example, 
 \begin{verbatim}
-perl bin/cilly.pl --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+bin/cilly --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
 \end{verbatim}
 
  will produce a file \t{hellocil.c} that prints all the memory addresses
 written by the application. 
 
- The most powerful feature of \t{cilly.pl} is that it can collect all the
+ The most powerful feature of \t{cilly} is that it can collect all the
 sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
-have to do is to pass the \t{--merge} flag to \t{cilly.pl}:
+have to do is to pass the \t{--merge} flag to \t{cilly}:
 \begin{verbatim}
-make CC="perl bin/cilly.pl --logwrites --merge"
+make CC="bin/cilly --logwrites --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="perl bin/cilly.pl --logwrites --merge --leavealone=foo --leavealone=bar"
+make CC="bin/cilly --logwrites --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
 \t{bar}. Those files will be compiled as usual and then linked in at the very
 end. 
 
- The sequence of actions performed by \t{cilly.pl} depends on whether merging
+ The sequence of actions performed by \t{cilly} depends on whether merging
 is turned on or not:
 \begin{itemize}
 \item If merging is off
@@ -959,11 +962,11 @@ is turned on or not:
 never presented to CIL. They are compiled as usual and then are linked in at
 the end. 
 
- And a final feature of \t{cilly.pl} is that it can substitute copies of the
+ And a final feature of \t{cilly} is that it can substitute copies of the
 system's include files:
 
 \begin{verbatim}
-make CC="perl bin/cilly.pl --includedir=myinclude"
+make CC="bin/cilly --includedir=myinclude"
 \end{verbatim}
 
  This will force the preprocessor to use the file \t{myinclude/xxx/stdio.h}
@@ -972,16 +975,16 @@ a string that identifies the compiler version you are using. This modified
 include files should be produced with the patcher script (see
 \secref{patcher}).
 
-  \subsection{\t{cilly.pl} Options}
+  \subsection{\t{cilly} Options}
 
- Among the options for the \t{cilly.pl} you can put anything that can normally
-go in the command line of the compiler that \t{cilly.pl} is impersonating.
-\t{cilly.pl} will do its best to pass those options along to the appropriate
+ Among the options for the \t{cilly} you can put anything that can normally
+go in the command line of the compiler that \t{cilly} is impersonating.
+\t{cilly} will do its best to pass those options along to the appropriate
 subprocess. In addition, the following options are supported:
 
 \begin{itemize}
 \item \t{--mode=mode} This must be the first argument if present. It makes
-\t{cilly.pl} behave as a given compiled. The following modes are recognized: 
+\t{cilly} behave as a given compiled. The following modes are recognized: 
      \begin{itemize}
         \item GNUCC - the GNU C Compiler. This is the default.
         \item MSVC - the Microsoft Visual C compiler. Of course, you should
@@ -991,7 +994,7 @@ subprocess. In addition, the following options are supported:
      \end{itemize}
 \item \t{--help} Prints a list of the options supported.
 \item \t{--verbose} Prints lots of messages about what is going on.
-\item \t{--stages} Less than \t{--verbose} but lets you see what \t{cilly.pl}
+\item \t{--stages} Less than \t{--verbose} but lets you see what \t{cilly}
                    is doing. 
 \item \t{--merge} This tells \t{cilly} to first attempt to collect into one
 source file all of the sources that make your application, and then to apply
@@ -1015,13 +1018,13 @@ program.
   \subsection{\t{cilly.asm} Options}
 
  All of the options that start with \t{--} and are not understood by
-\t{cilly.pl} are passed on to \t{cilly.asm}. The following options are
+\t{cilly} are passed on to \t{cilly.asm}. The following options are
 supported:
 \begin{itemize}
 \item \t{--out=xxx}. The name of the pretty-printed file.
 \item \t{--verbose}. Print lots of random stuff. This is passed on from
-\t{cilly.pl}.
-\item \t{-help}. Print the help. Actually \t{cilly.pl} will do this if you
+\t{cilly}.
+\item \t{-help}. Print the help. Actually \t{cilly} will do this if you
       pass it \t{--help}.  
 \item \t{--check}. Run a consistency check over the CIL after every operation. 
 \item \t{--MSVC}. Enable the MSVC extensions and pretty-print for consumption
@@ -1064,7 +1067,7 @@ structure \t{bar}):
 \section{GCC Extensions}
 
  The CIL parser handles most of the \t{gcc}
-\ahref{http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc_5.html#SEC67}{extensions}
+\ahref{http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc\_5.html#SEC67}{extensions}
 and compiles them to CIL. The following extensions are not handled (note that
 we are able to compile a large number of programs, including the Linux kernel,
 without encountering these):
@@ -1258,7 +1261,7 @@ makes modified copies of include files and applies the patch.
 
  The patcher is invoked as follows: 
 \begin{verbatim}
-perl bin/patcher.pl [options]
+bin/patcher [options]
 
 Options:
   --help       Prints this help message
@@ -1460,7 +1463,7 @@ int main() {
 
 \end{enumerate}
 
- \subsection{GCC ugliness}
+ \subsection{GCC ugliness}\label{ugly-gcc}
 
 \begin{enumerate}
 
@@ -1552,6 +1555,15 @@ int main() {
   struct s y = {1, 2};
   union u  z = (union u)y;
 }
+\end{cilcode}
+
+\item GCC allows you to use the \t{\_\_mode\_\_} attribute to specify the size
+of the integer instead of the standard \t{char}, \t{short} and so on:
+\begin{cilcode}[global]
+int __attribute__ ((__mode__ (  __QI__ ))) i8;
+int __attribute__ ((__mode__ (  __HI__ ))) i16;
+int __attribute__ ((__mode__ (  __SI__ ))) i32;
+int __attribute__ ((__mode__ (  __DI__ ))) i64;
 \end{cilcode}
 
 \end{enumerate}

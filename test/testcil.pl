@@ -527,7 +527,7 @@ smAddTest("scott/enuminit");
 smAddTest("scott/staticafternostorage $box");
 smAddTest("scott/voidfree $box");
 smAddTest("scott/recursetype $box");
-smAddTest("scott/rmunused $box");
+smAddTest("scott/rmunused $box $gcc");
 smAddTest("scott/simplewild $box");
 smAddTest("scott/ptrtolocal $wildbox");
 smAddTest("scott/tprintf $box");
@@ -547,8 +547,8 @@ EOF
 smAddTest("scott/ptrmanip $wildbox");
 smAddTest("scott/bogus_redef");
 smAddTest("scott/s59");
-smAddTest("scott/putc");
-smAddTest("scott/putc $wildbox");
+smAddTest("scott/putc $gcc");
+smAddTest("scott/putc $wildbox $gcc");
 smAddTest("scott/lexnum");
 smAddTest("scott/ctype");
 smAddTest("scott/ctype $box");
@@ -585,7 +585,7 @@ smAddTest("scott/funcptr $box");
 
 # transparent unions are a problem for network apps
 smAddTest("scott/transpunion $gcc");
-smAddTest("scott/sockaddr");
+smAddTest("scott/sockaddr $gcc");
 
 # test of recent __HEAPIFY annotation
 smAddTest("scott/heapify $box");
@@ -597,16 +597,16 @@ smAddTest("scott/oldstyle");
 smAddTest("scott/typeof $gcc");
 smAddTest("scott/asmfndecl $gcc");
 smAddTest("scott/xlsubr $box");
-smAddTest("scott/open");
-smAddTest("scott/ioctl $box");
+smAddTest("scott/open $gcc");
+smAddTest("scott/ioctl $box $gcc");
 smAddTest("scott/stralloc $box $gcc");
-smAddTest("scott/mknod $box");
+smAddTest("scott/mknod $box $gcc");
 smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
-smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
-smAddTest("scott-nolink/brlock");
+smAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
+smAddTest("scott-nolink/brlock $gcc");
 smAddTest("scott/qsort_wild $box");
-smAddTest("scott/regparm0");         # this works, unfortunately..
+smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smFailTest("0 vs 0UL problem", "scott/unscomp");    # kernel/fs/buffer.c
 
 # test of strings (need more!)
@@ -623,7 +623,7 @@ smAddTest("scott/models $box");
 smAddTest("scott/qsort $box");
 smAddTest("scott/strpbrk $box");
 smAddTest("scott/fgets $box");
-smAddTest("test-bad/sockets $box");
+smAddTest("test-bad/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
 if ($TEST->{option}->{safecdebug}) {
@@ -634,10 +634,10 @@ else {
 }
 
 # works on my machine; works on manju now too apparently
-smAddTest("scott/getpwnam $box");
+smAddTest("scott/getpwnam $box $gcc");
 
-smAddTest("test-bad/execv $box");
-$TEST->setField(smAddTest("scott/popen $box"),
+smAddTest("test-bad/execv $box $gcc");
+$TEST->setField(smAddTest("scott/popen $box $gcc"),
                 "FailDiagnosis", "inferred glob_t probably has unanticipated type");
 smAddTest("scott/memset_int $box");
 smAddTest("scott/printfllong $box");
@@ -651,21 +651,21 @@ smAddTest("hola");
 smAddTest("hola $box");
 
 # a few things that should fail
-smAddTest("badd/lbound $box");
-smAddTest("badd/ubound $box");
-smAddTest("badd/fseq $box");
-smAddTest("badd/calloc $box");
-smAddTest("badd/stackaddr $box");
+smAddTest("badd/lbound $box $gcc");
+smAddTest("badd/ubound $box $gcc");
+smAddTest("badd/fseq $box $gcc");
+smAddTest("badd/calloc $box $gcc");
+smAddTest("badd/stackaddr $box $gcc");
 smAddTest("test-bad/trivial-tb");
 smAddTest("test-bad/retptr $box");
 
 # verify we have tags and that they work
-smAddTest("badd/nonptr $box");          # very simple test
-smAddTest("scott/arraytags $box");     # this one is pretty hairy
+smAddTest("badd/nonptr $box $gcc");          # very simple test
+smAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
 
 # simple test of combiner
-smAddTest("comb");
-smAddTest("comb $box");
+smAddTest("comb $gcc");
+smAddTest("comb $box $gcc");
 
 # test combiner's ability to detect inconsistency
 smAddTest("baddef");

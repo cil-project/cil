@@ -5,7 +5,7 @@
 // parsed as associated with the return type (int), and hence a
 // no-op; the regparm(3) should be what's attached to do_signal
 __attribute__((regparm(0)))  int  do_signal(int *regs, int *oldset)
-   __attribute__((regparm(3))) ;
+   __attribute__((regparm(2))) __attribute__((regparm(3)));
 
 // call this function
 int main()

@@ -1328,7 +1328,8 @@ type attributeClass =
     determine how to associate attributes with names or types *)
 val attributeHash: (string, attributeClass) Hashtbl.t
 
-(** Partition the attributes into classes *)
+(** Partition the attributes into classes:name attributes, function type, 
+    and type attributes *)
 val partitionAttributes:  default:attributeClass -> 
                          attributes -> attribute list * (* AttrName *)
                                        attribute list * (* AttrFunType *)

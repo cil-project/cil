@@ -29,7 +29,6 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-$::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
 
 package Merger;
 use strict;
@@ -43,6 +42,7 @@ use lib "$FindBin::Bin"; # The libraries are in the same directory
 use CompilerStub;
 
 BEGIN {
+    $::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
     @Merger::ISA = qw(CompilerStub);
     $Merger::combext = "_comb.c";
     $Merger::combbase = $FindBin::Bin . "/../obj";

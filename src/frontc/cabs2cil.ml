@@ -1094,6 +1094,97 @@ let checkBool (ot : typ) (e : exp) : bool =
   |  _ -> E.s (error "castToBool %a" d_type ot)
 
 
+(* We have our own version of addAttributes that does not allow duplicates *)
+let cabsAddAttributes al0 (al: attributes) : attributes = 
+  if al0 == [] then al else
+  List.fold_left 
+    (fun acc (Attr(an, _) as a) -> 
+      (* See if the attribute is already in there *)
+      match filterAttributes an acc with
+        [] -> addAttribute a acc (* Nothing with that name *)
+      | a' :: _ -> 
+          if a = a' then acc (* Already in *)
+          else begin
+            ignore (warn "Duplicate attribute %a overrides existing attribute %a"
+                      d_attr a d_attr a');
+            addAttribute a (dropAttribute an acc)
+          end)
+    al
+    al0
+      
+let cabsTypeAddAttributes a0 t =
+  begin
+    match a0 with
+    | [] ->
+        (* no attributes, keep same type *)
+          t
+    | _ ->
+        (* anything else: add a0 to existing attributes *)
+          let add (a: attributes) = cabsAddAttributes a0 a in
+          match t with
+            TVoid a -> TVoid (add a)
+          | TInt (ik, a) -> 
+              (* Here we have to watch for the mode attribute *)
+(* sm: This stuff is to handle a GCC extension where you can request integers*)
+(* of specific widths using the "mode" attribute syntax; for example:     *)
+(*   typedef int int8_t __attribute__ ((__mode__ (  __QI__ ))) ;          *)
+(* The cryptic "__QI__" defines int8_t to be 8 bits wide, instead of the  *)
+(* 32 bits you'd guess if you didn't know about "mode".  The relevant     *)
+(* testcase is test/small2/mode_sizes.c, and it was inspired by my        *)
+(* /usr/include/sys/types.h.                                              *)
+(*                                                                        *)
+(* A consequence of this handling is that we throw away the mode          *)
+(* attribute, which we used to go out of our way to avoid printing anyway.*)  
+              let ik', a0' = 
+                (* Go over the list of new attributes and come back with a 
+                 * filtered list and a new integer kind *)
+                List.fold_left
+                  (fun (ik', a0') a0one -> 
+                    match a0one with 
+                      Attr("mode", [ACons(mode,[])]) -> begin
+                        (trace "gccwidth" (dprintf "I see mode %s applied to an int type\n"
+                                             mode (* #$@!#@ ML! d_type t *) ));
+                        (* the cases below encode the 32-bit assumption.. *)
+                        match (ik', mode) with
+                        | (IInt, "__QI__")      -> (IChar, a0')
+                        | (IInt, "__byte__")    -> (IChar, a0')
+                        | (IInt, "__HI__")      -> (IShort,  a0')
+                        | (IInt, "__SI__")      -> (IInt, a0')   (* same as t *)
+                        | (IInt, "__word__")    -> (IInt, a0')
+                        | (IInt, "__pointer__") -> (IInt, a0')
+                        | (IInt, "__DI__")      -> (ILongLong, a0')
+                      
+                        | (IUInt, "__QI__")     -> (IUChar, a0')
+                        | (IUInt, "__byte__")   -> (IUChar, a0')
+                        | (IUInt, "__HI__")     -> (IUShort, a0')
+                        | (IUInt, "__SI__")     -> (IUInt, a0')
+                        | (IUInt, "__word__")   -> (IUInt, a0')
+                        | (IUInt, "__pointer__")-> (IUInt, a0')
+                        | (IUInt, "__DI__")     -> (IULongLong, a0')
+                              
+                        | _ -> 
+                            (ignore (error "GCC width mode %s applied to unexpected type, or unexpected mode"
+                                       mode));
+                            (ik', a0one :: a0')
+ 
+                      end
+                    | _ -> (ik', a0one :: a0'))
+                  (ik, [])
+                  a0
+              in
+              TInt (ik', cabsAddAttributes a0' a)
+
+          | TFloat (fk, a) -> TFloat (fk, add a)
+          | TEnum (enum, a) -> TEnum (enum, add a)
+          | TPtr (t, a) -> TPtr (t, add a)
+          | TArray (t, l, a) -> TArray (t, l, add a)
+          | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
+          | TComp (comp, a) -> TComp (comp, add a)
+          | TNamed (n, t, a) -> TNamed (n, t, add a)
+          | TBuiltin_va_list a -> TBuiltin_va_list (add a)
+  end
+
+
 (* Do types *)
     (* Combine the types. Raises the Failure exception with an error message. 
      * isdef says whether the new type is for a definition *)
@@ -1108,7 +1199,7 @@ type combineWhat =
 
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ = 
   match oldt, t with
-  | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
+  | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) -> 
       let combineIK oldk k = 
         if oldk == k then oldk else
@@ -1119,7 +1210,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         else
           raise (Failure "different integer types")
       in
-      TInt (combineIK oldik ik, addAttributes olda a)
+      TInt (combineIK oldik ik, cabsAddAttributes olda a)
   | TFloat (oldfk, olda), TFloat (fk, a) -> 
       let combineFK oldk k = 
         if oldk == k then oldk else
@@ -1130,21 +1221,21 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         else
           raise (Failure "different floating point types")
       in
-      TFloat (combineFK oldfk fk, addAttributes olda a)
+      TFloat (combineFK oldfk fk, cabsAddAttributes olda a)
   | TEnum (oldei, olda), TEnum (ei, a) -> 
-      if oldei.ename = ei.ename then TEnum (ei, addAttributes olda a) else
+      if oldei.ename = ei.ename then TEnum (ei, cabsAddAttributes olda a) else
       raise (Failure  "different enumeration tags")
         
         (* Strange one. But seems to be handled by GCC *)
   | TEnum (oldei, olda) , TInt(IInt, a) -> TEnum(oldei, 
-                                                 addAttributes olda a)
+                                                 cabsAddAttributes olda a)
         (* Strange one. But seems to be handled by GCC *)
-  | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, addAttributes olda a)
+  | TInt(IInt, olda), TEnum (ei, a) -> TEnum(ei, cabsAddAttributes olda a)
         
         
   | TComp (oldci, olda) , TComp (ci, a) -> 
       if oldci.cname = ci.cname && oldci.cstruct = ci.cstruct 
-      then TComp (oldci, addAttributes olda a)
+      then TComp (oldci, cabsAddAttributes olda a)
       else raise (Failure "different struct/union types")
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
       let newbt = combineTypes CombineOther oldbt bt in
@@ -1155,10 +1246,10 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         | Some _, None -> oldsz
         | _ -> raise (Failure "different array lengths")
       in
-      TArray (newbt, newsz, addAttributes olda a)
+      TArray (newbt, newsz, cabsAddAttributes olda a)
         
   | TPtr (oldbt, olda), TPtr (bt, a) -> 
-      TPtr (combineTypes CombineOther oldbt bt, addAttributes olda a)
+      TPtr (combineTypes CombineOther oldbt bt, cabsAddAttributes olda a)
         
   | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
         
@@ -1187,7 +1278,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                * important if the prototype uses different names than the 
                * function definition. *)
               if arg.vname <> "" then oldarg.vname <- arg.vname;
-              oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
+              oldarg.vattr <- cabsAddAttributes oldarg.vattr arg.vattr;
               oldarg.vtype <- 
                  combineTypes 
                    (if what = CombineFundef then 
@@ -1197,20 +1288,20 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
           oldargs
         end
       in
-      TFun (newrt, newargs, oldva, addAttributes olda a)
+      TFun (newrt, newargs, oldva, cabsAddAttributes olda a)
         
   | TNamed (oldn, oldt, olda), TNamed (n, _, a) when oldn = n ->
-      TNamed (oldn, oldt, addAttributes olda a)
+      TNamed (oldn, oldt, cabsAddAttributes olda a)
         
         (* Unroll first the new type *)
   | _, TNamed (n, t, a) -> 
       let res = combineTypes what oldt t in
-      typeAddAttributes a res
+      cabsTypeAddAttributes a res
         
         (* And unroll the old type as well if necessary *)
   | TNamed (oldn, oldt, a), _ -> 
       let res = combineTypes what oldt t in
-      typeAddAttributes a res
+      cabsTypeAddAttributes a res
         
   | _ -> raise (Failure "different type constructors")
 
@@ -1240,7 +1331,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     in
     oldvi.vstorage <- newstorage;
     (* Union the attributes *)
-    oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
+    oldvi.vattr <- cabsAddAttributes oldvi.vattr vi.vattr;
     begin 
       try
         oldvi.vtype <- 
@@ -1583,6 +1674,9 @@ let rec replaceLastInList
     [] -> []
   | [e] -> [how e]
   | h :: t -> h :: replaceLastInList t how
+
+
+
 
 
 let convBinOp (bop: A.binary_operator) : binop =
@@ -1959,7 +2053,7 @@ and doAttr (a: A.attribute) : attribute list =
         [Attr(stripUnderscore s, List.map (attrOfExp false) el)]
 
 and doAttributes (al: A.attribute list) : attribute list =
-  List.fold_left (fun acc a -> addAttributes (doAttr a) acc) [] al
+  List.fold_left (fun acc a -> cabsAddAttributes (doAttr a) acc) [] al
 
 
 
@@ -1972,6 +2066,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
   (* Returns the new type and the accumulated name (or type attribute 
     if nameoftype =  AttrType) attributes *)
   : typ * attribute list = 
+
   (* Now do the declarator type. But remember that the structure of the 
    * declarator type is as printed, meaning that it is the reverse of the 
    * right one *)
@@ -1982,31 +2077,31 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         let a1n, a1f, a1t = partitionAttributes AttrType a1' in
         let a2' = doAttributes a2 in
         let a2n, a2f, a2t = partitionAttributes nameortype a2' in
-        let bt' = typeAddAttributes a1t bt in
+        let bt' = cabsTypeAddAttributes a1t bt in
         let bt'', a1fadded = 
           match unrollType bt with 
-            TFun _ -> typeAddAttributes a1f bt', true
+            TFun _ -> cabsTypeAddAttributes a1f bt', true
           | _ -> bt', false
         in
         (* Now recurse *)
         let restyp, nattr = doDeclType bt'' acc d in
         (* Add some more type attributes *)
-        let restyp = typeAddAttributes a2t restyp in
+        let restyp = cabsTypeAddAttributes a2t restyp in
         (* See if we can add some more type attributes *)
         let restyp' = 
           match unrollType restyp with 
             TFun _ -> 
               if a1fadded then
-                typeAddAttributes a2f restyp
+                cabsTypeAddAttributes a2f restyp
               else
-                typeAddAttributes a2f
-                  (typeAddAttributes a1f restyp)
+                cabsTypeAddAttributes a2f
+                  (cabsTypeAddAttributes a1f restyp)
           | TPtr ((TFun _ as tf), ap) when not !msvcMode ->
               if a1fadded then
-                TPtr(typeAddAttributes a2f tf, ap)
+                TPtr(cabsTypeAddAttributes a2f tf, ap)
               else
-                TPtr(typeAddAttributes a2f
-                       (typeAddAttributes a1f tf), ap)
+                TPtr(cabsTypeAddAttributes a2f
+                       (cabsTypeAddAttributes a1f tf), ap)
           | _ -> 
               if a1f <> [] && not a1fadded then
                 E.s (error "Invalid position for (prefix) function type attributes:%a" 
@@ -2017,7 +2112,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               restyp
         in
         (* Now add the name attributes and return *)
-        restyp', addAttributes a1n (addAttributes a2n nattr)
+        restyp', cabsAddAttributes a1n (cabsAddAttributes a2n nattr)
 
     | A.PTR (al, d) -> 
         let al' = doAttributes al in
@@ -2027,9 +2122,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* See if we can do anything with function type attributes *)
         let restyp' = 
           match unrollType restyp with
-            TFun _ -> typeAddAttributes af restyp
+            TFun _ -> cabsTypeAddAttributes af restyp
           | TPtr((TFun _ as tf), ap) ->
-              TPtr(typeAddAttributes af tf, ap)
+              TPtr(cabsTypeAddAttributes af tf, ap)
           | _ -> 
               if af <> [] then
                 E.s (error "Invalid position for function type attributes:%a"
@@ -2037,7 +2132,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               restyp
         in
         (* Now add the name attributes and return *)
-        restyp', addAttributes an nattr
+        restyp', cabsAddAttributes an nattr
               
 
     | A.ARRAY (d, len) -> 
@@ -4524,7 +4619,7 @@ and doTypedef ((specs, nl): A.name_group) =
       try
         let newTyp, tattr =
           doType AttrType bt (A.PARENTYPE(attrs, ndt, a))  in
-        let newTyp' = typeAddAttributes tattr newTyp in
+        let newTyp' = cabsTypeAddAttributes tattr newTyp in
         (* Create a new name for the type. Use the same name space as that of 
         * variables to avoid confusion between variable names and types. This 
         * is actually necessary in some cases.  *)
@@ -4573,7 +4668,7 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
                 | A.SpecType(A.Tunion(_, Some _)) -> true
                 | _ -> false) specs then 
             begin
-              ci.cattr <- addAttributes ci.cattr al; 
+              ci.cattr <- cabsAddAttributes ci.cattr al; 
               TComp (ci, [])
             end
           else

@@ -53,7 +53,7 @@ use strict;
 BEGIN {
     @CilCompiler::ISA = qw(Merger);
     $CilCompiler::base = "@CILHOME@/obj/@ARCHOS@/cilly";
-
+    # Use the most recent version of cilly
     $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
     $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);
     $CilCompiler::compiler = 
