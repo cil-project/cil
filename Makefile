@@ -651,3 +651,7 @@ SPECDIR=test/spec95
 COMPRESSDIR=$(SPECDIR)/129.compress
 compress : defaulttarget
 	cd $(COMPRESSDIR)/src; make build
+	echo "10000 32 2365" >$(COMPRESSDIR)/exe/base/input.data 
+	$(COMPRESSDIR)/exe/base/compress95.v8 \
+              <$(COMPRESSDIR)/exe/base/input.data \
+              >$(COMPRESSDIR)/exe/base/output.txt
