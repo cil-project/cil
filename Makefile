@@ -306,10 +306,10 @@ defaulttarget : $(EXECUTABLE)$(EXE)
 endif
 
 combiner:
-	$(MAKE) -f Makefile.combiner $(MAKEFLAGS)
+	$(MAKE) -f Makefile.combiner $(MAKEOVERRIDES)
 
 cilly: 
-	$(MAKE) -f Makefile.cil $(MAKEFLAGS)
+	$(MAKE) -f Makefile.cil $(MAKEOVERRIDES)
 
 presetup: 
 	rm -rf $(CCUREDLIB)
@@ -318,8 +318,8 @@ all: presetup  $(CCUREDLIB) gctest combiner cillib \
        cilly defaulttarget includes
 
 setup: 
-	$(MAKE) all $(MAKEFLAGS) RELEASE= 
-	$(MAKE) all $(MAKEFLAGS) RELEASE=1
+	$(MAKE) all $(MAKEOVERRIDES) RELEASE= 
+	$(MAKE) all $(MAKEOVERRIDES) RELEASE=1
 
 
 # sm: my options
