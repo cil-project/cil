@@ -325,43 +325,50 @@ let mustBeTagged v =
 (* We need to avoid generating multiple copies of the same tagged type 
  * because we run into trouble if a variable is defined twice (once with 
  * extern). *)
-let taggedTypes: (typsig, typ) H.t = H.create 123
+type tagData = (typ * fieldinfo * fieldinfo * fieldinfo * 
+                                          (offset * exp) list * exp)
+let taggedTypes: (typsig, tagData) H.t = H.create 123
 
-let tagType (t: typ) : (typ * fieldinfo * fieldinfo * fieldinfo * 
-                          (offset * exp) list * exp) = 
-  let bytes = intSizeOf t in   (* Maybe we should not compute sizeof here *)
-  let words = (bytes + 3) lsr 2 in
-  let tagwords = (words + 15) lsr 4 in
-  let newtype = 
-    let tsig = typeSig t in
-    try
-      H.find taggedTypes tsig
-    with Not_found -> 
-      let newt = 
-        mkCompType true ""
-          [ ("_tags", TArray(intType, 
-                             Some (integer tagwords), []));
-            ("_len", intType);
-            ("_data", t) ] [] in
-      let tname = "_tagged_" ^ typeName t in
-      let named = TNamed (tname, newt, []) in
-      theFile := GType (tname, newt) :: !theFile;
-      H.add taggedTypes tsig named;
-      named
-  in
-  let tfld, lfld, dfld = 
-    match unrollType newtype with
-      TComp (true, _, [tfld; lfld; dfld], _, _) -> tfld, lfld, dfld
-    | _ -> E.s (E.bug "tagLocal")
-  in
+let tagType (t: typ) : tagData = 
+  let tsig = typeSig t in
+  try
+    H.find taggedTypes tsig
+  with Not_found -> begin
+    let newt, words, tagwords = 
+      try
+        let bytes = intSizeOf t in (* Might raise not-found for incomplete 
+                                      * types *)
+        let words = (bytes + 3) lsr 2 in
+        let tagwords = (words + 15) lsr 4 in
+        (mkCompType true ""
+           [ ("_len", intType);
+             ("_data", t);
+             ("_tags", TArray(intType, 
+                              Some (integer tagwords), []))
+           ] [],   words, tagwords) 
+      with Not_found -> 
+        (mkCompType true ""
+           [ ("_len", intType);
+             ("_data", t) ] [],  0, 0)
+    in
+    let tname = "_tagged_" ^ typeName t in
+    let named = TNamed (tname, newt, []) in
+    theFile := GType (tname, newt) :: !theFile;
+    let tfld, lfld, dfld = 
+      match unrollType newt with
+        TComp (true, _, [lfld; dfld; tfld], _, _) -> tfld, lfld, dfld
+      | _ -> E.s (E.bug "tagLocal")
+    in
             (* Now create the initializer *)
-  let rec loopTags idx = 
-    if idx >= tagwords then [] else
-    ((Field(tfld, First (Index (integer idx, NoOffset)))), zero) :: 
-    loopTags (idx + 1)
-  in
-  newtype, tfld, lfld, dfld, (loopTags 0), (integer words)
- 
+    let rec loopTags idx = 
+      if idx >= tagwords then [] else
+      ((Field(tfld, First (Index (integer idx, NoOffset)))), zero) :: 
+      loopTags (idx + 1)
+    in
+    let res = named, tfld, lfld, dfld, (loopTags 0), (integer words) in
+    H.add taggedTypes tsig res;
+    res
+  end
 
 (****** the CHECKERS ****)
 let fatVoidPtr = fixupType voidPtrType
@@ -717,7 +724,7 @@ and boxlval (b, off) : (typ * stmt list * lval * exp) =
           if mustBeTagged vi then
             let dataf = 
               match unrollType vi.vtype with
-                TComp(true, _, [_; _; df], _, _) when df.fname = "_data" -> df
+                TComp(true, _, [_; df; _], _, _) when df.fname = "_data" -> df
               | _ -> E.s (E.bug "addrOf but no tagged type")
             in
             Field(dataf, NoOffset), dataf.ftype, Field(dataf, off)
@@ -1077,18 +1084,19 @@ let boxFile globals =
           let varinit = 
             if vi.vstorage = Extern then None else
             Some (Compound (newtyp, 
+                      (* Now the length *)
+                      (None, inilen) 
+                      ::
+                      (* Now the real initializer. The tags we assume will be 
+                       * initialized to zero *)
+                      init')) in
                       (* The tags. We could use designators but MSVC does not 
-                       * like them  *)
+                       * like them  *
                       (None,
                        Compound(tfld.ftype, 
                                 List.map (fun (_, itag) -> (None, itag)) 
                                   initags))
-                      ::
-                      (* Now the length *)
-                      (None, inilen) 
-                      ::
-                      (* Now the real initializer *)
-                      init')) in
+                      *)
           theFile := GVar(vi, varinit) :: !theFile
         end
     end
