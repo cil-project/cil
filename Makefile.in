@@ -12,11 +12,14 @@ all:  quickbuild cillib
 
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
-Makefile.cil: Makefile.cil.in config.status
-	./config.status
+Makefile.cil: config.status Makefile.cil.in 
+	./$<
 
-config.status: configure.in
-	./configure
+config.status: configure
+	./$@ --recheck
+
+configure: configure.in
+	autoconf
 
 @DEFAULT_COMPILER@=1
 
@@ -245,7 +248,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
-	              steensgard.mli steensgard.ml \
+	              steensgaard.mli steensgaard.ml \
                       termhash.ml termhash.mli \
                       uref.ml uref.mli
 
