@@ -48,23 +48,39 @@ my $cp_minimal;                 # Copy the minimal successful test to the curren
 my $verbose = 0;                # Be more verbose.
 my $quiet = 0;                  # Prints go to /dev/null.
 my $suffix = ".c";              # For now, our input files are .c files.
-my $test = "test";              # The script to run as the test.
+my $test = "./test";            # The script to run as the test.
 
-my $help_message = <<END
+my $help_message = <<"END"
 
     Delta Debugging
-    delta implements the delta-debugging algorithm: http://www.st.cs.uni-sb.de/dd/
+    delta implements the delta-debugging algorithm:
+      http://www.st.cs.uni-sb.de/dd/
     Implemented by Daniel Wilkerson.
 
-    -test=<testscript> Specify the test script, defaults to $test
-    -dump_input Dump input after reading
-    -cp_minimal=<filename> Copy the minimal successful test to the current directory
-    -granularity=line Use lines as the granularity
-    -granularity=top_form Use C top-level forms as the granularity
-    -log=<file> Log file for main events
-    -quiet Say nothing
-    -verbose Get more verbose output
-    -help Get help
+    usage: $0 [options] start-file
+
+    -test=<testscript>       Specify the test script [$test]
+    -suffix=<suffix>         Candidate filename suffix [$suffix]
+    -dump_input              Dump input after reading
+    -cp_minimal=<filename>   Copy the minimal successful test to the
+                             current directory
+    -granularity=line        Use lines as the granularity (default)
+    -granularity=top_form    Use C top-level forms as the granularity
+                             (currently only works with CIL output)
+    -log=<file>              Log file for main events
+    -quiet                   Say nothing
+    -verbose                 Get more verbose output
+    -help                    Get help
+
+    The test program accepts a single argument, the name of the candidate
+    file to test.  It is run within a directory containing only that file,
+    and it can make temporary files/directories in that directory.  It
+    should return zero for a candidate that exhibits the desired property,
+    and nonzero for one that does not.
+    
+    Example test program (delta will retain a line containing "foo"):
+      #!/bin/sh
+      grep 'foo' <"\$1" >/dev/null
 
 END
 ;
@@ -86,11 +102,12 @@ sub test {
     render_tmpinput();
     output " $tmpinput";
     my $arena = "$tmpdir/arena";
-    die if system "rm -f $arena/*";
+    die if system "rm -rf $arena/*";    # sm: added -r so I can make directories in the arena
     my $input = "$tmpdir/$tmpinput";
     my $arena_input = "input$suffix";
     link $input, "$arena/$arena_input";
-    my $result = ! system "cd $arena; $this_dir/$test $arena_input";
+    # $test gets fully qualified in parse_command_line()
+    my $result = ! system "cd $arena; $test $arena_input";
 
     # Keep around info only for successful runs.
     if ($result) {
@@ -189,6 +206,8 @@ sub parse_command_line {
                 $cp_minimal = $argument;
             } elsif ($flag eq "test") {
                 $test = $argument;
+            } elsif ($flag eq "suffix") {
+                $suffix = $argument;
             } elsif ($flag eq "log") {
                 $logfile = $argument;
             } else {die "Illegal flag: $flag \n"}
@@ -197,6 +216,18 @@ sub parse_command_line {
     # Cleaning up.
     die "You specified both verbose and quiet." if $verbose && $quiet;
     push @ARGV, @non_flags;
+    
+    # fully qualify $test if it's not already
+    if ($test !~ m"^/") {
+      $test = "$this_dir/$test";
+    }
+    
+    # sm: I like a usage string when I give no arguments but it doesn't
+    # make sense to read interactively (stdin is a tty)
+    if ((@ARGV == 0) && (-t STDIN)) {
+      output $help_message;
+      exit(0);
+    }
 }
 
 sub render_settings {

@@ -676,7 +676,7 @@ smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 smAddTest("scott-nolink/brlock $gcc");
-smFailTest("wants qsort_ssww", "scott/qsort_wild $box");
+smAddTest("scott/qsort_wild $box");
 smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");               # kernel/fs/buffer.c
 smAddTest("scott/suppress_optim $box");
