@@ -342,24 +342,8 @@ endif
 ifndef ITERATIONS
 ITERATIONS := 1
 endif
-
-ifeq '$(ITERATIONS)' '1'
-  ITERATION_ELEMS := 1
-else
-  ifeq '$(ITERATIONS)' '3'
-    ITERATION_ELEMS := 1 2 3
-  else
-    ifeq '$(ITERATIONS)' '5'
-      ITERATION_ELEMS := 1 2 3 4 5
-    else
-      ifeq '$(ITERATIONS)' '7'
-	ITERATION_ELEMS := 1 2 3 4 5 6 7
-      else
-	error ITERATIONS value is not legal
-      endif
-    endif
-  endif
-endif
+# Set ITERATION_ELEMS to a list
+ITERATION_ELEMS := $(shell perl -e 'for ($$i=1; $$i <= $(ITERATIONS); $$i++) { print("$$i "); }')
 
 
 ####### Test with PCC sources
