@@ -881,7 +881,7 @@ use strict;
 
 use File::Basename;
 
-my $gccdir = "@GCCDIR@";
+my $gcc = "@CC@";
 
 sub new {
     my ($proto, $stub) = @_;
@@ -893,9 +893,9 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => "$gccdir/gcc -D_GNUCC -c",
-      LD => "$gccdir/gcc -D_GNUCC ",
-      CPP => "$gccdir/gcc -D_GNUCC -E ",
+      CC => "$gcc -D_GNUCC -c",
+      LD => "$gcc -D_GNUCC ",
+      CPP => "$gcc -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
@@ -988,7 +988,7 @@ sub linkOutputFile {
 sub setVersion {
     my($self) = @_;
     my $cversion = "";
-    open(VER, "$gccdir/gcc -dumpversion " 
+    open(VER, "$gcc -dumpversion " 
          . join(' ', @{$self->{PPARGS}}) ." |") 
         || die "Cannot start GNUCC";
     while(<VER>) {
