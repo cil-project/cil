@@ -103,12 +103,6 @@ class simpleVisitor = object
   method vlval lv = ChangeDoChildrenPost(lv,
       (fun lv -> handle_lvalue lv))
 
-  method vinst i = ChangeDoChildrenPost([i], 
-      (fun i_list -> i_list))
-
-  method vstmt s = ChangeDoChildrenPost(s,
-      (fun s -> s))
-
   method unqueueInstr () = 
       let result = List.rev !assignment_list in
       assignment_list := [] ;
