@@ -11,11 +11,13 @@ open Solveutil
 module H = Hashtbl
 module E = Errormsg
 
-let safe_downcasts = true
+let safe_downcasts = false
+let ignore_funs = false
+
 let show_steps = true
 
 (* Set this to true and initialize the watch_which_nodes with a list of nodes 
- * to be watched *)
+n * to be watched *)
 let logUpdates = false
 let logNodeUpdate = 
   let which_nodes = [ 1482; 63 ] in
@@ -125,6 +127,8 @@ let addCompatEdges (n1: node) =
           Some btn1, Some btn2 -> addIt btn1 btn2
         | _ -> () (* this should never happen !!! *)
     end
+
+    | TFun _, TFun _ when ignore_funs -> ()
 
     | TFun (rt1, args1, _, _), TFun (rt2, args2, _, _) 
           when List.length args1 = List.length args2 -> 
