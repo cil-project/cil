@@ -4,11 +4,21 @@
 \def\secref#1{Section~\ref{sec-#1}}
 \def\chref#1{Chapter~\ref{ch-#1}}
 
-% Use this to refer to a Cil type
 \def\apiref#1#2#3{\ahref{api/#1.html\##2#3}{#1.#3}}
+\def\moduleref#1{\ahref{api/#1.html}{#1}}
+
+% Use this to refer to a Cil type/val
 \def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
 \def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
 \def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
+
+% Use this to refer to a type/val in the Pretty module
+\def\ptyperef#1{\apiref{Pretty}{TYPE}{#1}}
+\def\pvalref#1{\apiref{Pretty}{VAL}{#1}}
+
+% Use this to refer to a type/val in the Errormsg module
+\def\etyperef#1{\apiref{Errormsg}{TYPE}{#1}}
+\def\evalref#1{\apiref{Errormsg}{VAL}{#1}}
 
 %----------------------------------------------------------------------
 % MACROS
@@ -685,9 +695,67 @@ manipulate formals you should use the provided functions
 
  \subsection{Statements}
 
+CIL statements are represented using the type \ciltyperef{stmt}. Every
+statement has a (possibly empty) list of labels. A label is represented by the
+type \ciltyperef{label} which indicates if it is a C label (i.e.
+potentially the target of a \t{goto} statement), or if the statement
+associated with the label is actually a clause of a switch statement. The
+\ciltyperef{stmtkind} field of a statement indicates what kind of statement it is. 
 
- \subsection{Debugging and Printing Support}
+An instruction (\ciltyperef{instr}) is a statement that has no local
+(intraprocedural) control flow. It can be either an assignment,
+function call, or an inline assembly instruction. 
+
+The other statement kinds (\ciltyperef{stmtkind}) capture the usual C constructs
+for structuring control flow. CIL can resolve \t{Break} and \t{Continue} to
+\t{Goto} if required, but leaving them as they are makes code-motion
+transformations (e.g. loop unrolling) easier. A \t{Return} statement
+optionally records the return value. Every function in CIL has at least one
+\t{Return} statement. An \t{If} statement records the condition, which is an
+expression, together with the two branches, which are lists of statements. CIL
+has only one looping construct -- a while loop whose condition is always true;
+we always use \t{Break} statements to exit from loops. A \t{Switch} statement
+records all the statements in it, together with pointers to the beginning of
+the various clauses.
+
+CIL also comes with support for control-flow graphs. The \t{sid} field in
+\t{stmt} can be
+used to give unique numbers to statements, and the \t{succ} and \t{pred}
+fields can be used to maintain a list of successors and predeccors for every
+statement. 
+
+ \subsection{Printing and Debugging support}
  
+The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively
+utilities for pretty printing and reporting errors. 
+
+A document (of type \ptyperef{doc}) contains all the information about the the material to
+be printed. Alongwith the actual printing content, it contains linebreak and
+alignment information.
+A document can be constructed using various constructors (for example, the
+constructor \pvalref{num} constructors a document containing a number), or
+somewhat more easily using the fprintf-sytle style interface provided by
+\pvalref{dprintf}. After a document is constructed, it can be printed to a
+channel using the function \pvalref{fprint}, or to a string using the function
+\pvalref{sprint}.
+
+The type \etyperef{info} is used to store information (such as location)
+pertaining to an error. The flag \evalref{debugFlag} is used to
+enable/disable error reporting statements. The error reporting functions are
+\evalref{error}, \evalref{bug} and \evalref{unimp}, which only differ in the
+mesage they print. The arguments to these functions are the same as that of
+\pvalref{eprintf}. However, these functions must always be used in conjunction
+with \evalref{s}, for example:
+\verb#E.s (E.bug "different lengths (%d != %d)" l1 l2)#.
+ All these functions raise the exception \t{Error}. A related function
+\evalref{warn} does not raise this exception.
+All of the error and warning reporting functions can also print a 
+context. To register a context printing function use \evalref{pushContext}. To 
+remove the last registered one use \evalref{popContext}. If one of the error 
+reporting functions is called it will invoke all currently registered 
+context reporting functions in the reverse order they were registered.
+
+
 
  \subsection{Using the visitor}\label{sec-visitor}
 

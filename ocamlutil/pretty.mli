@@ -55,7 +55,7 @@
  * or using the {!Pretty.dprintf} function with a [printf]-like interface. 
  * The {!Pretty.dprintf} method is slightly slower so we do not use it for 
  * large jobs such as the output routines for a compiler. But we use it for 
- * small jobs such as logging and error messages. **)
+ * small jobs such as logging and error messages. *)
 type doc
 
 
@@ -199,7 +199,10 @@ val eprintf: ('a, unit, doc) format -> 'a
 val gprintf: (doc -> doc) -> ('a, unit, doc) format -> 'a
 
 
-(** Next few values can be used to control the operation of the printer *)
+(** Invokes a thunk, with printDepth temporarily set to the specified value *)
+val withPrintDepth : int -> (unit -> unit) -> unit
+
+(** The following variables can be used to control the operation of the printer *)
 
 (** Specifies the nesting depth of the [align]/[unalign] pairs at which 
     everything is replaced with ellipsis *)
@@ -213,4 +216,3 @@ val fastMode  : bool ref
 
 val flushOften   : bool ref  (** If true the it flushes after every print *)
 
-val withPrintDepth : int -> (unit -> unit) -> unit

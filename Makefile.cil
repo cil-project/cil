@@ -77,14 +77,14 @@ odoc:
 	-rm -rf doc/html/cil/api
 	-mkdir doc/html/cil/api
 	-ocamldoc -d doc/html/cil/api -v -stars \
-             -g $(ODOC_DIR)/odoc_fhtml.cmo \
+             -html \
              -t "CIL API Documentation" \
 	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
 	  	    src/pretty.mli src/stats.mli
 
 # Documentation generated from latex files using "hevea"
 texdoc:
-	-rm -f doc/html/cil/*
+	-rm -rf doc/html/cil
 	-mkdir doc/html/cil
 	-mkdir doc/html/cil/examples
 	cd doc; perl cilcode.pl cil.tex >cilpp.tex
