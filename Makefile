@@ -1546,6 +1546,17 @@ ftpd: defaulttarget mustbegcc
                  LD="$(FTPDSAFECC)"
 
 
+######################################################################
+# Rahul's test cases
+
+spr/%:  test/spr/%.c defaulttarget
+	rm -f test/spr/$*
+	cd test/spr; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
+	cd test/spr; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) $(STANDARDPATCH)` \
+                 $(DOOPT) `true $(WARNALL)` $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*
 
 
 
