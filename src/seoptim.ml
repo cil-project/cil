@@ -135,6 +135,12 @@ let doOneInstr (acc: instr clist) (i: instr) : instr clist =
         acc
       end
 
+  | Call (Some (Var v, _), _, _, _) -> 
+      (* This call might have set the memory *)
+      setMemory ();
+      (* Must discard all register file entries that depend on this value *)
+      CConsR (acc, i)
+
   | Call (Some (Mem _, _), _, _, _) -> setMemory (); CConsR (acc, i)
 
   | i -> CConsR (acc, i)
