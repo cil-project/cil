@@ -14,10 +14,18 @@
 # sm: changed this file to use '#' for comments, since that's
 # just as good (since this becomes an 'sh' script)
 
+
 # -------------- usual initial stuff -------------
 # this simply names a file somewhere in the source tree to verify
 # we're in the right directory
 AC_INIT(src/cil.mli)
+
+#
+# Assign here the CIL version numbers
+CIL_VERSION_MAJOR=1
+CIL_VERSION_MINOR=0
+CIL_VERSION_REV=0
+CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
 if test configure -ot configure.in; then
@@ -322,6 +330,10 @@ AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
+AC_SUBST(CIL_VERSION_MAJOR)
+AC_SUBST(CIL_VERSION_MINOR)
+AC_SUBST(CIL_VERSION_REV)
+AC_SUBST(CIL_VERSION)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -359,6 +371,8 @@ MY_AC_CONFIG_EXE_FILES(bin/patcher.bat)
 MY_AC_CONFIG_EXE_FILES(bin/ccured.bat)
 MY_AC_CONFIG_EXE_FILES(bin/scaninfer.bat)
 MY_AC_CONFIG_FILES(bin/CilConfig.pm)
+MY_AC_CONFIG_FILES(doc/cilindex.html)
+MY_AC_CONFIG_FILES(doc/cilheader.html)
 
 AC_OUTPUT()
 
@@ -371,5 +385,6 @@ CCured/CIL configuration:
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
+  CIL version                 CIL_VERSION        $CIL_VERSION
 EOF
 

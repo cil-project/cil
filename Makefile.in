@@ -5,7 +5,7 @@
 # author: George Necula
 
 # Debugging. Set ECHO= to debug this Makefile 
-.PHONY: setup quickbuild doc distrib machdep
+.PHONY: setup quickbuild doc distrib machdep cilversion
 ECHO = @
 
 all:  quickbuild cillib
@@ -16,6 +16,7 @@ Makefile.cil: Makefile.cil.in
 	./config.status
 
 @DEFAULT_COMPILER@=1
+
 
 # Directory containing the *.cm[io] files for odoc.
 CILHTMLDEST=/usr/local/apache-1.3.22/htdocs/cil
@@ -37,7 +38,7 @@ DEPENDDIR   := obj/.depend
     # Now rules to make cilly
 CILLY_MODULES = pretty errormsg trace stats util clist \
               cabs cabsvisit cprint clexer cparser \
-              machdep cil formatlex formatparse formatcil cabs2cil \
+              cilversion machdep cil formatlex formatparse formatcil cabs2cil \
               patch frontc check mergecil logcalls logwrites rmtmps \
 	      callgraph epicenter heapify testcil maincil
 CILLY_CMODULES =
@@ -64,10 +65,10 @@ cilly: $(PROJECT_EXECUTABLE)
 include Makefile.ocaml.build
 
 
-quickbuild: machdep cilly
+quickbuild: cilversion machdep cilly
 
 # Setup also makes the native code versions
-setup: machdep
+setup: cilversion machdep
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML= 
 	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML=1
 
@@ -108,7 +109,19 @@ $(OBJDIR)/machdep.ml : src/machdep.c
 	echo "let msvc = {" >>$@
 	$(OBJDIR)/machdep.exe >>$@
 	echo "}"          >>$@
-
+ 
+#
+# Create the version information module
+.PHONY: cilversion
+cilversion: $(OBJDIR)/cilversion.ml
+$(OBJDIR)/cilversion.ml: configure.in
+	rm -f $@
+	echo "(* This module was generate automatically by code in Makefile *)" >$@
+# Generate here the version information
+	echo "let cilVersionMajor = @CIL_VERSION_MAJOR@" >>$@
+	echo "let cilVersionMinor = @CIL_VERSION_MINOR@" >>$@
+	echo "let cilVersionRev   = @CIL_VERSION_REV@"   >>$@
+	echo "let cilVersion      = \"@(CIL_VERSION@\""  >>$@ 
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 cillib: $(OBJDIR)/cil.$(CMXA)
@@ -136,7 +149,7 @@ odoc:
 	-mkdir doc/html/cil/api
 	ocamldoc -d doc/html/cil/api -v -stars \
              -html \
-             -t "CIL API Documentation" \
+             -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) \
                     src/pretty.mli src/errormsg.mli src/clist.mli \
 	  	    src/stats.mli src/cil.mli src/formatcil.mli
@@ -148,7 +161,9 @@ texdoc:
 	-rm -rf doc/html/cil
 	-mkdir doc/html/cil
 	-mkdir doc/html/cil/examples
+# Create the version document
 	cd doc; perl cilcode.pl cil.tex >cilpp.tex
+	cd doc/html/cil; echo "\def\cilversion{@CIL_VERSION@}" >cil.version
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; mv cilpp.html cil.html
@@ -166,7 +181,7 @@ doc: texdoc odoc
 # so that people can use it even if they don't have ocamldoc, hevea etc. 
 
 .PHONY: distrib distrib-nocheck checkdistrib
-
+CIL_TAR_GZ:=cil-@CIL_VERSION@.tar.gz
 ## Make a distribution and check it
 distrib: distrib-nocheck checkdistrib
 
@@ -210,7 +225,7 @@ distrib-nocheck: doc
 	rm -rf $(TEMP_DIR)
 	mkdir $(TEMP_DIR)
 
-	rm -rf cil.tar.gz
+	rm -rf $(CIL_TAR_GZ)
 	mkdir $(TOP_DIR) \
 	      $(TOP_DIR)/src \
               $(TOP_DIR)/src/frontc \
@@ -248,11 +263,12 @@ distrib-nocheck: doc
 	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
             rm -rf `cat cvss.txt` ;fi
 # Now make the TAR ball
-	cd $(TEMP_DIR); tar cfz cil.tar.gz cil
-	mv $(TEMP_DIR)/cil.tar.gz .
+	cd $(TEMP_DIR); tar cfz $(CIL_TAR_GZ) cil
+	mv $(TEMP_DIR)/$(CIL_TAR_GZ) .
 
 	if test -d $(CILHTMLDEST); then \
-                cp -f cil.tar.gz $(CILHTMLDEST); fi
+                cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
+                ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; fi
 #	rm -rf $(TEMP_DIR)
 
 ## Check a distribution

@@ -44,6 +44,14 @@
  * set {!Cil.msvcMode}.  *)
 val initCIL: unit -> unit
 
+
+(** This are the CIL version numbers. A CIL version is a number of the form 
+ * M.m.r (major, minor and release) *)
+val cilVersion: string
+val cilVersionMajor: int
+val cilVersionMinor: int
+val cilVersionRevision: int
+
 (** This module defines the abstract syntax of CIL. It also provides utility 
  * functions for traversing the CIL data structures, and pretty-printing 
  * them. The parser for both the GCC and MSVC front-ends can be invoked as 

@@ -1,5 +1,7 @@
 \documentclass{article}
 \usepackage{hevea}
+% cilversion.tex is generated automatically to define \cilversion
+\include{cil.version}
 
 \def\secref#1{Section~\ref{sec-#1}}
 \def\chref#1{Chapter~\ref{ch-#1}}
@@ -29,7 +31,6 @@
 \def\t#1{{\tt #1}}
 
 %----------------------------------------------------------------------
-\title{CIL}
 
 % Make sure that all documents show up in the main frame
 %HEVEA \AtBeginDocument{\@print{<base target="main">}}
@@ -131,11 +132,11 @@ OCaml). If you have not done this before then take a look
 \t{ssh} unless you will need to use the master CVS repository for CIL.)
 
 \begin{enumerate}
-\item Download the CIL \ahref{cil.tar.gz}{distribution}. See the
-\secref{changes} for recent changes to the CIL distribution.
+\item Download the CIL \ahref{distrib}{distribution} (latest version is
+\ahrefurl{distrib/cil-\cilversion.tar.gz}). See the \secref{changes} for recent changes to the CIL distribution.
 \item Unzip and untar the source distribution. This will create a directory
       called \t{cil} whose structure is explained below. \\
-      \hsp\verb!tar xvfz cil.tar.gz!
+      \t{tar xvfz cil-\cilversion.tar.gz}
 \item Enter the \t{cil} directory and run the \t{configure} script and then 
       GNU make to build the distribution. If you are on Windows, at least the
       \t{configure} step must be run from within \t{bash}. \\
@@ -174,8 +175,9 @@ on the way the compiler implements variable argument functions. The version
 functions that is not supported in CIL (and we do not plan to support it since
 it has been superseded by the scheme used by GNU C version 3.0).
 
-The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
-distribution, consisting of the following files:
+The file \ahrefurl{distrib/cil-\cilversion.tar.gz} 
+contains the complete source CIL distribution, 
+consisting of the following files:
 
 \begin{tabular}{ll}
 Filename   & Description \\
@@ -1954,6 +1956,9 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 29, 2002}: {\bf Released version 1.0.0.}
+\item {\bf August 29, 2002}: Started numbering versions with a major nubmer,
+minor and revisions. Released version 1.0.0.
 \item {\bf August 25, 2002}: Fixed the implementation of the unique
 identifiers for global variables and composites. Now those identifiers are
 globally unique.
