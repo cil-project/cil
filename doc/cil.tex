@@ -514,7 +514,7 @@ int f(s1, s2) char *s1, *s2; {
 }
 
 int main() {
-    f("hello \%s!\n", "world");
+    f("hello %s!\n", "world");
     f("hello again\n"); // f called with only one argument
 }
 \end{cilcode}
