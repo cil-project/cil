@@ -1643,7 +1643,7 @@ sub assembleOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
-    if($self->{OUTARG} =~ m|-o\s*(\S.+)|) {
+    if(defined $self->{OUTARG} && $self->{OUTARG} =~ m|-o\s*(\S.+)|) {
         return $1;
     }
     return "a.out";
