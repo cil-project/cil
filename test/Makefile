@@ -1772,10 +1772,10 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 LINUX_MERGE_SRC = /home/weimer/linux
 linux-merge: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --curetype=none `cat merge-file-list`
+        $(CCURED) --commPrintLn --verbose --curetype=none `cat merge-file-list`
 linux-merge2: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --curetype=none `cat merge-file-list2`
+        $(CCURED) --verbose --curetype=none `cat merge-file-list2`
 
 
 ######################## SENDMAIL

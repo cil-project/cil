@@ -29,6 +29,9 @@ this bug in doBinOp in cabs2cil.
 
  - struct and union must share the name space
 
+ - when merging we use too much memory. We should be droping the references to
+ the CABS files once we convert each one to CIL.
+
 CCURED
 ==============
 

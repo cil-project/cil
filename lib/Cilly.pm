@@ -332,7 +332,7 @@ sub straight_linktolib {
 # Customize the linking into libraries
 sub linktolib {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
-    if($self->{VERBOSE}) { print "Linking into library $dest\n"; }
+    if($self->{VERBOSE}) { print STDERR "Linking into library $dest\n"; }
     if($self->{SEPARATE}) {
         # Not merging. Regular linking.
         return $self->straight_linktolib($psrcs, $dest, 
@@ -347,7 +347,8 @@ sub linktolib {
     open(FILES, ">$dest.files") || die("Cannot open $dest.files");
     print FILES join("\n", @sources);
     if($self->{VERBOSE}) {
-        print "Saved to $dest.files the list of names composing $dest\n";
+        print STDERR 
+            "Saved to $dest.files the list of names composing $dest\n";
     }
     close(FILES);
 
@@ -492,7 +493,7 @@ sub compile {
     # sm: made the following output unconditional following the principle
     # that by default you should be able to see every file getting written
     # during a build (otherwise you don't know who to ask to be --verbose)
-    if(1 || $self->{VERBOSE}) { print "Saving source $src into $outfile\n"; }
+    if($self->{VERBOSE}) { print STDERR "Saving source $src into $outfile\n"; }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $src; $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
@@ -529,7 +530,7 @@ sub compile_cil {
 # THIS IS THE ENTRY POINT FOR JUST ASSEMBLING FILES
 sub assemble {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
-    if($self->{VERBOSE}) { print "Assembling $src\n"; }
+    if($self->{VERBOSE}) { print STDERR "Assembling $src\n"; }
     $dest = $dest eq "" ? "" : $self->{OUTOBJ} . $dest;
     my $cmd = $self->{CC} . " " . join(' ', @{$ppargs}, @{$ccargs}) .  
         " $dest $src";
@@ -627,12 +628,12 @@ sub separateTrueObjects {
 sub link {
     my($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
     if($self->{SEPARATE}) {
-        if($self->{VERBOSE}) { print "Linking into $dest\n"; }
+        if($self->{VERBOSE}) { print STDERR "Linking into $dest\n"; }
         # Not merging. Regular linking.
         return $self->link_after_cil($psrcs, $dest, $ppargs, $ccargs, $ldargs);
     }
     # We must merging
-    if($self->{VERBOSE}) { print "Merging saved sources into $dest\n"; }
+    if($self->{VERBOSE}) { print STDERR "Merging saved sources into $dest\n"; }
     
     # Now collect the files to be merged
 
@@ -651,7 +652,7 @@ sub link {
             if($mtime >= $combFileMtime) { goto DoMerge; }
         }
         if($self->{VERBOSE}) {
-            print "Reusing merged file $combFile\n";
+            print STDERR "Reusing merged file $combFile\n";
         }
         $self->applyCilAndCompile([$combFile], $mergedobj, $ppargs, $ccargs); 
     } else {
@@ -775,7 +776,8 @@ sub doit {
         }
         if($turnOffMerging) {
             if($self->{VERBOSE}) {
-                print "Turn off merging because the program contains one file\n";
+                print STDERR
+                    "Turn off merging because the program contains one file\n";
             }
             $self->{SEPARATE} = 1; 
         }
@@ -1043,7 +1045,7 @@ sub msvc_preprocess {
             if(shift @st1 != shift @st2) {
 #                print "$msvcout is NOT the same as $afterpp\n";
                 if($self->{VERBOSE}) {
-                    print "Copying $msvcout to $dest\n";
+                    print STDERR "Copying $msvcout to $dest\n";
                 }
                 unlink $dest;
                 &File::Copy::copy($msvcout, $dest);
