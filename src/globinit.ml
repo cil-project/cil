@@ -33,7 +33,7 @@ let doFile (fl: file) : file =
                 :: acc
           in
           let inits = initone NoOffset NoOffset init vi.vtype finit.sbody in 
-          finit.sbody <- compressBlock (List.rev inits);
+          finit.sbody <- compactBlock (List.rev inits);
           GVar (vi, None, l)
         else g
           

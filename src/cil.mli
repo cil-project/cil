@@ -516,7 +516,7 @@ val doubleType: typ
 val mkStmt: stmtkind -> stmt
 
 (* use this instead of List.@ because you get fewer basic blocks *)
-val compressBlock: block -> block
+val compactBlock: block -> block
 
 val mkEmptyStmt: unit -> stmt
 val dummyStmt: stmt

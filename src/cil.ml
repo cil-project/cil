@@ -571,7 +571,7 @@ let dummyStmt =
   mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], []), lu)])
 
 
-let compressBlock (b: block) : block =  
+let compactBlock (b: block) : block =  
       (* Try to compress statements *)
   let rec compress (leftover: stmt) = function
       [] -> if leftover == dummyStmt then [] else [leftover]
@@ -742,9 +742,9 @@ let mkWhile (guard:exp) (body: stmt list) : stmt list =
 
 let mkFor (start: stmt list) (guard: exp) (next: stmt list) 
           (body: stmt list) : stmt list = 
-  compressBlock
+  compactBlock
     (start @ 
-     (mkWhile guard (compressBlock (body @ next))))
+     (mkWhile guard (compactBlock (body @ next))))
 
     
 let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 

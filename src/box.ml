@@ -23,13 +23,9 @@ let isSome = function Some _ -> true | _ -> false
 (**** Stuff that we use while converting to new CIL *)
 let mkSet (lv:lval) (e: exp) : stmt = mkStmt (Instr [Set(lv, e), lu])
 let call lvo f args : stmt = mkStmt (Instr [Call(lvo,f,args), lu])
-let skip = mkEmptyStmt ()
 let mkAsm tmpls isvol outputs inputs clobs = 
       mkStmt (Instr [Asm(tmpls, isvol, outputs, inputs, clobs), lu])
 let mkInstr i l : stmt = mkStmt (Instr [(i, l)])
-let mkSeq (bl: stmt list) : stmt list = compressBlock bl
-let body2block (x: block) : block = x
-let block2body (x: stmt list) : block = x
 
 
 (**** Stuff that we use with the old CIL
@@ -1242,7 +1238,7 @@ let checkZeroTags base lenExp lv t =
         castVoidStar (AddrOf(lv')); 
         SizeOf(lv't); offexp ] 
   with Not_found -> 
-    skip
+    mkEmptyStmt ()
   
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
@@ -2180,7 +2176,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                                         doCast tmpvar charPtrType, 
                                         integer 4, charPtrType))
                             ptrtype)
-    | _ -> skip
+    | _ -> mkEmptyStmt ()
   in
 
   (* Save the pointer value *)
@@ -2192,7 +2188,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         (mkSet (Var vi, Field(fbase, NoOffset))
            (doCast tmpvar voidPtrType))
-    | _ -> skip
+    | _ -> mkEmptyStmt ()
   in
 
   (* Set the size if necessary *)
@@ -2204,7 +2200,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                          mone, uintPtrType)), 
                NoOffset) 
           nrdatawords
-    | _ -> skip
+    | _ -> mkEmptyStmt ()
   in
 
   (* Now the remainder of the initialization *)
@@ -2231,7 +2227,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
               zero (* offset *) ] ::
           []  
         else
-          [skip]
+          [mkEmptyStmt ()]
     | N.Safe -> 
         (* Check that we have allocated enough for at least 1 elem. *)
         let check_enough = 
@@ -2272,7 +2268,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         in
         savetheend ::
         mkFor 
-          ~start:[skip]
+          ~start:[mkEmptyStmt ()]
           ~guard:(BinOp(Le, BinOp(PlusA, 
                                   doCast tmpvar uintType, 
                                   SizeOf(ptrtype), uintType),
@@ -2297,13 +2293,13 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
       N.Seq | N.SeqN -> begin
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         match fendo with
-          None -> skip
+          None -> mkEmptyStmt ()
         | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
       end
     | N.FSeq | N.FSeqN -> 
         let fptr, fbase, fendo = getFieldsOfFat vtype in
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
-    | _ -> skip
+    | _ -> mkEmptyStmt ()
   in
   alloc :: adjust_ptr :: assign_p :: 
   assign_base :: setsz :: (init @ [assign_end])
@@ -2385,7 +2381,7 @@ let fixupGlobName vi =
 
     (************* STATEMENTS **************)
 let rec boxblock (b: block) : block = 
-  compressBlock (List.fold_left (fun acc s -> acc @ (boxstmt s)) [] b)
+  compactBlock (List.fold_left (fun acc s -> acc @ (boxstmt s)) [] b)
 
 and boxstmt (s: Cil.stmt) : block = 
    (* Keep the original statement, but maybe modify its kind. This way we 
@@ -2425,7 +2421,7 @@ and boxstmt (s: Cil.stmt) : block =
         (* Do each instruction in turn *)
         let b = List.fold_left (fun acc (i,l) -> acc @ boxinstr i l) [] il in
         s.skind <- Instr [];
-        compressBlock (s :: b)
+        compactBlock (s :: b)
     | Switch (e, b, cases, l) -> 
       (* Cases are preserved *)
         let (_, doe, e') = boxexp (CastE(intType, e)) in
@@ -2995,7 +2991,7 @@ let boxFile file =
              * create another formal  *)
             let newformals, (newbody : stmt list) =
               let rec loopFormals = function
-                  [] -> [], body2block f.sbody
+                  [] -> [], f.sbody
                 | form :: restf ->
                     let r1, r2 = loopFormals restf in
                     if form.vaddrof then begin
@@ -3048,7 +3044,7 @@ let boxFile file =
               f.slocals;
             currentFunction := f;           (* so that maxid and locals can be
                                                * updated in place *)
-            f.sbody <- block2body newbody;
+            f.sbody <- newbody;
             (* Do the body *)
             let boxbody : block = boxblock f.sbody in
             (* Initialize the locals *)
@@ -3143,7 +3139,7 @@ let boxFile file =
       None -> 
         if !extraGlobInit <> [] then
           let gi = getGlobInit file in
-          gi.sbody <- block2body !extraGlobInit;
+          gi.sbody <- !extraGlobInit;
           Some gi
         else
           None
@@ -3152,8 +3148,7 @@ let boxFile file =
           GFun(gi, _) :: rest -> 
             theFile := rest; (* Take out the global initializer (last thing 
                                 added) *)
-            gi.sbody <- 
-               block2body (body2block gi.sbody @ !extraGlobInit);
+            gi.sbody <- compactBlock (gi.sbody @ !extraGlobInit);
             Some gi
         | _ -> E.s (E.bug "box: Cannot find global initializer\n")
     end

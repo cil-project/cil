@@ -342,7 +342,7 @@ module BlockChunk =
     (* Append two chunks. Never refer to the original chunks after you call 
      * this. And especially never share c2 with somebody else *)
     let (@@) (c1: chunk) (c2: chunk) = 
-      { stmts = compressBlock (pushPostIns c1 @ c2.stmts);
+      { stmts = compactBlock (pushPostIns c1 @ c2.stmts);
         postins = c2.postins;
 (*
         fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
