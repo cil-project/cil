@@ -1,4 +1,3 @@
-#
 # A regression tester for safec
 #
 require 5.000;
@@ -373,6 +372,8 @@ $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
+   $TEST->addBadComment("testrun/pointerdiff-inferbox", 
+                        "A pointer that is not read should not be bound-checked");
 $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
@@ -419,7 +420,7 @@ $TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/checkret", "_GNUCC=1", [ 'inferbox' ]);
+$TEST->addTests("test-bad/checkret", "_GNUCC=1 RELEASE=", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
@@ -717,7 +718,7 @@ smAddTest("badd/fseq $box $gcc");
 smAddTest("badd/calloc $box $gcc");
 smAddTest("badd/stackaddr $box $gcc");
 smAddTest("test-bad/trivial-tb");
-smAddTest("test-bad/retptr $box");
+smAddTest("test-bad/retptr $box RELEASE=");
 
 # verify we have tags and that they work
 smAddTest("badd/nonptr $box $gcc");          # very simple test

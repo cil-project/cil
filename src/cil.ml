@@ -3849,7 +3849,7 @@ and bitsSizeOf t =
     -> 8 * alignOf_int t
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields = [] -> 
-      raise Not_found (*abstract type*)
+      raise (SizeOfError t) (*abstract type*)
   | TComp (comp, _) when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 

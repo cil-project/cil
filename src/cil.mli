@@ -1829,10 +1829,11 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
 exception SizeOfError of typ
 
 (** The size of a type, in bits. Trailing padding is added for structs and
-    arrays *)
+    arrays. Raises {!Cil.SizeOfError} when it cannot compute the type. *)
 val bitsSizeOf: typ -> int
 
-(** The size of a type, in bytes *)
+(** The size of a type, in bytes. Does not raises {!Cil.SizeOfError} but uses 
+ * instead a sizeof expression. *)
 val sizeOf: typ -> exp
 
 (** The minimum alignment (in bytes) for a type *)
