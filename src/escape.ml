@@ -63,7 +63,7 @@ let escape_string str =
 
 (* a wide char represented as an int64 *)
 let escape_wchar =
-  let limit upper probe = Int64.compare upper probe > 0 in
+  let limit upper probe = (Int64.to_float (Int64.sub upper probe)) > 0.5 in
   let fits_byte = limit (Int64.of_int 0x100) in
   let fits_octal_escape = limit (Int64.of_int 0o1000) in
   let fits_universal_4 = limit (Int64.of_int 0x10000) in
