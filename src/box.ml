@@ -420,7 +420,7 @@ let tagType (t: typ) : typ =
   with Not_found -> begin
     let newtype = 
       try
-        let bytes = (bitsSizeOf t) lsl 3 in (* Might raise not-found for 
+        let bytes = (bitsSizeOf t) lsr 3 in (* Might raise not-found for 
                                              * incomplete types  *)
         let words = (bytes + 3) lsr 2 in
         let tagwords = (words + 15) lsr 4 in
@@ -439,7 +439,8 @@ let tagType (t: typ) : typ =
 	  match unrollType t with
 	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
 	  | TComp ci when ci.cfields = [] -> TArray(charType, Some zero, [])
-	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" d_type t)
+	  | _ -> E.s (E.unimp "Don't know how to tag incomplete type %a" 
+                        d_type t)
 	in
         TComp 
           (mkCompInfo true ""
