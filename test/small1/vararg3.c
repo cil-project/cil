@@ -9,10 +9,10 @@
 char* progname = "vararg3";
 int showmessages = 1;
 
-#pragma boxvararg("my_vfprintf", sizeof(union printf_format)) 
+#pragma boxvararg_printf("my_vfprintf", 2)
 int my_vfprintf(FILE *stream, char const *format, va_list args );
 
-#pragma boxvararg("pm_error", sizeof(union printf_format)) 
+#pragma boxvararg_printf("pm_error", 1)
 void pm_error( char* format, ... )     {
   va_list args;
 

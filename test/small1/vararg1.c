@@ -11,7 +11,6 @@ int average( int first, ... );
 union vararg_average {
   int ints;                   /* We only pass ints to this one */
 };
-#pragma boxvararg("average", sizeof(union vararg_average))
 
 #include "testharness.h"
 
@@ -43,3 +42,6 @@ int average( int first, ... )
    va_end( marker );              /* Reset variable arguments.      */
    return( sum ? (sum / count) : 0 );
 }
+
+// Put this intentionally at the end
+#pragma boxvararg("average", sizeof(union vararg_average))
