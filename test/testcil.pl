@@ -81,6 +81,7 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/attr");
+$TEST->add3Tests("test/bh1", @runpattern);
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
