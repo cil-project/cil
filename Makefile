@@ -213,21 +213,7 @@ trval: $(TVDIR)/obj/transval.asm.exe
 
 
 
-#
-# On some machines start using the new Perl driver
-ifeq ($(COMPUTERNAME), FETA)
-SAFECC=perl $(CILDIR)/lib/newsafecc.pl
-else
-ifeq ($(COMPUTERNAME), brooksie_george)
-SAFECC=perl $(CILDIR)/lib/newsafecc.pl
-else
-ifeq ($(COMPUTERNAME), RAW)
-SAFECC=perl $(CILDIR)/lib/newsafecc.pl
-else
 SAFECC=perl $(CILDIR)/lib/safecc.pl
-endif
-endif
-endif
 
 
 ifdef SHOWCABS
