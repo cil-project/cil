@@ -20,7 +20,7 @@ struct {
 };
 
 int main() {
-    char * FSEQN p = "HELLO";
+    char * __FSEQN p = "HELLO";
     return 0;
 }
 

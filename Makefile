@@ -297,6 +297,7 @@ endif
 
 # garbage collector options
 ifneq ($(COMPUTERNAME), RAW)   # George's workstation
+ifneq ($(COMPUTERNAME), FETA)   # George's workstation
 ifdef _GNUCC
   ifndef NO_GC
     # enable the garbage collector by default for gcc
@@ -317,6 +318,7 @@ else
   #  - modify the commands which build $(SAFECLIB) so they
   #    include gc.a
   GCLIB =
+endif
 endif
 endif
 

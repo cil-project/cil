@@ -127,9 +127,9 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-void * SAFE  malloc(unsigned int);
-void * FSEQ  calloc_fseq(unsigned int, unsigned int);
-void         free(void * SAFE);
+void * __SAFE  malloc(unsigned int);
+void * __FSEQ  calloc_fseq(unsigned int, unsigned int);
+void         free(void * __SAFE);
 
 int __cdecl dup(int);
 int __cdecl dup2(int, int);
@@ -147,10 +147,10 @@ struct _iobuf {
         };
 typedef struct _iobuf FILE;
 
-int   __cdecl printf(const char * SAFE, ...);
-int   __cdecl fprintf(FILE * SAFE, const char * SAFE, ...);
+int   __cdecl printf(const char * __ROSTRING, ...);
+int   __cdecl fprintf(FILE * __SAFE, const char * __ROSTRING, ...);
 void  __cdecl exit(int);
-int   __cdecl fflush(FILE * SAFE);
+int   __cdecl fflush(FILE * __SAFE);
 #define NULL (void*)0
 
 #ifdef _MSVC
@@ -217,28 +217,28 @@ extern  int   __mmId;
 
 //#include "redblack.h"
 typedef struct rbNode {
-  struct rbNode * SAFE left, * SAFE right, * SAFE parent;
+  struct rbNode * __SAFE left, * __SAFE right, * __SAFE parent;
   U32    key;
   U32    color;  // To make the data aligned
-  char data[0] SIZED;
+  char data[0] __SIZED;
 } RBNode;
 
-extern void * SAFE calloc_rbnode(unsigned int nrelem, unsigned int size);
+extern void * __SAFE calloc_rbnode(unsigned int nrelem, unsigned int size);
 
 /*** KEYS are compared using unsigned comparisons ****/
 
 /* Creates a new RB node. The node has room for some data but nothing is put 
  * in there. The pointer to the data is returned. Start with NULL as an 
  * empty tree */
-char * FSEQ insertRB(RBNode * * tree, U32 key, int datalen);
+char * __FSEQ insertRB(RBNode * * tree, U32 key, int datalen);
 
 
 /* Finds a node. Returns a pointer to the data */
-char * FSEQ findRB(RBNode * tree, U32 key);
+char * __FSEQ findRB(RBNode * tree, U32 key);
 
 /* Pass freeData=NULL if the data does not contain pointers that need to be 
  * deallocated */
-int freeRB(RBNode * tree, int (* freeData)(U32 key, char * FSEQ data));
+int freeRB(RBNode * tree, int (* freeData)(U32 key, char * __FSEQ data));
 
 // A non-recursive scanner for RB trees
 #define FORALLRBNODES(tree, donode) {\
@@ -405,7 +405,7 @@ static int printRBTree(RBNode *tree, U32 address) {
 }
 #endif
 
-char * FSEQ insertRB(RBNode **tree, U32 key, int datalen) {
+char * __FSEQ insertRB(RBNode **tree, U32 key, int datalen) {
   RBNode *x, *t;
   x = (RBNode*)malloc(sizeof(RBNode) + datalen);
   x->left = NULL;
@@ -498,7 +498,7 @@ static RBNode * fixupRB(RBNode *x) {
   return x;
 }
 
-char* FSEQ findRB(RBNode *tree, U32 key) {
+char* __FSEQ findRB(RBNode *tree, U32 key) {
   while(tree) {
     if(tree->key == key)
       return & tree->data[0];
@@ -510,7 +510,7 @@ char* FSEQ findRB(RBNode *tree, U32 key) {
   return NULL;
 }
 
-int freeRB(RBNode *tree, int (*freeData)(U32 key, char * FSEQ data)) {
+int freeRB(RBNode *tree, int (*freeData)(U32 key, char * __FSEQ data)) {
   if(! tree) return 1;
   freeRB(tree->left, freeData);
   freeRB(tree->right, freeData);

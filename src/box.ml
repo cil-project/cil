@@ -200,7 +200,7 @@ let prefix p s =
 let theFile : global list ref = ref []
 
 let checkFunctionDecls : global list ref 
-    = ref [GText("#define WILD\n#define FSEQ\n#define SAFE")]
+    = ref [GText("#define __WILD\n#define __FSEQ\n#define __SAFE")]
 
 (**** Make new types ****)
 

@@ -20,6 +20,7 @@
 */
 #endif
 
+
 /* Use this in the source to cast an integer what to a pointer in the same 
  * home area as host. Use this guarded by BEFOREBOX  */
 #ifdef BEFOREBOX
@@ -30,31 +31,31 @@
 #endif
 
 #ifndef MANUALBOX
-#define WILD
-#define SAFE
-#define TAGGED
-#define INDEX
-#define SIZED
-#define SEQ
-#define FSEQ
-#define SEQN
-#define FSEQN
-#define NULLTERM
-#define STRING
-#define SAFEUNION
+#define __WILD
+#define __SAFE
+#define __TAGGED
+#define __INDEX
+#define __SIZED
+#define __SEQ
+#define __FSEQ
+#define __SEQN
+#define __FSEQN
+#define __NULLTERM
+#define __STRING
+#define __SAFEUNION
 #else
-#define WILD   __attribute__((wild))
-#define SAFE   __attribute__((safe))
-#define TAGGED __attribute__((tagged))
-#define INDEX  __attribute__((index))
-#define SIZED  __attribute__((sized))
-#define SEQ    __attribute__((seq))
-#define FSEQ   __attribute__((fseq))
-#define SEQN   __attribute__((seqn))
-#define FSEQN  __attribute__((fseqn))
-#define NULLTERM   __attribute__((nullterm))
-#define STRING  __attribute__((string))
-#define SAFEUNION __attribute__((safeunion))
+#define __WILD   __attribute__((wild))
+#define __SAFE   __attribute__((safe))
+#define __TAGGED __attribute__((tagged))
+#define __INDEX  __attribute__((index))
+#define __SIZED  __attribute__((sized))
+#define __SEQ    __attribute__((seq))
+#define __FSEQ   __attribute__((fseq))
+#define __SEQN   __attribute__((seqn))
+#define __FSEQN  __attribute__((fseqn))
+#define __NULLTERM   __attribute__((nullterm))
+#define __STRING  __attribute__((string))
+#define __SAFEUNION __attribute__((safeunion))
 #endif
 
 #if ! defined(MANUALBOX) && ! defined(INFERBOX)
