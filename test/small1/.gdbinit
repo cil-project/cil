@@ -1,5 +1,5 @@
 # .gdbinit
 
-file rtti5.exe
+file vararg1.exe
 break main
 run

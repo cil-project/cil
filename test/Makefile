@@ -476,30 +476,30 @@ SMALL1 := $(TESTDIR)/small1
 CXXDIR := $(TESTDIR)/cxx
 
 test/% : $(SMALL1)/%.c 
-	cd $(SMALL1); $(CCURED) --separate \
+	cd $(SMALL1); $(CCURED) --separate --commPrintLn \
                $(STANDARDPATCH) \
 	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 	echo SUCCESS
 
 testnopatch/% : $(SMALL1)/%.c 
-	cd $(SMALL1); $(CCURED)   \
+	cd $(SMALL1); $(CCURED)    --commPrintLn \
                $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
 testexe/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --separate  \
+	cd $(SMALL1); $(CCURED) --separate  --commPrintLn  \
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
 
 
 testrun/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --separate  \
+	cd $(SMALL1); $(CCURED) --separate  --commPrintLn  \
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
 test_withtrusted/% : $(SMALL1)/%.c $(SMALL1)/%_trusted.c
-	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted \
+	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted  --commPrintLn \
                $(STANDARDPATCH) \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c $*_trusted.c 
 	cd $(SMALL1); ./$*.exe

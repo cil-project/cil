@@ -2516,8 +2516,9 @@ and doExp (isconst: bool)    (* In a constant *)
     | _ -> e, t
   in
   (* Before we return we call finishExp *)
-  let finishExp (se: chunk) (e: exp) (t: typ) : chunk * exp * typ = 
-    match what with 
+  let finishExp ?(newWhat=what) 
+                (se: chunk) (e: exp) (t: typ) : chunk * exp * typ = 
+    match newWhat with 
       ADrop -> (se, e, t)
     | AExp _ -> 
         let (e', t') = processArrayFun e t in
@@ -2526,7 +2527,8 @@ and doExp (isconst: bool)    (* In a constant *)
     | ASet (lv, lvt) -> begin
         (* See if the set was done already *)
         match e with 
-          Lval(lv') when lv == lv' -> (se, e, t)
+          Lval(lv') when lv == lv' -> 
+            (se, e, t)
         | _ -> 
             let (e', t') = processArrayFun e t in
             let (t'', e'') = castTo t' lvt e' in
@@ -2841,9 +2843,14 @@ and doExp (isconst: bool)    (* In a constant *)
               else
                 AExp None (* We'll create a temporary *)
         in
+        (* Remember here if we have done the Set *)
+        let setWasDone = ref false in
         let (se, e', t') = 
           match ie' with
-            A.SINGLE_INIT e -> doExp isconst e what'
+            A.SINGLE_INIT e -> 
+              setWasDone := true;
+              doExp isconst e what'
+
           | A.NO_INIT -> E.s (error "missing expression in cast")
           | A.COMPOUND_INIT _ -> begin
               (* Pretend that we are declaring and initializing a brand new 
@@ -2853,7 +2860,8 @@ and doExp (isconst: bool)    (* In a constant *)
               let spec_res = doSpecList "" s' in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal spec_res ((newvar, dt', [], cabslu), ie'));
+                  ignore (createGlobal spec_res 
+                            ((newvar, dt', [], cabslu), ie'));
                   empty
                 end else
                   createLocal spec_res ((newvar, dt', [], cabslu), ie') 
@@ -2874,13 +2882,19 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let (t'', e'') = 
           match typ with
-            TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
+            TVoid _ when what' = ADrop -> (t', e') (* strange GNU thing *)
           |  _ -> 
               (* Do this to check the cast *)
               let newtyp, newexp = castTo ~fromsource:true t' typ e' in 
               newtyp, newexp
         in
-        finishExp se e'' t''
+        let what'' = 
+          match what' with
+            ASet _ when !setWasDone -> AExp None (* We have done the set 
+                                                  * already *)
+          | _ -> what'
+        in
+        finishExp ~newWhat:what'' se e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
         let (se, e', t) = doExp isconst e (AExp None) in
