@@ -7,6 +7,7 @@ module E = Errormsg
 module H = Hashtbl
 
 let debugTypes = false
+let debugFundef = false
 
 (* Keep track of the current location *)
 let currentLoc: cabsloc ref = ref { lineno = -1; filename = "<no file>" }
@@ -633,7 +634,8 @@ let registerGlobal (n: string) =
 let collectGlobals (fl: file list) = 
   let collectOneGlobal = function
       FUNDEF ((specs, (n, decl, attrs)), _, _) -> 
-        let islocal = isStatic specs || isInline specs in
+        let islocal = 
+          isStatic specs || (isInline specs && not (isExtern specs)) in
         if not islocal then registerGlobal n
         
     | DECDEF ((specs, inl), _) -> 
@@ -714,8 +716,10 @@ let merge (files : Cabs.file list) : Cabs.file =
           currentLoc := l;
          (* Force inline functions to be static. Otherwise the compiler might 
           * complain that the function is declared with multiple bodies  *)
+          if debugFundef then 
+            ignore (E.log "Doing fundef %s\n" n);
           let s' = 
-            if isInline s && not (isStatic s) then
+            if isInline s && not (isStatic s) && not (isExtern s) then
               SpecStorage STATIC :: s else s
           in
           if isStatic s' then begin
@@ -725,10 +729,14 @@ let merge (files : Cabs.file list) : Cabs.file =
               H.add env (EVar, n) n'
           end;
           let d' = renameDefinition d in
+          let n' = lookup EVar n in
+          if debugFundef then 
+            ignore (E.log "  new name is %s\n" n');
           (* Try to drop duplicate inline functions *)
           if isInline s' then begin
-            assert (isStatic s');
-            (* But beware that we have changed the name. Make a defintion 
+            if debugFundef then
+              ignore (E.log "  is inline\n");
+            (* But beware that we have changed the name. Make a definition 
              * with the original name for purpose of searching in existing 
              * definitions. If the function was recursive then we are 
              * guaranteed not to find it.  *)
@@ -738,10 +746,14 @@ let merge (files : Cabs.file list) : Cabs.file =
             | _ -> E.s (E.bug "rename FUNDEF")
             in
             if H.mem globalDefinitions d'' then begin
+              if debugFundef then
+                ignore (E.log "  already present in the file\n");
               H.add env (EVar, n) n (* Set the name back to original *)
             end else begin
               (* Add the definition only if the name is the original (the 
                * first definition) *)
+              if debugFundef then
+                ignore (E.log "  not already present in the file\n");
               if lookup EVar n = n then 
                 H.add globalDefinitions d' true;
               theProgram := d' :: !theProgram

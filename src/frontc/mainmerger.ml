@@ -35,8 +35,6 @@ let rec parse_to_cabs fname =
   in
   cabs
 
-
-let useMerger = true
 let merge (files: string list) (out: string) =
   let merged_cabs = 
     let list_of_parsed_files =

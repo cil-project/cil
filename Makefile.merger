@@ -10,7 +10,7 @@ OBJDIR      = obj
 MLLS        = clexer.mll
 MLYS        = cparser.mly
 MODULES     = pretty errormsg stats util \
-              cabs cprint cabsvisit combine merger clexer cparser \
+              cabs cprint cabsvisit merger clexer cparser \
               mainmerger
 
 EXECUTABLE  = $(OBJDIR)/merger

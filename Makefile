@@ -1150,7 +1150,7 @@ li-optimvariant.%: mustbegcc
 
 li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
-            $(CCURED) trial_li_all.c $(LIEXTRA) $(EXEOUT)trial_li_all.exe
+            $(CCURED) li.exe_comb.c $(LIEXTRA) $(EXEOUT)li.exe
 
 li-noclean:  mustbegcc
 	cd $(LIDIR)/src; \
