@@ -1,3 +1,20 @@
+#if 0
+#define WILD
+#define SAFE
+#define TAGGED
+#define INDEX
+#define SIZED
+#define SEQ
+#define FSEQ
+#else
+#define WILD   __attribute__((wild))
+#define SAFE   __attribute__((safe))
+#define TAGGED __attribute__((tagged))
+#define INDEX  __attribute__((index))
+#define SIZED  __attribute__((sized))
+#define SEQ    __attribute__((seq))
+#define FSEQ   __attribute__((fseq))
+#endif
 
 
 #include "main.h"

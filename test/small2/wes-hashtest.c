@@ -9,9 +9,243 @@
  * 
  *****************************************************************************/
 
-#include "main.h"
-#include "hash.h"
-#include "alloc.h"
+//#include "main.h"
+/****** Data sizes *******
+* U8  must be an unsigned of 8 bits
+* U16 must be an unsigned of 16 bits *
+* U32 must be an unsigned of 32 bits *
+* U64 must be an unsigned on 64 bits *
+* UPOINT must be an unsigned of the size of a pointer
+* ALIGN must be the number of bytes the data accesses must be aligned to - 1
+*       i.e. it must be 3 for the data to be aligned on a 32-bit boundary. It
+*       must be at least 1 (16-bit alignment). It must be <= UPOINT
+* ALSHIFT is log2(ALIGN + 1)
+* UALIGN is the integer whose size if ALIGN + 1.
+*************************/
+typedef unsigned long UL;
+typedef unsigned char UC;
+typedef int BOOL;
+#define  TRUE  1
+#define  FALSE 0
+
+#define MASK(bitlen) ((1 << (bitlen)) - 1)
+
+#ifdef alpha_UNIX	      /* Both GCC and DEC cc seem to have the same */
+#define ALSHIFT  3
+#define ALIGN    MASK(ALSHIFT)
+#define UALIGN   U64
+
+#define U8     unsigned char
+#define S8     char
+#define U16    unsigned short
+#define S16    short
+#define U32    unsigned int
+#define S32    int
+#define U64    unsigned long
+#define S64    long
+#define UPOINT U64
+#define SPOINT S64
+#define DIRLISTSEP ':'
+#endif /* alpha_UNIX */
+
+#ifdef x86_WIN32
+#define ALSHIFT 2
+#define ALIGN   MASK(ALSHIFT)
+#define UALIGN  U32
+
+#define U8     unsigned char
+#define S8     char
+#define U16    unsigned short
+#define S16    short
+#define U32    unsigned long
+#define S32    long
+#define UPOINT U32
+#define SPOINT S32
+ 
+#define DIRLISTSEP ';'
+
+#ifdef _MSVC  /* MSVC on x86 */
+#define U64    unsigned __int64
+#define S64    __int64
+#endif /* _MSVC */
+
+#ifdef _GNUCC  /* GNU CC on x86 */
+#define U64    unsigned long long
+#define S64    long long
+#endif /* _GNUCC */ 
+
+#endif /* x86_WIN32 */
+
+#ifdef x86_LINUX
+#define ALSHIFT 2
+#define ALIGN   MASK(ALSHIFT)
+#define UALIGN  U32
+
+#define U8     unsigned char
+#define S8     char
+#define U16    unsigned short
+#define S16    short
+#define U32    unsigned long
+#define S32    long
+#define UPOINT U32
+#define SPOINT S32
+#define U64    unsigned long long
+#define S64    long long
+#define DIRLISTSEP ':'
+#endif /* x86_WIN32 */
+
+#define _ASSERT(be) {if(!(be)){fprintf(stderr,"Assertion failed on line %d in file %s\n", __LINE__, __FILE__);exit(2);}}
+
+#define ERR_SET         
+#define ERR_CHECK(v,stop,prg) 
+#define EXIT(v, n)      exit(n)
+
+#define ERRLINE    {fprintf(stderr, "Error at %s(%d):",__FILE__,__LINE__);\
+		    ERR_SET;}
+#define WARNLINE   {fprintf(stderr, "Warning at %s(%d):",__FILE__,__LINE__);}
+
+#define ERROR0(v, txt)              {ERRLINE;\
+			  	     fprintf(stderr,txt);EXIT(v,1);}
+#define ERROR1(v, txt, d1)          {ERRLINE;\
+				     fprintf(stderr,txt, d1);EXIT(v,1);}
+
+typedef long clock_t;
+ clock_t __cdecl clock(void);
+ int    __cdecl rand(void);
+#define CLOCKS_PER_SEC 1000
+
+#define TIMESTART(clk) {clk=(double)clock();}
+#define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
+
+void*   malloc(unsigned int);
+ void * __cdecl calloc(unsigned int, unsigned int);
+ void   __cdecl free(void *);
+int __cdecl dup(int);
+int __cdecl dup2(int, int);
+ int __cdecl close(int);
+
+struct _iobuf {
+        char *_ptr;
+        int   _cnt;
+        char *_base;
+        int   _flag;
+        int   _file;
+        int   _charbuf;
+        int   _bufsiz;
+        char *_tmpfname;
+        };
+typedef struct _iobuf FILE;
+
+ int __cdecl printf(const char *, ...);
+int __cdecl fprintf(FILE *, const char *, ...);
+  void   __cdecl exit(int);
+ int __cdecl fflush(FILE *);
+#define NULL (void*)0
+ extern FILE _iob[];
+#define stdout &_iob[1]
+#define stderr &_iob[2]
+
+
+extern  int   debugMM;      
+
+#define SETDBGOUT   int _stdout; fflush(stdout);_stdout=dup(1);dup2(2,1);
+#define RESTOREOUT  fflush(stdout); dup2(_stdout, 1); close(_stdout);
+
+
+extern  char* __stackInit;
+extern  int   __mmId;
+#define STACK_CHECK(category) { char __probe;\
+                      long _pDepth = __stackInit - & __probe;\
+                      __MM_REPORT("stack", &__probe, _pDepth, category);}
+
+#define STACK_INIT { char __probe;\
+                     __stackInit = & __probe; __mmId = 0; }
+
+#define MALLOC(res, err, sz, type, category) {\
+       long _sz = (sz);\
+       (res) = (type)malloc(_sz);\
+       if(! (res)) {\
+           ERROR0(err, "Cannot malloc\n"); \
+       }\
+       __MM_REPORT("malloc", (res), _sz, category);}
+
+#define FREE(res, category) {\
+       if(res) {\
+        __MM_REPORT("free", (res), 0, category);\
+        free(res); }}
+
+#define CALLOC(res, err, nrelem, sz, type, category) {\
+       int _nrelem = (nrelem);\
+       long _sz = (sz);\
+       (res) = (type)calloc(_nrelem, _sz);\
+       if(! (res)) {\
+           ERROR0(err, "Cannot calloc\n"); \
+       }\
+       __MM_REPORT("malloc", (res), _sz * _nrelem, category);}
+
+#define REALLOC(res, err, sz, type, category) {\
+       long _sz = (sz);\
+       if((res)) { __MM_REPORT("free", (res), 0, category); }\
+       (res) = (type)realloc((res), _sz);\
+       if(! (res)) {\
+           ERROR0(err, "Cannot realloc\n"); \
+       }\
+       __MM_REPORT("malloc", (res), _sz, category);}
+
+#define STRDUP(res, err, what, category) {\
+       char* _what = what;\
+       long _sz = strlen(_what) + 1;\
+       (res) = strdup(_what);\
+       if(! (res)) {\
+           ERROR0(err, "Cannot strdup\n"); \
+       }\
+       __MM_REPORT("malloc", (res), _sz, category);}
+    
+#if defined(_DEBUG) || defined(_DEBUGMM)
+#define __MM_REPORT(what, where, size, category) {\
+       if(debugMM) {\
+        SETDBGOUT; \
+        printf("*MM%d: %-6s 0x%08lx %08ld %-20s %s:%d\n", \
+                __mmId ++, \
+                (what), (where), (long)(size), (category),__FILE__,__LINE__);\
+        RESTOREOUT; } \
+        }
+#else
+#define __MM_REPORT(what, where, size, category) { }
+#endif
+
+//#include "hash.h"
+typedef int HASH_KEY;
+typedef void *PHASH;          /* Poor's man abstraction */
+
+
+
+
+PHASH NewHash(void);
+void  FreeHash(PHASH);
+
+			      /* The following functions return TRUE if the 
+                               * particular data was already in the hash */
+int   HashLookup(PHASH, HASH_KEY, void** data);
+			      /* If data already exists, then replace it */
+int   AddToHash(PHASH, HASH_KEY, void*);
+
+                              /* Nothing happens if the key does not exits */
+int   DeleteFromHash(PHASH, HASH_KEY);
+
+                              /* Maps a function to a hash table. The last 
+                               * element is a closure. The data is 
+                               * overwritten but not placed into another 
+                               * bucket ! */
+int   MapHash(PHASH, void* (*)(HASH_KEY, void*, UPOINT), UPOINT);
+
+                              /* Returns the number of elements in the table */
+unsigned int   SizeHash(PHASH);
+                              /* Preallocates some hashes */
+int   preallocateHashes(void);
+                              /* And release them */
+int   releaseHashes(void);
+// End hash.h
 
 #ifdef SMALLMEM
 #define  BUCKETS_SHIFT 5
