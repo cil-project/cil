@@ -139,6 +139,7 @@ and statement =
  | DEFAULT of statement * cabsloc
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
+ | COMPGOTO of expression * cabsloc (* GCC's "goto *exp" *)
  (* template, whether volatile, list of constraints and expressions for 
   * outputs and for inputs. The final list contains the clobbered registers  *)
  | ASM of string list * bool * (string * expression) list 
@@ -163,6 +164,7 @@ and unary_operator =
 and expression =
     NOTHING
   | UNARY of unary_operator * expression
+  | LABELADDR of string  (* GCC's && Label *)
   | BINARY of binary_operator * expression * expression
   | QUESTION of expression * expression * expression
 
@@ -247,5 +249,6 @@ begin
   | DEFAULT(_,loc) -> loc
   | LABEL(_,_,loc) -> loc
   | GOTO(_,loc) -> loc
+  | COMPGOTO (_, loc) -> loc
   | ASM(_,_,_,_,_,loc) -> loc
 end

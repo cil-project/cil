@@ -23,8 +23,24 @@ let cabslu = {lineno = -10; filename = "cabs lu";}
 let noProtoFunctions : (int, bool) H.t = H.create 13
 
 
+(***** COMPUTED GOTO ************)
+
+(* The address of labels are small integers (starting from 0). A computed 
+ * goto is replaced with a switch on the address of the label. We generate 
+ * only one such switch and we'll jump to it from all computed gotos. To 
+ * accomplish this we'll add a local variable to store the target of the 
+ * goto. *)
+
+(* The local variable in which to put the detination of the goto and the 
+ * statement where to jump *) 
+let gotoTargetData: (varinfo * stmt) option ref = ref None
+
+(* The "addresses" of labels *)
+let gotoTargetHash: (string, int) H.t = H.create 13
+let gotoTargetNextAddr: int ref = ref 0
 
 
+(********** TRANSPARENT UNION ******)
 (* Check if a type is a transparent union, and return the first field if it 
  * is *)
 let isTransparentUnion (t: typ) : fieldinfo option = 
@@ -594,6 +610,12 @@ module BlockChunk =
       labstmt.labels <- Label (l, loc) :: labstmt.labels;
       H.add labelStmt l labstmt;
       if c.stmts == stmts' then c else {c with stmts = stmts'}
+
+    let s2c (s:stmt) : chunk = 
+      { stmts = [ s ];
+        postins = [];
+        cases = [];
+      } 
 
     let gotoChunk (ln: string) (l: location) : chunk = 
       let gref = ref dummyStmt in
@@ -1690,6 +1712,7 @@ and doExp (isconst: bool)    (* In a constant *)
             end
         end
     end          
+
     | A.TYPE_SIZEOF (bt, dt) -> 
         let typ = doOnlyType bt dt in
         finishExp empty (SizeOf(typ)) uintType
@@ -2154,6 +2177,21 @@ and doExp (isconst: bool)    (* In a constant *)
         | None -> E.s (error "Cannot find COMPUTATION in GNU.body")
         | Some (e, t) -> finishExp se e t
     end
+
+    | A.LABELADDR l -> begin (* GCC's taking the address of a label *)
+        let l = lookupLabel l in (* To support locallly declared labels *)
+        let addrval = 
+          try H.find gotoTargetHash l 
+          with Not_found -> begin
+            let res = !gotoTargetNextAddr in
+            incr gotoTargetNextAddr;
+            H.add gotoTargetHash l res;
+            res
+          end
+        in
+        finishExp empty (doCast (integer addrval) voidPtrType) voidPtrType
+    end
+
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
     (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc),
@@ -2910,7 +2948,42 @@ and doStatement (s : A.statement) : chunk =
         currentLoc := loc';
         (* Maybe we need to rename this label *)
         gotoChunk (lookupLabel l) loc'
-          
+
+    | A.COMPGOTO (e, loc) -> begin
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Do the expression *)
+        let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
+        match !gotoTargetData with
+          Some (switchv, switch) -> (* We have already generated this one  *)
+            se 
+            @@ i2c(Set (var switchv, doCast e' uintType, loc'))
+            @@ s2c(mkStmt(Goto (ref switch, loc')))
+
+        | None -> begin
+            (* Make a temporary variable *)
+            let vchunk = createLocal 
+                [ A.SpecType A.Tunsigned;
+                  A.SpecType A.Tint] 
+                (("__compgoto", A.JUSTBASE, []), A.NO_INIT) 
+            in
+            if not (isEmpty vchunk) then 
+              E.s (unimp "Non-empty chunk in creating temporary for goto *");
+            let switchv, _ = 
+              try lookupVar "__compgoto" 
+              with Not_found -> E.s (bug "Cannot find temporary for goto *");
+            in
+            (* Make a switch statement. We'll fill in the statements at the 
+            * end of the function *)
+            let switch = mkStmt (Switch (Lval(var switchv), [], [], loc')) in
+            (* And make a label for it since we'll goto it *)
+            switch.labels <- [Label ("__docompgoto", loc')];
+            gotoTargetData := Some (switchv, switch);
+            se @@ i2c (Set(var switchv, doCast e' uintType, loc')) @@
+            s2c switch
+        end
+    end
+
     | A.ASM (tmpls, isvol, outs, ins, clobs, loc) -> 
         (* Make sure all the outs are variables *)
         let loc' = convLoc loc in
@@ -3069,6 +3142,51 @@ let convFile fname dl =
               let stm = doBody body in
               (* Finish everything *)
               exitScope ();
+
+              (* Now fill in the computed goto statement with cases. Do this 
+               * before mkFunctionbody which resolves the gotos *)
+              (match !gotoTargetData with 
+                Some (switchv, switch) -> 
+                  let switche, l = 
+                    match switch.skind with 
+                      Switch (switche, _, _, l) -> switche, l
+                    | _ -> E.s(bug "the computed goto statement not a switch")
+                  in
+                  (* Build a default chunk that segfaults *)
+                  let default = 
+                    defaultChunk 
+                      l
+                      (i2c (Set ((Mem (doCast (integer 0) intPtrType), 
+                                  NoOffset),
+                                 integer 0, l)))
+                  in
+                  let bodychunk = ref default in
+                  H.iter (fun lname laddr -> 
+                    bodychunk := 
+                       caseRangeChunk 
+                         [integer laddr] l 
+                         (gotoChunk lname l @@ !bodychunk))
+                    gotoTargetHash;
+                  (* Now recreate the switch *)
+                  let newswitch = switchChunk switche !bodychunk l in
+                  (* We must still share the old switch statement since we 
+                   * have already inserted the goto's *)
+                  let newswitchkind = 
+                    match newswitch.stmts with
+                      [ s] 
+                        when newswitch.postins = [] && newswitch.cases = []-> 
+                          s.skind
+                    | _ -> E.s (bug "Unexpected result from switchChunk")
+                  in
+                  switch.skind <- newswitchkind
+
+              | None -> ());
+              (* Reset the global parameters *)
+              gotoTargetData := None;
+              H.clear gotoTargetHash;
+              gotoTargetNextAddr := 0;
+
+
               let (maxid, locals) = endFunction formals' in
               let fdec = { svar     = thisFunctionVI;
                            slocals  = locals;
@@ -3105,7 +3223,6 @@ let convFile fname dl =
                   ([], fdec.sbody)
               in
               fdec.sbody <- newbody;
-              
               setFormals fdec newformals; (* To make sure sharing with the 
                                            * type is proper *)
 

@@ -185,8 +185,8 @@ and combine_init_expression (iexp: init_expression) : init_expression =
 (* No need to rename fields *)    
 and combine_expression (exp : expression) : expression =
   match exp with
-    NOTHING ->
-      NOTHING
+    NOTHING | LABELADDR _ -> exp
+
   | UNARY (op, exp') ->
       UNARY(op, combine_expression exp')  
   | BINARY (op, exp1, exp2) ->
@@ -267,6 +267,7 @@ and combine_statement stat =
       LABEL(name, combine_substatement stat, loc)
   | GOTO (name, loc) ->
       GOTO(name, loc)
+  | COMPGOTO (exp, loc) -> COMPGOTO (combine_expression exp, loc)
   | ASM (tlist, isvol, outs, ins, clobs, loc) ->
       ASM(tlist, isvol, outs, ins, clobs, loc)   
            

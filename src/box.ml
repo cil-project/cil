@@ -666,6 +666,15 @@ let mainWrapper_fs =
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
 
+let mainWrapper_fq =   
+  let fdec = emptyFunction "_mainWrapper_fq" in
+  let argc  = makeLocalVar fdec "argc" intType in
+  let argv  = makeLocalVar fdec "argv" (TPtr(charPtrType, [])) in
+  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  checkFunctionDecls := 
+     consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
+  fdec
+
 let mainWrapper_qw =   
   let fdec = emptyFunction "_mainWrapper_qw" in
   let argc  = makeLocalVar fdec "argc" intType in
@@ -4145,6 +4154,7 @@ let boxFile file =
       | "main_fs" -> mainWrapper_fs
       | "main_qw" -> mainWrapper_qw
       | "main_fw" -> mainWrapper_fw
+      | "main_fq" -> mainWrapper_fq
       | _ -> E.s (E.unimp "Din't expect to mangle the name of main to %s"
                     !mangledMainName)
     in

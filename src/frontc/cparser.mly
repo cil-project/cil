@@ -372,6 +372,8 @@ expression:
 /* (* We handle GCC constructor expressions *) */
 |		LPAREN type_name RPAREN LBRACE initializer_list RBRACE
 		         { CAST($2, COMPOUND_INIT $5) }
+/* (* GCC's address of labels *)  */
+|               AND_AND IDENT  { LABELADDR $2 }
 ;
 constant:
     CST_INT				{CONST_INT $1}
@@ -491,6 +493,8 @@ statement:
 |   location CONTINUE SEMICOLON	 {CONTINUE $1}
 |   location GOTO IDENT SEMICOLON
 		                 {GOTO ($3, $1)}
+|   location GOTO STAR expression SEMICOLON 
+                                 { COMPGOTO ($4, $1) }
 |   location ASM maybevol LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { let (outs,ins,clobs) = $6 in
                           ASM ($5, $3, outs, ins, clobs, $1) }

@@ -392,6 +392,7 @@ and get_operator exp =
       | PREDECR -> ("--", 13)
       | POSINCR -> ("++", 14)
       | POSDECR -> ("--", 14))
+  | LABELADDR s -> ("", 16)  (* Like a constant *)
   | BINARY (op, _, _) ->
       (match op with
 	MUL -> ("*", 12)
@@ -477,6 +478,7 @@ and print_expression (exp : expression) (lvl : int) =
       | _ ->
 	  print txt; space (); (* Print the space to avoid --5 *)
 	  print_expression exp' lvl')
+  | LABELADDR l -> print ("&& " ^ l)
   | BINARY (op, exp1, exp2) ->
 			(*if (op = SUB) && (lvl <= lvl') then print "(";*)
       print_expression exp1 lvl';
@@ -661,6 +663,9 @@ and print_statement stat =
       setLoc(loc);
       print ("goto " ^ name ^ ";");
       new_line ()
+  | COMPGOTO (exp, loc) -> 
+      setLoc(loc);
+      print ("goto *"); print_expression exp 1; print ";"; new_line ()
   | ASM (tlist, isvol, outs, ins, clobs, loc) ->
       setLoc(loc);
       let print_asm_operand (cnstr, e) =
