@@ -10,23 +10,7 @@
 //extern void printf(char *, ...);
   
      
-// sm: these conflict with glibc2 header; hopefully the setjmp.h
-// #inclusion above will be sufficient for whichever platform
-// this code was intended?
-#if 0
-  typedef struct
-    {
-      unsigned long int __val[(1024 / (8 * sizeof (unsigned long int))) ];
-    } __sigset_t;
-
-  __sigset_t env;
-
-  extern int setjmp(__sigset_t *);
-  extern int longjmp(__sigset_t *, int);
-#else
-  jmp_buf env;
-#endif
-
+jmp_buf env;
 /* 
  * Actual C code that generates this error ...
  * Correct output:
