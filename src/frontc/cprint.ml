@@ -31,7 +31,7 @@ let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 let curLoc = ref cabslu
 
 let msvcMode = ref false
-
+let printLines = ref true
 (*
 ** FrontC Pretty printer
 *)
@@ -131,15 +131,25 @@ let print str =
 
 let setLoc (l : cabsloc) =
 	unindent();
-	if (l.lineno <> !curLoc.lineno) then begin
-		print "# ";
-		if !msvcMode then print "line ";
+	if (l.filename <> !curLoc.filename) && !printLines then begin
+	        print "#";
+	        if !msvcMode then print "line";
+	        print " ";
                 print (string_of_int l.lineno);
-                print " ";
+                print " \"";
                 print l.filename;
+                print "\"\n";
+	        curLoc := l
+	end 
+        else if (l.lineno <> !curLoc.lineno) && !printLines then begin
+		print "#";
+		if !msvcMode then print "line";
+		print " ";
+                print (string_of_int l.lineno);
                 print "\n";
-		curLoc := l
+	        curLoc := l
 	end
+
 
 
 (*
@@ -528,16 +538,18 @@ and print_expression (exp : expression) (lvl : int) =
 ** Statement printing
 *)
 and print_statement stat =
-  setLoc(Cabs.get_statementloc stat);
   match stat with
     NOP (loc) ->
+      setLoc(loc);
       print ";";
       new_line ()
   | COMPUTATION (exp, loc) ->
+      setLoc(loc);
       print_expression exp 0;
       print ";";
       new_line ()
   | BLOCK (blk, loc) ->
+      new_line();
       print "{";
       indent ();
       let printBlkElem = function
@@ -549,9 +561,11 @@ and print_statement stat =
       print "}";
       new_line ();
   | SEQUENCE (s1, s2, loc) ->
+      setLoc(loc);
       print_statement s1;
       print_statement s2;
   | IF (exp, s1, s2, loc) ->
+      setLoc(loc);
       print "if(";
       print_expression exp 0;
       print ")";
@@ -563,11 +577,13 @@ and print_statement stat =
           print_substatement s2;
         end)
   | WHILE (exp, stat, loc) ->
+      setLoc(loc);
       print "while(";
       print_expression exp 0;
       print ")";
       print_substatement stat
   | DOWHILE (exp, stat, loc) ->
+      setLoc(loc);
       print "do";
       print_substatement stat;
       print "while(";
@@ -575,6 +591,7 @@ and print_statement stat =
       print ");";
       new_line ();
   | FOR (exp1, exp2, exp3, stat, loc) ->
+      setLoc(loc);
       print "for(";
       print_expression exp1 0;
       print ";";
@@ -586,10 +603,13 @@ and print_statement stat =
       print ")";
       print_substatement stat
   | BREAK (loc)->
+      setLoc(loc);
       print "break;"; new_line ()
   | CONTINUE (loc) ->
+      setLoc(loc);
       print "continue;"; new_line ()
   | RETURN (exp, loc) ->
+      setLoc(loc);
       print "return";
       if exp = NOTHING
       then ()
@@ -600,11 +620,13 @@ and print_statement stat =
       print ";";
       new_line ()
   | SWITCH (exp, stat, loc) ->
+      setLoc(loc);
       print "switch(";
       print_expression exp 0;
       print ")";
       print_substatement stat
   | CASE (exp, stat, loc) ->
+      setLoc(loc);
       unindent ();
       print "case ";
       print_expression exp 1;
@@ -612,18 +634,22 @@ and print_statement stat =
       indent ();
       print_substatement stat
   | DEFAULT (stat, loc) ->
+      setLoc(loc);
       unindent ();
       print "default :";
       indent ();
       print_substatement stat
   | LABEL (name, stat, loc) ->
+      setLoc(loc);
       print (name ^ ":");
       space ();
       print_substatement stat
   | GOTO (name, loc) ->
+      setLoc(loc);
       print ("goto " ^ name ^ ";");
       new_line ()
   | ASM (tlist, isvol, outs, ins, clobs, loc) ->
+      setLoc(loc);
       let print_asm_operand (cnstr, e) =
         print_string cnstr; space (); print_expression e 100
       in
