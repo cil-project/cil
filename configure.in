@@ -1,0 +1,126 @@
+dnl  configure.in for CCured
+dnl  Process this file with autoconf to produce a configure script.
+
+dnl  Autoconf runs this through the M4 macroprocessor first; lines
+dnl  starting with "dnl" are comments to M4.  The result is a bash
+dnl  script; any text which isn't an M4/autoconf directive gets
+dnl  copied verbatim to that script.
+
+dnl  -------------- usual initial stuff -------------
+dnl  this simply names a file somewhere in the source tree to verify
+dnl  we're in the right directory
+AC_INIT(Makefile.ccured)
+
+dnl  make sure I haven't forgotten to run autoconf
+if test configure -ot configure.in; then
+  AC_MSG_ERROR(configure is older than configure.in; you forgot to run autoconf)
+fi
+
+dnl  check for C compiler; this typically find gcc
+AC_PROG_CC
+
+dnl  find system type (using this macro means we must include
+dnl  the files install-sh, config.sub, and config.guess (all from
+dnl  the autoconf distribution) in our source tree!)
+AC_CANONICAL_SYSTEM
+
+
+dnl  dnl  --------- example of a specialized test ----------
+dnl  dnl  determine endianness
+dnl  if test "$ENDIANNESS" != "-DLITTLE_ENDIAN" -a \
+dnl          "$ENDIANNESS" != "-DBIG_ENDIAN" ; then
+dnl    AC_MSG_CHECKING(endianness)
+dnl    AC_TRY_RUN(
+dnl      [
+dnl        /* x must be global to work around an egcs-1.1.2 optimizer bug */
+dnl        int x = 0;     /* start with all bits 0 */
+dnl        int main()
+dnl        {
+dnl          /* little endian: sets x to 1 */
+dnl          /* big endian: sets x to a large number (e.g. 0x01000000 if 32 bits) */
+dnl          *((char*)(&x)) = 1;
+dnl
+dnl          if (x == 1) {
+dnl            exit(0);     /* success will mean little endian */
+dnl          }
+dnl          else {
+dnl            exit(1);     /* big endian */
+dnl          }
+dnl        }
+dnl      ],
+dnl  
+dnl      AC_MSG_RESULT(little endian)
+dnl      ENDIANNESS=-DLITTLE_ENDIAN,
+dnl  
+dnl      AC_MSG_RESULT(big endian)
+dnl      ENDIANNESS=-DBIG_ENDIAN,
+dnl  
+dnl      AC_MSG_ERROR([
+dnl        To cross-compile you must set the environment variable
+dnl        ENDIANNESS to either -DLITTLE_ENDIAN or -DBIG_ENDIAN
+dnl      ])
+dnl    )
+dnl  fi
+
+
+dnl  set CCUREDHOME to current directory
+CCUREDHOME=`pwd`
+AC_MSG_RESULT(setting CCUREDHOME to $CCUREDHOME)
+
+
+dnl  ----------- platform-specific code -------------
+dnl  $target is typically processor-vendor-os
+case "$target" in
+  # linux
+  *86*linux*)
+    AC_MSG_RESULT(configuring for linux/x86)
+
+    ARCHOS=x86_LINUX
+    ;;
+
+  # cygwin
+  *cygwin*)
+    AC_MSG_RESULT(configuring for Cygwin on win32)
+
+    ARCHOS=x86_WIN32
+    ;;
+
+  *)
+    AC_MSG_ERROR(unsupported platform $target -- sorry)
+    ;;
+
+esac
+AC_MSG_RESULT(ARCHOS has been set to $ARCHOS)
+
+
+dnl  ----------- some stuff 'autoscan' put here --------------
+dnl  (autoscan is part of the autoconf distribution)
+
+dnl  checks for header files
+AC_HEADER_STDC
+AC_CHECK_HEADERS(strings.h sys/time.h unistd.h)
+
+dnl  checks for typedefs, structures, and compiler characteristics
+AC_C_CONST
+AC_C_INLINE
+AC_HEADER_TIME
+
+dnl  checks for library functions; more autoscan stuff
+AC_FUNC_MEMCMP
+AC_CHECK_FUNCS(mkdir select socket)
+
+
+dnl  ----------------- finish up -------------------
+dnl  names of the variables that get substituted in files; for example,
+dnl  write @ARCHOS@ somewhere in a written file to get it substituted
+AC_SUBST(ARCHOS)
+AC_SUBST(CCUREDHOME)
+
+dnl  finish the configure script and generate various files; ./configure
+dnl  will apply variable substitutions to <filename>.in to generate <filename>
+AC_OUTPUT(Makefile)
+
+dnl  I find it useful to mark generated files as read-only so I don't
+dnl  accidentally edit them (and them lose my changes when ./configure
+dnl  runs again)
+chmod a-w Makefile

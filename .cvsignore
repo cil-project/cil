@@ -20,3 +20,5 @@ tmp*
 *.log.prev
 make.out*
 odoc
+Makefile
+config.status
