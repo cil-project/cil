@@ -10,7 +10,7 @@ open Pretty
 open Trace
 module E = Errormsg
 
-let safe_voidstar = false
+let safe_voidstar = true
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)

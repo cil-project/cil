@@ -965,12 +965,12 @@ and doInstr (i:instr) : instr =
                 let n = nodeOfType (typeOf a) in
                 if n == N.dummyNode then
                   E.s (error "Call to __endof on a non pointer");
-                n.N.posarith <- true (* To make sure we have an end *)
+                setPosArith n (* To make sure we have an end *)
               end else if matchPolyName "__startof" v.vname then begin
                 let n = nodeOfType (typeOf a) in
                 if n == N.dummyNode then
                   E.s (error "Call to __startof on a non pointer");
-                n.N.arith <- true (* To make sure we have a start and an end *)
+                setArith n (* To make sure we have a start and an end *)
               end 
           | _ -> ()
         end
