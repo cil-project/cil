@@ -769,7 +769,7 @@ $TEST->newTest(
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
-    Name => "openssl-cil",
+    Name => "openssl-inferbox",
     Dir => ".",
     Cmd => "make openssl-test-withclean " . $TEST->testCommandExtras("INFERBOX=infer"),
     Enabled => 1,

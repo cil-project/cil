@@ -204,21 +204,12 @@ let scan_escape str =
   | "\\" -> '\\' 
   | _ -> error ("Unrecognized escape sequence: \\" ^ str)
 
-let get_value chr =
-  let int_value = 
-    match chr with
-      '0'..'9' -> (Char.code chr) - (Char.code '0')
-    | 'a'..'z' -> (Char.code chr) - (Char.code 'a') + 10
-    | 'A'..'Z' -> (Char.code chr) - (Char.code 'A') + 10
-    | _ -> 0 in
-  Int64.of_int int_value
-  
 let scan_hex_escape str =
   let radix = Int64.of_int 16 in
   let the_value = ref Int64.zero in
   (* start at character 2 to skip the \x *)
   for i = 2 to (String.length str) - 1 do
-    let thisDigit = get_value (String.get str i) in
+    let thisDigit = Cabs.valueOfDigit (String.get str i) in
     (* the_value := !the_value * 16 + thisDigit *)
     the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
@@ -229,7 +220,7 @@ let scan_oct_escape str =
   let the_value = ref Int64.zero in
   (* start at character 1 to skip the \x *)
   for i = 1 to (String.length str) - 1 do
-    let thisDigit = get_value (String.get str i) in
+    let thisDigit = Cabs.valueOfDigit (String.get str i) in
     (* the_value := !the_value * 8 + thisDigit *)
     the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
@@ -482,14 +473,9 @@ and wstr = parse
 
 and chr =  parse
     '\''	        {""}
-(*matth: BUG: we throw an error on character constants that contain escape 
-  sequences whose value is greater than 255.  *)
-|	hex_escape	{let cur = scan_hex_escape(Lexing.lexeme lexbuf) in
-                         let cur': string = String.make 1 (make_char cur) in
-                                         cur' ^ (chr lexbuf)}
-|	oct_escape	{let cur = scan_oct_escape (Lexing.lexeme lexbuf) in 
-                         let cur': string = String.make 1 (make_char cur) in
-                                        cur' ^ (chr lexbuf)}
+(*matth: we evaluate hex and oct escapes in cabs2cil.  *)
+|	hex_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
+|	oct_escape	{let cur = Lexing.lexeme lexbuf in cur ^ (chr lexbuf)}
 |	"\\0"		{(String.make 1 (Char.chr 0)) ^ (chr lexbuf)}
 |	escape		{let cur = scan_escape (String.sub
 					  (Lexing.lexeme lexbuf) 1 1) in 

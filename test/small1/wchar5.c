@@ -17,11 +17,6 @@ int main(){
   for (i = 0; i < 4; i++){
     if (a[i] != b[i]) E(i);
   }
-
-  {
-    //BUG: we don't lex wide characters correctly.
-    wchar_t c = L'\xabcd';  
-  }
   
   SUCCESS;
 }

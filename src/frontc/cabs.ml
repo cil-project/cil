@@ -358,6 +358,16 @@ let explodeStringToInts (s: string) : int64 list =
     else allChars (i - 1) (Int64.of_int (Char.code (String.get s i)) :: acc)
   in
   allChars (-1 + String.length s) []
+
+let valueOfDigit chr =
+  let int_value = 
+    match chr with
+      '0'..'9' -> (Char.code chr) - (Char.code '0')
+    | 'a'..'z' -> (Char.code chr) - (Char.code 'a') + 10
+    | 'A'..'Z' -> (Char.code chr) - (Char.code 'A') + 10
+    | _ -> Errormsg.s (Errormsg.bug "not a digit") in
+  Int64.of_int int_value
+  
     
 open Pretty
 let d_cabsloc () cl = 

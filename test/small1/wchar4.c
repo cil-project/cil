@@ -29,25 +29,37 @@ int main(){
    unsigned char b[] = "Hi\300";
 
    int i;
-   if (sizeof(wchar_t) == 16){
+   if (sizeof(wchar_t) == 2) // 16 bits
+   {
      char* tmp = (char*)wa;
      for (i = 0; i < 4*2; i++) { //byte-for-byte compare
        if (tmp[i] != a_16bit[i]) E(1);
      }
    }
-   else
+   else if (sizeof(wchar_t) == 4) // 32 bites
    {
      char* tmp = (char*)wa;
      for (i = 0; i < 4*4; i++) { //byte-for-byte compare
-       if (tmp[i] != a_32bit[i]) E(1);
+       if (tmp[i] != a_32bit[i]) E(2);
      }
+   } 
+   else 
+   {
+     E(3); //how big is wchar_t??
    }
+
    for (i = 0; i < 4; i++) { //char-to-wchar_t compare
-     if (b[i] != (unsigned char)wb[i]) E(2);
+     if (b[i] != (unsigned char)wb[i]) E(4);
    }
    
    //printchars(wa);
    //printchars(wb);
 
+  {
+    //Test character constants.
+    wchar_t c = L'\xabcd';
+    unsigned short s = 0xABCD;
+    if (s != c) E(10);
+  }
    return 0;
 }
