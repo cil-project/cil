@@ -18,7 +18,7 @@ setup:
 # sm: removed *box.c from those removed since test/PCC/src/pccbox.c should be kept
 clean:
 	-make -f Makefile.ccured clean CLEANING=1 $(MAKEOVERRIDES)
-	rm -rf cil-distrib.tar.gz cil-api.tar.gz cil-distrib
+	rm -rf cil.tar.gz
 	-find test \( \
 		-name '*cil.c' -o \
 		-name '*cured.c' -o \
@@ -1558,7 +1558,7 @@ pcnet32: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(PCNET32DIR); ( make clean && \
            make CC="$(CCURED) $(LINUXPATCH) --entryPoint='pcnet32_init_module'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make pcnet32_cured.o
-	
+
 IDECDDIR := test/linux/ide-cd
 ide-cd: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(IDECDDIR); ( make clean && \
