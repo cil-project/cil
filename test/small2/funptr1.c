@@ -1,4 +1,5 @@
-// This exhibits a bug with the types of tagged functions whose arguments appear tagged
+/* This exhibits a bug with the types of tagged functions whose arguments 
+ * appear tagged */
 int foo(int x);
 
 struct S {
