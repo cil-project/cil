@@ -173,7 +173,7 @@ developers.  See the CVS website for detailed information
 There are a few common commands you'll need.  Each of these is to be run
 in the base 'cil' directory (the one with 'regrtest'):
 
-  cvs [-n] update [filename]
+  cvs [-n] update -d [filename]
 
     This retrieves any changes recently committed by others.  This is
     usually necessary before you can commit your own changes.  It is a
@@ -184,17 +184,28 @@ in the base 'cil' directory (the one with 'regrtest'):
     The optional -n flag tells CVS to not actually change any of your
     files.  This is useful for querying the status of the repository.
 
-    If you specify a filename (after cd'ing to the directory containing
-    it), only that file will be updated.  Thus, a useful idiom for undoing
-    all of your changes is "cd dir; rm file; cvs update file".
+    The -d argument tells cvs to create on your machine any new directories
+    that somebody might have checked in. By default cvs does not create new
+    directories. This flag is so useful that many people find it useful to
+    create a ~/.cvsrc file with on line containing "update -d" in it. This way
+    you don't have to specify the flag all the time.
 
+    If you specify a filename (after cd'ing to the directory containing it),
+    only that file will be updated, otherwise everything in the current
+    directory and below is updated. Run this in the top-level project
+    directory to update the entire project. A useful idiom for undoing all of
+    your changes is "cd dir; rm file; cvs update file".
+
+    
   cvs commit [filename]
 
     This pushes your changes into the repository, so that the next time
     someone does "cvs update" they will get your changes.  Please try to
     only commit when the regression test script passes.
     
-    If you specify a filename, only that file will be committed.
+    If you specify a filename, only that file will be committed, otherwise
+    everything in the current directory and below is checked in. Run this in
+    the top-level project directory to check all of your changes in.
 
   cvs add filename
 
