@@ -73,4 +73,4 @@ val abslocLvalue : lvalue -> absloc
 val abslocEq : absloc -> absloc -> bool
 val d_absloc : unit -> absloc -> Pretty.doc
 val phonyAddrOf : lvalue -> lvalue
-
+val lvaluePointsTo : lvalue -> absloc list

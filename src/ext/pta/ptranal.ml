@@ -672,46 +672,19 @@ let compute_alias_frequency () : unit =
 
 
 (** abstract location interface *)
-
-
 type absloc = A.absloc
 
 let rec lvalue_of_varinfo (vi : varinfo) : A.lvalue =
   H.find lvalue_hash vi
 
 let lvalue_of_lval = traverse_lval
-  
-(*
-  match lv with
-    | (Var vi, _) -> lvalue_of_varinfo vi
-    | (Mem e, _) -> A.deref (A.rvalue (lvalue_of_exp e))
-*)
-
-(* do not export - AddrOf only ok if it's dereferenced later *)
-(*
-and lvalue_of_exp (e : exp) : A.lvalue =  
- match e with 
-    | Lval lv -> lvalue_of_lval lv
-    | CastE (_,e) -> lvalue_of_exp e
-    | BinOp((PlusPI|IndexPI|MinusPI),e,_,_) -> lvalue_of_exp e
-
-    | (AddrOf lv) -> 
-        (*A.phonyAddrOf (lvalue_of_lval lv)*)
-        failwith "lvalue_of_exp: AddrOf lv"
-
-    | StartOf lv -> 
-        failwith "lvalue_of_exp: StartOf lv"
-
-    | (Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE
-           _ | UnOp _ | BinOp _ )-> 
-        failwith "lvalue_of_exp: fishy exp in lval"
-*)
+let lvalue_of_expr = traverse_expr
 
 (** return an abstract location for a varinfo, resp. lval *)
 let absloc_of_varinfo vi = A.absloc_of_lvalue (lvalue_of_varinfo vi)
 let absloc_of_lval lv = A.absloc_of_lvalue (lvalue_of_lval lv)
 
-let absloc_e_points_to e = A.absloc_epoints_to (traverse_expr e)
+let absloc_e_points_to e = A.absloc_epoints_to (lvalue_of_expr e)
 let absloc_lval_aliases lv = A.absloc_points_to (lvalue_of_lval lv)
 
 let absloc_eq a b = A.absloc_eq(a,b)

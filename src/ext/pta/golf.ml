@@ -1952,3 +1952,13 @@ let d_absloc () (p : absloc) =
 
 let phonyAddrOf (lv : lvalue) : lvalue =
   make_lval (fresh_label true, address lv)
+
+(* transitive closure of points to, starting from l *)
+let rec tauPointsTo (l : tau) : absloc list =
+  match (find l) with 
+    | Var _ -> []
+    | Ref r -> r.rl :: (tauPointsTo r.points_to)
+    | _ -> [] 
+
+let rec lvaluePointsTo (l : lvalue) : absloc list =
+  tauPointsTo l.contents

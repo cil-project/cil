@@ -1212,7 +1212,3 @@ let absloc_of_lvalue (lv : lvalue) = (find lv.l).loc
 let absloc_eq = function 
   | ((i,_,_),(i',_,_)) ->  (i = i')
 
-(*
-let phonyAddrOf (lv : lvalue) : lvalue =
-  make_lval (fresh_label true, address lv)
-*)
