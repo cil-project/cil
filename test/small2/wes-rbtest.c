@@ -160,9 +160,12 @@ int   __cdecl fprintf(FILE * SAFE, const char * SAFE, ...);
 void  __cdecl exit(int);
 int   __cdecl fflush(FILE * SAFE);
 #define NULL (void*)0
-extern FILE _iob[] SIZED;
-#define stdout &_iob[1]
-#define stderr &_iob[2]
+
+#ifdef _MSVC
+extern FILE _myiob[];
+#define stdout &_myiob[1]
+#define stderr &_myiob[2]
+#endif
 
 
 extern  int   debugMM;      

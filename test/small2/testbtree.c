@@ -11,65 +11,44 @@
 #include <stdlib.h>
 #include "btree.h"
 
+#define CLOCKS_PER_SEC 1000
+
+typedef long clock_t;
+ clock_t __cdecl clock(void);
+#define TIMESTART(clk) {clk=(double)clock();}
+#define TIMESTOP(clk)  {clk=1000000.0 * \
+                            ((double)clock()-(clk))/CLOCKS_PER_SEC;}
+
 int main(void)
 {
   Tree	*Bplus;
   Nptr	keyNode;
   int	i, j;
+  double clk;
+  
+  TIMESTART(clk);
 
-  Bplus = initBtree(ARRAY_SIZE, NODE_SIZE / sizeof(Entry), compareKeys);
-/*  insert(Bplus,17);
-  insert(Bplus,16);
-  insert(Bplus,15);
-  insert(Bplus,14);
-  insert(Bplus,13);
-  insert(Bplus,12);
-  insert(Bplus,11);
-  insert(Bplus,10);
-  insert(Bplus,9);
-  insert(Bplus,8);
-  insert(Bplus,7);
-  insert(Bplus,6);
-  insert(Bplus,5);
-  insert(Bplus,4);
-  insert(Bplus,3);
-  insert(Bplus,2);
-  insert(Bplus,1);
-  delete(Bplus,1);
-  delete(Bplus,2);
-  delete(Bplus,3);
-  delete(Bplus,4);
-  delete(Bplus,5);
-  delete(Bplus,6);
-  delete(Bplus,7);
-  delete(Bplus,8);
-  delete(Bplus,9);
-  delete(Bplus,10);
-  delete(Bplus,11);
-  delete(Bplus,12);
-  delete(Bplus,13);
-  delete(Bplus,14);
-  delete(Bplus,15);
-  delete(Bplus,16);
-  delete(Bplus,17); */
-  for (i = 0; i < 2048; i++) {
-    j = rand() >> 3 & 255;
-    if (search(Bplus, j) == Bplus->tree - 1) {
+  Bplus = initBtree(ARRAY_SIZE, MAX_FAN_OUT, compareKeys);
+  for (i = 0; i < 204800; i++) {
+    j = rand();
+    if (search(Bplus, j) == NONODE) {
       insert(Bplus, j);
-      fprintf(stderr, "XXX %d, insert %d XXX\n", i, j);
+      // fprintf(stderr, "XXX %d, insert %d XXX\n", i, j);
     }
     else {
       delete(Bplus, j);
-      fprintf(stderr, "XXX %d, delete %d XXX\n", i, j);
+      // fprintf(stderr, "XXX %d, delete %d XXX\n", i, j);
     }
-    if (i > 2000)
-      listAllBtreeValues(Bplus);
+    // if (i > 2000) { listAllBtreeValues(Bplus); }
   }
-  for (i = 0; i < 256; i++)
+  for (i = 0; i < 25600; i++)
     (void) search(Bplus, i);
-  listAllBtreeValues(Bplus);
+  // listAllBtreeValues(Bplus);
   freeBtree(Bplus);
 
-  return 1;
+  TIMESTOP(clk);
+  printf("Run btreetest in %8.3lfms\n", clk / 1000.0);
+  
+  return 0;
 }
 

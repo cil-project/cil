@@ -392,6 +392,7 @@ and addArraySize t =
     theFile := GType (tname, newtype) :: !theFile;
     H.add sizedArrayTypes tsig named;
     H.add sizedArrayTypes (typeSig named) named;
+    H.add sizedArrayTypes (typeSig newtype) named;
     named
   end
   
@@ -520,7 +521,16 @@ let getFieldsOfFat (t: typ) : fieldinfo * fieldinfo * (fieldinfo option) =
     end
   | _ -> E.s (E.bug "getFieldsOfFat %a\n" d_type t)
   
-
+(* Given a sized array type, return the size and the array field *)
+let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
+  match unrollType t with
+    TComp comp when comp.cstruct -> begin
+      match comp.cfields with 
+        s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
+      | _ -> E.s (E.bug "getFieldsOfSized")
+    end
+  | _ -> E.s (E.bug "getFieldsOfSized %a\n" d_type t)
+  
 
 let rec readFieldsOfFat (e: exp) et =     
   if isFatType et then
@@ -679,13 +689,19 @@ let makeTagAssignInit (iter: varinfo) vi : stmt list =
 (****** the CHECKERS ****)
 
 
+let checkNullFun =   
+  let fdec = emptyFunction "CHECK_NULL" in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vstorage <- Static;
+  fdec
+
 let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
   fdec
     
 let checkPositiveFun = 
@@ -693,7 +709,6 @@ let checkPositiveFun =
   let argx  = makeLocalVar fdec "x" intType in
   fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
   fdec
   
     
@@ -704,7 +719,6 @@ let checkSafeFatLeanCastFun =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
   fdec
 
 let checkFunctionPointer = 
@@ -712,11 +726,13 @@ let checkFunctionPointer =
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  theFile := GDecl fdec.svar :: !theFile;
   fdec.svar.vstorage <- Static;
-  fun whatp whatb -> 
-    call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
-                                      castVoidStar whatb]
+  fun whatp whatb whatkind -> 
+    if whatkind = P.Safe then
+      call None (Lval(var checkNullFun.svar)) [ castVoidStar whatp ]
+    else
+      call None (Lval(var fdec.svar)) [ castVoidStar whatp; 
+                                        castVoidStar whatb]
 
 (* Compute the ptr corresponding to a base. This is used only to pass an 
  * argument to the intercept functionin the case when the base = 0 *)
@@ -740,7 +756,6 @@ let checkFetchLength =
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base -> 
@@ -755,7 +770,6 @@ let checkFetchEnd =
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
   fun tmplen base -> 
     let ptr = ptrOfBase base in
     call (Some tmplen) (Lval (var fdec.svar))
@@ -896,16 +910,9 @@ let checkWild (p: exp) (basetyp: typ) (b: exp) (blen: exp) : stmt =
       castVoidStar p; SizeOf (basetyp, lu)]
       
     
-  
+
 let checkBounds : (unit -> exp) -> exp -> exp -> lval -> typ 
                   -> P.pointerkind -> stmt list = 
-
-  let fdec = emptyFunction "CHECK_NULL" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
-  fdec.svar.vstorage <- Static;
-  theFile := GDecl fdec.svar :: !theFile;
-  let checkNullFun = fdec in
 
   (* And now the null check *)
   fun mktmplen base bend lv lvt pkind ->
@@ -1012,7 +1019,6 @@ let checkFatPointerRead =
   let arglen  = makeLocalVar fdec "nrWords" uintType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
-  fdec.svar.vstorage <- Static;
   theFile := GDecl fdec.svar :: !theFile;
   
   fun base where len -> 
@@ -1029,7 +1035,6 @@ let checkFatPointerWrite =
   fdec.svar.vtype <- 
      TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
   theFile := GDecl fdec.svar :: !theFile;
-  fdec.svar.vstorage <- Static;
   
   fun base where whatbase whatp len -> 
     call None (Lval(var fdec.svar))
@@ -1477,7 +1482,6 @@ and boxlval (b, off) : (typ * P.pointerkind * lval * exp * exp * stmt list) =
           toIndexSeq (goIntoTypes input) in
         (* Do the index *)
         let (_, doe, e') = boxexp e in
-        (* Grab the result type *)
         (* Prepare for the rest of the offset *)
         let next = 
           (btype, pkind, (fun o -> mklval (Index(e', o))), base, bend, stmts) 
@@ -1598,6 +1602,9 @@ and boxexpf (e: exp) : stmt list * fexp =
         | _, P.Scalar, P.Scalar -> 
             (doe1 @ doe2, L(restyp', P.Scalar, BinOp(bop,e1',e2',restyp', l)))
               
+        | (PlusPI|MinusPI), P.Safe, P.Scalar ->
+            E.s (E.bug "boxbinOp: pointer arithmetic on safe pointer: %a@!"
+                   d_exp e1)
         | _, _, _ -> E.s (E.unimp "boxBinOp: %a@!et1=%a@!et2=%a@!" 
                             d_binop bop d_plaintype et1 d_plaintype et2)
     end
@@ -1609,9 +1616,27 @@ and boxexpf (e: exp) : stmt list * fexp =
    (* Intercept references of _iob. A major hack !!!!! *)
     | AddrOf ((Var vi,
                Index(Const(CInt _, _) as n, NoOffset)) as lv, 
-              _) when !msvcMode && vi.vname = "_iob_l" -> 
-        let (lvt, _, _, _, _, _) = boxlval lv in  (* Just to get the type*)
-        let tres = TPtr(lvt, [AId("safe")]) in
+              _) when !msvcMode && vi.vname = "_myiob" -> 
+        let fileType = 
+          (* iob is always a sized array *)
+(*          let s, a = getFieldsOfSized vi.vtype in *)
+          let rec getBaseType t =
+              match unrollType t with
+                TArray(x, _, _) -> x
+              | TComp comp when comp.cstruct -> begin
+                  match comp.cfields with
+                    [s; a] when s.fname = "_size" && a.fname = "_array" ->
+                      getBaseType a.ftype
+                  | l :: d :: _ when l.fname = "_len" && d.fname = "_data" 
+                    -> getBaseType d.ftype
+                  | _ -> E.s (E.unimp "iob comp type")
+              end
+              | _ -> E.s (E.bug "iob does not have an array type: %a"
+                            d_plaintype vi.vtype)
+          in
+          getBaseType vi.vtype
+        in
+        let tres = TPtr(fileType, [AId("safe")]) in
         let tmp1 = makeTempVar !currentFunction voidPtrType in
         let tmp2 = makeTempVar !currentFunction tres in
         let seq  = 
@@ -1775,7 +1800,7 @@ and boxfunctionexp (f : exp) =
   | Lval(Mem base, NoOffset) -> 
       let rest, lvkind, lv', lvbase, lvend, dolv = 
         boxlval (Mem base, NoOffset) in
-      (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase], 
+      (rest, dolv @ [checkFunctionPointer (AddrOf(lv', lu)) lvbase lvkind], 
        Lval(lv'))
       
   | _ -> E.s (E.unimp "Unexpected function expression")
@@ -1960,7 +1985,7 @@ let fixupGlobName vi =
 
 (* Create the preamble (in reverse order). Must create it every time because 
  * we must consider the effect of "defaultIsWild" *)
-let checkFunctionDecls = !theFile
+let checkFunctionDecls = [] (* !theFile *)
 let preamble () = 
   (* Define WILD away *)
   theFile := GText("#define WILD\n#define FSEQ") :: checkFunctionDecls;
