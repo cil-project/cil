@@ -524,10 +524,10 @@ and checkStmt (s: ostmt) =
       | _ -> dprintf "checkStmt: %a" d_stmt s)
     (fun _ -> 
       match s with
-        Skip | Break | Continue | Default | Case _ -> ()
+        Skip | Break | Continue | Defaults | Cases _ -> ()
       | Sequence ss -> List.iter checkStmt ss
       | Loops s -> checkStmt s
-      | Label l -> begin
+      | Labels l -> begin
           if H.mem labels l then
             ignore (E.warn "Multiply defined label %s" l);
           H.add labels l ()

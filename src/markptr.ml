@@ -650,7 +650,7 @@ end
 (* Do a statement *)
 let rec doStmt (s: ostmt) = 
   match s with 
-    (Skip | Label _ | Case _ | Default | Break | Continue | Gotos _) -> s
+    (Skip | Labels _ | Cases _ | Defaults | Break | Continue | Gotos _) -> s
   | Sequence sl -> Sequence (List.map doStmt sl)
   | Loops s -> Loops (doStmt s)
   | IfThenElse (e, s1, s2, l) -> 

@@ -367,14 +367,14 @@ and ostmt =
                                          * trailing Default of Label or Case *)
   | Loops of ostmt                       (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
-                                         * Ends with break or a Goto outside.*)
+                                        * Ends with break or a Goto outside.*)
   | IfThenElse of exp * ostmt * ostmt * location    (* if *)
-  | Label of string 
+  | Labels of string 
   | Gotos of string
   | Returns of exp option * location
-  | Switchs of exp * ostmt * location    (* no work done to break this appart *)
-  | Case of int * location              (* The case expressions are resolved *)
-  | Default
+  | Switchs of exp * ostmt * location   (* no work done to break this appart *)
+  | Cases of int * location            (* The case expressions are resolved *)
+  | Defaults
   | Break
   | Continue
   | Instrs of instr * location
@@ -383,7 +383,7 @@ and ostmt =
                                          * mix blocks and statements *)
 (* The statement is the structural unit in the control flow graph *)
 and stmt = {
-    mutable label: string option;       (* Whether the statement starts with a 
+    mutable labels: label list;         (* Whether the statement starts with a 
                                          * label *)
     mutable skind: stmtkind;            (* The kind of statement *)
 
@@ -411,22 +411,21 @@ and stmtkind =
                                           * "else" branches. Both branches 
                                           * fall-through to the successor of 
                                           * the If statement *)
-  | Switch of (exp list * block) list * location  
-                                        (* A switch statement. "Switch cases" 
-                                         * is a switch statement with a 
-                                         * number of cases equal to 
-                                         * "List.length cases" (including the 
-                                         * default case). Each case 
-                                         * contains a list of values for 
-                                         * which it is taken. The list of 
-                                         * values is empty for the default 
-                                         * case. All cases fall-through to 
-                                         * the successors of the Switch. If 
-                                         * we have cases that fall-through to 
-                                         * other cases, we replace that with 
-                                         * explicit goto's *)
+  | Switch of exp * block * (stmt list) * location  
+                                        (* A switch statement. The block 
+                                         * contains within all of the cases. 
+                                         * We also have direct pointers to the 
+                                         * statements that implement the 
+                                         * cases. Which cases they implement 
+                                         * you can get from the labels of the 
+                                         * statement *)
+
   | Loop of block * location            (* A "while(1)" loop *)
 
+and label = 
+    Label of string * location          (* A real label *)
+  | Case of int * location              (* A case statement *)
+  | Default of location                 (* A default statement *)
         
 type fundec = 
     { mutable svar:     varinfo;        (* Holds the name and type as a 
@@ -581,7 +580,7 @@ let doubleType = TFloat(FDouble, [])
 
 let mkStmt (sk: stmtkind) : stmt = 
   { skind = sk;
-    label = None;
+    labels = [];
     sid = -1; succs = []; preds = [] }
 
 let mkEmptyStmt () = mkStmt (Instr [])
@@ -709,7 +708,7 @@ let mkSeq sl =
       [] -> []
     | Skip :: rest -> removeSkip rest
     | Sequence (sl) :: rest -> removeSkip (sl @ rest)
-    | ((Default | Label _ | Case _) as last) :: rest -> 
+    | ((Defaults | Labels _ | Cases _) as last) :: rest -> 
         let rest' = removeSkip rest in
         if rest' = [] then
           last :: [Skip]                (* Put a ; after default or a label*)
@@ -1265,15 +1264,15 @@ and d_stmt () s =
   | IfThenElse(e,a,b,_) -> 
       dprintf "@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" 
         d_exp e d_stmt (doThen a) d_stmt b
-  | Label(s) -> dprintf "%s:" s
-  | Case(i,_) -> dprintf "case %d: " i
+  | Labels(s) -> dprintf "%s:" s
+  | Cases(i,_) -> dprintf "case %d: " i
   | Gotos(s) -> dprintf "goto %s;" s
   | Break  -> dprintf "break;"
   | Continue -> dprintf "continue;"
   | Returns(None,_) -> text "return;"
   | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
   | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
-  | Default -> dprintf "default:"
+  | Defaults -> dprintf "default:"
   | Instrs(i,_) -> d_instr () i
 
 
@@ -1646,8 +1645,8 @@ begin
 
   and fStmt s = if (vis#vstmt s) then fStmt' s
   and fStmt' = begin function
-      (Skip|Break|Continue|Label _|Gotos _
-       |Case _|Default|Returns (None,_)) -> ()
+      (Skip|Break|Continue|Labels _|Gotos _
+       |Cases _|Defaults|Returns (None,_)) -> ()
     | Sequence s -> List.iter fStmt s
     | Loops s -> fStmt s
     | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2

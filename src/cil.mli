@@ -372,12 +372,12 @@ and ostmt =
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
   | IfThenElse of exp * ostmt * ostmt * location    (* if *)
-  | Label of string 
+  | Labels of string 
   | Gotos of string
   | Returns of exp option * location
   | Switchs of exp * ostmt * location    (* no work done to break this appart *)
-  | Case of int * location              (* The case expressions are resolved *)
-  | Default
+  | Cases of int * location             (* The case expressions are resolved *)
+  | Defaults
   | Break
   | Continue
   | Instrs of instr * location
@@ -387,8 +387,9 @@ and ostmt =
 
 (* The statement is the structural unit in the control flow graph *)
 and stmt = {
-    mutable label: string option;       (* Whether the statement starts with a 
-                                         * label *)
+    mutable labels: label list;        (* Whether the statement starts with 
+                                        * some labels or with a case or with 
+                                        * default *)
     mutable skind: stmtkind;            (* The kind of statement *)
 
     (* Now some additional control flow information *)
@@ -415,21 +416,21 @@ and stmtkind =
                                           * "else" branches. Both branches 
                                           * fall-through to the successor of 
                                           * the If statement *)
-  | Switch of (exp list * block) list * location  
-                                        (* A switch statement. "Switch cases" 
-                                         * is a switch statement with a 
-                                         * number of cases equal to 
-                                         * "List.length cases" (including the 
-                                         * default case). Each case 
-                                         * contains a list of values for 
-                                         * which it is taken. The list of 
-                                         * values is empty for the default 
-                                         * case. All cases fall-through to 
-                                         * the successors of the Switch. If 
-                                         * we have cases that fall-through to 
-                                         * other cases, we replace that with 
-                                         * explicit goto's *)
+  | Switch of exp * block * (stmt list) * location  
+                                        (* A switch statement. The block 
+                                         * contains within all of the cases. 
+                                         * We also have direct pointers to the 
+                                         * statements that implement the 
+                                         * cases. Which cases they implement 
+                                         * you can get from the labels of the 
+                                         * statement *)
+
   | Loop of block * location            (* A "while(1)" loop *)
+
+and label = 
+    Label of string * location          (* A real label *)
+  | Case of int * location              (* A case statement *)
+  | Default of location                 (* A default statement *)
 
 
 type fundec =

@@ -2362,7 +2362,7 @@ let rec boxstmt (s : ostmt) : ostmt =
     match s with 
       Sequence sl -> mkSeq (List.map boxstmt sl)
           
-    | (Label _ | Gotos _ | Case _ | Default | Skip |
+    | (Labels _ | Gotos _ | Cases _ | Defaults | Skip |
       Returns (None, _) | Break | Continue) -> s
           
     | Loops s -> Loops (boxstmt s)

@@ -315,7 +315,7 @@ module StatementChunk =
         
 
     (* Add a label to the beginning of a chunk *)
-    let consLabel l c = s2c (Label l :: c2s c)
+    let consLabel l c = s2c (Labels l :: c2s c)
         
     let mkStatement (c: chunk) : ostmt = mkSeq (c2s c)
         
@@ -334,7 +334,7 @@ module StatementChunk =
       s2c [Loops (mkStatement body)]
 
 
-    let gotoChunk (l: string) : chunk = 
+    let gotoChunk (l: string) (loc: location) : chunk = 
       s2c [Gotos l]
 
     let returnChunk (what: exp option) (l: location) : chunk = 
@@ -344,10 +344,10 @@ module StatementChunk =
       s2c [IfThenElse(b, mkStatement t, mkStatement e, l)]
         
     let caseChunk (i: int) (l: location) (next: chunk) = 
-      s2c (Case (i,lu) :: (c2s next))
+      s2c (Cases (i,lu) :: (c2s next))
         
-    let defaultChunk (next: chunk) = 
-      s2c (Default :: c2s next)
+    let defaultChunk (l: location) (next: chunk) = 
+      s2c (Defaults :: c2s next)
         
     let switchChunk (e: exp) (body: chunk) (l: location) = 
       (s2c [Switchs (e, mkStatement body, l)])
@@ -360,9 +360,9 @@ module StatementChunk =
         | Sequence sl -> costMany sl
         | Loops stmt -> 100
         | IfThenElse (_, _, _, _) | Block _ -> 100
-        | Label _ -> 10000
+        | Labels _ -> 10000
         | Switchs _ -> 100
-        | (Gotos _|Returns _|Case _|Default|Break|Continue|Instrs _) -> 1
+        | (Gotos _|Returns _|Cases _|Defaults|Break|Continue|Instrs _) -> 1
       and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
       in
       costMany (c2s c) <= 3
@@ -370,7 +370,7 @@ module StatementChunk =
     let canDrop (c: chunk) = (* We can drop a statement only if it does not 
                                 * contain label definitions  *)
       let rec dropOne = function
-          (Skip | Gotos _ | Returns _| Case _ | Default | 
+          (Skip | Gotos _ | Returns _| Cases _ | Defaults | 
           Break | Continue | Instrs _) -> true
         | Sequence sl -> List.for_all dropOne sl
         | _ -> false
@@ -389,16 +389,24 @@ module BlockChunk =
         fixbreak: stmt -> unit;         (* A function that will fix all the 
                                          * Goto due to Break statements *)
         fixcont: stmt -> unit;          (* Same for Continue statements *)
+
+                                        (* A list of case statements at the 
+                                         * outer level *)
+        cases: (label * stmt) list
       } 
 
     let empty = 
-      { stmts = []; postins = []; 
+      { stmts = []; postins = []; cases = [];
         fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) }
 
     let isEmpty (c: chunk) = 
       c.postins == [] && c.stmts == []
+
     let isNotEmpty (c: chunk) = not (isEmpty c)
-      
+
+    let i2c (i: instr) (l: location) = 
+      { empty with postins = [(i, l)] }
+        
     (* Occasionally, we'll have to push postins into the statements *)
     let pushPostIns (c: chunk) : stmt list = 
       if c.postins = [] then c.stmts
@@ -431,17 +439,30 @@ module BlockChunk =
         postins = c2.postins;
         fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
         fixcont = (fun b -> c1.fixcont b; c2.fixcont b); 
+        cases = c1.cases @ c2.cases;
       } 
 
     let skipChunk = empty
         
+    let returnChunk (e: exp option) (l: location) : chunk = 
+      { stmts = [ mkStmt (Return(e, l)) ];
+        postins = [];
+        fixcont = (fun _ -> ());
+        fixbreak = (fun _ -> ());
+        cases = []
+      }
+
     let ifChunk (be: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
       
       { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
         postins = [];
         fixbreak = (fun b -> t.fixbreak b; e.fixbreak b);
         fixcont = (fun b -> t.fixcont b; e.fixcont b);
+        cases = t.cases @ e.cases;
       } 
+
+    let canDuplicate (c: chunk) = false
+    let canDrop (c: chunk) = false
 
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
@@ -450,11 +471,12 @@ module BlockChunk =
       body.fixcont loop;
       (* Now add a new statement at the end as the target of break *)
       let n = mkEmptyStmt () in
-      body.fixcont n;
+      body.fixbreak n;
       { stmts = [ loop; n ];
         postins = [];
         fixbreak = (fun b -> ());
         fixcont = (fun b -> ());
+        cases = body.cases;
       } 
       
     let breakChunk (l: location) : chunk = 
@@ -463,7 +485,8 @@ module BlockChunk =
       { stmts = [ mkStmt (Goto (bref, l)) ];
         postins = [];
         fixbreak = (fun b -> bref := b);
-        fixcont  = (fun c -> ())
+        fixcont  = (fun c -> ());
+        cases = [];
       } 
       
     let continueChunk (l: location) : chunk = 
@@ -472,7 +495,8 @@ module BlockChunk =
       { stmts = [ mkStmt (Goto (bref, l)) ];
         postins = [];
         fixcont = (fun b -> bref := b);
-        fixbreak  = (fun c -> ())
+        fixbreak  = (fun c -> ());
+        cases = [];
       } 
 
         (* Keep track of the gotos *)
@@ -506,19 +530,23 @@ module BlockChunk =
           end)
         backPatchGotos
 
+        (* Get the first statement in a chunk. Might need to change the 
+         * statements in the chunk *)
+    let getFirstInChunk (c: chunk) : stmt * block = 
+      (* Get the first statement and add the label to it *)
+      match c.stmts with
+        s :: _ -> s, c.stmts
+      | [] -> (* Add a statement *)
+          let n = mkEmptyStmt () in
+          n, n :: c.stmts
+      
     let consLabel (l: string) (c: chunk) : chunk = 
       (* Get the first statement and add the label to it *)
-      let c', labstmt = 
-        match c.stmts with
-          s :: _ -> s.label <- Some l; c, s
-        | [] -> (* Add a statement *)
-            let n = mkEmptyStmt () in
-            n.label <- Some l;
-            let c' = {c with stmts = [ n ]} in
-            c', n
-      in
+      let labstmt, stmts' = getFirstInChunk c in
+      (* Add the label *)
+      labstmt.labels <- Label (l, lu) :: labstmt.labels;
       H.add labelStmt l labstmt;
-      c'
+      if c.stmts == stmts' then c else {c with stmts = stmts'}
 
     let gotoChunk (ln: string) (l: location) : chunk = 
       let gref = ref dummyStmt in
@@ -526,9 +554,43 @@ module BlockChunk =
       { stmts = [ mkStmt (Goto (gref, l)) ];
         postins = [];
         fixbreak = (fun b -> ());
-        fixcont = (fun b -> ()) }
+        fixcont = (fun b -> ());
+        cases = [];
+      }
 
-            
+    let caseChunk (i: int) (l: location) (next: chunk) = 
+      let fst, stmts' = getFirstInChunk next in
+      let lb = Case (i, l) in
+      fst.labels <- lb :: fst.labels;
+      { next with stmts = stmts'; cases = (lb, fst) :: next.cases}
+        
+    let defaultChunk (l: location) (next: chunk) = 
+      let fst, stmts' = getFirstInChunk next in
+      let lb = Default l in
+      fst.labels <- lb :: fst.labels;
+      { next with stmts = stmts'; cases = (lb, fst) :: next.cases}
+
+        
+    let switchChunk (e: exp) (body: chunk) (l: location) =
+      (* Make the statement *)
+      let switch = mkStmt (Switch (e, pushPostIns body, 
+                                   List.map (fun (_, s) -> s) body.cases, 
+                                   l)) in
+      (* Now add a new statement at the end as the target of break *)
+      let n = mkEmptyStmt () in
+      body.fixbreak n;
+      { stmts = [ switch; n ];
+        postins = [];
+        fixbreak = (fun b -> ());
+        fixcont = body.fixcont;
+        cases = [];
+      } 
+
+    let mkFunctionBody (c: chunk) : ostmt = 
+      if c.cases <> [] then
+        E.s (E.bug "Swtich cases not inside a switch statement\n");
+      Block (pushPostIns c)
+      
   end
 
 open StatementChunk
@@ -559,7 +621,7 @@ let continueOrLabelChunk (l: location) : chunk =
         incr labelId;
         lr := "Cont" ^ (string_of_int !labelId)
       end;
-      gotoChunk !lr
+      gotoChunk !lr l
 
 let consLabContinue (c: chunk) = 
   match !continues with
@@ -1976,7 +2038,7 @@ and doCondition (e: A.expression)
         else begin
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (gotoChunk lab, consLabel lab sf)
+          (gotoChunk lab lu, consLabel lab sf)
         end
       in
       let st' = doCondition e2 st sf1 in
@@ -1989,9 +2051,10 @@ and doCondition (e: A.expression)
         if canDuplicate st then
           (st, st)
         else begin
+
           incr labelId;
           let lab = "L" ^ (string_of_int !labelId) in
-          (gotoChunk lab, consLabel lab st)
+          (gotoChunk lab lu, consLabel lab st)
         end
       in
       let st' = st1 in
@@ -2290,12 +2353,12 @@ and doStatement (s : A.statement) : chunk =
         in
         caseChunk i lu (doStatement s)
                     
-    | A.DEFAULT s -> defaultChunk (doStatement s)
+    | A.DEFAULT s -> defaultChunk lu (doStatement s)
                      
     | A.LABEL (l, s) -> 
         consLabel l (doStatement s)
                      
-    | A.GOTO l -> gotoChunk l
+    | A.GOTO l -> gotoChunk l lu
           
     | A.ASM (tmpls, isvol, outs, ins, clobs) -> 
       (* Make sure all the outs are variables *)
