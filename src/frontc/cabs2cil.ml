@@ -2189,8 +2189,42 @@ and doDecl : A.definition -> chunk = function
       let stmts = doNameGroup createLocal ng in
       List.fold_left (fun acc c -> acc @@ c) empty stmts
         
+  | A.TYPEDEF ng -> doTypedef ng; empty
+
+  | A.ONLYTYPEDEF (bt, _, _) -> doOnlyTypedef bt; empty
+
   | _ -> E.s (E.unimp "doDecl")
+
+and doTypedef (ng: A.name_group) = 
+  let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
+    try
+      let newTyp = doType (doAttrList a) nbt in
+            (* Create a new name for the type *)
+      let n' = newAlphaName "type" n in
+      let namedTyp = TNamed(n', newTyp, []) in
+            (* Register the type. register it as local because we might be in 
+             * a local context *)
+      addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
+      theFile := GType (n', newTyp, lu) :: !theFile
+    with e -> begin
+      ignore (E.log "Error on A.TYPEDEF (%s)\n"
+                (Printexc.to_string e));
+      theFile := GAsm ("booo_typedef:" ^ n, lu) :: !theFile
+    end
+  in
+  ignore (doNameGroup createTypedef ng)
     
+
+and doOnlyTypedef (bt: A.base_type) : unit = 
+  try
+    let newTyp = doType [] bt in
+          (* doType will register the type. Put a special GType in the file *)
+    theFile := GType ("", newTyp, lu) :: !theFile
+  with e -> begin
+    ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
+              (Printexc.to_string e));
+    theFile := GAsm ("booo_typedef", lu) :: !theFile
+  end
 
 and doAssign (lv: lval) : exp -> chunk = function   
                              (* We must break the compound assignment into 
@@ -2399,37 +2433,12 @@ let convFile fname dl =
   in
   (* Now do the globals *)
   let doOneGlobal = function
-      A.TYPEDEF ng -> 
-        let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
-          try
-            let newTyp = doType (doAttrList a) nbt in
-            (* Create a new name for the type *)
-            let n' = newAlphaName "type" n in
-            let namedTyp = TNamed(n', newTyp, []) in
-            (* Register the type *)
-            addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
-            theFile := GType (n', newTyp, lu) :: !theFile
-          with e -> begin
-            ignore (E.log "Error on A.TYPEDEF (%s)\n"
-                      (Printexc.to_string e));
-            theFile := GAsm ("booo_typedef:" ^ n, lu) :: !theFile
-          end
-        in
-        ignore (doNameGroup createTypedef ng)
+      A.TYPEDEF ng -> doTypedef ng
 
     | A.ONLYTYPEDEF (A.NO_TYPE, _, _) -> ()
 
-    | A.ONLYTYPEDEF (bt,_,_) -> begin
-        try
-          let newTyp = doType [] bt in
-          (* doType will register the type. Put a special GType in the file *)
-          theFile := GType ("", newTyp, lu) :: !theFile
-        with e -> begin
-          ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
-                    (Printexc.to_string e));
-          theFile := GAsm ("booo_typedef", lu) :: !theFile
-        end
-    end
+    | A.ONLYTYPEDEF (bt,_,_) -> doOnlyTypedef bt
+
     | A.DECDEF ng -> 
         ignore (doNameGroup createGlobal ng)
           

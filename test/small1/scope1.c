@@ -17,5 +17,5 @@ int main(int *l2) {
     } z;
     return l1 + l2 + l3;
   }
-  *l2 = l3 + l1;
+  *l2 = l3 + l1;s
 }
