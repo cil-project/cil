@@ -657,89 +657,14 @@ apachesetup:
 
 APATCH := $(STANDARDPATCH) --includedir=$(APACHEBASE)/include
 
-apache/urlcount : 
-	rm -f $(APACHETEST)/mod_urlcount.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
+apache/% : $(APACHETEST)/mod_%.c
+	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
+	cd $(APACHETEST) ; $(CCURED) \
                        --keep=. $(APATCH) \
                         $(CFLAGS) \
                         $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_urlcount.$(OBJEXT) \
-                        mod_urlcount.c
-
-apache/layout : 
-	rm -f $(APACHETEST)/mod_layout.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_layout.$(OBJEXT) \
-                        mod_layout.c
-
-apache/random : 
-	rm -f $(APACHETEST)/mod_random.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_random.$(OBJEXT) \
-                        mod_random.c
-
-apache/info : 
-	rm -f $(APACHETEST)/mod_info.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_info.$(OBJEXT) \
-                        mod_info.c
-
-apache/info_company : 
-	rm -f $(APACHETEST)/mod_info_company.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) --logwrites --logcalls --usecil --cilout=mod_info_companycil.c \
-                       --keep=. \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_info_company.$(OBJEXT) \
-                        mod_info_company.c
-
-apache/gzip : 
-	rm -f $(APACHETEST)/mod_gzip.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_gzip.$(OBJEXT) \
-                        mod_gzip.c
-
-apache/gzipsmall : 
-	rm -f $(APACHETEST)/mod_gzipsmall.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(CONLY) $(OBJOUT)./mod_gzipsmall.$(OBJEXT) \
-                        mod_gzipsmall.c
-
-apache/t : 
-	rm -f $(APACHETEST)/t.obj
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(APACHECFLAGS) \
-                        $(OBJOUT)./t.obj \
-                        t.c
-
-apache/rewrite: 
-	rm -f $(APACHETEST)/mod_gzip.$(OBJEXT)
-	cd $(APACHETEST); $(CCURED) \
-                       --keep=. $(APATCH) \
-                        $(CFLAGS) \
-                        $(APACHECFLAGS) \
-                        $(OBJOUT)./mod_rewrite.$(OBJEXT) \
-                        $(APACHEBASE)/modules/standard/mod_rewrite.c
-
-
-
-
+                        $(CONLY) $(OBJOUT)./mod_$*.$(OBJEXT) \
+                        mod_$*.c
 
 # sm: removed CFLAGS since I want to specify optimization in the
 # benchmark's Makefile (helps to ensure consistency between the
