@@ -2935,44 +2935,9 @@ let boxFile file =
             (* If the type has changed and this is a global function then we 
              * also change its name  *)
             fixupGlobName f.svar;
-            (* Fixup the types of the locals  *)
-            List.iter 
-              (fun l -> 
-                let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
-                l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
-                l.vtype <- fixupType newt;
-                if mustBeTagged l then
-                  l.vtype <- tagType l.vtype;
-                (* ignore (E.log "Local %s: %a. A=%a\n" l.vname
-                          d_plaintype l.vtype
-                          (d_attrlist true) l.vattr); *)
-            (* sm: eliminate the annoying warnings about taking the address
-             * of a 'register' variable, by removing the 'register' storage
-             * class for any variable with 'wild' attribute and 'named' type *)
-                begin
-                  if (l.vstorage = Register) then
-                    match l.vtype with
-                      TNamed(_,_,al) ->
-                        if (hasAttribute "wild" al) then begin
-                          (trace "reg-remove"
-                             (dprintf "removing register keyword from %s\n"
-                                l.vname));
-                          l.vstorage <- NoStorage
-                        end
-                    |
-                      _ -> ()
-                end;
-                )
-              f.slocals;
-        (* We fix the formals *)
-            List.iter (fun l -> 
-              l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
-              l.vtype <- fixupType l.vtype) f.sformals;
-            currentFunction := f;           (* so that maxid and locals can be
-                                               * updated in place *)
-        (* Check that we do not take the address of a formal. If we actually
-           * do then we must make that formal a true local and create another
-           * formal *)
+            (* Check that we do not take the address of a formal. If we 
+             * actually do then we must make that formal a true local and 
+             * create another formal  *)
             let newformals, newbody =
               let rec loopFormals = function
                   [] -> [], [f.sbody]
@@ -2993,6 +2958,41 @@ let boxFile file =
               loopFormals f.sformals
             in
             setFormals f newformals;
+            (* We fix the formals *)
+            List.iter (fun l -> 
+              l.vattr <- N.replacePtrNodeAttrList N.AtVar l.vattr;
+              l.vtype <- fixupType l.vtype) f.sformals;
+            (* Fixup the types of the locals  *)
+            List.iter 
+              (fun l -> 
+                let newa, newt = moveAttrsFromDataToType l.vattr l.vtype in
+                l.vattr <- N.replacePtrNodeAttrList N.AtVar newa;
+                l.vtype <- fixupType newt;
+                if mustBeTagged l then
+                  l.vtype <- tagType l.vtype;
+                (* ignore (E.log "Local %s: %a. A=%a\n" l.vname
+                   d_plaintype l.vtype
+                   (d_attrlist true) l.vattr); *)
+            (* sm: eliminate the annoying warnings about taking the address
+             * of a 'register' variable, by removing the 'register' storage
+             * class for any variable with 'wild' attribute and 'named' type *)
+                begin
+                  if (l.vstorage = Register) then
+                    match l.vtype with
+                      TNamed(_,_,al) ->
+                        if (hasAttribute "wild" al) then begin
+                          (trace "reg-remove"
+                             (dprintf "removing register keyword from %s\n"
+                                l.vname));
+                          l.vstorage <- NoStorage
+                        end
+                    |
+                      _ -> ()
+                end;
+                )
+              f.slocals;
+            currentFunction := f;           (* so that maxid and locals can be
+                                               * updated in place *)
             f.sbody <- mkSeq newbody;
         (* Do the body *)
             let boxbody = boxstmt f.sbody in
