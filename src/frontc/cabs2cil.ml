@@ -17,17 +17,27 @@ let theFile : global list ref = ref []
 
 (* The environment is kept in two distinct data structures. A hash table maps 
  * each original variable name into a varinfo. (Note that the varinfo might 
- * contain an alpha-converted name.) The Ocaml hash tables can keep multiple 
- * mappings for a single key. Each time the last mapping is returned and upon 
- * deletion the old mapping is restored. To keep track of local scopes we 
- * also maintain a list of scopes (represented as lists). *)
+ * contain an alpha-converted name different from that of the lookup name.) 
+ * The Ocaml hash tables can keep multiple mappings for a single key. Each 
+ * time the last mapping is returned and upon deletion the old mapping is 
+ * restored. To keep track of local scopes we also maintain a list of scopes 
+ * (represented as lists). *)
+type envdata = 
+    EnvVar of varinfo                   (* The name refers to a variable 
+                                         * (which could also be a function) *)
+  | EnvEnum of exp * typ                (* The name refers to an enumeration 
+                                         * tag for which we know the value 
+                                         * and the host type *)
 
-let env : (string, varinfo) H.t = H.create 307
+let env : (string, envdata) H.t = H.create 307
 
  (* In the scope we keep the original name, so we can remove them from the 
   * hash table easily *)
 let scopes :  string list ref list ref = ref []
 
+
+
+  
 
  (* We also keep a hash table of the new variable names so that we can verify 
   * that the new names we are creating are indeed new. We add all globals 
@@ -92,12 +102,19 @@ let exitScope () =
   loop !this
 
 (* Lookup a variable name. Might raise Not_found *)
-let lookup n = H.find env n 
-
+let lookupVar n = 
+  match H.find env n with
+    EnvVar vi -> vi
+  | _ -> raise Not_found
+        
 let docEnv () = 
-  let acc : (string * varinfo) list ref = ref [] in
+  let acc : (string * envdata) list ref = ref [] in
+  let doone () = function
+      EnvVar vi -> text vi.vname
+    | EnvEnum (tag, typ) -> text ("enum tag")
+  in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
-  docList line (fun (k, d) -> dprintf "  %s -> %s" k d.vname) () !acc
+  docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
 
 (* Create a new variable ID *)
@@ -137,13 +154,13 @@ let docAlphaTable () =
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
-let alphaConvertAndAddToEnv (addtoenv: bool) vi = 
+let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo = 
   let newname = newVarName vi.vname in
   let newvi = 
     if vi.vname = newname then vi else 
     {vi with vname = newname; 
              vid = if vi.vglob then H.hash newname else vi.vid} in
-  if addtoenv then H.add env vi.vname newvi; 
+  if addtoenv then H.add env vi.vname (EnvVar newvi); 
   if not vi.vglob then begin
     locals := newvi :: !locals;
     if addtoenv then
@@ -154,6 +171,21 @@ let alphaConvertAndAddToEnv (addtoenv: bool) vi =
   (* ignore (E.log "After adding %s alpha table is: %t\n"
             newvi.vname docAlphaTable); *)
   newvi
+
+(* Add a new environment tag. Do alpha-conversion if necessary *)
+let alphaConvertEnumTagAndAddToEnv (addtoenv: bool) 
+                                   (n: string)
+                                   (tag: exp) (host: typ) : string = 
+  let newname = newVarName n in
+  if addtoenv then begin
+    H.add env n (EnvEnum (tag, host));
+    (* If we are in a scope, then it means we are not at top level. Add the 
+     * name to the scope *)
+    (match !scopes with
+        [] -> ()
+    | s :: _ -> s := n :: !s)
+  end;
+  newname
 
   
 
@@ -169,7 +201,7 @@ let newTempVar typ =
       (dropAttribute (dropAttribute a (AId("const")))
          (AId("restrict")))
   in
-  alphaConvertAndAddToEnv false  (* Do not add to the environment *)
+  alphaConvertVarAndAddToEnv false  (* Do not add to the environment *)
     { vname = "tmp";  (* addNewVar will make the name fresh *)
       vid   = newVarId "tmp" false;
       vglob = false;
@@ -273,20 +305,6 @@ let findCompType kind n a =
 
 
 (**** Occasionally we see structs with no name and no fields *)
-(* Sometimes we need to lookup enum fields *)
-let enumFields : (string, (exp * typ)) H.t = H.create 17
-let recordEnumField n idx typ = 
-  try 
-    let (idx', typ') = H.find enumFields n in
-    if idx <> idx' then 
-      E.s (E.unimp "Enum key %s was encoutered before with index %a in type %a"
-             n d_exp idx' d_type typ')
-  with Not_found -> 
-    H.add enumFields n (idx, typ)
-
-let lookupEnumField n = 
-  H.find enumFields n                   (* might raise Not_found *)
-  
 
 
 module BlockChunk = 
@@ -646,9 +664,12 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
   | TInt _, TEnum _ -> (nt, e)
   | TEnum _, TEnum _ -> (nt, e)
 
-  | TBitfield _, (TInt _ | TEnum _)-> (nt, e)
+  | TBitfield _, (TInt _ | TEnum _ | TBitfield _)-> (nt, e)
   | (TInt _ | TEnum _), TBitfield _ -> (nt, e)
 
+
+    (* The expression is evaluated for its side-effects *)
+  | (TInt _ | TEnum _ | TBitfield _ | TPtr _ ), TVoid _ -> (ot, e)
 
   | _ -> E.s (E.unimp "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
 
@@ -675,7 +696,7 @@ let doNameGroup (sng: A.single_name -> 'a)
  * there exists already a definition *)
 let makeGlobalVarinfo (vi: varinfo) =
   try (* See if already defined *)
-    let oldvi = H.find env vi.vname in
+    let oldvi = lookupVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
     let _ = 
@@ -727,7 +748,7 @@ let makeGlobalVarinfo (vi: varinfo) =
   with Not_found -> begin (* A new one. It is a definition unless it is 
                            * Extern  *)
 
-    alphaConvertAndAddToEnv true vi, false
+    alphaConvertVarAndAddToEnv true vi, false
   end
 
 
@@ -771,7 +792,7 @@ and doAttr : A.attribute -> attribute = function
   | (s, el) -> 
       let attrOfVar n = 
         try 
-          let vi = lookup n in
+          let vi = lookupVar n in
           AVar vi
         with Not_found -> 
           AId n
@@ -892,11 +913,14 @@ and doType (a : attribute list) = function
 
   | A.ENUMDEF (n, eil) -> 
       if n = "" then E.s (E.bug "Missing enum tag");
+      let newTagName (kname: string) : string = 
+        (* Don't yet put the true tag and host type *)
+        alphaConvertEnumTagAndAddToEnv true kname zero voidType
+      in
       let rec loop i = function
           [] -> []
         | (kname, A.NOTHING) :: rest -> 
-            recordEnumField kname i intType;
-            (kname, i) :: loop (increm i 1) rest
+           (kname, (newTagName kname, i)) :: loop (increm i 1) rest
 
         | (kname, e) :: rest ->
             let i = 
@@ -904,14 +928,19 @@ and doType (a : attribute list) = function
                 c, e', _ when isEmpty c -> e'
               | _ -> E.s (E.unimp "enum with non-const initializer")
             in
-            recordEnumField kname i intType;
-            (kname, i) :: loop (increm i 1) rest
+            (kname, (newTagName kname, i)) :: loop (increm i 1) rest
       in
       let fields = loop zero eil in
-      let res = TEnum (n, fields, a) in
-      List.iter (fun (n,fieldidx) -> recordEnumField n fieldidx res) fields;
+      let res = TEnum (n, List.map (fun (_, x) -> x) fields, a) in
+      (* Now we have the real host type. Set the environment properly *)
+      List.iter
+        (fun (n, (newname, fieldidx)) -> 
+          H.remove env n;
+          H.add env n (EnvEnum (fieldidx, res)))
+        fields;
       recordTypeName ("enum " ^ n) res; 
       res
+
   | A.ATTRTYPE (bt, a') -> 
       let rec doAttribute = function
           (s, []) -> AId s
@@ -923,7 +952,7 @@ and doType (a : attribute list) = function
               | A.CONSTANT (A.CONST_STRING str) -> AStr str
               | A.VARIABLE n -> begin
                   try 
-                    AVar (lookup n)
+                    AVar (lookupVar n)
                   with Not_found -> 
                     AId n
                 end
@@ -1040,18 +1069,17 @@ and doExp (isconst: bool)    (* In a constant *)
 
     (* Do the potential lvalues first *)          
     | A.VARIABLE n -> begin
-        (* See if this is an enum field *)
+        (* Look up in the environment *)
         try 
-          let (idx, typ) = lookupEnumField n in
-          finishExp empty idx typ    (* It is *)
+          let envdata = H.find env n in
+          match envdata with
+            EnvVar vi -> 
+              finishExp empty (Lval(var vi)) vi.vtype
+          | EnvEnum (tag, typ) -> 
+            finishExp empty tag typ  
         with Not_found -> 
-          try                           (* It must be a real variable *)
-            let vi = lookup n in
-            finishExp empty (Lval(var vi)) vi.vtype
-          with Not_found -> begin 
-            ignore (E.log "Cannot resolve variable %s.\n" n);
-            raise Not_found
-          end
+          ignore (E.log "Cannot resolve variable %s.\n" n);
+          raise Not_found
     end
     | A.INDEX (e1, e2) -> begin
         (* Recall that doExp turns arrays into StartOf pointers *)
@@ -1605,7 +1633,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                          * takes INTs as arguments  *)
             A.VARIABLE n -> begin
               try
-                let vi = lookup n in
+                let vi = lookupVar n in
                 (empty, Lval(var vi), vi.vtype) (* Found. Do not use 
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
@@ -1777,27 +1805,31 @@ and doExp (isconst: bool)    (* In a constant *)
 
     | A.GNU_BODY b -> begin
         (* Find the last A.COMPUTATION *)
-        let rec findFirstStm = function
+        let rec findLastComputation = function
             A.BSTM s :: _  -> 
               let rec findLast = function
                   A.SEQUENCE (_, s) -> findLast s
                 | (A.COMPUTATION _) as s -> s
-                | _ -> E.s (E.unimp "Cannot find COMPUTATION in GNU_BODY\n")
+                | _ -> raise Not_found
               in
               findLast s
-          | _ :: rest -> findFirstStm rest
-          | [] -> E.s (E.unimp "Cannot find COMPUTATION in GNU_BODY\n")
+          | _ :: rest -> findLastComputation rest
+          | [] -> raise Not_found
         in
         (* Save the previous data *)
         let old_gnu = ! gnu_body_result in
-        let lastComp = findFirstStm (List.rev b) in
+        let lastComp, isvoidbody = 
+          try findLastComputation (List.rev b), false 
+          with Not_found -> A.NOP, true
+        in
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
         gnu_body_result := (lastComp, data);
         let se = doBody b in
         gnu_body_result := old_gnu;
         match !data with
-          None -> E.s (E.unimp "GNU_BODY did not end with a COMPUTATION")
+          None when isvoidbody -> finishExp se zero voidType
+        | None -> E.s (E.unimp "Cannot find COMPUTATION in GNU.body")
         | Some (e, t) -> finishExp se e t
     end
   with e -> begin
@@ -2064,7 +2096,7 @@ and createLocal = function
        * existing globals or locals from this function. Make it local 
        * temporarily so that it will be added to the scope cleanup tables *)
       vi.vglob <- false;
-      let vi = alphaConvertAndAddToEnv true vi in
+      let vi = alphaConvertVarAndAddToEnv true vi in
       vi.vglob <- true;
       let init = 
         if e = A.NOTHING then 
@@ -2082,7 +2114,7 @@ and createLocal = function
 
   | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
       let vi = makeVarInfo false locUnknown sname in
-      let vi = alphaConvertAndAddToEnv true vi in        (* Replace vi *)
+      let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       if e = A.NOTHING then
         skipChunk
       else begin
@@ -2151,7 +2183,7 @@ and doAssign (lv: lval) : exp -> chunk = function
           (* See if strncpy was already declared *)
           if not (H.mem env "strncpy") then begin
             theFile := GDecl (strncpyFun.svar, lu) :: !theFile;
-            H.add env "strncpy" strncpyFun.svar
+            H.add env "strncpy" (EnvVar strncpyFun.svar)
           end;
           i2c (Call(None, Lval (var strncpyFun.svar),
                     [ StartOf lv; e; SizeOf (lvt) ])) lu
@@ -2309,13 +2341,12 @@ let convFile fname dl =
   theFile := [];
   H.clear typedefs;
   H.clear compInfoNameEnv;
-  H.clear enumFields;
   (* Setup the built-ins *)
   let _ = 
     let fdec = emptyFunction "__builtin_constant_p" in
     let argp  = makeLocalVar fdec "x" intType in
     fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
-    alphaConvertAndAddToEnv true fdec.svar
+    alphaConvertVarAndAddToEnv true fdec.svar
   in
   (* Now do the globals *)
   let doOneGlobal = function
@@ -2355,64 +2386,67 @@ let convFile fname dl =
 
     | A.FUNDEF (((bt,st,(n,bt',funattr,_)) : A.single_name), 
                  (body : A.body)) -> 
-        begin
-          try
-           (* Reset the local identifier so that formals are created with the 
-            * proper IDs  *)
-            resetLocals ();
+        E.withContext
+          (fun _ -> dprintf "2cil: %s" n)
+          (fun _ ->
+            try
+             (* Reset the local identifier so that formals are created with 
+              * the proper IDs  *)
+              resetLocals ();
                                         (* Do the type *)
-            let (returnType, formals, isvararg, a) = 
-              match unrollType (doType [] bt') with 
-                TFun(rType, formals, isvararg, a) -> 
-                  (rType, formals, isvararg, a)
-              | x -> E.s (E.bug "non-function type: %a." d_type x)
-            in
-            (* Record the returnType for doStatement *)
-            currentReturnType   := returnType;
-            (* Setup the environment. Add the formals to the locals. Maybe 
-             * they need alpha-conv *)
-            startScope ();
-            let formals' = List.map (alphaConvertAndAddToEnv true) formals in
-            let ftype = TFun(returnType, formals', isvararg, a) in
-            (* Add the function itself to the environment. Just in case we 
-             * have recursion and no prototype.  *)
-            (* Make a variable out of it and put it in the environment *)
-            let thisFunctionVI, alreadyDef = 
-              makeGlobalVarinfo 
-                { vname = n;
-                  vtype = ftype;
-                  vglob = true;
-                  vid   = newVarId n true;
-                  vdecl = lu;
-                  vattr = doAttrList funattr;
-                  vaddrof = false;
-                  vstorage = doStorage st;
-                  vreferenced = false;   (* sm *)
-                }
-            in
-            if alreadyDef then
-              E.s (E.unimp "There is a definition already for %s" n);
-            currentFunctionVI := thisFunctionVI;
-            (* Now do the body *)
-            let s = doBody body in
-            (* Finish everything *)
-            exitScope ();
-            let (maxid, locals) = endFunction formals' in
-            let fdec = { svar     = thisFunctionVI;
-                         slocals  = locals;
-                         sformals = formals';
-                         smaxid   = maxid;
-                         sbody    = mkFunctionBody s;
-                       } 
-            in
-            setFormals fdec formals'; (* To make sure sharing is proper *)
-            theFile := GFun (fdec,lu) :: !theFile
-          with e -> begin
-            ignore (E.log "error in collectFunction %s: %s\n" 
-                      n (Printexc.to_string e));
-            theFile := GAsm("error in function ", lu) :: !theFile
-          end
-        end
+              let (returnType, formals, isvararg, a) = 
+                match unrollType (doType [] bt') with 
+                  TFun(rType, formals, isvararg, a) -> 
+                    (rType, formals, isvararg, a)
+                | x -> E.s (E.bug "non-function type: %a." d_type x)
+              in
+              (* Record the returnType for doStatement *)
+              currentReturnType   := returnType;
+              (* Setup the environment. Add the formals to the locals. Maybe 
+               * they need alpha-conv  *)
+              startScope ();
+              let formals' = List.map (alphaConvertVarAndAddToEnv true) 
+                  formals in
+              let ftype = TFun(returnType, formals', isvararg, a) in
+              (* Add the function itself to the environment. Just in case we 
+               * have recursion and no prototype.  *)
+              (* Make a variable out of it and put it in the environment *)
+              let thisFunctionVI, alreadyDef = 
+                makeGlobalVarinfo 
+                  { vname = n;
+                    vtype = ftype;
+                    vglob = true;
+                    vid   = newVarId n true;
+                    vdecl = lu;
+                    vattr = doAttrList funattr;
+                    vaddrof = false;
+                    vstorage = doStorage st;
+                    vreferenced = false;   (* sm *)
+                  }
+              in
+              if alreadyDef then
+                E.s (E.unimp "There is a definition already for %s" n);
+              currentFunctionVI := thisFunctionVI;
+              (* Now do the body *)
+              let s = doBody body in
+              (* Finish everything *)
+              exitScope ();
+              let (maxid, locals) = endFunction formals' in
+              let fdec = { svar     = thisFunctionVI;
+                           slocals  = locals;
+                           sformals = formals';
+                           smaxid   = maxid;
+                           sbody    = mkFunctionBody s;
+                         } 
+              in
+              setFormals fdec formals'; (* To make sure sharing is proper *)
+              theFile := GFun (fdec,lu) :: !theFile
+            with e -> begin
+              ignore (E.log "error in collectFunction %s: %s\n" 
+                        n (Printexc.to_string e));
+              theFile := GAsm("error in function ", lu) :: !theFile
+            end)
+          () (* argument of E.withContext *)
   in
   List.iter doOneGlobal dl;
   (* We are done *)

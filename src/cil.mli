@@ -133,7 +133,7 @@ and typ =
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
            (* name, tags with values, attributes. The tag list should be 
-            * non-empty. The tag values must be compile time constants  *)
+            * non-empty. The tag values must be compile-time constants  *)
   | TEnum of string * (string * exp) list * attribute list
 
   | TPtr of typ * attribute list        (* Pointer type. The attributes refer 

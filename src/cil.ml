@@ -742,7 +742,7 @@ let mkWhile (guard:exp) (body: stmt list) : stmt list =
   [ mkStmt (Loop (mkStmt (If(guard, 
                              [ mkEmptyStmt () ], 
                              [ mkStmt (Break lu)], lu)) ::
-                  body, lu)) ]
+                  compactBlock body, lu)) ]
 
 
 
@@ -1308,18 +1308,19 @@ and d_stmtkind (next: stmt) () = function
   | Goto (sref, _) -> d_goto !sref
   | Break _ -> text "break;"
   | Continue _ -> text "continue;"
+(*  | Instr [] -> text "/* empty block */" *)
   | Instr il -> 
       dprintf "@[%a@]" 
         (docList line (fun (i, l) -> d_instr () i)) il
   | If(be,t,[],_) -> 
       dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
-  | If(be,t,[{skind=Goto(gref,_)} as s],_) 
-      when s.labels == [] && !gref == next -> 
+  | If(be,t,[{skind=Goto(gref,_);labels=[]} as s],_) 
+      when !gref == next -> 
       dprintf "if@[ (%a)@!%a@]" d_exp be d_block t
   | If(be,[],e,_) -> 
       dprintf "if@[ (%a)@!%a@]" d_exp (UnOp(LNot,be,intType)) d_block e
-  | If(be,[{skind=Goto(gref,_)} as s],e,_) 
-      when s.labels == [] && !gref == next -> 
+  | If(be,[{skind=Goto(gref,_);labels=[]} as s],e,_) 
+      when !gref == next -> 
       dprintf "if@[ (%a)@!%a@]" d_exp  (UnOp(LNot,be,intType)) 
           d_block e
   | If(be,t,e,_) -> 
@@ -1327,11 +1328,37 @@ and d_stmtkind (next: stmt) () = function
         d_exp be d_block t d_block e
   | Switch(e,b,_,_) -> 
       dprintf "@[switch (%a)@!%a@]" d_exp e d_block b
+(*
+  | Loop(b, l) -> 
+      See if the first thing in the block is a "if e then skip else break"
+      let rec findBreakExp = function
   | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _) 
     when !gref == next && brk.labels == [] -> 
       dprintf "wh@[ile (%a)@!%a@]" d_exp e d_block rest
+*)          
   | Loop(b, _) -> 
-      dprintf "wh@[ile (1)@!%a@]" d_block b
+      (* Maybe the first thing is a conditional *)
+      try
+        let term, body =
+          let rec skipEmpty = function
+              [] -> []
+            | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
+            | x -> x
+          in
+          match skipEmpty b with
+            {skind=If(e,tb,fb,_)} :: rest -> begin
+              match skipEmpty tb, skipEmpty fb with
+                [], {skind=Break _} :: _  -> e, rest
+              | {skind=Break _} :: _, [] -> UnOp(LNot, e, intType), rest
+              | _ -> raise Not_found
+            end
+          | _ -> raise Not_found
+        in
+        dprintf "wh@[ile (%a)@!%a@]" d_exp term d_block body
+      with Not_found -> 
+        dprintf "wh@[ile (1)@!%a@]" d_block b
+
+        
 
 and d_goto (s: stmt) = 
   (* Grab one of the labels *)

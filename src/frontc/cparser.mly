@@ -388,7 +388,7 @@ let doOldParDecl (names: string list)
 %nonassoc 	ELSE
 
 
-%left   EXTENSION
+%nonassoc EXTENSION
 %left	COMMA
 %right	EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
 		AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
@@ -403,9 +403,9 @@ let doOldParDecl (names: string list)
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
 %left	STAR SLASH PERCENT CONST RESTRICT VOLATILE
-%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF
+%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF
 %left 	LBRACKET
-%left	DOT ARROW LPAREN LBRACE SIZEOF
+%left	DOT ARROW LPAREN LBRACE
 %right  NAMED_TYPE     /* We'll use this to handle redefinitions of 
                         * NAMED_TYPE as variables */
 %left   IDENT
