@@ -411,6 +411,8 @@ primary_expression:                     /*(* 6.5.1. *)*/
 		        {CONSTANT (fst $1), snd $1}
 |		paren_comma_expression  
 		        {smooth_expression (fst $1), snd $1}
+|               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
+                         { EXPR_PATTERN(fst $3), $1 }
 ;
 postfix_expression:                     /*(* 6.5.2 *)*/
 |               primary_expression     
@@ -463,6 +465,7 @@ unary_expression:   /*(* 6.5.3 *)*/
 		        {UNARY (NOT, fst $2), $1}
 |		TILDE cast_expression
 		        {UNARY (BNOT, fst $2), $1}
+|               AND_AND IDENT  { LABELADDR (fst $2), $1 }
 ;
 
 cast_expression:   /*(* 6.5.4 *)*/
@@ -569,31 +572,33 @@ conditional_expression:    /*(* 6.5.15 *)*/
 			{QUESTION (fst $1, $3, fst $5), snd $1}
 ;
 
+/*(* The C spec says that left-hand sides of assignment expressions are unary 
+ * expressions. GCC allows cast expressions in there ! *)*/
 
 assignment_expression:     /*(* 6.5.16 *)*/
 |               conditional_expression
                          { $1 }
-|		unary_expression EQ assignment_expression
+|		cast_expression EQ assignment_expression
 			{BINARY(ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression PLUS_EQ assignment_expression
+|		cast_expression PLUS_EQ assignment_expression
 			{BINARY(ADD_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression MINUS_EQ assignment_expression
+|		cast_expression MINUS_EQ assignment_expression
 			{BINARY(SUB_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression STAR_EQ assignment_expression
+|		cast_expression STAR_EQ assignment_expression
 			{BINARY(MUL_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression SLASH_EQ assignment_expression
+|		cast_expression SLASH_EQ assignment_expression
 			{BINARY(DIV_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression PERCENT_EQ assignment_expression
+|		cast_expression PERCENT_EQ assignment_expression
 			{BINARY(MOD_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression AND_EQ assignment_expression
+|		cast_expression AND_EQ assignment_expression
 			{BINARY(BAND_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression PIPE_EQ assignment_expression
+|		cast_expression PIPE_EQ assignment_expression
 			{BINARY(BOR_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression CIRC_EQ assignment_expression
+|		cast_expression CIRC_EQ assignment_expression
 			{BINARY(XOR_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression INF_INF_EQ assignment_expression	
+|		cast_expression INF_INF_EQ assignment_expression	
 			{BINARY(SHL_ASSIGN, fst $1, fst $3), snd $1}
-|		unary_expression SUP_SUP_EQ assignment_expression
+|		cast_expression SUP_SUP_EQ assignment_expression
 			{BINARY(SHR_ASSIGN, fst $1, fst $3), snd $1}
 ;
 
