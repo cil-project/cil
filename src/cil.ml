@@ -2068,12 +2068,12 @@ class removeTempsVis = object
 
     (traceOutdent "usedVar")
   end
-end;;
+end
 
 let removeUnusedTemps (file : file) =
 begin
   visitCilFile (new removeTempsVis) file
-end;;
+end
 
 
 (**

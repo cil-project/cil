@@ -441,7 +441,7 @@ type file =
                                          * part of globals and it is printed 
                                          * last. Use getGlobInit to 
                                          * create/get one *)
-    } ;;
+    } 
 	(* global function decls, global variable decls *)
 
 
@@ -459,7 +459,7 @@ class type cilVisitor = object
   method vfunc : fundec -> unit      (* function definition *)
   method vfuncPost : fundec -> unit  (*   postorder version *)
   method vglob : global -> unit      (* global (vars, types, etc.) *)
-end;;
+end
 
 
 (* Selects the proper integer kind *)
@@ -625,10 +625,10 @@ val iterExp: (exp -> unit) -> stmt -> unit
 
 
 (* visit all nodes in a Cil statement tree in preorder *)
-val visitCilStmt : cilVisitor -> stmt -> unit;;
+val visitCilStmt : cilVisitor -> stmt -> unit
 
 (* visit an entire file *)
-val visitCilFile : cilVisitor -> file -> unit;;
+val visitCilFile : cilVisitor -> file -> unit
 
 
    (* Make a local variable and add it to a function *)
@@ -703,7 +703,7 @@ val dropAttribute: attribute list -> attribute -> attribute list
 val filterAttributes: string -> attribute list -> attribute list
 
 (* true if the named attribute appears in the attribute list *)
-val hasAttribute: string -> attribute list -> bool;;
+val hasAttribute: string -> attribute list -> bool
 
 val typeAttrs: typ -> attribute list
 

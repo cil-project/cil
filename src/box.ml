@@ -1544,7 +1544,7 @@ let castTo (fe: fexp) (newt: typ)
       in
       match oldk, newkind with
         (* SCALAR, SAFE -> SCALAR, SAFE *)
-        (N.Scalar|N.Safe|N.String), 
+        (N.Scalar|N.Safe|N.String|N.ROString), 
         (N.Scalar|N.Safe|N.String|N.ROString) -> 
           (doe, L(newt, newkind, castP p))
 
