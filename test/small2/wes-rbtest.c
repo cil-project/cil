@@ -130,9 +130,6 @@ typedef long clock_t;
 void * SAFE  malloc(unsigned int);
 void * FSEQ  calloc_fseq(unsigned int, unsigned int);
 void         free(void * SAFE);
-#ifndef MANUALBOX
-#define calloc_rbnode calloc
-#endif
 
 int __cdecl dup(int);
 int __cdecl dup2(int, int);
@@ -410,7 +407,7 @@ static int printRBTree(RBNode *tree, U32 address) {
 
 char * FSEQ insertRB(RBNode **tree, U32 key, int datalen) {
   RBNode *x, *t;
-  x = (RBNode*)malloc(sizeof(*x) + datalen);
+  x = (RBNode*)malloc(sizeof(RBNode) + datalen);
   x->left = NULL;
   x->right = NULL;
   x->parent = NULL;
