@@ -9,6 +9,10 @@ let debug = false
 
 let checkReturn = true
 
+let coerceScalars = true   (* If true it will insert calls to 
+                            * __scalar2pointer when casting scalars to 
+                            * pointers. *)
+
 let lu = locUnknown
 
            (* After processing an expression, we create its type, a list of 
@@ -773,6 +777,14 @@ let getIOBFunction =
   theFile := GDecl fdec.svar :: !theFile;
   fdec
 
+(* A run-time function to coerce scalars into pointers. Scans the heap and 
+ * (in the future the stack) *)
+let coerceScalarFunction = 
+  let fdec = emptyFunction "__scalar2pointer" in
+  let argl = makeLocalVar fdec "l" ulongType in
+  fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
+  theFile := GDecl fdec.svar :: !theFile;
+  fdec
 
 (* Check if an offset contains a non-zero index *)
 let rec containsIndex = function
@@ -1260,7 +1272,15 @@ and castTo (fe: fexp) (newt: typ) (doe: stmt list) : stmt list * fexp =
                   d_exp e !currentFunction.svar.vname);
       let newp = 
         if typeSig lt = typeSig ptype then e else CastE (ptype, e, lu) in
-      (doe, F2 (newt, newp, CastE(voidPtrType, zero, lu)))
+      let newbase, doe' = 
+        if coerceScalars && not (isZero e) then
+          let tmp = makeTempVar !currentFunction voidPtrType in
+           Lval(var tmp),
+          doe @
+          [call (Some tmp) (Lval(var coerceScalarFunction.svar)) [ e ]]
+        else CastE(voidPtrType, zero, lu), doe
+      in
+      (doe', F2 (newt, newp, newbase))
   
   (* FAT -> LEAN *)
   | F1(oldt, e), false ->

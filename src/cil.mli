@@ -444,6 +444,8 @@ val mone: exp
 val voidType: typ
 val intType: typ
 val uintType: typ
+val longType: typ
+val ulongType: typ
 val charType: typ
 val charPtrType: typ
 val voidPtrType: typ
