@@ -1859,13 +1859,28 @@ let rec initForType
             acc
             comp.cfields
   end
+  | TComp comp -> (* UNION *)
+      (* Go into all fields and check that we do not have anything to 
+       * initialize *)
+      let doforunion off what acc =
+        E.s (E.unimp "Initialization inside a union (%s)\n"
+               (compFullName comp))
+      in
+      List.fold_left 
+        (fun acc fld -> 
+          initForType fld.ftype mkivar mustZero endo
+            doforunion
+            (fun off -> addrof (Field(fld, off)))
+            acc)
+        acc
+        comp.cfields
+      
   | TArray(bt, Some l, a) -> 
       if filterAttributes "nullterm" a <> [] && mustZero then begin
             (* Write a zero at the very end *)
         (match unrollType bt with
           TInt((IChar|ISChar|IUChar), _) -> ()
-        | _ -> E.s (E.unimp "NULLTERM array of base type %a"
-                      d_type bt));
+        | _ -> E.s (E.unimp "NULLTERM array of base type %a" d_type bt));
         doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
       end else
             (* Initialize all elements *)
@@ -1980,7 +1995,17 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
   let tmpp = makeTempVar !currentFunction ptrtype in
   let tmpvar = Lval(var tmpp) in
   let alloc = call (Some (tmpp, true)) f [ allocsz ] in
-      (* Save the pointer value *)
+  (* Adjust the allocation pointer *)
+  let adjust_ptr = 
+    match k with
+      N.Index | N.Wild -> 
+        mkSet (var tmpp) (doCast (BinOp(IndexPI, 
+                                        doCast tmpvar charPtrType, 
+                                        integer 4, charPtrType))
+                            ptrtype)
+    | _ -> Skip
+  in
+  (* Save the pointer value *)
   let assign_p = mkSet (Var vi, ptroff) tmpvar in
   (* And the base, if necessary *)
   let assign_base = 
@@ -1995,7 +2020,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
   let setsz = 
     match k with
       N.Wild | N.Index -> 
-        mkSet (Mem(BinOp(IndexPI, 
+        mkSet (Mem(BinOp(PlusA, 
                          CastE (uintPtrType, tmpvar),
                          mone, uintPtrType)), 
                NoOffset) 
@@ -2011,7 +2036,7 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
           call None
             (Lval (var checkZeroTagsFun.svar))
             [ tmpvar;                      (* base *)
-              nrdatabytes;                (* baselen *)
+              nrdatawords;                 (* basenrwords *)
               tmpvar;                      (* where to start *)
               nrdatabytes;                 (* size of area to zero *)
               zero (* offset *) ] ::
@@ -2080,7 +2105,8 @@ let pkAllocate (ai:  allocinfo) (* Information about the allocation function *)
         mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
     | _ -> Skip
   in
-  alloc :: assign_p :: assign_base :: setsz :: (init @ [assign_end])
+  alloc :: (* adjust_ptr :: *) assign_p :: 
+  assign_base :: setsz :: (init @ [assign_end])
 
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
@@ -2908,3 +2934,4 @@ let boxFile file =
       
 let customAttrPrint a = 
   Ptrnode.ptrAttrCustom false a
+
