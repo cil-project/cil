@@ -703,11 +703,18 @@ cleancompress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make clean
 
 LIDIR=$(SPECDIR)/130.li
-li: defaulttarget
-	cd $(LIDIR)/src; make build CC="$(SAFECC) --combine --keep=combine $(CONLY)" \ LD="$(SAFECC) --combine --keep=combine" 
+LISAFECC=$(SAFECC) --combine --keep=safeccout $(CONLY)
+li: defaulttarget mustbegcc
+	cd $(LIDIR)/src; \
+            make build CC="$(LISAFECC) $(CONLY)" \
+                       LD="$(LISAFECC)" 
 	$(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
+
+liclean: 
+	cd $(LIDIR)/src; make clean
+	cd $(LIDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
 
 liinfer: li
 	cd $(LIDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \

@@ -1674,10 +1674,7 @@ begin
     )
   | GDecl(v, _) -> (visitCilVarDecl vis v)
   | GVar (v, None, _) -> (ignore (vis#vvrbl v))
-  | GVar (v, Some e, _) -> (
-      (ignore (vis#vvrbl v));
-      (ignore (vis#vexpr e))
-    )
+  | GVar (v, Some e, _) -> ignore (vis#vvrbl v); visitCilExpr vis e
   | _ -> ()
 end
 
