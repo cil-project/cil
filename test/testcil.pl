@@ -67,6 +67,20 @@ my %commonerrors =
 
 my $inferbox = 4;
 
+# Start with a few tests that must be run first
+$TEST->newTest(
+    Name => "\@\@inittests0",
+    Dir => "..",
+    Cmd => "make defaulttarget RELEASE=");
+$TEST->newTest(
+    Name => "\@\@inittests1",
+    Dir => "..",
+    Cmd => "make defaulttarget RELEASE=1");
+$TEST->newTest(
+    Name => "\@\@inittests2",
+    Dir => "..",
+    Cmd => "make defaulttarget RELEASE=1 _GNUCC=1");
+    
 # Now add tests
 $TEST->add3Tests("btreetest", "", @runpattern);
    $TEST->addBadComment("btreetest-box", "crashes!!!");
