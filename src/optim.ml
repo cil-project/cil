@@ -415,98 +415,263 @@ let nullChecksOptim f =
 (* 	    (Just a visual marker)     	 			    '---'     *)
 (* 	       	       	       	       	 			       	      *)
 
+
+(******************************************************************************)
+(* A flag to totally disable this part of the optimizer *)
 let useRedundancyElimination = true
 
+(* Turn debugging on. This also produces some commentary in the #line dir'ves *)
+let amandebug = try (Sys.getenv "REDDBG") = "1" with _ -> false
+
+(* Dont actually remove the redundant CHECKs. Just keep them marked *)
+let amanDontRemove = try (Sys.getenv "REDDONTREMOVE") = "1" with _ -> false
+
+
+(******************************************************************************)
 (* Lattice values *)
-let latUnknown        = 0
-let latCheckNotNeeded = 1
-let latCheckNeeded    = 2
+type latticeType =
+    Unknown 
+  | NotNeeded 
+  | Live of varinfo   (* Its sufficient to just have one temp. variable store
+			 the live value of the CHECK, for non-void CHECK 
+			 functions. 
+			 The assumption here is that these temp. variables are
+			 not assigned any other value later *)			 
+  | Needed 
 
-let amandebug = false
-let amanDontRemove = amandebug && true
+(* I dont want to rely on the numbers that the compiler assigns to the types. *)
+type lattice     = {latWeight: int ; 
+		      latType: latticeType}
 
+(* Lattice values start from "unknown" and keep creeping towards "needed" *)
+let wtUNKNOWN   = 0
+let wtNOTNEEDED = 10
+let wtLIVE      = 20
+let wrNEEDED    = 30
+
+(* Constructors *)
+let latUnknown         = {latWeight = wtUNKNOWN;   latType = Unknown}
+let latCheckNotNeeded  = {latWeight = wtNOTNEEDED; latType = NotNeeded}
+let latLive v          = {latWeight = wtLIVE;      latType = Live v}
+let latCheckNeeded     = {latWeight = wrNEEDED;    latType = Needed}
+
+(* Instead of relying on the polymorphic min/max, I want to define the relations
+   precisely myself.
+   Both these functions return v1 if the arguments are equal.
+
+   We handle the comparision of Live specially. *)
+
+let lat_max v1 v2 =
+  if v1.latWeight = wtLIVE && v2.latWeight = wtLIVE 
+  then (if v1 = v2 then v1 else latCheckNeeded)
+  else if v1.latWeight >= v2.latWeight then v1 else v2
+
+let lat_min v1 v2 = 
+  if v1.latWeight = wtLIVE && v2.latWeight = wtLIVE 
+  then (if v1 = v2 then v1 else latUnknown)
+  else if v1.latWeight <= v2.latWeight then v1 else v2
+
+
+(* Just some stuff good for debugging *)
+let getLatValDescription = function
+    Unknown ->  "?"
+  | NotNeeded -> "X"
+  | Live var -> "X-" ^ var.vname
+  | Needed  -> "N"
+
+(* Just some stuff good for debugging *)
+let printLatVal n = Printf.printf " %s" (getLatValDescription n)
+
+
+
+(******************************************************************************)
+(* Produce debugging output with a REDDBG: prefix *)
+let pr s = Printf.printf  "REDDBG: "; Printf.printf s
+
+(* Returns the name of a function in a Call *)
+let getCallName = function
+    Call (_,Lval (Var f,_),_,_) -> f.vname
+  | Call _ -> "<some-function>"
+  | _ -> "<non-call>"
+
+(* Returns -1 if not found *)
+let find_in_array (array : 'a array) (element : 'a) : int =  
+  let ubound = Array.length array in
+  let rec findloop i =
+    if i >= ubound then -1 else
+    if array.(i) == element then i else findloop (i + 1)
+  in
+  findloop 0
+(******************************************************************************)
+
+(* Some statistics that we can use to brag about later *)
 let stats_removed = ref 0
 let stats_kept    = ref 0
 
-let pr s = Printf.printf  "REDDBG: "; Printf.printf s
-
-let rec eliminateRedundancy (f : fundec) : fundec =      (* Using let rec because I couldn't find let*  *)
+(* See comments in eliminateRedundancy *)
+let checkInstrs : instr array ref = ref [||]
+let checkProcessed : bool array ref = ref [||]
+let checkFlags : bool array ref = ref [||]
+let checkLvals : lval list ref = ref []
+let checkHasAliasedVar : bool ref = ref false
+(******************************************************************************)
+(* eliminateRedundancy:
+   This is the entry-point to the redundancy eliminator.
+*)
+let rec eliminateRedundancy (f : fundec) : fundec = 
   if useRedundancyElimination then begin
+
+    (* Number the nodes in some way. Doesn't matter for now *)
     let _ = numberNodes () in
-    if amandebug then  printCfgBlock ~showGruesomeDetails:false f.sbody;
-    flush stdout;
-    let cin = Array.make !numNodes latUnknown in
-    let cout = Array.make !numNodes latUnknown in
-    let checkInstrs : instr array  = filterChecks !nodeList in 
-    let countCheckInstrs = Array.length checkInstrs in
+
+     (*if amandebug then  printCfgBlock ~showGruesomeDetails:false f.sbody;*)
+     (*flush stdout;*)
+
+    (* The cin values corresponding to the nodes array *)
+    let cin = Array.make !numNodes latUnknown in   
+
+    (* The cout values as above *)
+    let cout = Array.make !numNodes latUnknown in  
+    
+    (* An array of all the CHECK instructions. They're all Call's *)
+    (* Right now, there is no good way to lookup the index of a known instr *)
+    checkInstrs := Array.of_list (filterChecks !nodeList);
+
+    (* The number of CHECK instructions *)
+    let countCheckInstrs = Array.length !checkInstrs in
+    
     if amandebug then pr "------- Function %s contains %d nodes and %d CHECKS\n" f.svar.vname !numNodes countCheckInstrs;
-    let checkFlags : bool  array = Array.make countCheckInstrs false in
-    let checkProcessed : bool array = Array.make countCheckInstrs false in
+
+    (* When processing a CHECK, I find all the other redundant CHECKs and flag them.
+       i.e. All the simultaneously flagged elements are identical, and good 
+       candidates for elimination *)
+    checkFlags := Array.make countCheckInstrs false;
+
+    (* Am I done? This should end up as an array of true's *)
+    checkProcessed := Array.make countCheckInstrs false;
+
+    (* Process each CHECK Call  *)
     for i=0 to (countCheckInstrs - 1) do
-      if not (checkProcessed.(i)) then begin
-	checkProcessed.(i) <- true;
-	if amandebug then pr "Processing %d\n" i;
-	markSimilar checkFlags checkInstrs i;
-	Array.iteri (fun i a -> checkProcessed.(i) <- checkProcessed.(i) || a) checkFlags;
+      if not (!checkProcessed.(i)) then begin (* Skip the already-processed ones *)
+	!checkProcessed.(i) <- true;
 
-	(* Reset cin, cout *)
-	Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
-
-	(* Set the entry point cin *)
-	(match f.sbody with
-	  h :: t -> cin.(h.sid) <- latCheckNeeded; 
-	    if amandebug then pr "Entry node = %d\n" h.sid
-	| _ -> ());
-
-	(* Find cin,cout, till fixed-point *)
-	let reachedFixedPoint = ref false in
-	let nIter = ref 0 in
-
-	while not !reachedFixedPoint do
-	  nIter := !nIter + 1;
-	  reachedFixedPoint := true;
-	  for i=0 to (!numNodes - 1) do
-	    let newCin = evalCin !nodes.(i) cout cin.(i) in
-	    if newCin != cin.(i) then reachedFixedPoint := false;
-	    cin.(i) <- newCin;
-	    let newCout = evalCout !nodes.(i) (max cin.(i) cout.(i)) checkInstrs checkFlags in
-	    if newCout != cout.(i) then reachedFixedPoint := false;
-	    cout.(i) <- newCout;	    
-	  done
-	done;
-
-	if amandebug then begin
-	  pr "Reached fixed point in %d iterations\n" !nIter;
-	  pr "Cin  = [";
-	  Array.iter (fun n -> Printf.printf " %d" n) cin;
-	  Printf.printf " ]\n";
-	  pr "Cout = [";
-	  Array.iter (fun n -> Printf.printf " %d" n) cout;
-	  Printf.printf " ]\n";
+	if amandebug then begin 
+	  pr "";
+	  ignore (printf "Processing %d: %a\n" i d_instr !checkInstrs.(i));
 	end;
 
-	(* Remove redundant CHECKs *)
-	for i=0 to (!numNodes - 1) do
-	  match !nodes.(i).skind with
-	    Instr instList -> !nodes.(i).skind <- Instr (removeRedundancies cin.(i) instList checkInstrs checkFlags i)
-	  | _ -> ()
-	done
-	
-      end
-      else
-	if amandebug then pr "Skipping %d\n" i
-    done;
-    ()
-  end;
-  f
+	(* Get a list of all the Lvals that are used in the arguments to
+	   the CHECK being processed *)
+	checkLvals := getCheckedLvals !checkInstrs.(i);
 
-and removeRedundancies at_least instList checkInstrs checkFlags node_number =
-  let rec removeRedundanciesRec at_least instList filteredList =
+	(* Look for an aliased variable somewhere in these lvals
+	   If one exists, then we'll have to be more conservative *)	  
+	checkHasAliasedVar := List.fold_right 
+	    (fun lv acc -> acc || (lvalHasAliasedVar lv))
+	    !checkLvals
+	    false;
+
+	if amandebug then begin
+	  pr "Lvals: ";
+	  List.iter (fun lv -> ignore (printf "%a " d_lval lv)) !checkLvals;
+	  ignore (printf "\n");
+	end;    
+
+        (* Flag the similar CHECKs. Skip ahead if there is nothing redundant *)
+	if (markSimilar i) <= 1 then 
+	  stats_kept := !stats_kept + 1
+	else begin
+	  (* Mark all the similar ones as "processed" *)
+	  Array.iteri (fun i a -> !checkProcessed.(i) <- !checkProcessed.(i) || a) !checkFlags;
+	  
+	  (* Reset cin, cout *)
+	  Array.iteri (fun i _ -> cin.(i) <- latUnknown ; cout.(i) <- latUnknown) cin;
+	  
+	  (* Set the cin for the entry point. We do need a check at this point *)
+	  (match f.sbody with
+	    h :: t -> cin.(h.sid) <- latCheckNeeded; 
+	      if amandebug then pr "Entry node = %d\n" h.sid
+	  | _ -> ());
+	  
+	  (* Find cin,cout, till fixed-point *)
+	  let reachedFixedPoint = ref false in
+	  let nIter = ref 0 in
+	  
+	  (* .. with utter disrespect to functional programming ... *)
+	  while not !reachedFixedPoint do 
+	    nIter := !nIter + 1;
+	    reachedFixedPoint := true;
+
+	    (* Update the cin and cout for each node and see if nothing changes *)
+	    for i=0 to (!numNodes - 1) do
+	      let newCin = evalCin !nodes.(i) cout cin.(i) in
+	      if newCin <> cin.(i) then reachedFixedPoint := false;
+	      cin.(i) <- newCin;
+	      let newCout = evalCout !nodes.(i) (lat_max cin.(i) cout.(i))  in
+	      if newCout <> cout.(i) then reachedFixedPoint := false;
+	      cout.(i) <- newCout;	    
+	    done; (* for *)
+
+	    (* Show that we're actually doing some real work in here *)
+	    if amandebug then begin
+	      pr "Cin  = [";
+	      Array.iter (fun n -> printLatVal n.latType) cin;
+	      Printf.printf " ]\n";
+	      pr "Cout = [";
+	      Array.iter (fun n -> printLatVal n.latType) cout;
+	      Printf.printf " ]\n";
+	    end;
+
+	  done; (* while *)
+	  
+	  if amandebug then pr "Reached fixed point in %d iterations\n" !nIter;
+
+	  (* Now, actually remove the redundant CHECKs *)
+	  for i=0 to (!numNodes - 1) do
+	    match !nodes.(i).skind with
+	      Instr instList -> (* CHECKs are only contained in instr lists *)
+		!nodes.(i).skind <- 
+		  Instr (removeRedundancies cin.(i) instList i)
+	    | _ -> ()
+	  done; (* for *)
+	  
+	end (* if markSimilar .. else ... *)
+      end (* if not checkProcessed *)
+      else
+	if amandebug then begin
+	  pr "";
+	  ignore (printf "Skipping %d: %a\n" i d_instr !checkInstrs.(i));
+	end
+    done; (* for i ... *)
+
+  end; (* if useRedundancyElimination ... *)
+  f (* Return the same thing, mutated *)
+
+
+
+(* removeRedundancies:
+   Use the cin information to eliminate redundant CHECKs.
+   As there is no cin/cout info stored inside the basic blocks (Instr),
+   they have to be computed from the cin of the node.
+
+   cin_start = the cin value at the beginning of the Instr
+   instList = the instruction list comprising the Instr
+   checkInstrs = the array of check instructions (to lookup the index of a CHECK)
+   checkFlags  = the array to see if the CHECK is a valid candidate for elim.n
+   node_number = index of the Instr in the nodes array ... just for debugging
+*)
+and removeRedundancies (cin_start : lattice) instList node_number =
+  (* The loop. 
+     cin_local = current cin value. 
+     instList = remaining instr's
+     The processed instr's are accumulated in filteredList  *)
+  let rec removeRedundanciesLoop (cin_local : lattice) instList filteredList =
     match instList with
-      [] -> List.rev filteredList
+      [] -> List.rev filteredList (* filteredList happens to be inverted *)
     | h :: t -> 
-	let index = find_in_array checkInstrs h in
-	if index >= 0 && checkFlags.(index) then begin	
+	(* Is this a candidate for elimination ? *)
+	let index = find_in_array !checkInstrs h in
+	if index >= 0 && !checkFlags.(index) then begin	
 	  let h2 = (* A debugging hack ... let the index be shown in the .c file in the line number info *)
 	    match h with 
 	      Call (p1,(Lval(Var f,p2)) ,p3,loc) when amandebug -> 
@@ -514,58 +679,133 @@ and removeRedundancies at_least instList checkInstrs checkFlags node_number =
 		Call (p1,Lval (Var f, p2),p3, 
 		      {loc with file = loc.file ^ "_$" ^ 
 			(string_of_int node_number) ^ "_" ^
-			(string_of_int index) ^  [| " ?" ; " XXXX" ; " @" |].(at_least) })
+			(string_of_int index) ^  (getLatValDescription cin_local.latType)})
 	    | _ -> h
 	  in
-	  if at_least == latCheckNotNeeded then begin
-	    if amandebug then pr "CHECK %d removed!\n" index;	  
-	    stats_removed := !stats_removed + 1;
-	    if amanDontRemove then
-	      removeRedundanciesRec latCheckNotNeeded t (h2 :: filteredList) 
-	    else
-	      removeRedundanciesRec latCheckNotNeeded t (filteredList) 
-	  end
-	  else begin
-	    if amandebug then pr "CHECK %d kept (lattice = %d)\n" index at_least;
-	    stats_kept := !stats_kept + 1;
-	    removeRedundanciesRec latCheckNotNeeded t (h2 :: filteredList) ;
-	  end
-	end
-	else 
-	  removeRedundanciesRec (max at_least (minLatticeValue h)) t (h :: filteredList) 
-  in
-  removeRedundanciesRec at_least instList []
+	  match cin_local.latType with (*------------------------------------------------------------*)
+	    Live var -> (* The value of this CHECK is already live in some var 
+			   We keep the cin value as it is *)
+	      stats_removed := !stats_removed + 1;
+	      if amandebug then 
+		pr "%s %d removed! (replaced by live var %s)\n" (getCallName h) index var.vname;	  
+	      if amanDontRemove 
+	      then removeRedundanciesLoop cin_local t (h2 :: filteredList) 
+	      else
+		(match h with 
+		  Call (Some (var2,_),_,_,loc) -> (* replace with an assignment: var2 = var *) 
+		    removeRedundanciesLoop cin_local t 
+		      ((Set ((Var var2, NoOffset), 
+			     Lval (Var var, NoOffset), loc)) :: filteredList)
+		| _ -> raise (Failure "non-Call in checkInstrs array"))
 
-and minLatticeValue (inst : instr) : int =
+	  | NotNeeded -> (* This CHECK has already been performed, and the result is live 
+			    We keep the cin value unchanged *)
+	      stats_removed := !stats_removed + 1;
+	      if amandebug then pr "%s %d removed!\n" (getCallName h) index;
+	      if amanDontRemove 
+	      then removeRedundanciesLoop cin_local t (h2 :: filteredList)	      
+	      else removeRedundanciesLoop cin_local t (filteredList) ;	      
+	
+	  | Unknown | Needed -> (* This CHECK can't be removed.
+				   We have to recompute cin. *)
+	      if amandebug then 
+		pr "%s %d kept (lattice = %s)\n" (getCallName h) 
+		  index (getLatValDescription cin_local.latType);
+	      stats_kept := !stats_kept + 1;
+	      (match h2 with
+		Call (Some (var,_),_,_,loc) ->
+		  if cin_local.latWeight = wtLIVE (* IMPORTANT: re-use the same live-variable *)
+		  then removeRedundanciesLoop cin_local t (h2 :: filteredList)
+		  else removeRedundanciesLoop (latLive var) t (h2 :: filteredList)
+	      |	Call (None,_,_,_) ->
+		  removeRedundanciesLoop latCheckNotNeeded t (h2 :: filteredList)
+	      |	_ -> raise (Failure "non-Call in checkInstrs array"))
+	end
+	else (* This instr is not a candidate for elimination.
+		It could be a Set, Call or Asm... so recompute the new cin.
+		Re-use the current cin as far as possible *)
+	  removeRedundanciesLoop (lat_max cin_local (minLatticeValue h)) t (h :: filteredList) 
+  in
+  removeRedundanciesLoop cin_start instList []
+
+
+(* minLatticeValue:
+   Compute the least possible lattice value for an instr
+   This instr is assumed to be not flagged. Flagged CHECK Calls must be 
+   processed specially.
+   This is a very subtle and important function
+*)
+and minLatticeValue (inst : instr) : lattice =
   match inst with
-    Set (lval,exp,_) -> latCheckNeeded
+    Set (lval,exp,_) -> 
+      if
+	((List.mem lval !checkLvals) || (* Directly modifying the argument to the CHECK *)
+	(!checkHasAliasedVar &&         (* Possibly, indirectly modifying *)
+	 (match lval with 
+	   (Mem _,_) | (_,Index _) | (_,Field _) -> true
+         | _ -> false)))
+      then latCheckNeeded
+      else latCheckNotNeeded
   | Call (None,Lval(Var f,_),args,_) -> 	
       if (isCheckCall_str f.vname) 
-      then  latCheckNotNeeded
-      else  latCheckNeeded
-  | Call (Some (var, varp),Lval(Var f,_),args,_) -> 
+      then  latCheckNotNeeded (* CHECK's are non-clobbering *)
+      else  latCheckNeeded    (* Other functions may clobber *)
+  | Call (Some (var, _),Lval(Var f,_),args,_) -> 
       if (isCheckCall_str f.vname) 
+      (*then  latLive var*) (* ??? *)
       then  latCheckNotNeeded
       else  latCheckNeeded
   | Call (None,func,args,_) ->  latCheckNeeded 
-  | Call (Some (var, varp),func,args,_) ->  latCheckNeeded
+  | Call (Some (var, _),func,args,_) ->  latCheckNeeded
   | Asm _ -> latCheckNeeded
  
-and evalCin (nd : stmt) cout at_least =
-  List.fold_right (fun a b -> max (cout.(a.sid)) b) nd.preds at_least
 
-and evalCout (nd : stmt) at_least checkInstrs checkFlags = (* TODO: Look at the args of the check *)
-  let rec evalCoutLoop (at_least : int) (instList : instr list)  = match instList with
-      [] -> at_least
+(* evalCin:
+   Evaluates the cin for a given CFG node.
+   cin = max (cout_predecessors) 
+   If two pred's have Live values in different variables, we choose Needed
+   as a safe upper-bound (see the lat_max function) *)
+and evalCin (nd : stmt) cout at_least =
+  List.fold_right 
+    (fun a b -> lat_max b cout.(a.sid)) 
+    nd.preds at_least
+
+
+(* evalCout:
+   Evaluates the cout for a given CFG node.
+   The calculation is based on the cin at the beginning of the same node and we 
+   have to iterate through all the instr's in the node.
+   The cout is reset to NotNeeded, or Live right after a check that is being
+   processed (flagged in checkFlags) *)
+and evalCout (nd : stmt) cin_start  = (* TODO: Look at the args of the check *)
+  let rec evalCoutLoop (cin_local : lattice) (instList : instr list)  = 
+    match instList with
+      [] -> cin_local
     | h :: t -> 
-	let index = find_in_array checkInstrs h in
-	if index >= 0 && checkFlags.(index) then evalCoutLoop (max at_least latCheckNotNeeded) t
-	else evalCoutLoop (max at_least (minLatticeValue h)) t
+	let index = find_in_array !checkInstrs h in
+	if index >= 0 && !checkFlags.(index)  (* Is this a flagged CHECK? *)
+	then 
+	  match !checkInstrs.(index) with
+	    Call (Some (var, _),_,_,_) -> 
+	      (* If some variable already holds a live value, use the same *)
+	      if cin_local.latWeight = wtLIVE 
+	      then evalCoutLoop cin_local t
+	      else evalCoutLoop (latLive var) t
+	  | Call (None,_,_,_) -> 
+	      evalCoutLoop latCheckNotNeeded t
+	  | _ -> raise (Failure "non-Call in checkInstrs array")
+	else 
+	  evalCoutLoop (lat_max cin_local (minLatticeValue h)) t
   in
   match nd.skind with
-    Instr instList -> evalCoutLoop at_least instList
-  | _ -> at_least	
+    Instr instList -> 
+      evalCoutLoop cin_start instList
+  | _ -> cin_start	
 
+
+(* numberNodes:
+   Use the nodeList and fill in the nodes array.
+   For any node n, nodes.(n.sid) == n *)
 and numberNodes () =
   let rec numberNodesRec (i : int) = function
       [] -> ()
@@ -579,7 +819,11 @@ and numberNodes () =
   numberNodesRec (!numNodes - 1) !nodeList 
 
 
-and filterChecks (stmts : stmt list) : instr array =
+(* filterChecks:
+   Process a list of stmt's, 
+   find the CHECK Calls in the Instr's inside them
+   and return an array of all such Calls found *)
+and filterChecks (stmts : stmt list) : instr list =
   let rec filterChecksLoop (stmts : stmt list) (instrs : instr list) (acc : instr list) =
   match instrs , stmts with (* Does this actually allocate a pair ? *)
     [], [] -> acc
@@ -587,29 +831,105 @@ and filterChecks (stmts : stmt list) : instr array =
   | [], _ :: t -> filterChecksLoop t [] acc
   | h :: t, _  -> filterChecksLoop stmts t (if (isCheckCall_instr h) then h::acc else acc)
   in
-  Array.of_list (filterChecksLoop stmts [] [])
+  filterChecksLoop stmts [] []
 
-and markSimilar (flags : bool array) (checkInstrs : instr array) (index : int) =
+(* markSimilar:
+   Set the values in the flags array to true if the corresponding check is similar to
+   checkInstrs.(index) and a candidate for being redundant *)
+and markSimilar (index : int) : int =
+  let count = ref 0 in
   Array.iteri 
-    (fun i chk -> flags.(i) <- isSimilar checkInstrs.(index) chk;
-      if (i != index) && (flags.(i)) then if amandebug then pr "%d == %d\n" index i)
-    checkInstrs (* Perhaps , we only need to iter thru index - (length-1) *)
+    (fun i chk -> !checkFlags.(i) <- isSimilar !checkInstrs.(index) chk;
+      if !checkFlags.(i) then count := !count + 1;
+      if (i != index) && (!checkFlags.(i)) 
+      then (if amandebug then pr "%d == %d\n" index i))
+    !checkInstrs; (* Perhaps , we only need to iter thru index - (length-1) *)
+  !count
 
+(* isSimilar:
+   markSimilar relies on this function to decide whether two CHECKs are simular
+   i.e. whether they do and return the same thing 
+
+   Two CHECKs are similar if they have the same function being called and
+   1. All arguments are identical, or
+   2. If its a CHECK_FETCHLENGTH and the second arguments are identical
+*)
 and isSimilar (a : instr) (b : instr) : bool =
   match a,b with
     Call (_,Lval(Var ax,_),argsa,_) , Call (_,Lval(Var bx,_),argsb,_) ->
       ax.vname = bx.vname &&
-      argsa = argsb
+      ((argsa = argsb) || 
+       (ax.vname = "CHECK_FETCHEND" && (List.tl argsa) = (List.tl argsb)) ||
+       (ax.vname = "CHECK_FETCHLENGTH" && (List.tl argsa) = (List.tl argsb)))   
   | _,_ -> false
 
-(* Returns -1 if not found ... letting the exception bubble through caused a segfault ?!?! *)
-and find_in_array (array : 'a array) (element : 'a) : int =  
-  let ubound = Array.length array in
-  let rec findloop i =
-    if i >= ubound then -1 else
-    if array.(i) == element then i else findloop (i + 1)
+
+(* getCheckedLvals:
+   Look at the arguments of a CHECK Call and returns a list of lvals
+   that this CHECK depends on.
+   Parent lvals are also returned with their offsets stripped off.
+   e.g. a.b[3] -> [a.b[3] ; a.b  ; a]
+   As long as the contents of these lvals dont change, the CHECK results remain
+   valid.
+   The returned list may contain duplicates
+*)
+and getCheckedLvals (check : instr) : lval list =
+  let rec getLvalsFromExp (e : exp) : lval list =
+    match e with 
+      Const _
+    | SizeOf _ 
+    | SizeOfE _
+    | AlignOf _
+    | AlignOfE _ -> []
+    | UnOp (_,e1,_) -> getLvalsFromExp e1
+    | BinOp (_,e1,e2,_) -> (getLvalsFromExp e1) @ (getLvalsFromExp e2)
+    | Question (e1,e2,e3) -> 
+	(getLvalsFromExp e1) @ (getLvalsFromExp e2) @ (getLvalsFromExp e3)
+    | CastE (_,e1) -> getLvalsFromExp e1
+    | AddrOf lv -> getLvalsFromExp (Lval lv)
+    | StartOf lv -> getLvalsFromExp (Lval lv)
+    | Lval ((Mem e1, NoOffset) as lv) -> lv :: (getLvalsFromExp e1)
+    | Lval ((Var v, NoOffset) as lv) -> [lv]
+    | Lval ((v, Field (_, off)) as lv) -> lv :: (getLvalsFromExp (Lval (v,off)))
+    | Lval ((v, Index (e1, off)) as lv) -> lv :: 
+	(getLvalsFromExp e1) @ (getLvalsFromExp (Lval (v,off)))
   in
-  findloop 0
+  match check with
+    Call (_,Lval(Var checkName,_),args,_) -> 
+      let someargs =
+	if checkName.vname = "CHECK_FETCHLENGTH" || checkName.vname = "CHECK_FETCHEND" 
+	then List.tl args
+	else args
+      in
+      List.fold_right (fun e acc -> (getLvalsFromExp e) @ acc) someargs []
+  | _ -> raise (Failure "non-Call in checkInstrs array")
+
+
+(* Find an aliased variable in the lval
+*)
+and lvalHasAliasedVar (lv : lval) : bool =
+  match lv with
+    (Var v, NoOffset) -> v.vaddrof
+  | (Mem e, NoOffset) -> expHasAliasedVar e
+  | (vm, Field (_, off)) -> lvalHasAliasedVar (vm, off)
+  | (vm, Index (e, off)) -> (expHasAliasedVar e) || (lvalHasAliasedVar (vm, off))
+  
+
+and expHasAliasedVar = function
+    Const _ 
+  | SizeOf _
+  | SizeOfE _
+  | AlignOf _
+  | AlignOfE _ -> false
+  | UnOp (_,e,_) -> expHasAliasedVar e
+  | BinOp (_,e1,e2,_) -> (expHasAliasedVar e1) || (expHasAliasedVar e2)
+  | Question (e1,e2,e3) -> 
+      ((expHasAliasedVar e1) || (expHasAliasedVar e2) || (expHasAliasedVar e3))
+  | CastE (_,e) -> expHasAliasedVar e
+  | AddrOf lv -> lvalHasAliasedVar lv
+  | StartOf lv -> lvalHasAliasedVar lv
+  | Lval lv -> lvalHasAliasedVar lv
+    
 
 (*----------------------------------------------------------------------------*)
 
