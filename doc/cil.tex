@@ -593,51 +593,118 @@ int main() {
 \end{enumerate}
 
 \section{Using CIL}\label{sec-cil}
- 
- In order to use CIL you must write an Ocaml module containing your analysis
-and transformation, which you then link into our boilerplate application
-called cilly. An example of such module is \t{logwrites.ml} (a module that is
+
+There are two predominant ways to use CIL to write a program analysis or
+transformation. The first is to phrase your analysis as a module that is
+called by our existing driver. The second is to use CIL as a stand-alone
+library. We highly recommend that you use \t{cilly}, our driver. 
+
+\subsection{Using \t{cilly}, the CIL driver}
+
+The most common way to use CIL is to write an Ocaml module containing your
+analysis and transformation, which you then link into our boilerplate
+driver application called \t{cilly}. \t{cilly} is a Perl script that
+processes and mimics \t{GCC} and \t{MSVC} command-line arguments and then
+calls \t{cilly.byte.exe} or \t{cilly.asm.exe} (CIL's Ocaml executable). 
+
+An example of such module is \t{logwrites.ml}, a transformation that is
 distributed with CIL and whose purpose is to instrument code to print the
-addresses of memory locations being written). (We plan to release a C-language
-interface to CIL so that you can write your analyses in C instead of Ocaml.)
-Assuming that you have written \t{logwrites.ml} here is how you use it: 
+addresses of memory locations being written. (We plan to release a
+C-language interface to CIL so that you can write your analyses in C
+instead of Ocaml.) See \secref{Extension} for a survey of other example
+modules. 
+
+Assuming that you have written \t{logwrites.ml}, here is how you use it: 
 
  \begin{enumerate}
- \item Put \t{logwrites.ml} in the \t{src} directory. This will make sure that
- \t{make} can find it. If you want to put it in some other directory modify
- the \t{Makefile} and add to \t{SOURCEDIRS} your directory. 
+
+ \item Modify \t{logwrites.ml} so that it includes a CIL ``feature
+ descriptor'' like this: 
+\begin{verbatim}
+let feature : featureDescr = 
+  { fd_name = "logwrites";              
+    fd_enabled = Util.logWrites;
+    fd_description = "generation of code to log memory writes";
+    fd_extraopt = [];
+    fd_doit = 
+    (function (f: file) -> 
+      let lwVisitor = new logWriteVisitor in
+      visitCilFileSameGlobals lwVisitor f)
+  } 
+\end{verbatim}
+  The \t{fd\_name} field names the feature and its associated command-line
+  arguments. The \t{fd\_enabled} field is a \t{bool ref} in a module that
+  both \t{maincil.ml} and \t{logwrites.ml} can reference. \t{util.ml} is a
+  good enough choice. 
+  
+  \ 
+  
+  When the user passes the \t{--dologwrites}
+  command-line option to \t{cilly}, the variable associated with the
+  \t{fd\_enabled} flag is set and the \t{fd\_doit} function is called
+  on the \t{Cil.file} that represents the merger (see \secref{merger}) of
+  all C files listed as arguments. 
+
+ \item Put \t{logwrites.ml} in the \t{src} or \t{src/ext} directory. This
+ will make sure that \t{make} can find it. If you want to put it in some
+ other directory modify the \t{Makefile} and add to \t{SOURCEDIRS} your
+ directory. 
 
  \item Modify the \t{Makefile} and add your module to the \t{MODULES}
  variable. The order of the modules matters. Add your modules somewhere after
  \t{cil} and before \t{maincil}.
 
- \item Modify \t{maincil.ml} and add descriptions of the new command line
- options that you want to add to \t{cilly}. This is done by modifying the
- definition of \t{argDescr} variable using the convention of the Ocaml
- standard library module \t{Arg}. For \t{logWrites} we added the option
- \t{--logwrites} that sets a global variable that enables the \t{logWrites}
- transformation.
-
- \item Modify \t{maincil.ml} add add a call to the top level function of your
- module to the body of the function \t{processOneFile}. Alternatively, you can
- call the \t{Frontc.parse: string -> unit -> Cil.file} function with the name
- of a file containing the output of the preprocessor and then invoke your
- analysis function on the resulting \t{Cil.file} data structure. You might
- want to call \t{Rmtmps.removeUnusedTemps} first to clean up the prototype and
- variables that are not used. Then you can call the function \t{Cil.printFile:
- cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a given
- output channel. A good \t{cilPrinter} to use is \t{defaultCilPrinter}. 
-
- \item In the \t{cil} directory run \t{make setup} to make both the bytecode
- and the native code versions of the \t{cilly} application (in
- \t{obj/cilly.byte.exe} and in \t{obj/cilly.asm.exe} respectively).
+ \item Modify \t{maincil.ml} so that your new feature descriptor appears in
+ the global list of CIL features. 
+\begin{verbatim}
+let features : C.featureDescr list = 
+  [ Logcalls.feature;
+    Logwrites.feature;  (* add this line to include the logwrites feature! *)
+    Oneret.feature;    
+    Heapify.feature1;  
+    Heapify.feature2;
+    makeCFGFeature; 
+    Partial.feature;
+    Simplemem.feature;
+  ] 
+  @ Feature_config.features 
+\end{verbatim}
+ Standard code in \t{cilly} takes care of adding command-line arguments,
+ printing the description, and calling your function automatically. 
 
  \item Now you can invoke the \t{cilly} application on a preprocessed file, or
  instead use the \t{cilly} driver which provides a convenient compiler-like
  interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
+ Remember to enable your analysis by passing the right argument (e.g.,
+ \t{--dologwrites}).   
  \end{enumerate}
 
- In the next section we give an overview of the API that you can use
+\subsection{Using CIL as a library}
+
+CIL can also be built as a library that is called from your stand-alone
+application. Add \t{cil/src}, \t{cil/src/frontc}, \t{cil/obj/x86\_LINUX}
+(or \t{cil/obj/x86\_WIN32}) to your Ocaml project \t{-I} include paths.
+Building CIL will also build the library \t{cil/obj/*/cil.cma} (or
+\t{cil/obj/*/cil.cmxa}). You can then link your application against that
+library. 
+
+You can call the \t{Frontc.parse: string -> unit -> Cil.file} function with
+the name of a file containing the output of the C preprocessor.
+The \t{Mergecil.merge: Cil.file list -> string -> Cil.file} function merges
+multiple files. You can then invoke your analysis function on the resulting
+\t{Cil.file} data structure.  You might want to call
+\t{Rmtmps.removeUnusedTemps} first to clean up the prototypes and variables
+that are not used. Then you can call the function \t{Cil.printFile:
+cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a
+given output channel. A good \t{cilPrinter} to use is
+\t{defaultCilPrinter}. 
+
+Check out \t{src/maincil.ml} and \t{bin/cilly} for other good ideas
+about high-level file processing. Again, we highly recommend that you just
+our \t{cilly} driver so that you can avoid spending time re-inventing the
+wheel to provide drop-in support for standard \t{makefile}s. 
+
+In the next section we give an overview of the API that you can use
 to write your analysis and transformation. 
  
 \section{CIL API Documentation}\label{sec-api} 
@@ -1316,7 +1383,7 @@ underlying \t{cilly.asm} process. As a general rule all arguments that start
 with \t{--} and that \t{cilly} itself does not process, are passed on. For
 example, 
 \begin{verbatim}
-bin/cilly --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
 \end{verbatim}
 
  will produce a file \t{hellocil.c} that prints all the memory addresses
@@ -1327,12 +1394,12 @@ sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
 have to do is to pass the \t{--merge} flag to \t{cilly}:
 \begin{verbatim}
-make CC="bin/cilly --logwrites --merge"
+make CC="bin/cilly --dologwrites --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="bin/cilly --logwrites --merge --leavealone=foo --leavealone=bar"
+make CC="bin/cilly --dologwrites --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
@@ -1447,10 +1514,6 @@ supported:
 \item \t{--check}. Run a consistency check over the CIL after every operation. 
 \item \t{--MSVC}. Enable the MSVC extensions and pretty-print for consumption
 by MSVC.
-\item \t{--logcalls}. Insert code in the processed source to print the name of
-functions as are called. Implemented in \t{src/logcalls.ml}.
-\item \t{--logwrites}. Insert code in the processed source to print the
-address of all memory writes. Implemented in \t{src/logwrites.ml}.
 \item \t{--warnall}. Print all the warnings.
 \item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
 application. By default \t{stderr} is used.
@@ -1463,6 +1526,25 @@ application. By default \t{stderr} is used.
   ``while(1)'', as they are in the internal language.
 \item \t{--extrafiles <xxx>}. Give the name of a text file that contains
 whitespace-separated named of additional files to process.
+
+\item \t{--dologcalls}. Insert code in the processed source to print the name of
+functions as are called. Implemented in \t{src/ext/logcalls.ml}.
+\item \t{--dologwrites}. Insert code in the processed source to print the
+address of all memory writes. Implemented in \t{src/ext/logwrites.ml}.
+\item \t{--dooneRet}. Make each function have at most one 'return'.
+Implemented in \t{src/ext/oneret.ml}. 
+\item \t{--dostackGuard}. Instrument function calls and returns to
+maintain a separate stack for return addresses. Implemeted in
+\t{src/ext/heapify.ml}. 
+\item \t{--domakeCFG}. Make the program look more like a CFG. Implemented
+in \t{src/cil.ml}. 
+\item \t{--dopartial}. Do interprocedural partial evaluation and
+constant folding. Implemented in \t{src/ext/partial.ml}. 
+\item \t{--dosimpleMem}. Simplify all memory expressions. Implemented in
+\t{src/ext/simplemem.ml}. 
+
+For an up-to-date list of available options, run \t{cilly.asm --help}. 
+
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1563,7 +1645,7 @@ how to perform a simple source-to-source program analysis and
 transformation. As an optimization only functions that contain a dangerous
 local array make use of the special return address stack. 
 
-For a concrete example, you can see how {\t cilly --dostackGuard}
+For a concrete example, you can see how \t{cilly --dostackGuard}
 transforms the following dangerous code: 
 
 \begin{cilcode}[global] --dostackGuard
@@ -1584,7 +1666,7 @@ The module \t{heapify.ml} also contains a transformation that moves all
 dangerous local arrays to the heap. This also prevents a number of buffer
 overruns. 
 
-For a concrete example, you can see how {\t cilly --doheapify}
+For a concrete example, you can see how \t{cilly --doheapify}
 transforms the following dangerous code: 
 
 \begin{cilcode}[global] --doheapify
@@ -1604,7 +1686,7 @@ The module \t{oneret.ml} contains a transformation the ensures that all
 function bodies have at most one return statement. This simplifies a number
 of analyses by providing a canonical exit-point. 
 
-For a concrete example, you can see how {\t cilly --dooneRet}
+For a concrete example, you can see how \t{cilly --dooneRet}
 transforms the following code: 
 
 \begin{cilcode}[global] --dooneRet
@@ -1626,7 +1708,7 @@ CIL can reduce high-level C control-flow constructs like \t{switch} and
 possible classes of statements from the program and may make the result
 easier to analyze (e.g., it simplifies data-flow analysis). 
 
-For a concrete example, you can see how {\t cilly --domakeCFG}
+For a concrete example, you can see how \t{cilly --domakeCFG}
 transforms the following code (note the fall-through in case 1): 
 
 \begin{cilcode}[global] --domakeCFG
@@ -1647,9 +1729,9 @@ transforms the following code (note the fall-through in case 1):
 
 The \t{partial.ml} module provides a simple interprocedural partial
 evaluation and constant folding data-flow analysis and transformation. This
-transformation requires the {\t --domakeCFG} option. 
+transformation requires the \t{--domakeCFG} option. 
 
-For a concrete example, you can see how {\t cilly --domakeCFG --dopartial}
+For a concrete example, you can see how \t{cilly --domakeCFG --dopartial}
 transforms the following code (note the eliminated \t{if} branch and the
 partial optimization of \t{foo}): 
 
@@ -1680,7 +1762,7 @@ to be even futher simplified via the introduction of well-typed
 temporaries. After this transformation all lvalues involve at
 most one memory reference. 
 
-For a concrete example, you can see how {\t cilly --dosimpleMem} 
+For a concrete example, you can see how \t{cilly --dosimpleMem} 
 transforms the following code:
 
 \begin{cilcode}[global] --dosimpleMem
