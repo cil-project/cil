@@ -1,5 +1,8 @@
 #include "../small1/testharness.h"
-#include "../small1/testkinds.h"
+
+#ifndef HAS_KIND
+#define HAS_KIND(x, y) 1
+#endif
 
 typedef unsigned char MzU8;
 typedef unsigned short MzU16;
