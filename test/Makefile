@@ -716,7 +716,7 @@ scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
                  $(CFLAGS) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
-	sh -c "time $(TESTDIR)/small2/$*.exe"
+	bash -c "time $(TESTDIR)/small2/$*.exe"
 
 scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
@@ -735,7 +735,7 @@ perf/%: $(TESTDIR)/small1/%.c
                  $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
-	cd $(TESTDIR)/small1; sh -c "for i in $(ITERATION_ELEMS) ; \
+	cd $(TESTDIR)/small1; bash -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./$*.exe ; done"
 
 perf/%-optimvariant: $(TESTDIR)/small1/%.optimcured.c
@@ -745,7 +745,7 @@ perf/%-optimvariant: $(TESTDIR)/small1/%.optimcured.c
                  $*optimcured.$(OPTIMVARIANT).c \
                  $(CCUREDLIB) \
                  $(EXEOUT)$*.exe
-	cd $(TESTDIR)/small1; sh -c "for i in $(ITERATION_ELEMS) ; \
+	cd $(TESTDIR)/small1; bash -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./$*.exe ; done"
 
 
