@@ -3470,7 +3470,7 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
       let t' = vTyp t in
       if t' != t then AlignOf t' else e
   | AlignOfE e1 -> 
-      let e1' = vExp e in
+      let e1' = vExp e1 in
       if e1' != e1 then AlignOfE e1' else e
   | Lval lv -> 
       let lv' = vLval lv in
@@ -4284,6 +4284,8 @@ let rec alignOf_int = function
           if not !msvcMode && f.fbitfield = Some 0 then sofar else
           max sofar (alignOf_int f.ftype)) 1 fields
         (* These are some error cases *)
+  | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
+      
   | (TFun _ | TVoid _) as t -> raise (SizeOfError t)
       
   
@@ -4547,6 +4549,9 @@ and bitsSizeOf t =
 
 
   | TVoid _ -> 8 * !theMachine.M.sizeof_void
+  | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
+      8 * !theMachine.M.sizeof_fun
+
   | TArray (_, None, _) | TFun _ -> raise (SizeOfError t)
 
 
@@ -4643,7 +4648,15 @@ and constFold (machdep: bool) (e: exp) : exp =
   | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
   | SizeOfStr s when machdep -> kinteger !kindOfSizeOf (1 + String.length s)
   | AlignOf t when machdep -> kinteger !kindOfSizeOf (alignOf_int t)
-  | AlignOfE e when machdep -> constFold machdep (AlignOf (typeOf e))
+  | AlignOfE e when machdep -> begin
+      (* The alignmetn of an expression is not always the alignment of its 
+       * type. I know that for strings this is not true *)
+      match e with 
+        Const (CStr _) when not !msvcMode -> 
+          kinteger !kindOfSizeOf !theMachine.M.alignof_str
+            (* For an array, it is the alignment of the array ! *)
+      | _ -> constFold machdep (AlignOf (typeOf e))
+  end
 
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 

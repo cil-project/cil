@@ -2620,9 +2620,13 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf July 8, 2003}: Fixed some of the \_\_alignof computations. Fixed
+  bug in the designated initializers for arrays (Array.get error).
+\item {\bf July 8, 2003}: Fixed infinite loop bug (Stack Overflow) in the
+  visitor for \_\_alignof.
 \item {\bf July 8, 2003}: Fixed bug in the conversion to CIL. A function or
   array argument of
-  the GCC __typeof() was being converted to pointer type. Instead, it should
+  the GCC \_\_typeof() was being converted to pointer type. Instead, it should
   be left alone, just like for sizeof.  
 \item {\bf July 7, 2003}: New Escape module provides utility functions
   for escaping characters and strings in accordance with C lexical

@@ -1483,7 +1483,7 @@ let rec setOneInit (this: preInit)
       let pMaxIdx, pArray = 
         match this  with 
           NoInitPre  -> (* No initializer so far here *)
-            ref idx, ref (Array.create 32 NoInitPre)
+            ref idx, ref (Array.create (max 32 (idx + 1)) NoInitPre)
               
         | CompoundPre (pMaxIdx, pArray) -> 
             if !pMaxIdx < idx then begin 
@@ -1491,7 +1491,7 @@ let rec setOneInit (this: preInit)
               (* Maybe we also need to grow the array *)
               let l = Array.length !pArray in
               if l <= idx then begin
-                let growBy = max 32 (l / 2) in
+                let growBy = max (max 32 (idx + 1 - l)) (l / 2) in
                 let newarray = Array.make (growBy + idx) NoInitPre in
                 Array.blit !pArray 0 newarray 0 l;
                 pArray := newarray
@@ -1501,6 +1501,7 @@ let rec setOneInit (this: preInit)
         | SinglePre e -> 
             E.s (unimp "Index %d is already initialized" idx)
       in
+      assert (idx >= 0 && idx < Array.length !pArray);
       let this' = setOneInit !pArray.(idx) restoff e in
       !pArray.(idx) <- this';
       CompoundPre (pMaxIdx, pArray)
@@ -2004,16 +2005,24 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           
     | [A.TtypeofE e] -> 
         (* We process e as AExpLeaveArrayfun to avoid conversion of arrays 
-         * and functions into pointers *)
+        * and functions into pointers *)
         let (c, e', t) = doExp false e AExpLeaveArrayFun in
+        let t' = 
+          match e' with 
+            StartOf(lv) -> typeOfLval lv
+                (* If this is a string literal, then we treat it as in sizeof*)
+          | Const (CStr s) -> begin
+              match typeOf e' with 
+                TPtr(bt, _) -> (* This is the type of arary elements *)
+                  TArray(bt, Some (SizeOfStr s), [])
+              | _ -> E.s (bug "The typeOf a string is not a pointer type")
+          end
+          | _ -> t
+        in
 (*
-        if not (isEmpty c) then
-          ignore (warn "typeof for a non-pure expression\n");
+        ignore (E.log "typeof(%a) = %a\n" d_exp e' d_plaintype t');
 *)
-(*
-        ignore (E.log "typeof(%a) = %a\n" d_exp e' d_plaintype t);
-*)
-        t
+        t'
 
     | [A.TtypeofT (specs, dt)] -> 
         let typ = doOnlyType specs dt in
@@ -2789,9 +2798,10 @@ and doExp (isconst: bool)    (* In a constant *)
           ignore (warn "Warning: Dropping side-effect in EXPR_ALIGNOF\n");
 *)
         let e'' =
-          match e' with                 (* If we are taking the sizeof an
+          match e' with                 (* If we are taking the alignof an
                                          * array we must drop the StartOf  *)
             StartOf(lv) -> Lval(lv)
+
           | _ -> e'
         in
         finishExp empty (AlignOfE(e'')) !typeOfSizeOf

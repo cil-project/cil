@@ -74,6 +74,13 @@ int main() {
   printf("\t sizeof_wchar     = %d;\n", sizeof(wchar_t));
   printf("\t sizeof_sizeof    = %d;\n", sizeof(sizeof(int)));
   printf("\t sizeof_void      = %d;\n", sizeof(void));
+  printf("\t sizeof_fun       = %d;\n",
+#ifdef __GNUC__
+         sizeof(main)
+#else
+         0
+#endif
+           );
   // The alignment of long long
   {
     struct longlong {
@@ -104,6 +111,21 @@ int main() {
            (int)(&((struct s1*)0)->ld));
   }    
 
+  printf("\t alignof_str = %d;\n",
+#ifdef __GNUC__
+         __alignof("a string")
+#else
+         0
+#endif
+         );
+
+  printf("\t alignof_fun = %d;\n",
+#ifdef __GNUC__
+         __alignof(main)
+#else
+         0
+#endif
+         );
 
   // Whether char is unsigned
   printf("\t char_is_unsigned = %s;\n", 
