@@ -53,7 +53,7 @@ type node =
 {
   name: string;
   mutable scanned: bool;
-  mutable fds: fundec list;
+  mutable fds: fundec option;
   mutable bkind: blockkind;
   mutable preds: node list;
   mutable succs: node list;
@@ -69,16 +69,29 @@ type blockpt =
   mutable leadsto: blockpt list;
 }
 
+(* We add a dummy function whose name is "@@functionPointer@@" that is called 
+ * at all invocations of function pointers and itself calls all functions 
+ * whose address is taken.  *)
+let functionPointerName = "@@functionPointer@@"
+
 (* We map names to nodes *)
 let functionNodes: (string, node) H.t = H.create 113 
-let makeFunctionNode (n: string) : node = 
+let getFunctionNode (n: string) : node = 
   Util.memoize 
     functionNodes
     n
-    (fun _ -> { name = n; fds = []; scanned = false; bkind = NoBlock;
+    (fun _ -> { name = n; fds = None; scanned = false; bkind = NoBlock;
                 preds = []; succs = []; predstmts = []; })
-let getFunctionNode (n: string) : node = 
-  makeFunctionNode n
+
+(* We map types to nodes for function pointers *)
+let functionPtrNodes: (typsig, node) H.t = H.create 113
+let getFunctionPtrNode (t: typ) : node =
+  Util.memoize
+    functionPtrNodes
+    (typeSig t)
+    (fun _ -> { name = functionPointerName; fds = None; scanned = false;
+                bkind = NoBlock; preds = []; succs = []; predstmts = []; })
+
 
 (** Dump the function call graph. Assume that there is a main *)
 let dumpGraph = true
@@ -112,28 +125,24 @@ let dumpFunctionCallGraph (start: string) =
     ignore (E.log "Can't find start node %s for dumping graph" start);
   end
   
-(* We add a dummy function whose name is "@@functionPointer@@" that is called 
- * at all invocations of function pointers and itself calls all functions 
- * whose address is taken.  *)
-let functionPointerName = "@@functionPointer@@"
 
-
-let addCall (caller: string) (callee: string) (s: stmt) =
-  let callerNode = getFunctionNode caller in
-  let calleeNode = getFunctionNode callee in
-  if not (List.exists (fun n -> n.name = callee) callerNode.succs) then begin
+let addCall (callerNode: node) (calleeNode: node) (sopt: stmt option) =
+  if not (List.exists (fun n -> n.name = calleeNode.name)
+                      callerNode.succs) then begin
     if debug then
-      ignore (E.log "found call from %s to %s\n" caller callee);
+      ignore (E.log "found call from %s to %s\n"
+                    callerNode.name calleeNode.name);
     callerNode.succs <- calleeNode :: callerNode.succs;
     calleeNode.preds <- callerNode :: calleeNode.preds;
   end;
-  if not (List.exists (fun (s', _) -> s' = s) calleeNode.predstmts) then begin
-    calleeNode.predstmts <- (s, callerNode) :: calleeNode.predstmts;
-  end;
-  ()
+  match sopt with
+    Some s ->
+      if not (List.exists (fun (s', _) -> s' = s) calleeNode.predstmts) then
+        calleeNode.predstmts <- (s, callerNode) :: calleeNode.predstmts
+  | None -> ()
 
 
-class findCallsVisitor (host: string) : cilVisitor = object
+class findCallsVisitor (host: node) : cilVisitor = object
   inherit nopCilVisitor
 
   val mutable curStmt : stmt ref = ref (mkEmptyStmt ())
@@ -144,12 +153,18 @@ class findCallsVisitor (host: string) : cilVisitor = object
 
   method vinst i =
     match i with
-    | Call(_,Lval(Var(vi),NoOffset),_,l) -> 
-        addCall host vi.vname !curStmt;
+    | Call(_,Lval(Var(vi),NoOffset),args,l) -> 
+        let callee =
+          if vi.vname = "pthread_create" then
+            getFunctionPtrNode (typeOf (List.nth args 2))
+          else
+            getFunctionNode vi.vname
+        in
+        addCall host callee (Some !curStmt);
         SkipChildren
 
     | Call(_,e,_,l) -> (* Calling a function pointer *)
-        addCall host functionPointerName !curStmt;
+        addCall host (getFunctionPtrNode (typeOf e)) (Some !curStmt);
         SkipChildren
 
     | _ -> SkipChildren (* No calls in other instructions *)
@@ -198,10 +213,16 @@ let getStmtNode (s: stmt) : node option =
       let len = List.length instrs in
       if len > 0 then
         match List.nth instrs (len - 1) with
-          Call (_, Lval (Var vi, NoOffset), _, _) -> 
-            Some (getFunctionNode vi.vname)
-        | Call _ -> (* Calling a function pointer *)
-            Some (getFunctionNode functionPointerName)
+          Call (_, Lval (Var vi, NoOffset), args, _) -> 
+            let node =
+              if vi.vname = "pthread_create" then
+                getFunctionPtrNode (typeOf (List.nth args 2))
+              else
+                getFunctionNode vi.vname
+            in
+            Some node
+        | Call (_, e, _, _) -> (* Calling a function pointer *)
+            Some (getFunctionPtrNode (typeOf e))
         | _ ->
             None
       else
@@ -229,13 +250,24 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
             match node.bkind with
               NoBlock ->
                 worklist := Next (curStmt, curNode) :: !worklist
-            | BlockTrans ->
-                List.iter (fun fd ->
-                             let s = List.hd fd.sbody.bstmts in
-                             if not (Hashtbl.mem seenStmts s) then
-                               let n = getFunctionNode fd.svar.vname in
-                               worklist := Process (s, n) :: !worklist)
-                          node.fds
+            | BlockTrans -> begin
+                let processFundec (fd: fundec) : unit =
+                  let s = List.hd fd.sbody.bstmts in
+                  if not (Hashtbl.mem seenStmts s) then
+                    let n = getFunctionNode fd.svar.vname in
+                    worklist := Process (s, n) :: !worklist
+                in
+                match node.fds with
+                  Some fd ->
+                    processFundec fd
+                | None ->
+                    List.iter
+                      (fun n ->
+                         match n.fds with
+                           Some fd -> processFundec fd
+                         | None -> E.s (bug "expected fundec"))
+                      node.succs
+              end
             | BlockPoint ->
                 addBlockingPointEdge bpt
                   (getBlockPt curStmt node.name curNode.name)
@@ -259,13 +291,20 @@ let findBlockingPointEdges (bpt: blockpt) : unit =
       end
     | Return curNode ->
         List.iter (fun (s, n) -> worklist := Next (s, n) :: !worklist)
-                  curNode.predstmts
+                  curNode.predstmts;
+        List.iter (fun n -> if n.fds = None then
+                              worklist := Return n :: !worklist)
+                  curNode.preds
   done
 
 let findBlockingPoints (start: string) =
-  let startNode = List.hd (List.hd (getFunctionNode start).fds).sbody.bstmts in
+  let startStmt =
+    match (getFunctionNode start).fds with
+      Some fd -> List.hd fd.sbody.bstmts
+    | None -> E.s (bug "expected fundec")
+  in
   let result = ref [] in
-  ignore (getBlockPt startNode "start" "start");
+  ignore (getBlockPt startStmt "start" "start");
   while !blockingPointsNew <> [] do
     let bpt = List.hd !blockingPointsNew in
     blockingPointsNew := List.tl !blockingPointsNew;
@@ -292,7 +331,7 @@ let markBlockingFunctions () : unit =
   let rec markFunction (n: node) : unit =
     if debug then
       ignore (E.log "marking %s\n" n.name);
-    if n.bkind = NoBlock && n.name <> functionPointerName then begin
+    if n.bkind = NoBlock then begin
       n.bkind <- BlockTrans;
       List.iter markFunction n.preds;
     end
@@ -316,19 +355,18 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
   List.iter
     (function
         GFun(fdec, _) -> 
+          let curNode = getFunctionNode fdec.svar.vname in
           if fdec.svar.vaddrof then begin
-            let node = getFunctionNode functionPointerName in
-            node.fds <- fdec :: node.fds;
-            addCall functionPointerName fdec.svar.vname (mkEmptyStmt ());
-            (* TODO: fix handling of function ptrs *)
+            addCall (getFunctionPtrNode (TPtr (fdec.svar.vtype, [])))
+                    curNode None;
           end;
           markVar fdec.svar;
-          let node = getFunctionNode fdec.svar.vname in
-          node.fds <- fdec :: node.fds;
-          let vis = new findCallsVisitor fdec.svar.vname in
+          curNode.fds <- Some fdec;
+          let vis = new findCallsVisitor curNode in
           ignore (visitCilBlock vis fdec.sbody)
 
       | GVarDecl(vi, _) ->
+          (* TODO: what if we take the addr of an extern? *)
           markVar vi
 
       | _ -> ())
@@ -338,6 +376,6 @@ let makeFunctionCallGraph (f: Cil.file) : unit =
 let makeAndDumpFunctionCallGraph (f: file) = 
   makeFunctionCallGraph f;
   markBlockingFunctions ();
-  findBlockingPoints "thread_main";
+  findBlockingPoints "main";
   dumpFunctionCallGraph "main";
   dumpBlockingPoints ()
