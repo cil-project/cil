@@ -633,8 +633,9 @@ begin
       (mustEq pattr1 tattr1);
       (mustEq pattr2 tattr2);
       (unifyDeclType ptype ttype)
-  | ARRAY(ptype, psz),
-    ARRAY(ttype, tsz) ->
+  | ARRAY(ptype, pattr, psz),
+    ARRAY(ttype, tattr, tsz) ->
+      (mustEq pattr tattr);
       (unifyDeclType ptype ttype) @
       (unifyExpr psz tsz)
   | PTR(pattr, ptype),

@@ -2257,7 +2257,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         restyp', cabsAddAttributes an nattr
               
 
-    | A.ARRAY (d, len) -> 
+    | A.ARRAY (d, al, len) -> 
         let lo = 
           match len with 
             A.NOTHING -> None 
@@ -2266,7 +2266,8 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               let _, len'' = castTo (typeOf len') intType len' in
               Some len''
         in
-        doDeclType (TArray(bt, lo, [])) acc d
+	let al' = doAttributes al in
+        doDeclType (TArray(bt, lo, al')) acc d
 
     | A.PROTO (d, args, isva) -> 
         (* Start a scope for the parameter names *)
@@ -2352,15 +2353,15 @@ and isVariableSizedArray (dt: A.decl_type)
     : (A.decl_type * chunk * exp) option = 
   let res = ref None in
   let rec findArray = function
-    ARRAY (JUSTBASE, lo) when lo != A.NOTHING -> 
+    ARRAY (JUSTBASE, al, lo) when lo != A.NOTHING -> 
       (* Allow non-constant expressions *)
       let (se, e', _) = doExp false lo (AExp (Some intType)) in
       if isNotEmpty se || not (isConstant e') then begin
         res := Some (se, e');
-        PTR ([], JUSTBASE)
+        PTR (al, JUSTBASE)
       end else 
-        ARRAY (JUSTBASE, lo)
-    | ARRAY (dt, lo) -> ARRAY (findArray dt, lo)
+        ARRAY (JUSTBASE, al, lo)
+    | ARRAY (dt, al, lo) -> ARRAY (findArray dt, al, lo)
     | PTR (al, dt) -> PTR (al, findArray dt)
     | JUSTBASE -> JUSTBASE
     | PARENTYPE (prea, dt, posta) -> PARENTYPE (prea, findArray dt, posta)
@@ -4364,7 +4365,7 @@ and createLocal ((_, sto, _, _) as specs)
     | PROTO (JUSTBASE, _, _) -> true
     | PROTO (x, _, _) -> isProto x
     | PARENTYPE (_, x, _) -> isProto x
-    | ARRAY (x, _) -> isProto x
+    | ARRAY (x, _, _) -> isProto x
     | PTR (_, x) -> isProto x
     | _ -> false
   in

@@ -81,7 +81,7 @@ let announceFunctionName ((n, decl, _, _):name) =
     | PROTO (d, _, _) -> findProto d
     | PARENTYPE (_, d, _) -> findProto d
     | PTR (_, d) -> findProto d
-    | ARRAY (d, _) -> findProto d
+    | ARRAY (d, _, _) -> findProto d
     | _ -> parse_error "Cannot find the prototype in a function definition";
            raise Parsing.Parse_error 
 
@@ -605,6 +605,11 @@ comma_expression:
 |               error COMMA comma_expression      { $3 }
 ;
 
+comma_expression_opt:
+                /* empty */         { NOTHING }
+|               comma_expression    { smooth_expression (fst $1) }
+;
+
 paren_comma_expression:
   LPAREN comma_expression RPAREN                   { $2 }
 | LPAREN error RPAREN                              { [], $1 }
@@ -842,11 +847,12 @@ direct_decl: /* (* ISO 6.7.5 *) */
                                    { let (n,decl,al,loc) = $3 in
                                      (n, PARENTYPE($2,decl,al)) }
 
-|   direct_decl bracket_comma_expression
+|   direct_decl LBRACKET attributes comma_expression_opt RBRACKET
                                    { let (n, decl) = $1 in
-                                     (n, ARRAY(decl, smooth_expression $2)) }
-|   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
-                                     (n, ARRAY(decl, NOTHING)) }
+                                     (n, ARRAY(decl, $3, $4)) }
+|   direct_decl LBRACKET attributes error RBRACKET
+                                   { let (n, decl) = $1 in
+                                     (n, ARRAY(decl, $3, NOTHING)) }
 |   direct_decl parameter_list_startscope rest_par_list RPAREN
                                    { let (n, decl) = $1 in
                                      let (params, isva) = $3 in
@@ -954,9 +960,8 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
 |   LPAREN error RPAREN
                                    { JUSTBASE } 
             
-|   abs_direct_decl_opt bracket_comma_expression
-                                   { ARRAY($1, smooth_expression $2) }
-|   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
+|   abs_direct_decl_opt LBRACKET comma_expression_opt RBRACKET
+                                   { ARRAY($1, [], $3) }
 /*(* The next shoudl be abs_direct_decl_opt but we get conflicts *)*/
 |   abs_direct_decl  parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in

@@ -118,8 +118,9 @@ and decl_type =
                                            * contain attributes for the
                                            * identifier or attributes for the
                                            * enclosing type.  *)
- | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is
-                                           * never a PTR. *)
+ | ARRAY of decl_type * attribute list * expression
+                                          (* Prints "decl [ attrs exp ]".
+                                           * decl is never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
  | PROTO of decl_type * single_name list * bool 
                                           (* Prints "decl (args[, ...])".

@@ -365,9 +365,10 @@ and print_decl (n: string) = function
       print "* ";
       print_attributes al; space ();
       print_decl n d
-  | ARRAY (d, e) ->
+  | ARRAY (d, al, e) ->
       print_decl n d;
       print "[";
+      print_attributes al;
       if e <> NOTHING then print_expression e 1;
       print "]"
   | PROTO(d, args, isva) ->

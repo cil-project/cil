@@ -246,10 +246,11 @@ and childrenDeclType isfundef vis dt =
       let posta'= mapNoCopyList (visitCabsAttribute vis)  posta in
       if prea' != prea || dt1' != dt1 || posta' != posta then 
         PARENTYPE (prea', dt1', posta') else dt
-  | ARRAY (dt1, e) -> 
+  | ARRAY (dt1, al, e) -> 
       let dt1' = visitCabsDeclType vis isfundef dt1 in
+      let al' = mapNoCopy (childrenAttribute vis) al in
       let e'= visitCabsExpression vis e in
-      if dt1' != dt1 || e' != e then ARRAY(dt1', e') else dt
+      if dt1' != dt1 || al' != al || e' != e then ARRAY(dt1', al', e') else dt
   | PTR (al, dt1) -> 
       let al' = mapNoCopy (childrenAttribute vis) al in
       let dt1' = visitCabsDeclType vis isfundef dt1 in
