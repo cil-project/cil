@@ -523,10 +523,18 @@ spr/% : $(EXECUTABLE)$(EXE)
 ################# Apache test cases
 APACHETEST=test/apache
 APACHEBASE=apache_1.3.19/src
+ifdef _MSVC
 APACHECFLAGS=/nologo /MDd /W3 /GX /Zi /Od \
-         /I "$(APACHEBASE)\include" /I "$(APACHEBASE)\os\win32" /D "_DEBUG" \
-         /D "WIN32" /D "_WINDOWS" /D "NO_DBM_REWRITEMAP" \
-         /D "SHARED_MODULE" /D "WIN32_LEAN_AND_MEAN" /FD 
+         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\win32" \
+         $(DEF)"_DEBUG" $(DEF)"WIN32" $(DEF)"_WINDOWS" \
+         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE" \
+         $(DEF)"WIN32_LEAN_AND_MEAN"
+else
+APACHECFLAGS=-Wall -D_GNUCC -g \
+         $(INC)"$(APACHEBASE)\include" $(INC)"$(APACHEBASE)\os\unix" \
+         $(DEF)"_DEBUG" \
+         $(DEF)"NO_DBM_REWRITEMAP" $(DEF)"SHARED_MODULE"
+endif
 
 apache/gzip : $(EXECUTABLE)$(EXE)
 	rm -f $(APACHETEST)/mod_gzip.obj
