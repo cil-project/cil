@@ -50,6 +50,7 @@ val ilongFitsUInt : bool ref         (* Whether a signed long can fit an
 val newCil : bool ref
 
 val printLn: bool ref                   (* Whether to print line numbers *)
+val printLnComment: bool ref            (* Whether to print line numbers in comments*)
 
 type location = { 
     line: int;				(* -1 means "do not know" *)

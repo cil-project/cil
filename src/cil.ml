@@ -55,6 +55,7 @@ let ilongFitsUInt = ref false         (* Whether a signed long can fit an
 let newCil = ref true
 
 let printLn= ref true                 (* Whether to print line numbers *)
+let printLnComment= ref false
 
 type location = { 
     line: int;				(* -1 means "do not know" *)
@@ -644,7 +645,8 @@ let lastFileName = ref ""
 let printLine (l : location) : string =
   let str = ref "" in
     if !printLn && l.line > 0 then begin
-      str := "#";
+      if !printLnComment then str := "//";
+      str := !str ^ "#";
       if !msvcMode then str := !str ^ "line";
       if l.line > 0 then str := !str ^ " " ^ string_of_int(l.line);
       if true (* l.file <> !lastFileName *) then begin

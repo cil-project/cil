@@ -31,7 +31,8 @@ let cabslu = {lineno = -10; filename = "cabs loc unknown";}
 let curLoc = ref cabslu
 
 let msvcMode = ref false
-let printLines = ref true
+let printLn = ref true
+let printLnComment = ref false
 (*
 ** FrontC Pretty printer
 *)
@@ -138,13 +139,11 @@ let print str =
 
 let setLoc (l : cabsloc) =
   let tempcur = current in
-  if !printLines then  
+  if !printLn then  
     if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
       begin
         let oldspaces = !spaces in
-(*        spaces := 0;
-        new_line(); *)
-        print "#";
+        if !printLnComment then print "//" else print "//#";
         if !msvcMode then print "line";
         print " ";
         print (string_of_int l.lineno);
@@ -552,9 +551,9 @@ and print_expression (exp : expression) (lvl : int) =
   | MEMBEROFPTR (exp, fld) ->
       print_expression exp 16;
       print ("->" ^ fld)
-  | GNU_BODY (labs, blk) ->
+  | GNU_BODY (blk) ->
       print "(";
-      print_block labs blk;
+      print_block blk;
       print ")" in
   if lvl > lvl' then print ")" else ()
     
@@ -573,7 +572,7 @@ and print_statement stat =
       print_expression exp 0;
       print ";";
       new_line ()
-  | BLOCK (blk, loc) -> print_block [] blk
+  | BLOCK (blk, loc) -> print_block blk
 
   | SEQUENCE (s1, s2, loc) ->
       setLoc(loc);
@@ -688,19 +687,25 @@ and print_statement stat =
       end else begin
         print "__asm__ "; if isvol then print "__volatile__ ";
         print "(";
-        print_list (fun () -> new_line()) print_string tlist;(* templates *)
+        print_list (fun () -> new_line()) print_string tlist; (* templates *)
+        if outs <> [] || ins <> [] || clobs <> [] then begin
           print ":"; space ();
-        print_commas false print_asm_operand outs;
-        print ":"; space ();
-        print_commas false print_asm_operand ins;
-        if clobs <> [] then begin
-          print ":"; space ();
-          print_commas false print_string clobs
-        end;                                
+          print_commas false print_asm_operand outs;
+          if ins <> [] || clobs <> [] then begin
+            print ":"; space ();
+            print_commas false print_asm_operand ins;
+            if clobs <> [] then begin
+              print ":"; space ();
+              print_commas false print_string clobs
+            end;                          
+          end
+        end;      
         print ");"
       end
 
-and print_block (labs: string list) (blk: body) = 
+and print_block ((labs: string list), 
+                 (defs: definition list), 
+                 (stmts: statement list)) = 
   new_line();
   print "{";
   indent ();
@@ -710,11 +715,8 @@ and print_block (labs: string list) (blk: body) =
     print ";";
     new_line ();
   end;
-  let printBlkElem = function
-      BDEF d -> print_def d
-    | BSTM s -> print_statement s
-  in
-  List.iter printBlkElem blk;
+  List.iter print_def defs;
+  List.iter print_statement stmts;
   unindent ();
   print "}";
   new_line ()
@@ -777,7 +779,7 @@ and print_def def =
     FUNDEF (proto, body, loc) ->
       setLoc(loc);
       print_single_name proto;
-      print_block [] body;
+      print_block body;
       force_new_line ();
 
   | DECDEF (names, loc) ->

@@ -101,7 +101,7 @@ and enum_item = string * expression
 ** Declaration definition
 *)
 and definition =
-   FUNDEF of single_name * body * cabsloc
+   FUNDEF of single_name * block * cabsloc
  | DECDEF of init_name_group * cabsloc
  | TYPEDEF of name_group * cabsloc
  | ONLYTYPEDEF of spec_elem list * cabsloc
@@ -114,17 +114,15 @@ and file = definition list
 (*
 ** statements
 *)
-and bodyelem =                          (* ISO 6.8.2 allows declarations to
-                                           be intermixed with statements *)
-   BDEF of definition
- | BSTM of statement
 
-and body = bodyelem list
+(* A block contains a list of local label declarations ( GCC's ({ __label__ 
+ * l1, l2; ... }) ) , a list of definitions and a list of statements  *)
+and block = string list * definition list * statement list 
 
 and statement =
    NOP of cabsloc
  | COMPUTATION of expression * cabsloc
- | BLOCK of body * cabsloc
+ | BLOCK of block * cabsloc
  | SEQUENCE of statement * statement * cabsloc
  | IF of expression * statement * statement * cabsloc
  | WHILE of expression * statement * cabsloc
@@ -181,8 +179,7 @@ and expression =
   | INDEX of expression * expression
   | MEMBEROF of expression * string
   | MEMBEROFPTR of expression * string
-    (* GCC's ({ __label__ l1, l2; ... }) *)
-  | GNU_BODY of string list * body
+  | GNU_BODY of block
 
 and constant =
   | CONST_INT of string   (* the textual representation *)

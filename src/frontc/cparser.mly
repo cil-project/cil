@@ -77,7 +77,7 @@ let doDeclaration (loc: cabsloc) (specs: spec_elem list) (nl: init_name list) : 
 let doFunctionDef (loc: cabsloc)
                   (specs: spec_elem list) 
                   (n: name) 
-                  (b: body) : definition = 
+                  (b: block) : definition = 
   let fname = (specs, n) in
   FUNDEF (fname, b, loc)
 
@@ -101,10 +101,6 @@ let doOldParDecl (names: string list)
   List.map findOneName names
 
 
-let bodyOfBlock ((labels: string list), (body: body)) : body = 
-  if labels <> [] then
-    parse_error "Local labels declared outside of a statement expression";
-  body
 
 %}
 
@@ -143,8 +139,6 @@ let bodyOfBlock ((labels: string list), (body: body)) : body =
 %token IF ELSE
 
 %token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__ LABEL__
-/* weimer: gcc "__extension__" keyword */
-%token EXTENSION
 %token DECLSPEC
 %token <string> MSASM MSATTR
 %token PRAGMA
@@ -154,7 +148,6 @@ let bodyOfBlock ((labels: string list), (body: body)) : body =
 %nonassoc 	ELSE
 
 
-%nonassoc EXTENSION
 %left	COMMA
 %right	EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
                 AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
@@ -208,8 +201,7 @@ let bodyOfBlock ((labels: string list), (body: body)) : body =
 %type <Cabs.definition> declaration function_def
 %type <cabsloc * spec_elem list * name> function_def_start
 %type <Cabs.spec_elem list * Cabs.decl_type> type_name
-%type <Cabs.body> block_item_list
-%type <string list * Cabs.body> block
+%type <Cabs.block> block
 %type <string list> local_labels local_label_names
 %type <string list> old_parameter_list
 
@@ -303,7 +295,7 @@ expression:
 |		expression DOT NAMED_TYPE
 		        {MEMBEROF ($1, $3)}
 |		LPAREN block RPAREN
-		        { let labels, body = $2 in GNU_BODY (labels, body) }
+		        { GNU_BODY $2 }
 |		LPAREN comma_expression RPAREN
 		        {(smooth_expression $2)}
 |		expression LPAREN opt_expression RPAREN
@@ -370,7 +362,6 @@ expression:
 			{BINARY(SHL_ASSIGN ,$1 , $3)}
 |		expression SUP_SUP_EQ expression
 			{BINARY(SHR_ASSIGN ,$1 , $3)}
-|               EXTENSION expression  { $2 } 
 |		LPAREN type_name RPAREN expression
 		         { CAST($2, SINGLE_INIT $4) }
 /* (* We handle GCC constructor expressions *) */
@@ -440,18 +431,22 @@ comma_expression:
 
 /*** statements ***/
 block: /* ISO 6.8.2 */
-    block_begin local_labels block_item_list RBRACE   
-                                         {Clexer.pop_context(); ($2, $3) }
+    block_begin local_labels declaration_list statement_list RBRACE   
+                                         {Clexer.pop_context(); ($2, $3, $4) }
 ;
 block_begin:
     LBRACE      		         {Clexer.push_context ()}
 ;
 
-block_item_list:
+declaration_list: 
     /* empty */                          { [] }
-|   declaration block_item_list          {BDEF $1 :: $2 }
-|   statement block_item_list            {BSTM $1 :: $2 }
+|   declaration declaration_list         { $1 :: $2 }
 ;
+statement_list:
+|   /* empty */                          { [] }
+|   statement statement_list             { $1 :: $2 }
+;
+
 
 local_labels: 
    /* empty */                           { [] }
@@ -468,7 +463,7 @@ statement:
     location SEMICOLON		{NOP $1 }
 |   location comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression $2, $1)}
-|   location block               {BLOCK (bodyOfBlock $2, $1)}
+|   location block               {BLOCK ($2, $1)}
 |   location IF LPAREN comma_expression RPAREN statement %prec IF
                 	{IF (smooth_expression $4, $6, NOP $1, $1)}
 |   location IF LPAREN comma_expression RPAREN statement ELSE statement
@@ -540,7 +535,6 @@ decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2 }
 |   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
-|   EXTENSION decl_spec_list            { $2 }
 ;
 /* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
  * NAMED_TYPE to have right associativity */
@@ -757,7 +751,7 @@ function_def:  /* (* ISO 6.9.1 *) */
   function_def_start block    
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
-            doFunctionDef loc specs decl (bodyOfBlock $2)
+            doFunctionDef loc specs decl $2
           } 
 
 function_def_start:  /* (* ISO 6.9.1 *) */

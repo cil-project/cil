@@ -345,6 +345,9 @@ endif
 ifdef NOLINES
     SAFECC+= --safec=-noPrintLn
 endif
+ifdef COMMLINES
+    SAFECC+= --safec=-commPrintLn
+endif
 
 ifdef INFERBOX
 BOX=1
@@ -1232,6 +1235,28 @@ allcc1: defaulttarget mustbegcc
 	cd $(GCCDIR)/exe/base; $(SAFECC) $(DOOPT) cc1.v8_all.c
 
 
+#
+# Linux
+LINUXDIR=/home/project/linux-2.2.9
+
+linuxstandard: 
+	$(MAKE) -C $(LINUXDIR) clean vmlinux \
+              MY-CC="gcc"
+
+LINUXCC=perl $(CILDIR)/lib/safecc.pl --mode=gcc --cabs
+ifdef NOLINES
+LINUXCC+= --safec=-noPrintLn
+endif
+ifdef COMMLINES
+LINUXCC+= --safec=-commPrintLn
+endif
+linuxcompile: defaulttarget mustbegcc
+	$(MAKE) -C $(LINUXDIR) vmlinux \
+              MY-CC="$(LINUXCC)"
+
+linux-clean:
+	$(MAKE) -C $(LINUXDIR) clean
+
 combinetest: defaulttarget
 	cd test/small1; $(SAFECC) --combine /Fet.exe t.c t1.c
 
@@ -1240,4 +1265,6 @@ obj/prettytest.exe: src/pretty.mli src/pretty.ml src/prettytest.ml
 
 prettytest:  obj/prettytest.exe
 	time obj/prettytest.exe ; echo
+
+
 

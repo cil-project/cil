@@ -21,5 +21,10 @@
 int thearray[] = { 1, 3, 5, 7, 9, 11, 13, 15, 17, 21 };
 
 int main() {
-  return -9 + (SEARCH(thearray, 7) /* 3 */ + SEARCH(thearray, 8) /* 6 */);
+  __label__ endofblock;
+  int res;
+  
+  res = -9 + (SEARCH(thearray, 7) /* 3 */ + SEARCH(thearray, 8) /* 6 */);
+ endofblock:
+  return res;
 }

@@ -224,12 +224,13 @@ and combine_expression (exp : expression) : expression =
       MEMBEROF(combine_expression exp, fld)
   | MEMBEROFPTR (exp, fld) ->
       MEMBEROFPTR(combine_expression exp, fld)
-  | GNU_BODY (l, blk) ->
-      GNU_BODY (l, List.map combineBlkElem blk)
+  | GNU_BODY (blk) ->
+      GNU_BODY (combineBody blk)
 
-and combineBlkElem = function
-      BDEF d -> BDEF(combine_def d false)
-    | BSTM s -> BSTM(combine_statement s)
+and combineBody (labs, defs, stmts) = 
+  (labs, 
+   List.map (fun d -> combine_def d false) defs,
+   List.map combine_statement stmts)
 
 (*
 ** Statement combining
@@ -241,7 +242,7 @@ and combine_statement stat =
   | COMPUTATION (exp, loc) ->
       COMPUTATION(combine_expression exp, loc)
   | BLOCK (blk, loc) ->
-      BLOCK(List.map combineBlkElem blk, loc)
+      BLOCK(combineBody blk, loc)
   | SEQUENCE (s1, s2, loc) ->
       SEQUENCE(combine_statement s1, combine_statement s2, loc)
   | IF (exp, s1, s2, loc) ->
@@ -419,7 +420,7 @@ and combine_def def global = begin
       (declare_id "" (s', name) global;
       let n = combine_single_name "" (s', name)  (* force evaluation *)
       in
-      FUNDEF(n, List.map combineBlkElem body, loc))
+      FUNDEF(n, combineBody body, loc))
 
   | DECDEF ((s, names), loc) ->
       List.iter (fun (name, _) -> declare_id "" (s, name) global) names;

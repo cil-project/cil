@@ -89,7 +89,7 @@ let init_lexicon _ =
       ("__label__", LABEL__);
       (*** weimer: GCC arcana ***)
       ("__restrict", RESTRICT); ("restrict", RESTRICT);
-      ("__extension__", EXTENSION);
+(*      ("__extension__", EXTENSION); *)
       (**** MS VC ***)
       ("__int64", INT64);
       ("__int32", INT);
@@ -267,8 +267,9 @@ let hex_escape = '\\' ['x' 'X'] hexdigit hexdigit
 let oct_escape = '\\' octdigit  octdigit octdigit
 
 rule initial =
-	parse 	"/*"			{let _ = comment lexbuf in 
-                                         initial lexbuf}
+	parse 	"/*"			{ let _ = comment lexbuf in 
+                                          initial lexbuf}
+|               "//"                    { endline lexbuf }
 |		blank			{initial lexbuf}
 |               '\n'                    { newline (); initial lexbuf }
 |		'#'			{ hash lexbuf}
@@ -333,6 +334,9 @@ rule initial =
 |		"sizeof"		{SIZEOF}
 |               "__asm"                 { MSASM (msasm lexbuf) }
 
+(* __extension__ is a black. The parser runs into some conflicts if we let it 
+ * pass *)
+|               "__extension__"         { initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
 |		_			{display_error
@@ -372,7 +376,7 @@ and file =  parse
 
 and endline = parse 
         '\n' 			{ newline (); initial lexbuf}
-|	_			{endline lexbuf}
+|	_			{ endline lexbuf}
 
 and pragma = parse
    '\n'                 { newline (); "" }

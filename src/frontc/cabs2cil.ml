@@ -838,6 +838,10 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
     (* The expression is evaluated for its side-effects *)
   | (TInt _ | TEnum _ | TBitfield _ | TPtr _ ), TVoid _ -> (ot, e)
 
+  (* Even casts between structs are allowed when we are only modifying some 
+   * attributes *)
+  | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> (nt, e)
+
   | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
 
 (* A cast that is used for conditional expressions. Pointers are Ok *)
@@ -2268,11 +2272,11 @@ and doExp (isconst: bool)    (* In a constant *)
               finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
     end
 
-    | A.GNU_BODY (loclabs, b) -> begin
+    | A.GNU_BODY ((_, _, bstmts) as b) -> begin
         (* Find the last A.COMPUTATION and remember it. This one is invoked 
          * on the reversed list of statements. *)
         let rec findLastComputation = function
-            A.BSTM s :: _  -> 
+            s :: _  -> 
               let rec findLast = function
                   A.SEQUENCE (_, s, loc) -> findLast s
                 | CASE (_, s, _) -> findLast s
@@ -2282,26 +2286,19 @@ and doExp (isconst: bool)    (* In a constant *)
                 | _ -> raise Not_found
               in
               findLast s
-          | _ :: rest -> findLastComputation rest
           | [] -> raise Not_found
         in
         (* Save the previous data *)
         let old_gnu = ! gnu_body_result in
         let lastComp, isvoidbody = 
-          try findLastComputation (List.rev b), false    
+          try findLastComputation (List.rev bstmts), false    
           with Not_found -> A.NOP cabslu, true
         in
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
         gnu_body_result := (lastComp, data);
 
-        (* Now setup the locally declared labels *)
-        (* setup a scope *)
-        enterScope ();
-        (* Rename the labels and add them to the environment *)
-        List.iter (fun l -> ignore (genNewLocalLabel l)) loclabs;
         let se = doBody b in
-        exitScope (); (* Close the label scope *)
 
         gnu_body_result := old_gnu;
         match !data with
@@ -2922,19 +2919,34 @@ and assignInit (lv: lval)
         acc
 
   (* Now define the processors for body and statement *)
-and doBody (b : A.body) : chunk = 
+and doBody ((loclabs: string list), 
+            (bdefs: A.definition list),
+            (bstmts: A.statement list)) : chunk = 
   enterScope ();
-    (* Do the declarations and the initializers and the statements. *)
-  let rec loop = function
+  (* Rename the labels and add them to the environment *)
+  List.iter (fun l -> ignore (genNewLocalLabel l)) loclabs;
+
+            (* Do the declarations and the initializers and the statements.
+  let rec loopDefs = function
       [] -> empty
     | A.BDEF d :: rest -> 
-        let res = doDecl d in  (* !!! @ evaluates its arguments backwards *)
+        let res = doDecl d in 
         res @@ loop rest
     | A.BSTM s :: rest -> 
         let res = doStatement s in
         res @@ loop rest
+  in  *)
+  let res = 
+    afterConversion
+      (List.fold_left   (* !!! @ evaluates its arguments backwards *)
+         (fun prev s -> let res = doStatement s in prev @@ res)
+         (List.fold_left 
+            (fun prev d -> let res = doDecl d in prev @@ res) 
+            empty 
+            bdefs)
+         bstmts)
   in
-  let res = afterConversion (loop b) in
+(*  let res = afterConversion (loop belems) in *)
   exitScope ();
   res
       
@@ -3198,7 +3210,7 @@ let convFile fname dl =
     end
 
     | A.FUNDEF (((specs,(n,dt,a)) : A.single_name),
-               (body : A.body), loc) ->
+               (body : A.block), loc) ->
         currentLoc := convLoc(loc);
         E.withContext
           (fun _ -> dprintf "2cil: %s" n)
