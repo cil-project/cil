@@ -85,3 +85,66 @@ let default_heapify (f : file) =
 	ignore (heapify f alloc_exp free_exp)
 
 (* StackGuard clone *)
+
+class sgModifyVisitor restore_ra_stmt = object
+	inherit nopCilVisitor
+  method vstmt s = match s.skind with (* also rewrite the return *)
+    Return(_,loc) -> let new_block = mkBlock [restore_ra_stmt ; s] in 
+			ChangeTo(mkStmt (Block(new_block)))  
+	| _ -> DoChildren (* ignore other statements *)
+end
+
+class sgAnalyzeVisitor f push pop get_ra set_ra = object
+	inherit nopCilVisitor
+	method vfunc fundec = 
+		let needs_guarding = List.fold_left (fun acc vi ->
+			acc || let result = ref false in
+			visitCilType (new containsArray result) vi.vtype ;
+			!result) false fundec.slocals in
+		if needs_guarding then begin
+			let ra_tmp = makeLocalVar fundec "return_address" voidPtrType in
+			let ra_exp = Lval(Var(ra_tmp),NoOffset) in 
+			let save_ra_stmt = mkStmt (* save the current return address *)
+			(Instr [Call(Some(Var(ra_tmp),NoOffset), get_ra, [], locUnknown) ;
+						  Call(None, push, [ra_exp], locUnknown)]) in
+			let restore_ra_stmt = mkStmt (* restore the old return address *)
+			(Instr [Call(Some(Var(ra_tmp),NoOffset), pop, [], locUnknown) ;
+						  Call(None, set_ra, [ra_exp], locUnknown)]) in
+      let modify = new sgModifyVisitor restore_ra_stmt in
+      fundec.sbody <- visitCilBlock modify fundec.sbody ;
+			fundec.sbody.bstmts <- save_ra_stmt :: fundec.sbody.bstmts ;
+      ChangeTo(fundec)  (* done! *)
+		end else DoChildren
+end
+
+let stackguard (f : file) (push : exp) (pop : exp) 
+	(get_ra : exp) (set_ra : exp) = 
+	visitCilFile (new sgAnalyzeVisitor f push pop get_ra set_ra) f
+(* stackguard code ends *)
+
+let default_stackguard (f : file) =
+	let expify fundec = Lval(Var(fundec.svar),NoOffset) in
+	let push = expify (emptyFunction "stackguard_push") in
+	let pop = expify (emptyFunction "stackguard_pop") in
+	let get_ra = expify (emptyFunction "stackguard_get_ra") in
+	let set_ra = expify (emptyFunction "stackguard_set_ra") in
+	let global_decl = 
+"struct stackguard_stack {
+	void * data;
+	struct stackguard_stack * next;
+ } * stackguard_stack;
+ void stackguard_push(void *ra) {
+	void * old = stackguard_stack;
+	stackguard_stack = malloc(sizeof(stackguard_stack));
+	stackguard_stack->data = ra;
+	stackguard_stack->next = old;
+ }
+ void * stackguard_pop() {
+	void * ret = stackguard_stack->data;
+	void * next = stackguard_stack->next;
+	free(stackguard_stack);
+	stackguard_stack->next = next;
+	return ret;
+ }" in
+	f.globals <- GText(global_decl) :: f.globals ;
+	ignore (stackguard f push pop get_ra set_ra )

@@ -9,6 +9,7 @@ open Trace
 let outChannel : out_channel option ref = ref None
 let keepFiles = ref false
 let heapify = ref false
+let stackguard = ref false
 
 let preproc = ref ""                    (* The preprocess command *)
 exception Done_Processing
@@ -79,7 +80,11 @@ let rec processOneFile fname =
 		end ; 
 
 		if (!heapify) then begin
-			(* Heapify.default_heapify cil *) ()
+			Heapify.default_heapify cil 
+		end ;
+
+		if (!stackguard) then begin
+			Heapify.default_stackguard cil 
 		end ;
 
     (match !outChannel with
@@ -129,6 +134,8 @@ let rec theMain () =
                      "turns on generation of code to log function calls in CIL";
 		"-heapify", Arg.Unit (fun _ -> heapify := true),
 					"apply the `heapify' transformation";
+		"-stackguard", Arg.Unit (fun _ -> stackguard := true),
+					"apply the `stackguard' transformation";
     "-nodebug", Arg.String (setDebugFlag false), 
                       "<xxx> turns off debugging flag xxx";
     "-log", Arg.String openLog, "the name of the log file";
