@@ -113,6 +113,7 @@ let sequence_condition t_from t_to =
 
 (* Add compatibility edges for all casts out of a node *)
 let addCompatEdges (n1: node) = 
+  let doneAlready : (int * int, bool) H.t = H.create 7 in
   (* Add a compatibility edge between two nodes *)
   let rec addIt (n1: node) (n2: node) : unit = 
     (* Only if there is no such edge already *)
@@ -140,8 +141,17 @@ let addCompatEdges (n1: node) =
           when List.length args1 = List.length args2 -> 
         doTypePair rt1 rt2;
         List.iter2 (fun a1 a2 -> doTypePair a1.vtype a2.vtype) args1 args2
-        
-    | _ -> () (*  !!!! We should handle structs at the very least *)
+      
+    | TComp (ci1, _), TComp (ci2, _) 
+      when (ci1.cstruct && ci2.cstruct && 
+            List.length ci1.cfields = List.length ci2.cfields) ->
+        if not (H.mem doneAlready (ci1.ckey, ci2.ckey)) then begin
+           H.add doneAlready (ci1.ckey, ci2.ckey) true; 
+           List.iter2 (fun f1 f2 -> doTypePair f1.ftype f2.ftype) 
+                     ci1.cfields ci2.cfields
+        end
+
+    | _ -> () (*  !!!! We should handle arrays at the very least *)
   in
   List.iter 
     (fun e -> if e.ekind = ECast then doTypePair n1.btype e.eto.btype) 
