@@ -157,7 +157,7 @@ val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 (** A function that is useful with the [printf]-like interface *)
 val insert       : unit -> doc -> doc
 
-(** The next few functions provinde an alternative method for constructing 
+(* The next few functions provide an alternative method for constructing 
     [doc] objects. In each of these functions there is a format string 
     argument (of type [('a, unit, doc) format]; if you insist on 
     understanding what that means see the module [Printf]). The format string 
@@ -203,12 +203,10 @@ d_stmt: unit -> statement -> doc
 
 
 (** The basic function for constructing a [doc] using format strings
-
- Example: {v
- dprintf "Name=%s, SSN=%7d, Children=\@\[%a\@\]\n"
+ Example: 
+ [dprintf "Name=%s, SSN=%7d, Children=\@\[%a\@\]\n"
              pers.name pers.ssn (docList (chr ',' ++ break) text)
-             pers.children
-}
+             pers.children]
 *)
 val dprintf: ('a, unit, doc) format -> 'a  
 

@@ -42,6 +42,14 @@ clean:
 odoc:
 	make -f Makefile.ccured odoc $(MAKEOVERRIDES)
 
+cil-doc:
+	odoc -d doc/cil -g odoc_fhtml.cmo -t "CIL Documentation" \
+	     -I obj src/cil.mli src/errormsg.mli src/clist.mli \
+	  	    src/pretty.mli src/stats.mli
+
+# don't be confused by presence of odoc/ directory
+.PHONY: cil-doc
+
 CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
 PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
 
