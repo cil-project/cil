@@ -76,9 +76,9 @@ quickbuild: cilversion machdep cilly
 # into two targets so we build cil.cma both ways, but no one is using
 # cil.cma now so I'll leave it alone
 setup: cilversion machdep
-	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML= 
-	$(MAKE) -r -f Makefile.cil cilly $(MAKEOVERRIDES) NATIVECAML=1
-	$(MAKE) -r -f Makefile.cil cillib $(MAKEOVERRIDES) NATIVECAML=1
+	$(MAKE) -f Makefile.cil cilly NATIVECAML= 
+	$(MAKE) -f Makefile.cil cilly NATIVECAML=1
+	$(MAKE) -f Makefile.cil cillib NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
