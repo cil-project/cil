@@ -272,7 +272,6 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("fwrite")
   #pragma boxpoly("mmap")      // sm: for ftpd
   #pragma boxpoly("munmap")    // sm: for ftpd
-  #pragma boxpoly("bzero")     // sm: for anagram
 
   #pragma boxpoly("memset_seq_model")
   static inline
