@@ -28,21 +28,57 @@ my $TEST = SafecRegTest->new(AvailParams => {"run" => 1,
 my @runpattern = 
     ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
 
-# Now add tests
-$TEST->addTest("hashtest", @runpattern);
-$TEST->addTest("wes-hashtest", @runpattern);
-$TEST->addTest("rbtest", @runpattern);
-$TEST->addTest("wes-rbtest", @runpattern);
-$TEST->addTest("btreetest", @runpattern);
-$TEST->addTest("apache/gzip");
-$TEST->addTest("apache/rewrite");
-$TEST->addTest("test/string");
-$TEST->addTest("test/smallstring");
-$TEST->addTest("test/init");
-$TEST->addTest("test/sizeof");
-$TEST->addTest("test/alloc");
+my %commonerrors = 
+    ("^make: \\*\\*\\*" => 
+     sub { 
+         if($_[1]->{ErrorCode} == 0) {
+             if($_[1]->{instage} == 0) {
+                 $_[1]->{ErrorCode} = 2;
+             } else {
+                 $_[1]->{ErrorCode} = $_[1]->{instage};
+             }
+         }},
+    
+    "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
+    
+    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
+    
+    "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
+    
+    "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
+    
+    "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
 
-# $TEST->addTest("test/t");
+         # Collect some more parameters
+    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{instage} = 1005; # If here we
+                                                     # terminated successfully
+                                     $_[1]->{parse} = $_[2];},
+    "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
+    "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
+    "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},
+
+         );
+
+my $debug = defined($TEST->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
+
+# Now add tests
+$TEST->add3Tests("hashtest", @runpattern);
+$TEST->add3Tests("wes-hashtest", @runpattern);
+$TEST->add3Tests("rbtest", @runpattern);
+$TEST->add3Tests("wes-rbtest", @runpattern);
+$TEST->add3Tests("btreetest", @runpattern);
+$TEST->add3Tests("apache/gzip");
+$TEST->add3Tests("apache/rewrite");
+$TEST->add3Tests("test/string");
+$TEST->add3Tests("test/smallstring");
+$TEST->add3Tests("test/init");
+$TEST->add3Tests("test/sizeof");
+$TEST->add3Tests("test/alloc");
+$TEST->add1Test("test/alloc-manualinferbox",
+                "test/alloc BOX=1 INFERBOX=1 MANUALBOX=1 $debug",
+                %commonerrors);
+
+$TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 
 # print Dumper($TEST);
 
@@ -127,45 +163,13 @@ sub availableParameters {
     return %::availpars;
 }
 
-sub addTest {
+sub add3Tests {
     my($self, $name, %patterns) = @_;
     
     my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
 
-    my %commonerrors = 
-        ("^make: \\*\\*\\*" => 
-         sub { 
-             if($_[1]->{ErrorCode} == 0) {
-                 if($_[1]->{instage} == 0) {
-                     $_[1]->{ErrorCode} = 2;
-                 } else {
-                     $_[1]->{ErrorCode} = $_[1]->{instage};
-                 }
-             }},
-
-    "Syntax error" => sub { $_[1]->{ErrorCode} = 1000; },
-    
-    "^Error: Cabs2cil" => sub { $_[1]->{ErrorCode} = 1001; },
-    
-    "^FrontC finished conversion" => sub { $_[1]->{instage} = 1002; },
-    
-    "^Solving constraints" => sub { $_[1]->{instage} = 1003; },
-    
-    "^Error: Boxing" => sub { $_[1]->{ErrorCode} = 1004; },
-
-         # Collect some more parameters
-    "^parse\\s+([\\.\\d]+) s" => sub { $_[1]->{instage} = 1005; # If here we
-                                                     # terminated successfully
-                                     $_[1]->{parse} = $_[2];},
-    "^print.+\\s+([\\.\\d]+) s" => sub { $_[1]->{print} += $_[2];},
-    "^box\\s+([\\.\\d]+) s" => sub { $_[1]->{box} += $_[2];},
-    "^\\s+simple solver\\s+([\\.\\d]+) s" => sub { $_[1]->{solve} += $_[2];},
-
-         );
     my $k;
-    foreach $k (keys %commonerrors) {
-        $patterns{$k} = $commonerrors{$k};
-    }
+    my %patterns = %commonerrors;
 
     $self->newTest(Name => $name . "-cil",
                    Dir => "..",
@@ -183,6 +187,23 @@ sub addTest {
                    Dir => "..",
                    Cmd => "make " . $name . " BOX=1 INFERBOX=1 " . $theargs,
                    Group => ["box", "infer"], 
+                   Patterns => \%patterns);
+}
+
+
+sub add1Test {
+    my($self, $name, $args, %patterns) = @_;
+    
+    my $theargs = 
+        defined($self->{option}->{safecdebug}) ? $args : " $args RELEASE=1 ";
+
+    my $k;
+    my %patterns = %commonerrors;
+
+    $self->newTest(Name => $name,
+                   Dir => "..",
+                   Cmd => "make $theargs",
+                   Group => ["cil"],
                    Patterns => \%patterns);
 }
 

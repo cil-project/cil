@@ -1309,7 +1309,6 @@ let fseqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list)
 
 let wildToROString (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
     : exp * exp * exp * stmt list =
-  (* Make a new temporary variable to hold the end of the area *)
   p, zero, zero, 
   call None (Lval (var checkStringMax.svar))
     [ castVoidStar p; b ] :: acc
