@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-union vararg_sum {
+struct vararg_sum {
   int ints;                   /* We only pass ints to this one */
   int *pints;
 };
-#pragma boxvararg("sum", sizeof(union vararg_sum))
+#pragma boxvararg("sum", sizeof(struct vararg_sum))
 
 int sum( int descriptor, ... );
 

@@ -224,6 +224,7 @@ $TEST->add3Tests("testrun/func3");
 $TEST->add3Tests("testrun/func4");
 $TEST->add3Tests("testrun/func5");
 $TEST->add3Tests("testrun/func6");
+$TEST->add3Tests("testrun/func7");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("testrun/float");
 $TEST->add3Tests("testrun/ptr1");
@@ -275,6 +276,7 @@ $TEST->add2Tests("testrun/vararg3");
 $TEST->add2Tests("testrun/vararg4");
 $TEST->add2Tests("testrun/varargauto1");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
+$TEST->add2Tests("testrun/vararg-tagged1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/vararg6");
 }

@@ -1,5 +1,5 @@
 # .gdbinit
 
-file hufftest.exe
+file vararg-tagged1.exe
 break main
 run
