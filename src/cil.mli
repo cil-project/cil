@@ -783,7 +783,8 @@ val typeOffset: typ -> offset -> typ  (* Give the base type *)
 
 (* Some expressions to be used in case of errors *)
 val dExp: Pretty.doc -> exp 
-val dInstr: Pretty.doc -> instr
+val dInstr: Pretty.doc -> location -> instr
+val dGlobal: Pretty.doc -> location -> global
 
  (* Add an offset at the end of an lv *)      
 val addOffsetLval: offset -> lval -> lval 

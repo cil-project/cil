@@ -435,7 +435,20 @@ let fprint =
         width doc
 
 let sprint width doc =
-  fit "" (fun acc s nrcopies -> acc (* ^ String.make s nrcopies *)) width doc
+  fit "" 
+    (fun acc s nrcopies -> 
+      let acc' = 
+        if String.length s = 1 then
+          acc ^ String.make nrcopies (String.get s 0)
+        else
+          let rec loop acc left = 
+            if left = 0 then acc
+            else loop (acc ^ s) (left - 1)
+          in
+          loop acc nrcopies
+      in
+      acc')
+    width doc
 
 let gprint = fit
 

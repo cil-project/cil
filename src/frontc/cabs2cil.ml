@@ -100,7 +100,7 @@ type envdata =
                                          * conversion *)
 
 
-let env : (string, envdata) H.t = H.create 307
+let env : (string, envdata * location) H.t = H.create 307
 
  (* In the scope we keep the original name, so we can remove them from the 
   * hash table easily *)
@@ -114,7 +114,7 @@ let scopes :  undoScope list ref list ref = ref []
 
 (* When you add to env, you also add it to the current scope *)
 let addLocalToEnv (n: string) (d: envdata) = 
-  H.add env n d;
+  H.add env n (d, !currentLoc);
     (* If we are in a scope, then it means we are not at top level. Add the 
      * name to the scope *)
   (match !scopes with
@@ -123,7 +123,7 @@ let addLocalToEnv (n: string) (d: envdata) =
 
 
 let addGlobalToEnv (k: string) (d: envdata) : unit = 
-  H.add env k d
+  H.add env k (d, !currentLoc)
   
   
 
@@ -249,18 +249,19 @@ let exitScope () =
   in
   loop !this
 
-(* Lookup a variable name. Might raise Not_found *)
-let lookupVar n = 
+(* Lookup a variable name. Return also the location of the definition. Might 
+ * raise Not_found  *)
+let lookupVar (n: string) : varinfo * location = 
   match H.find env n with
-    EnvVar vi -> vi
+    (EnvVar vi), loc -> vi, loc
   | _ -> raise Not_found
         
 let docEnv () = 
-  let acc : (string * envdata) list ref = ref [] in
+  let acc : (string * (envdata * location)) list ref = ref [] in
   let doone () = function
-      EnvVar vi -> text vi.vname
-    | EnvEnum (tag, typ) -> text ("enum tag")
-    | EnvTyp t -> text "typ"
+      EnvVar vi, _ -> text vi.vname
+    | EnvEnum (tag, typ), _ -> text ("enum tag")
+    | EnvTyp t, _ -> text "typ"
   in
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
@@ -334,14 +335,14 @@ let mkAddrOfAndMark ((b, off) as lval) : exp =
 let compInfoNameEnv : (string, compinfo) H.t = H.create 113
 
 let lookupTypeNoError (kind: string) 
-                      (n: string) : typ = 
+                      (n: string) : typ * location = 
   let kn = kindPlusName kind n in
   match H.find env kn with
-    EnvTyp t -> t
+    EnvTyp t, l -> t, l
   | _ -> raise Not_found
 
 let lookupType (kind: string) 
-               (n: string) : typ = 
+               (n: string) : typ * location = 
   try
     lookupTypeNoError kind n
   with Not_found -> 
@@ -375,7 +376,7 @@ let findCompType kind n a =
     TComp (true, self, a)
   in
   try
-    let old = lookupTypeNoError kind n in (* already defined  *)
+    let old, _ = lookupTypeNoError kind n in (* already defined  *)
     let olda = typeAttrs old in
     if olda = a then old else makeForward ()
   with Not_found -> makeForward ()
@@ -800,7 +801,7 @@ let doNameGroup (doone: A.spec_elem list -> 'n -> 'a)
  * there exists already a definition *)
 let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
   try (* See if already defined *)
-    let oldvi = lookupVar vi.vname in
+    let oldvi, oldloc = lookupVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
     let _ = 
@@ -808,7 +809,7 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
       else if vi.vstorage = Extern then ()
       else if oldvi.vstorage = Extern then 
         oldvi.vstorage <- vi.vstorage 
-      else E.s (E.unimp "Unexpected redefinition")
+      else E.s (E.unimp "Unexpected redefinition of %s" vi.vname)
     in
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
@@ -828,11 +829,11 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
           * arguments, believe the one with the arguments *)
         | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
                when va1 = va2 -> oldvi.vtype <- vi.vtype
-        | TSFun(r1, _ , va1, _), 
-          TSFun(_, [], va2, a2)
-               when va1 = va2 -> ()
-        | _, _ -> E.s (E.unimp "Redefinition of %s with different types.@!Before=%a@!After= %a@!" 
-                         vi.vname d_plaintype oldvi.vtype d_plaintype vi.vtype)
+        | TSFun(r1, _ , va1, _), TSFun(_, [], va2, a2) when va1 = va2 -> ()
+        | _, _ -> E.s (E.unimp "Redefinition of %s with different types.@!Before=%a(%a)@!Now= %a (%t)@!" 
+                         vi.vname d_plaintype oldvi.vtype 
+                         d_loc oldloc
+                         d_plaintype vi.vtype d_thisloc)
     in
     let rec alreadyDef = ref false in
     let rec loop = function
@@ -853,7 +854,7 @@ let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
                            * Extern  *)
 
     alphaConvertVarAndAddToEnv true vi, false
-  end
+  end 
 
 (**** PEEP-HOLE optimizations ***)
 let afterConversion (c: chunk) : chunk = 
@@ -983,7 +984,7 @@ let rec doSpecList (specs: A.spec_elem list)
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
         match lookupType "type" n with 
-          (TNamed _) as x -> x
+          (TNamed _) as x, _ -> x
         | typ -> E.s (E.bug "Named type %s is not mapped correctly\n" n)
     end
 
@@ -1113,7 +1114,7 @@ and doAttr (a: A.attribute) : attribute list =
         match a with
           A.VARIABLE n -> begin
             try 
-              let vi = lookupVar n in
+              let vi, _ = lookupVar n in
               AVar vi
             with Not_found -> 
               AId (if strip then stripUnderscore n else n)
@@ -1380,9 +1381,9 @@ and doExp (isconst: bool)    (* In a constant *)
         try 
           let envdata = H.find env n in
           match envdata with
-            EnvVar vi -> 
+            EnvVar vi, _ -> 
               finishExp empty (Lval(var vi)) vi.vtype
-          | EnvEnum (tag, typ) -> 
+          | EnvEnum (tag, typ), _ -> 
             finishExp empty tag typ  
           | _ -> raise Not_found
         with Not_found -> 
@@ -1798,7 +1799,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                          * takes INTs as arguments  *)
             A.VARIABLE n -> begin
               try
-                let vi = lookupVar n in
+                let vi, _ = lookupVar n in
                 (empty, Lval(var vi), vi.vtype) (* Found. Do not use 
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
@@ -2005,7 +2006,7 @@ and doExp (isconst: bool)    (* In a constant *)
     end
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
-    (i2c (dInstr (dprintf "booo_exp(%s)" (Printexc.to_string e))), 
+    (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc), 
      integer 0, intType)
   end
     
@@ -2426,7 +2427,8 @@ and createGlobal (specs: A.spec_elem list)
     end
   with e -> begin
     ignore (E.log "error in CollectGlobal (%s)\n" n);
-    theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
+    theFile := dGlobal (dprintf "booo - error in global %s (%t)" 
+                          n d_thisloc) !currentLoc :: !theFile
   end
 (*
           ignore (E.log "Env after processing global %s is:@!%t@!" 

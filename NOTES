@@ -21,6 +21,10 @@ TODO list as of 3/6 (George leaves for Japan)
 (10) Consider collapsing A->B->C constraints to A->C if there are no other
     nodes that touch B. 
 
+(11) The combiner should first rewrite the body of a definition before
+   checking if it was already encountered. 
+
+
  - casting of function pointers is problematic. For each cast a wrapper should
    be written instead! 
 

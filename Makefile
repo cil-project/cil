@@ -430,7 +430,7 @@ endif
 
 mustbegcc :
 ifndef _GNUCC
-	@echo This test case only works with _GNUCC=1; exit 3
+	@echo This test case works only with _GNUCC=1; exit 3
 endif
 
 ####### Test with PCC sources

@@ -186,7 +186,8 @@ and combine_expression (exp : expression) : expression =
   | BINARY (op, exp1, exp2) ->
       BINARY(op, combine_expression exp1, combine_expression exp2)      
   | QUESTION (exp1, exp2, exp3) ->
-      QUESTION(combine_expression exp1, combine_expression exp2, combine_expression exp3)    
+      QUESTION(combine_expression exp1, 
+               combine_expression exp2, combine_expression exp3)    
   | CAST (typ, exp) ->
       CAST(combine_only_type typ, combine_expression exp)     
   | CALL (exp, args) ->
@@ -277,59 +278,16 @@ and combine_defs defs global = begin
       [] -> []
     | def :: rest -> 
       begin
-        if global && (already_declared ((* remove_anon *) def)) then 
-          (reform_defs rest) (*skip this def *) 
+        if global && already_declared def then 
+          reform_defs rest (*skip this def *) 
         else
           let combined_def = combine_def def global in
-          combined_def :: (reform_defs rest)
+          combined_def :: reform_defs rest
       end
   in 
   reform_defs defs 
 end
 
-(* A set of remove_anon functions to remove _anon from 
-   TYPEDEF and ONLYTYPEDEF for the purposes of checking
-   duplicate definition.
-   If adding tag _anon is removed from Cparser, then we don't
-   need these functions 
-
-  REMOVED since cparser does not introduce anonymous structures anymore 
-
-and remove_anon_name_group (s, names) = (remove_anon_specs s, names)
-
-and remove_anon_specs (s: spec_elem list) = 
-   let remove_anon_spec_elem (e: spec_elem) =
-     match e with
-       SpecType t -> 
-         SpecType 
-           (match t with
-             Tenum (id, Some items) -> 
-               Tenum (remove_anon_id id, Some items)
-           | Tstruct (id, Some flds) ->
-               Tstruct (remove_anon_id id, 
-                        Some (List.map remove_anon_name_group flds))
-           | Tunion (id, Some flds) ->
-               Tunion (remove_anon_id id, 
-                        Some (List.map remove_anon_name_group flds))
-           | t -> t)
-     | e -> e
-   in
-   List.map remove_anon_spec_elem s
-
-and remove_anon_id id =
-  if (((String.length id) >= 6) && ((String.sub id 0 6) = "__anon")) then
-    ""
-  else 
-    id
-
-and remove_anon def = begin
-  match def with
-    TYPEDEF (s, names) -> TYPEDEF (remove_anon_specs s, names)
-  | ONLYTYPEDEF s -> ONLYTYPEDEF (remove_anon_specs s)
-  | _ -> def
- 
-end        
-*)
 and tag_defined (s: spec_elem) = 
   match s with
     SpecType t -> begin
@@ -429,10 +387,7 @@ and declare_ids (kind: string) (s, names) global =
 and combine_def def global = begin
   
   (* clear function scope mapping table if this is a global def *)
-  if global then 
-    begin
-      H.clear lMap; 
-    end;
+  if global then H.clear lMap; 
 
   match def with
     FUNDEF ((s, name), body) ->
@@ -466,6 +421,7 @@ and combine_def def global = begin
   | PRAGMA a -> 
       PRAGMA a
 end
+
   
 (* look up id from Mapping tables *)
 and lookup_id (kind: string) id = begin

@@ -2755,9 +2755,10 @@ and boxstmt (s: Cil.stmt) : block =
   try
     match s.skind with 
     | Break _ | Continue _ | Goto _ -> [s]
-    | Return (None, l) -> unregisterStmt () :: [ s ]
+    | Return (None, l) -> currentLoc := l;unregisterStmt () :: [ s ]
 
     | Return (Some e, l) -> 
+        currentLoc := l;
         let retType =
           match !currentFunction.svar.vtype with 
             TFun(tRes, _, _, _) -> tRes
@@ -2771,10 +2772,12 @@ and boxstmt (s: Cil.stmt) : block =
         s :: doe3 @ [ unregisterStmt (); mkStmt (Return (Some e2, l)) ]
                       
     | Loop (b, l) -> 
+        currentLoc := l;
         s.skind <- Loop (boxblock b, l);
         [ s ] 
           
     | If(be, t, e, l) -> 
+        currentLoc := l;
         let (_, doe, e') = boxexp (CastE(intType, be)) in
         s.skind <- Instr [];
         s :: doe @ [ mkStmt (If(e', boxblock t, boxblock e, l)) ]
@@ -2784,14 +2787,16 @@ and boxstmt (s: Cil.stmt) : block =
         s.skind <- Instr [];
         compactBlock (s :: b)
     | Switch (e, b, cases, l) -> 
-      (* Cases are preserved *)
+        currentLoc := l;
+        (* Cases are preserved *)
         let (_, doe, e') = boxexp (CastE(intType, e)) in
         s.skind <- Instr [];
         s :: doe @ [ mkStmt (Switch (e', boxblock b, cases, l)) ]
   with e -> begin
     ignore (E.log "boxstmt (%s) in %s\n" 
               (Printexc.to_string e) !currentFunction.svar.vname);
-    [mkStmt(Instr [dInstr (dprintf "booo_statement(%a)" d_stmt s)])]
+    [mkStmt(Instr [dInstr (dprintf "booo_statement(%a)" d_stmt s) 
+                      !currentLoc])]
   end
 
 
@@ -2801,6 +2806,7 @@ and boxinstr (ins: instr) : stmt list =
   try
     match ins with
     | Set (lv, e, l) -> 
+        currentLoc := l;
         let (lvt, lvkind, lv', lvbase, lvend, dolv) = boxlval lv in
         let (doe, e') = boxexpf e in (* Assume et is the same as lvt *)
         (* Now do a cast, just in case some qualifiers are different *)
@@ -2817,6 +2823,7 @@ and boxinstr (ins: instr) : stmt list =
         dolv @ doe3 @ check @ [mkSet lv' e3]
 
     | Call(vio, f, args, l) ->
+        currentLoc := l;
         let (ft, dof, f') = boxfunctionexp f in
         let (ftret, ftargs, isva) =
           match ft with 
@@ -2924,6 +2931,7 @@ and boxinstr (ins: instr) : stmt list =
         dof @ doargs @ finishcall
 
     | Asm(tmpls, isvol, outputs, inputs, clobs, l) ->
+        currentLoc := l;
         let rec doOutputs = function
             [] -> [], []
           | (c, lv) :: rest -> 
@@ -2958,7 +2966,8 @@ and boxinstr (ins: instr) : stmt list =
   with e -> begin
     ignore (E.log "boxinstr (%s):%a (in %s)\n" 
               (Printexc.to_string e) d_instr ins !currentFunction.svar.vname);
-    [mkInstr (dInstr (dprintf "booo_instruction(%a)" d_instr ins))]
+    [mkInstr (dInstr (dprintf "booo_instruction(%a) at %t" 
+                        d_instr ins d_thisloc) !currentLoc)]
   end
 
 (* Given an lvalue, generate all the stuff needed to construct a pointer to 
