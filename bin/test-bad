@@ -79,9 +79,10 @@ while [ $i -le $numcases ]; do
   fi
 
   # compile this with our tool
-  rm -f test-bad.out
+  rm -f test-bad.out test-bad.err
   echo $CCURED $CFLAGS $tmpname.c -o $tmpname
-  $CCUREDHOME/bin/teetwo test-bad.out test-bad.out $CCURED $CFLAGS $tmpname.c -o $tmpname
+  $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
+                         $CCURED $CFLAGS $tmpname.c -o $tmpname
   status=$?
   if [ $status != 0 ]; then
     if [ $i = 0 ] ;then
@@ -89,8 +90,8 @@ while [ $i -le $numcases ]; do
       exit $status
     else
       if [ "x$themsg" != "x" ] ;then
-         echo grep "$themsg" test-bad.out
-         if ! grep "$themsg" test-bad.out  ;then
+         echo grep "$themsg" test-bad.out test-bad.err
+         if ! grep "$themsg" test-bad.out test-bad.err  ;then
             echo "The ${i}th iteration failed to CURE but cannot find: $themsg"
             exit 3
          else
@@ -106,8 +107,8 @@ while [ $i -le $numcases ]; do
 
   # run it
   echo "./$tmpname"
-  rm -f test-bad.out
-  if $CCUREDHOME/bin/teetwo test-bad.out test-bad.out ./$tmpname ; then
+  rm -f test-bad.out test-bad.err
+  if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname ; then
     if [ $i = 0 ]; then
       # expected success on 0th iteration
       echo "(succeeded as expected)"
@@ -125,8 +126,8 @@ while [ $i -le $numcases ]; do
     else
       # expected failure on >0th iteration
       if [ "x$themsg" != "x" ] ;then
-         echo grep "$themsg" test-bad.out
-         if ! grep "$themsg" test-bad.out ;then
+         echo grep "$themsg" test-bad.out test-bad.err
+         if ! grep "$themsg" test-bad.out test-bad.err ;then
             echo "The ${i}th iteration failed but cannot find:$themsg"
             exit 3
          fi

@@ -119,3 +119,4 @@ mode_sizes
 *-tmp.c
 *tmp
 *.tmp.exe
+test-bad.err
