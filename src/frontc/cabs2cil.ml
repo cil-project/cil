@@ -3793,22 +3793,31 @@ and doStatement (s : A.statement) : chunk =
         exitLoop ();
         loopChunk (s' @@ s'')
           
-    | A.FOR(e1,e2,e3,s,loc) -> begin
+    | A.FOR(fc1,e2,e3,s,loc) -> begin
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (se1, _, _) = doExp false e1 ADrop in
+        enterScope (); (* Just in case we have a declaration *)
+        let (se1, _, _) = 
+          match fc1 with 
+            FC_EXP e1 -> doExp false e1 ADrop 
+          | FC_DECL d1 -> (doDecl d1, zero, voidType)
+        in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
         let s' = doStatement s in
         currentLoc := loc';
         let s'' = consLabContinue se3 in
         exitLoop ();
-        match e2 with
-          A.NOTHING -> (* This means true *)
-            se1 @@ loopChunk (s' @@ s'')
-        | _ -> 
-            se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc'))
-                              @@ s' @@ s'')
+        let res = 
+          match e2 with
+            A.NOTHING -> (* This means true *)
+              se1 @@ loopChunk (s' @@ s'')
+          | _ -> 
+              se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc'))
+                                @@ s' @@ s'')
+        in
+        exitScope ();
+        res
     end
     | A.BREAK loc -> 
         let loc' = convLoc loc in

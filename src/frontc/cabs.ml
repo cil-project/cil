@@ -154,7 +154,7 @@ and statement =
  | IF of expression * statement * statement * cabsloc
  | WHILE of expression * statement * cabsloc
  | DOWHILE of expression * statement * cabsloc
- | FOR of expression * expression * expression * statement * cabsloc
+ | FOR of for_clause * expression * expression * statement * cabsloc
  | BREAK of cabsloc
  | CONTINUE of cabsloc
  | RETURN of expression * cabsloc
@@ -170,6 +170,10 @@ and statement =
  | ASM of string list * bool * (string * expression) list 
        * (string * expression) list * string list * cabsloc
        
+and for_clause = 
+   FC_EXP of expression
+ | FC_DECL of definition
+
 (*
 ** Expressions
 *)

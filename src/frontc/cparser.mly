@@ -421,6 +421,7 @@ expression:
 |               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
                          { EXPR_PATTERN($3) }
 ;
+
 constant:
     CST_INT				{CONST_INT $1}
 |   CST_FLOAT				{CONST_FLOAT $1}
@@ -563,9 +564,9 @@ statement:
 	        	{WHILE (smooth_expression $3, $4, $1)}
 |   location DO statement WHILE paren_comma_expression SEMICOLON
 	        	         {DOWHILE (smooth_expression $5, $3, $1)}
-|   location FOR LPAREN opt_expression SEMICOLON opt_expression
+|   location FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement
-	                         {FOR ($4, $6, $8, $10, $1)}
+	                         {FOR ($4, $5, $7, $9, $1)}
 |   location IDENT COLON statement
 		                 {LABEL ($2, $4, $1)}
 |   location CASE expression COLON
@@ -575,14 +576,14 @@ statement:
 |   location DEFAULT COLON
 	                         {DEFAULT (NOP $1, $1)}
 |   location RETURN SEMICOLON    {RETURN (NOTHING, $1)}
-|   location RETURN expression SEMICOLON
-	                         {RETURN ($3, $1)}
+|   location RETURN comma_expression SEMICOLON
+	                         {RETURN (smooth_expression $3, $1)}
 |   location BREAK SEMICOLON     {BREAK $1}
 |   location CONTINUE SEMICOLON	 {CONTINUE $1}
 |   location GOTO IDENT SEMICOLON
 		                 {GOTO ($3, $1)}
-|   location GOTO STAR expression SEMICOLON 
-                                 { COMPGOTO ($4, $1) }
+|   location GOTO STAR comma_expression SEMICOLON 
+                                 { COMPGOTO (smooth_expression $4, $1) }
 |   location ASM maybevol LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { let (outs,ins,clobs) = $6 in
                           ASM ($5, $3, outs, ins, clobs, $1) }
@@ -590,6 +591,11 @@ statement:
 |   location error   SEMICOLON   { (NOP $1)}
 ;
 
+
+for_clause: 
+    opt_expression SEMICOLON     { FC_EXP $1 }
+|   declaration                  { FC_DECL $1 }
+;
 
 declaration:                                /* ISO 6.7.*/
     location decl_spec_list init_declarator_list SEMICOLON

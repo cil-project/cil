@@ -260,6 +260,8 @@ $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/wild2", "_GNUCC=1");
 $TEST->addTests("testrun/returnvoid", "", ['cil']);
 $TEST->addTests("testrun/returnvoid1", "", ['cil']);
+$TEST->addTests("testrun/return1", "", ['cil']);
+$TEST->addTests("testrun/for1", "", ['cil']);
 $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);

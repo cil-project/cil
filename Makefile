@@ -1692,7 +1692,7 @@ linuxclean:
 	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
-	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
+	cd $(LINUXSRC) ; make -k CC="$(CILLY) --keepunused" HOSTCC="$(CILLY)"
 
 linux-noclean:  mustbegcc mustbelinux mustbemanju
 	cd $(LINUXSRC) ; make -k CC="$(CILLY)" HOSTCC="$(CILLY)"
@@ -1759,5 +1759,5 @@ zlibclean:
 	      	\) -exec rm -f {} \;
 
 zlib: mustbegcc mustbemanju mustbelinux zlibclean
-	cd $(ZLIBSRC); make -k CC="$(CILLY)" 
+	cd $(ZLIBSRC); make -k CC="$(CILLY)" test
 

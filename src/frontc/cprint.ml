@@ -643,11 +643,12 @@ and print_statement stat =
       print_expression exp 0;
       print ");";
       new_line ();
-  | FOR (exp1, exp2, exp3, stat, loc) ->
+  | FOR (fc1, exp2, exp3, stat, loc) ->
       setLoc(loc);
       print "for(";
-      print_expression exp1 0;
-      print ";";
+      (match fc1 with
+        FC_EXP exp1 -> print_expression exp1 0; print ";"
+      | FC_DECL dec1 -> print_def dec1);
       space ();
       print_expression exp2 0;
       print ";";

@@ -334,13 +334,27 @@ and childrenStatement vis s =
       let e' = ve e in
       let s1' = vs l s1 in
       if e' != e || s1' != s1 then DOWHILE (e', s1', l) else s
-  | FOR (e1, e2, e3, s4, l) -> 
-      let e1' = ve e1 in
+  | FOR (fc1, e2, e3, s4, l) -> 
+      let _ = vis#vEnterScope () in
+      let fc1' = 
+        match fc1 with
+          FC_EXP e1 -> 
+            let e1' = ve e1 in
+            if e1' != e1 then FC_EXP e1' else fc1
+        | FC_DECL d1 -> 
+            let d1' = 
+              match visitCabsDefinition vis d1 with
+                [d1'] -> d1'
+              | _ -> E.s (E.unimp "visitCabs: for can have only one definition")
+            in
+            if d1' != d1 then FC_DECL d1' else fc1
+      in
       let e2' = ve e2 in
       let e3' = ve e3 in
       let s4' = vs l s4 in
-      if e1' != e1 || e2' != e2 || e3' != e3 || s4' != s4 
-      then FOR (e1', e2', e3', s4', l) else s
+      let _ = vis#vExitScope () in
+      if fc1' != fc1 || e2' != e2 || e3' != e3 || s4' != s4 
+      then FOR (fc1', e2', e3', s4', l) else s
   | BREAK _ | CONTINUE _ | GOTO _ -> s
   | RETURN (e, l) ->
       let e' = ve e in
