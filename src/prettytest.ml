@@ -59,7 +59,10 @@ let treeTest n colWidth =
   ignore (Printf.fprintf stderr "Mode = %s Tree size = %d \t ColWidth = %d\n" mode (countLeaves t) colWidth);
   ignore (flush stderr);
   if mode <> "SkipPrint" then 
-    Pretty.fprint stdout colWidth (tree2doc t)
+    let start = Sys.time () in
+    Pretty.fprint stdout colWidth (tree2doc t);
+    let finish = Sys.time () in
+    Printf.fprintf stderr"Print time: %f\n" (finish -. start)
 	
 
 let doTest () =
