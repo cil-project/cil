@@ -1488,13 +1488,11 @@ and typeSigAddAttrs a0 t =
 
 
 let rec doCast (e: exp) (oldt: typ) (newt: typ) = 
-  match e with
-    CastE(oldt', e', _) -> doCast e' (typeOf e') newt
-  | _ -> 
-      if typeSig oldt = typeSig newt then
-        e
-      else
-        CastE(newt, e,lu)
+  (* Do not remove old casts because they are conversions !!! *)
+  if typeSig oldt = typeSig newt then
+    e
+  else
+    CastE(newt,e,lu)
 
 
 type existsAction = 
