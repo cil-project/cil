@@ -200,6 +200,48 @@ let localANN = "ANN_LOCAL"
 let localarrayANN = "ANN_LOCALARRAY"
   
 
+(*******   Strings  *******)
+
+let newGlobals = ref []
+
+let stringId = ref 0 
+let newStringName () = 
+  incr stringId;
+  "__string" ^ (string_of_int !stringId)
+
+let global4String (s : string) : exp = 
+  let l = 1 + (String.length s) in
+  let stringInit =  
+    let initl' = ref [] in
+    let idx = ref 0 in
+    String.iter (fun c ->
+                   let i = (Index(integer !idx, NoOffset), 
+                            SingleInit(Const(CChr c))) in
+                   incr idx;
+                   initl' := i::!initl') s;
+    initl' := (Index(integer l, NoOffset),
+               SingleInit(integer 0)) :: !initl';
+    List.rev !initl'
+  in
+  let newt = TArray(charType, Some (integer l), []) in
+  let gvar = makeGlobalVar (newStringName ()) newt in
+  gvar.vstorage <- Static;
+  let start = AddrOf (Var gvar, Index(zero, NoOffset)) in
+  let init =  CompoundInit(newt, stringInit) in
+  newGlobals := (GVar (gvar, {init=Some init}, !currentLoc))::!newGlobals;
+  start
+
+(* call with visitFileSameGlobals, so that we can edit globals directly. *)
+class stringVisitor 
+= object(self)
+  inherit nopCilVisitor
+    
+  method vexpr e = begin
+    match e with 
+        Const(CStr s) -> ChangeTo(global4String s)
+      | _-> DoChildren
+  end
+end
 (*******   Visitor   *******)
 
 
@@ -233,21 +275,6 @@ class annotationVisitor
   inherit nopCilVisitor
     
   val mutable currentFunction: fundec = Cil.dummyFunDec
-
-(*   method vinst i = begin *)
-(*     match i with  *)
-(*         Call (Some dest, Lval(Var vf, NoOffset), _, _) (\* when isAlloc vf *\) -> *)
-(*          (\*  ignore (E.log "looking at %s\n" vf.vname); *\) *)
-(*           if not (isAlloc vf) then DoChildren else begin *)
-(*           (\* FIXME:  what about the other properties of the allocation *)
-(*            *  functions? *\) *)
-(*           let t = encodeType (typeOfLval dest) in *)
-(*           self#queueInstr [localAnn ccuredalloc (quoted t)]; *)
-(*           DoChildren *)
-(*           end *)
-(*       | _ -> DoChildren *)
-(*   end *)
-
 
   method vvdec v = begin
 (* FIXME:    if maybeStack v.vattr then begin *)
@@ -379,8 +406,10 @@ end
 
 let entry_point (f : file) =
   ignore (E.log "Annotating function parameters.\n");
+  visitCilFileSameGlobals (new stringVisitor :>cilVisitor) f;
+  f.globals <- Util.list_append !newGlobals f.globals;
   visitCilFile (new annotationVisitor :>cilVisitor) f;
-  visitCilFile (new smallocClearAttributes sensitive_attributes ) f;
+  visitCilFileSameGlobals (new smallocClearAttributes sensitive_attributes ) f;
   ()
 
 
