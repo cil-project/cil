@@ -1223,8 +1223,11 @@ let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt list)
 
 let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
     : exp * exp * exp * stmt list =
-  (* Can use the Seq version directly *)
-  stringToSeq p b bend acc
+  (* Make a new temporary variable *)
+  let tmpend = makeTempVar !currentFunction voidPtrType in
+  p, (Lval (var tmpend)), zero,
+  call (Some tmpend) (Lval (var checkFetchStringLength.svar))
+    [ p ] :: acc
 
   
 let seqNToString (p: exp) (desttyp: typ) (b: exp) (bend: exp) (acc: stmt list) 
