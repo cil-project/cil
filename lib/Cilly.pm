@@ -1400,7 +1400,7 @@ sub new {
       CC => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC -c",
       LD => ($::docxx ? $::cxx : $::cc) . " -D_GNUCC ",
       LDLIB => "ld -r -o ",
-      CPP => ($::docxx ? $::cc : $::cxx) . " -D_GNUCC -E ",
+      CPP => ($::docxx ? $::ccx : $::cc) . " -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
