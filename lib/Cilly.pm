@@ -710,7 +710,7 @@ sub link {
 
     my $mergedobj = $dest . "_comb.$self->{OBJEXT}";
     
-    # Check the modification types and see if we can just use the combined
+    # Check the modification times and see if we can just use the combined
     # file instead of merging all over again
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
         my $canReuse = 1;

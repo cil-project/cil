@@ -764,6 +764,12 @@ doThrowFv:
 	cd $(TESTDIR)/small2; grep throw_setup doThrowFvcured.c
 	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFvcured.c
 
+# sm: compile two files separately, then link them using a tagfile
+# (the tagfile is called tagfile.txt)
+test-tagfile:
+	cd $(TESTDIR)/small2; $(CCURED) --separate -o tagfile \
+	  `echo --wildTagTheseFns=tagfile.txt` tagfile1.c tagfile2.c && ./tagfile
+
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR := $(CCUREDHOME)/../bench/cfrac
 cfrac: 

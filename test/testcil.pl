@@ -879,7 +879,7 @@ smAddTest("scott/unionassign $wildbox");
 # sm: most of these fail for me, with parse errors..
 failCXXTest("parse error", "cxx/hello");
 failCXXTest("parse error", "cxx/exc1");
-addCXXTest("cxx/exspec1");
+failCXXTest("parse error", "cxx/exspec1");
 failCXXTest("parse error", "cxx/structname");
 failCXXTest("parse error", "cxx/class1");
 
