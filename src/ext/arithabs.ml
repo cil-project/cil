@@ -617,7 +617,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
 
 
           (* Compute strongly connected components *)
-          let scc: (int * int list) list = 
+          let scc: (int list * int list) list = 
             stronglyConnectedComponents cfgi in 
 
           (** For each basic block *)
@@ -640,9 +640,9 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallees
           (U.docHash (fun k _ -> text k)) cg_node.CG.cnCallers
           (docList ~sep:line
-             (fun (nrback, nodes) -> 
-               dprintf "<SCC %d %a>\n"
-                 nrback
+             (fun (headers, nodes) -> 
+               dprintf "<SCC <headers %a> <nodes %a>>\n"
+                 (docList num) headers
                  (docList num) nodes))
                   scc);
 
@@ -864,12 +864,16 @@ let feature : featureDescr =
            
         ) nodeIdToNode;
 
-      let scc: (int * int list) list = 
+      let scc: (int list * int list) list = 
         stronglyConnectedComponents ci in 
       List.iter 
-        (fun (nrback, nodes) -> 
-          ignore (p "<SCC %d %a>\n"
-                    nrback
+        (fun (headers, nodes) -> 
+          ignore (p "<SCC <headers %a> <nodes %a>>\n"
+                    (docList 
+                       (fun n -> 
+                         (try text (IH.find nodeIdToNode n).CG.cnInfo.vname
+                         with Not_found -> assert false)))
+                    headers
                     (docList 
                        (fun n -> 
                          (try text (IH.find nodeIdToNode n).CG.cnInfo.vname

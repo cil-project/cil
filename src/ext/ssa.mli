@@ -31,7 +31,7 @@ type idomInfo = int array  (* immediate dominator *)
 
 and dfInfo = (int list) array  (* dominance frontier *)
 
-and sccInfo = (int * int list) list (* list of (# back edges * nodes in a SCC) *)
+and sccInfo = (int list * int list) list (* list of (# back edges * nodes in a SCC) *)
 
 val add_ssa_info: cfgInfo -> unit
 val stronglyConnectedComponents: cfgInfo -> sccInfo 

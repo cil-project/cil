@@ -62,7 +62,7 @@ type idomInfo = int array  (* immediate dominator *)
 
 and dfInfo = (int list) array  (* dominance frontier *)
 
-and sccInfo = (int * int list) list (* list of (# back edges * nodes in a SCC) *)
+and sccInfo = (int list * int list) list (* list of headers * nodes in a SCC) *)
 
 (* Muchnick's Domin_Fast, 7.16 *)
 
@@ -443,8 +443,9 @@ let preorderDAG (nrNodes: int) (successors: (int list) array): int list =
   List.rev !revResult
 
 
-      
-let preorder (nrNodes: int) (successors: (int list) array) (r: int): int * int list = 
+(* Muchnick Fig 7.12 *) 
+(* takes an SCC as an input and returns a list of headers, and a preorder traversal of the SCC *)
+let preorder (nrNodes: int) (successors: (int list) array) (r: int): int list * int list = 
   if debug then begin
     ignore (E.log "Inside preorder \n");
     for i = 0 to nrNodes - 1 do 
@@ -456,6 +457,7 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int * int l
   let pre = Array.make nrNodes (-1) in
   let post = Array.make nrNodes (-1) in
   let visit = Array.make nrNodes (false) in
+  let headers = ref(IntSet.empty) in
   let nrBackEdges = ref (0) in
   let rec depth_first_search_pp (x:int) =      
     visit.(x) <- true; 
@@ -465,7 +467,10 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int * int l
       if (not visit.(y)) then
 	(depth_first_search_pp y)
       else 
-	(if (post.(y) = -1) then incr nrBackEdges) 
+	if (post.(y) = -1) then begin
+          incr nrBackEdges;
+	  headers := IntSet.add y !headers;
+	end;
 	      ) successors.(x);
     post.(x) <- !i;
     incr i;
@@ -476,7 +481,7 @@ let preorder (nrNodes: int) (successors: (int list) array) (r: int): int * int l
     if (pre.(y) != -1) then nodes.(pre.(y)) <- y;
   done;
   let nodeList = List.filter (fun i -> (i != -1)) (Array.to_list nodes) in
-  (!nrBackEdges, nodeList)
+  (set2list !headers, nodeList)
     
 
 
