@@ -81,7 +81,7 @@ include Makefile.ocaml
 
 PROJECT_EXECUTABLE = $(OBJDIR)/cilly$(EXE)
 PROJECT_MODULES    = $(CILLY_MODULES)
-PROJECT_CMODULES   = $(CILLY_CMODULES)
+PROJECT_CMODULES   = perfcount $(CILLY_CMODULES)
 PROJECT_LIBS       = $(CILLY_LIBS)
 cilly: $(PROJECT_EXECUTABLE)
 include Makefile.ocaml.build

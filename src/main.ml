@@ -298,7 +298,7 @@ let rec theMain () =
   begin
     (* this point in the code is the program entry point *)
 
-    Stats.reset ();
+    Stats.reset false; (* no performance counters *)
 
     (* parse the command-line arguments *)
     Arg.parse argDescr recordFile usageMsg;

@@ -286,6 +286,53 @@ EOF
  fi
 fi
 
+# 
+# Now setup the performance counters
+#
+AC_MSG_CHECKING(if performance counters are usable)
+# Create a C file from src/perfcount.c.in
+rm -f ./cycles.exe
+if gcc -DCONFIGURATION_ONLY \
+       -x c ocamlutil/perfcount.c.in -lm -o ./cycles.exe >/dev/null 2>&1; then
+
+   if CYCLES_PER_USEC=`./cycles.exe 2>&1` ;then
+     AC_MSG_RESULT([ok ($CYCLES_PER_USEC cycles per us)])
+   else
+     # Print what we got 
+     AC_MSG_RESULT([no ($CYCLES_PER_USEC)])
+     CYCLES_PER_USEC=0
+   fi
+else
+   CYCLES_PER_USEC=0
+   AC_MSG_RESULT([no (cannot compile perfcount.c)])
+fi
+rm -f ./cycles.exe
+
+# If we are on Linux and we use performance counters try to get
+# the processor speed from /proc/cpuinfo
+if test "$CYCLES_PER_USEC"!="0" ;then
+     case "$target" in
+        # linux
+        *86*linux*)
+             AC_MSG_CHECKING(if /proc/cpuinfo has processor speed)
+             cpuinfo=`cat /proc/cpuinfo 2>/dev/null | grep "cpu MHz"`
+             [procspeed=`echo $cpuinfo | sed 's/^.*[^0-9]\([0-9]\+\.[0-9]\+\).*$/\1/g'`]
+             if test "$procspeed"!="" ;then
+                CYCLES_PER_USEC=$procspeed
+                AC_MSG_RESULT([got $CYCLES_PER_USEC cycles per us])
+             else
+                AC_MSG_RESULT(no)
+             fi   
+             ;;
+        *)      
+             ;;
+      esac
+      # Now set HAS_PERFCOUNT
+      HAS_PERFCOUNT=1
+else
+      HAS_PERFCOUNT=0
+fi
+
 # additional tools we might check for:
 #   - gnu make
 
@@ -430,6 +477,8 @@ AC_SUBST(CCURED_VERSION_MAJOR)
 AC_SUBST(CCURED_VERSION_MINOR)
 AC_SUBST(CCURED_VERSION_REV)
 AC_SUBST(CCURED_VERSION)
+AC_SUBST(CYCLES_PER_USEC)
+AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 
 # finish the configure script and generate various files; ./configure
@@ -471,6 +520,7 @@ MY_AC_CONFIG_EXE_FILES(bin/ccured.bat)
 MY_AC_CONFIG_FILES(bin/CilConfig.pm)
 MY_AC_CONFIG_FILES(doc/cilindex.html)
 MY_AC_CONFIG_FILES(doc/cilheader.html)
+MY_AC_CONFIG_FILES(ocamlutil/perfcount.c)
 
 AC_OUTPUT()
 
@@ -485,5 +535,6 @@ CCured/CIL configuration:
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
+  Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
 
