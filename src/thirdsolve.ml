@@ -197,7 +197,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         List.iter (fun e -> 
           if e.eto.kind = ROString then begin
             ()
-          end else if e.eto.kind <> Wild && set_outside e.eto then begin
+          end else if e.eto.kind <> Wild && e.efrom.why_kind = UserSpec then begin
             E.s (E.bug "Solver: bad annotation (should be wild because of successor edge)@!%a" d_node e.eto)
           end else begin
             (if (e.eto.why_kind = UserSpec) then assert (e.eto.kind = Wild)) ;
@@ -209,7 +209,7 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
         List.iter (fun e -> 
           if e.efrom.kind = ROString then begin
             ()
-          end else if e.efrom.kind <> Wild && set_outside e.efrom then begin
+          end else if e.efrom.kind <> Wild && e.efrom.why_kind = UserSpec then begin
             E.s (E.bug "Solver: bad annotation (should be wild because of predecessor edge)@!%a" d_node e.efrom)
           end else begin
             (if (e.efrom.why_kind = UserSpec) then assert (e.efrom.kind = Wild)) ;
