@@ -432,6 +432,7 @@ let uintType = TInt(IUInt,[])
 let charType = TInt(IChar, [])
 let charPtrType = TPtr(charType,[])
 let voidPtrType = TPtr(voidType, [])
+let intPtrType = TPtr(intType, [])
 let doubleType = TFloat(FDouble, [])
 
 let structId = ref 0 (* Find a better way to generate new names *)

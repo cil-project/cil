@@ -328,7 +328,6 @@ let mustBeTagged v =
  * because we run into trouble if a variable is defined twice (once with 
  * extern). *)
              
-
 let taggedTypes: (typsig, typ) H.t = H.create 123
 
 let tagType (t: typ) : typ = 
@@ -407,50 +406,87 @@ let makeTagAssignInit tagged vi =
 
 (****** the CHECKERS ****)
 let fatVoidPtr = fixupType voidPtrType
-let checkSafeRetFat = 
+let checkSafeRetFatFun = 
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let arg  = makeLocalVar fdec "x" fatVoidPtr in
   fdec.svar.vtype <- TFun(voidType, [ arg ], false, []);
   fdec
     
-let checkSafeFatLeanCast = 
+let checkSafeFatLeanCastFun = 
   let fdec = emptyFunction "CHECK_SAFEFATLEANCAST" in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
   fdec
 
-let checkFetchLengthFun = 
+let checkFetchLength = 
   let fdec = emptyFunction "CHECK_FETCHLENGTH" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   fdec.svar.vtype <- TFun(intType, [ argb ], false, []);
-  fdec
-  
-let checkFetchLength tmplen base = 
-  call (Some tmplen) (Lval (var checkFetchLengthFun.svar))
-    [ base ]
+  fun tmplen base -> 
+    call (Some tmplen) (Lval (var fdec.svar))
+      [ base ]
 
-let checkBoundsFun = 
+let checkFetchTagStart = 
+  let fdec = emptyFunction "CHECK_FETCHTAGSTART" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argl  = makeLocalVar fdec "l" intType in
+  fdec.svar.vtype <- TFun(intPtrType, [ argb; argl ], false, []);
+  fun tmplen base len -> 
+    call (Some tmplen) (Lval (var fdec.svar))
+      [ base; len ]
+
+(* Since we cannot take the address of a bitfield we treat accesses toa 
+ * bitfield like an access to the entire host that contains it (for the 
+ * purpose of checking). This is only Ok if the host does not contain pointer 
+ * fields *)
+let getHostIfBitfield lv t = 
+  match unrollType t with
+    TBitfield (ik, wd, a) -> begin
+      let lvbase, lvoff = lv in
+      let rec getHost = function
+          Field(fi, NoOffset) -> NoOffset
+        | Field(fi, off) -> Field(fi, getHost off)
+        | Index(e, off) -> Index(e, getHost off)
+        | First(off) -> First(getHost off)
+        | NoOffset -> E.s (E.bug "a TBitfield that is not a bitfield")
+      in
+      let lv' = lvbase, getHost lvoff in
+      let lv't = typeOfLval lv' in
+      (match unrollType lv't with 
+        TComp(true, n, flds, _, _) -> 
+          if List.exists (fun f -> typeHasChanged f.ftype) flds then
+            E.s (E.unimp "Struct %s contains both bitfields and pointers" n)
+      | _ -> E.s (E.bug "getHost: bitfield not in a struct"));
+      lv', lv't
+    end
+  | _ -> lv, t
+
+let checkBounds = 
   let fdec = emptyFunction "CHECK_CHECKBOUNDS" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
   let argl  = makeLocalVar fdec "l" intType in
   let argp  = makeLocalVar fdec "p" voidPtrType in
   let argpl  = makeLocalVar fdec "pl" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argp;argpl ], false, []);
-  fdec
+  fdec.svar.vtype <- TFun(voidType, [ argb; argl; argp; argpl ], false, []);
+  fun tmplen base lv t ->
+    let lv', lv't = getHostIfBitfield lv t in
+    call None (Lval (var fdec.svar))
+      [ base; tmplen; AddrOf(lv', lu); SizeOf(lv't, lu) ]
+
   
-let checkBounds tmplen base lv t = 
-  (* If we are accessing a bitfield then pretend that we access the entire 
-   * struct that contains it. We do this because we cannot take the address 
-   * of a bitfield *)
-  let addr, sz = 
-    match unrollType t with
-      TBitfield (ik, wd, a) -> 
-        
-  call None (Lval (var checkFetchLengthFun.svar))
-    [ base ]
-
-
+let checkZeroTags = 
+  let fdec = emptyFunction "CHECK_ZEROTAGS" in
+  let argb  = makeLocalVar fdec "b" voidPtrType in
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argpl  = makeLocalVar fdec "pl" intType in
+  let argt  = makeLocalVar fdec "t" voidPtrType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argpl; argt ], false, []);
+  fun base tagStart lv t ->
+    let lv', lv't = getHostIfBitfield lv t in
+    call None (Lval (var fdec.svar))
+      [ base; AddrOf(lv', lu); SizeOf(lv't, lu); tagStart ]
+  
 let doCheckFat which arg argt = 
   (* Take the argument and break it apart *)
   let (_, ptr, base) = readPtrBaseField arg argt in 
@@ -461,88 +497,59 @@ let doCheckLean which arg  =
   call None (Lval(var which.svar)) [ CastE(voidPtrType, arg, lu)]
 
 
-(* Make a bunch of read safety checks *)
-let checkSafeMemComp = 
-  let mkCheck name words =
-    let fdec = emptyFunction (name ^ (string_of_int words)) in
-    let p  = makeLocalVar fdec "p" voidPtrType in
-    let b  = makeLocalVar fdec "b" voidPtrType in
-    let len  = makeLocalVar fdec "len" intType in
-    let rec loop idx = 
-      if idx >= words then [] 
-      else (makeLocalVar fdec "t" uintType) ::
-           (makeLocalVar fdec "t" uintType) :: loop (idx + 1) 
-    in
-    fdec.svar.vtype <- TFun(voidType, p :: b :: len :: loop 0, false, []);
-    fdec
-  in
-  let readChecks = [| mkCheck "CHECK_SAFEREADCOMP" 1; 
-                      mkCheck "CHECK_SAFEREADCOMP" 2; |] in
-  let writeChecks = [| mkCheck "CHECK_SAFEWRITECOMP" 1; 
-                       mkCheck "CHECK_SAFEWRITECOMP" 2; |] in
-  fun iswrite words -> 
-    if words > 2 || words < 1 then
-      E.s (E.unimp "checkSafeReadComp not available for %d words\n" words)
-    else
-      if iswrite then
-        writeChecks.(words - 1)
-      else
-        readChecks.(words - 1)
-          
-let checkSafeReadLean = 
-  let fdec = emptyFunction "CHECK_SAFEREADLEAN" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+(* Check a read *)
+let checkFatPointerRead = 
+  let fdec = emptyFunction "CHECK_FATPOINTERREAD" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argt  = makeLocalVar fdec "tags" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argt ], false, []);
   
-let checkSafeReadFun = 
-  let fdec = emptyFunction "CHECK_SAFEREADFUN" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
+  fun base where tagstart -> 
+    call None (Lval(var fdec.svar))
+      [ base; where; tagstart]
+
+let checkFatPointerWrite = 
+  let fdec = emptyFunction "CHECK_FATPOINTERWRITE" in
   let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec
+  let argp  = makeLocalVar fdec "p" voidPtrType in
+  let argw  = makeLocalVar fdec "w" voidPtrType in
+  let argt  = makeLocalVar fdec "tags" intType in
+  fdec.svar.vtype <- TFun(voidType, [ argb; argp; argw; argt ], false, []);
   
-let checkSafeWriteLean = 
-  let fdec = emptyFunction "CHECK_SAFEWRITELEAN" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec
+  fun base where what tagstart -> 
+    call None (Lval(var fdec.svar))
+      [ base; where; what; tagstart]
   
-let checkWritePointer = 
-  let fdec = emptyFunction "CHECK_SAFEWRITEPOINTER" in
-  let argp  = makeLocalVar fdec "p" voidPtrType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
-  fdec
   
 let checkMem (towrite: exp option) 
              (lv: lval) (base: exp) (t: typ) : stmt list = 
   (* Fetch the length field in a temp variable *)
   let len = makeTempVar !currentFunction intType in
+  let lenExp = Lval(var len) in
   (* And the start of tags in another temp variable *)
   let tagStart = makeTempVar !currentFunction intPtrType in
+  let tagStartExp = Lval(var tagStart) in
   (* Now the tag checking. We only care about pointers. We keep track of what 
    * we write in each field and we check pointers in a special way. *)
-  let doCheckTags (towrite: exp option) (where: lval) t acc = 
+  let rec doCheckTags (towrite: exp option) (where: lval) t acc = 
     match unrollType t with 
     | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
     | TComp(true, _, [p;b], _, _) (* A fat pointer *)
         when p.fname = "_p" && b.fname = "_b" -> begin
           let wherep = readPtrField (Lval where) t in
-          match what with
+          match towrite with
             None -> (* a read *)
-              checkFatPointerRead wherep tagstart acc
+              (checkFatPointerRead base wherep tagStartExp) :: acc
           | Some towrite -> (* a write *)
               let whatp = readPtrField towrite t in
-              checkFatPointerWrite wherep whatp tagstart acc
+              (checkFatPointerWrite base wherep whatp tagStartExp) :: acc
         end 
     | TComp(true, _, flds, _, _) -> 
         let doOneField acc fi = 
           let newwhere = addOffset (Field(fi, NoOffset)) where in
           let newtowrite = 
-            match what with 
+            match towrite with 
               None -> None
             | Some (Lval whatlv) -> 
                 Some (Lval (addOffset (Field(fi, NoOffset)) whatlv))
@@ -554,9 +561,15 @@ let checkMem (towrite: exp option)
             
     | _ -> E.s (E.unimp "unexpected type in doCheckTags")
   in
+  let zeroTags = 
+    match towrite with 
+      None -> Skip
+    | Some _ -> checkZeroTags base tagStartExp lv t
+  in
   (checkFetchLength len base) ::
-  (checkBounds len base lv t) ::
-  (checkFetchTag tagStart base len) ::
+  (checkBounds lenExp base lv t) ::
+  (checkFetchTagStart tagStart base lenExp) ::
+  zeroTags ::
   (doCheckTags towrite lv t [])
           
     (* Check a write *)
@@ -610,7 +623,7 @@ let rec boxstmt (s : stmt) : stmt =
           if mustCheckReturn retType then
             if isFatType retType then begin
                 (* Cast e' to fat_voidptr *)
-              doe @ [doCheckFat checkSafeRetFat e' et]
+              doe @ [doCheckFat checkSafeRetFatFun e' et]
             end else begin
               doe
             end
@@ -667,7 +680,7 @@ and boxinstr (ins: instr) : stmt =
                   let (doresta, resta') = doArgs resta in
                   let (checka, a'') = 
                     if isFatType at then 
-                      ([doCheckFat checkSafeFatLeanCast a' at],
+                      ([doCheckFat checkSafeFatLeanCastFun a' at],
                        readPtrField a' at)
                     else ([], a')
                   in
