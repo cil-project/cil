@@ -50,6 +50,7 @@ and cfgBlock = {
     (** For each variable ID that is live at the start of the block, the 
      * block whose definition reaches this point. If that block is the same 
      * as the current one, then the variable is a phi variable *)
+    mutable reachable: bool;
   }
   
 and instruction = (reg list * reg list) 
@@ -400,20 +401,22 @@ let prune_cfg (f: cfgInfo): cfgInfo =
    List.iter (fun s -> if (reachable.(s) = false) then worklist := s::!worklist; 
 	     ) f.successors.(h);
  done;
+(*
  let dummyblock = {  bstmt = mkEmptyStmt ();
                      instrlist = [];
                      livevars = [] } 
  in
+*)
  let successors = Array.init size (fun i -> List.filter (fun s -> reachable.(s)) f.successors.(i)) in
  let predecessors = Array.init size (fun i -> List.filter (fun s -> reachable.(s)) f.predecessors.(i)) in
- let blocks = Array.init size (fun i -> if reachable.(i) then f.blocks.(i) else dummyblock) in
+ Array.iteri (fun i b -> b.reachable <- reachable.(i)) f.blocks;
  let result: cfgInfo = 
         { name = f.name;
           start = f.start;
           size = f.size;
           successors = successors;
           predecessors = predecessors;
-          blocks = blocks;
+          blocks = f.blocks;
           nrRegs = f.nrRegs;
           regToVarinfo = f.regToVarinfo;
         }

@@ -186,6 +186,7 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
       S.predecessors = Array.make !count [];
       S.blocks = Array.make !count { S.bstmt = start; 
                                      S.instrlist = [];
+                                     S.reachable = true;
                                      S.livevars = [] };
       S.nrRegs = 0;
       S.regToVarinfo = Array.make 0 dummyFunDec.svar;
@@ -266,6 +267,7 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
         { S.bstmt = s;
           S.instrlist = instrs;
           S.livevars = []; (* Will be filled in later *)
+          S.reachable = true; (* Will be set later *)
         }
       end
     ) fdec.sallstmts;
@@ -527,7 +529,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         | None -> assert false
       in
       let blk: S.cfgBlock = cfgi.S.blocks.(s.sid) in 
-
+      assert (blk.S.bstmt == s);
+        
       self#initVarRenameState blk;
 
       let phivars: varinfo list = 
@@ -1043,7 +1046,8 @@ let feature : featureDescr =
           S.predecessors = Array.make !nrNodes [];
           S.blocks = Array.make !nrNodes { S.bstmt = mkEmptyStmt ();
                                            S.instrlist = [];
-                                           S.livevars = [] };
+                                           S.livevars = [];
+                                           S.reachable = true };
          S.nrRegs = 0;
          S.regToVarinfo = Array.create 0 dummyFunDec.svar;
         }

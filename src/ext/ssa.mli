@@ -19,6 +19,7 @@ and cfgBlock = {
     (** For each variable ID that is live at the start of the block, the 
      * block whose definition reaches this point. If that block is the same 
      * as the current one, then the variable is a phi variable *)
+    mutable reachable: bool;
   }
   
 and instruction = (reg list * reg list) 
