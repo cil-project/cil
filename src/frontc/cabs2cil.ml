@@ -682,11 +682,11 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | ASet (lv, lvt) -> begin
         (* See if the set was done already *)
         match e with 
-          Lval(lv') when lv == lv' -> (se, integer 0, intType)
+          Lval(lv') when lv == lv' -> (se, e, t)
         | _ -> 
             let (e', t') = processArray e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se @ [mkSet lv e''], integer 0, intType)
+            (se @ [mkSet lv e''], e, t)
     end
   in
   let findField strname n fidlist = 
@@ -1195,10 +1195,15 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
           
     | A.UNARY(A.NOT, e) -> 
         let tmp = var (newTempVar intType) in
+        let (se, e', t) as rese = doExp e (AExp None) in
+        ignore (checkBool t e');
+        finishExp se (UnOp(LNot, e', intType, lu)) intType
+(*   We could use this code but it consuses the translation validation
         finishExp 
           (doCondition e [mkSet tmp (integer 0)] [mkSet tmp (integer 1)])
           (Lval tmp)
           intType
+*)
           
     | A.CALL(f, args) -> 
         let (sf, f', ft') = 
@@ -1286,10 +1291,10 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
     | A.COMMA el -> 
         let rec loop sofar = function
             [e] -> 
-              let (se, e', t') = doExp e what in
+              let (se, e', t') = doExp e (AExp None) in
               finishExp (sofar @ se) e' t'
           | e :: rest -> 
-              let (se, e', t') = doExp e ADrop in
+              let (se, _, _) = doExp e ADrop in
               loop (sofar @ se) rest
           | [] -> E.s (E.unimp "empty COMMA expression")
         in

@@ -166,6 +166,7 @@ and constant =
 and unop =
     Neg                                 (* unary - *)
   | BNot                                (* ~ *)
+  | LNot                                (* ! *)
 
 (* binary operations *)
 and binop =
@@ -595,7 +596,7 @@ let getParenthLevel = function
   | CastE(_,_,_) -> 30
   | AddrOf(_,_) -> 30
   | StartOf(_) -> 30
-  | UnOp((Neg|BNot),_,_,_) -> 30
+  | UnOp((Neg|BNot|LNot),_,_,_) -> 30
 
                                         (* Lvals *)
   | Lval(Mem _ , _) -> 20                   
@@ -767,6 +768,7 @@ and d_exp () e =
         match u with
           Neg -> text "-"
         | BNot -> text "~"
+        | LNot -> text "!"
       in
       dprintf "%a %a" d_unop u (d_expprec level) e1
 

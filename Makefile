@@ -48,10 +48,13 @@ ifeq ($(COMPUTERNAME), RAW)   # George's workstation
 BASEDIR=C:/Necula
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
+TVDIR=$(BASEDIR)/Source/TransVal
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
-SAFECCDIR=D:/Necula/SafeC
-PCCDIR=../../Source/Touchstone/PCC
+BASEDIR=D:/Necula
+SAFECCDIR=$(BASEDIR)/SafeC
+PCCDIR=$(BASEDIR)/Source/Touchstone/PCC
+TVDIR=$(BASEDIR)/Source/TransVal
 endif
 
 
@@ -59,6 +62,10 @@ endif
 #####################3
 .PHONY : spec
 spec : $(EXECUTABLE)$(EXE)
+
+.PHONE: trval
+trval: $(TVDIR)/obj/transval$(EXE)
+	make -C $(TVDIR)
 
 export EXTRAARGS
 export BOX
@@ -118,7 +125,8 @@ ifdef RELEASE
 SAFECC+= --release
 endif
 ifdef TV
-SAFECC+= --tv
+SAFECC+= --tv="$(TV)"
+TVEXE=trval
 endif
 
 
@@ -138,13 +146,13 @@ else
 PCCCOMP=_MSVC
 endif
 
-testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) 
+testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 \
                   $(DEF)$(PCCTYPE) $(CONLY) \
                   $(PCCDIR)/src/$*.c \
                   $(OUT)$(notdir $*).o
 
-hashtest: test/small1/hashtest.c $(EXECUTABLE)$(EXE)
+hashtest: test/small1/hashtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -154,7 +162,7 @@ hashtest: test/small1/hashtest.c $(EXECUTABLE)$(EXE)
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
 
-rbtest: test/small1/rbtest.c $(EXECUTABLE)$(EXE)
+rbtest: test/small1/rbtest.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	rm -f $(PCCTEST)/rbtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)x86_WIN32 $(DEF)$(PCCTYPE) \
                  $(DOOPT) \
@@ -164,7 +172,7 @@ rbtest: test/small1/rbtest.c $(EXECUTABLE)$(EXE)
                  $(EXEOUT)rbtest.exe
 	$(PCCTEST)/rbtest.exe
 
-testallpcc: $(EXECUTABLE)$(EXE)
+testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE)
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
@@ -178,12 +186,12 @@ runpcc:
 
 ############ Small tests
 SMALL1=test/small1
-test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
+test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	cd $(SMALL1); $(SAFECC) $*.c $(CONLY) $(DOOPT) $(ASMONLY)$*.s
 
 
 ### Generic test
-testfile/% : $(EXECUTABLE)$(EXE) %
+testfile/% : $(EXECUTABLE)$(EXE) %  $(TVEXE)
 	$(SAFECC) /TC $*
 
 testdir/% : $(EXECUTABLE)$(EXE)
