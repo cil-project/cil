@@ -123,11 +123,11 @@ let registerFunction (fi: funinfo) =
 
 
 (* We keep track of the models to use *)
-let boxModels: (string, fundec) H.t = H.create 15 (* Map the name of the 
+let boxModelledBy: (string, fundec) H.t = H.create 15 (* Map the name of the 
                                                     * modelled function to 
                                                     * the model *)
 
-
+let boxModels: (string, bool) H.t = H.create 15 (* The name of the models *)
 
 (* We keep track of a number of type that we should not unroll *)
 let dontUnrollTypes : (string, bool) H.t = H.create 19
@@ -1483,6 +1483,26 @@ let doGlobal (g: global) : global =
               addFunctionTypeAttribute 
                 (Attr("boxformat", [AInt format_idx])) vi)
 
+      | Attr("boxmodelof", AStr modelname :: lst) -> begin
+          if lst = [] then 
+            ignore (warn "#pragma boxmodelof with empty list of modelled functions")
+          else
+            H.add boxModels modelname true;
+          List.iter 
+            (function 
+                AStr modelled -> begin
+                  try
+                    match H.find allFunctions modelname with
+                      Defined fdef -> H.add boxModelledBy modelled fdef
+                    | _ -> raise Not_found
+                  with Not_found -> 
+                    ignore (warn "#pragma boxmodelof appears before the definition of %s\n"
+                              modelname)
+                end
+              | _ -> ignore (warn "invalid #pragma boxmodelof")) 
+            lst
+      end
+
       | _ -> ());
       g
     end
@@ -1541,16 +1561,6 @@ let doGlobal (g: global) : global =
           (* See if it is a model for anybody *)
           if not !disableModelCheck then begin
             registerFunction (Defined fdec);
-            (* Scan the models *)
-            let modelattrs = filterAttributes "boxmodel" fdec.svar.vattr in
-            List.iter 
-              (function 
-                  Attr(_, [AStr fname]) -> 
-                    if !E.verboseFlag then 
-                      ignore (E.log "Will use %s as a model for %s\n"
-                                fdec.svar.vname fname);
-                    H.add boxModels fname fdec;
-                | _ -> ()) modelattrs;
           end;
           (* If it is polymorphic then remember it for later. *)
           if H.mem polyFunc fdec.svar.vname then begin
@@ -1578,6 +1588,7 @@ let markFile fl =
   H.clear allFunctions;
   H.clear applyToFunctionMemory;
   H.clear boxModels;
+  H.clear boxModelledBy;
   H.clear dontUnrollTypes;
   instantiations := [];
   (* Some globals that are exported and must thus be considered part of the 
@@ -1655,7 +1666,7 @@ let markFile fl =
   H.iter 
     (fun fname -> fun info -> 
       try
-        let model : fundec = H.find boxModels fname in
+        let model : fundec = H.find boxModelledBy fname in
         (* We have a model *)
         let modelled : varinfo = 
           match info with 
@@ -1812,6 +1823,7 @@ let markFile fl =
   H.clear polyFunc;
   H.clear polyBodies;
   H.clear boxModels;
+  H.clear boxModelledBy;
   H.clear allFunctions;
   H.clear dontUnrollTypes;
   H.clear applyToFunctionMemory;

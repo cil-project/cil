@@ -129,9 +129,6 @@
   #pragma boxvararg_printf("vsprintf", 2)
 
   // We want to force sprintf to carry a length
-  static inline
-  int sprintf_model(char *buffer, const char *format, ...)
-     __BOXMODEL("sprintf");
   #pragma boxvararg("sprintf_model", sizeof(union printf_format))
   #pragma cilnoremove("sprintf_model")
   static inline
@@ -140,14 +137,10 @@
     void* e = __endof(buffer); // buffer ++ would do the same
     return 0;
   }
+  #pragma boxmodelof("sprintf_model", "sprintf")
 
   // We want to force vsprintf to carry a length
-  static inline
-  int vsprintf_model(char *buffer, const char *format,
-                     struct __ccured_va_list *args)
-     __BOXMODEL("vsprintf");
   #pragma boxvararg("vsprintf_model", sizeof(union printf_format))
-  #pragma cilnoremove("vsprintf_model")   
   static inline 
   int vsprintf_model(char *buffer, const char *format,
                      struct __ccured_va_list *args) {
@@ -155,27 +148,26 @@
     void* e = __endof(buffer); // buffer ++ would do the same
     return 0;
   }
+  #pragma boxmodelof("vsprintf_model", "vsprintf")
+  #pragma cilnoremove("vsprintf_model")   
 
 
   // sm: taking a stab at strchr's model
-  #pragma cilnoremove("strchr_model")
-  static inline
-  char* strchr_model(char* dest, int c)
-       __BOXMODEL("strchr");
   static inline
   char* strchr_model(char* dest, int c)
   {
     return dest;      // just establish the flow
   }
+  #pragma cilnoremove("strchr_model")
+  #pragma boxmodelof("strchr_model", "strchr")
 
-  #pragma cilnoremove("strpbrk_model")
-  static inline char *strpbrk_model(char const *s, char const *accept)
-    __BOXMODEL("strpbrk");
   static inline char *strpbrk_model(char const *s, char const *accept)
   {
     int someInt = (int)(*accept);   // make sure 'accept' can be read from
     return s;                       // connect s to retval
   }
+  #pragma cilnoremove("strpbrk_model")
+  #pragma boxmodelof("strpbrk_model", "strpbrk")
 
   #pragma boxpoly("memcpy")
   #pragma boxpoly("memset")
@@ -186,21 +178,18 @@
   #pragma boxpoly("fread")
   #pragma boxpoly("fwrite")
 
-  #pragma boxpoly("memset_seq_model")
-  static inline
-  void* memset_seq_model(void* dest, int towrite, unsigned int size)
-     __BOXMODEL("memset");
   static inline
   void* memset_seq_model(void* dest, int towrite, unsigned int size)
   {
     void *end = __endof(dest); // Make sure it has an end
     return dest;
   }
+  #pragma boxmodelof("memset_seq_model", "memset")
+  #pragma cilnoremove("memset_seq_model")
+  #pragma boxpoly("memset_seq_model")
 
-  #pragma boxpoly("memcpy_seq_model")
-  static inline
-  void* memcpy_seq_model(void* dest, void *src, unsigned int size)
-       __BOXMODEL("memcpy") __BOXMODEL("memmove") __BOXMODEL("__builtin__memcpy");
+
+
   static inline
   void* memcpy_seq_model(void* dest, void *src, unsigned int size)
   {
@@ -208,7 +197,10 @@
     dest = src; // Make sure they are both have the same type
     return dest;
   }
-  #pragma cilnoremove("memset_seq_model", "memcpy_seq_model")
+  #pragma boxmodelof("memcpy_seq_model", "memcpy", "memmove", "__builtin__memcpy")
+  #pragma boxpoly("memcpy_seq_model")
+  #pragma cilnoremove("memcpy_seq_model")
+
 
 
   // like for allocators, we have __builtin_blah for str*...
@@ -217,11 +209,6 @@
     void *__builtin_memcpy(void *dest, const void *src, unsigned int n);
   #endif
 
-  #pragma boxpoly("qsort")
-  static inline
-  void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
-          int (*compar)(const void *, const void *))
-        __BOXMODEL("qsort");
   static inline
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
           int (*compar)(const void *, const void *))
@@ -229,19 +216,18 @@
       void *end = __endof(base);
       return;
   }
+  #pragma boxpoly("qsort")
+  #pragma boxmodelof("qsort_seq_model", "qsort")
   #pragma cilnoremove("qsort_seq_model")
 
 // Whenever you use MAKE_QSORT(foosort, ...) also add
 // #pragma cilnoremove("foosort_seq_model")
+// #pragma boxmodelof("foosort_seq_model", foosort)
 //
   #define MAKE_QSORT(name,namestr,elt_type) \
   static inline\
   void name (elt_type *base, unsigned int nmemb, unsigned int size,\
           int (*compar)(const elt_type *, const elt_type *));\
-  static inline\
-  void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
-          int (*compar)(const elt_type *, const elt_type *))\
-        __BOXMODEL(namestr);\
   static inline\
   void name ## _seq_model(elt_type *base, unsigned int nmemb, unsigned int size,\
           int (*compar)(const elt_type *, const elt_type *)) \
@@ -269,23 +255,13 @@
   typedef void (*_box_sig_fn)(int);
   static inline
   _box_sig_fn signal_model(int signum, _box_sig_fn fn)
-         __BOXMODEL("signal");
-  static inline
-  _box_sig_fn signal_model(int signum, _box_sig_fn fn)
   {
     // flow argument to result
     return fn;
   }
+  #pragma cilnoremove("signal_model")
+  #pragma boxmodelof("signal_model", "signal")
 
-
-  static inline
-  char *strpbrk_model(char const *s, char const *accept) __BOXMODEL("strpbrk");
-  static inline 
-  char *strpbrk_model(char const *s, char const *accept)
-  {
-    int someInt = (int)(*accept);   // make sure 'accept' can be read from
-    return s;                       // connect s to retval
-  }
 
 #endif // CCURED
 
