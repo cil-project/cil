@@ -756,8 +756,8 @@ vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)" 
-	$(GODIR)/exe/base/vortex_ultra \
-            <$(GODIR)/data/train/input/2stone9.in
+	$(VORDIR)/exe/base/vortex_ultra \
+            <$(VORDIR)/data/train/input/2stone9.in
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
@@ -765,13 +765,13 @@ M88SAFECC=$(SAFECC) --combine --keep=safeccout
 
 m88kclean: 	
 	cd $(M88DIR)/src; make clean
-	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+	cd $(M88DIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
 m88k: defaulttarget mustbegcc
 	cd $(M88DIR)/src; \
             make build CC="$(M88SAFECC) $(CONLY)" \
                        LD="$(M88SAFECC)" 
-	$(GODIR)/exe/base/m88ksim.ultra
+	$(M88DIR)/exe/base/m88ksim.ultra
 
 ### SPEC95 ijpeg
 IJPEGDIR=$(SPECDIR)/132.ijpeg
@@ -789,14 +789,14 @@ ijpeg: defaulttarget mustbegcc
             <$(IJPEGDIR)/data/train/input/2stone9.in
 
 #### SPEC95 gcc
-GCCDIR=$(SPECDIR)/126mk32.ijpeg
+GCCDIR=$(SPECDIR)/126.gcc
 GCCSAFECC=$(SAFECC) --combine --keep=safeccout
 
-ijpegclean: 	
+gccclean: 	
 	cd $(GCCDIR)/src; make clean
 	cd $(GCCDIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
 
-ijpeg: defaulttarget mustbegcc
+gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make build CC="$(GCCSAFECC) $(CONLY)" \
                        LD="$(GCCSAFECC)" 
