@@ -119,7 +119,13 @@ let lookup (kind: string) (origname: string) : string =
     let alphaname = H.find env lookupname in
     alphaname
   with Not_found -> origname
-
+      
+let reuseOldName (orig, old) = 
+  try
+    let envname = H.find env orig in
+    if orig <> old then 
+      addLocalToEnv orig old;
+  with Not_found -> () 
 
 
 
@@ -887,7 +893,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
          * throw all the locations it containts  *)
         try
           let oldname = H.find functions res_oldname in
-          H.add env n oldname; (* To use the old name from now on *)
+          reuseOldName (n, oldname);
           acc
         with Not_found -> 
           H.add functions res_oldname n';
@@ -900,10 +906,10 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
       currentLoc := loc;
       let specs1 = doSpecs isglobal specs in
       let static = isStatic specs1 in
-      let newnames, nglist, nglist_oldnames = 
+      let newnames, nglist, nglist_orignames = 
         List.fold_right 
           (fun  ((n, decl, attrs), ie)
-                (accnames, accng, accngoldnames) ->
+                (accnames, accng, accngorignames) ->
                   (* Do the declaration first *)
                   let n' = processDeclName isglobal static n in
                   let decl' = alpha_decl_type decl in
@@ -911,19 +917,19 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
                   let ie' = alpha_init_expression ie in
                   ((n, n') :: accnames, 
                    ((n', decl', attrs'), ie') :: accng,
-                   ((n, decl', attrs'), ie') :: accngoldnames))
+                   ((n, decl', attrs'), ie') :: accngorignames))
           inl
           ([], [], [])
       in
       let ng = (specs1, nglist) in
-      let ng_oldnames = (specs1, nglist_oldnames) in
+      let ng_orignames = (specs1, nglist_orignames) in
       (* Keep a hash of DEFDEF's and drop identical ones. Use OCAML's 
        * structural equality to test for identical declarations. If we don't 
        * do this then cabs2cil slows to a crawl. *)
       if isglobal then 
         try
-          let oldnames = H.find declarations ng_oldnames in
-          List.iter (fun (orig, old) -> H.add env orig old) oldnames;
+          let oldnames = H.find declarations ng_orignames in
+          List.iter reuseOldName oldnames;
           acc
         with Not_found ->  begin
           H.add declarations ng newnames;

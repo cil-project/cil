@@ -293,3 +293,7 @@ begin
   | TRANSFORMER(_, _, l) -> l
   | EXPRTRANSFORMER(_, _, l) -> l
 end
+
+open Pretty
+let d_cabsloc () cl = 
+  text cl.filename ++ text ":" ++ num cl.lineno

@@ -44,7 +44,7 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs cprint combine clexer cparser cabs2cil cabsvisit \
+MODULES    += cabs cprint clexer cparser cabs2cil cabsvisit \
               patch frontc
 endif
 
