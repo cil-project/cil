@@ -623,7 +623,10 @@ and matchCompInfo (oldfidx: int) (oldci: compinfo)
                                     len  d_global (GCompTag(ci,locUnknown))
                      ));            
       currentLoc := curLoc;
-      raise (Failure "(different number of structure fields)")
+      let msg = Printf.sprintf 
+	  "(different number of fields in %s and %s: %d != %d.)" 
+	  oldci.cname ci.cname old_len len in
+      raise (Failure msg)
     );
     (* We check that they are defined in the same way. While doing this there 
      * might be recursion and we have to watch for going into an infinite 
