@@ -61,7 +61,7 @@ let doFile (fl: file) : file =
             let off' = addOffset off baseoff in
             match what with
               CompoundInit (t, initl) -> 
-                foldLeftCompound (initone off') t initl acc
+                foldLeftCompound ~doinit:(initone off') ~ct:t ~initl:initl ~acc:acc
             | SingleInit ei -> 
                 mkStmt (Instr [Set ((Var vi, off'), ei, locUnknown)]) 
                 :: acc

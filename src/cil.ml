@@ -968,7 +968,7 @@ let attributeHash: (string, attributeClass) H.t =
 
 (* Partition the attributes into classes *)
 let partitionAttributes 
-    (default:attributeClass)  
+    ~(default:attributeClass)  
     (attrs:  attribute list) :
     attribute list * attribute list * attribute list = 
   let rec loop (n,f,t) = function
@@ -1042,7 +1042,7 @@ let var vi : lval = (Var vi, NoOffset)
 let mkString s = Const(CStr s)
 
 
-let mkWhile (guard:exp) (body: stmt list) : stmt list = 
+let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list = 
   (* Do it like this so that the pretty printer recognizes it *)
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard, 
                                       mkBlock [ mkEmptyStmt () ], 
@@ -1051,14 +1051,14 @@ let mkWhile (guard:exp) (body: stmt list) : stmt list =
 
 
 
-let mkFor (start: stmt list) (guard: exp) (next: stmt list) 
-          (body: stmt list) : stmt list = 
+let mkFor ~(start: stmt list) ~(guard: exp) ~(next: stmt list) 
+          ~(body: stmt list) : stmt list = 
   (start @ 
      (mkWhile guard (body @ next)))
 
     
-let mkForIncr (iter : varinfo) (first: exp) (past: exp) (incr: exp) 
-    (body: stmt list) : stmt list = 
+let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp) 
+    ~(body: stmt list) : stmt list = 
       (* See what kind of operator we need *)
   let compop, nextop = 
     match unrollType iter.vtype with
@@ -2534,10 +2534,10 @@ let rec mapNoCopyList (f: 'a -> 'a list) = function
       | _ -> il' @ resti'
 
 (* A visitor for lists *)
-let doVisitList (vis: cilVisitor)
-                (startvisit: 'a -> 'a list visitAction)
-                (children: cilVisitor -> 'a -> 'a)
-                (node: 'a) : 'a list = 
+let doVisitList  (vis: cilVisitor)
+                 (startvisit: 'a -> 'a list visitAction)
+                 (children: cilVisitor -> 'a -> 'a)
+                 (node: 'a) : 'a list = 
   let action = startvisit node in
   match action with
     SkipChildren -> [node]
@@ -3534,8 +3534,8 @@ and offsetOfFieldAcc_MSVC (fi: fieldinfo)
   | _, Some _, None -> E.s (E.bug "offsetAcc")
 
 
-and offsetOfFieldAcc (fi: fieldinfo) 
-                     (sofar: offsetAcc) : offsetAcc = 
+and offsetOfFieldAcc ~(fi: fieldinfo) 
+                     ~(sofar: offsetAcc) : offsetAcc = 
   if !msvcMode then offsetOfFieldAcc_MSVC fi sofar
   else offsetOfFieldAcc_GCC fi sofar
 
@@ -3556,7 +3556,7 @@ and bitsSizeOf t =
           oaPrevBitPack = None;
         } in
       let lastoff = 
-        List.fold_left (fun acc fi -> offsetOfFieldAcc fi acc) 
+        List.fold_left (fun acc fi -> offsetOfFieldAcc ~fi ~sofar:acc) 
           startAcc comp.cfields 
       in
       if !msvcMode && lastoff.oaFirstFree = 0 && comp.cfields <> [] then
@@ -3576,7 +3576,7 @@ and bitsSizeOf t =
         } in
       let max = 
         List.fold_left (fun acc fi -> 
-          let lastoff = offsetOfFieldAcc fi startAcc in
+          let lastoff = offsetOfFieldAcc ~fi ~sofar:startAcc in
           if lastoff.oaFirstFree > acc then
             lastoff.oaFirstFree else acc) 0 comp.cfields in
         (* Add trailing by simulating adding an extra field *)
@@ -3633,7 +3633,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
           loop f.fcomp.cfields
         in
         let lastoff =
-          List.fold_left (fun acc fi' -> offsetOfFieldAcc fi' acc)
+          List.fold_left (fun acc fi' -> offsetOfFieldAcc ~fi:fi' ~sofar:acc)
             { oaFirstFree      = 0; (* Start at 0 because each struct is done 
                                      * separately *)
               oaLastFieldStart = 0;
@@ -3879,9 +3879,9 @@ let debugAlpha = false
  * suffix. The first argument is a table mapping name prefixes with the 
 b * largest suffix used so far for that prefix. The largest suffix is one when 
  * only the version without suffix has been used. *)
-let rec newAlphaName (alphaTable: (string, int ref) H.t)
-                     (lookupname: string) : string = 
-  let prefix, sep, suffix = splitNameForAlpha lookupname in
+let rec newAlphaName ~(alphaTable: (string, int ref) H.t)
+                     ~(lookupname: string) : string = 
+  let prefix, sep, suffix = splitNameForAlpha ~lookupname in
   (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
      *)
   if debugAlpha then
@@ -3908,7 +3908,7 @@ let rec newAlphaName (alphaTable: (string, int ref) H.t)
 (* Strip the suffix. Return the prefix, the separator (empty or _) and a 
  * numeric suffix (-1 if the separator is empty or if _ is the last thing in 
  * the name) *)
-and splitNameForAlpha (lookupname: string) : (string * string * int) = 
+and splitNameForAlpha ~(lookupname: string) : (string * string * int) = 
   (* Split the lookup name into a prefix, a separator (empty or _) and a 
    * suffix. The suffix is numberic and is separated by _ from the prefix  *)
   try
@@ -3935,7 +3935,7 @@ and splitNameForAlpha (lookupname: string) : (string * string * int) =
     (lookupname, "", -1)
 
 
-let docAlphaTable (alphaTable: (string, int ref) H.t) = 
+let docAlphaTable ~(alphaTable: (string, int ref) H.t) = 
   let acc : (string * int) list ref = ref [] in
   H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
   docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc

@@ -1,4 +1,4 @@
-val mainname : string ref 
+val mainname: string ref 
 
 val doFile: Cil.file -> Cil.file
 

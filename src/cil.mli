@@ -897,7 +897,7 @@ val makeZeroInit: typ -> init
     every present initializer, even if it is of compound type. This is much 
     like [List.fold_left] except we also pass the type of the initializer *)
 val foldLeftCompound: 
-    (doinit: offset -> init -> typ -> 'a -> 'a) ->
+    doinit: (offset -> init -> typ -> 'a -> 'a) ->
     ct: typ ->
     initl: (offset * init) list ->
     acc: 'a -> 'a
@@ -1101,7 +1101,7 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
 
 (* And some generic visitors. The above are built with these *)
 
-(** Visit all the nodes in an expression *)
+(** Visit all the nodes in an expression
 val doVisit: vis: cilVisitor ->
              startvisit: ('a -> 'a visitAction) ->
              children: (cilVisitor -> 'a -> 'a) ->
@@ -1112,7 +1112,7 @@ val doVisitList: vis: cilVisitor ->
                  startvisit: ('a -> 'a list visitAction) ->
                  children: (cilVisitor -> 'a -> 'a) ->
                  node: 'a -> 'a list
-
+ *)
 
 (** A datatype to be used in conjunction with [existsType] *)
 type existsAction = 

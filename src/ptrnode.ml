@@ -567,7 +567,7 @@ type whichAttr =
   | AtOther (* Anything else *)
 
 
-let replacePtrNodeAttrList where al = 
+let replacePtrNodeAttrList ~(which:whichAttr) al = 
 (*  ignore (E.log "replacePtrNode: %a\n"
             (d_attrlist true) al); *)
   let foundNode : string ref = ref "" in
@@ -624,7 +624,7 @@ let replacePtrNodeAttrList where al =
   in 
   let al' = loop al in (* Get the filtered attributes *)
   let kres = 
-    match where with
+    match which with
       AtPtr -> 
         if !foundNode <> "" then !foundNode 
         else if !defaultIsWild then "wild" else "safe" 
@@ -639,7 +639,7 @@ let replacePtrNodeAttrList where al =
         else if !foundNode = "rostring" then "nullterm" 
         else if !foundNode = "wild" then "wild" 
         else if !foundNode = "wildt" then "wild"
-        else if where = AtOpenArray then 
+        else if which = AtOpenArray then 
           if !defaultIsWild then "wild" else "sized" 
         else !foundNode
     | AtVar ->
@@ -655,7 +655,7 @@ let replacePtrNodeAttrList where al =
 
   
 (* Make a new node *)
-let newNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node =
+let newNode ~(p: place) ~(idx: int) ~(bt: typ) ~(al: attribute list) : node =
   let where = p, idx in
   incr nextId;
   (* Maybe it has a kind specified by the user *)
@@ -707,7 +707,7 @@ let dummyNode = newNode (PGlob "@dummy") 0 voidType []
 
 (* Get a node for a place and an index. Give also the base type and the 
  * attributes *)
-let getNode (p: place) (idx: int) (bt: typ) (al: attribute list) : node = 
+let getNode ~(p: place) ~(idx: int) ~(bt: typ) ~(al: attribute list) : node = 
   (* See if exists already *)
   let where = (p, idx) in
   try
@@ -719,7 +719,7 @@ let nodeExists (p: place) (idx: int) =
   H.mem placeId (p, idx)
 
 
-let addEdge (start: node) (dest: node) (kind: edgekind) (callid: int) =
+let addEdge ~(start: node) ~(dest: node) ~(kind: edgekind) ~(callid: int) =
   if start == dummyNode || dest == dummyNode then
     ignore (E.warn "Adding edge between nodes %d and %d\n" start.id dest.id)
   else begin
@@ -737,7 +737,7 @@ let removeSucc n sid =
 let removePred n pid = 
   n.pred <- List.filter (fun e -> e.efrom.id <> pid) n.pred
 
-let ptrAttrCustom printnode = function
+let ptrAttrCustom ~(printnode:bool) = function
       Attr("_ptrnode", [AInt n]) -> 
         if printnode then
           Some (dprintf "__NODE(%d)" n)

@@ -23,8 +23,8 @@ let rec depth_first_bidir
 
 (* are the given two types congurent? see infer.tex 
  * also remember that two wild pointers are always considered congruent *)
-let rec type_congruent (t1 : typ) (q1 : opointerkind) 
-                       (t2 : typ) (q2 : opointerkind) = begin
+let rec type_congruent ~(t1 : typ) ~(q1 : opointerkind) 
+                       ~(t2 : typ) ~(q2 : opointerkind) = begin
                          
 (*  ignore (E.log "Checking t1: %a, t2: %a\n" d_plaintype t1 d_plaintype t2);*)
 
@@ -52,7 +52,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
               ftype = TArray(t,(Some(Const(CInt64(Int64.pred n,a,b)))),[]) ;
               fbitfield = None;
               fattr = [] ; } ] ; 
-        type_congruent t q1 (TComp(our_compinfo, [])) q2
+        type_congruent ~t1:t ~q1:q1 ~t2:(TComp(our_compinfo, [])) ~q2:q2
       end
     | _ -> false
   end in 
@@ -156,8 +156,8 @@ let rec product_subtype (product_typ1: typ list) (q1: opointerkind)
 
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
 (* t1 = from, t2 = to *)
-let rec subtype (t1 : typ) (q1 : opointerkind) 
-                (t2 : typ) (q2 : opointerkind) =
+let rec subtype ~(t1 : typ) ~(q1 : opointerkind) 
+                ~(t2 : typ) ~(q2 : opointerkind) : bool =
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
   if t1 == t2 || (type_congruent t1 q1 t2 q2) then
@@ -181,7 +181,8 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
         product_subtype (List.map extract_typ c1.cfields) q1 [t2] q2 
     (* x <= a + b  iff x <= a && x <= b *)
     | _,TComp(c2,_) when not c2.cstruct -> begin
-        List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
+        List.for_all (fun elt -> 
+          subtype ~t1:t1 ~q1:q1 ~t2:elt.ftype ~q2:q2) c2.cfields 
     end
     (* a+b <= x    iff a <= x || b <= x *)
     | TComp(c1,_),_ when not c1.cstruct -> begin
@@ -194,7 +195,7 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
     | _,_ -> false
           
 (* a predicate to determine if a polymorphic function call is involved *)
-let rec is_p n other_n = match n.where with
+let rec is_p (n: node) (other_n: node) = match n.where with
     (PGlob(s),_) | (PStatic(_, s), _) when String.contains s '*' -> true
   | (PAnon(_),0) |
     (PLocal(_,_,_),1) -> 

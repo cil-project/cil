@@ -3909,7 +3909,9 @@ and boxinit (ei: init) : init =
         let doOneInit (off: offset) (ei: init) (tei: typ) acc = 
           (off, boxinit ei) :: acc
         in
-        let newinitl = List.rev (foldLeftCompound doOneInit t initl []) in
+        let newinitl = 
+          List.rev (foldLeftCompound ~doinit:doOneInit 
+                                     ~ct:t ~initl:initl ~acc:[]) in
         CompoundInit (t', newinitl)
 
   with exc -> begin

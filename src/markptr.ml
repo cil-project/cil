@@ -482,7 +482,9 @@ and doInit (i: init) : init * typ =
         let ei', _ = doInit ei in
         (off, ei') :: acc
       in
-      let newinitl = List.rev (foldLeftCompound doOneInit t' initl []) in
+      let newinitl = 
+        List.rev (foldLeftCompound ~doinit:doOneInit ~ct:t' 
+                                   ~initl:initl ~acc:[]) in
       CompoundInit (t', newinitl), t'
 
 (* Do an lvalue. We assume conservatively that this is for the purpose of 
@@ -1989,7 +1991,7 @@ let solver = ref "fourth"
 
 (* A special file printer *)
 let printFile (c: out_channel) fl = 
-  Cil.setCustomPrintAttributeScope (N.ptrAttrCustom true)
+  Cil.setCustomPrintAttributeScope (N.ptrAttrCustom ~printnode:true)
     (fun fl ->
       (* AB: These flags are no longer used by Pretty *)
 (*

@@ -11,16 +11,16 @@ val type_congruent: t1:Cil.typ -> q1:Ptrnode.opointerkind ->
 
 
 (* a predicate to determine if a polymorphic function call is involved *)
-val is_p: n:Ptrnode.node -> other_n:Ptrnode.node -> bool 
+val is_p: Ptrnode.node -> Ptrnode.node -> bool 
 
 
 
 (* This "solver" turns almost all nodes WILD *)
-val wild_solve: node_ht:(int,Ptrnode.node) Hashtbl.t -> unit
+val wild_solve: (int,Ptrnode.node) Hashtbl.t -> unit
 
 
 (* table all the interface nodes in the graph *)
-val table_interface: node_ht:(int,Ptrnode.node) Hashtbl.t -> unit
+val table_interface: (int,Ptrnode.node) Hashtbl.t -> unit
 
 (* table every node in the graph *)
-val table_it_all: node_ht:(int,Ptrnode.node) Hashtbl.t -> unit
+val table_it_all: (int,Ptrnode.node) Hashtbl.t -> unit

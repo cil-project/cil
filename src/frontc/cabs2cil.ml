@@ -4473,11 +4473,11 @@ and assignInit (lv: lval)
       acc +++ (Set(lv, e'', !currentLoc))
   | CompoundInit (t, initl) -> 
       foldLeftCompound
-        (fun off i it acc -> 
+        ~doinit:(fun off i it acc -> 
           assignInit (addOffsetLval off lv) i it acc)
-        t
-        initl
-        acc
+        ~ct:t
+        ~initl:initl
+        ~acc:acc
 
   (* Now define the processors for body and statement *)
 and doBody (blk: A.block) : chunk = 
