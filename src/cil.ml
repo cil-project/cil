@@ -454,7 +454,7 @@ and constant =
                   * out for integers that cannot be represented on 64 bits. 
                   * OCAML does not give Overflow exceptions. *)
   | CStr of string (** String constant (of pointer type) *)
-  | CWStr of string (** Wide string constant (of type "wchar_t *") *)
+  | CWStr of int64 list (** Wide string constant (of type "wchar_t *") *)
   | CChr of char   (** Character constant *)
   | CReal of float * fkind * string option (** Floating point constant. Give
                                                the fkind (see ISO 6.4.4.2) and
@@ -1617,7 +1617,20 @@ let d_const () c =
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
-  | CWStr(s) -> text ("L\"" ^ escape_string s ^ "\"") 
+  | CWStr(s) -> 
+      (* text ("L\"" ^ escape_string s ^ "\"")  *)
+      (List.fold_left (fun acc elt -> 
+        acc ++ 
+        if (elt >= Int64.zero &&
+            elt <= (Int64.of_int 255)) then 
+          text (escape_char (Char.chr (Int64.to_int elt)))
+        else
+          ( text (Printf.sprintf "\\x%LX\"" elt) ++ break ++
+            (text "\""))
+      ) (text "L\"") s ) ++ text "\""
+      (* we cannot print L"\xabcd" "feedme" as L"\xabcdfeedme" --
+       * the former has 7 wide characters and the later has 3. *)
+
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> text (string_of_float f)

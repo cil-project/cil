@@ -2854,7 +2854,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 this_piece ^ (loop tl must_escape_now)
               in loop str false
             in 
-            let res = Const(CWStr (intlist_to_wstring ws)) in
+            let res = Const(CWStr ((* intlist_to_wstring *) ws)) in
             finishExp empty res (typeOf res)
 
         | A.CONST_STRING s -> 
