@@ -89,6 +89,7 @@ and pointerkind =
   | FSeq
   | BSeq
   | String
+	| Index
   | Wild
   | Unknown
 
@@ -121,8 +122,17 @@ let d_place () = function
 let d_placeidx () (p, idx) = 
   dprintf "%a.%d" d_place p idx
 
+let d_pointerkind () = function
+    Safe -> text "safe"
+  | FSeq -> text "fseq" 
+  | BSeq -> text "bseq"
+  | String -> text "string" 
+	| Index -> text "index"
+  | Wild -> text "wild" 
+  | Unknown -> text "unknown" 
+
 let d_node n = 
-  dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@!  T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -132,6 +142,7 @@ let d_node n =
     (if n.intcast  then "int," else "")
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
+		d_pointerkind n.kind
     d_type n.btype
     (docList (chr ',' ++ break)
        (fun e -> dprintf "%d%a" e.eto.id
