@@ -420,6 +420,12 @@ module Stack = struct
 
 end
 
+let absoluteFilename (fname: string) = 
+  if Filename.is_relative fname then 
+    Filename.concat (Sys.getcwd ()) fname
+  else
+    fname
+
 (************************************************************************
 
  Configuration 
@@ -529,6 +535,7 @@ let saveConfiguration (fname: string) =
   in
   try 
     let oc = open_out fname in
+    ignore (E.log "Saving configuration to %s\n" (absoluteFilename fname));
     H.iter (fun k c -> 
       output_string oc (k ^ "\n");
       output_string oc ((configToString c) ^ "\n"))
@@ -591,7 +598,7 @@ let loadConfiguration (fname: string) : unit =
   in
   (try 
     let ic = open_in fname in
-    ignore (E.log "Loading configuration from %s\n" fname);
+    ignore (E.log "Loading configuration from %s\n" (absoluteFilename fname));
     (try 
       while true do
         let k = input_line ic in
