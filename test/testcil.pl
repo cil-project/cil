@@ -434,6 +434,7 @@ $TEST->addTests("testrun/rtti7", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
+$TEST->addTests("test/bind-used-not-defined", "", ['inferbox']);
 $TEST->addTests("test/bind-too-many", "", ['inferbox']);
 $TEST->addTests("testrun/split1", "", ['inferbox']);
 $TEST->add3Tests("testrun/rmtmps-attr");
