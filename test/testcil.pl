@@ -405,6 +405,8 @@ $TEST->addTests("testrun/tcast2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti1", "", ['inferbox']);
 $TEST->addTests("testrun/rtti2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti3", "", ['inferbox']);
+$TEST->addTests("testrun/rtti4", "", ['inferbox']);
+$TEST->addTests("testrun/rtti5", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);

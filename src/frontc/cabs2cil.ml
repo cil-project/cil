@@ -2760,8 +2760,7 @@ and doExp (isconst: bool)    (* In a constant *)
             TVoid _ when what = ADrop -> (t', e') (* strange GNU thing *)
           |  _ -> 
               let res = castTo t' typ e' in (* Do this to check the cast *)
-              (* typ, CastE(typ, e') But put the cast in there *)
-              res
+              typ, CastE(typ, e') ; (*But put the cast in there *)
         in
         finishExp se e'' t''
           
