@@ -69,6 +69,7 @@
   #              if you want to see what is going on.
   #
   # COMPILEFLAGS      - if defined, then it is passed as argument to ocamlc
+  #                     and ocamlopt
   #
   #
   # After you set all of the above you must do the following for EACH separate 
