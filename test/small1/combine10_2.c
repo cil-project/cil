@@ -1,4 +1,4 @@
-typedef struct foo *PSFOO;
+typedef struct foo PSFOO;
 struct foo {
   struct foo * left;
   PSFOO * right;

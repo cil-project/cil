@@ -224,14 +224,18 @@ let rec theMain () =
     if !testcil <> "" then begin
       Testcil.doit !testcil
     end else 
-      let files = List.map parseOneFile !fileNames in
-      if !merge then 
+      if !merge then begin
+        let files = List.map parseOneFile !fileNames in
         let one = 
           Mergecil.merge files (if !outName = "" then "stdout" else !outName)
         in
+        if !E.hadErrors then 
+          E.s (E.error "There were errors during merging\n");
         processOneFile one
-      else
-        List.iter processOneFile files
+      end else
+        List.iter (fun fname -> 
+                       let cil = parseOneFile fname in
+                       processOneFile cil) !fileNames
   end
 ;;
                                         (* Define a wrapper for main to 

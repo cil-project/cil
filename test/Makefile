@@ -454,7 +454,7 @@ testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c
                          $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
 	cd $(SMALL1); ./$*.exe
 
-combine%: 
+combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
           $(CCURED) $(CFLAGS) \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \

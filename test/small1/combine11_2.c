@@ -1,4 +1,4 @@
-struct list {
+extern struct list {
   struct list *next;
   struct foo *f;
   struct bar *b;
