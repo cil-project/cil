@@ -194,7 +194,7 @@ endif
 ifdef NOREMAKE
 defaulttarget : 
 else
-defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB)
+defaulttarget : $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) 
 endif
 
 combiner:
@@ -337,12 +337,11 @@ endif
 # ----------- below here are rules to build the translator ---------
 # (actually, mostly they're in the MODULES line above and in Makefile.ocaml)
 
-
 .PHONY : defaulttarget
 ifdef NOREMAKE
 defaulttarget: 
 else
-defaulttarget: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) $(PATCHFILE2)
+defaulttarget: $(EXECUTABLE)$(EXE) $(SAFECLIB) $(CILLIB) $(PATCHFILE2) 
 endif
 
 .PHONY: trval
@@ -352,7 +351,9 @@ trval:
 
 # ww: build an OCAML library (CMA / CMXA) that exports our Cil stuff
 # kudos to George for this lovely patsubst code ...
-obj/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+$(EXECUTABLE)$(EXE): $(OBJDIR)/cil.$(CMXA)
+
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ $^
 
 
