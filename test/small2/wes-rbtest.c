@@ -1,26 +1,4 @@
 
-#ifndef MANUALBOX
-#define WILD
-#define SAFE
-#define TAGGED
-#define INDEX
-#define SIZED
-#define SEQ
-#define FSEQ
-#define malloc_safe malloc
-#define calloc_fseq calloc
-#define free_safe   free
-#define calloc_rbnode calloc
-#else
-#define WILD   __attribute__((wild))
-#define SAFE   __attribute__((safe))
-#define TAGGED __attribute__((tagged))
-#define INDEX  __attribute__((index))
-#define SIZED  __attribute__((sized))
-#define SEQ    __attribute__((seq))
-#define FSEQ   __attribute__((fseq))
-#endif
-
 /* A special purpose main */
 //#include "main.h"
 /****** Data sizes *******
@@ -134,10 +112,12 @@ typedef long clock_t;
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
 
-void * SAFE  malloc_safe(unsigned int);
-void * SAFE  calloc_safe(unsigned int, unsigned int);
+void * SAFE  malloc(unsigned int);
 void * FSEQ  calloc_fseq(unsigned int, unsigned int);
-void   __cdecl free_safe(void * SAFE);
+void         free(void * SAFE);
+#ifndef MANUALBOX
+#define calloc_rbnode calloc
+#endif
 
 int __cdecl dup(int);
 int __cdecl dup2(int, int);

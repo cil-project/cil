@@ -224,10 +224,33 @@ let taggedTypes: (typsig, typ) H.t = H.create 123
 (**** FIXUP TYPE ***)
 let fixedTypes : (typsig, typ) H.t = H.create 17
 
+(* Get rid of all Const attributes *)
+let dropConst t =
+ let dropit a = dropAttribute a (AId("const")) in
+ let rec loop = function
+    TVoid a -> TVoid (dropit a)
+  | TInt (i, a) -> TInt (i, dropit a)
+  | TFloat (f, a) -> TFloat (f, dropit a)
+  | TBitfield (i, s, a) -> TBitfield (i, s, dropit a)
+  | TNamed (n, t, a) -> TNamed(n, loop t, dropit a)
+  | TPtr (t', a) -> TPtr(loop t', dropit a)
+  | TArray (t', l, a) -> TArray(loop t', l, dropit a)
+  | TComp comp as t -> t
+  | TForward (comp, a) -> TForward (comp, dropit a)
+  | TEnum (n, f, a) -> TEnum (n, f, dropit a)
+  | TFun (r, args, v, a) -> 
+      List.iter (fun a -> a.vtype <- loop a.vtype) args;
+      TFun(r, args, v, dropit a)
+ in
+ loop t
+
+
+
 let rec fixupType t = 
   match t with
     TForward _ -> t
-  | TNamed (n, t, a) -> TNamed(n, fixupType t, a) (* Keep the Named types *)
+    (* Keep the Named types *)
+  | TNamed (n, t, a) -> TNamed(n, fixupType t, dropAttribute a (AId("const")))
 
     (* Sometimes we find a function type without arguments or with arguments 
      * with different names (a prototype that we have done before). Do the 
@@ -251,19 +274,21 @@ let rec fixupType t =
   | _ -> fixit t
 
 and fixit t = 
-  let ts = typeSig t in
+  (* First drop the Const attribute *)
+  let tdrop = dropConst t in
+  let ts = typeSig tdrop in
   try
     H.find fixedTypes ts 
   with Not_found -> begin
     let fixed = 
-      match t with 
-        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
+      match tdrop with 
+        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> tdrop
 
       | TPtr (t', a) -> begin
           (* Now do the base type *)
           let fixed' = fixupType t' in
           (* Extract the boxing style attribute *)
-          let pkind = kindOfType t in 
+          let pkind = kindOfType tdrop in 
           let fixed = 
             match pkind with
                P.Safe -> TPtr(fixed', a)
@@ -306,7 +331,7 @@ and fixit t =
           fixed
       end
             
-      | TForward _ ->  t              (* Don't follow TForward, since these 
+      | TForward _ ->  tdrop          (* Don't follow TForward, since these 
                                        * fill be taken care of when the 
                                        * definition is encountered  *)
       | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
@@ -1949,9 +1974,9 @@ let preamble () =
   theFile := GText("#define WILD\n#define FSEQ") :: checkFunctionDecls;
   (** Create some more fat types *)
   ignore (fixupType (TPtr(TInt(IChar, []), [AId("wild")])));
-  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")])));
+(*  ignore (fixupType (TPtr(TInt(IChar, [AId("const")]), [AId("wild")]))); *)
   ignore (fixupType (TPtr(TVoid([]), [AId("wild")])));
-  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")])));
+(*  ignore (fixupType (TPtr(TVoid([AId("const")]), [AId("wild")]))); *)
   let startFile = !theFile in
   theFile := 
      GText ("#include \"safec.h\"\n") :: 

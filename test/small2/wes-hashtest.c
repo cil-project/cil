@@ -1,24 +1,3 @@
-#ifndef MANUALBOX
-#define WILD
-#define SAFE
-#define TAGGED
-#define INDEX
-#define SIZED
-#define SEQ
-#define FSEQ
-#define malloc_safe malloc
-#define calloc_fseq calloc
-#define free_safe   free
-#else
-#define WILD   __attribute__((wild))
-#define SAFE   __attribute__((safe))
-#define TAGGED __attribute__((tagged))
-#define INDEX  __attribute__((index))
-#define SIZED  __attribute__((sized))
-#define SEQ    __attribute__((seq))
-#define FSEQ   __attribute__((fseq))
-#endif
-
 //#include "main.h"
 /****** Data sizes *******
 * U8  must be an unsigned of 8 bits
@@ -147,6 +126,11 @@ int   __cdecl printf(const char * SAFE, ...);
 int   __cdecl fprintf(FILE * SAFE, const char * SAFE, ...);
 void  __cdecl exit(int);
 int   __cdecl fflush(FILE * SAFE);
+
+void  *  SAFE malloc(unsigned int);
+void  *  FSEQ calloc_fseq(unsigned int nrelem, unsigned int osize);
+void          free(void * SAFE);
+
 #define NULL (void*)0
 
 #ifdef _MSVC
@@ -345,7 +329,7 @@ static  int nextFreeBucket = 0;
 static  BUCKET_DATA * SAFE acquireHashBucket(void) {
   if(nextFreeBucket == 0) {
     BUCKET_DATA * SAFE buck;
-    MALLOC(malloc_safe, buck, NULL, sizeof(BUCKET_DATA), BUCKET_DATA*,
+    MALLOC(malloc, buck, NULL, sizeof(BUCKET_DATA), BUCKET_DATA*,
            "hash_bucket_data");
     return buck;
   } else {
@@ -357,7 +341,7 @@ static int releaseHashBucket(BUCKET_DATA * SAFE buck) {
   if(nextFreeBucket < BUCKET_CACHE_SIZE) {
     bucketCache[nextFreeBucket ++] = buck;
   } else {
-    FREE(free_safe, buck, "hash_bucket_data");
+    FREE(free, buck, "hash_bucket_data");
   }
   return 0;
 }
@@ -376,7 +360,7 @@ int     preallocateHashes(void) {
 int   releaseHashes(void) {
   int i;
   for(i=0;i<nextFreeBucket;i++) {
-    FREE(free_safe, bucketCache[i], "hash_bucket_data");
+    FREE(free, bucketCache[i], "hash_bucket_data");
   }
   nextFreeBucket = 0;
   return 0;
@@ -403,7 +387,7 @@ void FreeHash(PHASH hin) {
       releaseHashBucket(t_bdata);
     }
   }
-  FREE(free_safe, h, "hash_table");
+  FREE(free, h, "hash_table");
 }
 
 typedef enum {SET, LOOKUP, DELETE} HashOper;
