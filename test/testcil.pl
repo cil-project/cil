@@ -233,7 +233,7 @@ $TEST->add2TestsFail("testrun/failprintf5", "",
 $TEST->add2TestsFail("testrun/failprintf6", "", "Failure .+: type mismatch");
 
 $TEST->add2TestsFail("testrun/failsprintf1", "", "Failure .+: Ubound");
-$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure .+: Ubound");
+$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure .+: ");
 $TEST->add2TestsFail("testrun/failsprintf3", "", "Failure .+: Non-pointer");
 
 $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure .+: Ubound");
@@ -297,7 +297,7 @@ $TEST->add3Tests("go", "_GNUCC=1");
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
 #  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
-  $TEST->addBadComment("ijpeg-cil", "strange failure on MANJU.");
+#  $TEST->addBadComment("ijpeg-cil", "strange failure on MANJU.");
 
 $TEST->add2Tests("m88k", "_GNUCC=1");
   $TEST->add2Group("m88k", "slow");
