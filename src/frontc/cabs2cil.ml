@@ -796,7 +796,7 @@ let doNameGroup (doone: A.spec_elem list -> 'n -> 'a)
 
 (* Create and cache varinfo's for globals. Returns the varinfo and whether 
  * there exists already a definition *)
-let makeGlobalVarinfo (vi: varinfo) =
+let makeGlobalVarinfo (vi: varinfo) : varinfo * bool =
   try (* See if already defined *)
     let oldvi = lookupVar vi.vname in
     (* It was already defined. We must reuse the varinfo. But clean up the 
@@ -1805,7 +1805,9 @@ and doExp (isconst: bool)    (* In a constant *)
                 ignore (warn "Calling function %s without prototype\n" n);
                 let ftype = TFun(intType, [], false, []) in
                 (* Add a prototype to the environment *)
-                let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in 
+                let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in
+                (* Make it EXTERN *)
+                proto.vstorage <- Extern;
                 (* Add it to the file as well *)
                 theFile := GDecl (proto, lu) :: !theFile;
                 (empty, Lval(var proto), ftype)
