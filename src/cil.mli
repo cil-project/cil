@@ -445,22 +445,6 @@ type file =
 	(* global function decls, global variable decls *)
 
 
-(* sm: cil visitor interface for traversing Cil trees *)
-(* no provision for modifying trees at this time *)
-(* use visitCilStmt and/or visitCilFile to use this *)
-(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how *)
-class type cilVisitor = object
-  method vvrbl : varinfo -> unit     (* variable *)
-  method vexpr : exp -> unit         (* expression *)
-  method vlval : lval -> unit        (* lval (base is 1st field) *)
-  method voffs : offset -> unit      (* lval offset *)
-  method vinst : instr -> unit       (* imperative instruction *)
-  method vstmt : stmt -> unit        (* constrol-flow statement *)
-  method vfunc : fundec -> unit      (* function definition *)
-  method vfuncPost : fundec -> unit  (*   postorder version *)
-  method vglob : global -> unit      (* global (vars, types, etc.) *)
-end
-
 
 (* Selects the proper integer kind *)
 val integerKinds: int -> 
@@ -620,15 +604,37 @@ val d_plaintype: unit -> typ -> Pretty.doc
 
 
 
- (* Scan all the expressions in a statement *)
-val iterExp: (exp -> unit) -> stmt -> unit
+(* sm: cil visitor interface for traversing Cil trees *)
+(* no provision for modifying trees at this time *)
+(* use visitCilStmt and/or visitCilFile to use this *)
+(* I'd like to export cil.ml's default nopCilVisitor, but I don't know how *)
+class type cilVisitor = object
+  method vvrbl : varinfo -> unit     (* variable *)
+  method vexpr : exp -> unit         (* expression *)
+  method vlval : lval -> unit        (* lval (base is 1st field) *)
+  method voffs : offset -> unit      (* lval offset *)
+  method vinst : instr -> unit       (* imperative instruction *)
+  method vstmt : stmt -> unit        (* constrol-flow statement *)
+  method vfunc : fundec -> unit      (* function definition *)
+  method vfuncPost : fundec -> unit  (*   postorder version *)
+  method vglob : global -> unit      (* global (vars, types, etc.) *)
+end
 
+
+(* visit all nodes in a Cil expression tree in preorder *)
+val visitCilExp: cilVisitor -> exp -> unit
+
+(* Visit all nodes in a Cil lvalue tree in preorder *)
+val visitCilLval: cilVisitor -> lval -> unit
+
+(* Visit all nodes in a Cil instruction in preorder *)
+val visitCilInstr: cilVisitor -> instr -> unit
 
 (* visit all nodes in a Cil statement tree in preorder *)
-val visitCilStmt : cilVisitor -> stmt -> unit
+val visitCilStmt: cilVisitor -> stmt -> unit
 
 (* visit an entire file *)
-val visitCilFile : cilVisitor -> file -> unit
+val visitCilFile: cilVisitor -> file -> unit
 
 
    (* Make a local variable and add it to a function *)

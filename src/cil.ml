@@ -1486,44 +1486,6 @@ let printFileWithCustom (out: out_channel)
 
 
 
- (* Scan all the expressions in a statement *)
-let iterExp (f: exp -> unit) (body: stmt) : unit =
-  let rec fExp e = f e; fExp' e
-  and fExp' = function
-      (Const _|SizeOf _|SizeOfE _) -> ()
-    | Lval lv -> fLval lv
-    | UnOp(_,e,_) -> fExp e
-    | BinOp(_,e1,e2,_) -> fExp e1; fExp e2
-    | Question (e1, e2, e3) -> fExp e1; fExp e2; fExp e3
-    | CastE(_, e) -> fExp e
-    | Compound (_, initl) -> List.iter (fun (_, e) -> fExp e) initl
-    | AddrOf (lv) -> fLval lv
-    | StartOf (lv) -> fLval lv
-
-  and fLval = function
-      Var _, off -> fOff off
-    | Mem e, off -> fExp e; fOff off
-  and fOff = function
-      Field (_, o) -> fOff o
-    | Index (e, o) -> fExp e; fOff o
-    | NoOffset -> ()
-  and fStmt = function
-      (Skip|Break|Continue|Label _|Goto _
-    |Case _|Default|Return (None, _)) -> ()
-    | Sequence s -> List.iter fStmt s
-    | Loop s -> fStmt s
-    | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
-    | Return(Some e, _) -> fExp e
-    | Switch (e, s, _) -> fExp e; fStmt s
-    | Instr(Set(lv,e),_) -> fLval lv; fExp e
-    | Instr(Call(_,f,args), _) -> fExp f; List.iter fExp args
-    | Instr(Asm(_,_,outs,ins,_), _) -> begin
-        List.iter (fun (_, lv) -> fLval lv) outs;    (* sm: bugfix 3/17/01 *)
-        List.iter (fun (_, e) -> fExp e) ins
-      end
-  in
-  fStmt body
-
 
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *) 
