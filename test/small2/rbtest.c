@@ -48,7 +48,6 @@ void innerDoTreeStuff(int letGcFree)
   printf("finding...\n");
   for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
-    void *data = NULL;
     if(findRB(t, k)) {
       count ++;
     }
@@ -113,7 +112,8 @@ int main(int argc, char *argv[])
 
   fprintf(stderr, "Hash has %d elements. Found %d times\n",
           sz, count);
-  printf("Run rbtest in %8.3lfms\n", clk / 1000.0);
+  printf("Run rbtest in %8.3fms\n", clk / 1000.0);
+    // sm: removed 'l' in format string because gcc complains
   exit (0);
   return 0;
 }

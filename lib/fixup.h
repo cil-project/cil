@@ -38,7 +38,9 @@
 #define __SEQ
 #define __WILD
 #define __SIZED
-#define __STRING
+// sm: changed __STRING to __RWSTRING to avoid conflict
+// with linux header files
+#define __RWSTRING
 #define __ROSTRING
 #define __NULLTERM
 #define __SEQN
@@ -61,7 +63,7 @@
 #define __SEQN   __attribute__((seqn))
 #define __FSEQN  __attribute__((fseqn))
 #define __NULLTERM   __attribute__((nullterm))
-#define __STRING  __attribute__((string))
+#define __RWSTRING  __attribute__((string))
 #define __SAFEUNION __attribute__((safeunion))
 #define __INDEXT   __attribute__((indext))
 #define __WILDT   __attribute__((wildt))

@@ -8,6 +8,15 @@ int main()
   printf("whazzup?!\n");
   return 0;
 }
+ 
+
+#if 0
+// this was messing up the parser
+enum __rlimit_resource {
+  _RLIMIT_CPU = 0,
+  RLIMIT_CPU = _RLIMIT_CPU,
+};
+#endif // 0
 
 
 #if 0
