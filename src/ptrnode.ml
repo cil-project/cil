@@ -422,8 +422,8 @@ let nodeOfAttrlist al =
   in
   match filterAttributes "_ptrnode" al with
     [] -> None
-  | [ACons(_, [AInt n])] -> findnode n
-  | (ACons(_, [AInt n]) :: _) as filtered -> 
+  | [Attr(_, [AInt n])] -> findnode n
+  | (Attr(_, [AInt n]) :: _) as filtered -> 
       ignore (E.warn "nodeOfAttrlist(%a)" (d_attrlist true) filtered);
       findnode n
   | _ -> E.s (E.bug "nodeOfAttrlist")
@@ -452,21 +452,21 @@ let isT k = stripT k <> k
 
 
 let k2attr = function
-    Safe -> AId("safe")
-  | Index -> AId("index")
-  | Wild -> AId("wild")
-  | Seq -> AId("seq")
-  | FSeq -> AId("fseq")
-  | SeqN -> AId("seqn")
-  | FSeqN -> AId("fseqn")
-  | IndexT -> AId("indext")
-  | WildT -> AId("wildt")
-  | SeqT -> AId("seqt")
-  | FSeqT -> AId("fseqt")
-  | SeqNT -> AId("seqnt")
-  | FSeqNT -> AId("fseqnt")
-  | String -> AId("string")
-  | ROString -> AId("rostring") 
+    Safe -> Attr("safe", [])
+  | Index -> Attr("index", [])
+  | Wild -> Attr("wild", [])
+  | Seq -> Attr("seq", [])
+  | FSeq -> Attr("fseq", [])
+  | SeqN -> Attr("seqn", [])
+  | FSeqN -> Attr("fseqn", [])
+  | IndexT -> Attr("indext", [])
+  | WildT -> Attr("wildt", [])
+  | SeqT -> Attr("seqt", [])
+  | FSeqT -> Attr("fseqt", [])
+  | SeqNT -> Attr("seqnt", [])
+  | FSeqNT -> Attr("fseqnt", [])
+  | String -> Attr("string", [])
+  | ROString -> Attr("rostring", []) 
   | k -> E.s (E.unimp "k2attr:%a" d_opointerkind k)
 
 (*
@@ -479,23 +479,23 @@ let kindOfAttrlist al =
       [] -> Unknown, Default
     | a :: al -> begin
         match a with
-          AId "safe" -> Safe, UserSpec
-        | AId "index" -> Index, UserSpec
-        | AId "seq" -> Seq, UserSpec
-        | AId "fseq" -> FSeq, UserSpec
-        | AId "seqn" -> SeqN, UserSpec
-        | AId "fseqn" -> FSeqN, UserSpec
-        | AId "wild" -> Wild, UserSpec
-        | AId "wildt" -> WildT, UserSpec
-        | AId "seqt" -> SeqT, UserSpec
-        | AId "fseqt" -> FSeqT, UserSpec
-        | AId "seqnt" -> SeqNT, UserSpec
-        | AId "fseqnt" -> FSeqNT, UserSpec
-        | AId "sized" -> Index, UserSpec
-        | AId "tagged" -> Wild, UserSpec
-        | AId "string" -> String, UserSpec
-        | AId "rostring" -> ROString, UserSpec
-        | AId "nullterm" -> String, UserSpec
+          Attr ("safe", []) -> Safe, UserSpec
+        | Attr ("index", []) -> Index, UserSpec
+        | Attr ("seq", []) -> Seq, UserSpec
+        | Attr ("fseq", []) -> FSeq, UserSpec
+        | Attr ("seqn", []) -> SeqN, UserSpec
+        | Attr ("fseqn", []) -> FSeqN, UserSpec
+        | Attr ("wild", []) -> Wild, UserSpec
+        | Attr ("wildt", []) -> WildT, UserSpec
+        | Attr ("seqt", []) -> SeqT, UserSpec
+        | Attr ("fseqt", []) -> FSeqT, UserSpec
+        | Attr ("seqnt", []) -> SeqNT, UserSpec
+        | Attr ("fseqnt", []) -> FSeqNT, UserSpec
+        | Attr ("sized", []) -> Index, UserSpec
+        | Attr ("tagged", []) -> Wild, UserSpec
+        | Attr ("string", []) -> String, UserSpec
+        | Attr ("rostring", []) -> ROString, UserSpec
+        | Attr ("nullterm", []) -> String, UserSpec
         | _ -> loop al
     end    
   in
@@ -525,7 +525,7 @@ let replacePtrNodeAttrList where al =
       [] -> []
     | a :: al -> begin
         match a with
-          ACons("_ptrnode", [AInt n]) -> begin
+          Attr("_ptrnode", [AInt n]) -> begin
             try 
               let nd = H.find idNode n in
               let found = 
@@ -534,8 +534,7 @@ let replacePtrNodeAttrList where al =
                   ""
                 end else 
                   match k2attr nd.kind with
-                    AId s -> s
-                  | _ -> E.s (E.bug "replacePtrNodeAttrList")
+                    Attr(s, _)  -> s
               in
               foundNode := found;
               a :: loop al
@@ -544,23 +543,23 @@ let replacePtrNodeAttrList where al =
               a :: loop al
             end
           end
-        | AId "safe" -> foundNode := "safe"; loop al
-        | AId "index" -> foundNode := "index"; loop al
-        | AId "seq" -> foundNode := "seq"; loop al
-        | AId "fseq" -> foundNode := "fseq"; loop al
-        | AId "seqn" -> foundNode := "seqn"; loop al
-        | AId "fseqn" -> foundNode := "fseqn"; loop al
-        | AId "wild" -> foundNode := "wild"; loop al
-        | AId "indext" -> foundNode := "indext"; loop al
-        | AId "seqt" -> foundNode := "seqt"; loop al
-        | AId "fseqt" -> foundNode := "fseqt"; loop al
-        | AId "seqnt" -> foundNode := "seqnt"; loop al
-        | AId "fseqnt" -> foundNode := "fseqnt"; loop al
-        | AId "wildt" -> foundNode := "wildt"; loop al
-        | AId "sized" -> foundNode := "sized"; loop al
-        | AId "tagged" -> foundNode := "tagged"; loop al
-        | AId "string" -> foundNode := "string"; loop al
-        | AId "rostring" -> foundNode := "rostring"; loop al
+        | Attr("safe", []) -> foundNode := "safe"; loop al
+        | Attr("index", []) -> foundNode := "index"; loop al
+        | Attr("seq", []) -> foundNode := "seq"; loop al
+        | Attr("fseq", []) -> foundNode := "fseq"; loop al
+        | Attr("seqn", []) -> foundNode := "seqn"; loop al
+        | Attr("fseqn", []) -> foundNode := "fseqn"; loop al
+        | Attr("wild", []) -> foundNode := "wild"; loop al
+        | Attr("indext", []) -> foundNode := "indext"; loop al
+        | Attr("seqt", []) -> foundNode := "seqt"; loop al
+        | Attr("fseqt", []) -> foundNode := "fseqt"; loop al
+        | Attr("seqnt", []) -> foundNode := "seqnt"; loop al
+        | Attr("fseqnt", []) -> foundNode := "fseqnt"; loop al
+        | Attr("wildt", []) -> foundNode := "wildt"; loop al
+        | Attr("sized", []) -> foundNode := "sized"; loop al
+        | Attr("tagged", []) -> foundNode := "tagged"; loop al
+        | Attr("string", []) -> foundNode := "string"; loop al
+        | Attr("rostring", []) -> foundNode := "rostring"; loop al
         | _ -> a :: loop al
     end
   in 
@@ -591,7 +590,7 @@ let replacePtrNodeAttrList where al =
     | AtOther -> !foundNode
   in
   if kres <> "" then 
-    addAttribute (AId(kres)) al' 
+    addAttribute (Attr(kres,[])) al' 
   else 
     al'
 
@@ -603,7 +602,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
   let kind,why_kind = kindOfAttrlist a in
   let n = { id = !nextId;
             btype   = bt;
-            attr    = addAttribute (ACons("_ptrnode", [AInt !nextId])) a;
+            attr    = addAttribute (Attr("_ptrnode", [AInt !nextId])) a;
             where   = where;
             flags   = 0 ;
             onStack = false;
@@ -689,7 +688,7 @@ let removePred n pid =
   n.pred <- List.filter (fun e -> e.efrom.id <> pid) n.pred
 
 let ptrAttrCustom printnode = function
-      ACons("_ptrnode", [AInt n]) -> 
+      Attr("_ptrnode", [AInt n]) -> 
         if printnode then
           Some (dprintf "__NODE(%d)" n)
         else begin
@@ -701,28 +700,28 @@ let ptrAttrCustom printnode = function
               Some (d_opointerkind () nd.kind)
           with Not_found -> Some nil (* Do not print these nodes *)
         end
-    | AId("ronly") -> Some (text "__RONLY")
-    | AId("safe") -> Some (text "__SAFE")
-    | AId("seq") -> Some (text "__SEQ")
-    | AId("fseq") -> Some (text "__FSEQ")
-    | AId("seqn") -> Some (text "__SEQN")
-    | AId("fseqn") -> Some (text "__FSEQN")
-    | AId("index") -> Some (text "__INDEX")
-    | AId("wild") -> Some (text "__WILD")
-    | AId("seqt") -> Some (text "__SEQT")
-    | AId("fseqt") -> Some (text "__FSEQT")
-    | AId("seqnt") -> Some (text "__SEQNT")
-    | AId("fseqnt") -> Some (text "__FSEQNT")
-    | AId("indext") -> Some (text "__INDEXT")
-    | AId("wildt") -> Some (text "__WILDT")
-    | AId("stack") -> Some (text "__STACK")
-    | AId("opt") -> Some (text "__OPT")
-    | AId("string") -> Some (text "__RWSTRING")
-    | AId("rostring") -> Some (text "__ROSTRING")
-    | AId("sized") -> Some (text "__SIZED")
-    | AId("tagged") -> Some (text "__TAGGED")
-    | AId("nullterm") -> Some (text "__NULLTERM")
-    | AId("safeunion") -> Some (text "__SAFEUNION")
+    | Attr("ronly", []) -> Some (text "__RONLY")
+    | Attr("safe", []) -> Some (text "__SAFE")
+    | Attr("seq", []) -> Some (text "__SEQ")
+    | Attr("fseq", []) -> Some (text "__FSEQ")
+    | Attr("seqn", []) -> Some (text "__SEQN")
+    | Attr("fseqn", []) -> Some (text "__FSEQN")
+    | Attr("index", []) -> Some (text "__INDEX")
+    | Attr("wild", []) -> Some (text "__WILD")
+    | Attr("seqt", []) -> Some (text "__SEQT")
+    | Attr("fseqt", []) -> Some (text "__FSEQT")
+    | Attr("seqnt", []) -> Some (text "__SEQNT")
+    | Attr("fseqnt", []) -> Some (text "__FSEQNT")
+    | Attr("indext", []) -> Some (text "__INDEXT")
+    | Attr("wildt", []) -> Some (text "__WILDT")
+    | Attr("stack", []) -> Some (text "__STACK")
+    | Attr("opt", []) -> Some (text "__OPT")
+    | Attr("string", []) -> Some (text "__RWSTRING")
+    | Attr("rostring", []) -> Some (text "__ROSTRING")
+    | Attr("sized", []) -> Some (text "__SIZED")
+    | Attr("tagged", []) -> Some (text "__TAGGED")
+    | Attr("nullterm", []) -> Some (text "__NULLTERM")
+    | Attr("safeunion", []) -> Some (text "__SAFEUNION")
     | a -> None
 
 
@@ -844,7 +843,7 @@ and typeId = function
   | TFloat (fk, a) -> fkId fk ^ attrsId a
   | TEnum _ -> ikId IInt (* !!! *)
   | TNamed (_, t, a) -> typeId (typeAddAttributes a t)
-  | TComp comp when comp.cstruct -> begin
+  | TComp (_, comp, a) when comp.cstruct -> begin
       let hasPrefix s p = 
         let pl = String.length p in
         (String.length s >= pl) && String.sub s 0 pl = p
@@ -869,12 +868,11 @@ and typeId = function
         end else
           res
   end
-  | TComp comp when not comp.cstruct -> 
+  | TComp (_, comp, a) when not comp.cstruct -> 
       "N" ^ (string_of_int (List.length comp.cfields)) ^
       (List.fold_left (fun acc f -> acc ^ typeId f.ftype ^ "n") 
          "" comp.cfields) ^
-      attrsId comp.cattr 
-  | TForward (comp, a) -> typeId (typeAddAttributes a (TComp comp))
+      attrsId (addAttributes comp.cattr  a)
   | TPtr (t, a) -> "P" ^ typeId t ^ "p" ^ attrsId a
   | TArray (t, lo, a) -> 
       let thelen = "len" in
@@ -903,13 +901,6 @@ and fkId = function
   | FDouble -> "D"
   | FLongDouble -> "T"
 
-and attrId a = 
-  let an = match a with
-    AId s -> s
-  | _ -> E.s (E.unimp "attrId: %a" d_attr a)
-  in
-  prependLength an
-
 and prependLength s = 
   let l = String.length s in
   if s = "" || (s >= "0" && s <= "9") then
@@ -919,7 +910,7 @@ and prependLength s =
 and attrsId al = 
   match al with
     [] -> "_"
-  | _ -> "r" ^ List.fold_left (fun acc a -> acc ^ attrId a) "" al ^ "r"
+  | _ -> "r" ^ List.fold_left (fun acc (Attr(an,_)) -> acc ^ an) "" al ^ "r"
 
 
 

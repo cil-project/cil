@@ -1,25 +1,5 @@
 /*** Macros to fixup some things that the parser does not understand ***/
 
-#ifdef _MSVC   /************* MICROSOFT VISUAL C *************/
-/* Drop some things on the floor */
-#define __declspec(a)
-
-/* Turn others into GCC syntax */
-#define __inline inline
-#define _inline inline
-#define __int64 long long
-
-
-#define random rand
-
-/*
-#include <time.h>
-#define TIMESTART(clk) {clk=(double)clock();}
-#define TIMESTOP(clk)  {clk=1000000.0 * \
-                           ((double)clock()-(clk))/CLOCKS_PER_SEC;}
-*/
-#endif
-
 
 /* Use this in the source to cast an integer what to a pointer in the same 
  * home area as host. Use this guarded by BEFOREBOX  */
@@ -81,19 +61,14 @@
   // if some code calls explicit_gc, but we're not boxing, then
   // we won't link safec{debug,}lib.a either; so let's provide
   // a dummy definition of this fn
-  static inline int explicit_gc() { return 0; }
-  //#define explicit_gc() ((void)0)
+
+  /* But we cannot put it here since this will end up being included several 
+   * times (once before patching, and one after cabs2cil) */
+  //static __inline int explicit_gc() { return 0; }
+  #define explicit_gc() ((void)0)
 #endif
 
 
-// Add some prototypes for the built in fucntions
-#ifdef _MSVC
-void __cdecl exit(int);
-#endif
-
-#ifdef _GNUCC
-void exit(int);
-#endif
 
 
 // Now specify some special pragmas

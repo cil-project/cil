@@ -16,7 +16,7 @@ cvs commands:
   update: get others' changes
   other info: http://www.cvshome.org/
 
-make hola INFERBOX=3
+make hola INFERBOX=4
 (actually worked)
 
 scott's regression test: ./regrtest
@@ -25,18 +25,20 @@ george's regression test: cd test; ./testsafec --run
 
 src: (ML code)
   box: insert runtime checks
-  check: ?
+  check: a consistency checker for CIL. The most precise "documentation" of
+  the meaning of CIL.
   cil: representation of intermediate lang (C but no side
        effects in expressions); includes cil -> doc
   cilparse: parsing our stuff?
-  errormsg: ?
+  errormsg: A few utilities for reporting error messages and for logging
   frontc: C parser (C source -> cabs -> cil)
   globinit: add initializers to modules?
   main: entry point to 'safec' tool; processes command-line flags
   markptr: marks pointers based on usage (input to inferencer)
   mllex: ?
   notes.txt: describes syntax of 'asm' statements in gcc
-  oneret: ?
+  oneret: a simple program transformation that pull all return statements to
+  the end of the function body. A good example of how to use CIL.
   optim: rahul's bounds-check elim stuff
   pretty: generic pretty-printer (doc -> string)
   ptrnode: graph for inference algorithm
@@ -44,7 +46,7 @@ src: (ML code)
   secondsolve: 2nd solver?
   simplesolve: 1st solver; decides which pointer flavors to use
     based on how those pointers were used by programmer
-  stats: ?
+  stats: a few utilities for timing the execution
   thirdsolve: 3rd solver (currently used; INFERBOX=3)
   trace: something for debugging output
   util: ?
@@ -53,8 +55,9 @@ src: (ML code)
 lib: (C code for use at runtime)
   fixup.h: prepended to every input source file before boxing
   safec.c: library wrappers (e.g. fopen_w)
-  safec_gcc.patch: patching nonsense
-  safecc.pl: intended to be drop-in replacement for 'gcc'
+  safec_gcc.patch: patching nonsense (for GCC)
+  safec_msvc.patch: patching nonsense (for MSVC)
+  safecc.pl: intended to be drop-in replacement for 'gcc' and for MS 'cl'
   safeccheck.h: "inline" macros for doing runtime checks
   safecmain.c: wrapper for 'main' in case it takes arguments
   scaninfer: ?

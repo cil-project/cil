@@ -77,9 +77,10 @@ let init_lexicon _ =
 		("for", FOR);
 		("if", IF);
 		("else", ELSE);
-		(*** Implementations ***)
+		(*** Implementation specific keywords ***)
 		("__signed__", SIGNED);
-                ("__inline__", INLINE); ("inline", INLINE);
+                ("__inline__", INLINE); ("inline", INLINE); 
+                ("__inline", INLINE);
 		("__attribute__", ATTRIBUTE);
                 ("__asm__", ASM); ("asm", ASM);
                 ("__typeof__", TYPEOF);
@@ -88,11 +89,16 @@ let init_lexicon _ =
 		(*** weimer: GCC arcana ***)
 		("__restrict", RESTRICT); ("restrict", RESTRICT);
 		("__extension__", EXTENSION);
-		("__inline", INLINE);
                 (**** MS VC ***)
                 ("__int64", INT64);
-                ("_cdecl",  CDECL); ("__cdecl", CDECL);
-                ("__stdcall", STDCALL);
+                ("__int32", INT);
+                ("_cdecl",  MSATTR ("_cdecl")); 
+                ("__cdecl", MSATTR ("__cdecl"));
+                ("_stdcall", MSATTR "_stdcall"); 
+                ("__stdcall", MSATTR "__stdcall");
+                ("_fastcall", MSATTR "_fastcall"); 
+                ("__fastcall", MSATTR "__fastcall");
+                ("__declspec", DECLSPEC);
 	]
 
 let add_type name =

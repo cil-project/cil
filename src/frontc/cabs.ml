@@ -16,59 +16,89 @@ let version = "Cabs 2.1 4.7.99 Hugues Cassé"
 (*
 ** Types
 *)
-type size = NO_SIZE | CHAR | SHORT | LONG | LONG_LONG
-and sign = NO_SIGN | SIGNED | UNSIGNED
-and storage =
+type typeSpecifier = (* Merge all specifiers into one type *)
+    Tvoid                             (* Type specifier ISO 6.7.2 *)
+  | Tchar
+  | Tshort
+  | Tint
+  | Tlong
+  | Tint64
+  | Tfloat
+  | Tdouble
+  | Tsigned
+  | Tunsigned
+  | Tnamed of string
+  | Tstruct of string * name_group list option  (* None if an old type *)
+  | Tunion of string * name_group list option   (* None if an old type *)
+  | Tenum of string * enum_item list option    (* None if an old type *)
+  | Ttypeof of expression                      (* GCC __typeof__ *)
+
+and storage = 
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
 
-and base_type =
-   NO_TYPE
- | VOID
- | INT of size * sign
- | BITFIELD of base_type * expression
- | FLOAT of bool					(* is long ? *)
- | DOUBLE of bool					(* is long ? *)
- | PTR of base_type					(* is const ? *)
- | ARRAY of base_type * expression
 
- | STRUCTDEF of string * name_group list
- | STRUCT of string                     (* A reference to a STRUCT but with 
-                                         * no field definitions *)
- | UNIONDEF of string * name_group list
- | UNION of string
+(* Type specifier elements. These appear at the start of a declaration *)
+and spec_elem = 
+    SpecTypedef
+  | SpecInline
+  | SpecAttr of attribute
+  | SpecStorage of storage
+  | SpecType of typeSpecifier
 
- | ENUMDEF of string * enum_item list
- | ENUM    of string
+(* Declarator type. They modify the base type given in the specifier. Keep 
+ * them in the order as they are printed (this means that the top level 
+ * constructor for ARRAY and PTR is the inner-level in the meaning of the 
+ * declared type) *)
+and decl_type = 
+ | JUSTBASE                               (* Prints the declared name *)
+ | PARENTYPE of attribute list * decl_type * attribute list 
+                                          (* Prints "(attrs1 decl attrs2)". 
+                                           * attrs2 are attributes of the 
+                                           * declared identifier and it is as 
+                                           * if they appeared at the very end 
+                                           * of the declarator. attrs1 can 
+                                           * contain attributes for the 
+                                           * identifier or attributes for the 
+                                           * enclosing type.  *)
+ | BITFIELD of expression                 (* Prints "name : exp" *)
+ | ARRAY of decl_type * expression        (* Prints "decl [ exp ]". decl is 
+                                           * never a PTR. *)
+ | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
+ | PROTO of decl_type * single_name list * bool
+                                          (* Prints "decl (args[, ...])". 
+                                           * decl is never a PTR. *)
 
+(* The base type and the storage are common to all names. Each name might 
+ * contain type or storage modifiers *)
+and name_group = spec_elem list * name list
 
- | PROTO of proto
- | NAMED_TYPE of string
- | ATTRTYPE of base_type * attribute list(* Type with attributes *)
- | TYPEOF of expression                 (* GCC __typeof__ *)
+and init_name_group = spec_elem list * init_name list
 
-and name_group = base_type * storage * name list
+(* The decl_type is in the order in which they are printed. Only the name of 
+ * the declared identifier is pulled out. The attributes are those that are 
+ * printed after the declarator *)
+and name = string * decl_type * attribute list
 
-and name = string * base_type * attribute list * init_expression
+(* A name with an initializer *)
+and init_name = name * init_expression
 
-and single_name = base_type * storage * name
+(* Single names are for declarations that cannot come in groups, like 
+ * function parameters and functions *)
+and single_name = spec_elem list * name
+
 
 and enum_item = string * expression
-
-and proto =
-    base_type * single_name list * bool (* isvar arg*) * bool (* inline *)
-
-
-
+ 
 (*
 ** Declaration definition
 *)
 and definition = 
    FUNDEF of single_name * body
- | DECDEF of name_group
+ | DECDEF of init_name_group
  | TYPEDEF of name_group
- | ONLYTYPEDEF of name_group
+ | ONLYTYPEDEF of spec_elem list
  | GLOBASM of string
- | PRAGMA of attribute
+ | PRAGMA of expression
 
 and file = definition list				
 
@@ -126,13 +156,13 @@ and expression =
   | UNARY of unary_operator * expression
   | BINARY of binary_operator * expression * expression
   | QUESTION of expression * expression * expression
-  | CAST of base_type * expression
+  | CAST of (spec_elem list * decl_type) * expression
   | CALL of expression * expression list
   | COMMA of expression list
   | CONSTANT of constant
   | VARIABLE of string
   | EXPR_SIZEOF of expression
-  | TYPE_SIZEOF of base_type
+  | TYPE_SIZEOF of spec_elem list * decl_type
   | INDEX of expression * expression
   | MEMBEROF of expression * string
   | MEMBEROFPTR of expression * string
@@ -158,7 +188,32 @@ and initwhat =
                                         (* Each attribute has a name and some
                                          * optional arguments *)
 and attribute = string * expression list
-   
+
+
+(*********** HELPER FUNCTIONS **********)
+
+let missingFieldDecl = ("___missing_field_name", JUSTBASE, []) 
+
+let rec isStatic = function
+    [] -> false
+  | (SpecStorage STATIC) :: _ -> true
+  | _ :: rest -> isStatic rest
+
+let rec isExtern = function
+    [] -> false
+  | (SpecStorage EXTERN) :: _ -> true
+  | _ :: rest -> isExtern rest
+
+let rec isInline = function
+    [] -> false
+  | SpecInline :: _ -> true
+  | _ :: rest -> isInline rest
+
+let rec isTypedef = function
+    [] -> false
+  | SpecTypedef :: _ -> true
+  | _ :: rest -> isTypedef rest
+
 
 let get_statementloc (s : statement) : Cil.location =
 begin

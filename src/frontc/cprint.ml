@@ -20,6 +20,7 @@
 **	2.1e	9.1.99	Hugues Cassé	Fix, recognize and correctly display '\0'.
 *)
 
+(* George Necula: I changed this pretty dramatically since CABS changed *)
 open Cil
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
@@ -169,55 +170,77 @@ let print_string s =
 (* 
 ** Base Type Printing
 *)
-let get_sign si =
-	match si with
-	NO_SIGN -> ""
-	| SIGNED -> "signed "
-	| UNSIGNED -> "unsigned "
 
-let get_size siz =
-	match siz with
-  	  NO_SIZE -> ""
-        | CHAR -> "char "
-	| SHORT -> "short "
-	| LONG -> "long "
-	| LONG_LONG -> "<unexpected size> "
+let rec print_specifiers (specs: spec_elem list) = 
+  let print_spec_elem = function
+      SpecTypedef -> print "typedef "
+    | SpecInline -> print "__inline "
+    | SpecStorage sto -> 
+        print (match sto with
+          NO_STORAGE -> ""
+        | AUTO -> "auto "
+        | STATIC -> "static "
+        | EXTERN -> "extern "
+        | REGISTER -> "register ")
+    | SpecAttr al -> print_attribute al; space ()
+    | SpecType bt -> print_type_spec bt
+  in
+  List.iter print_spec_elem specs
 
-let rec print_base_type  typ =
-  match typ with
-    NO_TYPE -> ()
-  | VOID -> print "void"
-  | INT (LONG_LONG, sign) -> 
-      let sz = if !msvcMode then "__int64 " else "long long int " in
-      print ((get_sign sign) ^ sz)
+and print_type_spec = function
+    Tvoid -> print "void "
+  | Tchar -> print "char "
+  | Tshort -> print "short "
+  | Tint -> print "int "
+  | Tlong -> print "long "
+  | Tint64 -> print "__int64 "
+  | Tfloat -> print "float "
+  | Tdouble -> print "double "
+  | Tsigned -> print "signed "
+  | Tunsigned -> print "unsigned "
+  | Tnamed s -> print s; space ();
+  | Tstruct (n, None) -> print ("struct " ^ n ^ " ")
+  | Tstruct (n, Some flds) -> 
+      if flds = [] then print "struct { } " 
+      else print_fields ("struct " ^ n) flds
+  | Tunion (n, None) -> print ("union " ^ n ^ " ")
+  | Tunion (n, Some flds) -> 
+      if flds = [] then print "union { } " 
+      else print_fields ("union " ^ n) flds
+  | Tenum (n, None) -> print ("enum " ^ n ^ " ")
+  | Tenum (n, Some enum_items) -> print_enum n enum_items
+  | Ttypeof e -> print "__typeof__("; print_expression e 1; print ")"
 
-  | INT (size, sign) -> 
-      print ((get_sign sign) ^ (get_size size) ^ 
-             (if size <> CHAR then "int" else ""))
-  | BITFIELD (bt, _) -> print_base_type bt
-  | FLOAT size -> print ((if size then "long " else "") ^ "float")
-  | DOUBLE size -> print ((if size then "long " else "") ^ "double")
-  | NAMED_TYPE id -> print id
-  | ENUM id -> print ("enum " ^ id)
-  | ENUMDEF (id, items) -> print_enum id items
 
-  | STRUCT id -> print ("struct " ^ id)
-  | STRUCTDEF (id, flds) -> 
-      if flds = [] then print "struct { }" 
-      else print_fields ("struct " ^ id) flds
+(* This is the main printer for declarations. It is easy bacause the 
+ * declarations are laid out as they need to be printed. *)
+and print_decl (n: string) = function
+    JUSTBASE -> print n
+  | PARENTYPE (al1, d, al2) -> 
+      print "("; 
+      print_attributes al1; space ();
+      print_decl n d; space ();
+      print_attributes al2; print ")"
+  | BITFIELD e -> 
+      if n <> "___missing_field_name" then print n;
+      print " : ";
+      print_expression e 1
+  | PTR (al, d) -> 
+      print "* ";
+      print_attributes al; space ();
+      print_decl n d
+  | ARRAY (d, e) -> 
+      print_decl n d;
+      print "[";
+      if e <> NOTHING then print_expression e 1;
+      print "]"
+  | PROTO(d, args, isva) -> 
+      print_decl n d;
+      print "(";
+      print_params args isva;
+      print ")"
 
-  | UNION id -> print ("union " ^ id)
-  | UNIONDEF (id, flds) -> 
-      if flds = [] then print "union { }" 
-      else print_fields ("union " ^ id) flds
 
-  | PROTO (typ, _, _, _) -> print_base_type typ
-  | PTR typ -> print_base_type  typ
-  | ARRAY (typ, _) -> print_base_type  typ
-  | ATTRTYPE (typ, _) -> print_base_type typ
-
-  | TYPEOF e -> print "__typeof__("; print_expression e 1; print ")"
-	
 and print_fields  id (flds : name_group list) =
   print id;
   if flds = [] then ()
@@ -228,7 +251,7 @@ and print_fields  id (flds : name_group list) =
       (fun fld -> print_name_group fld; print ";"; new_line ())
       flds;
     unindent ();
-    print "}"
+    print "} "
   end
       
 and print_enum id items =
@@ -249,193 +272,38 @@ and print_enum id items =
 	end)
       items;
     unindent ();
-    print "}";
+    print "} ";
   end
 
-
-(*
-** Declaration Printing 
-*)
-and print_pointer typ =
-  match typ with
-    PTR typ -> print_pointer typ; print "*"
-  | ATTRTYPE (typ, a) -> begin 
-      print_pointer typ;
-        (* Extract the const and volatile attributes *)
-      let rec doconstvol = function
-          [] -> []
-        | ("const", []) :: rest -> print "" (* " const "*); doconstvol rest
-        | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
-        | ("cdecl", []) :: rest when !msvcMode -> 
-            print "" (* " __cdecl "*); doconstvol rest
-        | ("stdcall", []) :: rest when !msvcMode -> 
-            print ""(*" __stdcall "*); doconstvol rest
-        | a :: rest -> a :: doconstvol rest
-      in
-      let rest = doconstvol a in
-      if rest <> [] then 
-        begin
-          print " __attribute__((";
-          let printOne (s, el) =
-            print s;
-            if el <> [] then
-              print_commas false (fun e -> print_expression e 1) el
-          in
-          print_commas false printOne rest;
-          print ")) "
-        end
-  end
-
-  | ARRAY (typ, _) -> print_pointer typ
-
-  | _ -> ()
-        
-and print_array typ =
-  match typ with
-    ARRAY (typ, dim) ->
-      print_array typ; 
-      print "[";
-      print_expression dim 0;
-      print "]"
-  | _ -> ()
-
-and print_type (fct : unit -> unit) (typ : base_type ) =
-  let rec get_base_type typ =
-    match typ with
-      PTR typ -> get_base_type typ
-    | ATTRTYPE (typ, _) -> get_base_type typ
-    | ARRAY (typ, _) -> get_base_type typ
-    | _ -> typ
-  in
-  let base = get_base_type typ in
-  match base with
-    BITFIELD (_, exp) -> fct (); print " : "; print_expression exp 1
-  | PROTO (typ', pars, ell, _) ->
-      print_type
-	(fun _ ->
-          let rec parentProto = function
-              PTR _ -> true
-            | ARRAY _ -> true
-            | ATTRTYPE (typ, a) -> begin
-                let rec loop = function
-                    [] -> parentProto typ
-                  | ("cdecl", []) :: rest when !msvcMode -> loop rest
-                  | ("stdcall", []) :: rest when !msvcMode -> loop rest
-                  | _ -> true
-                in
-                loop a
-            end
-            | _ -> false
-          in
-          let p = parentProto typ in
-	  if p then print "(";
-	  print_pointer typ;
-	  fct ();
-	  print_array typ;
-	  if p then print ")";
-	  print "(";
-	  print_params pars ell;
-	  print ")")
-	typ'
-  | _ -> (* print_pointer typ; fct (); print_array typ *)
-      print_pointer_array fct typ
-        
-(* print_pointer type is passed the binding strength of the context *)
-and print_pointer_array (fct : unit -> unit) (typ : base_type ) = 
-  let parenth (outer_t: base_type) (doit: unit -> unit) : unit = 
-    let typ_strength = function         (* binding strength of type 
-                                         * constructors  *)
-      | ARRAY _ -> 11
-      | PTR _ -> 10
-      | PROTO _ -> 12
-      | _ -> 1
-    in
-    if typ_strength outer_t > typ_strength typ then begin
-      print "("; doit (); print ")"
-    end else
-      doit ()
-  in
-  match typ with
-    PTR typ' -> print_pointer_array 
-                  (fun _ -> parenth typ' (fun _ -> print "*"; fct ())) typ' 
-  | ARRAY (typ', dim) ->
-      print_pointer_array 
-        (fun _ -> 
-          parenth typ'
-            (fun _ -> fct(); print "["; print_expression dim 0;  print "]"))
-        typ'
-  | ATTRTYPE (typ, a) -> begin 
-      print_pointer_array fct typ;
-        (* Extract the const and volatile attributes *)
-      let rec doconstvol = function
-          [] -> []
-        | ("const", []) :: rest -> print "" (* " const "*); doconstvol rest
-        | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
-        | ("cdecl", []) :: rest when !msvcMode -> 
-            print "" (* " __cdecl "*); doconstvol rest
-        | ("stdcall", []) :: rest when !msvcMode -> 
-            print ""(*" __stdcall "*); doconstvol rest
-        | a :: rest -> a :: doconstvol rest
-      in
-      let rest = doconstvol a in
-      if rest <> [] then 
-        begin
-          print " __attribute__((";
-          let printOne (s, el) =
-            print s;
-            if el <> [] then
-              print_commas false (fun e -> print_expression e 1) el
-          in
-          print_commas false printOne rest;
-          print ")) "
-        end
-  end
-  | _ -> fct ()
   
-and print_onlytype typ =
-  print_base_type typ;
-  print_type (fun _ -> ()) typ
+and print_onlytype (specs, dt) =
+  print_specifiers specs;
+  print_decl "" dt
     
-and print_name ((id, typ, attr, exp) : name) =
-  begin
-    print_type (fun _ -> if id <> "___missing_field_name" then print id) typ;
-    print_attributes attr;
-    if exp <> NO_INIT then begin
-      space ();
-      print "= ";
-      print_init_expression exp
-    end else ()
-  end
-      
-and get_storage sto =
-  match sto with
-    NO_STORAGE -> ""
-  | AUTO -> "auto"
-  | STATIC -> "static"
-  | EXTERN -> "extern"
-  | REGISTER -> "register"
-        
-and print_name_group (typ, sto, names) =
-  if sto <> NO_STORAGE then begin
-    print (get_storage sto);
-    space ()
-  end;
-  print_base_type typ;
+and print_name ((n, decl, attrs) : name) =
+  print_decl n decl;
   space ();
+  print_attributes attrs
+
+and print_init_name ((n, i) : init_name) =
+  print_name n;
+  if i <> NO_INIT then begin
+    space ();
+    print "= ";
+    print_init_expression i
+  end
+            
+and print_name_group (specs, names) =
+  print_specifiers specs;
   print_commas false print_name names
     
-and print_single_name (typ, sto, name) =
-  (* Added by Raymond for printing inline *)
-  if (contains_inline name) then begin
-      print "inline";
-      space ()
-  end;
-  if sto <> NO_STORAGE then begin
-    print (get_storage sto);
-    space ()
-  end;
-  print_base_type typ;
-  space ();
+
+and print_init_name_group (specs, names) =
+  print_specifiers specs;
+  print_commas false print_init_name names
+    
+and print_single_name (specs, name) =
+  print_specifiers specs;
   print_name name
 
 and print_params (pars : single_name list) (ell : bool) =
@@ -521,7 +389,7 @@ and get_operator exp =
   | CONSTANT _ -> ("", 16)
   | VARIABLE name -> ("", 16)
   | EXPR_SIZEOF exp -> ("", 16)
-  | TYPE_SIZEOF typ -> ("", 16)
+  | TYPE_SIZEOF _ -> ("", 16)
   | INDEX (exp, idx) -> ("", 15)
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
@@ -610,9 +478,9 @@ and print_expression (exp : expression) (lvl : int) =
       print "sizeof(";
       print_expression exp 0;
       print ")"
-  | TYPE_SIZEOF typ ->
+  | TYPE_SIZEOF (bt,dt) ->
       print "sizeof(";
-      print_onlytype typ;
+      print_onlytype (bt, dt);
       print ")"
   | INDEX (exp, idx) ->
       print_expression exp 16;
@@ -780,47 +648,14 @@ and print_attribute (name,args) =
   if args = [] then print name
   else begin
     print name;
-    print "(";
+    print "("; if name = "__attribute__" then print "(";
     print_commas false (fun e -> print_expression e 1) args;
-    print ")"
+    print ")"; if name = "__attribute__" then print ")"
   end
 
-(* Added by Raymond for printing inline *)
-and contains_inline ((id, typ, attr, exp) : name) =
-  let tofind = ["inline"] in
-  let rec loop = function
-      [] -> false
-    | ((an, _) as a) :: rest ->
-        if List.exists (fun n -> n = an) tofind then
-          true
-        else
-          loop rest
-    in 
-  loop attr
-
-
+(* Print attributes. *)
 and print_attributes attrs = 
-    (* Remove some attributes for now *)
-  let toremove = ["inline"] in 
-  let rec loop = function
-      [] -> []
-    | ((an, _) as a) :: rest -> 
-        if List.exists (fun n -> n = an) toremove then
-          loop rest
-        else
-          a :: loop rest
-    in
-  let attrs' = loop attrs in
-  if attrs' = [] then ()
-  else
-    if !msvcMode then  print_list space print_attribute attrs'
-    else
-      begin
-        space (); print "__attribute__((";
-        print_commas false print_attribute attrs';
-        print "))"
-      end
-
+  List.iter (fun a -> print_attribute a; space ()) attrs
 
 (*
 ** Declaration printing
@@ -845,19 +680,18 @@ and print_def def =
       force_new_line ();
 
   | DECDEF names ->
-      print_name_group names;
+      print_init_name_group names;
       print ";";
       new_line ()
 	
   | TYPEDEF names ->
-      print "typedef ";
       print_name_group names;
       print ";";
       new_line ();
       force_new_line ()
         
-  | ONLYTYPEDEF names ->
-      print_name_group names;
+  | ONLYTYPEDEF specs ->
+      print_specifiers specs;
       print ";";
       new_line ();
       force_new_line ()
@@ -872,7 +706,7 @@ and print_def def =
       print "#pragma ";
       let oldwidth = !width in
       width := 1000000;  (* Do not wrap pragmas *)
-      print_attribute a;
+      print_expression a 1;
       width := oldwidth;
       force_new_line ()
       

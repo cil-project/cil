@@ -73,14 +73,16 @@ $TEST->add3Tests("btreetest", "", @runpattern);
 $TEST->add3Tests("hashtest", "", @runpattern);
 $TEST->add3Tests("rbtest", "", @runpattern);
 $TEST->add3Tests("hufftest", "", @runpattern);
-   $TEST->addComment("hufftest-inferbox", "bug in solver");
-   $TEST->addComment("hufftest-box", "missing wrappers");
-   $TEST->addComment("hufftest-cil", "bug running the test???");
+   $TEST->addBadComment("hufftest-inferbox", "missing wrapper for memmove");
+   $TEST->addBadComment("hufftest-box", "missing wrappers");
 $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/argcast", "", @runpattern);
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/attr");
+$TEST->add3Tests("test/attr2", "_GNUCC=1");
+$TEST->add3Tests("test/attr3", "_GNUCC=1");
+$TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1", "", @runpattern);
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("test/box1");
@@ -92,14 +94,15 @@ $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
 $TEST->add3Tests("test/globals");
 $TEST->add3Tests("test/huff1");
-  $TEST->addComment("test/huff1-box", "pragma box misuse");
-  $TEST->addComment("test/huff1-inferbox", "pragma box misuse");
+  $TEST->addBadComment("test/huff1-box", "pragma box misuse");
+  $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init_gcc", "_GNUCC=1");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic");
- $TEST->add3Comment("test/linux_atomic", "parsing error");
+  $TEST->addBadComment("test/linux_atomic-box", "strange code");
+  $TEST->addBadComment("test/linux_atomic-inferbox", "strange code");
 $TEST->add3Tests("test/li");
 $TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
@@ -127,17 +130,17 @@ $TEST->add1Test("test/alloc-manualinferbox",
                 "test/alloc INFERBOX=$inferbox MANUALBOX=1",
                 %commonerrors);
 $TEST->add3Tests("bh", "_GNUCC=1");
-   $TEST->addComment("bh-box", "missing wrappers");
+   $TEST->addBadComment("bh-box", "missing wrappers");
 $TEST->add3Tests("li", "_GNUCC=1");
-  $TEST->addComment("li-box", "bug in box.ml");
-  $TEST->addComment("li-inferbox", "bug in box.ml");
+  $TEST->addBadComment("li-box", "bug in box.ml");
+  $TEST->addBadComment("li-inferbox", "bug in box.ml");
 $TEST->add3Tests("compress", "_GNUCC=1");
-   $TEST->addComment("compress-box", "missing wrappers");
+   $TEST->addBadComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
 $TEST->add3Tests("apache/gzip");
    $TEST->add3Group("apache/gzip", "apache");
 $TEST->add3Tests("apache/rewrite");
-   $TEST->addComment("apache/rewrite-cil", "missing main");
+   $TEST->addBadComment("apache/rewrite-cil", "missing main");
    $TEST->add3Group("apache/rewrite", "apache");
 $TEST->add3Tests("apache/urlcount");
    $TEST->add3Group("apache/urlcount", "apache");
@@ -296,12 +299,24 @@ sub add1Test {
                    Patterns => \%patterns);
 }
 
+sub addBadComment {
+    my($self, $name, $comm) = @_;
+    $self->addComment($name, $comm);
+    $self->addGroup($name, "bad");
+}
 
 sub add3Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
     $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
+}
+
+
+sub add3BadComment {
+    my ($self, $name, $comm) = @_;
+    $self->add3Comment($name, $comm);
+    $self->add3Group($name, "bad");
 }
 
 sub add3Group {

@@ -108,14 +108,14 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
           (* we have to handle TForward specially -- if a TForward *)
           (* is used, we need the associated TComp to be marked used also *)
           (match t with
-          | TForward(cinfo, _) -> (
+          | TComp (true, cinfo, a) -> (
               (trace "usedType" (dprintf "also recursing into associated TComp: %a\n" d_type t));
 
               (* not only do I need to mark it, I need to recurse *)
               (* into its interior; apparently, this TComp will be *)
               (* considered equal (by the hash table) to the TComp *)
               (* presumably already in the Cil tree *)
-              (visitCilType (self :> cilVisitor) (TComp(cinfo)))
+              (visitCilType (self :> cilVisitor) (TComp(false, cinfo, a)))
             )
           | _ -> ());
 
@@ -149,6 +149,8 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
   end
 end
 
+let keepUnused = ref false
+
 (* this traces which variables are used, from the set    *)
 (* of root declarations, which are:                      *)
 (*   - non-inline function definitions                   *)
@@ -156,6 +158,7 @@ end
 (*   - inline funcs & extern globals that are referenced *)
 (* it only works if we visit toplevel decls in reverse order *)
 let removeUnusedTemps (file : file) =
+  if !keepUnused then () else
 begin
   if (traceActive "disableTmpRemoval") then
     (trace "disableTmpRemoval" (dprintf "trace removal disabled\n"))

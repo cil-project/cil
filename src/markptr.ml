@@ -55,10 +55,10 @@ let printfFunc : (string, int ) H.t = H.create 15
  * this array should be sized ... we do not want to forget it! *)
 let addArraySizedAttribute arrayType enclosingAttr =
   if filterAttributes "sized" enclosingAttr <> [] then
-    typeAddAttributes [AId("sized")] arrayType
+    typeAddAttributes [Attr("sized",[])] arrayType
   else
     if hasAttribute "safeunion" enclosingAttr then
-      typeAddAttributes [AId("safeunion")] arrayType
+      typeAddAttributes [Attr("safeunion",[])] arrayType
     else
       arrayType
 
@@ -106,7 +106,7 @@ let rec doType (t: typ) (p: N.place)
           TArray (bt', len, n.N.attr), i'
   end
           
-  | TComp comp -> 
+  | TComp (false, comp, a) -> 
       if H.mem doneComposites comp.ckey then
         t, nextidx
       else begin
@@ -123,19 +123,7 @@ let rec doType (t: typ) (p: N.place)
         t, nextidx
       end
         
-    (* Strip the type names so that we have less sharing of nodes. However, 
-     * we do not need to do it if the named type is a structure, and we get 
-     * nicer looking programs *)
-  | TNamed (n, bt, a) -> 
-      let iscomp = match bt with TComp comp -> true | _ -> false in
-      if iscomp then
-        let t', _ = doType bt (N.PType n) 0 in
-        TNamed (n, t', a), nextidx
-      else
-        let t', nextidx' = doType bt p nextidx in
-        t', nextidx'
-        
-  | TForward (comp, a) -> 
+  | TComp (_, comp, a) -> (* A forward reference *)
       if H.mem doneComposites comp.ckey then
         t, nextidx
       else begin
@@ -146,6 +134,18 @@ let rec doType (t: typ) (p: N.place)
             f.ftype <- t') comp.cfields;
         t, nextidx
       end
+        
+    (* Strip the type names so that we have less sharing of nodes. However, 
+     * we do not need to do it if the named type is a structure, and we get 
+     * nicer looking programs *)
+  | TNamed (n, bt, a) -> 
+      let iscomp = match bt with TComp (_, comp, _) -> true | _ -> false in
+      if iscomp then
+        let t', _ = doType bt (N.PType n) 0 in
+        TNamed (n, t', a), nextidx
+      else
+        let t', nextidx' = doType bt p nextidx in
+        t', nextidx'
         
   | TFun (restyp, args, isva, a) -> 
       let restyp', i0 = doType restyp p nextidx in
@@ -191,7 +191,7 @@ let newOffsetNode (n: N.node)  (fname: string)
   (* Add edges between n and next *)
   let next = 
     match unrollType n.N.btype with
-      TComp c when not c.cstruct -> (* A union *)
+      TComp (_, c, _) when not c.cstruct -> (* A union *)
         let next = mkNext () in
         N.addEdge n next N.ECast (-1);
         N.addEdge n next N.ESafe (-1);
@@ -211,7 +211,7 @@ let newOffsetNode (n: N.node)  (fname: string)
         N.addEdge n next N.EIndex (-1);
         next
           
-    | TComp c when c.cstruct -> (* A struct *)
+    | TComp (_, c, _) when c.cstruct -> (* A struct *)
         let next = mkNext () in
         N.addEdge n next N.ESafe (-1);
         next
@@ -794,26 +794,26 @@ let doGlobal (g: global) : global =
   match g with
   | GPragma (a, _) as g -> begin
       (match a with
-        ACons("boxpoly", [ AStr(s) ]) -> 
+        Attr("boxpoly", [ AStr(s) ]) -> 
           if not (H.mem polyFunc s) then begin
             ignore (E.log "Will treat %s as polymorphic\n" s); 
             H.add polyFunc s (ref None)
           end
 
-      | ACons("boxalloc", AStr(s) :: _) -> 
+      | Attr("boxalloc", AStr(s) :: _) -> 
           if not (H.mem polyFunc s) then begin
             ignore (E.log "Will treat %s as polymorphic\n" s); 
             H.add polyFunc s (ref None)
           end
 
-      | ACons("boxprintf", AStr(s) :: AInt(id) :: []) -> 
+      | Attr("boxprintf", AStr(s) :: AInt(id) :: []) -> 
           if not (H.mem printfFunc s) then begin
             ignore (E.log "Will treat %s as a printf function\n" s);
             H.add printfFunc s id
           end
 
-      | ACons("box", [AId("on")]) -> boxing := true
-      | ACons("box", [AId("off")]) -> boxing := false
+      | Attr("box", [AId("on")]) -> boxing := true
+      | Attr("box", [AId("off")]) -> boxing := false
       | _ -> ());
       g
     end
@@ -893,7 +893,7 @@ let markFile fl =
           (* Do not add multiple times since then deleting does not remove 
            * all copies *)
           H.add interfglobs vi.vid vi
-    | GPragma (ACons("boxexported", [AStr s]), _) ->
+    | GPragma (Attr("boxexported", [AStr s]), _) ->
         H.add exported s true
         
     | _ -> ()
@@ -984,7 +984,7 @@ let solver = ref "simple"
 
 (* A special file printer *)
 let printFile (c: out_channel) fl = 
-  Cil.setCustomPrint (N.ptrAttrCustom true)
+  Cil.setCustomPrintAttributeScope (N.ptrAttrCustom true)
     (fun fl ->
       let opi = !printIndent in
       printIndent := false;

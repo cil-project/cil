@@ -39,12 +39,8 @@ module H = Hashtbl
  *)
 
 (* TODO
-   - inner struct/union/enum/typedef tags
-   - clean up attributes
-   - functions vs. function pointers
    - type of sizeof is hardwired to UInt
    - integerFits is hardwired to true
-   - in cabs2cil we drop the volatile sometimes
 *)
 
 (* A few globals that control the interpretation of C source *)
@@ -147,20 +143,20 @@ and typ =
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* Structs and Unions: isstruct, name, fields, attributes, 
-                * self cell.*)
-  | TComp of compinfo
+               (* Structs and Unions: If the first argument is true, then 
+                * this is a forward reference to a composite type. This is 
+                * always printed without the field definitions, so make sure 
+                * there eventually there is a mention of the same compinfo 
+                * with the first argument false. The attributes given are 
+                * those pertaining to this use of the type. The attributes 
+                * that were given at the definition of the type are stored in 
+                * the compinfo  *)
+  | TComp of bool * compinfo * attribute list
                (* The field list can be empty *)
                (* The name is never empty. mkCompInfo will create a unique 
                 * name for anonymous types *)
 
 
-               (* Composite types can be part of circular type structure. 
-                * Thus a struct and a union can be referred in a TForward. 
-                * But all compinfo for a given ckey are shared!. The 
-                * attributes are in addition to the attributes contained in 
-                * the compinfo *)
-  | TForward of compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
@@ -181,12 +177,15 @@ and ikind =
 and fkind = 
     FFloat | FDouble | FLongDouble
 
-and attribute = 
-    AId of string                       (* Atomic attributes *)
+(* An attribute has a name and some optional arguments *)
+and attribute = Attr of string * attrarg list
+
+and attrarg = 
+    AId of string                      
   | AInt of int
   | AStr of string 
   | AVar of varinfo
-  | ACons of string * attribute list       (* Constructed attributes *)
+  | ACons of string * attrarg list       (* Constructed attributes *)
 
 (* literal constants *)
 and constant =
@@ -441,6 +440,8 @@ type fundec =
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: block;             (* the body *)
+      mutable sinline: bool;            (* Whether the function is inline or 
+                                         * not *)
     } 
 
 type global = 
@@ -579,7 +580,7 @@ let longType = TInt(ILong,[])
 let ulongType = TInt(IULong,[])
 let charType = TInt(IChar, [])
 let charPtrType = TPtr(charType,[])
-let charConstPtrType = TPtr(charType,[AId("const")])
+let charConstPtrType = TPtr(charType,[Attr("const", [])])
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
@@ -629,22 +630,12 @@ let newTypeName n =
   "@anon" ^ n ^ (string_of_int (!structId))
 
 
+
 (** Construct sorted lists of attributes ***)
-let rec addAttribute a al = 
-    let an = match a with
-        AId s -> s
-      | ACons (s, _) -> s
-      | _ -> E.s (E.unimp "Unexpected attribute at top level")
-    in 
+let rec addAttribute (Attr(an, _) as a: attribute) (al: attribute list) = 
     let rec insertSorted = function
         [] -> [a]
-      | (a0 :: rest) as l -> 
-          let an0 =
-            match a0 with
-              AId s -> s
-            | ACons (s, _) -> s
-            | _ -> E.s (E.unimp "Unexpected attribute at top level")
-          in 
+      | ((Attr(an0, _) as a0) :: rest) as l -> 
           if an < an0 then a :: l
           else if an > an0 then a0 :: insertSorted rest
           else if a = a0 then l else a :: l
@@ -656,33 +647,66 @@ and addAttributes al0 al =
     if al  == [] then al0 else
     List.fold_left (fun acc a -> addAttribute a acc) al al0
 
-and dropAttribute (al: attribute list) (a: attribute) = 
-  let rec amatch a a' = 
-    match a, a' with
-      AId s, AId s' when s = s' -> true
-    | AInt n, AInt n' when n = n' -> true
-    | AStr s, AStr s' when s = s' -> true
-    | AVar vi, AVar vi' when vi.vid = vi'.vid -> true
-    | ACons (s, args), ACons(s', args') when
-        s = s' (* && (List.for_all2 amatch args args') *) -> true
-    | _ -> false
-  in
-  List.filter (fun a' -> not (amatch a a')) al
+and dropAttribute (al: attribute list) (Attr(an, _): attribute) = 
+  List.filter (fun (Attr(an', _)) -> an <> an') al
 
 and dropAttributes (todrop: attribute list) (al : attribute list) =
   List.fold_left dropAttribute al todrop
 
 and filterAttributes (s: string) (al: attribute list) = 
-  let amatch = function
-    AId s' when s = s' -> true
-  | ACons (s', _) when s = s' -> true
-  | _ -> false
-  in
-  List.filter amatch al
+  List.filter (fun (Attr(an, _)) -> an = s) al
 
 (* sm: *)
 let hasAttribute s al =
   (filterAttributes s al <> [])
+
+
+type attributeClass = 
+    AttrName of bool 
+        (* Attribute of a name. If argument is true and we are on MSVC then 
+         * the attribute is printed using __declspec as part of the storage 
+         * specifier  *)
+  | AttrFunType of bool 
+        (* Attribute of a function type. If argument is true and we are on 
+         * MSVC then the attribute is printed just before the function name *)
+  | AttrType  (* Attribute of a type *)
+
+(* This table contains the mapping of predefined attributes to classes. 
+ * Extend this table with more attributes as you need. This table is used to 
+ * determine how to associate attributes with names or type during cabs2cil 
+ * conversion *)
+let attributeHash: (string, attributeClass) H.t = 
+  let table = H.create 13 in
+  List.iter (fun a -> H.add table a (AttrName false))
+    [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
+      "no_instrument_function"; "alias"; "no_check_memory_usage";
+      "exception"; "model"];
+  List.iter (fun a -> H.add table a (AttrName true))
+    [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn" ];
+  List.iter (fun a -> H.add table a (AttrFunType false))
+    [ "fconst"; "format"; "regparm"; "longcall" ];
+  List.iter (fun a -> H.add table a (AttrFunType true))
+    [ "stdcall";"cdecl"; "fastcall" ];
+  List.iter (fun a -> H.add table a AttrType)
+    [ "const"; "volatile"; "restrict" ];
+  table
+      
+
+(* Partition the attributes into classes *)
+let partitionAttributes 
+    (default:attributeClass)  
+    (attrs:  attribute list) :
+    attribute list * attribute list * attribute list = 
+  let rec loop (n,f,t) = function
+      [] -> n, f, t
+    | (Attr(an, _) as a) :: rest -> 
+        match (try H.find attributeHash an with Not_found -> default) with 
+          AttrName _ -> loop (addAttribute a n, f, t) rest
+        | AttrFunType _ -> loop (n, addAttribute a f, t) rest
+        | AttrType -> loop (n, f, addAttribute a t) rest
+  in
+  loop ([], [], []) attrs
+
 
 (* Get the full name of a comp *)
 let compFullName comp = 
@@ -713,7 +737,7 @@ let mkCompInfo
        cattr = a; } in
    compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
-   let tforward = TForward (comp, []) in
+   let tforward = TComp (true, comp, []) in
    let flds = 
        List.map (fun (fn, ft, fa) -> { fcomp = comp;
                                        ftype = ft;
@@ -725,7 +749,6 @@ let mkCompInfo
 (**** Utility functions ******)
 let rec unrollType = function   (* Might drop some attributes !! *)
     TNamed (_, r, _) -> unrollType r
-  | TForward (comp, _) -> TComp comp
   | x -> x
 
 
@@ -939,12 +962,35 @@ let canPrintName n =
   end)
 
 
+(* Separate out the MSVC storage-modifier name attributes *)
+let separateStorageModifiers (al: attribute list) = 
+  let isstoragemod (Attr(an, _): attribute) : bool =
+    try 
+      match H.find attributeHash an with
+        AttrName issm -> issm
+      | _ -> E.s (E.bug "separateStorageModifier: not a name attribute")
+    with Not_found -> false
+  in
+  if not !msvcMode then
+    [], al
+  else
+    let stom, rest = List.partition isstoragemod al in
+    (* Put back the declspec. Put it without the leading __ since these will 
+     * be added later *)
+    let stom' = 
+      List.map (fun (Attr(an, args)) -> Attr("declspec", 
+                                             if args = [] then [AId(an)] else
+                                             [ACons(an, args)])) stom in
+    stom', rest
+  
+
+
 (* Some attributes are printed before and others after. The before ones are 
  * typically the qualifiers  *)
 let rec separateAttributes (pre, post) = function
     [] -> pre,post
-  | ((AId "const" | AId "volatile" | AId "inline" |
-      AId "cdecl" | AId "stdcall") as a) :: rest -> 
+  | ((Attr("const",[]) | Attr("volatile",[]) |
+      Attr("cdecl",[]) | Attr("stdcall",[])) as a) :: rest -> 
       separateAttributes (a :: pre, post) rest
   | a :: rest ->
       separateAttributes (pre, a :: post) rest
@@ -952,17 +998,12 @@ let separateAttributes a = separateAttributes ([], []) a
 
 (* Print attributes in a custom way *)
 let d_attrcustom : (attribute -> Pretty.doc option) ref = 
-  let d_attrcustombase = function
-    | AId("const") -> Some (text "const")
-    | AId("inline") -> Some (text "inline")
-    | AId("volatile") -> Some (text "volatile")
-    | AId("cdecl") when !msvcMode -> Some (text "__cdecl")
-    | AId("stdcall") when !msvcMode -> Some (text "__stdcall")
-    | _ -> None
-  in
-  ref d_attrcustombase
+  ref (fun a -> None)
 
-let setCustomPrint custom f = 
+let setCustomPrintAttribute (pa: attribute -> doc option) : unit = 
+  d_attrcustom := pa
+
+let setCustomPrintAttributeScope custom f = 
   let ocustom = !d_attrcustom in
   let newPrint a = 
     match custom a with
@@ -980,27 +1021,36 @@ let printShortTypes = ref false
 (* Make an statement that we'll use as an invalid statement during printing *)
 let invalidStmt = {dummyStmt with sid = -2}
 
-let rec d_decl (docName: unit -> doc) () this = 
-  let parenth outer_t doc = 
-    let typ_strength = function         (* binding strength of type 
-                                         * constructors  *)
-      | TArray _ -> 11
-      | TPtr _ -> 10
-      | TFun _ -> 12
-      | _ -> 1
-    in
-    if typ_strength outer_t > typ_strength this then 
-      dprintf "(%a)" insert doc
-    else
-      doc
-  in match this with 
+(* Print a declaration. Pass to this function a function that will print the 
+ * declarator. It must be a function and not the document for the declarator 
+ * because printing has a side-effect: we record whose structures we have 
+ * printed the definition. Pass also an indication if the docName function 
+ * returns just a name (this is used to avoid printing a lot of parentheses 
+ * around names) *) 
+type docNameWhat = 
+    DNNothing                             (* docName is nil *)
+  | DNString                              (* docName is just a variable name *)
+  | DNStuff                             (* Anything else *)
+let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this = 
+  (* Print the docName with some attributes, maybe with parentheses *)
+  let parenthname () (a: attribute list) = 
+    if a = [] && dnwhat <> DNStuff then
+      docName ()
+    else if dnwhat = DNNothing then
+      (* Cannot print the attributes in this case *)
+      dprintf "/*(%a)*/" d_attrlistpre a
+    else begin
+      dprintf "(%a%t)" d_attrlistpre a docName
+    end
+  in
+  match this with 
     TVoid a -> dprintf "void%a %t" d_attrlistpost a docName
   | TInt (ikind,a) -> dprintf "%a%a %t" d_ikind ikind d_attrlistpost a docName
   | TBitfield(ikind,i,a) -> 
-      dprintf "%a %t : %d%a" d_ikind ikind docName i d_attrlistpost a
+      dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i
   | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
         d_attrlistpost a docName
-  | TComp comp -> 
+  | TComp (false, comp, a) -> 
       let n = comp.cname in
       let n' = 
         if String.length n >= 5 && String.sub n 0 5 = "@anon" then "" else n in
@@ -1009,12 +1059,13 @@ let rec d_decl (docName: unit -> doc) () this =
                         else "union",  "uni", "on"
       in
       if not (!printShortTypes) && (n' = "" || canPrintName (su, n')) then
-        dprintf "%s@[%s %s%a {@!%a@]@!} %t " su1 su2 n' 
+        dprintf "%s@[%s %s%a {@!%a@]@!} %a%t " su1 su2 n' 
           d_attrlistpost comp.cattr
-          (docList line (d_fielddecl ())) comp.cfields docName
+          (docList line (d_fielddecl ())) comp.cfields 
+          d_attrlistpre a docName
       else
-        dprintf "%s%s %s %t " su1 su2 n' docName
-  | TForward (comp, a) -> 
+        dprintf "%s%s %s %a%t " su1 su2 n' d_attrlistpre a docName
+  | TComp (true, comp, a) -> (* A forward reference *)
       let su = if comp.cstruct then "struct" else "union" in
       dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
 
@@ -1029,61 +1080,41 @@ let rec d_decl (docName: unit -> doc) () this =
       else
         dprintf "enum %s %t" n' docName
 
-  | TPtr (TFun(tres, args, isva, af) as t, ap) when !msvcMode ->  (* !!! *)
-      let rec stripCallAttr (call, notcall) = function
-          [] -> call, notcall
-        | ((AId("cdecl")|AId("stdcall")) as a) :: rest ->
-            stripCallAttr (a :: call, notcall) rest
-        | a :: rest -> stripCallAttr (call, a :: notcall) rest
-      in
-      let call, notcall = stripCallAttr ([], []) ap in
-      d_decl (fun _ -> parenth t (dprintf "%a* %a%t" 
-                                    d_attrlistpre call
-                                    d_attrlistpost notcall docName )) 
-             () (TFun(tres, args, isva, []))
+  | TPtr (bt, a)  -> 
+      d_decl 
+        (fun _ -> 
+          dprintf "* %a%t" d_attrlistpre a docName )
+        DNStuff
+        () 
+        bt
 
-  | TPtr (t, a)  -> 
-      d_decl (fun _ -> parenth t (dprintf "* %a%t" d_attrlistpre a docName )) 
-             () t
-
-  | TArray (t, lo, a) -> 
-      d_decl (fun _ -> parenth t
-          (dprintf "%t[%a]%a" 
-             docName
-             insert (match lo with None -> nil
-             | Some e -> d_exp () e)
-             d_attrlistpost a))
+  | TArray (elemt, lo, a) -> 
+      d_decl 
+        (fun _ ->
+          dprintf "%a[%a]" 
+            parenthname a
+            insert 
+            (match lo with None -> nil
+            | Some e -> d_exp () e))
+        DNStuff
         ()
-        t
+        elemt
   | TFun (restyp, args, isvararg, a) -> 
-      let args' = (*
-        match args with 
-            [] -> [ { vname = "";
-                      vtype = if isvararg then voidPtrType else voidType;
-                      vid   = 0;
-                      vglob = false;
-                      vattr = [];
-                      vdecl = lu;
-                      vaddrof = false; 
-                      vreferenced = false; 
-                      vstorage = NoStorage; } ] 
-        | _ -> *) args
-      in
-      d_decl (fun _ -> 
-        parenth restyp 
-          (dprintf "%a %t(@[%a%a@])" 
-             d_attrlistpost a
-             docName
-             (docList (chr ',' ++ break) (d_videcl ())) args'
-             insert (if isvararg then text ", ..." else nil)))
+      d_decl 
+        (fun _ -> 
+          dprintf "%a(@[%a%a@])" 
+            parenthname a
+            (docList (chr ',' ++ break) (d_videcl ())) args
+            insert (if isvararg then text ", ..." else nil))
+        DNStuff
         ()
         restyp
 
-  | TNamed (n, _, a) -> dprintf "%a %s %t" d_attrlistpost a n docName
+  | TNamed (n, _, a) -> dprintf "%s%a %t" n d_attrlistpost a docName
 
 
 (* Only a type (such as for a cast) *)        
-and d_type () t = d_decl (fun _ -> nil) () t
+and d_type () t = d_decl (fun _ -> nil) DNNothing () t
 
 
 (* exp *)
@@ -1158,13 +1189,22 @@ and d_binop () b =
   | BOr -> text "|"
         
 (* attributes *)
-and d_attr () = function
+and d_attr () (Attr(an, args): attribute) =
+  (* Add underscores to the name *)
+  let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
+  if args = [] then 
+    text an'
+  else
+    dprintf "%s(%a)" an'
+      (docList (chr ',') (d_attrarg ())) args
+
+and d_attrarg () = function
     AId s -> text s
   | AInt n -> num n
   | AStr s -> dprintf "\"%s\"" (escape_string s)
   | AVar vi -> text vi.vname
   | ACons(s,al) -> dprintf "%s(%a)" s
-        (docList (chr ',') (d_attr ())) al
+        (docList (chr ',') (d_attrarg ())) al
           
 and d_attrlist pre () al = (* Whether it comes before or after stuff *)
   (* Take out the special attributes *)
@@ -1383,47 +1423,30 @@ and d_goto (s: stmt) =
       text "goto __invalid_label;"
 
 and d_fun_decl () f = 
-  let pre, post = separateAttributes f.svar.vattr in
-  (* Now take out the inline *)
-  let isinline, pre' = 
-    match List.partition (fun a -> a = AId("inline")) pre with
-      [], _ -> false, pre
-    | _, pre' -> true, pre'
-  in
-  dprintf "%s%a%a %a@!{ @[%a@!@!%a@]@!}" 
-    (if isinline then 
-      if !msvcMode then "__inline " else "inline " 
-     else "")
-    d_storage f.svar.vstorage
-    (* the prototype *)
-    (d_decl (fun _ -> dprintf "%a%s" d_attrlistpre pre' f.svar.vname)) 
-    f.svar.vtype
-    d_attrlistpost post
+  let stom, rest = separateStorageModifiers f.svar.vattr in
+  dprintf "%s%a@!{ @[%a@!@!%a@]@!}" 
+    (if f.sinline then "__inline " else "")
+    d_videcl f.svar
     (* locals. *)
     (docList line (fun vi -> d_videcl () vi ++ text ";")) f.slocals
     (* the body *)
     d_block f.sbody
 
 and d_videcl () vi = 
-  let pre, post = separateAttributes vi.vattr in 
-  (* Now take out the inline *)
-  let isinline, pre' = 
-    match List.partition (fun a -> a = AId("inline")) pre with
-      [], _ -> false, pre
-    | _, pre' -> true, pre'
-  in
-  dprintf "%s%a%a %a"
-    (if isinline then 
-      if !msvcMode then "__inline " else "inline " 
-     else "")
+  let stom, rest = separateStorageModifiers vi.vattr in
+  dprintf "%a%a%a %a"
+    (* First the storage modifiers *)
+    d_attrlistpre stom
     d_storage vi.vstorage
-    (d_decl (fun _ -> dprintf "%a %s" d_attrlistpre pre' vi.vname)) vi.vtype
-    d_attrlistpost post
+    (d_decl (fun _ -> dprintf "%s" vi.vname) DNString) vi.vtype
+    d_attrlistpost rest
     
 and d_fielddecl () fi = 
   dprintf "%a %a;"
-    (d_decl (fun _ -> 
-      text (if fi.fname = "___missing_field_name" then "" else fi.fname))) 
+    (d_decl 
+       (fun _ -> 
+         text (if fi.fname = "___missing_field_name" then "" else fi.fname))
+       DNString) 
     fi.ftype
     d_attrlistpost fi.fattr
        
@@ -1465,10 +1488,6 @@ and d_plaintype () = function
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
       dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
-  | TForward(comp, a) -> 
-      dprintf "TForward(%s %s, _, %a)" 
-        (if comp.cstruct then "struct" else "union") comp.cname 
-        d_attrlistpost comp.cattr
   | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
   | TArray(t,l,a) -> 
       let dl = match l with 
@@ -1482,16 +1501,33 @@ and d_plaintype () = function
         (docList (chr ',' ++ break) 
            (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
         (if isva then "..." else "") d_attrlistpost a
-  | TComp comp -> 
-      dprintf "TComp(@[%s %s,@?%a,@?%a@])" 
+  | TComp (false, comp, a) -> 
+      dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
         (if comp.cstruct then "struct" else "union") comp.cname
         (docList (chr ',' ++ break) 
            (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) 
         comp.cfields
         d_attrlistpost comp.cattr
+        d_attrlistpost a
+  | TComp(true, comp, a) -> (* A forward reference *)
+      dprintf "TForward(%s %s, _, %a)" 
+        (if comp.cstruct then "struct" else "union") comp.cname 
+        d_attrlistpost comp.cattr
 
 
-
+let _ = 
+  let d_attrcustombase = function
+    | Attr("const", []) -> Some (text "const")
+    | Attr("volatile", []) -> Some (text "volatile")
+    | Attr("restrict", []) -> Some (text "restrict")
+    | Attr("cdecl", []) when !msvcMode -> Some (text "__cdecl")
+    | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")
+    | Attr("declspec", args) when !msvcMode -> 
+        Some (dprintf "__declspec(%a)"
+                (docList (chr ',') (d_attrarg ())) args)
+    | _ -> None
+  in
+  setCustomPrintAttribute d_attrcustombase
 
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
@@ -1621,7 +1657,7 @@ begin
       (visitCilType vis t);
       (visitCilExpr vis e)
     )
-  | TComp(cinfo) -> (
+  | TComp(false, cinfo, _) -> (
       (* iterate over fields *)
       (List.iter
         (fun (finfo : fieldinfo) ->
@@ -1766,6 +1802,7 @@ let emptyFunction name =
     slocals = [];
     sformals = [];
     sbody = [];
+    sinline = false;
   } 
 
 
@@ -1856,9 +1893,9 @@ let d_global () = function
     GFun (fundec, _) -> d_fun_decl () fundec ++ line
   | GType (str, typ, _) -> 
       if str = "" then
-        dprintf "%a;@!" (d_decl (fun _ -> nil)) typ
+        dprintf "%a;@!" (d_decl (fun _ -> nil) DNNothing) typ
       else 
-        dprintf "typedef %a;@!" (d_decl (fun _ -> text str)) typ
+        dprintf "typedef %a;@!" (d_decl (fun _ -> text str) DNString) typ
           
   | GVar (vi, io, _) -> dprintf "%a %a;"
         d_videcl vi 
@@ -1866,7 +1903,16 @@ let d_global () = function
             dprintf " = %a" d_init i)
   | GDecl (vi, _) -> dprintf "%a;" d_videcl vi 
   | GAsm (s, _) -> dprintf "__asm__(\"%s\");@!" (escape_string s)
-  | GPragma (a, _) -> dprintf "#pragma %a@!" d_attr a
+  | GPragma (Attr(an, args), _) -> 
+      let d = 
+        if args = [] then 
+          text an
+        else
+          dprintf "%s(%a)" an
+            (docList (chr ',') (d_attrarg ())) args
+      in
+      dprintf "#pragma %a@!" insert d
+
   | GText s  -> text s
 
 let printFile (out : out_channel) file = 
@@ -2089,8 +2135,7 @@ let rec typeAttrs = function
   | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
-  | TComp comp -> comp.cattr
-  | TForward (comp, a) -> addAttributes a (typeAttrs (TComp comp))
+  | TComp (_, comp, a) -> addAttributes comp.cattr a
   | TEnum (_, _, a) -> a
   | TFun (_, _, _, a) -> a
 
@@ -2104,8 +2149,7 @@ let setTypeAttrs t a =
   | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp comp -> comp.cattr <- a; t
-  | TForward (comp, _) -> TForward (comp, a)
+  | TComp (isforw, comp, _) -> TComp (isforw, comp, a)
   | TEnum (n, f, _) -> TEnum (n, f, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
@@ -2122,8 +2166,7 @@ let typeAddAttributes a0 t =
   | TPtr (t, a) -> TPtr (t, add a)
   | TArray (t, l, a) -> TArray (t, l, add a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-  | TComp comp -> comp.cattr <- add comp.cattr ; t
-  | TForward (comp, a) -> TForward (comp, add a)
+  | TComp (isforw, comp, a) -> TComp (isforw, comp, add a)
   | TNamed (n, t, a) -> TNamed (n, t, add a)
 
 let typeRemoveAttributes (a0: attribute list) t = 
@@ -2137,8 +2180,7 @@ let typeRemoveAttributes (a0: attribute list) t =
   | TPtr (t, a) -> TPtr (t, drop a)
   | TArray (t, l, a) -> TArray (t, l, drop a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
-  | TComp comp -> comp.cattr <- drop comp.cattr ; t
-  | TForward (comp, a) -> TForward (comp, drop a)
+  | TComp (isforw, comp, a) -> TComp (isforw, comp, drop a)
   | TNamed (n, t, a) -> TNamed (n, t, drop a)
 
      (* Type signatures. Two types are identical iff they have identical 
@@ -2159,14 +2201,13 @@ let rec typeSigAttrs doattr t =
   | TEnum (n, flds, a) -> TSEnum (n, doattr a)
   | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
   | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
-  | TComp comp -> TSComp (comp.cstruct, comp.cname, doattr comp.cattr)
+  | TComp (_, comp, a) -> 
+      TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
                                   List.map (fun vi -> (typeSig vi.vtype, 
                                                        doattr vi.vattr)) args,
                                   isva, doattr a)
   | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
-
-  | TForward (comp, a) -> typeSigAddAttrs (doattr a) (typeSig (TComp comp))
       
 and typeSigAddAttrs a0 t = 
   if a0 == [] then t else
@@ -2210,8 +2251,7 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
     | ExistsMaybe -> 
         (match t with 
           TNamed (_, t', _) -> loop t'
-        | TForward (c, a) -> loopComp c
-        | TComp c -> loopComp c
+        | TComp (_, c, _) -> loopComp c
         | TArray (t', _, _) -> loop t'
         | TPtr (t', _) -> loop t'
         | TFun (rt, args, _, _) -> 
@@ -2310,11 +2350,11 @@ let rec makeZeroInit (t: typ) : init =
     TInt (ik, _) -> SingleInit(Const(CInt(0, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | (TEnum _ | TBitfield _) -> SingleInit zero
-  | TComp comp as t' when comp.cstruct -> 
+  | TComp (_, comp, _) as t' when comp.cstruct -> 
       CompoundInit (t', 
                     List.map (fun f -> makeZeroInit f.ftype) 
                       comp.cfields)
-  | TComp comp as t' when not comp.cstruct -> 
+  | TComp (_, comp, _) as t' when not comp.cstruct -> 
       let fstfield = 
         match comp.cfields with
           f :: _ -> f
@@ -2362,7 +2402,7 @@ let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
       in
       foldArray zero initl acc
 
-  | TComp comp -> 
+  | TComp (_, comp, _) -> 
       if comp.cstruct then
         let rec foldFields 
             (allflds: fieldinfo list) 
@@ -2403,12 +2443,74 @@ let rec isCompleteType t =
   match unrollType t with
   | TArray(t, None, _) -> false
   | TArray(t, Some z, _) when isZero z -> false
-  | TComp comp -> (* Struct or union *)
+  | TComp (_, comp, _) -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true
 
 
 (* removeUnusedTemps has been moved to rmtmps.ml *)  
+
+
+(*** Alpha conversion ***)
+(* Create a new name based on a given name. The new name is formed from a 
+ * prefix (obtained from the given name as the longest prefix that ends with 
+ * a non-digit), followed by a '_' and then by a positive integer suffix. The 
+ * first argument is a table mapping name prefixes with the largest suffix 
+ * used so far for that prefix. The largest suffix is one when only the 
+ * version without suffix has been used. *)
+let rec newAlphaName (alphaTable: (string, int ref) H.t)
+                     (lookupname: string) : string = 
+  let prefix, sep, suffix = splitNameForAlpha lookupname in
+  (* ignore (E.log "newAlphaName(%s). P=%s, S=%d\n" lookupname prefix suffix);
+     *)
+  let newname = 
+    try
+      let rc = H.find alphaTable prefix in
+      let newsuffix, sep = 
+        if suffix > !rc then suffix, sep else !rc + 1, "_" in
+      rc := newsuffix;
+      prefix ^ sep ^ (string_of_int newsuffix)
+    with Not_found -> begin (* First variable with this prefix *)
+      H.add alphaTable prefix (ref suffix);
+      lookupname  (* Return the original name *)
+    end
+  in
+  newname
+  
+and splitNameForAlpha (lookupname: string) : (string * string * int) = 
+  (* Split the lookup name into a prefix, a separator (empty or _) and a 
+   * suffix. The suffix is numberic and is separated by _ from the prefix  *)
+  let l = String.length lookupname in
+  let rec suffixStarts n = 
+    if n = 0 then 0 else 
+    let c = String.get lookupname (n - 1) in
+    if c >= '0' && c <= '9' then suffixStarts (n - 1) else n
+  in
+  let sStart = suffixStarts l in
+  (* Get the suffix *)
+  let suffix = 
+    if sStart >= l then -1
+    else int_of_string (String.sub lookupname sStart (l - sStart))
+  in
+  (* Get the prefix, bug ignore a trailing _ *)
+  let prefix, sep = 
+    let pEnd, sep = (* prefix end *)
+      if sStart < l && String.get lookupname (sStart - 1) = '_' then
+        sStart - 2, "_"
+      else
+        sStart - 1, ""
+    in
+    if pEnd >= 0 then 
+      String.sub lookupname 0 (pEnd + 1), sep
+    else
+      "", sep
+  in
+  prefix, sep, suffix
+
+let docAlphaTable (alphaTable: (string, int ref) H.t) = 
+  let acc : (string * int) list ref = ref [] in
+  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
+  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
 
 
 (**
@@ -2470,8 +2572,7 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
         | TFloat(FFloat, _) -> 4
         | TFloat((FDouble|FLongDouble), _) -> 8
         | TNamed (_, t, _) -> internalPaddingAlign t
-        | TForward (comp, _) -> internalPaddingAlign (TComp comp)
-        | TComp _ -> 4 (* Is this correct ? *)
+        | TComp (_, comp, a) -> 4 (* Is this correct ? *)
         | TArray _ -> 4 (* Is this correct ? *)
         | TPtr _ -> 4
         | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
@@ -2522,10 +2623,10 @@ and bitsSizeOf t =
   | TFloat(FFloat, _) -> 32
   | TFloat((FDouble|FLongDouble), _) -> 64
   | TNamed (_, t, _) -> bitsSizeOf t
-  | TForward (comp, _) -> bitsSizeOf (TComp comp)
   | TPtr _ -> 32
-  | TComp comp when comp.cfields = [] -> raise Not_found (* abstract type *)
-  | TComp comp when comp.cstruct -> (* Struct *)
+  | TComp (_, comp, _) when comp.cfields = [] -> 
+      raise Not_found (*abstract type*)
+  | TComp (_, comp, _) when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 
         { oaFirstFree = 0;
@@ -2539,7 +2640,7 @@ and bitsSizeOf t =
       in
       addTrailing lastoff.oaFirstFree
         
-  | TComp comp -> (* when not comp.cstruct *)
+  | TComp (_, comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
       let startAcc = 
         { oaFirstFree = 0;

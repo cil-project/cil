@@ -3,15 +3,16 @@ struct tm {
 };
 
 /* Various ways to place attributes */
-char * __cdecl asctime1(const struct tm *);
+char *  __cdecl asctime1(const struct tm *);
 char * __stdcall asctime2(const struct tm *);
 unsigned long __cdecl _exception_code(void);
 
+__declspec(dllimport)
 unsigned long 
 __stdcall
 Int64ShllMod32 (void (__stdcall *)());
 
-inline unsigned long
+__inline unsigned long
 __stdcall
 Int64ShlrMod32 ( int Value);
 
@@ -20,6 +21,8 @@ typedef struct {
 } T1;
 
 typedef int (__cdecl *BAR)();
+
+int * (__stdcall * x1[8])(void); // Array of function pointers
 
 void __stdcall foo(int x) {
   return;
@@ -32,3 +35,5 @@ void main() {
   char *t2 = asctime2(& thetime);
   unsigned long l = Int64ShllMod32( & foo );
 }
+
+

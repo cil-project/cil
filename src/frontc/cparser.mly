@@ -1,46 +1,6 @@
-/* NOTE: in the symbol table, local definition must replace type definition
-**		in order to correctly parse local variable in functions body.
-**		This is the only way to correctly handle this kind of exception,
-**		that is,
-**
-**		typedef ... ID;
-**		int f(int *p) {int ID; return (ID) * *p;}
-**		If ID isn't overload, last expression is parsed as a type cast,
-**		if it isn't, this a multiplication.
-**
-** IMPLEMENT:
-**		(1) Old-parameter passing style with an exception:
-**                  the first old-style
-**		parameter name can't be a type name.
-**		(2) GNU __attribute__ modifier,
-**                  GNU ({ }) statement in expression form.
-**
-** HISTORY
-**	1.0	2.19.99	Hugues Cassé	First version.
-**	2.0	3.22.99	Hugues Cassé	Large simplification
-**                                      about declarations.
-**					"register" parameters added,
-**                                      function pointers,
-**					GCC attributes, typedef full supported.
-**	2.1	4.23.99	Hugues Cassé	GNU Statement embedded statements
-**                                      managed.
-**		a	&x == y was analyzed as ADDROF(EQ(x, y)) corrected
-**                      into the right form EQ(ADDROF(x), y)
-**		b	typedef struct ID ... ID; is now accepted.
-**		c	{v1, v2, v3, } now accepted.
-**		d	Spaced string components now accepted.
-**                      Example: "Hel" "lo !".
-**	3.0	6.1.99	Hugues Cassé	Solve fully the problem of
-**                                      local/field/parameter with the same
-**                                      identifier to a typedef.
-**	a		  const and volatile accepted for basic types
-**			  for fields and only-types.
-**	b	10.9.99	Hugues Cassé	Correct priorities of type algebra:
-**			   ()() > * > []. Add typalg.c for testing it.
-**
-**      George Necula. 12/12/00: extended the syntax to process GNU C
-**      George Necula. 1/4/00: completely rewrote the parsing of types
-*/
+/* NOTE: This parser is based on a parser written by Hugues Casse. Since then 
+   I have changed it in numerous ways to the point where it probably does not
+   resemble Hugues's original one at all */
 %{
 open Cil
 open Cabs
@@ -74,252 +34,40 @@ let list_expression expr =
 
 let __functionString = (String.make 1 (Char.chr 0)) ^ "__FUNCTION__" 
 
-
-(* An attempt to clean up the declarations and types *)
-type typeSpecifier = (* Merge all specifiers into one type *)
-    Tvoid                             (* Type specifier ISO 6.7.2 *)
-  | Tchar
-  | Tshort
-  | Tint
-  | Tlong
-  | Tint64
-  | Tfloat
-  | Tdouble
-  | Tsigned
-  | Tunsigned
-  | Tnamed of string
-  | Tstruct of string * name_group list option  (* None if an old type *)
-  | Tunion of string * name_group list option   (* None if an old type *)
-  | Tenum of string * enum_item list option    (* None if an old type *)
+    
 (* A declaration specifier *)
 
-type specifier = 
-    { styp: base_type;
-      ssto: storage;
-      stypedef: bool;
-      sinline: bool;
-      sattr: attribute list;            (* Will put qualifiers in here also *)
-    } 
 
-let emptySpec = 
-  { styp = NO_TYPE;
-    ssto = NO_STORAGE;
-    stypedef = false;
-    sinline = false;
-    sattr = [];
-  } 
 
-let emptyName = ("", NO_TYPE, [], NO_INIT)
-let missingFieldDecl = ("___missing_field_name", NO_TYPE, [], NO_INIT) 
 
-(* Keep attributes sorted *)
-let addAttribute ((n, args) as q) a = 
-  let insertBefore (n', _) = 
-    if n = n' then None else Some (n < n')
+
+let applyPointer (ptspecs: attribute list list) (dt: decl_type)  
+       : decl_type = 
+  (* Outer specification first *)
+  let rec loop = function
+      [] -> dt
+    | attrs :: rest -> PTR(attrs, loop rest)
   in
-  let rec insertSorted = function
-      [] -> [q]
-    | (q' :: rest) as current -> begin
-        match insertBefore q' with
-          None -> current
-        | Some true -> q :: current
-        | Some false -> q' :: insertSorted rest
-    end
-  in
-  if n = "cdecl" then a else
-  insertSorted a
- 
-let addAttributes a ats = 
-  List.fold_left (fun acc a -> addAttribute a acc) ats a
+  loop ptspecs
 
-(* Apply an attribute to a specifier. Keep them sorted *)
-let applyAttribute a spec =
-  {spec with sattr = addAttribute a spec.sattr}
-
-let applyAttributes a spec =
-  {spec with sattr = addAttributes a spec.sattr}
-
-let addAttributeName a ((n,bt,ats,i) : name) : name = 
-  (n, bt, addAttribute a ats, i)
-  
-let addAttributesName a ((n,bt,ats,i) : name) : name = 
-  (n, bt, addAttributes a ats, i)
-  
-let addAttributesTypeOfName a ((n,bt,ats,i) : name) : name = 
-  if a = [] then (n,bt,ats,i)
-  else match bt with 
-    ATTRTYPE (bt', a') -> (n, ATTRTYPE (bt', addAttributes a a'), ats, i)
-  | _ -> (n, ATTRTYPE (bt, addAttributes a []), ats, i)
-  
-(* Make it inline *)
-let applyInline spec = {spec with sinline = true}
-
-(* Apply a storage *)
-let applyStorage s spec = 
-  match spec.ssto with
-    NO_STORAGE -> {spec with ssto = s}
-  | _ -> parse_error "Multiple storage specifiers"; 
-      raise Parsing.Parse_error
-  
-(* Apply typedef *)
-let applyTypedef spec = 
-  match spec.ssto, spec.stypedef with
-    NO_STORAGE, false -> {spec with stypedef = true}
-  | _, _ -> 
-      parse_error "Typedef along with storage specifier"; 
-      raise Parsing.Parse_error
-
-let applyInitializer (i': init_expression) ((n,bt,a,i) as name) = 
-  match i with 
-    NO_INIT -> (n, bt, a, i')
-  | _ -> parse_error "Multiple initializers"; 
-      raise Parsing.Parse_error 
-      
-
-(* Apply a type specifier. We start with NO_TYPE. ISO 6.7.2 *)
-let applyTypeSpec ts spec = 
-  let typ = 
-    match spec.styp, ts with
-      NO_TYPE, Tvoid -> VOID
-    | NO_TYPE, Tchar -> INT(CHAR, NO_SIGN)
-    | INT(NO_SIZE, sign), Tchar -> INT(CHAR, sign)
-    | NO_TYPE, Tint  -> INT(NO_SIZE, NO_SIGN)
-    | INT(size, sign), Tint -> spec.styp
-    | INT(size, NO_SIGN), Tsigned -> INT(size, SIGNED)
-    | INT(size, NO_SIGN), Tunsigned -> INT(size, UNSIGNED)
-    | NO_TYPE, Tsigned   -> INT(NO_SIZE, SIGNED)
-    | NO_TYPE, Tunsigned -> INT(NO_SIZE, UNSIGNED)
-    | NO_TYPE, Tshort -> INT(SHORT, NO_SIGN)
-    | INT(NO_SIZE, sign), Tshort -> INT(SHORT, sign)
-    | NO_TYPE, Tlong -> INT(LONG, NO_SIGN)
-    | NO_TYPE, Tint64 -> INT(LONG_LONG, NO_SIGN)
-    | INT(NO_SIZE, sign), Tlong -> INT(LONG, sign)
-    | INT(NO_SIZE, sign), Tint64 -> INT(LONG_LONG, sign)
-    | INT(LONG, sign), Tlong -> INT(LONG_LONG, sign)
-    | DOUBLE false, Tlong -> DOUBLE true
-    | NO_TYPE, Tfloat -> FLOAT false
-    | NO_TYPE, Tdouble -> DOUBLE false
-    | NO_TYPE, Tenum (n, elo) -> begin
-        match elo with
-          None -> ENUM n
-        | Some el -> ENUMDEF (n, el)
-    end
-    | NO_TYPE, Tstruct (n, fso) -> begin
-        match fso with
-          None -> STRUCT n
-        | Some fs -> STRUCTDEF (n, fs)
-     end
-    | NO_TYPE, Tunion (n, fso) -> begin
-        match fso with
-          None -> UNION n
-        | Some fs -> UNIONDEF (n, fs)
-     end
-    | NO_TYPE, Tnamed n -> NAMED_TYPE n         
-    | _, _ -> 
-        parse_error "Bad combination of type specifiers"; 
-        raise Parsing.Parse_error
-  in
-  {spec with styp = typ}
-
-let makeAttrType bt = function
-    [] -> bt
-  | a -> ATTRTYPE (bt, a)
-
-(* Replace the NO_TYPE in wrapt with the inner *)
-let rec injectType inner = function
-    NO_TYPE -> inner
-  | ATTRTYPE (bt, a) -> ATTRTYPE (injectType inner bt, a)
-  | ARRAY (bt, l) -> ARRAY (injectType inner bt, l)
-  | PTR bt -> PTR (injectType inner bt)
-  | PROTO (bt, args, va, inl) -> PROTO (injectType inner bt, args, va, inl)
-  | BITFIELD (bt, e) -> BITFIELD (injectType inner bt, e)
-  | _ -> parse_error "Unexpectted wrap type in injectType"; 
-      raise Parsing.Parse_error
-  
-let injectTypeName (inner: base_type) ((n,bt,a,i) : name) : name = 
-  (n, injectType inner bt, a, i)
-
-let structId = ref 0
-let anonStructName n = 
-  incr structId;
-  "__anon" ^ n ^ (string_of_int (!structId))
-
-
-let applyPointer (ptspecs: specifier list) ((n,bt,a,i) : name) : name = 
-  (* Inner specification first *)
-  let rec loop acc = function
-      [] -> acc
-    | s :: rest -> begin
-        if s.styp <> NO_TYPE || s.ssto <> NO_STORAGE ||
-           s.stypedef || s.sinline then begin
-             parse_error "Only qualifiers allowed in pointer"; 
-             raise Parsing.Parse_error;
-           end;
-        loop (makeAttrType (PTR acc) s.sattr) rest
-    end
-  in
-  (n, injectType (loop NO_TYPE ptspecs) bt, a, i)
-
-let typeOfSingleName (_, _, (_, bt, _, _)) = bt
-
-let isTypeAttr (n, _) = 
-  match n with 
-    "const" | "volatile" | "cdecl" | "stdcall" | "restrict" -> true
-  | _ -> false
-
-let nameOfIdent (n: string) (al: attribute list) : name = 
-  (n, 
-   (if al = [] then NO_TYPE else ATTRTYPE (NO_TYPE, al)), 
-   [], NO_INIT)
-  
-let makeNameGroup (spec: specifier) (nl : name list) : name_group = 
-  (* Move some GCC attributes from the specifier to names *)
-  let typeattr, nameattr = List.partition isTypeAttr spec.sattr in
-  let innert = makeAttrType spec.styp typeattr in
-  let names = 
-    List.map (fun (n,bt,a,i) -> (n, injectType innert bt, 
-                                    addAttributes nameattr a, i)) nl in
-  (spec.styp, spec.ssto, names)
-
-let makeSingleName (spec: specifier) (n : name) : single_name =
-  let (bt, sto, ns) = makeNameGroup spec [n] in
-  match ns with 
-    [n'] -> (bt, sto, n')
-  | _ -> parse_error "makeSingleName: impossible"; 
-      raise Parsing.Parse_error
-
-
-let doDeclaration (spec: specifier) (nl: name list) : definition = 
-  (* Like a makeNameGroup but also treats the typedef and inline case *)
-  let (_, _, names) as ng = makeNameGroup spec nl in
-  if spec.stypedef then begin
+let doDeclaration (specs: spec_elem list) (nl: init_name list) : definition = 
+  if isTypedef specs then begin
     (* Tell the lexer about the new type names *)
-    List.iter (fun (n, _, _, _) -> Clexer.add_type n) names;
-    TYPEDEF ng
+    List.iter (fun ((n, _, _), _) -> Clexer.add_type n) nl;
+    TYPEDEF (specs, List.map (fun (n, _) -> n) nl)
   end else
     if nl = [] then
-      ONLYTYPEDEF ng
+      ONLYTYPEDEF specs
     else begin
-      List.iter (fun (n, _, _, _) -> Clexer.add_identifier n) names;
-      DECDEF ng
+      List.iter (fun ((n, _, _), _) -> Clexer.add_identifier n) nl;
+      DECDEF (specs, nl)
     end
 
-let doFunctionDecl (n: name) (pardecl: single_name list) (va: bool) : name = 
-  injectTypeName (PROTO(NO_TYPE, pardecl, va, false)) n
 
-let doFunctionDef (spec: specifier) (n: name) 
+let doFunctionDef (specs: spec_elem list) 
+                  (n: name) 
                   (b: body) : definition = 
-  (match n with 
-    (_, _, _, NO_INIT) -> ()
-  | _ -> parse_error "Initializer in function definition"; 
-      raise Parsing.Parse_error);
-  let n' = (* Associate the inline attribute with the function itself *)
-    if spec.sinline then
-      addAttributeName ("inline", []) n
-    else n
-  in
-  let innert = makeAttrType spec.styp spec.sattr in
-  let fname = (spec.styp, spec.ssto, injectTypeName innert n') in
+  let fname = (specs, n) in
   FUNDEF (fname, b)
 
 
@@ -328,14 +76,11 @@ let doOldParDecl (names: string list)
   let findOneName n = 
     (* Search in pardefs for the definition for this parameter *)
     let rec loopGroups = function
-        [] -> (* parse_error ("Cannot find definition of parameter " ^
-                              n ^ " in old style prototype\n")*)
-               (INT(NO_SIZE,NO_SIGN), NO_STORAGE, 
-                (n, INT(NO_SIZE,NO_SIGN), [], NO_INIT))
-      | (bt, st, names) :: restgroups -> 
+        [] -> ([SpecType Tint], (n, JUSTBASE, []))
+      | (specs, names) :: restgroups -> 
           let rec loopNames = function
               [] -> loopGroups restgroups
-            | ((n',_,_,_) as sn) :: _ when n' = n -> (bt, st, sn)
+            | ((n',_, _) as sn) :: _ when n' = n -> (specs, sn)
             | _ :: restnames -> loopNames restnames
           in
           loopNames names
@@ -354,7 +99,7 @@ let doOldParDecl (names: string list)
 %token <string> NAMED_TYPE
 
 %token EOF
-%token CHAR INT DOUBLE FLOAT VOID INT64
+%token CHAR INT DOUBLE FLOAT VOID INT64 INT32
 %token ENUM STRUCT TYPEDEF UNION
 %token SIGNED UNSIGNED LONG SHORT
 %token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
@@ -383,8 +128,8 @@ let doOldParDecl (names: string list)
 %token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ 
 /* weimer: gcc "__extension__" keyword */
 %token EXTENSION
-%token STDCALL CDECL
-%token <string> MSASM
+%token DECLSPEC
+%token <string> MSASM MSATTR
 %token PRAGMA
 
 /* operator precedence */
@@ -421,7 +166,7 @@ let doOldParDecl (names: string list)
 %type <Cabs.definition> global
 
 
-%type <Cabs.attribute list> gcc_attributes
+%type <Cabs.attribute list> attributes
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression 
@@ -433,21 +178,29 @@ let doOldParDecl (names: string list)
 %type <(Cabs.initwhat * Cabs.init_expression) list> initializer_list
 %type <Cabs.initwhat> init_designators init_designators_opt
 
-%type <specifier> decl_spec_list
+%type <spec_elem list> decl_spec_list
 %type <typeSpecifier> type_spec
 %type <Cabs.name_group list> struct_decl_list 
-%type <Cabs.name list> field_decl_list init_declarator_list
-%type <Cabs.name> declarator init_declarator direct_decl old_proto_decl
-%type <Cabs.name> abs_direct_decl abstract_decl 
-%type <specifier list> pointer  /* Each element is a "* <type_quals_opt>" */
+
+
+%type <Cabs.name> old_proto_decl
 %type <Cabs.single_name list> parameter_list
 %type <Cabs.single_name> parameter_decl
 %type <Cabs.enum_item> enumerator
 %type <Cabs.enum_item list> enum_list
 %type <Cabs.definition> declaration function_def
-%type <Cabs.base_type> type_name
+%type <Cabs.spec_elem list * Cabs.decl_type> type_name
 %type <Cabs.body> block block_item_list
 %type <string list> old_parameter_list
+
+%type <Cabs.init_name> init_declarator
+%type <Cabs.init_name list> init_declarator_list
+%type <Cabs.name> declarator field_decl
+%type <Cabs.name list> field_decl_list
+%type <string * Cabs.decl_type> direct_decl
+%type <Cabs.decl_type> abs_direct_decl abs_direct_decl_opt
+%type <Cabs.decl_type * Cabs.attribute list> abstract_decl
+%type <attribute list list> pointer pointer_opt /* Each element is a "* <type_quals_opt>" */
 %%
 
 interpret:
@@ -470,7 +223,7 @@ global:
 | ASM LPAREN CST_STRING RPAREN SEMICOLON
                         { GLOBASM $3 }
 | PRAGMA attr           { PRAGMA $2 }
-| error SEMICOLON       { PRAGMA("error", []) }
+| error SEMICOLON       { PRAGMA (CONSTANT(CONST_STRING "error")) }
 ;
 typename:
     IDENT				{$1}
@@ -492,7 +245,7 @@ expression:
 |		SIZEOF expression
 			{EXPR_SIZEOF $2}
 |	 	SIZEOF LPAREN type_name RPAREN  
-			{TYPE_SIZEOF $3}
+			{let b, d = $3 in TYPE_SIZEOF (b, d)}
 |		PLUS expression
 			{UNARY (PLUS, $2)}
 |		MINUS expression
@@ -735,14 +488,9 @@ statement:
 /* This is an attempt to clean up the handling of types*/
 /*******************************************************/
 
-declaration:                                /* ISO 6.7. GCC attributes apply 
-                                             * to all declarands on a line. 
-                                             * We add them to specifiers and 
-                                             * we'll move them to names later 
-                                             */
-    decl_spec_list init_declarator_list gcc_attributes SEMICOLON 
-                                       { doDeclaration 
-                                           (applyAttributes $3 $1) $2 }
+declaration:                                /* ISO 6.7.*/
+    decl_spec_list init_declarator_list SEMICOLON
+                                       { doDeclaration $1 $2 }
 |   decl_spec_list SEMICOLON           { doDeclaration $1 [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
@@ -751,33 +499,29 @@ init_declarator_list:                       /* ISO 6.7 */
  
 ;
 init_declarator:                             /* ISO 6.7 */
-    declarator                          { $1 }
-|   declarator EQ init_expression { applyInitializer $3 $1 }
+    declarator                          { ($1, NO_INIT) }
+|   declarator EQ init_expression 
+                                        { ($1, $3) }
 ;
 
 decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.1 */
-|   TYPEDEF decl_spec_list_opt          { applyTypedef $2 }
-/* weimer: gcc allows "__extension__ typedef unsigned long yada ..." */
-|   EXTERN decl_spec_list_opt           { applyStorage EXTERN $2 }
-|   STATIC  decl_spec_list_opt          { applyStorage STATIC $2 }
-|   AUTO   decl_spec_list_opt           { applyStorage AUTO $2 }
-|   REGISTER decl_spec_list_opt         { applyStorage REGISTER $2} 
+|   TYPEDEF decl_spec_list_opt          { SpecTypedef :: $2  }
+|   EXTERN decl_spec_list_opt           { SpecStorage EXTERN :: $2 }
+|   STATIC  decl_spec_list_opt          { SpecStorage STATIC :: $2 }
+|   AUTO   decl_spec_list_opt           { SpecStorage AUTO :: $2 }
+|   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2} 
                                         /* ISO 6.7.2 */
-|   type_spec decl_spec_list_opt_no_named { applyTypeSpec $1 $2 }
-                                        /* ISO 6.7.3 */
-|   CONST decl_spec_list_opt            { applyAttribute ("const",[]) $2 }
-|   RESTRICT decl_spec_list_opt         { $2 }
-|   VOLATILE decl_spec_list_opt         { applyAttribute ("volatile",[]) $2 }
+|   type_spec decl_spec_list_opt_no_named { SpecType $1 :: $2 }
                                         /* ISO 6.7.4 */
-|   INLINE decl_spec_list_opt           { applyInline $2 }
-|   attribute decl_spec_list_opt        { applyAttributes $1 $2 }
+|   INLINE decl_spec_list_opt           { SpecInline :: $2 }
+|   attribute decl_spec_list_opt        { SpecAttr $1 :: $2 }
 |   EXTENSION decl_spec_list            { $2 }
 ;
 /* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare 
  * NAMED_TYPE to have right associativity */
 decl_spec_list_opt: 
-    /* empty */                         { emptySpec } %prec NAMED_TYPE
+    /* empty */                         { [] } %prec NAMED_TYPE
 |   decl_spec_list                      { $1 }
 ;
 /* (* We add this separate rule to handle the special case when an appearance 
@@ -785,7 +529,7 @@ decl_spec_list_opt:
     * part of the declarator. IDENT has higher precedence than NAMED_TYPE  *)
  */
 decl_spec_list_opt_no_named: 
-    /* empty */                         { emptySpec } %prec IDENT
+    /* empty */                         { [] } %prec IDENT
 |   decl_spec_list                      { $1 }
 ;
 type_spec:   /* ISO 6.7.2 */
@@ -804,33 +548,29 @@ type_spec:   /* ISO 6.7.2 */
 |   STRUCT typename LBRACE struct_decl_list RBRACE
                     { Tstruct ($2, Some $4) }
 |   STRUCT           LBRACE struct_decl_list RBRACE
-                    { Tstruct (anonStructName "struct", Some $3) }
+                    { Tstruct ("", Some $3) }
 |   UNION typename 
                     { Tunion ($2, None) }
 |   UNION typename LBRACE struct_decl_list RBRACE
                     { Tunion ($2, Some $4) }
 |   UNION          LBRACE struct_decl_list RBRACE
-                    { Tunion (anonStructName "union", Some $3) }
+                    { Tunion ("", Some $3) }
 |   ENUM typename   { Tenum ($2, None) }
 |   ENUM typename LBRACE enum_list maybecomma RBRACE
                     { Tenum ($2, Some $4) }
 |   ENUM          LBRACE enum_list maybecomma RBRACE
-                    { Tenum (anonStructName "enum", Some $3) }
+                    { Tenum ("", Some $3) }
 |   NAMED_TYPE      { Tnamed $1 }
 ;
 struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We 
-                      * also allow missing field names. GCC attributes apply 
-                      * to all declarands. Put them in the specifier and 
-                      * makeNameGroup will move them to the names  *)
+                      * also allow missing field names. *)
                    */
    /* empty */                           { [] }
 |  decl_spec_list                 SEMICOLON struct_decl_list
-                                         { (makeNameGroup $1 
-                                               [missingFieldDecl]) :: $3 }
-|  decl_spec_list field_decl_list gcc_attributes SEMICOLON struct_decl_list
-                                          { (makeNameGroup 
-                                               (applyAttributes $3 $1) $2) 
-                                            :: $5 }
+                                         { ($1, [missingFieldDecl]) :: $3 }
+|  decl_spec_list field_decl_list SEMICOLON struct_decl_list
+                                          { ($1, $2) 
+                                            :: $4 }
 |  error                          SEMICOLON struct_decl_list
                                           { $3 } 
 ;
@@ -839,21 +579,17 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 |   field_decl COMMA field_decl_list     { $1 :: $3 }
 ;
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
-|   declarator                             { $1 } 
-|   declarator COLON expression            {  (match $1 with
-                                               (n, t, [], NO_INIT) -> 
-                                                ( n, BITFIELD (t, $3), 
-                                                     [], NO_INIT)
-                                               | _ -> parse_error "bitfield"; 
-                                                   raise Parsing.Parse_error) 
-                                           } 
-|              COLON expression            {  (match missingFieldDecl with
-                                               (n, t, [], NO_INIT) -> 
-                                                ( n, BITFIELD (t, $2), 
-                                                     [], NO_INIT)
-                                               | _ -> parse_error "bitfield"; 
-                                                   raise Parsing.Parse_error) 
-                                           }
+|   declarator                            { $1 }
+|   declarator COLON expression            
+             { (match $1 with
+                  (n, JUSTBASE, a) -> ( n, BITFIELD $3, a)
+                | (n, d, _) -> Cprint.print_decl n d;
+                            parse_error "bitfield not on an integer type"; 
+                            raise Parsing.Parse_error) 
+             } 
+|              COLON expression   { let (n, _, a) = missingFieldDecl in
+                                    (n, BITFIELD $2, a)
+                                  } 
 ;
 
 enum_list: /* (* ISO 6.7.2.2 *) */
@@ -867,42 +603,33 @@ enumerator:
 ;
 
 
-declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators. The specification 
-                says that they are specifiers but in practice they appear to 
-                be part of the declarator. Right now we allow them only right 
-               before an indentifier (e.g. int __cdecl foo()) or in pointers 
-               to functions (e.g. int (__cdecl *foo)(). But they should 
-               always be part of the function type attributes not of the 
-               declared name's attributes *) */
-            direct_decl            { $1 }
-|   pointer direct_decl            { applyPointer $1 $2 }
+declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
+   pointer_opt direct_decl attributes    { let (n, decl) = $2 in
+                                           (n, applyPointer $1 decl, $3) }
 ;
 
 direct_decl: /* (* ISO 6.7.5 *) */
-    msqual_list_opt IDENT          { nameOfIdent $2 $1 } 
+    IDENT                          { ($1, JUSTBASE) }
+
                                    /* (* We want to be able to redefine named 
                                     * types as variable names *) */
-|   msqual_list_opt NAMED_TYPE     {(* Clexer.add_identifier $2; *)
-                                     ($2, 
-                                      (if $1 = [] then NO_TYPE
-                                       else ATTRTYPE (NO_TYPE, $1)), 
-                                      [], NO_INIT) }
-|   LPAREN declarator RPAREN       { $2 }
-|   LPAREN msqual_list pointer direct_decl RPAREN       
-                                   { addAttributesTypeOfName $2
-                                            (applyPointer $3 $4) } 
+|   NAMED_TYPE                     { ($1, JUSTBASE) }
+
+|   LPAREN attributes declarator RPAREN       
+                                   { let (n,decl,al) = $3 in
+                                     (n, PARENTYPE($2,decl,al)) } 
+
 |   direct_decl LBRACKET comma_expression RBRACKET
-                                   { injectTypeName (ARRAY(NO_TYPE, 
-                                                       smooth_expression $3))
-                                                    $1 }
-|   direct_decl LBRACKET RBRACKET  { injectTypeName (ARRAY(NO_TYPE, 
-                                                       NOTHING)) $1}
-|   direct_decl LBRACKET STAR RBRACKET { injectTypeName (ARRAY(NO_TYPE, 
-                                                       NOTHING)) $1}
+                                   { let (n, decl) = $1 in
+                                     (n, ARRAY(decl, smooth_expression $3)) }
+|   direct_decl LBRACKET RBRACKET  { let (n, decl) = $1 in
+                                     (n, ARRAY(decl, NOTHING)) }
 |   direct_decl LPAREN parameter_list RPAREN 
-                                   { doFunctionDecl $1 $3 false } 
+                                   { let (n, decl) = $1 in
+                                     (n, PROTO(decl, $3, false)) }
 |   direct_decl LPAREN parameter_list_ne COMMA ELLIPSIS RPAREN
-                                   { doFunctionDecl $1 $3 true } 
+                                   { let (n, decl) = $1 in
+                                     (n, PROTO(decl, $3, true)) }
 ;
 parameter_list_ne: /* (* ISO 6.7.5 *) */
 |   parameter_decl                        { [$1] }
@@ -913,20 +640,22 @@ parameter_list:
 |  parameter_list_ne                      { $1 }
 ;
 parameter_decl: /* (* ISO 6.7.5 *) */
-   decl_spec_list declarator              { makeSingleName $1 $2 }
-|  decl_spec_list abstract_decl           { makeSingleName $1 $2 }
-|  decl_spec_list                         { makeSingleName $1 emptyName }
+   decl_spec_list declarator              { ($1, $2) }
+|  decl_spec_list abstract_decl           { let d, a = $2 in
+                                            ($1, ("", d, a)) }
+|  decl_spec_list                         { ($1, ("", JUSTBASE, [])) }
 ;
 
 /* (* Old style prototypes. Like a declarator *) */
 old_proto_decl:
-|         direct_old_proto_decl           { $1 } 
-| pointer direct_old_proto_decl           { applyPointer $1 $2 }
+  pointer_opt direct_old_proto_decl       { let (n, decl, a) = $2 in
+                                            (n, applyPointer $1 decl, a) }
 ;
 direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list RPAREN old_pardef_list
                                    { let par_decl = doOldParDecl $3 $5 in
-                                     doFunctionDecl $1 par_decl false  
+                                     let n, decl = $1 in
+                                     (n, PROTO(decl, par_decl, false), [])
                                    }
 ;
 
@@ -938,7 +667,7 @@ old_parameter_list:
 
 old_pardef_list_ne: 
 |  decl_spec_list old_pardef SEMICOLON old_pardef_list   
-                                     {(makeNameGroup $1 $2) :: $4 }
+                                     {($1, $2) :: $4 }
 ;
 
 old_pardef_list: 
@@ -954,46 +683,48 @@ old_pardef:
 
 
 pointer: /* (* ISO 6.7.5 *) */ 
-   STAR decl_spec_list_opt_no_named          { [$2] }
-|  STAR decl_spec_list_opt_no_named pointer  { $2 :: $3 }
+   STAR attributes pointer_opt  { $2 :: $3 }
+;
+pointer_opt:
+   /* empty */                                   { [] }
+|  pointer                                       { $1 }
 ;
 
 type_name: /* (* ISO 6.7.6 *) */
-  decl_spec_list abstract_decl { typeOfSingleName (makeSingleName $1 $2) }
-| decl_spec_list               { typeOfSingleName 
-                                           (makeSingleName $1 emptyName) }
-| TYPEOF expression            {TYPEOF $2} 
+  decl_spec_list abstract_decl { let d, a = $2 in
+                                 if a <> [] then begin
+                                   parse_error "attributes in type name";
+                                   raise Parsing.Parse_error
+                                 end;
+                                 ($1, d) 
+                               }
+| decl_spec_list               { ($1, JUSTBASE) }
+| TYPEOF expression            { ([SpecType (Ttypeof $2)], JUSTBASE) } 
 ;
 abstract_decl: /* (* ISO 6.7.6. *) */
-  pointer abs_direct_decl_opt        { applyPointer $1 $2 }
-|         abs_direct_decl            { $1 }
+  pointer_opt abs_direct_decl attributes  { applyPointer $1 $2, $3 }
+| pointer                                 { applyPointer $1 JUSTBASE, [] }
 ;
 
 abs_direct_decl: /* ISO 6.7.6. We do not support optional declarator for 
                   * functions. Plus Microsoft attributes. See the discussion 
                   * for declarator.  */
-|   LPAREN abstract_decl RPAREN    { $2 }
-|   LPAREN msqual_list pointer abs_direct_decl_opt RPAREN
-                                   { addAttributesTypeOfName $2
-                                        (applyPointer $3 $4) }
+|   LPAREN attributes abstract_decl RPAREN
+                                   { let d, a = $3 in
+                                     PARENTYPE ($2, d, a)
+                                   }
             
 |   abs_direct_decl_opt LBRACKET comma_expression RBRACKET
-                                   { injectTypeName (ARRAY(NO_TYPE, 
-                                                       smooth_expression $3))
-                                                    $1 }
-|   abs_direct_decl_opt LBRACKET RBRACKET  { injectTypeName (ARRAY(NO_TYPE, 
-                                                         NOTHING)) $1}
-|   abs_direct_decl_opt LBRACKET STAR RBRACKET { injectTypeName 
-                                                  (ARRAY(NO_TYPE, 
-                                                         NOTHING)) $1}
+                                   { ARRAY($1, smooth_expression $3) }
+|   abs_direct_decl_opt LBRACKET RBRACKET  { ARRAY($1, NOTHING) }
 |   abs_direct_decl LPAREN parameter_list RPAREN 
-                                   { doFunctionDecl $1 $3 false } 
+                                   { PROTO($1, $3, false) }
 |   abs_direct_decl LPAREN parameter_list ELLIPSIS RPAREN
-                                   { doFunctionDecl $1 $3 true }
+                                   { PROTO($1, $3, true) }
 ;
 abs_direct_decl_opt:
     abs_direct_decl                 { $1 }
-|   /* empty */                     { emptyName }
+|   /* empty */                     { JUSTBASE }
 ;
 function_def:  /* (* ISO 6.9.1 *) */
   decl_spec_list declarator block { doFunctionDef $1 $2 $3 }
@@ -1001,70 +732,55 @@ function_def:  /* (* ISO 6.9.1 *) */
 | decl_spec_list old_proto_decl block  { doFunctionDef $1 $2 $3 } 
 /* (* New-style function that does not have a return type *) */
 |          IDENT LPAREN parameter_list RPAREN block
-                           { let name = nameOfIdent $1 [] in
-                             let fdec = doFunctionDecl name $3 false in
+                           { let fdec = ($1, PROTO(JUSTBASE, $3, false), []) in
                              (* Default is int type *)
-                             let defSpec = applyTypeSpec Tint emptySpec in
+                             let defSpec = [SpecType Tint] in
                              doFunctionDef defSpec fdec $5 }
 /* (* No return type and old-style parameter list *) */
 |          IDENT LPAREN old_parameter_list RPAREN old_pardef_list block
-                           { let name = nameOfIdent $1 [] in
-                             (* Convert pardecl to new style *)
+                           { (* Convert pardecl to new style *)
                              let pardecl = doOldParDecl $3 $5 in
                              (* Make the function declarator *)
-                             let fdec = doFunctionDecl name pardecl false in
+                             let fdec = ($1, 
+                                         PROTO(JUSTBASE, pardecl,false), []) in
                              (* Default is int type *)
-                             let defSpec = applyTypeSpec Tint emptySpec in
+                             let defSpec = [SpecType Tint] in
                              doFunctionDef defSpec fdec $6 }
 ;
 
 
-/* Microsoft specific qualifiers */
-msqual:
-    CDECL                           { "cdecl", [] }
-|   STDCALL                         { "stdcall", [] }
-;
-msqual_list:
-   msqual                           { [$1] }
-|  msqual msqual_list               { $1 :: $2 }
-;
-msqual_list_opt:
-   /* empty */                      { [] }
-|  msqual_list                      { $1 }
-;
 /*** GCC attributes ***/
-gcc_attributes:
-    /* empty */						{[]}	
-|   gcc_neattributes		{ $1 }
-;
-
-gcc_neattributes:
-    attribute				{ $1}
-|   gcc_neattributes attribute		{$1 @ $2}
+attributes:
+    /* empty */				{ []}	
+|   attribute attributes	        { $1 :: $2 }
 ;
 
 attribute:
-    ATTRIBUTE LPAREN LPAREN attrs RPAREN RPAREN	{ $4 }
-;
-attrs:
-    attr				{[$1]}
-|   attr COMMA attrs			{$1::$3}
-;
-attr:
-    IDENT				{ ($1,[]) }
-|   IDENT COLON CST_INT                 { ($1 ^ ":" ^ $3, []) }
-|   IDENT LPAREN attr_args RPAREN       { ($1, $3) }
+    ATTRIBUTE LPAREN LPAREN attr_list_ne RPAREN RPAREN	
+                                        { ("__attribute__", $4) }
+|   DECLSPEC LPAREN attr_list_ne RPAREN    { ("__declspec", $3) }
+|   MSATTR                              { ($1, []) }
+                                        /* ISO 6.7.3 */
+|   CONST                               { ("const", []) }
+|   RESTRICT                            { ("restrict",[]) }
+|   VOLATILE                            { ("volatile",[]) }
 ;
 
-attr_args:
-                                         { [] }
-|   attr_args_ne                         { $1 }
+/** (* PRAGMAS and ATTRIBUTES *) ***/
+/* (* We want to allow certain strange things that occur in pragmas, so we 
+    * cannot use directly the language of expressions *) */ 
+attr: 
+    IDENT                                { VARIABLE $1 }
+|   IDENT COLON CST_INT                  { VARIABLE ($1 ^ ":" ^ $3) }
+|   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ $3) }
+|   NAMED_TYPE                           { VARIABLE $1 }
+|   IDENT LPAREN attr_list_ne RPAREN     { CALL(VARIABLE $1, $3) }
+|   CST_INT                              { CONSTANT(CONST_INT $1) }
+|   CST_STRING                           { CONSTANT(CONST_STRING $1) }
 ;
-attr_args_ne:
-|   expression                           { [$1] }
-|   IDENT COLON CST_INT                  { [VARIABLE ($1 ^ ":" ^ $3)] }
-|   DEFAULT COLON CST_INT                { [VARIABLE ("default:" ^ $3)] }
-|   expression COMMA attr_args_ne        { $1 :: $3 }
+attr_list_ne:
+|  attr                                  { [$1] }
+|  attr COMMA attr_list_ne               { $1 :: $3 }
 ;
 
 /*** GCC ASM instructions ***/

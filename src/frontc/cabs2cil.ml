@@ -1,4 +1,4 @@
-(* Convert CABS to CIL *)
+(* Type check and elaborate ABS to CIL *)
 module A = Cabs
 module E = Errormsg
 module H = Hashtbl
@@ -8,10 +8,8 @@ open Cil
 open Trace
 
 
-let lu = locUnknown
-
-
 (* ---------- source error message handling ------------- *)
+let lu = locUnknown
 let currentLoc : Cil.location ref = ref lu
 
 (* these return 'a (alpha) because they throw exceptions, so can be used in any context *)
@@ -73,7 +71,6 @@ begin
 end
 
 
-
 (*** EXPRESSIONS *************)
                                         (* We collect here the program *)
 let theFile : global list ref = ref []
@@ -106,7 +103,12 @@ let env : (string, envdata) H.t = H.create 307
 
  (* In the scope we keep the original name, so we can remove them from the 
   * hash table easily *)
-let scopes :  string list ref list ref = ref []
+type undoScope = 
+    UndoRemoveFromEnv of string
+  | UndoResetAlphaCounter of string * int
+  | UndoRemoveFromAlphaTable of string
+
+let scopes :  undoScope list ref list ref = ref []
 
 
 (* When you add to env, you also add it to the current scope *)
@@ -116,7 +118,7 @@ let addLocalToEnv (n: string) (d: envdata) =
      * name to the scope *)
   (match !scopes with
     [] -> ()
-  | s :: _ -> s := n :: !s)
+  | s :: _ -> s := (UndoRemoveFromEnv n) :: !s)
 
 
 let addGlobalToEnv (k: string) (d: envdata) : unit = 
@@ -148,28 +150,26 @@ let kindPlusName (kind: string)
 let newAlphaName (kind: string) 
                  (origname: string) : string = 
   let lookupname = kindPlusName kind origname in
-  (* Split the lookup name into a prefix and a suffix. The suffix is 
-   * numberic and is separated by _ from the prefix *)
-  let l = String.length lookupname in
-  let (prefix, suffix) = 
-    try
-      let under = String.rindex lookupname '_' in
-      (String.sub lookupname 0 under, 
-       int_of_string (String.sub lookupname under (l - under)))
-    with _ -> (lookupname, -1)
-  in
-  let newname = 
-    try
-      let rc = H.find alphaTable prefix in
-      let newsuffix = if suffix > !rc then suffix else !rc + 1 in
-      rc := newsuffix;
-      prefix ^ "_" ^ (string_of_int newsuffix)
-    with Not_found -> begin (* First variable with this prefix *)
-      H.add alphaTable prefix (ref suffix);
-      lookupname  (* Return the original name *)
+  (* If we are in a scope then it means that we are alpha-converting a local 
+   * name. Go and add stuff to reset the state of the alpha table but only to 
+   * the top-most scope (that of the enclosing function) *)
+  let rec findEnclosingFun = function
+      [] -> (* At global scope *)()
+    | [s] -> begin
+        let prefix, _, _ = splitNameForAlpha lookupname in
+        try
+          let countref = H.find alphaTable prefix in
+          s := (UndoResetAlphaCounter (prefix, !countref)) :: !s
+        with Not_found ->
+          s := (UndoRemoveFromAlphaTable prefix) :: !s
     end
+    | _ :: rest -> findEnclosingFun rest
   in
-  (* Now strip the kind prefix *)
+  findEnclosingFun !scopes;
+
+  let newname = Cil.newAlphaName alphaTable lookupname in
+
+  let l = String.length lookupname in
   let n' = 
     let l = 1 + String.length kind in
     if l > 1 then 
@@ -179,11 +179,12 @@ let newAlphaName (kind: string)
   in
   n'
   
+let structId = ref 0
+let anonStructName n = 
+  incr structId;
+  "__anon" ^ n ^ (string_of_int (!structId))
 
-let docAlphaTable () = 
-  let acc : (string * int) list ref = ref [] in
-  H.iter (fun k d -> acc := (k, !d) :: !acc) alphaTable;
-  docList line (fun (k, d) -> dprintf "  %s -> %d" k d) () !acc
+
 
 
 let localId = ref (-1)   (* All locals get id's starting at 0 *)
@@ -214,9 +215,9 @@ let endFunction (formals: varinfo list) : (int * varinfo list) =
       [], l -> l
     | f :: formals, l :: locals -> 
         if f != l then 
-          (sourceError "formals are not in locals");
+          E.s (E.bug "formals are not in locals");
         drop formals locals
-    | _ -> (sourceError "Too few locals")
+    | _ -> E.s (E.bug "Too few locals")
   in
   (maxid, drop formals revlocals)
 
@@ -229,12 +230,19 @@ let exitScope () =
   let this, rest = 
     match !scopes with
       car :: cdr -> car, cdr
-    | [] -> (sourceError "Not in a scope")
+    | [] -> E.s (E.bug "Not in a scope")
   in
   scopes := rest;
   let rec loop = function
       [] -> ()
-    | n :: t -> H.remove env n; loop t
+    | UndoRemoveFromEnv n :: t -> H.remove env n; loop t
+    | UndoRemoveFromAlphaTable n :: t -> H.remove alphaTable n; loop t
+    | UndoResetAlphaCounter (n, oldv) :: t -> begin
+        try
+          let vref = H.find alphaTable n in
+          vref := oldv
+        with Not_found -> ()
+    end
   in
   loop !this
 
@@ -294,8 +302,8 @@ let newTempVar typ =
   let stripConst t =
     let a = typeAttrs t in
     setTypeAttrs t 
-      (dropAttribute (dropAttribute a (AId("const")))
-         (AId("restrict")))
+      (dropAttribute (dropAttribute a (Attr("const", [])))
+         (Attr("restrict", [])))
   in
   alphaConvertVarAndAddToEnv false  (* Do not add to the environment *)
     { vname = "tmp";  (* addNewVar will make the name fresh *)
@@ -334,7 +342,7 @@ let lookupType (kind: string)
   try
     lookupTypeNoError kind n
   with Not_found -> 
-   (sourceError (Pretty.sprint 80 (Pretty.dprintf "Cannot find type %s (kind:%s)\n" n kind)))
+    E.s (E.unimp "Cannot find type %s (kind:%s)\n" n kind)
 
 (* Create the self ref cell and add it to the map *)
 let createCompInfo (iss: bool) (n: string) : compinfo = 
@@ -357,12 +365,11 @@ let findCompType kind n a =
      * struct already or because we want to create a version with different 
      * attributes  *)
     let iss =  (* is struct or union *)
-      if kind = "enum" then (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  
-		"Forward reference for enum %s" n)))
+      if kind = "enum" then E.s (E.unimp "Forward reference for enum %s" n)
       else if kind = "struct" then true else false
     in
     let self = createCompInfo iss n in
-    TForward (self, a)
+    TComp (true, self, a)
   in
   try
     let old = lookupTypeNoError kind n in (* already defined  *)
@@ -392,7 +399,7 @@ let explodeString (nullterm: bool) (s: string) : char list =
 (*** In order to process GNU_BODY expressions we must record that a given 
  *** COMPUTATION is interesting *)
 let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref 
-    = ref (A.NOP(lu), ref None)
+    = ref (A.NOP lu, ref None)
 
 (*** When we do statements we need to know the current return type *)
 let currentReturnType : typ ref = ref (TVoid([]))
@@ -400,56 +407,33 @@ let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
 
 (**** Occasionally we see structs with no name and no fields *)
 
-let get_instrloc (inst : instr) =
-    match inst with
-      Set(a, b, c) -> c
-      | Call(a, b, c, d) -> d
-      | Asm(a, b, c, d, e, f) -> f
 
-let get_stmtloc (st : stmt) =
-     match st.skind with
-       Instr([]) -> {line = -1; col = -1; file = "this is wierd";}  
-       | Instr(head :: tail) -> get_instrloc head
-       | Return(a, b) -> b
-       | Goto(a, b) -> b
-       | Break(a) -> a
-       | Continue(a) -> a
-       | If(a, b, c, d) -> d
-       | Switch(a, b, c, d) -> d
-       | Loop(a, b) -> b
-
-module BlockChunk =
+module BlockChunk = 
   struct
     type chunk = {
         stmts: stmt list;
-        postins: instr list;              (* Some instructions to append at
-                                           * the ends of statements (in
+        postins: instr list;              (* Some instructions to append at 
+                                           * the ends of statements (in 
                                            * reverse order)  *)
-                                        (* A list of case statements at the
+                                        (* A list of case statements at the 
                                          * outer level *)
         cases: (label * stmt) list
-      }
+      } 
 
-    let empty =
+    let empty = 
       { stmts = []; postins = []; cases = [];
         (* fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) *) }
 
-    let get_chloc (c: chunk) =
-    	match c.stmts with
-    	[] -> {line = -1; col = -1; file = "this is wierd";}
-    	| (head::tail) -> get_stmtloc head
-     
-
-    let isEmpty (c: chunk) =
+    let isEmpty (c: chunk) = 
       c.postins == [] && c.stmts == []
 
     let isNotEmpty (c: chunk) = not (isEmpty c)
 
-    let i2c (i: instr) =
+    let i2c (i: instr) = 
       { empty with postins = [i] }
-
+        
     (* Occasionally, we'll have to push postins into the statements *)
-    let pushPostIns (c: chunk) : stmt list =
+    let pushPostIns (c: chunk) : stmt list = 
       if c.postins = [] then c.stmts
       else
         let rec toLast = function
@@ -515,7 +499,7 @@ module BlockChunk =
 
     let loopChunk (body: chunk) : chunk = 
       (* Make the statement *)
-      let loop = mkStmt (Loop (pushPostIns body, !currentLoc)) in
+      let loop = mkStmt (Loop (pushPostIns body, lu)) in
       { stmts = [ loop (* ; n *) ];
         postins = [];
         cases = body.cases;
@@ -560,14 +544,7 @@ module BlockChunk =
             let dest = H.find labelStmt lname in
             List.iter (fun gref -> gref := dest) !gotos
           with Not_found -> begin
-            let stmt = !(List.hd !gotos) in
-            (sourceErrorLoc (get_stmtloc stmt) 
-              ("Label " ^ lname ^ " not found\n"))
-
-            (*E.s (E.bug "%s[%d]:Label %s not found\n"
-                       (get_stmtloc stmt).file
-                       (get_stmtloc stmt).line
-                       lname)*)
+            E.s (E.bug "Label %s not found\n" lname)
           end)
         backPatchGotos
 
@@ -585,7 +562,7 @@ module BlockChunk =
       (* Get the first statement and add the label to it *)
       let labstmt, stmts' = getFirstInChunk c in
       (* Add the label *)
-      labstmt.labels <- Label (l, !currentLoc) :: labstmt.labels;
+      labstmt.labels <- Label (l, lu) :: labstmt.labels;
       H.add labelStmt l labstmt;
       if c.stmts == stmts' then c else {c with stmts = stmts'}
 
@@ -623,8 +600,7 @@ module BlockChunk =
     let mkFunctionBody (c: chunk) : block = 
       resolveGotos (); initLabels ();
       if c.cases <> [] then
-        (sourceErrorLoc (get_chloc c) "Switch cases not inside a switch statement\n");
-        (*E.s (E.bug "%s[%d]:Switch cases not inside a switch statement\n" (get_chloc c).file (get_chloc c).line);*)
+        E.s (E.bug "Switch cases not inside a switch statement\n");
       pushPostIns c
       
   end
@@ -649,7 +625,7 @@ let startLoop iswhile =
 let labelId = ref 0
 let continueOrLabelChunk (l: location) : chunk = 
   match !continues with
-    [] -> (sourceErrorLoc l "continue not in a loop")
+    [] -> E.s (E.bug "continue not in a loop")
   | While :: _ -> continueChunk l
   | NotWhile lr :: _ -> 
       if !lr = "" then begin
@@ -660,13 +636,13 @@ let continueOrLabelChunk (l: location) : chunk =
 
 let consLabContinue (c: chunk) = 
   match !continues with
-    [] -> (sourceErrorLoc (get_chloc c) "labContinue not in a loop")
+    [] -> E.s (E.bug "labContinue not in a loop")
   | While :: rest -> c
   | NotWhile lr :: rest -> if !lr = "" then c else consLabel !lr c
 
-let exitLoop () =
+let exitLoop () = 
   match !continues with
-    [] -> (sourceError "exit Loop not in a loop")
+    [] -> E.s (E.bug "exit Loop not in a loop")
   | _ :: rest -> continues := rest
       
 
@@ -674,11 +650,11 @@ let exitLoop () =
 type expAction = 
     ADrop                               (* Drop the result. Only the 
                                          * side-effect is interesting *)
-  | ASet of lval * typ                  (* Put the result in a given lval,
+  | ASet of lval * typ                  (* Put the result in a given lval, 
                                          * provided it matches the type  *)
-  | AExp of typ option                  (* Return the exp as usual.
-                                         * Optionally we can specify an
-                                         * expected type. This is useful for
+  | AExp of typ option                  (* Return the exp as usual. 
+                                         * Optionally we can specify an 
+                                         * expected type. This is useful for 
                                          * constants *)
 
 
@@ -692,12 +668,12 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   | TBitfield((IShort|IChar|ISChar), _, a) -> TInt(IInt, a)
   | TBitfield((IUShort|IUChar), _, a) -> TInt(IUInt, a)
   | TBitfield(i, _, a) -> TInt(ILong, a)
-  | _ -> (sourceUnimp "integralPromotion")
-
+  | _ -> E.s (E.unimp "integralPromotion")
+  
 
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
-    (t2: typ) : typ =
+    (t2: typ) : typ = 
   let checkToInt _ = () in  (* dummies for now *)
   let checkToFloat _ = () in
   match unrollType t1, unrollType t2 with
@@ -713,63 +689,62 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
       match unrollType t1', unrollType t2' with
         TInt(IULongLong, _), _ -> checkToInt t2'; t1'
       | _, TInt(IULongLong, _) -> checkToInt t1'; t2'
-
+            
       (* We assume a long long is always larger than a long  *)
-      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'
+      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'  
       | _, TInt(ILongLong, _) -> checkToInt t1'; t2'
-
+            
       | TInt(IULong, _), _ -> checkToInt t2'; t1'
       | _, TInt(IULong, _) -> checkToInt t1'; t2'
 
-
+                    
       | TInt(ILong,_), TInt(IUInt,_) when not !ilongFitsUInt -> TInt(IULong,[])
       | TInt(IUInt,_), TInt(ILong,_) when not !ilongFitsUInt -> TInt(IULong,[])
-
+            
       | TInt(ILong, _), _ -> checkToInt t2'; t1'
       | _, TInt(ILong, _) -> checkToInt t1'; t2'
 
       | TInt(IUInt, _), _ -> checkToInt t2'; t1'
       | _, TInt(IUInt, _) -> checkToInt t1'; t2'
-
+            
       | TInt(IInt, _), TInt (IInt, _) -> t1'
 
-      | _, _ -> (sourceError "arithmeticConversion")
+      | _, _ -> E.s (E.bug "arithmeticConversion")
   end
 
 let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
   let tresult =  (* ISO 6.5.15 *)
     match unrollType t2, unrollType t3 with
-      (TInt _ | TEnum _ | TBitfield _ | TFloat _),
-      (TInt _ | TEnum _ | TBitfield _ | TFloat _) ->
-        arithmeticConversion t2 t3
-    | TComp comp2, TComp comp3 when comp2.ckey = comp3.ckey -> t2
+      (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
+      (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
+        arithmeticConversion t2 t3 
+    | TComp (_, comp2,_), TComp (_, comp3,_) 
+          when comp2.ckey = comp3.ckey -> t2 
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr(t2'', _), TPtr(t3'', _)
+    | TPtr(t2'', _), TPtr(t3'', _) 
           when typeSig t2'' = typeSig t3'' -> t2
-    | TPtr(_, _), TInt _ when
+    | TPtr(_, _), TInt _ when 
             (match e3 with Const(CInt(0,_,_)) -> true | _ -> false) -> t2
-    | TInt _, TPtr _ when
+    | TInt _, TPtr _ when 
               (match e2 with Const(CInt(0,_,_)) -> true | _ -> false) -> t3
-    | _, _ -> (sourceUnimp "A.QUESTION")
+    | _, _ -> E.s (E.unimp "A.QUESTION for non-scalar type")
   in
   tresult
 
-
-let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
+  
+let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
   if typeSig ot = typeSig nt then (ot, e) else
   match ot, nt with
     TNamed(_,r, _), _ -> castTo r nt e
   | _, TNamed(_,r, _) -> castTo ot r e
-  | TForward(comp, _), _ -> castTo (TComp comp) nt e
-  | _, TForward(comp, _) -> castTo ot (TComp comp) e
-  | TInt(ikindo,_), TInt(ikindn,_) ->
+  | TInt(ikindo,_), TInt(ikindn,_) -> 
       (nt, if ikindo == ikindn then e else doCastT e ot nt)
 
   | TPtr (told, _), TPtr(tnew, _) -> (nt, doCastT e ot nt)
 
   | TInt _, TPtr _ when
-      (match e with Const(CInt(0,_,_)) -> true | _ -> false) ->
+      (match e with Const(CInt(0,_,_)) -> true | _ -> false) -> 
         (nt, doCastT e ot nt)
 
   | TInt _, TPtr _ -> (nt, doCastT e ot nt)
@@ -796,7 +771,7 @@ let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) =
     (* The expression is evaluated for its side-effects *)
   | (TInt _ | TEnum _ | TBitfield _ | TPtr _ ), TVoid _ -> (ot, e)
 
-  | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)))
+  | _ -> E.s (E.unimp "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
 
 (* A cast that is used for conditional expressions. Pointers are Ok *)
 let checkBool (ot : typ) (e : exp) : bool =
@@ -806,61 +781,60 @@ let checkBool (ot : typ) (e : exp) : bool =
   | TEnum _ -> true
   | TBitfield _ -> true
   | TFloat _ -> true
-  |  _ -> (sourceError (Pretty.sprint 80 (Pretty.dprintf "castToBool %a" d_type ot)))
-          (*E.s (E.unimp  (Pretty.sprint 80 (Pretty.dprintf "castToBool %a" d_type ot)))*)
+  |  _ -> E.s (E.unimp "castToBool %a" d_type ot)
 
 
 (* Do types *)
-(* Process a name group *)
-let doNameGroup (sng: A.single_name -> 'a)
-                ((bt,s,nl) : A.name_group) : 'a list =
-  List.map (fun n -> sng (bt,s,n)) nl
+(* Process a name group. Since this should work for both A.name and 
+ * A.init_name we make it polymorphic *)
+let doNameGroup (doone: A.spec_elem list -> 'n -> 'a) 
+                ((s:A.spec_elem list), (nl:'n list)) : 'a list =
+  List.map (fun n -> doone s n) nl
 
 
 
-(* Create and cache varinfo's for globals. Returns the varinfo and whether
+(* Create and cache varinfo's for globals. Returns the varinfo and whether 
  * there exists already a definition *)
 let makeGlobalVarinfo (vi: varinfo) =
   try (* See if already defined *)
     let oldvi = lookupVar vi.vname in
-    (* It was already defined. We must reuse the varinfo. But clean up the
+    (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
-    let _ =
+    let _ = 
       if vi.vstorage = oldvi.vstorage then ()
       else if vi.vstorage = Extern then ()
-      else if oldvi.vstorage = Extern then
-        oldvi.vstorage <- vi.vstorage
-      else (sourceUnimp "Unexpected redefinition")
+      else if oldvi.vstorage = Extern then 
+        oldvi.vstorage <- vi.vstorage 
+      else E.s (E.unimp "Unexpected redefinition")
     in
     (* Union the attributes *)
     oldvi.vattr <- addAttributes oldvi.vattr vi.vattr;
     (* Maybe we had an incomplete type before and it is complete now  *)
-    let _ =
+    let _ = 
       let oldts = typeSig oldvi.vtype in
       let newts = typeSig vi.vtype in
       if oldts = newts then ()
-      else
+      else 
         match oldts, newts with
-                                        (* If the new type is complete, I'll
+                                        (* If the new type is complete, I'll 
                                          * trust it  *)
         | TSArray(_, Some _, _), TSArray(_, None, _) -> ()
-        | TSArray(_, _, _), TSArray(_, Some _, _)
+        | TSArray(_, _, _), TSArray(_, Some _, _) 
           -> oldvi.vtype <- vi.vtype
-         (* If one is a function with no arguments and the other has some
+         (* If one is a function with no arguments and the other has some 
           * arguments, believe the one with the arguments *)
         | TSFun(_, [], va1, _), TSFun(r2, _ :: _, va2, a2)
                when va1 = va2 -> oldvi.vtype <- vi.vtype
-        | TSFun(r1, _ , va1, _),
+        | TSFun(r1, _ , va1, _), 
           TSFun(_, [], va2, a2)
                when va1 = va2 -> ()
-        | _, _ ->  (sourceError (Pretty.sprint 80 (Pretty.dprintf 
-			 "Redefinition of %s with different types.@!Before=%a@!After= %a@!"
-                         vi.vname d_plaintype oldvi.vtype d_plaintype vi.vtype)))
+        | _, _ -> E.s (E.unimp "Redefinition of %s with different types.@!Before=%a@!After= %a@!" 
+                         vi.vname d_plaintype oldvi.vtype d_plaintype vi.vtype)
     in
     let rec alreadyDef = ref false in
     let rec loop = function
         [] -> []
-      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid ->
+      | (GVar (vi', i', l) as g) :: rest when vi'.vid = vi.vid -> 
           if i' = None then
             GDecl (vi', l) :: loop rest
           else begin
@@ -871,26 +845,24 @@ let makeGlobalVarinfo (vi: varinfo) =
     in
     theFile := loop !theFile;
     oldvi, !alreadyDef
-
-  with Not_found -> begin (* A new one. It is a definition unless it is
+      
+  with Not_found -> begin (* A new one. It is a definition unless it is 
                            * Extern  *)
 
     alphaConvertVarAndAddToEnv true vi, false
   end
 
-
-
 (**** PEEP-HOLE optimizations ***)
-let afterConversion (c: chunk) : chunk =
+let afterConversion (c: chunk) : chunk = 
   (* Now scan the statements and find Instr blocks *)
   let collapseCallCast = function
       Call(Some(vi, false), f, args, l),
-      Set((Var destv, NoOffset),
-                CastE (newt, Lval(Var vi', NoOffset)), _)
-      when (not vi.vglob &&
+      Set((Var destv, NoOffset), 
+                CastE (newt, Lval(Var vi', NoOffset)), _) 
+      when (not vi.vglob && 
             String.length vi.vname >= 3 &&
             String.sub vi.vname 0 3 = "tmp" &&
-            vi' == vi)
+            vi' == vi) 
       -> Some [Call(Some(destv, true), f, args, l)]
     | _ -> None
   in
@@ -899,249 +871,429 @@ let afterConversion (c: chunk) : chunk =
   peepHole2 collapseCallCast sl;
   { c with stmts = sl; postins = [] }
 
-let rec makeVarInfo (isglob: bool)
+
+(****** TYPE SPECIFIERS *******)
+let rec doSpecList (specs: A.spec_elem list) 
+       (* Returns the base type, the storage, whether it is inline and the 
+        * (unprocessed) attributes *)
+    : typ * storage * bool * A.attribute list =
+  (* Do one element and collect the type specifiers *)
+  let isinline = ref false in (* If inline appears *)
+  (* The storage is placed here *)
+  let storage : storage ref = ref NoStorage in
+  (* Collect the attributes *)
+  let attrs : A.attribute list ref = ref [] in
+
+  let doSpecElem (acc: A.typeSpecifier list) 
+                 (se: A.spec_elem) : A.typeSpecifier list = 
+    match se with 
+      A.SpecTypedef -> acc
+    | A.SpecInline -> isinline := true; acc
+    | A.SpecStorage st ->
+        if !storage <> NoStorage then 
+          E.s (E.unimp "Multiple storage specifiers");
+        let sto' = 
+          match st with
+            A.NO_STORAGE -> NoStorage
+          | A.AUTO -> NoStorage
+          | A.REGISTER -> Register
+          | A.STATIC -> Static
+          | A.EXTERN -> Extern
+        in
+        storage := sto';
+        acc
+
+    | A.SpecAttr a -> attrs := a :: !attrs; acc
+    | A.SpecType ts -> ts :: acc
+  in
+  (* Now scan the list and collect the type specifiers *)
+  let tspecs = List.fold_left doSpecElem [] specs in
+  (* Sort the type specifiers *)
+  let sortedspecs = 
+    let order = function (* Don't change this *)
+      | A.Tvoid -> 0
+      | A.Tsigned -> 1
+      | A.Tunsigned -> 2
+      | A.Tchar -> 3
+      | A.Tshort -> 4
+      | A.Tlong -> 5
+      | A.Tint -> 6
+      | A.Tint64 -> 7
+      | A.Tfloat -> 8
+      | A.Tdouble -> 9
+      | _ -> 10 (* There should be at most one of the others *)
+    in
+    List.sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs 
+  in
+  (* And now try to make sense of it. See ISO 6.5.2 *)
+  let bt = 
+    match sortedspecs with
+      [A.Tvoid] -> TVoid []
+    | [A.Tchar] -> TInt(IChar, [])
+    | [A.Tsigned; A.Tchar] -> TInt(ISChar, [])
+    | [A.Tunsigned; A.Tchar] -> TInt(IUChar, [])
+
+    | [A.Tshort] -> TInt(IShort, [])
+    | [A.Tsigned; A.Tshort] -> TInt(IShort, [])
+    | [A.Tshort; A.Tint] -> TInt(IShort, [])
+    | [A.Tsigned; A.Tshort; A.Tint] -> TInt(IShort, [])
+
+    | [A.Tunsigned; A.Tshort] -> TInt(IUShort, [])
+    | [A.Tunsigned; A.Tshort; A.Tint] -> TInt(IUShort, [])
+
+    | [] -> TInt(IInt, [])
+    | [A.Tsigned] -> TInt(IInt, [])
+    | [A.Tint] -> TInt(IInt, [])
+    | [A.Tsigned; A.Tint] -> TInt(IInt, [])
+
+    | [A.Tunsigned] -> TInt(IUInt, [])
+    | [A.Tunsigned; A.Tint] -> TInt(IUInt, [])
+
+    | [A.Tlong] -> TInt(ILong, [])
+    | [A.Tsigned; A.Tlong] -> TInt(ILong, [])
+    | [A.Tlong; A.Tint] -> TInt(ILong, [])
+    | [A.Tsigned; A.Tlong; A.Tint] -> TInt(ILong, [])
+
+    | [A.Tunsigned; A.Tlong] -> TInt(IULong, [])
+    | [A.Tunsigned; A.Tlong; A.Tint] -> TInt(IULong, [])
+
+    (* long long seems to have disappeared from the ISO standard *)
+    | [A.Tlong; A.Tlong] -> TInt(ILongLong, [])
+    | [A.Tlong; A.Tlong; A.Tint] -> TInt(ILongLong, [])
+    | [A.Tsigned; A.Tlong; A.Tlong] -> TInt(ILongLong, [])
+    | [A.Tsigned; A.Tlong; A.Tlong; A.Tint] -> TInt(ILongLong, [])
+
+    | [A.Tunsigned; A.Tlong; A.Tlong] -> TInt(IULongLong, [])
+    | [A.Tunsigned; A.Tlong; A.Tlong; A.Tint] -> TInt(IULongLong, [])
+
+    (* int64 is to support MSVC *)
+    | [A.Tint64] -> TInt(ILongLong, [])
+    | [A.Tsigned; A.Tint64] -> TInt(ILongLong, [])
+
+    | [A.Tunsigned; A.Tint64] -> TInt(IULongLong, [])
+
+    | [A.Tfloat] -> TFloat(FFloat, [])
+    | [A.Tdouble] -> TFloat(FDouble, [])
+
+    | [A.Tlong; A.Tdouble] -> TFloat(FLongDouble, [])
+
+     (* Now the other type specifiers *)
+    | [A.Tnamed n] -> begin
+        match lookupType "type" n with 
+          (TNamed _) as x -> x
+        | typ -> E.s (E.bug "Named type %s is not mapped correctly\n" n)
+    end
+
+    | [A.Tstruct (n, None)] -> (* A reference to a struct *)
+        if n = "" then E.s (E.bug "Missing struct tag on incomplete struct");
+        findCompType "struct" n []
+    | [A.Tstruct (n, Some nglist)] -> (* A definition of a struct *)
+      let n' = if n <> "" then n else anonStructName "struct" in
+      makeCompType true n' nglist []
+        
+    | [A.Tunion (n, None)] -> (* A reference to a union *)
+        if n = "" then E.s (E.bug "Missing union tag on incomplete union");
+        findCompType "union" n []
+    | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
+      let n' = if n <> "" then n else anonStructName "union" in
+      makeCompType false n' nglist []
+        
+    | [A.Tenum (n, None)] -> (* Just a reference to an enum *)
+        if n = "" then E.s (E.bug "Missing enum tag on incomplete enum");
+        findCompType "enum" n []
+
+    | [A.Tenum (n, Some eil)] -> (* A definition of an enum *)
+        let n' = if n <> "" then n else anonStructName "enum" in
+        (* make a new name for this enumeration *)
+        let n'' = newAlphaName "enum" n' in
+        
+        (* sm: start a scope for the enum tag values, since they *
+        * can refer to earlier tags *)
+        (startScope ());
+        
+        (* as each name,value pair is determined, this is called *)
+        let rec processName kname i rest = begin
+          (* add the name to the environment, but with a faked 'typ' field; we 
+          * don't know the full type yet (since that includes all of the tag 
+          * values), but we won't need them in here  *)
+          (addLocalToEnv kname (EnvEnum (i, TEnum (n'', [], []))));
+          
+          (* add this tag to the list so that it ends up in the real 
+          * environment when we're finished  *)
+          let newname = newAlphaName "" kname in
+          (kname, (newname, i)) :: loop (increm i 1) rest
+        end
+            
+        and loop i = function
+            [] -> []
+          | (kname, A.NOTHING) :: rest ->
+              (* use the passed-in 'i' as the value, since none specified *)
+              (processName kname i rest)
+                
+          | (kname, e) :: rest ->
+              (* constant-eval 'e' to determine tag value *)
+              let i =
+                match doExp true e (AExp None) with
+                  c, e', _ when isEmpty c -> e'
+                | _ -> E.s (E.unimp "enum with non-const initializer")
+              in
+              (processName kname i rest)
+        in
+        
+        (* sm: now throw away the environment we built for eval'ing the enum 
+        * tags, so we can add to the new one properly  *)
+        (exitScope ());
+        
+        let fields = loop zero eil in
+        let res = TEnum (n'', List.map (fun (_, x) -> x) fields, []) in
+        (* Now we have the real host type. Set the environment properly *)
+        List.iter
+          (fun (n, (newname, fieldidx)) -> 
+            addLocalToEnv n (EnvEnum (fieldidx, res)))
+          fields;
+        (* Record the enum name in the environment *)
+        addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
+        res
+          
+    | [A.Ttypeof e] -> 
+        let (c, _, t) = doExp false e (AExp None) in
+        if not (isEmpty c) then
+          E.s (E.unimp "typeof for a non-pure expression\n");
+        t
+    | _ -> 
+        E.s (E.unimp "Bad combination of type specifiers")
+  in
+  bt,!storage,!isinline,List.rev !attrs
+
+and makeVarInfo 
+                (isglob: bool) 
                 (ldecl: location)
-                ((bt,st,(n,nbt,a,e)) : A.single_name) : varinfo =
+                ((s,(n,ndt,a)) : A.single_name) : varinfo = 
+  let bt, sto, inline, attrs = doSpecList s in
+  let vtype, nattr = 
+    doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
+(*  ignore (E.log "makevar:%s@! type=%a@! vattr=%a@!"
+            n d_plaintype vtype (d_attrlist true) nattr); *)
   { vname    = n;
     vid      = newVarId n isglob;
     vglob    = isglob;
-    vstorage = doStorage st;
-    vattr    = doAttrList a;
+    vstorage = sto;
+    vattr    = nattr;
     vdecl    = ldecl;
-    vtype    = doType [] nbt;
+    vtype    = vtype;
     vaddrof  = false;
     vreferenced = false;   (* sm *)
   }
 
 
-and doAttr : A.attribute -> attribute = function
-    (s, []) -> AId s
-  | (s, el) ->
-      let attrOfVar n =
-        try
-          let vi = lookupVar n in
-          AVar vi
-        with Not_found ->
-          AId n
-      in
-      let rec attrOfExp = function
-          A.VARIABLE n -> attrOfVar n
+and doAttr (a: A.attribute) : attribute list = 
+  (* Strip the leading and trailing underscore *)
+  let stripUnderscore (n: string) : string = 
+    let l = String.length n in
+    let rec start i = 
+      if i >= l then 
+        E.s (E.unimp "Invalid attribute name %s" n);
+      if String.get n i = '_' then start (i + 1) else i
+    in
+    let st = start 0 in
+    let rec finish i = 
+      (* We know that we will stop at >= st >= 0 *)
+      if String.get n i = '_' then finish (i - 1) else i
+    in
+    let fin = finish (l - 1) in
+    String.sub n st (fin - st + 1)
+  in
+  match a with
+    (s, []) -> [Attr (stripUnderscore s, [])]
+  | (s, el) -> 
+      let rec attrOfExp (strip: bool) (a: A.expression) : attrarg =
+        match a with
+          A.VARIABLE n -> begin
+            try 
+              let vi = lookupVar n in
+              AVar vi
+            with Not_found -> 
+              AId (if strip then stripUnderscore n else n)
+          end
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
-        | A.CALL(A.VARIABLE n, args) -> ACons (n, List.map attrOfExp args)
-        | _ -> (sourceUnimp "attrOfExp")
+        | A.CALL(A.VARIABLE n, args) -> 
+            ACons ((if strip then stripUnderscore n else n), 
+                   List.map (attrOfExp false) args)
+        | _ -> E.s (E.unimp "Invalid expression in attribute")
       in
-      ACons (s, List.map attrOfExp el)
-
-and doAttrList (al: A.attribute list) : attribute list =
-  dropAttribute (dropAttribute
-  (List.fold_left (fun acc a -> addAttribute (doAttr a) acc) [] al)
-	(* weimer: I need to drop this attribute before it gets anywhere *)
-	(ACons("__mode__",[]))) (AId("__transparent_union__"))
-
-
-and doStorage = function
-    A.NO_STORAGE -> NoStorage
-  | A.AUTO -> NoStorage
-  | A.REGISTER -> Register
-  | A.STATIC -> Static
-  | A.EXTERN -> Extern
-
-and doType (a : attribute list) = function
-    A.NO_TYPE -> intType
-  | A.VOID -> TVoid a
-  | A.INT (sz, sgn) ->
-      let ikind =
-        match sz, sgn with
-          A.CHAR, A.NO_SIGN -> IChar
-        | A.CHAR, A.SIGNED -> ISChar
-        | A.CHAR, A.UNSIGNED -> IUChar
-        | A.NO_SIZE, (A.NO_SIGN|A.SIGNED) -> IInt
-        | A.NO_SIZE, A.UNSIGNED -> IUInt
-        | A.SHORT, (A.NO_SIGN|A.SIGNED) -> IShort
-        | A.SHORT, A.UNSIGNED -> IUShort
-        | A.LONG, (A.NO_SIGN|A.SIGNED) -> ILong
-        | A.LONG, A.UNSIGNED -> IULong
-        | A.LONG_LONG, (A.NO_SIGN|A.SIGNED) -> ILongLong
-        | A.LONG_LONG, A.UNSIGNED -> IULongLong
+      (* Sometimes we need to convert attrarg into attr *)
+      let arg2attr = function
+          AId s -> Attr (s, [])
+        | ACons (s, args) -> Attr (s, args)
+        | _ -> E.s (E.unimp "Invalid form of attribute")
       in
-      TInt (ikind, a)
-  | A.BITFIELD (bt, e) ->
-      let bt' = doType [] bt in
-      let ikind =
-        match unrollType bt' with
-          TInt (ikind, _) -> ikind
-        | _ -> (sourceUnimp "Base type for bitfield is not an integer type")
-      in
-      let width = match doExp true e (AExp None) with
-        (c, Const(CInt(i,_,_)),_) when isEmpty c -> i
-      | _ -> (sourceUnimp "bitfield width is not an integer")
-      in
-      TBitfield (ikind, width, a)
-  | A.FLOAT lng -> TFloat ((if lng then FDouble else FFloat), a)
-  | A.DOUBLE lng -> TFloat ((if lng then FLongDouble else FDouble), a)
-  | A.PTR bt -> TPtr (doType [] bt, a)
-  | A.ARRAY (bt, len) ->
-      let lo = 
-        match len with 
-          A.NOTHING -> None 
-        | _ -> 
-            let len' = doPureExp len in
-            let _, len'' = castTo (typeOf len') intType len' in
-            Some len''
-      in
-      TArray (doType [] bt, lo, a)
+      if s = "__attribute__" then (* Just a wrapper for many attributes*)
+        List.map (fun e -> arg2attr (attrOfExp true e)) el
+      else if s = "__declspec" then
+        List.map (fun e -> arg2attr (attrOfExp false e)) el
+      else
+        [Attr(stripUnderscore s, List.map (attrOfExp false) el)]
 
-  | A.STRUCT n -> 
-      if n = "" then (sourceError "Missing struct tag");
-      findCompType "struct" n a
+and doAttributes (al: A.attribute list) : attribute list =
+  List.fold_left (fun acc a -> addAttributes (doAttr a) acc) [] al
 
-  | A.STRUCTDEF (n, nglist) -> (* This introduces a new type always *)
-      makeCompType true n nglist a
 
-  | A.UNION n -> 
-      if n = "" then (sourceError "Missing union tag");
-      findCompType "union" n a
 
-  | A.UNIONDEF (n, nglist) -> (* This introduces a new type always *)
-      makeCompType false n nglist a
+and doType (nameortype: attributeClass) (* This is AttrName if we are doing 
+                                         * the type for a name, or AttrType 
+                                         * if we are doing this type in a 
+                                         * typedef *)
+           (bt: typ)                    (* The base type *)
+           (dt: A.decl_type) 
+  (* Returns the new type and the accumulated name (or type if nameoftype = 
+   * AttrType) attributes *)
+  : typ * attribute list = 
+  (* Now do the declarator type. But remember that the structure of the 
+   * declarator type is as printed, meaning that it is the reverse of the 
+   * right one *)
+  let rec doDecl (bt: typ) (acc: attribute list) = function
+      A.JUSTBASE -> bt, acc
+    | A.PARENTYPE (a1, d, a2) -> 
+        let a1' = doAttributes a1 in
+        let a1n, a1f, a1t = partitionAttributes AttrType a1' in
+        let a2' = doAttributes a2 in
+        let a2n, a2f, a2t = partitionAttributes nameortype a2' in
+        if a2t <> [] then 
+          E.s (E.unimp "Type attributes in post position: %a"
+                 (d_attrlist true) a2t);
+        let bt' = typeAddAttributes a1t bt in
+        let bt'', a1fadded = 
+          match unrollType bt with 
+            TFun _ -> typeAddAttributes a1f bt', true
+          | _ -> bt', false
+        in
+        (* Now recurse *)
+        let restyp, nattr = doDecl bt'' acc d in
+        (* See if we can add some more type attributes *)
+        let restyp' = 
+          match unrollType restyp with 
+            TFun _ -> 
+              if a1fadded then
+                typeAddAttributes a2f restyp
+              else
+                typeAddAttributes a2f
+                  (typeAddAttributes a1f restyp)
+          | TPtr ((TFun _ as tf), ap) when not !msvcMode ->
+              if a1fadded then
+                TPtr(typeAddAttributes a2f tf, ap)
+              else
+                TPtr(typeAddAttributes a2f
+                       (typeAddAttributes a1f tf), ap)
+          | _ -> 
+              if a1f <> [] && not a1fadded then
+                E.s (E.unimp "Invalid position for (prefix) function type attributes:%a" 
+                       (d_attrlist true) a1f);
+              if a2f <> [] then
+                E.s (E.unimp "Invalid position for (post) function type attributes:%a"
+                       (d_attrlist true) a2f);
+              restyp
+        in
+        (* Now add the name attributes and return *)
+        restyp', addAttributes a1n (addAttributes a2n nattr)
 
-  | A.PROTO (bt, snlist, isvararg, _) ->
-      (* Turn [] types into pointers in the arguments and the result type. 
-       * This simplifies our life a lot  *)
-      let arrayToPtr t = 
-        match unrollType t with
-          TArray(t,_,attr) -> TPtr(t, attr)
-        | _ -> t
-      in
-      let targs = 
-        match List.map (makeVarInfo false locUnknown) snlist  with
-          [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
-        | l -> l
-      in
-      List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
-      (* See if the bt has some attributes that actually belong to the 
-         function *)
-      let bt', a' = 
-        match bt with
-          A.ATTRTYPE (bt', ["stdcall", []]) -> 
-            bt', (* addAttribute (AId("stdcall")) *) a
-        | A.ATTRTYPE (bt', ["cdecl", []]) -> 
-            bt', a (* addAttribute (AId("cdecl")) *)
-        | A.ATTRTYPE (bt', ["__cdecl__", []]) -> 
-            bt', a (* addAttribute (AId("cdecl")) *)
-        | _ -> bt, a
-      in
-      let tres = arrayToPtr (doType [] bt') in
-      TFun (tres, targs, isvararg, a')
+    | A.BITFIELD e -> 
+        let ikind, a = 
+          match unrollType bt with 
+            TInt (ikind, a) -> ikind, a
+          | _ -> E.s (E.unimp "Base type for bitfield is not an integer type")
+        in
+        let width = match doExp true e (AExp None) with
+          (c, Const(CInt(i,_,_)),_) when isEmpty c -> i
+        | _ -> E.s (E.unimp "bitfield width is not an integer constant")
+        in
+        TBitfield (ikind, width, a), acc
 
-  | A.ENUM n ->
-      if n = "" then (sourceError "Missing enum tag");
-      findCompType "enum" n a
+    | A.PTR (al, d) -> 
+        let al' = doAttributes al in
+        let an, af, at = partitionAttributes AttrType al' in
+        (* Now recurse *)
+        let restyp, nattr = doDecl (TPtr(bt, at)) acc d in
+        (* See if we can do anything with function type attributes *)
+        let restyp' = 
+          match unrollType restyp with
+            TFun _ -> typeAddAttributes af restyp
+          | TPtr((TFun _ as tf), ap) ->
+              TPtr(typeAddAttributes af tf, ap)
+          | _ -> 
+              if af <> [] then
+                E.s (E.unimp "Invalid position for function type attributes:%a"
+                       (d_attrlist true) af);
+              restyp
+        in
+        (* Now add the name attributes and return *)
+        restyp', addAttributes an nattr
+              
 
-  | A.ENUMDEF (n, eil) -> 
-      if n = "" then (sourceError "Missing enum tag");
-      
-      (* make a new name for this enumeration *)
-      let n' = newAlphaName "enum" n in
+    | A.ARRAY (d, len) -> 
+        let lo = 
+          match len with 
+            A.NOTHING -> None 
+          | _ -> 
+              let len' = doPureExp len in
+              let _, len'' = castTo (typeOf len') intType len' in
+              Some len''
+        in
+        doDecl (TArray(bt, lo, [])) acc d
 
-      (* sm: start a scope for the enum tag values, since they *)
-      (* can refer to earlier tags *)
-      (startScope ());
+    | A.PROTO (d, args, isva) -> 
+        (* Turn [] types into pointers in the arguments and the result type. 
+         * This simplifies our life a lot  *)
+        let arrayToPtr t = 
+          match unrollType t with
+            TArray(t,_,attr) -> TPtr(t, attr)
+          | _ -> t
+        in
+        let targs = 
+          match List.map (makeVarInfo false locUnknown) args  with
+            [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
+          | l -> l
+        in
+        List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
+        let tres = arrayToPtr bt in
+        doDecl (TFun (tres, targs, isva, [])) acc d
 
-      (* as each name,value pair is determined, this is called *)
-      let rec processName kname i rest = begin
-        (* add the name to the environment, but with a faked 'typ' field; *)
-        (* we don't know the full type yet (since that includes all of the 
-         * tag values), but we won't need them in here  *)
-        (addLocalToEnv kname (EnvEnum (i, TEnum (n', [], a))));
+  in
+  doDecl bt [] dt
 
-        (* add this tag to the list so that it ends up in the real *)
-        (* environment when we're finished *)
-        let newname = newAlphaName "" kname in
-        (kname, (newname, i)) :: loop (increm i 1) rest
-      end
+and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ = 
+  let bt',sto,inl,attrs = doSpecList specs in
+  if sto <> NoStorage || inl then
+    E.s (E.bug "Storage or inline specifier in type only");
+  let tres, nattr = doType AttrType bt' (A.PARENTYPE(attrs, dt, [])) in
+  if nattr <> [] then
+    E.s (E.unimp "Name attributes in only_type: %a"
+           (d_attrlist false) nattr);
+  tres
 
-      and loop i = function
-          [] -> []
-        | (kname, A.NOTHING) :: rest ->
-            (* use the passed-in 'i' as the value, since none specified *)
-            (processName kname i rest)
-
-        | (kname, e) :: rest ->
-            (* constant-eval 'e' to determine tag value *)
-            let i =
-              match doExp true e (AExp None) with
-                c, e', _ when isEmpty c -> e'
-              | _ -> (sourceUnimp "enum with non-const initializer")
-            in
-            (processName kname i rest)
-      in
-
-      (* sm: now throw away the environment we built for eval'ing *)
-      (* the enum tags, so we can add to the new one properly *)
-      (exitScope ());
-
-      let fields = loop zero eil in
-      let res = TEnum (n', List.map (fun (_, x) -> x) fields, a) in
-      (* Now we have the real host type. Set the environment properly *)
-      List.iter
-        (fun (n, (newname, fieldidx)) -> 
-          addLocalToEnv n (EnvEnum (fieldidx, res)))
-        fields;
-      (* Record the enum name in the environment *)
-      addLocalToEnv (kindPlusName "enum" n) (EnvTyp res);
-      res
-
-  | A.ATTRTYPE (bt, a') -> 
-      let rec doAttribute = function
-          (s, []) -> AId s
-        | (s, args) -> 
-            let rec doArg = function
-                A.CONSTANT (A.CONST_INT str) ->
-                  AInt (try int_of_string str with _ -> 
-                    (sourceUnimp "integer attribute"))
-              | A.CONSTANT (A.CONST_STRING str) -> AStr str
-              | A.VARIABLE n -> begin
-                  try 
-                    AVar (lookupVar n)
-                  with Not_found -> 
-                    AId n
-                end
-              | _ -> (sourceUnimp "constructed attribute")
-            in
-            ACons (s, List.map doArg args)
-      in
-      doType ((List.map doAttribute a') @ a) bt
-
-  | A.NAMED_TYPE n -> begin
-      match lookupType "type" n with 
-        (TNamed _) as x -> x
-      | typ -> (sourceError (Pretty.sprint 80 (Pretty.dprintf "Named type %s is not mapped correctly\n" n)))
-          (* TNamed(n, typ, a) *)
-  end
-  | A.TYPEOF e -> 
-      let (c, _, t) = doExp false e (AExp None) in
-      if not (isEmpty c) then
-        (sourceUnimp "typeof for a non-pure expression\n");
-      t
 
 and makeCompType (iss: bool)
                  (n: string)
                  (nglist: A.name_group list) 
                  (a: attribute list) = 
-      (* Create the self cell for use in fields and forward references. Or 
-       * maybe one exists already from a forward reference *)
   (* Make a new name for the structure *)
   let kind = if iss then "struct" else "union" in
   let n' = newAlphaName kind n in
+  (* Create the self cell for use in fields and forward references. Or maybe 
+   * one exists already from a forward reference  *)
   let comp = createCompInfo iss n' in
-      (* Do the fields *)
-  let makeFieldInfo ((bt,st,(n,nbt,a,e)) : A.single_name) : fieldinfo = 
+  (* Do the fields *)
+  let makeFieldInfo (s: A.spec_elem list) 
+                    ((n,ndt,a) : A.name) : fieldinfo = 
+    let bt, sto, inl, attrs = doSpecList s in
+    if sto <> NoStorage || inl then 
+      E.s (E.bug "Storage or inline not allowed for fields");
+    let ftype, nattr = doType (AttrName false) 
+                              bt (A.PARENTYPE(attrs, ndt, a)) in 
     { fcomp    =  comp;
       fname    =  n;
-      ftype    =  doType [] nbt;
-      fattr    =  doAttrList a;
+      ftype    =  ftype;
+      fattr    =  nattr;
     } 
   in
   let flds = List.concat (List.map (doNameGroup makeFieldInfo) nglist) in
@@ -1154,20 +1306,19 @@ and makeCompType (iss: bool)
      * for A *)
     let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
     if fieldsSig comp.cfields <> fieldsSig flds then
-      (giveWarn (Pretty.sprint 80 (Pretty.dprintf "%s seems to be multiply defined" (compFullName comp))))
+      ignore (E.warn "%s seems to be multiply defined" (compFullName comp))
   end else 
     comp.cfields <- flds;
 
-      (* Drop volatile from struct *)
+      (* Drop volatile from struct
   let a = dropAttribute a (AId("volatile")) in
   let a = dropAttribute a (AId("const")) in
-  let a = dropAttribute a (AId("restrict")) in
+  let a = dropAttribute a (AId("restrict")) in  *)
   comp.cattr <- a;
-  let res = TComp comp in
-      (* There must be a self cell create for this already *)
+  let res = TComp (false, comp, []) in
+      (* There must be a self cell created for this already *)
   addLocalToEnv (kindPlusName kind n) (EnvTyp res);
   res
-
   
      (* Process an expression and in the process do some type checking, 
       * extract the effects as separate statements  *)
@@ -1186,8 +1337,8 @@ and doExp (isconst: bool)    (* In a constant *)
     end
 (*    | Compound _, TArray(t', _, a) -> e, t *)
     | _, (TArray _ | TFun _) -> 
-        (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Array or function expression is not lval: %a@!"
-               d_plainexp e)))
+        E.s (E.unimp "Array or function expression is not lval: %a@!"
+               d_plainexp e)
     | _ -> e, t
   in
   (* Before we return we call finishExp *)
@@ -1205,19 +1356,19 @@ and doExp (isconst: bool)    (* In a constant *)
         | _ -> 
             let (e', t') = processStartOf e t in
             let (t'', e'') = castTo t' lvt e' in
-            (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
+            (se +++ (Set(lv, e'', lu)), e'', t'')
     end
   in
   let findField n fidlist = 
     try
       List.find (fun fid -> n = fid.fname) fidlist
-    with Not_found -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Cannot find field %s" n)))
+    with Not_found -> E.s (E.unimp "Cannot find field %s" n)
   in
   try
     match e with
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        (logWarning "doExp nothing\n");
+        ignore (E.log "doExp nothing\n");
         finishExp empty 
           (Const(CStr("exp_nothing"))) (TPtr(TInt(IChar,[]),[]))
 
@@ -1233,7 +1384,7 @@ and doExp (isconst: bool)    (* In a constant *)
             finishExp empty tag typ  
           | _ -> raise Not_found
         with Not_found -> 
-          (logWarning (Pretty.sprint 80 (Pretty.dprintf "Cannot resolve variable %s.\n" n)));
+          ignore (E.log "Cannot resolve variable %s.\n" n);
           raise Not_found
     end
     | A.INDEX (e1, e2) -> begin
@@ -1246,9 +1397,9 @@ and doExp (isconst: bool)    (* In a constant *)
             TPtr(t1e,_), (TInt _|TEnum _ |TBitfield _) -> e1', e2', t1e
           | (TInt _|TEnum _|TBitfield _), TPtr(t2e,_) -> e2', e1', t2e
           | _ -> 
-              (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf 
+              E.s (E.unimp 
                      "Expecting a pointer type in index:@! t1=%a@!t2=%a@!"
-                     d_plaintype t1 d_plaintype t2)))
+                     d_plaintype t1 d_plaintype t2)
         in
         (* Do some optimization of StartOf *)
         finishExp se (mkMem e1'' (Index(e2'', NoOffset))) tresult
@@ -1256,13 +1407,13 @@ and doExp (isconst: bool)    (* In a constant *)
     end      
     | A.UNARY (A.MEMOF, e) -> 
         if isconst then
-          (sourceUnimp "MEMOF in constant");
+          E.s (E.unimp "MEMOF in constant");
         let (se, e', t) = doExp false e (AExp None) in
         let tresult = 
           match unrollType t with
           | TPtr(te, _) -> te
-          | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Expecting a pointer type in *. Got %a@!"
-                        d_plaintype t)))
+          | _ -> E.s (E.unimp "Expecting a pointer type in *. Got %a@!"
+                        d_plaintype t)
         in
         finishExp se 
                   (mkMem e' NoOffset)
@@ -1273,16 +1424,16 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.MEMBEROF (e, str) -> 
         (* member of is actually allowed if we only take the address *)
         (* if isconst then
-          (sourceUnimp "MEMBEROF in constant");  *)
+          E.s (E.unimp "MEMBEROF in constant");  *)
         let (se, e', t') = doExp false e (AExp None) in
         let lv = 
           match e' with Lval x -> x 
-          | _ -> (sourceUnimp "Expected an lval in MEMDEROF")
+          | _ -> E.s (E.unimp "Expected an lval in MEMDEROF")
         in
         let fid = 
           match unrollType t' with
-            TComp comp -> findField str comp.cfields
-          | _ -> (sourceUnimp "expecting a struct with field %s" str)
+            TComp (_, comp, _) -> findField str comp.cfields
+          | _ -> E.s (E.unimp "expecting a struct with field %s" str)
         in
         let lv' = Lval(addOffsetLval (Field(fid, NoOffset)) lv) in
         finishExp se lv' fid.ftype
@@ -1290,21 +1441,21 @@ and doExp (isconst: bool)    (* In a constant *)
        (* e->str = * (e + off(str)) *)
     | A.MEMBEROFPTR (e, str) -> 
         if isconst then
-          (sourceUnimp "MEMBEROFPTR in constant");
+          E.s (E.unimp "MEMBEROFPTR in constant");
         let (se, e', t') = doExp false e (AExp None) in
         let pointedt = 
           match unrollType t' with
             TPtr(t1, _) -> t1
           | TArray(t1,_,_) -> t1
-          | _ -> (sourceUnimp "expecting a pointer to a struct")
+          | _ -> E.s (E.unimp "expecting a pointer to a struct")
         in
         let fid = 
           match unrollType pointedt with 
-            TComp comp -> findField str comp.cfields
+            TComp (_, comp, _) -> findField str comp.cfields
           | x -> 
-               (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf 
+              E.s (E.unimp 
                      "expecting a struct with field %s. Found %a. t1 is %a" 
-                     str d_type x d_type t')))
+                     str d_type x d_type t')
         in
         finishExp se (mkMem e' (Field(fid, NoOffset))) fid.ftype
           
@@ -1348,8 +1499,8 @@ and doExp (isconst: bool)    (* In a constant *)
               let res = integerKinds i kinds (Some str) in
               finishCt res (typeOf (Const(res)))
             with e -> begin
-              (logWarning (Pretty.sprint 80 (Pretty.dprintf "int_of_string %s (%s)\n" str 
-                        (Printexc.to_string e))));
+              ignore (E.log "int_of_string %s (%s)\n" str 
+                        (Printexc.to_string e));
               finishCt (CStr("booo CONS_INT")) (TPtr(TInt(IChar,[]),[]))
             end
           end
@@ -1396,7 +1547,7 @@ and doExp (isconst: bool)    (* In a constant *)
                   Char.chr ((Char.code c1 - Char.code '0') +
                             (Char.code c2 - Char.code '0') * 8 + 
                             (Char.code c3 - Char.code '0') * 64)  
-              | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Cannot transform \"%s\" into a char\n" s)))
+              | _ -> E.s (E.unimp "Cannot transform \"%s\" into a char\n" s)
             in
             finishCt (CChr(chr)) (TInt(IChar,[]))
               
@@ -1418,14 +1569,14 @@ and doExp (isconst: bool)    (* In a constant *)
               finishCt (CReal(float_of_string baseint, kind,
                               Some str)) (TFloat(kind,[]))
             with e -> begin
-              (logWarning (Pretty.sprint 80 (Pretty.dprintf "float_of_string %s (%s)\n" str 
-                        (Printexc.to_string e))));
+              ignore (E.log "float_of_string %s (%s)\n" str 
+                        (Printexc.to_string e));
               finishCt (CStr("booo CONS_FLOAT")) (TPtr(TInt(IChar,[]),[]))
             end
         end
     end          
-    | A.TYPE_SIZEOF bt -> 
-        let typ = doType [] bt in
+    | A.TYPE_SIZEOF (bt, dt) -> 
+        let typ = doOnlyType bt dt in
         finishExp empty (SizeOf(typ)) uintType
           
     | A.EXPR_SIZEOF e -> 
@@ -1433,7 +1584,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* !!!! The book says that the expression is not evaluated, so we 
            * drop the potential size-effects *)
         if isNotEmpty se then 
-          (logWarning "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+          ignore (E.log "Warning: Dropping side-effect in EXPR_SIZEOF\n");
         let e'' = 
           match e' with                 (* If we are taking the sizeof an 
                                          * array we must drop the StartOf  *)
@@ -1442,14 +1593,8 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         finishExp empty (SizeOfE(e'')) uintType
 
-    | A.CAST (bt, e) -> 
-        let se1, typ = 
-          match bt with
-            A.TYPEOF et ->              (* might have side-effects *)
-              let (se1, _, typ) = doExp isconst e (AExp None) in
-              se1, typ
-          | _ -> empty,  doType [] bt
-        in
+    | A.CAST ((specs, dt), e) -> 
+        let typ = doOnlyType specs dt in
         let what' = 
           match e with 
             (* We treat the case when e is COMPOUND differently
@@ -1467,7 +1612,7 @@ and doExp (isconst: bool)    (* In a constant *)
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
           |  _ -> castTo t typ e'
         in
-        finishExp (se1 @@ se) e'' t''
+        finishExp se e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
         let (se, e', t) = doExp isconst e (AExp None) in
@@ -1483,7 +1628,7 @@ and doExp (isconst: bool)    (* In a constant *)
           if isArithmeticType t then
             finishExp se (UnOp(Neg,e',t)) t
           else
-            (sourceUnimp "Unary - on a non-arithmetic type")
+            E.s (E.unimp "Unary - on a non-arithmetic type")
         
     | A.UNARY(A.BNOT, e) -> 
         let (se, e', t) = doExp isconst e (AExp None) in
@@ -1492,7 +1637,7 @@ and doExp (isconst: bool)    (* In a constant *)
           let e'' = UnOp(BNot, doCastT e' t tres, tres) in
           finishExp se e'' tres
         else
-          (sourceUnimp "Unary ~ on a non-integral type")
+          E.s (E.unimp "Unary ~ on a non-integral type")
           
     | A.UNARY(A.PLUS, e) -> doExp isconst e what 
           
@@ -1509,28 +1654,28 @@ and doExp (isconst: bool)    (* In a constant *)
             finishExp se (mkAddrOfAndMark lv) tres
 
             
-        | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Expected lval for ADDROF. Got %a@!"
-                      d_plainexp e')))
+        | _ -> E.s (E.unimp "Expected lval for ADDROF. Got %a@!"
+                      d_plainexp e')
     end
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> 
         let uop' = if uop = A.PREINCR then PlusA else MinusA in
         if isconst then
-          (sourceUnimp "PREINCR or PREDECR in constant");
+          E.s (E.unimp "PREINCR or PREDECR in constant");
         let (se, e', t) = doExp false e (AExp None) in
         let lv = 
           match e' with 
             Lval x -> x
           | CastE (_, Lval x) -> x
-          | _ -> (sourceUnimp "Expected lval for ++ or --")
+          | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, result = doBinOp uop' (Lval(lv)) t one intType in
-        finishExp (se +++ (Set(lv, doCastT result tresult t, !currentLoc)))
+        finishExp (se +++ (Set(lv, doCastT result tresult t, lu)))
           (Lval(lv))
           tresult   (* Should this be t instead ??? *)
           
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> 
         if isconst then
-          (sourceUnimp "POSTINCR or POSTDECR in constant");
+          E.s (E.unimp "POSTINCR or POSTDECR in constant");
         (* If we do not drop the result then we must save the value *)
         let uop' = if uop = A.POSINCR then PlusA else MinusA in
         let (se, e', t) = doExp false e (AExp None) in
@@ -1538,30 +1683,30 @@ and doExp (isconst: bool)    (* In a constant *)
           match e' with 
             Lval x -> x
           | CastE (_, Lval x) -> x
-          | _ -> (sourceUnimp "Expected lval for ++ or --")
+          | _ -> E.s (E.unimp "Expected lval for ++ or --")
         in
         let tresult, opresult = doBinOp uop' (Lval(lv)) t one intType in
         let se', result = 
           if what <> ADrop then 
             let tmp = newTempVar t in
-            se +++ (Set(var tmp, Lval(lv), !currentLoc)), Lval(var tmp)
+            se +++ (Set(var tmp, Lval(lv), lu)), Lval(var tmp)
           else
             se, Lval(lv)
         in
-        finishExp (se' +++ (Set(lv, doCastT opresult tresult t, !currentLoc)))
+        finishExp (se' +++ (Set(lv, doCastT opresult tresult t, lu)))
           result
           tresult   (* Should this be t instead ??? *)
           
     | A.BINARY(A.ASSIGN, e1, e2) -> 
         if isconst then
-          (sourceUnimp "ASSIGN in constant");
+          E.s (E.unimp "ASSIGN in constant");
         let (se1, e1', lvt) = doExp false e1 (AExp None) in
         let lv, lvt' = 
           match e1' with 
             Lval x -> x, lvt
           | CastE (_, Lval x) -> x, typeOfLval x
-          | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Expected lval for assignment. Got %a\n"
-                        d_plainexp e1')))
+          | _ -> E.s (E.unimp "Expected lval for assignment. Got %a\n"
+                        d_plainexp e1')
         in
         let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt')) in
         finishExp (se1 @@ se2) (Lval(lv)) lvt'
@@ -1585,7 +1730,7 @@ and doExp (isconst: bool)    (* In a constant *)
         | A.LE -> Le
         | A.GT -> Gt
         | A.GE -> Ge
-        | _ -> (sourceError "binary +")
+        | _ -> E.s (E.bug "binary +")
         in
         let (se1, e1', t1) = doExp isconst e1 (AExp None) in
         let (se2, e2', t2) = doExp isconst e2 (AExp None) in
@@ -1596,7 +1741,7 @@ and doExp (isconst: bool)    (* In a constant *)
       A.MOD_ASSIGN|A.BAND_ASSIGN|A.BOR_ASSIGN|A.SHL_ASSIGN|
       A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> 
         if isconst then
-          (sourceUnimp "op_ASSIGN in constant");
+          E.s (E.unimp "op_ASSIGN in constant");
         let bop' = match bop with          
           A.ADD_ASSIGN -> PlusA
         | A.SUB_ASSIGN -> MinusA
@@ -1608,23 +1753,23 @@ and doExp (isconst: bool)    (* In a constant *)
         | A.XOR_ASSIGN -> BXor
         | A.SHL_ASSIGN -> Shiftlt
         | A.SHR_ASSIGN -> Shiftrt
-        | _ -> (sourceError "binary +=")
+        | _ -> E.s (E.bug "binary +=")
         in
         let (se1, e1', t1) = doExp false e1 (AExp None) in
         let lv1 = 
           match e1' with Lval x -> x
-          | _ -> (sourceUnimp "Expected lval for assignment")
+          | _ -> E.s (E.unimp "Expected lval for assignment")
         in
         let (se2, e2', t2) = doExp false e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
-        finishExp (se1 @@ se2 +++ (Set(lv1, result, !currentLoc)))
+        finishExp (se1 @@ se2 +++ (Set(lv1, result, lu)))
           (Lval(lv1))
           tresult
           
     | A.BINARY((A.AND|A.OR), e1, e2) ->
         let tmp = var (newTempVar intType) in
-        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, !currentLoc)))
-                                 (empty +++ (Set(tmp, integer 0, !currentLoc))))
+        finishExp (doCondition e (empty +++ (Set(tmp, integer 1, lu)))
+                                 (empty +++ (Set(tmp, integer 0, lu))))
           (Lval tmp)
           intType
           
@@ -1642,7 +1787,7 @@ and doExp (isconst: bool)    (* In a constant *)
           
     | A.CALL(f, args) -> 
         if isconst then
-          (sourceUnimp "CALL in constant");
+          E.s (E.unimp "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
                                          * becase we might be calling a 
@@ -1656,14 +1801,14 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
               with Not_found -> begin
-                (logWarning (Pretty.sprint 80 (Pretty.dprintf
+                ignore (E.log 
                           "Warning: Calling function %s without prototype\n"
-                          n)));
+                          n);
                 let ftype = TFun(intType, [], false, []) in
                 (* Add a prototype to the environment *)
                 let proto, _ = makeGlobalVarinfo (makeGlobalVar n ftype) in 
                 (* Add it to the file as well *)
-                theFile := GDecl (proto, !currentLoc) :: !theFile;
+                theFile := GDecl (proto, lu) :: !theFile;
                 (empty, Lval(var proto), ftype)
               end
             end
@@ -1683,24 +1828,24 @@ and doExp (isconst: bool)    (* In a constant *)
                     | _ -> Lval(Mem(f'), NoOffset)
                   in
                   (rt,at,isvar, f'')
-              | x -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf 
+              | x -> E.s (E.unimp 
                             "Unexpected type of the called function %a: %a" 
-                            d_exp f' d_type x)))
+                            d_exp f' d_type x)
           end
-          | x ->  (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf 
+          | x ->  E.s (E.unimp 
                          "Unexpected type of the called function %a: %a" 
-                         d_exp f' d_type x)))
+                         d_exp f' d_type x)
         in
         (* Drop certain qualifiers from the result type *)
         let resType' =  
-          typeRemoveAttributes [AId("cdecl"); AId("__cdecl__")] resType in
+          typeRemoveAttributes [Attr("cdecl", [])] resType in
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : varinfo list * A.expression list 
           -> (chunk * exp list) = function
             | (args, []) -> 
                 if args <> [] then
-                  (giveWarn (Pretty.sprint 80 (Pretty.dprintf "Too few arguments in call to %a" d_exp f')));
+                  ignore (E.warn "Too few arguments in call to %a" d_exp f');
                 (empty, [])
 
             | (varg :: atypes, a :: args) -> 
@@ -1711,7 +1856,7 @@ and doExp (isconst: bool)    (* In a constant *)
                   
             | ([], args) -> (* No more types *)
                 if not isvar then 
-                  (giveWarn (Pretty.sprint 80 (Pretty.dprintf "Too many arguments in call to %a" d_exp f')));
+                  ignore (E.warn "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
                     [] -> (empty, [])
                   | a :: args -> 
@@ -1726,14 +1871,14 @@ and doExp (isconst: bool)    (* In a constant *)
           match what with 
             ADrop -> 
               finishExp 
-                (sf @@ sargs +++ (Call(None,f'',args', !currentLoc)))
+                (sf @@ sargs +++ (Call(None,f'',args', lu)))
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
           | ASet((Var vi, NoOffset) as lv, vtype) -> 
               let mustCast = typeSig resType' <> typeSig vtype in
               finishExp 
                 (sf @@ sargs 
-                 +++ (Call(Some (vi, mustCast),f'',args', !currentLoc)))
+                 +++ (Call(Some (vi, mustCast),f'',args', lu)))
                 (Lval(lv))
                 vtype
 
@@ -1751,14 +1896,14 @@ and doExp (isconst: bool)    (* In a constant *)
                         typeSig t <> typeSig resType'
                     | _ -> newTempVar resType', resType', false
                   in
-                  let i = Call(Some (tmp, iscast),f'',args', !currentLoc) in
+                  let i = Call(Some (tmp, iscast),f'',args', lu) in
                   finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
         end
           
     | A.COMMA el -> 
         if isconst then 
-          (sourceUnimp "COMMA in constant");
+          E.s (E.unimp "COMMA in constant");
         let rec loop sofar = function
             [e] -> 
               let (se, e', t') = doExp false e what in (* Pass on the action *)
@@ -1766,13 +1911,13 @@ and doExp (isconst: bool)    (* In a constant *)
           | e :: rest -> 
               let (se, _, _) = doExp false e ADrop in
               loop (sofar @@ se) rest
-          | [] -> (sourceUnimp "empty COMMA expression")
+          | [] -> E.s (E.unimp "empty COMMA expression")
         in
         loop empty el
           
     | A.QUESTION (e1,e2,e3) when what = ADrop -> 
         if isconst then
-          (sourceError "QUESTION with ADrop in constant");
+          E.s (E.bug "QUESTION with ADrop in constant");
         let (se3,_,_) = doExp false e3 ADrop in
         let se2 = 
           match e2 with 
@@ -1844,7 +1989,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let old_gnu = ! gnu_body_result in
         let lastComp, isvoidbody = 
           try findLastComputation (List.rev b), false 
-          with Not_found -> A.NOP(!currentLoc), true
+          with Not_found -> A.NOP !currentLoc, true
         in
         (* Prepare some data to be filled by doExp *)
         let data : (exp * typ) option ref = ref None in
@@ -1853,11 +1998,11 @@ and doExp (isconst: bool)    (* In a constant *)
         gnu_body_result := old_gnu;
         match !data with
           None when isvoidbody -> finishExp se zero voidType
-        | None -> (sourceUnimp "Cannot find COMPUTATION in GNU.body")
+        | None -> E.s (E.unimp "Cannot find COMPUTATION in GNU.body")
         | Some (e, t) -> finishExp se e t
     end
   with e -> begin
-    (logWarning (Pretty.sprint 80 (Pretty.dprintf "error in doExp (%s)@!" (Printexc.to_string e))));
+    ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
     (i2c (dInstr (dprintf "booo_exp(%s)" (Printexc.to_string e))), 
      integer 0, intType)
   end
@@ -1882,12 +2027,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       TInt _ -> 
         tres,
         constFoldBinOp bop (doCastT e1 t1 tres) (doCastT e2 t2 tres) tres
-    | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "%a operator on a non-integer type" d_binop bop)))
+    | _ -> E.s (E.unimp "%a operator on a non-integer type" d_binop bop)
   in
   let bop2point = function
       MinusA -> MinusPP
     | Eq -> EqP | Ge -> GeP | Ne -> NeP | Gt -> GtP | Le -> LeP | Lt -> LtP
-    | _ -> (sourceError "bop2point")
+    | _ -> E.s (E.bug "bop2point")
   in
   let pointerComparison e1 e2 = 
     (* Cast both sides to the same kind of pointer, that is preferably not 
@@ -1939,13 +2084,13 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 
 
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isArithmeticType t2 ->
-      (giveWarn "Comparison of pointer and non-pointer");
+      ignore (E.warn "Comparison of pointer and non-pointer");
       doBinOp bop (doCastT e1 t1 t2) t2 e2 t2
   | (Eq|Ne|Le|Lt|Ge|Gt|Eq|Ne) when isArithmeticType t1 && isPointerType t2 ->
-      (giveWarn "Comparison of pointer and non-pointer");
+      ignore (E.warn "Comparison of pointer and non-pointer");
       doBinOp bop e1 t1 (doCastT e2 t2 t1) t1
 
-  | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))))
+  | _ -> E.s (E.unimp "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* A special case for conditionals *)
 and doCondition (e: A.expression) 
@@ -1997,7 +2142,7 @@ and doCondition (e: A.expression)
 and doPureExp (e : A.expression) : exp = 
   let (se, e', _) = doExp true e (AExp None) in
   if isNotEmpty se then
-   (sourceUnimp "doPureExp: not pure");
+   E.s (E.unimp "doPureExp: not pure");
   e'
 
 (* Process an initializer. *)
@@ -2023,7 +2168,7 @@ and doInitializer
         | Some n' -> begin
             match constFold n' with
             | Const(CInt(ni, _, _)) -> Some ni
-            | _ -> (sourceUnimp "Cannot understand the length of the array being initialized\n")
+            | _ -> E.s (E.unimp "Cannot understand the length of the array being initialized\n")
         end
       in
       let rec initArray 
@@ -2050,12 +2195,12 @@ and doInitializer
                 doExp isconst idxe (AExp(Some intType)) in
               match constFold idxe' with
                 Const(CInt(x, _, _)) -> x, doidx
-              | _ -> (sourceUnimp 
+              | _ -> E.s (E.unimp 
                        "INDEX initialization designator is not a constant")
             in
             if nextidx' < nextidx || not (isValidIndex nextidx') then begin
-              (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "INDEX init designator is too large (%d >= %d)\n"
-                     nextidx' nextidx)));
+              E.s (E.unimp "INDEX init designator is too large (%d >= %d)\n"
+                     nextidx' nextidx);
             end;
             (* Initialize with zero the skipped elements *)
             let rec loop i acc = 
@@ -2105,7 +2250,7 @@ and doInitializer
                   acc'
                   initl'
         end
-        | _ -> (sourceUnimp "Invalid designator in initialization of array")
+        | _ -> E.s (E.unimp "Invalid designator in initialization of array")
       in
       (* Maybe the first initializer is a compound, then that is the 
        * initializer for the entire array *)
@@ -2115,7 +2260,7 @@ and doInitializer
             let acc', inits, nextidx, rest' = 
               initArray 0 [] acc initl_e in
             if rest' <> [] then
-              (sourceWar "Unused initializers\n");
+              E.s (E.warn "Unused initializers\n");
             acc', inits, nextidx, restinitl
         | _ -> initArray 0 [] acc initl 
       in
@@ -2126,7 +2271,7 @@ and doInitializer
       in
       acc', CompoundInit(newt, inits), newt, restinitl
   (* STRUCT or UNION *)
-  | TComp comp ->  begin
+  | TComp (_, comp, a) ->  begin
       let rec initStructUnion
          (nextflds: fieldinfo list) (* Remaining fields *)
          (sofar: init list) (* The initializer expressions so far, in reverse 
@@ -2150,7 +2295,8 @@ and doInitializer
                                                       when comp.cstruct ->
             let nextflds', sofar' = 
               let rec findField (sofar: init list) = function
-                  [] -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "Cannot find designated field %s"  fn)))
+                  [] -> E.s 
+                      (E.unimp "Cannot find designated field %s"  fn)
                 | f :: restf when f.fname = fn -> 
                     f :: restf, sofar
                       
@@ -2169,7 +2315,7 @@ and doInitializer
         | (A.NEXT_INIT, _) :: _  ->
             let nextflds', thisexpt = 
               match nextflds with
-                [] -> (sourceUnimp "Too many initializers")
+                [] -> E.s (E.unimp "Too many initializers")
               | x :: xs -> 
 (*                  ignore (E.log "Do the comp init for %s\n" x.fname); *)
                   xs, x.ftype
@@ -2183,8 +2329,8 @@ and doInitializer
 
            (* And the error case *)
         | (A.ATINDEX_INIT _, _) :: _ -> 
-            (sourceUnimp "INDEX designator in struct\n");
-        | _ -> (sourceUnimp "Invalid designator for struct")
+            E.s (E.unimp "INDEX designator in struct\n");
+        | _ -> E.s (E.unimp "Invalid designator for struct")
       in
       (* Maybe the first initializer is a compound, then that is the 
        * initializer for the entire array *)
@@ -2193,7 +2339,7 @@ and doInitializer
             let acc', inits, rest' = 
               initStructUnion comp.cfields [] acc initl_e in
             if rest' <> [] then
-              (sourceWar "Unused initializers\n");
+              E.s (E.warn "Unused initializers\n");
             acc', CompoundInit(typ, inits), typ, restinitl
 
            (* Maybe it is a single initializer *)
@@ -2219,7 +2365,7 @@ and doInitializer
            A.COMPOUND_INIT [A.NEXT_INIT, 
                              A.SINGLE_INIT oneinit]) :: restinitl -> 
             oneinit, restinitl
-        | _ -> (sourceUnimp "Cannot find the initializer\n")
+        | _ -> E.s (E.unimp "Cannot find the initializer\n")
       in
       let se, init', t' = doExp isconst oneinit (AExp(Some typ')) in
       (se @@ acc), SingleInit (doCastT init' t' typ'), typ', restinitl
@@ -2229,10 +2375,11 @@ and doInitializer
 
 
 
-and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
+and createGlobal (specs: A.spec_elem list) 
+                 (((n,ndt,a),e) : A.init_name) : unit = 
   try
             (* Make a first version of the varinfo *)
-    let vi = makeVarInfo true locUnknown sname in
+    let vi = makeVarInfo true locUnknown (specs, (n, ndt, a)) in
             (* Do the initializer and complete the array type if necessary *)
     let init : init option = 
       if e = A.NO_INIT then 
@@ -2241,11 +2388,11 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
         let se, ie', et, restinitl = 
           doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
         if restinitl <> [] then
-          (sourceError "Unused initializer in createGlobal\n");
+          E.s (E.bug "Unused initializer in createGlobal\n");
         (* Maybe we now have a better type *)
         vi.vtype <- et;
         if isNotEmpty se then 
-          (sourceUnimp "global initializer");
+          E.s (E.unimp "global initializer");
         Some ie'
     in
 
@@ -2262,38 +2409,41 @@ and createGlobal ((_,_,(n,nbt,a,e)) as sname : A.single_name) =
     if not alreadyDef then begin(* Do not add declarations after def *)
       if vi.vstorage = Extern then 
         if init = None then 
-          theFile := GDecl (vi, !currentLoc) :: !theFile
+          theFile := GDecl (vi, lu) :: !theFile
         else
-          (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "%s is extern and with initializer" vi.vname)))
+          E.s (E.unimp "%s is extern and with initializer" vi.vname)
       else
                 (* If it has fucntion type it is a declaration *)
         if isFunctionType vi.vtype then begin
           if init <> None then
-            (sourceError (Pretty.sprint 80 (Pretty.dprintf  "Function declaration with initializer (%s)\n"
-                   vi.vname)));
-          theFile := GDecl(vi, !currentLoc) :: !theFile
+            E.s (E.bug "Function declaration with initializer (%s)\n"
+                   vi.vname);
+          theFile := GDecl(vi, lu) :: !theFile
         end else
-          theFile := GVar(vi, init, !currentLoc) :: !theFile
+          theFile := GVar(vi, init, lu) :: !theFile
     end
   with e -> begin
-    (logWarning (Pretty.sprint 80 (Pretty.dprintf "error in CollectGlobal (%s)\n" n)));
-    theFile := GAsm("booo - error in global " ^ n,!currentLoc) :: !theFile
+    ignore (E.log "error in CollectGlobal (%s)\n" n);
+    theFile := GAsm("booo - error in global " ^ n,lu) :: !theFile
   end
 (*
-          (logWarning (Pretty.sprint 80 (Pretty.dprintf "Env after processing global %s is:@!%t@!" 
-                    n docEnv)));
-          (logWarning (Pretty.sprint 80 (Pretty.dprintf "Alpha after processing global %s is:@!%t@!" 
-                    n docAlphaTable)))
+          ignore (E.log "Env after processing global %s is:@!%t@!" 
+                    n docEnv);
+          ignore (E.log "Alpha after processing global %s is:@!%t@!" 
+                    n docAlphaTable)
 *)
 
 (* Must catch the Static local variables.Make them global *)
-and createLocal = function
-    ((bt,A.STATIC,(n,nbt,a,e)) as sname : A.single_name) -> 
+and createLocal (specs: A.spec_elem list) 
+                (((n, ndt, a) as name, (e: A.init_expression)) as init_name) 
+  : chunk =
+  match ndt with 
+    _ when A.isStatic specs -> 
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
       let newname = newAlphaName "" n in
-      let vi = makeVarInfo true locUnknown 
-          (bt,A.STATIC,(newname,nbt,a,e)) in (* Make it global *)
+      (* Make it global  *)
+      let vi = makeVarInfo true locUnknown (specs, (newname, ndt, a)) in
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
@@ -2304,29 +2454,29 @@ and createLocal = function
           let se, ie', et, restinitl = 
             doInitializer true vi.vtype empty [ (A.NEXT_INIT, e) ] in
           if restinitl <> [] then
-            (sourceError "Unused initializer in createGlobal\n");
+            E.s (E.bug "Unused initializer in createGlobal\n");
           (* Maybe we now have a better type *)
           vi.vtype <- et;
           if isNotEmpty se then 
-            (sourceUnimp "global static initializer");
+            E.s (E.unimp "global static initializer");
           Some ie'
         end
       in
-      theFile := GVar(vi, init, !currentLoc) :: !theFile;
+      theFile := GVar(vi, init, lu) :: !theFile;
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
-  | ((bt,A.EXTERN,(n,nbt,a,e)) as sname : A.single_name) ->
-      createGlobal sname;
+  | _ when A.isExtern specs ->
+      createGlobal specs init_name;
       empty
 
   (* Maybe we have a function prototype in local scope. Make it global *)
-  | ((bt,st,(n,A.PROTO _,a,e)) as sname : A.single_name) ->
-      createGlobal sname;
+  | A.PROTO _ -> 
+      createGlobal specs init_name;
       empty
     
-  | ((bt,st,(n,nbt,a,e)) as sname : A.single_name) -> 
-      let vi = makeVarInfo false locUnknown sname in
+  | _ -> 
+      let vi = makeVarInfo false locUnknown (specs, (n, ndt, a)) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       if e = A.NO_INIT then
         skipChunk
@@ -2349,47 +2499,68 @@ and createLocal = function
           
           
 and doDecl : A.definition -> chunk = function
-  | A.DECDEF ng ->
-      let stmts = doNameGroup createLocal ng in
+  | A.DECDEF (s, nl) ->
+      let stmts = doNameGroup createLocal (s, nl) in
       List.fold_left (fun acc c -> acc @@ c) empty stmts
         
   | A.TYPEDEF ng -> doTypedef ng; empty
 
-  | A.ONLYTYPEDEF (bt, _, _) -> doOnlyTypedef bt; empty
+  | A.ONLYTYPEDEF s -> doOnlyTypedef s; empty
 
-  | _ -> (sourceUnimp "doDecl")
+  | _ -> E.s (E.unimp "local declaration")
 
-and doTypedef (ng: A.name_group) = 
-  let createTypedef ((_,_,(n,nbt,a,_)) : A.single_name) = 
-    try
-      let newTyp = doType (doAttrList a) nbt in
-            (* Create a new name for the type. Use the same name space as 
-             * that of variables to avoid confusion between variable names 
-             * and types. This is actually necessary in some cases. *)
-      let n' = newAlphaName "" n in
-      let namedTyp = TNamed(n', newTyp, []) in
-            (* Register the type. register it as local because we might be in 
-             * a local context *)
-      addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
-      theFile := GType (n', newTyp, !currentLoc) :: !theFile
-    with e -> begin
-      (logWarning (Pretty.sprint 80 (Pretty.dprintf "Error on A.TYPEDEF (%s)\n"
-                (Printexc.to_string e))));
-      theFile := GAsm ("booo_typedef:" ^ n, !currentLoc) :: !theFile
-    end
-  in
-  ignore (doNameGroup createTypedef ng)
-    
-
-and doOnlyTypedef (bt: A.base_type) : unit = 
+and doTypedef ((specs, nl): A.name_group) = 
   try
-    let newTyp = doType [] bt in
-          (* doType will register the type. Put a special GType in the file *)
-    theFile := GType ("", newTyp, !currentLoc) :: !theFile
+    let bt, sto, inl, attrs = doSpecList specs in
+    if sto <> NoStorage || inl then 
+      E.s (E.unimp "Storage or inline specifier not allowed in typedef");
+    let createTypedef ((n,ndt,a) : A.name) = 
+      (*    E.s (E.unimp "doTypeDef") *)
+      try
+        let newTyp, tattr = 
+          doType AttrType bt (A.PARENTYPE(attrs, ndt, a))  in
+        (* Create a new name for the type. Use the same name space as that of 
+        * variables to avoid confusion between variable names and types. This 
+        * is actually necessary in some cases.  *)
+        let n' = newAlphaName "" n in
+        let namedTyp = TNamed(n', newTyp, tattr) in
+        (* Register the type. register it as local because we might be in a 
+        * local context  *)
+        addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
+        theFile := GType (n', newTyp, lu) :: !theFile
+      with e -> begin
+        ignore (E.log "Error on A.TYPEDEF (%s)\n"
+                  (Printexc.to_string e));
+        theFile := GAsm ("booo_typedef:" ^ n, lu) :: !theFile
+      end
+    in
+    List.iter createTypedef nl
+  with e -> begin    
+    ignore (E.log "Error on A.TYPEDEF (%s)\n"
+              (Printexc.to_string e));
+    let fstname = 
+      match nl with
+        [] -> "<missing name>"
+      | (n, _, _) :: _ -> n
+    in
+    theFile := GAsm ("booo_typedef: " ^ fstname, lu) :: !theFile
+  end
+
+and doOnlyTypedef (specs: A.spec_elem list) : unit = 
+  try
+    let bt, sto, inl, attrs = doSpecList specs in
+    if sto <> NoStorage || inl then 
+      E.s (E.unimp "Storage or inline specifier not allowed in typedef");
+    let restyp, nattr = doType AttrType bt (A.PARENTYPE(attrs, 
+                                                        A.JUSTBASE, [])) in
+    if nattr <> [] then
+      ignore (E.warn "Ignoring identifier attribute");
+           (* doSpec will register the type. Put a special GType in the file *)
+    theFile := GType ("", restyp, lu) :: !theFile
   with e -> begin
-    (logWarning (Pretty.sprint 80 (Pretty.dprintf "Error on A.ONLYTYPEDEF (%s)\n"
-              (Printexc.to_string e))));
-    theFile := GAsm ("booo_typedef", !currentLoc) :: !theFile
+    ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
+              (Printexc.to_string e));
+    theFile := GAsm ("booo_typedef", lu) :: !theFile
   end
 
 and assignInit (lv: lval) 
@@ -2399,7 +2570,7 @@ and assignInit (lv: lval)
   match ie with
     SingleInit e -> 
       let (_, e'') = castTo iet (typeOfLval lv) e in 
-      acc +++ (Set(lv, e'', !currentLoc))
+      acc +++ (Set(lv, e'', lu))
   | CompoundInit (t, initl) -> 
       foldLeftCompound
         (fun off i it acc -> 
@@ -2407,61 +2578,6 @@ and assignInit (lv: lval)
         t
         initl
         acc
-
-(*
-and doAssign (lv: lval) (ie: init) (iet: typ) : chunk = 
-   match ie with 
-                              * We must break the compound assignment into 
-                              * atomic ones  *
-  | CompoundInit (t, initl) -> begin
-      match unrollType t with 
-        TArray(t, _, _) -> 
-          let rec loop = function
-              _, [] -> empty
-            | i, e :: el -> 
-                let res = loop ((i + 1), el) in
-                let newlv = mkMem (mkAddrOfAndMark lv) 
-                                  (Index(integer i, NoOffset)) in
-                let newlv = 
-                  match newlv with 
-                    Lval x -> x | _ -> (sourceError "doAssign: mem")
-                in
-                (doAssign newlv e t) @@ res
-          in
-          loop (0, initl)
-
-      | TComp comp when comp.cstruct ->
-          let rec loop = function
-              [], [] -> empty
-            | f :: fil, e :: el -> 
-                let res = loop (fil, el) in
-                (doAssign (addOffsetLval (Field(f, NoOffset)) lv) e f.ftype) @@ res
-            | _, _ -> (sourceUnimp "fields in doAssign")
-          in
-          loop (comp.cfields, initl)
-      | _ -> (sourceError "Unexpected type of Compound")
-  end
-
-   * An array initialized with a string *
-  | ScalarInit (Const(CStr s) as e) -> begin
-      let lvt = typeOfLval lv in
-      match unrollType lvt with 
-        TArray(_, Some _, _) ->
-          * See if strncpy was already declared *
-          if not (H.mem env "strncpy") then begin
-            theFile := GDecl (strncpyFun.svar, !currentLoc) :: !theFile;
-            H.add env "strncpy" (EnvVar strncpyFun.svar)
-          end;
-          i2c (Call(None, Lval (var strncpyFun.svar),
-                    [ StartOf lv; e; SizeOf (lvt) ], !currentLoc))
-
-      | TArray(_, None, _) -> (sourceUnimp "initialization with a string")
-      | _ -> i2c (Set(lv, e, !currentLoc))
-  end
-  | ScalarInit e -> 
-      let (_, e'') = castTo iet (typeOfLval lv) e in 
-      i2c (Set(lv, e'', !currentLoc))
-*)
 
   (* Now define the processors for body and statement *)
 and doBody (b : A.body) : chunk = 
@@ -2483,9 +2599,9 @@ and doBody (b : A.body) : chunk =
 and doStatement (s : A.statement) : chunk = 
   try
     currentLoc := (A.get_statementloc s);
-    match s with
-      A.NOP(loc) -> skipChunk
-    | A.COMPUTATION (e, loc) ->
+    match s with 
+      A.NOP _ -> skipChunk
+    | A.COMPUTATION (e, loc) -> 
         let (lasts, data) = !gnu_body_result in
         if lasts == s then begin      (* This is the last in a GNU_BODY *)
           let (s', e', t') = doExp false e (AExp None) in
@@ -2499,31 +2615,31 @@ and doStatement (s : A.statement) : chunk =
             
     | A.BLOCK (b, loc) -> doBody b
 
-    | A.SEQUENCE (s1, s2, loc) ->
+    | A.SEQUENCE (s1, s2, loc) -> 
         (doStatement s1) @@ (doStatement s2)
 
-    | A.IF(e,st,sf, loc) ->
+    | A.IF(e,st,sf,loc) -> 
         let st' = doStatement st in
         let sf' = doStatement sf in
         doCondition e st' sf'
 
-    | A.WHILE(e,s, loc) ->
+    | A.WHILE(e,s,loc) ->  
         startLoop true;
         let s' = doStatement s in
         exitLoop ();
         loopChunk ((doCondition e skipChunk
-                      (breakChunk loc))
+                      (breakChunk loc)) 
                    @@ s')
-
-    | A.DOWHILE(e,s, loc) -> 
+          
+    | A.DOWHILE(e,s,loc) -> 
         startLoop false;
         let s' = doStatement s in
         let s'' = consLabContinue (doCondition e skipChunk (breakChunk loc))
         in
         exitLoop ();
         loopChunk (s' @@ s'')
-
-    | A.FOR(e1,e2,e3,s, loc) -> begin
+          
+    | A.FOR(e1,e2,e3,s,loc) -> begin
         let (se1, _, _) = doExp false e1 ADrop in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
@@ -2533,37 +2649,37 @@ and doStatement (s : A.statement) : chunk =
         match e2 with
           A.NOTHING -> (* This means true *)
             se1 @@ loopChunk (s' @@ s'')
-        | _ ->
+        | _ -> 
             se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk loc))
                               @@ s' @@ s'')
     end
-    | A.BREAK loc-> breakChunk loc
-
-    | A.CONTINUE loc-> continueOrLabelChunk loc
-
+    | A.BREAK loc -> breakChunk loc
+          
+    | A.CONTINUE loc -> continueOrLabelChunk loc
+          
     | A.RETURN (A.NOTHING, loc) -> returnChunk None loc
-    | A.RETURN (e, loc) ->
+    | A.RETURN (e, loc) -> 
         let (se, e', et) = doExp false e (AExp (Some !currentReturnType)) in
         let (et'', e'') = castTo et (!currentReturnType) e' in
         se @@ (returnChunk (Some e'') loc)
                
-    | A.SWITCH (e, s, loc) ->
+    | A.SWITCH (e, s, loc) -> 
         let (se, e', et) = doExp false e (AExp (Some intType)) in
         let (et'', e'') = castTo et intType e' in
         let s' = doStatement s in
         se @@ (switchChunk e'' s' loc)
-
-    | A.CASE (e, s, loc) ->
+               
+    | A.CASE (e, s, loc) -> 
         let (se, e', et) = doExp false e (AExp None) in
         se @@ caseChunk (constFold e') loc (doStatement s)
-
+                    
     | A.DEFAULT (s, loc) -> defaultChunk loc (doStatement s)
-
-    | A.LABEL (l, s, loc) ->
+                     
+    | A.LABEL (l, s, loc) -> 
         consLabel l (doStatement s)
-
-    | A.GOTO (l, loc) -> gotoChunk l loc 
-
+                     
+    | A.GOTO (l, loc) -> gotoChunk l loc
+          
     | A.ASM (tmpls, isvol, outs, ins, clobs, loc) -> 
       (* Make sure all the outs are variables *)
         let temps : (lval * varinfo) list ref = ref [] in
@@ -2574,39 +2690,38 @@ and doStatement (s : A.statement) : chunk =
               let (se, e', t) = doExp false e (AExp None) in
               let lv = 
                 match e' with Lval x -> x
-                | _ -> (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  
-			"%s[%d]:Expected lval for ASM outputs" loc.file loc.line)))
+                | _ -> E.s (E.unimp "Expected lval for ASM outputs")
               in
               stmts := !stmts @@ se;
-              (c, lv)) outs
+              (c, lv)) outs 
         in
       (* Get the side-effects out of expressions *)
-        let ins' =
-          List.map
-            (fun (c, e) ->
+        let ins' = 
+          List.map 
+            (fun (c, e) -> 
               let (se, e', et) = doExp false e (AExp None) in
               stmts := !stmts @@ se;
               (c, e'))
             ins
         in
-        !stmts @@
+        !stmts @@ 
         (i2c (Asm(tmpls, isvol, outs', ins', clobs, loc)))
   with e -> begin
-    (logWarning (Pretty.sprint 80 (Pretty.dprintf "Error in doStatement (%s)\n" (Printexc.to_string e))));
+    (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     consLabel "booo_statement" empty
   end
 
 
-                          
+    
 (* Translate a file *)
-let convFile fname dl =
-  (logWarning "Cabs2cil conversion\n");
+let convFile fname dl = 
+  ignore (E.log "Cabs2cil conversion\n");
   (* Clean up the global types *)
   E.hadErrors := false;
   theFile := [];
   H.clear compInfoNameEnv;
   (* Setup the built-ins *)
-  let _ =
+  let _ = 
     let fdec = emptyFunction "__builtin_constant_p" in
     let argp  = makeLocalVar fdec "x" intType in
     fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
@@ -2616,61 +2731,75 @@ let convFile fname dl =
   let doOneGlobal = function
       A.TYPEDEF ng -> doTypedef ng
 
-    | A.ONLYTYPEDEF (A.NO_TYPE, _, _) -> ()
+    | A.ONLYTYPEDEF s -> doOnlyTypedef s
 
-    | A.ONLYTYPEDEF (bt,_,_) -> doOnlyTypedef bt
+    | A.DECDEF (s, nl) -> 
+        List.iter (createGlobal s) nl
+          
+    | A.GLOBASM s -> theFile := GAsm (s, lu) :: !theFile
+    | A.PRAGMA a -> begin
+        match doAttr ("dummy", [a]) with
+          [Attr("dummy", [a'])] ->
+            let a'' = 
+              match a' with
+                AId s -> Attr (s, [])
+              | ACons (s, args) -> Attr (s, args)
+              | _ -> E.s (E.unimp "Unexpected attribute in #pragma")
+            in
+            theFile := GPragma (a'', lu) :: !theFile
+        | _ -> E.s (E.unimp "Too many attributes in pragma")
+    end
 
-    | A.DECDEF ng ->
-        ignore (doNameGroup createGlobal ng)
-
-    | A.GLOBASM s -> theFile := GAsm (s, !currentLoc) :: !theFile
-    | A.PRAGMA a -> theFile := GPragma (doAttr a, !currentLoc) :: !theFile
-
-    | A.FUNDEF (((bt,st,(n,bt',funattr,_)) : A.single_name),
-                 (body : A.body)) ->
+    | A.FUNDEF (((specs,(n,dt,a)) : A.single_name), 
+               (body : A.body)) -> 
         E.withContext
           (fun _ -> dprintf "2cil: %s" n)
           (fun _ ->
             try
-             (* Reset the local identifier so that formals are created with
+             (* Reset the local identifier so that formals are created with 
               * the proper IDs  *)
               resetLocals ();
+              let bt,sto,inl,attrs = doSpecList specs in
+              let ftyp, funattr = doType (AttrName false) bt 
+                                         (A.PARENTYPE(attrs, dt, a)) in
                                         (* Do the type *)
-              let (returnType, formals, isvararg, a) =
-                match unrollType (doType [] bt') with
-                  TFun(rType, formals, isvararg, a) ->
+              let (returnType, formals, isvararg, funta) = 
+                match unrollType ftyp with 
+                  TFun(rType, formals, isvararg, a) -> 
                     (rType, formals, isvararg, a)
-                | x -> (sourceError (Pretty.sprint 80 (Pretty.dprintf  "non-function type: %a." d_type x)))
+                | x -> E.s (E.bug "non-function type: %a." d_type x)
               in
               (* Record the returnType for doStatement *)
               currentReturnType   := returnType;
-              (* Setup the environment. Add the formals to the locals. Maybe
+              (* Setup the environment. Add the formals to the locals. Maybe 
                * they need alpha-conv  *)
               startScope ();
-              let formals' = List.map (alphaConvertVarAndAddToEnv true)
+              let formals' = List.map (alphaConvertVarAndAddToEnv true) 
                   formals in
-              let ftype = TFun(returnType, formals', isvararg, a) in
-              (* Add the function itself to the environment. Just in case we
+              let ftype = TFun(returnType, formals', isvararg, funta) in
+              (* Add the function itself to the environment. Just in case we 
                * have recursion and no prototype.  *)
               (* Make a variable out of it and put it in the environment *)
-              let thisFunctionVI, alreadyDef =
-                makeGlobalVarinfo
+              let thisFunctionVI, alreadyDef = 
+                makeGlobalVarinfo 
                   { vname = n;
                     vtype = ftype;
                     vglob = true;
                     vid   = newVarId n true;
                     vdecl = lu;
-                    vattr = doAttrList funattr;
+                    vattr = funattr;
                     vaddrof = false;
-                    vstorage = doStorage st;
+                    vstorage = sto;
                     vreferenced = false;   (* sm *)
                   }
               in
+(*              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
+                        n d_plaintype ftype (d_attrlist true) funattr); *)
               if alreadyDef then
-                (sourceUnimp (Pretty.sprint 80 (Pretty.dprintf  "There is a definition already for %s" n)));
+                E.s (E.unimp "There is a definition already for %s" n);
               currentFunctionVI := thisFunctionVI;
               (* Now do the body *)
-              let s = doBody body in
+              let stm = doBody body in
               (* Finish everything *)
               exitScope ();
               let (maxid, locals) = endFunction formals' in
@@ -2678,15 +2807,16 @@ let convFile fname dl =
                            slocals  = locals;
                            sformals = formals';
                            smaxid   = maxid;
-                           sbody    = mkFunctionBody s;
+                           sbody    = mkFunctionBody stm;
+                           sinline  = inl;
                          } 
               in
               setFormals fdec formals'; (* To make sure sharing is proper *)
-              theFile := GFun (fdec,!currentLoc) :: !theFile
+              theFile := GFun (fdec,lu) :: !theFile
             with e -> begin
-              (logWarning (Pretty.sprint 80 (Pretty.dprintf "error in collectFunction %s: %s\n" 
-                        n (Printexc.to_string e))));
-              theFile := GAsm("error in function ", !currentLoc) :: !theFile
+              ignore (E.log "error in collectFunction %s: %s\n" 
+                        n (Printexc.to_string e));
+              theFile := GAsm("error in function ", lu) :: !theFile
             end)
           () (* argument of E.withContext *)
   in

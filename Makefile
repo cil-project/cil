@@ -43,7 +43,7 @@ ifdef USEFRONTC
 SOURCEDIRS += src/frontc
 MLLS       += clexer.mll
 MLYS       += cparser.mly
-MODULES    += cabs clexer cparser cprint cabs2cil combine frontc
+MODULES    += cabs cprint combine clexer cparser cabs2cil frontc
 endif
 
 # Add main late
@@ -959,6 +959,13 @@ gccclean:
 gcc: defaulttarget mustbegcc
 	cd $(GCCDIR)/src; \
             make clean build CC="$(GCCSAFECC) $(CONLY)" \
+                             LD="$(GCCSAFECC)" 
+	$(GCCDIR)/exe/base/vortex_ultra \
+            <$(GCCDIR)/data/train/input/2stone9.in
+
+gcc-noclean: defaulttarget mustbegcc
+	cd $(GCCDIR)/src; \
+            make       build CC="$(GCCSAFECC) $(CONLY)" \
                              LD="$(GCCSAFECC)" 
 	$(GCCDIR)/exe/base/vortex_ultra \
             <$(GCCDIR)/data/train/input/2stone9.in

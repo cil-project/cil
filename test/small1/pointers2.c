@@ -5,6 +5,7 @@ void foo1(void *y) {
   int * * a = p + z1[2][2];
 }
 
+extern void* malloc(unsigned int);
 
 void foo2() {
   int * * p = (int * *)malloc(20);

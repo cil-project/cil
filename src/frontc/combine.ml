@@ -17,91 +17,102 @@
 
 open Cabs
 module E = Errormsg
+module H = Hashtbl
 
 (* Hash tables for combiner *)
 
 (* Tables that used to keep track of re-definitions 
  - store definitions in tables *)
-let gDefTable = Hashtbl.create 307 (* global definition *)
-let fDefTable = Hashtbl.create 107 (* static global definition (file scope) *)
+let gDefTable = H.create 307 (* global definition *)
+let fDefTable = H.create 107 (* static global definition (file scope) *)
 
-let gAlphaTable = Hashtbl.create 307 (* id names that have been used *)
+let gAlphaTable : (string, string) H.t = 
+  H.create 307 (* id names that have been used *)
 
 (* Table that maps id to renamed id *)
-let gMap = Hashtbl.create 107 (* global id *)
-let fMap = Hashtbl.create 107 (* file scope id *)
-let lMap = Hashtbl.create 107 (* function scope id *)
+let gMap = H.create 107 (* global id *)
+let fMap = H.create 107 (* file scope id *)
+let lMap = H.create 107 (* function scope id *)
 
-let gTagUsedTable = Hashtbl.create 107 (* keep track tag names that have been used *)
-let fTag = Hashtbl.create 107 (* tags that have appeared in file *)
-let gTag = Hashtbl.create 107 (* tags that have appeared in ALL files *)
+let fTag = H.create 107 (* tags that have appeared in file *)
+let gTag = H.create 107 (* tags that have appeared in ALL files *)
 
-let structTag = Hashtbl.create 107
-let unionTag = Hashtbl.create 107
-let enumTag = Hashtbl.create 107
+let structTag = H.create 107
+let unionTag = H.create 107
+let enumTag = H.create 107
 
-let rec combine_type typ =
-  match typ with
-    NO_TYPE -> NO_TYPE
-  | VOID -> VOID
-  | INT (size, sign) -> INT(size, sign)
-  | BITFIELD (bt, exp) -> BITFIELD(combine_type bt, combine_expression exp)
-  | FLOAT size -> FLOAT size
-  | DOUBLE size -> DOUBLE size
-  | NAMED_TYPE id -> NAMED_TYPE (lookup_id "type" id)
-  | ENUM id -> ENUM (lookup_tag id)
-  | ENUMDEF (id, items) -> ENUMDEF (lookup_tag id, items)
-  | STRUCT id -> STRUCT (lookup_tag id)
-  | STRUCTDEF (id, flds) -> 
-      STRUCTDEF (lookup_tag id, combine_fields flds)
-  | UNION id -> UNION(lookup_tag id)
-  | UNIONDEF (id, flds) -> 
-      UNIONDEF(lookup_tag id, combine_fields flds) 
-  | PROTO (typ, pars, ell, x) -> 
-      PROTO(combine_type typ, combine_params pars, ell, x)
-  | PTR typ -> PTR(combine_type typ)
-  | ARRAY (typ, dim) -> ARRAY(combine_type typ, combine_expression dim)
-  | ATTRTYPE (typ, a) -> 
-      let combineOne (s, el) =
-        (s, List.map combine_expression el)
-      in 
-      let rec doconstvol = function
-          [] -> []
-        | ("const", []) :: rest -> ("const", []) :: doconstvol rest
-        | ("volatile", []) :: rest -> ("volatile", []) :: doconstvol rest
-        | a :: rest -> combineOne a :: doconstvol rest
-      in
-      ATTRTYPE(combine_type typ, doconstvol a)
 
-  | TYPEOF e -> TYPEOF(combine_expression e)
+let rec combineAttr (s, el) = 
+  (s, List.map combine_expression el)
 
-and combine_fields flds = begin
-  let ids = List.flatten (List.map (fun name_group -> 
-                match name_group with (typ, sto, names) -> 
-                (List.map (fun (id, typ, attr, exp) -> id) names)) flds) in
-  begin
-    List.iter (fun id -> Hashtbl.add lMap id id) ids;
-    let flds' = List.map (fun fld -> combine_name_group "" fld) flds in 
-    List.iter (fun id -> Hashtbl.remove lMap id) ids;
-    flds'
-  end
-end
+and combineAttrs al = 
+  List.map combineAttr al
 
-(* keep adding "_" until we find one that has not been used *)
-and find_newTag tag = begin
-  let tmp_tag = ref "" and flag = ref true in
-  begin
-    tmp_tag := tag;
-    while !flag do
-      (try 
-         Hashtbl.find gTagUsedTable !tmp_tag;
-         tmp_tag := (!tmp_tag ^ "_");
-       with Not_found -> flag := false;)
-    done;
-    Hashtbl.add gTagUsedTable !tmp_tag tag;
-    !tmp_tag
-  end
-end
+and combine_specs (specs: spec_elem list) = 
+  let combine_fields flds =
+      (* Compile a list of field ids *)
+    let ids = 
+      List.flatten 
+        (List.map (fun (_, names)  -> 
+          (List.map (fun (id, _, _) -> id) names)) flds) in
+    begin
+      List.iter (fun id -> H.add lMap id id) ids;
+      let flds' = List.map (fun fld -> combine_name_group "" fld) flds in 
+      List.iter (fun id -> H.remove lMap id) ids;
+      flds'
+    end
+  in
+  let combine_enums (es: enum_item list) = 
+    List.map (fun (s, e) -> (s, combine_expression e)) es
+  in
+  let combine_spec_elem (elem: spec_elem) = 
+    match elem with
+      SpecTypedef | SpecInline | SpecStorage _ -> elem
+    | SpecType t ->
+        SpecType
+          (match t with
+            Tnamed n -> Tnamed (lookup_id "type" n)
+          | Tstruct (n, None) -> Tstruct (lookup_tag n, None)
+          | Tstruct (n, Some flds) -> 
+              Tstruct (lookup_tag n, Some (combine_fields flds))
+          | Tunion (n, None) -> Tunion (lookup_tag n, None)
+          | Tunion (n, Some flds) -> 
+              Tunion (lookup_tag n, Some (combine_fields flds))
+          | Tenum (n, None) -> Tenum(lookup_tag n, None)
+          | Tenum (n, Some es) -> Tenum(lookup_tag n, Some (combine_enums es))
+          | Ttypeof e -> Ttypeof (combine_expression e)
+          | ts -> ts)
+    | SpecAttr attr -> SpecAttr (combineAttr attr) 
+  in
+  List.map combine_spec_elem specs
+
+
+and combine_decl_type = function
+  | JUSTBASE -> JUSTBASE
+  | BITFIELD exp -> BITFIELD (combine_expression exp)
+  | PROTO (typ, pars, ell) -> 
+      PROTO(combine_decl_type typ, combine_params pars, ell)
+  | PTR (attrs, typ) -> PTR(combineAttrs attrs, combine_decl_type typ)
+  | ARRAY (typ, dim) -> ARRAY(combine_decl_type typ, combine_expression dim)
+  | PARENTYPE (al1, typ, al2) -> 
+      PARENTYPE (combineAttrs al1, combine_decl_type typ,
+                 combineAttrs al2)
+
+
+
+(* Look for a number to append to the name to make it unique *)
+and findNewName (usedNames: (string, 'a) H.t) (tag: string) =
+  let rec loop n = 
+    let newtag = tag ^ "__" ^ string_of_int n in
+    if H.mem usedNames newtag then
+      loop (n + 1)
+    else
+      newtag
+  in
+  if H.mem usedNames tag then
+    loop 0
+  else
+    tag
 
 (* return empty string if tag begins with __anon
    lookup from hashtable otherwise  *)
@@ -110,48 +121,33 @@ and lookup_tag tag = begin
     ((*prerr_endline "Found __anon tag";*) "")
   else
     try
-      Hashtbl.find fTag tag
+      H.find fTag tag
     with Not_found ->
       (try
-         Hashtbl.find gTag tag
+         H.find gTag tag
        with Not_found -> (* tag has not been used at all *)
-         (Hashtbl.add gTag tag tag;
-          Hashtbl.add fTag tag tag;
+         (H.add gTag tag tag;
+          H.add fTag tag tag;
           tag))
   
 end
-
-(* declare a tag. NOTE: this is not being used at all right now *)
-and declare_tag tag = begin
-   prerr_endline ("declare tag: " ^ tag);
-   try
-     ignore(Hashtbl.find fTag tag)
-   with Not_found ->
-     let newTag = find_newTag tag in 
-     begin
-       Hashtbl.add fTag tag newTag;
-       Hashtbl.add gTag tag newTag;
-     end     
-end
-
         
-and combine_onlytype typ =
-  combine_type typ
+and combine_only_type (specs, dt) =
+  (combine_specs specs, combine_decl_type dt)
 
 (* ATTRIBUTES ARE ADDED BACK *)    
-and combine_name (kind: string) ((id, typ, attr, exp) : name) = begin
- if id = "___missing_field_name"
-  then
-    (id, combine_type typ, attr, combine_init_expression exp)
-  else
-    (lookup_id kind id, combine_type typ, attr, combine_init_expression exp)
+and combine_name (kind: string) ((id, typ, al) : name) = begin
+ if id = "___missing_field_name" then
+   (id, combine_decl_type typ, combineAttrs al)
+ else
+   (lookup_id kind id, combine_decl_type typ, combineAttrs al)
 end
         
-and combine_name_group (kind: string) (typ, sto, names) =
-  (combine_type typ, sto, List.map (combine_name kind) names)
+and combine_name_group (kind: string) (specs, names) =
+  (combine_specs specs, List.map (combine_name kind) names)
     
-and combine_single_name (kind: string) (typ, sto, name) =
-  (combine_type typ, sto, combine_name kind name) 
+and combine_single_name (kind: string) (specs, name) =
+  (combine_specs specs, combine_name kind name) 
 
 (* Raymond added declare_id lookup_id *)
 and combine_params (pars : single_name list) = begin
@@ -192,7 +188,7 @@ and combine_expression (exp : expression) : expression =
   | QUESTION (exp1, exp2, exp3) ->
       QUESTION(combine_expression exp1, combine_expression exp2, combine_expression exp3)    
   | CAST (typ, exp) ->
-      CAST(combine_type typ, combine_expression exp)     
+      CAST(combine_only_type typ, combine_expression exp)     
   | CALL (exp, args) ->
       CALL(combine_expression exp, combine_exps args)   
   | COMMA exps ->
@@ -209,8 +205,8 @@ and combine_expression (exp : expression) : expression =
       VARIABLE(lookup_id "" name)
   | EXPR_SIZEOF exp ->
       EXPR_SIZEOF (combine_expression exp)
-  | TYPE_SIZEOF typ ->
-      TYPE_SIZEOF(combine_type typ)
+  | TYPE_SIZEOF (specs, dt) ->
+      TYPE_SIZEOF(combine_specs specs, combine_decl_type dt)
   | INDEX (exp, idx) ->
       INDEX(combine_expression exp, combine_expression idx)
   | MEMBEROF (exp, fld) ->
@@ -273,15 +269,15 @@ and combine_substatement stat =
 *)
 and combine_defs defs global = begin
   (* clear file scope tables *)
-  Hashtbl.clear fDefTable;
-  Hashtbl.clear fMap;
-  Hashtbl.clear fTag; 
+  H.clear fDefTable;
+  H.clear fMap;
+  H.clear fTag; 
 
   let rec reform_defs = function
       [] -> []
     | def :: rest -> 
       begin
-        if global && (already_declared (remove_anon def)) then 
+        if global && (already_declared ((* remove_anon *) def)) then 
           (reform_defs rest) (*skip this def *) 
         else
           let combined_def = combine_def def global in
@@ -295,235 +291,138 @@ end
    TYPEDEF and ONLYTYPEDEF for the purposes of checking
    duplicate definition.
    If adding tag _anon is removed from Cparser, then we don't
-   need these functions *)
+   need these functions 
 
-and remove_anon_name_group (typ, sto, names) = begin
-  (remove_anon_type typ, sto, List.map remove_anon_name names)
-end
+  REMOVED since cparser does not introduce anonymous structures anymore 
 
-and remove_anon_id id = begin
-  
+and remove_anon_name_group (s, names) = (remove_anon_specs s, names)
+
+and remove_anon_specs (s: spec_elem list) = 
+   let remove_anon_spec_elem (e: spec_elem) =
+     match e with
+       SpecType t -> 
+         SpecType 
+           (match t with
+             Tenum (id, Some items) -> 
+               Tenum (remove_anon_id id, Some items)
+           | Tstruct (id, Some flds) ->
+               Tstruct (remove_anon_id id, 
+                        Some (List.map remove_anon_name_group flds))
+           | Tunion (id, Some flds) ->
+               Tunion (remove_anon_id id, 
+                        Some (List.map remove_anon_name_group flds))
+           | t -> t)
+     | e -> e
+   in
+   List.map remove_anon_spec_elem s
+
+and remove_anon_id id =
   if (((String.length id) >= 6) && ((String.sub id 0 6) = "__anon")) then
     ""
-  else (
+  else 
+    id
 
-    id)
-end
-
-and remove_anon_type typ = begin
-  match typ with
-    STRUCTDEF (id, flds) ->
-      STRUCTDEF (remove_anon_id id,
-                 List.map remove_anon_name_group flds)
-  | UNIONDEF (id, flds) ->
-      UNIONDEF (remove_anon_id id,
-              List.map remove_anon_name_group flds)
-  | ENUMDEF (id, items) -> (* Occur in onlytypedef, not typedef *)
-      ENUMDEF (remove_anon_id id, items)
-  | PROTO (typ', pars, ell, x) -> 
-      PROTO(remove_anon_type typ', pars, ell, x)
-  | PTR typ' -> 
-      PTR(remove_anon_type typ')
-  | ARRAY (typ', dim) -> 
-      ARRAY(remove_anon_type typ', dim)
-  | ATTRTYPE (typ', a) -> ATTRTYPE(remove_anon_type typ', a)
-  | NAMED_TYPE id -> NAMED_TYPE (lookup_id "type" id)
-  | _ -> typ
-end    
-
-and remove_anon_name (id, typ, attr, exp) = begin
-  
-  (id, remove_anon_type typ, attr, exp)
-end  
-      
 and remove_anon def = begin
   match def with
-    TYPEDEF (typ, sto, names) ->
-      TYPEDEF (remove_anon_type typ, sto, List.map remove_anon_name names)
-  | ONLYTYPEDEF (typ, sto, names) ->
-      ONLYTYPEDEF (remove_anon_type typ, sto, List.map remove_anon_name names)
+    TYPEDEF (s, names) -> TYPEDEF (remove_anon_specs s, names)
+  | ONLYTYPEDEF s -> ONLYTYPEDEF (remove_anon_specs s)
   | _ -> def
  
 end        
-
-and tag_defined (typ, sto, names) = begin
-  match typ with
-    STRUCTDEF (id, _) ->
-      begin
-      if id = "" then false
-      else
-      (try
-         ignore(Hashtbl.find structTag id);
-         true
-       with Not_found ->
-         (Hashtbl.add structTag id id;
-          false))
-      end
-  | UNIONDEF (id, _) ->
-      if id = "" then false
-      else 
-      (try
-         ignore(Hashtbl.find unionTag id);
-         true
-       with Not_found ->
-         (Hashtbl.add unionTag id id;
-          false))
-  | ENUMDEF (id, _) ->
-      if id = "" then false
-      else
-      (try
-         ignore(Hashtbl.find enumTag id);
-         true
-       with Not_found ->
-         (Hashtbl.add enumTag id id;
-          false))
+*)
+and tag_defined (s: spec_elem) = 
+  match s with
+    SpecType t -> begin
+      match t with
+        Tstruct (id, Some _) ->
+          id <> "" &&
+          (H.mem structTag id || (H.add structTag id id; false))
+      | Tunion (id, Some _) ->
+          id <> "" &&
+          (H.mem unionTag id || (H.add unionTag id id; false))
+      | Tenum (id, Some _) -> 
+          id <> "" &&
+          (H.mem enumTag id || (H.add enumTag id id; false))
+      | _ -> false
+    end
   | _ -> false
-end
 
 (* returns true check if def is not declared
    Could make another function to clean this code up *)
-and already_declared def = begin
+and already_declared def =
   match def with
-    FUNDEF ((typ, sto, name), body) ->
-      (match sto with
-        STATIC ->
-          (try 
-            Hashtbl.find fDefTable def;
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))            
-      | _ -> 
-          (try
-            Hashtbl.find gDefTable def;
-            true
-          with Not_found -> 
-              (Hashtbl.add gDefTable def 1;
-              false)))
+    FUNDEF ((s, name), body) ->
+      if isStatic s then 
+        H.mem fDefTable def || (H.add fDefTable def 1; false)
+      else
+        H.mem gDefTable def || (H.add gDefTable def 1; false)
               
-  | DECDEF (typ, sto, names) ->
-      (match sto with
-        STATIC  ->
-          (try 
-            ignore(Hashtbl.find fDefTable def);
-            true
-          with Not_found ->
-              (Hashtbl.add fDefTable def 1;
-              false))
-      | _ -> 
-          (try
-            ignore(Hashtbl.find gDefTable def);
-            true
-          with Not_found -> 
-              (Hashtbl.add gDefTable def 1;
-              false)))
+  | DECDEF (s, names) ->
+      if isStatic s then 
+          H.mem fDefTable def || (H.add fDefTable def 1; false)
+      else
+        H.mem gDefTable def || (H.add gDefTable def 1; false)
               
-  | TYPEDEF names ->
-      
-      if tag_defined names then
+  | TYPEDEF (s, names) ->
+      if List.exists tag_defined s then
         true
       else
-        (try
-          ignore(Hashtbl.find gDefTable def);
-          true
-        with Not_found ->
-            (Hashtbl.add gDefTable def 1;
-            false))
+        H.mem gDefTable def || (H.add gDefTable def 1; false)
           
-  | ONLYTYPEDEF names ->
-      if tag_defined names then
+  | ONLYTYPEDEF s ->
+      if List.exists tag_defined s then
         true
-      else 
-        (try
-          ignore(Hashtbl.find gDefTable def);
-          true
-        with Not_found ->
-            (Hashtbl.add gDefTable def 1;
-            false))
+      else
+        H.mem gDefTable def || (H.add gDefTable def 1; false)
       
   | _ -> false (* ASM and others are always considered to be false *)
-end
+
 
 (* Find a id name that hasn't been used *)
-and find_newId id = begin
-  let tmp_id = ref "" and flag = ref true in 
-  begin
-    tmp_id := id;
-    while !flag do
-      try
-        Hashtbl.find gAlphaTable !tmp_id;
-        tmp_id := (!tmp_id ^ "_");
-      with Not_found -> flag := false;
-    done;
-    !tmp_id
-  end
-end
+and find_newId id = findNewName gAlphaTable id
 
 (* declare an id and add that to the mapping table *)
-and declare_id (kind: string) (typ, sto, (id, typ', attr, exp)) global 
-    : unit = begin
+and declare_id (kind: string) (s, (id, dtyp, al)) global 
+    : unit =
   let id = if kind = "" then id else kind ^ " " ^ id in
   (*prerr_endline ("declare id: " ^ id);*)
-  if global then 
-    begin
-      match sto with
-        STATIC  ->
-          (try
-             Hashtbl.find fMap id; ();
-           with Not_found -> (* new declaration *)
-             (try
-                begin
-                  Hashtbl.find gAlphaTable id;
-                  (* needs to be renamed *)
-                  let newId = find_newId id in 
-                  begin
-                    Hashtbl.add gAlphaTable newId id;
-                    Hashtbl.add fMap id newId;
-                  end
-                end
-                with Not_found ->
-                  (Hashtbl.add gAlphaTable id id;
-                   Hashtbl.add fMap id id;)))
-      | _ -> 
-          (try 
-             Hashtbl.find gMap id; ();
-           with Not_found -> (* new declaration *)
-             (try
-                ignore(Hashtbl.find gAlphaTable id);
-                let newId = find_newId id in
-                begin
-                  Hashtbl.add gAlphaTable newId id;
-                  Hashtbl.add gMap id newId;
-                end
-                with Not_found ->
-                  (Hashtbl.add gAlphaTable id id;
-                   Hashtbl.add gMap id id;)))
+  if global then begin
+    if isStatic s then begin
+      if not (H.mem fMap id) then (* new declaration *)
+        if H.mem gAlphaTable id then begin
+            (* needs to be renamed *)
+            let newId = find_newId id in 
+            H.add gAlphaTable newId id;
+            H.add fMap id newId;
+        end else begin
+          H.add gAlphaTable id id;
+           H.add fMap id id
+        end
+    end else begin
+      if not (H.mem gMap id) then (* new declaration *)
+        if H.mem gAlphaTable id then begin
+          let newId = find_newId id in
+          H.add gAlphaTable newId id;
+          H.add gMap id newId
+        end else begin 
+          H.add gAlphaTable id id;
+          H.add gMap id id
+        end
     end
-  else
-    begin (* try to reuse the names as many times as possible *)
-      try 
-        ignore(Hashtbl.find lMap id);
-      with Not_found -> 
-        (try
-           ignore(Hashtbl.find fMap id);
-         with Not_found ->
-           (try
-              ignore(Hashtbl.find gMap id);
-            with Not_found ->
-              (try
-                 ignore(Hashtbl.find gAlphaTable id);
-                 (* needs to be renamed *)
-                 Hashtbl.add lMap id (find_newId id);
-               with Not_found ->
-                 Hashtbl.add lMap id id;)))
-    end
-end
+  end else begin
+    if not (H.mem lMap id) && not (H.mem fMap id) && not (H.mem gMap id) then 
+      if H.mem gAlphaTable id then
+        (* needs to be renamed *)
+        H.add lMap id (find_newId id)
+      else
+        H.add lMap id id
+  end
 
 (* declare_ids are used for a name_group. 
    For simplicity, it is calling declare_id *)  
-and declare_ids (kind: string) (typ, sto, names) global = begin      
-  List.iter (fun name -> declare_id kind (typ, sto, name) global) names
-end
+and declare_ids (kind: string) (s, names) global =
+  List.iter (fun name -> declare_id kind (s, name) global) names
+
 
 (* if global, we do a check on duplicate definition.
    Also, declare id (variable, function, and type) *)
@@ -532,33 +431,34 @@ and combine_def def global = begin
   (* clear function scope mapping table if this is a global def *)
   if global then 
     begin
-      Hashtbl.clear lMap; 
+      H.clear lMap; 
     end;
 
   match def with
-    FUNDEF ((typ, sto, name), body) ->
-      let sto' = 
-        if !Cprint.msvcMode && Cprint.contains_inline name then
-          STATIC
-        else
-          sto
+    FUNDEF ((s, name), body) ->
+      (* One MSVC force inline functions to be static. Otherwise the compiler 
+       * might complain that the function is declared with multiple bodies *)
+      let s' = 
+        if !Cprint.msvcMode && isInline s then
+          SpecStorage STATIC :: s else s
       in
-      (declare_id "" (typ, sto', name) global;
-      let n = combine_single_name "" (typ, sto, name)  (* force evaluation *)
+      (declare_id "" (s', name) global;
+      let n = combine_single_name "" (s', name)  (* force evaluation *)
       in
-        FUNDEF(n, List.map combineBlkElem body))
+      FUNDEF(n, List.map combineBlkElem body))
                
-  | DECDEF names ->
-      (declare_ids "" names global;
-      DECDEF(combine_name_group "" names))
+  | DECDEF (s, names) ->
+      List.iter (fun (name, _) -> declare_id "" (s, name) global) names;
+      DECDEF(combine_specs s, 
+             List.map (fun (name, init) -> combine_name "" name,
+                                           combine_init_expression init) names)
        
-  | TYPEDEF (typ, sto, names) ->
-      (declare_ids "type" (typ, STATIC, names) global;
-      TYPEDEF(combine_name_group "type" (typ, sto, names)))
+  | TYPEDEF (s, names) ->
+      (declare_ids "type" (SpecStorage STATIC :: s, names) global;
+      TYPEDEF(combine_name_group "type" (s, names)))
       
-  | ONLYTYPEDEF (typ, sto, names) ->
-      (declare_ids "type" (typ, STATIC, names) global;
-      ONLYTYPEDEF(combine_name_group "type" (typ, sto, names)))
+  | ONLYTYPEDEF s -> 
+      ONLYTYPEDEF(combine_specs s)
         
   | GLOBASM asm -> 
       GLOBASM asm 
@@ -572,13 +472,13 @@ and lookup_id (kind: string) id = begin
   let id' = if kind = "" then id else kind ^ " " ^ id in
   let newid' = 
     try
-      Hashtbl.find lMap id'
+      H.find lMap id'
     with Not_found ->
       try
-        Hashtbl.find fMap id'
+        H.find fMap id'
       with Not_found ->
         try
-          Hashtbl.find gMap id'
+          H.find gMap id'
         with Not_found ->
           (*prerr_endline ("Undeclared id: " ^ id);*)
           id'

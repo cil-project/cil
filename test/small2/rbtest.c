@@ -20,7 +20,7 @@ int debugMM;
 int debug;
 
 // allow explicit call into gc
-int explicit_gc();
+//int explicit_gc();
 
 
 #define DATASIZE 16   // This is the size of the data that is reserved in

@@ -142,20 +142,15 @@ and typ =
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* Structs and Unions: isstruct, name, fields, attributes, 
-                * self cell.*)
-  | TComp of compinfo
-               (* The field list can be empty *)
-               (* The name is never empty. mkCompInfo will create a unique 
-                * name for anonymous types *)
-
-
-               (* Composite types can be part of circular type structure. 
-                * Thus a struct and a union can be referred in a TForward. 
-                * But all compinfo for a given ckey are shared!. The 
-                * attributes are in addition to the attributes contained in 
-                * the compinfo *)
-  | TForward of compinfo * attribute list
+               (* Structs and Unions: If the first argument is true, then 
+                * this is a forward reference to a composite type. This is 
+                * always printed without the field definitions, so make sure 
+                * there eventually there is a mention of the same compinfo 
+                * with the first argument false. The attributes given are 
+                * those pertaining to this use of the type. The attributes 
+                * that were given at the definition of the type are stored in 
+                * the compinfo  *)
+  | TComp of bool * compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
@@ -176,12 +171,15 @@ and ikind =
 and fkind = 
     FFloat | FDouble | FLongDouble
 
-and attribute = 
-    AId of string                       (* Atomic attributes *)
+(* An attribute has a name and some optional arguments *)
+and attribute = Attr of string * attrarg list
+
+and attrarg = 
+    AId of string                      
   | AInt of int
   | AStr of string 
   | AVar of varinfo
-  | ACons of string * attribute list       (* Constructed attributes *)
+  | ACons of string * attrarg list       (* Constructed attributes *)
 
 (* literal constants *)
 and constant =
@@ -457,6 +455,8 @@ type fundec =
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: block;             (* the body *)
+      mutable sinline: bool;            (* Whether the function is inline or 
+                                         * not *)
     }
 
 type global =
@@ -645,6 +645,7 @@ val d_binop: unit -> binop -> Pretty.doc
 
 
 val d_attr: unit -> attribute -> Pretty.doc
+val d_attrarg: unit -> attrarg -> Pretty.doc
 val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it 
                                                               * comes before 
                                                               * or after 
@@ -657,8 +658,17 @@ val d_fun_decl: unit -> fundec -> Pretty.doc
 val d_videcl: unit -> varinfo -> Pretty.doc
 val printFile: out_channel -> file -> unit
 
-(* Set this function to intercept attributes as are printed. *)
-val setCustomPrint: (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
+(* Use setCustomPrint to intercept all attributes as are printed. If your 
+ * function returns Some d then d is used as the external form of the 
+ * attribute. Otherwise the attribute is printed normally. *)
+val setCustomPrintAttribute: 
+    (attribute -> Pretty.doc option) -> unit
+
+(* Like the above but _adds_ the given function to the begining of the chain 
+ * of custom attribute printers but only for the duration of executing the 
+ * function passed as the second argument on the third argument *)
+val setCustomPrintAttributeScope: 
+    (attribute -> Pretty.doc option) -> ('a -> 'b) -> 'a -> 'b
 
 
 (* removeUnusedTemps moved to rmtmps.mli *)
@@ -780,6 +790,28 @@ val isArithmeticType: typ -> bool
 val isPointerType: typ -> bool
 val isFunctionType: typ -> bool
 
+
+type attributeClass = 
+    AttrName of bool 
+        (* Attribute of a name. If argument is true and we are on MSVC then 
+         * the attribute is printed using __declspec as part of the storage 
+         * specifier  *)
+  | AttrFunType of bool 
+        (* Attribute of a function type. If argument is true and we are on 
+         * MSVC then the attribute is printed just before the function name *)
+  | AttrType  (* Attribute of a type *)
+
+(* This table contains the mapping of predefined attributes to classes. 
+ * Extend this table with more attributes as you need. This table is used to 
+ * determine how to associate attributes with names or type during cabs2cil 
+ * conversion *)
+val attributeHash: (string, attributeClass) Hashtbl.t
+(* Partition the attributes into classes *)
+val partitionAttributes:  default:attributeClass -> 
+                         attribute list -> attribute list * (* AttrName *)
+                                           attribute list * (* AttrFunType *)
+                                           attribute list   (* AttrType *)
+
 (** Construct sorted lists of attributes ***)
 val addAttribute: attribute -> attribute list -> attribute list
 val addAttributes: attribute list -> attribute list -> attribute list
@@ -833,6 +865,21 @@ val foldLeftCompound:
     initl: init list ->
     acc: 'a -> 'a
 
+
+(* ALPHA conversion *)
+(* Create a new name based on a given name. The new name is formed from a 
+ * prefix (obtained from the given name as the longest prefix that ends with 
+ * a non-digit), followed by a '_' and then by a positive integer suffix. The 
+ * first argument is a table mapping name prefixes with the largest suffix 
+ * used so far for that prefix. The largest suffix is one when only the 
+ * version without suffix has been used. *)
+val newAlphaName: alphaTable:(string, int ref) Hashtbl.t ->
+                  lookupname:string -> string
+(* Split the name in preparation for newAlphaName. The prefix returned is 
+ * used to inded in the hashtable. The next result value is a separator 
+ * (either empty or _)  *)
+val splitNameForAlpha: lookupname:string -> string * string * int
+val docAlphaTable: alphaTable:(string, int ref) Hashtbl.t -> Pretty.doc
 
 (**
  ***

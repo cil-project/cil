@@ -19,14 +19,9 @@ type ctxAttr =
   | CAType                              (* Attribute of a type *)
 
 let checkAttributes (attrs: attribute list) : unit = 
-  let aName = function (* Attribute name *)
-      AId s -> s | ACons (s, _) -> s
-    | _ -> E.s (E.bug "Unexpected attribute")
-  in 
   let rec loop lastname = function
       [] -> ()
-    | a :: resta -> 
-        let an = aName a in
+    | (Attr(an, _) as a) :: resta -> 
         if an < lastname then
           ignore (E.warn "Attributes not sorted");
         loop an resta
@@ -166,13 +161,14 @@ let rec checkType (t: typ) (ctx: ctxType) =
         ignore (E.warn "Named type %s is undefined\n" n));
       checkAttributes a
 
-  | TForward (comp, a) -> 
+  | TComp (true, comp, a) -> (* A forward reference *)
       checkAttributes a;
       (* Mark it as a forward. We'll check it later. If we try to check it 
        * now we might encounter undefined types *)
       H.add compForwards comp.ckey comp
 
-  | TComp comp -> 
+  | TComp (_, comp, a) -> 
+      checkAttributes a;
       checkCompInfo comp;
       (* Mark it as a definition. We'll use this later to check the forwards *)
       H.add compDefined comp.ckey comp;
@@ -180,10 +176,10 @@ let rec checkType (t: typ) (ctx: ctxType) =
       (* ignore (E.log "Start circularity check on %s(%d)\n" 
                 (compFullName comp) comp.ckey); *)
       let rec checkCircularity seen = function
-          TComp c ->
+          TComp (false, c, a) ->
 (*            ignore (E.log "   visiting %s(%d)\n" (compFullName c) c.ckey);*)
             if List.mem c.ckey seen then begin
-              ignore (E.log "T=%a\n" d_plaintype (TComp c));
+              ignore (E.log "T=%a\n" d_plaintype (TComp (false, c, a)));
               E.s (E.bug "Circular type structure through %s and %s" 
                      (compFullName comp) 
                      (compFullName c))
@@ -191,8 +187,8 @@ let rec checkType (t: typ) (ctx: ctxType) =
             let seen' = c.ckey :: seen in
             List.iter (fun f -> checkCircularity seen' f.ftype) c.cfields
 
-        | TForward _ -> () (* Stop checking here since circularity is allowed 
-                            * with a TForward *)
+        | TComp (_, _, _) -> () (* Stop checking here since circularity is 
+                                 * allowed with a TForward  *)
         | TArray (bt, _, _) -> checkCircularity seen bt
         | TPtr (bt, _) -> checkCircularity seen bt
         | TNamed (_, bt, _) -> checkCircularity seen bt
