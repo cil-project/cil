@@ -1262,16 +1262,20 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC=perl $(CILDIR)/lib/safecc.pl --mode=gcc --cabs
+LINUXCC=perl $(CILDIR)/lib/safecc.pl --mode=gcc
 ifdef NOLINES
 LINUXCC+= --safec=-noPrintLn
 endif
 ifdef COMMLINES
 LINUXCC+= --safec=-commPrintLn
 endif
-linuxcompile: defaulttarget mustbegcc
+linuxcabs: defaulttarget mustbegcc
 	$(MAKE) -C $(LINUXDIR) vmlinux \
-              MY-CC="$(LINUXCC)"
+              MY-CC="$(LINUXCC) --cabs"
+
+linuxcil: defaulttarget mustbegcc
+	$(MAKE) -C $(LINUXDIR) vmlinux \
+              MY-CC="$(LINUXCC) --cil"
 
 linux-clean:
 	$(MAKE) -C $(LINUXDIR) clean
@@ -1293,7 +1297,7 @@ FTPDSAFECC=$(SAFECC) --combine --keep=safeccout  \
                   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
                   $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
-FTPDSAFECC += -DWIN32 -DMSDOS
+FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
 ftpd-clean: 	
 	cd $(FTPDDIR); make clean
