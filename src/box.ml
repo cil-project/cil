@@ -2435,18 +2435,24 @@ and boxinstr (ins: instr) (l: location): stmt =
                 (_, _, (Var _, NoOffset), _, _, _) -> 
                   (* If the type is a structure and different from the 
                    * function return type then we must split the call *)
-                  if iscast &&
+                  (* ignore 
+                       (E.log "vi=%s, iscast=%b,@! ftret=%a,@!vi.vtype=%a@!"
+                            vi.vname iscast d_plaintype ftret 
+                            d_plaintype vi.vtype); *)
+                  if (* iscast && *)
                      typeSig(ftret) <> typeSig (vi.vtype) &&
                      (not (isSome isallocate)) && 
-                    (match unrollType vi.vtype with
-                      TComp _ -> true | _ -> false) then
+                    (match unrollType vi.vtype, unrollType ftret with
+                      TComp _, _ -> true
+                    | _, TComp _ -> true
+                    | _ -> false) then
                     let tmp = makeTempVar !currentFunction ftret in
                     Some (tmp, false), 
                     vi.vtype,
                     [boxinstr (Set((Var vi, NoOffset), 
                                    Lval (var tmp))) l]
                   else
-                  Some (vi, iscast), vi.vtype, []
+                    Some (vi, iscast), vi.vtype, []
               | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
                   Some (tmp, iscast), 
