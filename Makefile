@@ -92,13 +92,15 @@ SAFECC=perl /Necula/SafeC/cil/lib/safecc.pl --cabs --cil
 ifdef BOX
 SAFECC+= --box
 endif
-
+ifdef RELEASE
+SAFECC+= --release
+endif
 ####### Test with PCC sources
 PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
-PCCTEST=../test/PCC
+PCCTEST=test/PCC
 testpcc: $(PCCSOURCES:%=testpcc/%)
 testpcc/% : ../../Source/Touchstone/PCC/src/%.c $(EXECUTABLE)$(EXE) 
-	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 /c \
+	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 /D_DEBUG /c \
                   ../../Source/Touchstone/PCC/src/$*.c \
                   /Fo$(PCCTEST)/$(notdir $*).o
 
@@ -107,18 +109,19 @@ testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
                  /I../../Source/Touchstone/PCC/src \
                  ../../Source/Touchstone/PCC/src/hash.c \
                  ../../Source/Touchstone/PCC/src/redblack.c \
-                 $(PCCTEST)/main.c \
+                 $(PCCTEST)/hashtest.c \
                  /Fe$(PCCTEST)/hashtest.exe
 
-testallpcc:
+testallpcc: $(EXECUTABLE)$(EXE)
+	-rm ../../Source/Touchstone/PCC/x86_WIN32_MSVC/_DEBUG/*.o
 	make -C ../../Source/Touchstone/PCC \
-             CC="$(SAFECC) --keep=D:/Necula/SafeC/test/PCC /c" \
+             CC="$(SAFECC) --keep=D:/Necula/SafeC/cil/test/PCC /c" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=_DEBUG \
 	     defaulttarget
 
 ############ Small tests
-SMALL1=../test/small1
-test/% : $(SMALL1)/$* $(EXECUTABLE)$(EXE)
+SMALL1=test/small1
+test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
 	$(SAFECC) $(SMALL1)/$*.c $(EXEOUT)$(SMALL1)/$*.exe
 
 
@@ -141,9 +144,9 @@ testdir/% : $(EXECUTABLE)$(EXE)
 
 
 ################## Linux device drivers
-testlinux/% : $(EXECUTABLE)$(EXE) ../test/linux/%.cpp
-	$(SAFECC) -o ../test/linux/$*.o \
-                  ../test/linux/$*.cpp 
+testlinux/% : $(EXECUTABLE)$(EXE) test/linux/%.cpp
+	$(SAFECC) -o test/linux/$*.o \
+                  test/linux/$*.cpp 
 
 testqp : testlinux/qpmouse
 
