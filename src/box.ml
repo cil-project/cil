@@ -1379,7 +1379,7 @@ let beforeField ((btype, pkind, mklval, base, bend, stmts) as input) =
     
 let beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) = 
   match pkind with
-  | (N.Safe|N.Wild) -> 
+  | (N.Safe|N.Wild|N.Seq) -> 
       let (elemtype, pkind, base, bend) = 
         arrayPointerToIndex btype pkind (mklval NoOffset) base in
       (elemtype, pkind, mklval, base, bend, stmts)

@@ -257,7 +257,7 @@ rule initial =
                                          initial lexbuf}
 |		blank			{initial lexbuf}
 |		"__extension__"		{initial lexbuf}
-|		"__attribute__ ((__const__))" { initial lexbuf}
+|		"__attribute__ (" blank* "(__const__)" blank* ")" { initial lexbuf}
 |		"__attribute__ ((const))" { initial lexbuf}
 |		'#'			{line lexbuf}
 	

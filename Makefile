@@ -152,7 +152,7 @@ endif
 
 ifdef _GNUCC
 DEBUGCCL=gcc -x c -O0 -g -ggdb -D_GNUCC 
-RELEASECCL=gcc -x c -O3 -Wall -I/usr/include/sys
+RELEASECCL=gcc -x c -O3 -fomit-frame-pointer -D_RELEASE -D_GNUCC -Wall 
 #LIB=lib
 #LIBOUT=-o
 DOOPT=-O3
@@ -657,17 +657,24 @@ bh : defaulttarget
 SPECDIR=test/spec95
 
 COMPRESSDIR=$(SPECDIR)/129.compress
-compress : defaulttarget
+spec-compress : defaulttarget
 	cd $(COMPRESSDIR)/src; make build
 	echo "14000000 q 2231" >$(COMPRESSDIR)/exe/base/input.data 
 	$(COMPRESSDIR)/exe/base/compress95.v8 \
               <$(COMPRESSDIR)/exe/base/input.data \
               >$(COMPRESSDIR)/exe/base/output.txt
 
+compress : defaulttarget $(COMPRESSDIR)/src/combine-compress.c
+	rm -f $(COMPRESSDIR)/combine-compress.exe
+	cd $(COMPRESSDIR)/src ; $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+                 $(DOOPT) \
+                 combine-compress.c \
+                 $(EXEOUT)combine-compress.exe
+	time $(COMPRESSDIR)/src/combine-compress.exe < $(COMPRESSDIR)/src/input.data > $(COMPRESSDIR)/src/combine-compress.out
 
 LIDIR=$(SPECDIR)/130.li
 li: defaulttarget
-	cd $(LIDIR)/src; make build
+	cd $(LIDIR)/src; make build CC="$(SAFECC) --combine --keep=combine $(CONLY)" \ LD="$(SAFECC) --combine --keep=combine" 
 	$(LIDIR)/src/trial_li \
             <$(LIDIR)/data/train/input/train.lsp \
             >$(LIDIR)/data/train/input/train.out
