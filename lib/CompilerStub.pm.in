@@ -34,6 +34,7 @@
 # This module implements a compiler stub that parses the command line
 # arguments of gcc and Microsoft Visual C (along with some arguments for the
 # script itself) and gives hooks into preprocessing, compil;ation and linking.
+
 package CompilerStub;
 @ISA = ();
 
@@ -41,9 +42,9 @@ use strict;
 use File::Basename;
 use File::Copy;
 use Data::Dumper;
-if($^O eq 'MSWin32') {
-    require Win32;
-}
+#if($^O eq 'MSWin32') {
+#    require Win32;
+#}
 
 # Pass to new a list of command arguments
 sub new {
@@ -462,94 +463,6 @@ sub quoteIfNecessary {
         return $arg;
     }
 }
-
-# Is it on the same volume?
-sub sameVolume {
-    my($f1, $f2) = @_;
-    if($^O eq "MSWin32") {
-        my($v1) = ($f1 =~ m%^([a-zA-Z]:)%);
-        my($v2) = ($f2 =~ m%^([a-zA-Z]:)%);
-        return (defined $v1 && defined $v2 && lc($v1) eq lc($v2));
-    } else {
-        return 1;
-    }
-}
-
-
-# Are we on Win95?
-sub isWin95 {
-    if($^O eq 'MSWin32') {
-        no strict 'subs'; # To avoid compilation errors on Unix 
-	return Win32::IsWin95;
-    } else {
-	return 0;
-    }
-}
-
-# Return true if paths should have backward slashes.
-my $pathSep = ($^O eq "MSWin32") ? '\\' : '/';
-my $dirListSep = ($^O eq "MSWin32") ? ';' : ':'; 
-my $useRelative;           # Whether to use relative paths and to which
-                           # directory 
-# Take a PATH and normalize it. If $useRelative is the name of a directory
-# then relativize with respect to that directory
-sub path {
-    my ($name) = @_;
-    # print "Path on $name is ";
-    if ($^O eq "MSWin32") {
-        $name =~ s%/%\\%g;
-    }
-    # Get rid of final /
-    if($name =~ m%[/\\]$%) {
-        chop $name;
-    }
-    # Get rid of /./
-    $name =~ s|[/\\]\.[/\\]|$pathSep|g;
-    $name =~ s|^\.[/\\]||;
-    # print "Name = $name\n";
-    if(defined($useRelative)) {
-        # print " (relative to $PCC::useRelative) ";
-        if(&isAbsolute($name) &&
-           &isAbsolute($useRelative) &&
-           &sameVolume($name, $useRelative)) {
-            # print "\n====Here\n";
-            my @pbase = split(m%[/\\]%, $useRelative);
-            my @path  = split(m%[/\\]%, $name);
-            while(@pbase && @path && lc($pbase[0]) eq lc($path[0])) {
-                shift @pbase;
-                shift @path;
-            }
-            # print "Here base=@pbase and this=@path\n";
-            my $nname = join($pathSep, @path);
-            my $nbase = '';
-            my $cnt;
-            if($#pbase == -1) {
-                $nbase = '';
-            } elsif ($#pbase == 0) {
-                $nbase = '..';
-            } else {
-                $nbase = '.';
-                foreach $cnt (@pbase) {
-                    $nbase = "$nbase$pathSep..";
-                }
-            }
-            if($nname eq '' || $nbase eq '') {
-                $nname = "$nbase$nname";
-                if($nname eq '') {
-                    $nname = '.';
-                }
-            } else {
-                $nname = "$nbase$pathSep$nname";
-            }
-            if(length($nname) < length($name)) {
-                $name = $nname;
-            }
-        }
-    }
-    # print " $name\n";
-    return $name;
-}
-
 
 
 

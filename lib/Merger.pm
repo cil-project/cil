@@ -29,6 +29,8 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+$::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
+
 package Merger;
 use strict;
 
@@ -44,7 +46,7 @@ BEGIN {
     @Merger::ISA = qw(CompilerStub);
     $Merger::combext = "_comb.c";
     $Merger::combbase = $FindBin::Bin . "/../obj";
-    if($^O eq 'MSWin32') {
+    if($::iswin32) {
         $Merger::combbase .= '/x86_WIN32';
     } else {
         $Merger::combbase .= '/x86_LINUX';
@@ -59,7 +61,7 @@ BEGIN {
              ? ".asm.exe" : ".byte.exe");
     # For some strange reason on Windows the bytecode versions must be passed
     # as an argument to themselves
-    if($^O eq 'MSWin32' && ($Merger::mtime_asm < $Merger::mtime_byte)) {
+    if($::iswin32 && ($Merger::mtime_asm < $Merger::mtime_byte)) {
         $Merger::merger .= " " . $Merger::merger;
     }
 #    print "asm: $Merger::mtime_asm, byte: $Merger::mtime_byte. Choose: $Merger::merger\n";

@@ -39,9 +39,13 @@ use Data::Dumper;
 
 my $gcc = "@CC@";
 
-if($^O eq 'MSWin32') {
-    require Win32;
-}
+$::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
+
+#
+#if($^O eq 'MSWin32') {
+#    require Win32;
+#}
+
 # Set filename parsing according to current operating system.
 File::Basename::fileparse_set_fstype($^O);
 
@@ -219,7 +223,7 @@ sub findCompilerVersion {
 
 sub lineDirective {
     my ($fileName, $lineno) = @_;
-    if($^O eq 'MSWin32') {
+    if($::iswin32) {
         $fileName =~ s|\\|/|g;
     }
     if($option{mode} eq "MSVC") {
@@ -264,7 +268,7 @@ sub patchOneFile {
         die "Cannot find the absolute name of $fname1\n";
     }
     # If we fail then maybe we are using cygwin paths in a Win32 system
-    if($option{mode} eq "GNUCC" && $^O eq 'MSWin32') {
+    if($option{mode} eq "GNUCC" && $::iswin32) {
         open(WINNAME, "cygpath -w $absname|")
             || die "Cannot run cygpath to convert $absname to a Windows name";
         $absname = <WINNAME>;
@@ -284,7 +288,7 @@ sub patchOneFile {
 # Is absolute path name?
 sub isAbsolute {
     my($name) = @_;
-    if($^O eq "MSWin32") {
+    if($::iswin32) {
         return ($name =~ m%^([a-zA-Z]:)?[/\\]%);
     } else {
         return ($name =~ m%^[/\\]%);
