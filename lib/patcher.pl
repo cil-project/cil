@@ -58,7 +58,7 @@ my %option;
      "--dumpversion",
      "--clean",
      );
-    
+
 if($option{help}) {
     &printHelp();
     exit 0;
@@ -123,7 +123,10 @@ sub findCompilerVersion {
         $cname = "GNU CC";
         open(VER, "gcc -dumpversion $ppargs|") || die "Cannot start $cname";
         while(<VER>) {
-            if($_ =~ m|^(\d+\S+)|) {
+            # sm: had to modify this to match "egcs-2.91.66", which is
+            # how egcs responds to the -dumpversion request
+            if($_ =~ m|^(\d+\S+)|  ||
+               $_ =~ m|^(egcs-\d+\S+)|) {
                 $cversion = "gcc_$1";
                 close(VER) || die "Cannot start $cname\n";
                 return;
