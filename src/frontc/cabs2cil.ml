@@ -3187,7 +3187,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * finishExp. Simulate what = 
                                                  * AExp None  *)
               with Not_found -> begin
-                ignore (warn "Calling function %s without prototype." n);
+                if false then ignore (warn "Calling function %s without prototype." n);
                 let ftype = TFun(intType, None, false, 
                                  [Attr("missingproto",[])]) in
                 (* Add a prototype to the environment *)

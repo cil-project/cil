@@ -808,6 +808,75 @@ let rec get_stmtLoc (statement : stmtkind) =
                  else get_stmtLoc ((List.hd b.bstmts).skind)
 
 
+(* Some error reporting functions *)
+let d_loc (_: unit) (loc: location) : doc =  
+  text loc.file ++ chr ':' ++ num loc.line
+
+let d_thisloc (_: unit) : doc = d_loc () !currentLoc
+
+let error (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Error: %a@!" 
+              d_thisloc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let unimp (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Unimplemented: %a@!" 
+              d_thisloc insert d);
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let bug (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%t: Bug: %a@!" 
+              d_thisloc insert d);
+    E.showContext ();
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
+  let f d = 
+    E.hadErrors := true; 
+    ignore (eprintf "@!%a: Error: %a@!" 
+              d_loc loc insert d);
+    E.showContext ();
+    raise E.Error
+  in
+  Pretty.gprintf f fmt
+
+let warn (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%t: Warning: %a@!" 
+              d_thisloc insert d);
+    nil
+  in
+  Pretty.gprintf f fmt
+
+let warnContext (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%t: Warning: %a@!" 
+              d_thisloc insert d);
+    E.showContext ();
+    nil
+  in
+  Pretty.gprintf f fmt
+
+let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
+  let f d =
+    ignore (eprintf "@!%a: Warning: %a@!" 
+              d_loc loc insert d);
+    E.showContext ();
+    nil
+  in
+  Pretty.gprintf f fmt
 
 
     (* A special location that we use to mark that a BinOp was created from 
@@ -861,7 +930,7 @@ let truncateInteger64 (k: ikind) (i: int64) =
 let kinteger64 (k: ikind) (i: int64) : exp = 
   let i' = truncateInteger64 k i in
   if i' <> i then 
-    ignore (E.warn "Truncating integer %s to %s\n" 
+    ignore (warn "Truncating integer %s to %s\n" 
               (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
   Const (CInt64(i', k,  None))
 
@@ -1138,75 +1207,6 @@ external parse : string -> file = "cil_main"
   Pretty Printing
  *)
 
-(* Some error reporting functions *)
-let d_loc (_: unit) (loc: location) : doc =  
-  text loc.file ++ chr ':' ++ num loc.line
-
-let d_thisloc (_: unit) : doc = d_loc () !currentLoc
-
-let error (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = 
-    E.hadErrors := true; 
-    ignore (eprintf "@!%t: Error: %a@!" 
-              d_thisloc insert d);
-    raise E.Error
-  in
-  Pretty.gprintf f fmt
-
-let unimp (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = 
-    E.hadErrors := true; 
-    ignore (eprintf "@!%t: Unimplemented: %a@!" 
-              d_thisloc insert d);
-    raise E.Error
-  in
-  Pretty.gprintf f fmt
-
-let bug (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = 
-    E.hadErrors := true; 
-    ignore (eprintf "@!%t: Bug: %a@!" 
-              d_thisloc insert d);
-    E.showContext ();
-    raise E.Error
-  in
-  Pretty.gprintf f fmt
-
-let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = 
-    E.hadErrors := true; 
-    ignore (eprintf "@!%a: Error: %a@!" 
-              d_loc loc insert d);
-    E.showContext ();
-    raise E.Error
-  in
-  Pretty.gprintf f fmt
-
-let warn (fmt : ('a,unit,doc) format) : 'a = 
-  let f d =
-    ignore (eprintf "@!%t: Warning: %a@!" 
-              d_thisloc insert d);
-    nil
-  in
-  Pretty.gprintf f fmt
-
-let warnContext (fmt : ('a,unit,doc) format) : 'a = 
-  let f d =
-    ignore (eprintf "@!%t: Warning: %a@!" 
-              d_thisloc insert d);
-    E.showContext ();
-    nil
-  in
-  Pretty.gprintf f fmt
-
-let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
-  let f d =
-    ignore (eprintf "@!%a: Warning: %a@!" 
-              d_loc loc insert d);
-    E.showContext ();
-    nil
-  in
-  Pretty.gprintf f fmt
 
 let escape_char c = 
   let conv v = 

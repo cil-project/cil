@@ -123,7 +123,9 @@ CCURED+= $(EXTRAARGS)
 ifdef NEWOPTIM
   CCURED += --optimize --newoptim
 endif
-
+ifdef CILMERGER
+  CCURED += --cilmerger
+endif
 ifneq ($(INFERBOX),none)
   MANUALBOX := 1
   CCURED+= --curetype=$(INFERBOX) $(DEF)INFERBOX

@@ -51,7 +51,13 @@ exception Done_Processing
 let parseOneFile (fname: string) : C.file = 
   (* PARSE and convert to CIL *)
   if !Util.printStages then ignore (E.log "Parsing %s\n" fname);
-  F.parse fname ()
+  let cil = F.parse fname () in
+  (* sm: remove unused temps to cut down on gcc warnings  *)
+  (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
+  (trace "sm" (dprintf "removing unused temporaries\n"));
+  (Rmtmps.removeUnusedTemps cil);
+  cil
+
       
 let rec processOneFile (cil: C.file) =
   try begin
@@ -60,11 +66,6 @@ let rec processOneFile (cil: C.file) =
       ignore (E.log "First CIL check\n");
       CK.checkFile [] cil;
     end;
-
-    (* sm: remove unused temps to cut down on gcc warnings  *)
-    (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
-    (trace "sm" (dprintf "removing unused temporaries\n"));
-    (Rmtmps.removeUnusedTemps cil);
 
     if (!Util.logCalls) then begin
       Logcalls.logCalls cil 
@@ -227,7 +228,8 @@ let rec theMain () =
       if !merge then begin
         let files = List.map parseOneFile !fileNames in
         let one = 
-          Mergecil.merge files (if !outName = "" then "stdout" else !outName)
+          Stats.time "merge" (Mergecil.merge files)
+            (if !outName = "" then "stdout" else !outName)
         in
         if !E.hadErrors then 
           E.s (E.error "There were errors during merging\n");
