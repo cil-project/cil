@@ -208,7 +208,8 @@ sub collectOneArgument {
         return 1;
     }
     if($arg =~ m|--leavealone=(.+)$|)  {
-        push @{$self->{LEAVEALONE}}, $1; return 1;
+        push @{$self->{LEAVEALONE}}, $1; 
+        return 1;
     }
     if($arg =~ m|--includedir=(.+)$|)  {
         push @{$self->{INCLUDEDIR}}, $1; return 1;
@@ -424,6 +425,7 @@ sub preprocess_compile {
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
         if($self->leaveAlone($src)) {
+            print "LEaving alone $src\n";
             # We leave this alone. So just compile as usual
             return $self->straight_compile($src, $dest, $ppargs, $ccargs);
         }

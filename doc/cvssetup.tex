@@ -29,20 +29,19 @@ connection for this.
 \item Go to \ahrefurl{http://sources.redhat.com/cygwin} and click \t{Install
 cygwin} icon. Download \t{setup.exe} to the directory you just created.
 \item Run \t{setup.exe} and select ``Download to local directory''. Select all
-the packages. This will take a while (~ 30 minutes)
-\item Run \t{setup.exe} again and not select to ``Install from local
+the packages. It is especially important to select all packages under
+``Devel'' category. This will take a while (~ 30 minutes)
+\item Run \t{setup.exe} again and now select to ``Install from local
 directory''. It is best to {\bf deselect} the \t{tetex} package since I found
 it to interfere with other installations of Latex.
 \item I choose \t{C:\backslash Programs\backslash cygwin} 
 as the home for \t{cygwin}, I use \t{DOS} as the default text file and I
 choose ``Install for All''. 
 \item Add \t{C:\backslash Programs\backslash cygwin\backslash bin} to your
-PATH. You must put it first in the ``System Variables'' PATH (In Control Panel/System/Advanced/Environment
+PATH. You must put it in the ``System Variables'' PATH (In Control Panel/System/Advanced/Environment
 Variables'' and {\bf put it first} so that it comes before the default
 c:/WinNT/system32. You can verify that you got it right if you get
 \t{/usr/bin/find} when you run \t{which find}. 
-\item If you are on a Win NT/2k/XP you might want to set "CYGWIN=ntsec" so
-that cygwin knows how to work with NTFS's file permissions.
 \end{itemize}
 
 

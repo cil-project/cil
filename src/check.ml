@@ -894,7 +894,8 @@ let checkFile flags fl =
       if !isadef = Used then 
 	begin
 	  valid := false;
-          ignore (E.warn "Enuminfo %s is referenced but not defined" enum.ename)
+          ignore (E.warn "Enuminfo %s is referenced but not defined" 
+                    enum.ename)
 	end)
     enumUsed;
   (* Clean the hashes to let the GC do its job *)
