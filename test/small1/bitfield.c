@@ -1,5 +1,5 @@
 #ifdef _GNUCC
-#define _int64 long long
+#define __int64 long long
 #endif
 
 typedef struct {
