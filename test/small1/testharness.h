@@ -1,4 +1,4 @@
-extern int printf(const char *, ...);
+extern int printf(const char * __ROSTRING, ...);
 extern void exit(int);
 
 /* Always call E with a non-zero number */

@@ -1428,7 +1428,7 @@ sub addBadComment {
 sub add3Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
-    // $self->addComment($name . "-box", $comm);
+    $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
 }
 
