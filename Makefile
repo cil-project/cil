@@ -1681,7 +1681,7 @@ linuxclean:
 		-name '*.obj' -o \
 		-name '*cabs.c' -o \
 		-name '*_comb*.c' \
-	      	\) -exec rm {} \;
+	      	\) -exec rm -f {} \;
 
 linux: mustbegcc mustbelinux mustbemanju linuxclean
 	cd $(LINUXSRC) ; make -k CC="$(CILLY)" 

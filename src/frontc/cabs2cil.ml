@@ -352,9 +352,9 @@ let newTempVar typ =
     "const" variable *)
   let stripConst t =
     let a = typeAttrs t in
-    setTypeAttrs t 
-      (dropAttribute (dropAttribute a (Attr("const", [])))
-         (Attr("restrict", [])))
+    let a1 = dropAttribute a (Attr("const", [])) in
+(*    let a1 = dropAttribute a1 (Attr("restrict", [])) in *)
+    setTypeAttrs t a1
   in
   alphaConvertVarAndAddToEnv false  (* Do not add to the environment *)
     { vname = "tmp";  (* addNewVar will make the name fresh *)
@@ -1373,7 +1373,7 @@ let rec doSpecList (specs: A.spec_elem list)
     | A.SpecAttr a -> 
         let ignore = 
           match a with 
-            ("restrict", _) -> true
+(*            ("restrict", _) -> true *)
           | _ -> false
         in
         if not ignore then 
@@ -1622,7 +1622,7 @@ and doAttr (a: A.attribute) : attribute list =
     String.sub n st (fin - st + 1)
   in
   match a with
-    ("restrict", []) -> []
+(*    ("restrict", []) -> [] *)
   | (s, []) -> [Attr (stripUnderscore s, [])]
   | (s, el) -> 
       let rec attrOfExp (strip: bool) (a: A.expression) : attrarg =

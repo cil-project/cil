@@ -224,6 +224,7 @@ $TEST->add2Tests("testrun/wild2", "_GNUCC=1");
 $TEST->addTests("testrun/returnvoid", "", ['cil']);
 $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
    
 # Tests that are expected to fail
 $TEST->add2TestsFail("testrun/failubound1", "", "Failure .+: Ubound");
@@ -250,7 +251,6 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Decrement FSEQ",
 $TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Lbound", 
                     ['box']);
 $TEST->addTestsFail("testrun/string1", "", "Failure .+: ", ['inferbox']);
-
 #
 # OLDEN benchmarks
 #

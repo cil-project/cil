@@ -732,6 +732,7 @@ sub new {
             "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
             "-nostdlib" => { TYPE => 'LINK' },
             "-traditional" => { TYPE => 'PREPROC' },
+            "-std" => { TYPE => 'CC' },
             ],
                                   
       };
