@@ -499,9 +499,8 @@ sub straight_link {
     $dest = $dest eq "" ? "" : $self->{OUTEXE} . $dest;
     # Pass the linkargs last because some libraries must be passed after
     # the sources
-    my $cmd = $self->{LD} . " " . 
-        join(' ', @{$ppargs}, @{$ccargs}, @sources, @{$ldargs}) .  
-            " $dest";
+    my $cmd = $self->{LD} . " $dest " . 
+        join(' ', @{$ppargs}, @{$ccargs}, @sources, @{$ldargs});
     return $self->runShell($cmd);
 }
 
@@ -592,7 +591,26 @@ sub link {
     my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
 
     my $mergedobj = $dest . "_comb.$self->{OBJEXT}";
-    $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs); 
+    
+    # Check the modification types and see if we can just use the combined
+    # file instead of merging all over again
+    if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
+        my $canReuse = 1;
+        my $combFile = $dest . "_comb.c";
+        my @tmp = stat($combFile); my $combFileMtime = $tmp[9];
+        foreach my $mrg (@{$tomerge}) {
+            my @tmp = stat($mrg); my $mtime = $tmp[9];
+            if($mtime >= $combFileMtime) { goto DoMerge; }
+        }
+        if($self->{VERBOSE}) {
+            print "Reusing merged file $combFile\n";
+        }
+        $self->applyCilAndCompile([$combFile], $mergedobj, $ppargs, $ccargs); 
+    } else {
+      DoMerge:
+        $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs); 
+    }
+
     push @{$trueobjs}, $mergedobj;
 
     # And finally link
@@ -638,7 +656,7 @@ sub applyCilAndCompile {
     } else {
         $cmd .= join(' ', @srcs) . " ";
     }
-    if($self->{KEEPMERGED}) {
+    if(@srcs > 1 && $self->{KEEPMERGED}) {
         $cmd .= " --mergedout $dir$base" . ".c ";
     }
     # Now run cilly
@@ -966,18 +984,22 @@ sub msvc_preprocess {
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
     my $msvcout = "./$sbase.i";
-    my @st1 = stat $msvcout;
-    my @st2 = stat $dest;
-    while($#st1 >= 0) {
-        if(shift @st1 != shift @st2) {
+    # Check file equivalence by making sure that all elements of the stat
+    # structure are the same, except for the access time.
+    my @st1 = stat $msvcout; $st1[8] = 0;
+    my @st2 = stat $dest; $st2[8] = 0;
+    if($msvcout ne $dest) {
+        while($#st1 >= 0) {
+            if(shift @st1 != shift @st2) {
 #                print "$msvcout is NOT the same as $afterpp\n";
-            if($self->{VERBOSE}) {
-                print "Copying $msvcout to $dest\n";
+                if($self->{VERBOSE}) {
+                    print "Copying $msvcout to $dest\n";
+                }
+                unlink $dest;
+                &File::Copy::copy($msvcout, $dest);
+                unlink $msvcout;
+                return $res;
             }
-            unlink $dest;
-            &File::Copy::copy($msvcout, $dest);
-            unlink $msvcout;
-            return $res;
         }
     }
     return $res;

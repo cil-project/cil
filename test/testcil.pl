@@ -333,6 +333,10 @@ $TEST->addTests("combine18", "", ['cil']);
 $TEST->addTests("combineenum1", "", ['cil']);
 $TEST->addTests("combineenum2", "", ['cil']);
 $TEST->addTests("combineenum3", "", ['cil']);
+$TEST->addTests("combineinline1", "", ['cil']);
+$TEST->addTests("combineinline2", "", ['cil']);
+$TEST->addTests("combineinline3", "", ['cil']);
+$TEST->addTests("combineinline4", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");

@@ -46,7 +46,7 @@ let mergeSynonyms = true
 (* Try to merge definitions of inline functions. They can appear in multiple 
  * files and we would like them all to be the same. This can slow down the 
  * merger an order of magnitude !!! *)
-let mergeInlines = false
+let mergeInlines = true
 
 (* Check that s starts with the prefix p *)
 let prefix p s = 
@@ -750,9 +750,14 @@ let rec oneFilePass1 (f:file) : unit =
         if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then 
           oldvi.vstorage 
         else if oldvi.vstorage = Extern then vi.vstorage 
+        (* Sometimes we turn the NoStorage specifier into Static for inline 
+         * functions *)
+        else if oldvi.vstorage = Static && 
+                vi.vstorage = NoStorage then Static 
         else begin
-          ignore (warn "Inconsistent storage specification for %s. Previous was at: %a" 
-                    vi.vname d_loc oldloc);
+          ignore (warn "Inconsistent storage specification for %s. Now is %a and previous was %a at %a" 
+                    vi.vname d_storage vi.vstorage d_storage oldvi.vstorage 
+                    d_loc oldloc);
           vi.vstorage
         end
       in
@@ -987,9 +992,9 @@ let oneFilePass2 (f: file) =
               (* Temporarily turn of printing of lines *)
               let oldprintln = !printLn in
               printLn := false;
-              (* Temporarily restore the name *)
+              (* Temporarily set the name to all functions in the same way *)
               let newname = fdec'.svar.vname in
-              fdec'.svar.vname <- origname;
+              fdec'.svar.vname <- "@@alphaname@@";
               let res = d_global () g' in
               printLn := oldprintln;
               fdec'.svar.vname <- newname;
@@ -999,7 +1004,7 @@ let oneFilePass2 (f: file) =
              * the new name because that one will be used to lookup the 
              * replacement during renaming. *)
             let inode = 
-              getNode vEq vSyn !currentFidx fdec.svar.vname fdec.svar None 
+              getNode vEq vSyn !currentFidx fdec'.svar.vname fdec'.svar None 
             in
             if debugInlines then begin
               ignore (E.log 
@@ -1013,6 +1018,9 @@ let oneFilePass2 (f: file) =
                           oldinode.nname oldinode.nfidx);
               (* There is some other inline function with the same printout *)
               let _ = union oldinode inode in
+              (* Clean up the vreferenced bit in the new inline, so that we 
+               * can rename it *)
+              fdec'.svar.vreferenced <- false;
               () (* Drop this definition *)
             with Not_found -> begin
               if debugInlines then ignore (E.log " Not found\n");
