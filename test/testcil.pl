@@ -388,6 +388,7 @@ $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
 $TEST->addTests("testrun/tcast2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti1", "", ['inferbox']);
+$TEST->addTests("testrun/rtti2", "", ['inferbox']);
 $TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
    $TEST->addBadComment("testrun/pointerdiff-inferbox", 
                         "A pointer that is not read should not be bound-checked");
