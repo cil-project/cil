@@ -659,7 +659,7 @@ scott/%: test/small2/%.c defaulttarget
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 $(DOOPT) $(WARNALL) \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
 	test/small2/$*
@@ -669,9 +669,39 @@ scott-nolink/%: test/small2/%.c defaulttarget
 	cd test/small2; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
 	cd test/small2; $(SAFECC) $(CONLY) --verbose --keep=. $(DEF)$(ARCHOS) \
                  `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
-                 $(DOOPT) $(WARNALL) \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*
+
+# a target for programs which are *supposed* to fail, because
+# they intentionally violate the type system; but this is only
+# when FAIL is #defined, otherwise they should exit ok
+bad/%: test/bad/%.c defaulttarget
+	rm -f test/bad/$*
+	cd test/bad; $(CC) $(CONLY) $(WARNALL) $(DEF)$(ARCHOS) $*.c
+	@true "first try the succeed case"
+	cd test/bad; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*
+	if test/bad/$*; then \
+		echo "(worked as expected, when FAIL not defined)"; exit 0; \
+	else \
+		echo "That should have worked; FAIL was not defined!"; exit 2; \
+	fi
+	@true "now try the failure case"
+	cd test/bad; $(SAFECC) --verbose --keep=. $(DEF)$(ARCHOS) \
+                 `$(PATCHECHO) --patch=../../lib/$(PATCHFILE)` \
+                 $(DOOPT) $(WARNALL) $(NOPRINTLN) -DFAIL \
+                 $*.c \
+                 $(EXEOUT)$*
+	if test/bad/$*; then \
+		echo "That should have failed!"; exit 2; \
+	else \
+		echo "(failed as expected)"; exit 0; \
+	fi
+
 
 
 # sm: trivial test of combiner
@@ -1104,7 +1134,8 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR=$(SPECDIR)/099.go
-GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+GOSAFECC=$(SAFECC) --combine  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) \
+                   --keep=safeccout $(NOPRINTLN)
 ifdef BOX
 GOEXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
@@ -1121,11 +1152,11 @@ go: defaulttarget mustbegcc
             make clean build CC="$(GOSAFECC) $(CONLY)" \
                              LD="$(GOSAFECC)" \
                              EXTRA_LIBS=$(GOEXTRA)
-	$(GODIR)/exe/base/go.ultra 50 9
+	$(GODIR)/src/go 50 9
 
 go-combined: defaulttarget mustbegcc
-	cd $(GODIR)/exe/base; \
-	   $(SAFECC) $(CONLY) go.ultra_all.c
+	cd $(GODIR)/src; \
+	   $(SAFECC) $(CONLY) go_all.c
 
 
 go-noclean: defaulttarget mustbegcc
@@ -1133,7 +1164,7 @@ go-noclean: defaulttarget mustbegcc
             make build CC="$(GOSAFECC) $(CONLY)" \
                        LD="$(GOSAFECC)" \
                              EXTRA_LIBS=$(GOEXTRA) 
-	sh -c "time $(GODIR)/exe/base/go.ultra 50 9"
+	sh -c "time $(GODIR)/src/go 50 9"
 
 
 

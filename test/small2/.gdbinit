@@ -1,5 +1,5 @@
 # .gdbinit
 
-file jpeg_compress_struct
+file simplewild
 break main
 run
