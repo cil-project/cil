@@ -40,7 +40,6 @@ package CompilerStub;
 use strict;
 use File::Basename;
 use File::Copy;
-use FindBin;
 use Data::Dumper;
 if($^O eq 'MSWin32') {
     require Win32;
@@ -882,6 +881,8 @@ use strict;
 
 use File::Basename;
 
+my $gccdir = "@GCCDIR@";
+
 sub new {
     my ($proto, $stub) = @_;
     my $class = ref($proto) || $proto;
@@ -892,9 +893,9 @@ sub new {
       MODENAME => 'GNUCC',  # do not change this since it is used in code
       # sm: added -O since it's needed for inlines to be merged instead of causing link errors
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
-      CC => "gcc -D_GNUCC -c",
-      LD => "gcc -D_GNUCC ",
-      CPP => "gcc -D_GNUCC -E ",
+      CC => "$gccdir/gcc -D_GNUCC -c",
+      LD => "$gccdir/gcc -D_GNUCC ",
+      CPP => "$gccdir/gcc -D_GNUCC -E ",
       DEFARG  => "-D",
       INCARG => "-I",
       DEBUGARG => "-g",
@@ -987,7 +988,8 @@ sub linkOutputFile {
 sub setVersion {
     my($self) = @_;
     my $cversion = "";
-    open(VER, "gcc -dumpversion " . join(' ', @{$self->{PPARGS}}) ." |") 
+    open(VER, "$gccdir/gcc -dumpversion " 
+         . join(' ', @{$self->{PPARGS}}) ." |") 
         || die "Cannot start GNUCC";
     while(<VER>) {
         if($_ =~ m|^(\d+\S+)| || $_ =~ m|^(egcs-\d+\S+)|) {

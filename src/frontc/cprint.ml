@@ -543,6 +543,14 @@ and print_expression (exp : expression) (lvl : int) =
           (* ; print ")" *)
       | NO_INIT -> print "<NO_INIT in cast. Should never arise>")
 
+  | CALL (VARIABLE "__builtin_va_arg", [arg; TYPE_SIZEOF (bt, dt)]) -> 
+      comprint "variable";
+      print "__builtin_va_arg";
+      print "(";
+      print_expression arg 1;
+      print ",";
+      print_onlytype (bt, dt);
+      print ")"
   | CALL (exp, args) ->
       print_expression exp 16;
       print "(";

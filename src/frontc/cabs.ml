@@ -203,6 +203,10 @@ and expression =
 
    (* A CAST can actually be a constructor expression *)
   | CAST of (specifier * decl_type) * init_expression
+
+    (* There is a special form of CALL in which the function called is
+       __builtin_va_arg and the second argument is sizeof(T). This 
+       should be printed as just T *)
   | CALL of expression * expression list
   | COMMA of expression list
   | CONSTANT of constant

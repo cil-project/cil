@@ -55,8 +55,8 @@ ifndef CCUREDHOME
   endif
 endif
 
-CCURED := perl $(CCUREDHOME)/lib/ccured.pl 
-PATCHER := perl $(CCUREDHOME)/lib/patcher.pl
+CCURED := perl $(CCUREDHOME)/bin/ccured.pl 
+PATCHER := perl $(CCUREDHOME)/bin/patcher.pl
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -460,7 +460,7 @@ combine%:
 
 arcombine: mustbegcc
 	cd $(SMALL1); $(CCURED) --merge -c array1.c array2.c
-	cd $(SMALL1); perl $(CCUREDHOME)/lib/cilly.pl --merge \
+	cd $(SMALL1); perl $(CCUREDHOME)/bin/cilly.pl --merge \
                            --mode=AR crv array.a array1.o array2.o
 	cd $(SMALL1); $(CCURED) --merge -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
@@ -650,7 +650,7 @@ test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	CCUREDHOME="$(CCUREDHOME)" CCURED="$(CCURED) --noPrintLn" \
 	  CFLAGS=""`$(PATCHECHO) $(STANDARDPATCH)`" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
-	  bash ../lib/test-bad $*.c
+	  bash ../bin/test-bad $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=. $(STANDARDPATCH)
@@ -1455,7 +1455,7 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC := perl $(CCUREDHOME)/lib/ccured.pl --mode=gcc
+LINUXCC := perl $(CCUREDHOME)/bin/ccured.pl --mode=gcc
 ifdef NOLINES
   LINUXCC+= --noPrintLn
 endif
@@ -1682,7 +1682,7 @@ mustbemanju:
 	if ! test -d $(LINUXSRC) ; then  \
                 echo You dont have the Linux sources; exit 3; fi
 
-CILLY := perl $(CCUREDHOME)/lib/cilly.pl
+CILLY := perl $(CCUREDHOME)/bin/cilly.pl
 ifdef NOLINES
   CILLY+= --noPrintLn
 endif
@@ -1846,10 +1846,10 @@ wuftpdclean:
 	      	\) -exec rm -f {} \;
 
 wuftpd: mustbegcc mustbelinux mustbemanju wuftpdclean
-	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/lib/cilly.pl lnx
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly.pl lnx
 
 wuftpd-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/lib/cilly.pl lnx
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/bin/cilly.pl lnx
 
 wuftpd-gcc: mustbelinux mustbemanju wuftpdclean
 	cd $(WUFTPDSRC) ; ./build CC=gcc lnx

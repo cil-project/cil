@@ -179,7 +179,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
     ignore (warn "Type (%a) used in wrong context. Expected context: %a"
               d_plaintype t d_context ctx);
   match t with
-    TVoid a -> checkAttributes a
+    (TVoid a | TBuiltin_va_list a) -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
   | TFloat (_, a) -> checkAttributes a
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr

@@ -184,7 +184,9 @@ DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
 DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   logwrites.ml heapify.ml 
 
-DISTRIB_LIB = CompilerStub.pm Merger.pm cilly.pl.in patcher.pl
+DISTRIB_LIB = CompilerStub.pm.in Merger.pm
+
+DISTRIB_BIN = cilly.pl.in patcher.pl
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 
@@ -201,6 +203,7 @@ distrib: doc
               $(TOP_DIR)/obj \
               $(TOP_DIR)/doc \
 	      $(TOP_DIR)/lib \
+	      $(TOP_DIR)/bin \
 	      $(TOP_DIR)/doc/api \
               $(TOP_DIR)/obj/.depend \
               $(TOP_DIR)/obj/x86_WIN32 \
@@ -222,6 +225,7 @@ distrib: doc
 	cp $(patsubst %,src/frontc/%,$(DISTRIB_SRC_FRONTC)) \
 		$(TOP_DIR)/src/frontc
 	cp $(patsubst %,lib/%,$(DISTRIB_LIB)) $(TOP_DIR)/lib
+	cp $(patsubst %,bin/%,$(DISTRIB_BIN)) $(TOP_DIR)/bin
 	cp $(patsubst %,test/small1/%,$(DISTRIB_SMALL1)) $(TOP_DIR)/test/small1
 
 	cp -r doc/html/cil/* $(TOP_DIR)/doc
@@ -241,10 +245,10 @@ clean: cleancaml
 
 
 test/%: 
-	perl lib/cilly.pl -c test/small1/$*.c -o test/small1/$*.o
+	perl bin/cilly.pl -c test/small1/$*.c -o test/small1/$*.o
 
 testrun/%: 
-	perl lib/cilly.pl test/small1/$*.c -o test/small1/$*
+	perl bin/cilly.pl test/small1/$*.c -o test/small1/$*
 	test/small1/$*
 
 

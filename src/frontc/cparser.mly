@@ -159,6 +159,7 @@ end
 %token IF ELSE
 
 %token ATTRIBUTE INLINE ASM TYPEOF FUNCTION__ PRETTY_FUNCTION__ LABEL__
+%token BUILTIN_VA_ARG BUILTIN_VA_LIST
 %token BLOCKATTRIBUTE
 %token DECLSPEC
 %token <string> MSASM MSATTR
@@ -351,6 +352,10 @@ expression:
 		        {(smooth_expression $1)}
 |		expression LPAREN arguments RPAREN
 			{CALL ($1, $3)}
+|               BUILTIN_VA_ARG LPAREN expression COMMA type_name RPAREN
+                        { let b, d = $5 in
+                          CALL (VARIABLE "__builtin_va_arg", 
+                                [$3; TYPE_SIZEOF (b, d)]) }
 |		expression bracket_comma_expression
 			{INDEX ($1, smooth_expression $2)}
 |		expression QUEST opt_expression COLON expression

@@ -140,6 +140,14 @@ Linux.
 
 \end{enumerate}
 
+ The \t{configure} script tries to find appropriate defaults for your system.
+You can control its actions by passing the following arguments:
+\begin{itemize}
+\item \t{gccdir=foo} Specifies that the \t{gcc} executable that can be found
+in the \t{foo} directory should be used. By default whichever version is in
+the PATH is used.
+\end{itemize}
+
 The file \ahref{cil.tar.gz}{cil.tar.gz} contains the complete source CIL
 distribution, consisting of the following files:
 
@@ -157,7 +165,7 @@ Filename   & Description \\
 \t{doc/}                        & HTML documentation of the CIL API \\
 \t{obj/}                        & Directory that will contain the compiled
                                    CIL modules and executables\\
-\t{lib/cilly.pl.in}             & The \t{configure} source for a Perl script 
+\t{bin/cilly.pl.in}             & The \t{configure} source for a Perl script 
                                   that can be invoked with the 
                                   same arguments as either \t{gcc} or
                                   Microsoft Visual C and will convert the
@@ -171,7 +179,7 @@ Filename   & Description \\
                                   be used to merge source files into a single
                                   source file.\t{cilly.pl}
                                   uses it. \\
-\t{lib/patcher.pl}              & A Perl script that applies specified patches
+\t{bin/patcher.pl}              & A Perl script that applies specified patches
                                   to standard include files.\\
 \t{src/check.ml,mli}            & Checks the well-formedness of a CIL file \\
 \t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
@@ -845,13 +853,13 @@ CIL you will obtain the file \t{obj/cilly.asm.exe}.
 
  We wrote a driver for this executable that makes it easy to invoke your
 analysis on existing C code with very little manual intervention. This driver
-is \t{lib/cilly.pl} and is quite powerful. Note that the \t{cilly.pl} script
+is \t{bin/cilly.pl} and is quite powerful. Note that the \t{cilly.pl} script
 is configured during installation with the path where CIL resides. This means
 that you can move it to any place you want. 
 
  A simple use of the driver is:
 \begin{verbatim}
-perl lib/cilly.pl -D HAPPY_MOOD -I myincludes hello.c -o hello
+perl bin/cilly.pl -D HAPPY_MOOD -I myincludes hello.c -o hello
 \end{verbatim}
 
  This performs the following actions: 
@@ -868,13 +876,13 @@ coverts it to CIL and the pretty-prints it to \t{hellocil.c}
 effect that CIL sees all the source code. This makes it easy
 to use it with existing \t{Makefiles}:
 \begin{verbatim}
-make CC="perl lib/cilly.pl" LD="perl lib/cilly.pl"
+make CC="perl bin/cilly.pl" LD="perl bin/cilly.pl"
 \end{verbatim}
 
  \t{cilly.pl} can also behave as the Microsoft Visual C compiler, if the first
  argument is \t{--mode=MSVC}:
 \begin{verbatim}
-perl lib/cilly.pl --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
+perl bin/cilly.pl --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 \end{verbatim}
 
  (This in turn will pass a \t{--MSVC} flag to the underlying \t{cilly.asm}
@@ -890,7 +898,7 @@ underlying \t{cilly.asm} process. As a general rule all arguments that start
 with \t{--} and that \t{cilly.pl} itself does not process, are passed on. For
 example, 
 \begin{verbatim}
-perl lib/cilly.pl --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+perl bin/cilly.pl --logwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
 \end{verbatim}
 
  will produce a file \t{hellocil.c} that prints all the memory addresses
@@ -901,12 +909,12 @@ sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
 have to do is to pass the \t{--merge} flag to \t{cilly.pl}:
 \begin{verbatim}
-make CC="perl lib/cilly.pl --logwrites --merge"
+make CC="perl bin/cilly.pl --logwrites --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="perl lib/cilly.pl --logwrites --merge --leavealone=foo --leavealone=bar"
+make CC="perl bin/cilly.pl --logwrites --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
@@ -956,7 +964,7 @@ the end.
 system's include files:
 
 \begin{verbatim}
-make CC="perl lib/cilly.pl --includedir=myinclude"
+make CC="perl bin/cilly.pl --includedir=myinclude"
 \end{verbatim}
 
  This will force the preprocessor to use the file \t{myinclude/xxx/stdio.h}
@@ -1249,7 +1257,7 @@ makes modified copies of include files and applies the patch.
 
  The patcher is invoked as follows: 
 \begin{verbatim}
-perl lib/patcher.pl [options]
+perl bin/patcher.pl [options]
 
 Options:
   --help       Prints this help message

@@ -37,44 +37,6 @@ AC_PROG_CC
 AC_CANONICAL_SYSTEM
 
 
-# # --------- example of a specialized test ----------
-# # determine endianness
-# if test "$ENDIANNESS" != "-DLITTLE_ENDIAN" -a \
-#         "$ENDIANNESS" != "-DBIG_ENDIAN" ; then
-#   AC_MSG_CHECKING(endianness)
-#   AC_TRY_RUN(
-#     [
-#       /* x must be global to work around an egcs-1.1.2 optimizer bug */
-#       int x = 0;     /* start with all bits 0 */
-#       int main()
-#       {
-#         /* little endian: sets x to 1 */
-#         /* big endian: sets x to a large number (e.g. 0x01000000 if 32 bits) */
-#         *((char*)(&x)) = 1;
-#
-#         if (x == 1) {
-#           exit(0);     /* success will mean little endian */
-#         }
-#         else {
-#           exit(1);     /* big endian */
-#         }
-#       }
-#     ],
-#
-#     AC_MSG_RESULT(little endian)
-#     ENDIANNESS=-DLITTLE_ENDIAN,
-#
-#     AC_MSG_RESULT(big endian)
-#     ENDIANNESS=-DBIG_ENDIAN,
-#
-#     AC_MSG_ERROR([
-#       To cross-compile you must set the environment variable
-#       ENDIANNESS to either -DLITTLE_ENDIAN or -DBIG_ENDIAN
-#     ])
-#   )
-# fi
-
-
 # ---------------- generic functions -----------------
 # debugging diagnostic; set to 'echo' to debug or 'true' for production
 # (technically you're not supposed to use shell functions in
@@ -183,6 +145,25 @@ fi
 #   - gnu make
 #   - perl
 
+#
+# -------------------- GCC --------------
+#
+AC_ARG_VAR(gccdir, [The directory containing the gcc executable])
+AC_MSG_CHECKING([for gcc directory])
+if test "x${gccdir}" = "x" ;then
+  if type "gcc" >/dev/null 2>&1 ;then
+    # Grab the directory they are in
+    gccdir=`dirname \`which gcc\``
+  else
+    AC_MSG_ERROR([Cannot find gcc in your PATH])
+  fi
+fi
+if ! type "${gccdir}/gcc"  >/dev/null 2>&1 ;then
+ AC_MSG_ERROR([Cannot find gcc in ${gccdir}])
+fi
+AC_MSG_RESULT(found in $gccdir)
+GCCDIR=$gccdir
+
 
 # ----------- platform-specific code -------------
 # $target is typically processor-vendor-os
@@ -203,8 +184,8 @@ case "$target" in
     # override CCUREDHOME; even on cygwin we want forward slashes
     # sm: Ifolded this into what I hope will be the only
     # case-analysis of machine type
-    CCUREDHOME_cygwin=`pwd`
-    CCUREDHOME=`cygpath -wa $CCUREDHOME_cygwin  | sed -e "s/\\\\\/\\//g"`
+    CCUREDHOME=`cygpath -wa $CCUREDHOME  | sed -e "s/\\\\\/\\//g"`
+    GCCDIR=`cygpath -wa $GCCDIR  | sed -e "s/\\\\\/\\//g"`
     ;;
 
   *)
@@ -242,13 +223,7 @@ AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(do_not_edit)
 AC_SUBST(HAS_MSVC)
-
-# demo: multi-line substitution
-# NOTE: this probably only works with GNU sed!
-PCC_FEATURES="export a=a\\
-export b=b\\
-export c=c"
-AC_SUBST(PCC_FEATURES)
+AC_SUBST(GCCDIR)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -272,10 +247,11 @@ define([MY_AC_CONFIG_FILES],
 MY_AC_CONFIG_FILES(Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
 MY_AC_CONFIG_FILES(Makefile.cil)
-MY_AC_CONFIG_FILES(lib/cilly.pl)
-MY_AC_CONFIG_FILES(lib/ccured.pl)
-MY_AC_CONFIG_FILES(lib/scaninfer)
-MY_AC_CONFIG_FILES(lib/scaninfer.bat)
+MY_AC_CONFIG_FILES(bin/cilly.pl)
+MY_AC_CONFIG_FILES(bin/ccured.pl)
+MY_AC_CONFIG_FILES(bin/scaninfer)
+MY_AC_CONFIG_FILES(bin/scaninfer.bat)
+MY_AC_CONFIG_FILES(lib/CompilerStub.pm)
 
 AC_OUTPUT()
 
@@ -286,4 +262,5 @@ CCured/CIL configuration:
   architecture/OS:            ARCHOS       $ARCHOS
   source tree root:           CCUREDHOME   $CCUREDHOME
   (optional) cl.exe found:    HAS_MSVC     $HAS_MSVC
+  gcc directory               GCCDIR       $GCCDIR
 EOF

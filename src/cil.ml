@@ -180,6 +180,10 @@ and typ =
                enumeration itself, which are stored inside the enuminfo  *)
 
 
+  
+  | TBuiltin_va_list of attributes
+            (** This is the same as the gcc's type with the same name *)
+
 (** Various kinds of integers *)
 and ikind = 
     IChar       (** [char] *)
@@ -619,7 +623,7 @@ and instr =
                              than the declared number of arguments. C allows 
                              this.) If the type of the result variable is not 
                              the same as the declared type of the function 
-                             result then an implicit cast exists.  *)
+                             result then an implicit cast exists. *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
@@ -1401,6 +1405,7 @@ let rec typeAttrs = function
   | TComp (comp, a) -> addAttributes comp.cattr a
   | TEnum (enum, a) -> addAttributes enum.eattr a
   | TFun (_, _, _, a) -> a
+  | TBuiltin_va_list a -> a
 
 
 let setTypeAttrs t a =
@@ -1414,7 +1419,7 @@ let setTypeAttrs t a =
   | TComp (comp, _) -> TComp (comp, a)
   | TEnum (enum, _) -> TEnum (enum, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
-
+  | TBuiltin_va_list _ -> TBuiltin_va_list a
 
 (* sm: This stuff is to handle a GCC extension where you can request integers *)
 (* of specific widths using the "mode" attribute syntax; for example:     *)
@@ -1480,6 +1485,7 @@ begin
       | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
       | TComp (comp, a) -> TComp (comp, add a)
       | TNamed (n, t, a) -> TNamed (n, t, add a)
+      | TBuiltin_va_list a -> TBuiltin_va_list (add a)
 end
 
 let typeRemoveAttributes (anl: string list) t = 
@@ -1494,6 +1500,7 @@ let typeRemoveAttributes (anl: string list) t =
   | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
   | TComp (comp, a) -> TComp (comp, drop a)
   | TNamed (n, t, a) -> TNamed (n, t, drop a)
+  | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
 
 
      (* Type signatures. Two types are identical iff they have identical 
@@ -1523,7 +1530,7 @@ let rec typeSigWithAttrs doattr t =
                                     (argsToList args),
                                   isva, doattr a)
   | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
-      
+  | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
 and typeSigAddAttrs a0 t = 
   if a0 == [] then t else
   match t with 
@@ -1728,6 +1735,11 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
   | TNamed (n, _, a) ->
         text n ++ d_attrlist () a ++ text " " ++ docName ()
 
+  | TBuiltin_va_list a -> 
+      text "__builtin_va_list"
+       ++ d_attrlist () a 
+        ++ text " " 
+        ++ docName ()
 
 (* Only a type (such as for a cast). There seems to be a problem with 
  * printing the top-level attribute (since it would come right before the 
@@ -1753,6 +1765,7 @@ and d_type () t =
     | TComp (comp, a) -> TComp (comp, fixthem a)
     | TEnum (enum, a) -> TEnum (enum, fixthem a)
     | TFun (rt, args, isva, a) -> TFun (rt, args, isva, a)
+    | TBuiltin_va_list a -> TBuiltin_va_list (fixthem a)
   in  
   d_decl (fun _ -> nil) DNNothing () (fixattrs t)
 
@@ -2383,6 +2396,8 @@ and d_plaintype () (t: typ) =
           d_attrlist comp.cattr
           d_attrlist a
       end
+  | TBuiltin_va_list a -> 
+      dprintf "TBuiltin_va_list(%a)" d_attrlist a
   in
   scanType () t
 
@@ -3421,7 +3436,7 @@ let rec alignOf_int = function
       if !msvcMode then M.MSVC.alignof_longdouble else M.GCC.alignof_longdouble
   | TNamed (_, t, _) -> alignOf_int t
   | TArray (t, _, _) -> alignOf_int t
-  | TPtr _ ->
+  | TPtr _ | TBuiltin_va_list _ ->
       if !msvcMode then M.MSVC.sizeof_ptr else M.GCC.sizeof_ptr
         (* For composite types get the maximum alignment of any field inside *)
   | TComp (c, _) ->
@@ -3654,7 +3669,8 @@ and bitsSizeOf t =
   | TFloat(FLongDouble, _) ->
       8 * (if !msvcMode then M.MSVC.sizeof_longdouble 
                         else M.GCC.sizeof_longdouble)
-  | TInt _ | TFloat _ | TEnum _ | TPtr _ -> 8 * alignOf_int t
+  | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
+    -> 8 * alignOf_int t
   | TNamed (_, t, _) -> bitsSizeOf t
   | TComp (comp, _) when comp.cfields = [] -> 
       raise Not_found (*abstract type*)

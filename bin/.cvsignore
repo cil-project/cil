@@ -1,8 +1,4 @@
-splay
-*.patch2.i*
 ccured.pl
 cilly.pl
 scaninfer
 scaninfer.bat
-CompilerStub.pm
-

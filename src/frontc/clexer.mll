@@ -87,7 +87,8 @@ let init_lexicon _ =
       ("__declspec", DECLSPEC);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
-      ("__builtin_va_list", LONG); 
+      ("__builtin_va_list", (NAMED_TYPE "__builtin_va_list"));
+      ("__builtin_va_arg", BUILTIN_VA_ARG);
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will 

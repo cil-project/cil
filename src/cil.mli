@@ -205,6 +205,9 @@ and typ =
                enumeration and are in addition to the attributes of the 
                enumeration itself, which are stored inside the enuminfo  *)
 
+  
+  | TBuiltin_va_list of attributes
+            (** This is the same as the gcc's type with the same name *)
 
 (**
  There are a number of functions for querying the kind of a type. These are
@@ -836,7 +839,9 @@ and instr =
     * that of the lvalue. In that case a cast is printed. The type of the 
     * actual arguments are identical to those of the declared formals. The 
     * number of arguments is the same as that of the declared formals, except 
-    * for vararg functions.  *)
+    * for vararg functions. This construct is also used to encode a call to 
+    * "__builtin_va_arg". In this case the second argument (which should be a 
+    * type T) is encoded SizeOf(T) *)
 
   | Asm        of attributes * (* Really only const and volatile can appear 
                                * here *)

@@ -1745,12 +1745,15 @@ let rec doSpecList (specs: A.spec_elem list)
 
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
-        let t = 
-          match lookupType "type" n with 
-            (TNamed _) as x, _ -> x
-          | typ -> E.s (error "Named type %s is not mapped correctly\n" n)
-        in
-        t
+        if n = "__builtin_va_list" then 
+          TBuiltin_va_list []
+        else
+          let t = 
+            match lookupType "type" n with 
+              (TNamed _) as x, _ -> x
+            | typ -> E.s (error "Named type %s is not mapped correctly\n" n)
+          in
+          t
     end
 
     | [A.Tstruct (n, None)] -> (* A reference to a struct *)
