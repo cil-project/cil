@@ -2541,8 +2541,10 @@ and doExp (isconst: bool)    (* In a constant *)
           E.s (error "MEMBEROF in constant");  *)
         let (se, e', t') = doExp false e (AExp None) in
         let lv = 
-          match e' with Lval x -> x 
-          | _ -> E.s (error "Expected an lval in MEMDEROF")
+          match e' with 
+            Lval x -> x 
+          | CastE(_, Lval x) -> x
+          | _ -> E.s (error "Expected an lval in MEMBEROF (field %s)" str)
         in
         let field_offset, field_type = 
           match unrollType t' with

@@ -164,3 +164,5 @@ voidstarint
 signal
 *.out
 seq_align_malloc
+bsearch
+readv
