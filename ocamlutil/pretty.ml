@@ -35,7 +35,7 @@ let debug = false
 let aman           = false
 let aman_no_layout = aman && false
 let aman_no_output = aman && false
-let aman_no_fit    = aman && true
+let aman_no_fit    = aman && false
 
 
 
@@ -402,14 +402,18 @@ let fit (start: 'a)
       allBreaks := List.rev (!allBreaks); 
       layout start doc
     in
-    if !noBreaks && !noAligns then
+    if !noBreaks && !noAligns then begin
+      if aman then fprintf "************ SKIPPING SCAN\n" ;
       layout start doc
-    else
-      if aman_no_layout then (* Aman's benchmarking goo *)
+    end else
+      if aman_no_layout then begin (* Aman's benchmarking goo *)
+	if aman then fprintf "************ SCAN WITH DUMMY CONTINUATION\n" ;
         scan [ref 0] [] 0 (fun _ _ _ -> start) doc
-      else
+      end else begin
+	if aman then fprintf "************ FULL LAYOUT + SCAN\n" ;
         scan [ref 0] [] 0 scanCont doc
-    
+      end
+	  
 
 
 let flushOften = ref false
