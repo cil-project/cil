@@ -40,13 +40,15 @@ let aman_no_fit    = (aman && (mode = "SkipFit"))
 
 (* use getenv("ALGO") to decide which algorithm to use
    ALGO=old    : old pretty printer (not george)
-   ALGO=george
-   ALGO=aman   (default)
+   ALGO=george (default)
+   ALGO=aman   
+   ALGO=gap
 *)
-let envAlgo = let s = (try Sys.getenv ("ALGO") with Not_found -> "aman") in if (s <> "aman") && (s <> "old") then "george" else s
+let envAlgo = let s = (try Sys.getenv ("ALGO") with Not_found -> "george") in if (s <> "aman") && (s <> "old") && (s <> "gap") then "george" else s
 
 let use_old_version = (envAlgo = "old") || (envAlgo = "george")
-let use_Qversion = (not use_old_version) && (envAlgo = "aman")
+let use_Qversion = (not use_old_version) && ((envAlgo = "aman") || (envAlgo = "gap"))
+let useGapAlgo   = (envAlgo = "gap")
 let george = true && (envAlgo = "george")
 
 let _ = if debug then Printf.fprintf stderr "********** ALGO = %s *************\n" (if use_Qversion then "Aman" else if george then "George" else "Old")
@@ -60,9 +62,6 @@ let marshalFilename = (try Sys.getenv ("MARSHALWRITE") with Not_found -> "")
 
 (* Options for Aman's algorithm *)
 let qdontthink = false
-let useGapAlgo = false
-
-
 
 
 let noBreaks = ref false  (* Replace all soft breaks with space *)
@@ -1145,30 +1144,32 @@ let qPreprocess doc width =
   let rec getGap 
       (acc : int) 
       (lastBreak : int ref)
-      (lastBreakStack : int ref list)
+      (lastBreakPos : int)
       : int =
     match docstr () with
-      Text s -> getGap (acc + String.length s) lastBreak lastBreakStack
+      Text s -> getGap (acc + String.length s) lastBreak lastBreakPos
     | Break ->
 	let newBrk = ref (-acc-1) in
-	lastBreak := (!lastBreak) + acc;
-	breaks     := newBrk :: !breaks;
-	getGap (succ acc) newBrk lastBreakStack
+	lastBreak := lastBreakPos + acc;
+	breaks    := newBrk :: !breaks;
+	getGap (succ acc) newBrk !newBrk
     | Line ->
-	getGap 0 lastBreak lastBreakStack
+	getGap 0 lastBreak lastBreakPos
     | Align ->
-	let x = getGap 0 dummybreak (lastBreak :: lastBreakStack) in
-	lastBreak := !lastBreak + x ;
-	getGap (acc + x) lastBreak lastBreakStack
+	let x = getGap 0 dummybreak !dummybreak in
+(*	lastBreak := lastBreakPos + x ; *)
+	getGap (acc + x) lastBreak lastBreakPos
     | Unalign ->
+	lastBreak := lastBreakPos + acc;
 	acc
-    | Nil -> acc   
+    | Nil -> 
+	lastBreak := lastBreakPos + acc;
+	acc   
     | Concat _ | CText _ -> raise (Failure "docStream returned nonleaf")
   in
 
   if useGapAlgo then
-    let x = getGap 0 dummybreak [] in begin
-    (* !lastBreak := !(!lastBreak) + x;*)
+    let x = getGap 0 dummybreak !dummybreak in begin
       List.rev !breaks;
     end
   else
@@ -1189,17 +1190,18 @@ let qprint qchn width doc =
     writeIndent (List.hd !alignStack) spaceBuf qchn;
     List.hd !alignStack 
   end in
+  let debugSoftBreaks = false in
   let decide2break curPos = begin
-    (*
-    writeString "\027[1;33m" qchn;
-    writeChar (char_of_int (33+(curPos mod 25))) qchn;
-    writeString "\027[0;0m" qchn;
-    *)
+    if debugSoftBreaks then begin
+      writeString "\027[1;33m" qchn;
+      writeChar (char_of_int (33+(curPos mod 25))) qchn;
+      writeString "\027[0;0m" qchn;
+    end;
     match !breakList with
       size :: rest -> 
 	breakList := rest;
-	(* fprintf "%c c=%d s=%d\n" (char_of_int (33 + (curPos mod 25))) curPos !size; *)
-	(curPos > width) || 
+	if debugSoftBreaks then fprintf "%c c=%d s=%d\n" (char_of_int (33 + (curPos mod 25))) curPos !size;
+	(curPos >= width) || 
 	((!size > 0) && (width < curPos + !size ))
     | [] -> raise (Failure "breakList contains too few breaks")
   end  in
@@ -1220,7 +1222,7 @@ let qprint qchn width doc =
 	else
 	  if (decide2break curPos) then (breakLine())
 	  else begin
-	    writeChar ' ' qchn;
+	    if not debugSoftBreaks then writeChar ' ' qchn;
 	    curPos + 1	    
 	  end	  
     | Line -> 
