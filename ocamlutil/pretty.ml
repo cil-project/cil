@@ -689,7 +689,7 @@ let gprintf (finish : doc -> doc)
               collect (dctext1 acc
                          (format_float (String.sub format i (j-i+1)) f))
                 (succ j))
-        | 'b' ->
+        | 'b' | 'B' ->
             Obj.magic(fun b ->
               collect (dctext1 acc (string_of_bool b)) (succ j))
         | 'a' ->
