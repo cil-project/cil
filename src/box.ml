@@ -3312,6 +3312,15 @@ let boxFile file =
               List.fold_left 
                 (initializeVar (withIterVar f)) 
                 [] f.slocals in
+
+            (* sm/gn: for testing the removeTemps module: add some extra temps *)
+            if (traceActive "gratuitousTemps") then (
+              for i = 0 to 10 do
+                (trace "gratuitousTemps" (dprintf "Making a temp\n"));
+                ignore (makeTempVar f intType);
+              done;
+            );
+
             (* Do the body now *)
             let boxbody : block = boxblock f.sbody in
             f.sbody <- inilocals @ boxbody;

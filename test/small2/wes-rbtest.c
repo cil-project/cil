@@ -276,6 +276,8 @@ int debug;
 #define DATASIZE 16   // This is the size of the data that is reserved in
                       // each node
 
+#define ITERS 100000                      
+
 int main() {
   /* Test hash tables */
   RBNode *t = NULL;
@@ -286,11 +288,11 @@ int main() {
   
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     insertRB(& t, k, DATASIZE);
   }
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
     if(findRB(t, k)) {

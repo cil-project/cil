@@ -529,6 +529,8 @@ int debugMM;
 int debug;
 
 
+#define ITERS 50000
+
 
 
 int main() {
@@ -541,11 +543,11 @@ int main() {
   
   /* Add and delete random numbers from the hash table */
   TIMESTART(clk);
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     AddToHash(h, k, (void* )k);
   }
-  for(i=0;i<500000;i++) {
+  for(i=0;i<ITERS;i++) {
     int k = random() & 0x7FFFL;
     void *data = NULL;
     if(HashLookup(h, k, & data)) {

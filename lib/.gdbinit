@@ -1,0 +1,4 @@
+# .gdbinit
+
+file splay
+run

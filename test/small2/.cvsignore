@@ -7,3 +7,6 @@ hola
 *_ppp.c
 *.origi
 *_all.c
+com
+ocamlprof*
+

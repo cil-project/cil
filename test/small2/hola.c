@@ -1,7 +1,16 @@
 // hola.c
 // tiny program for scott's testing purposes
 
+int printf(char const *fmt, ...);
 
+int main()
+{
+  printf("whazzup?!\n");
+  return 0;
+}
+
+
+#if 0
 void pretendUsed(int y) {}
 
 
@@ -115,8 +124,10 @@ int main()
   return x?0:x;
   #endif // 0
 }
+#endif // 0
 
 
+#if 0
 // cause bad behavior from printCil
 unsigned short primes[] = {
    2, 3, 5, 7, 11, 13, 17, 19, 23, 29,
@@ -304,3 +315,4 @@ unsigned short primes[] = {
    15619, 15629, 15641, 15643, 15647, 15649, 15661, 15667, 15671, 15679, 
    15683, 15727, 15731, 15733, 15737, 15739, 15749, 15761, 15767, 15773, 
 };
+#endif // 0
