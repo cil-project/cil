@@ -4,6 +4,36 @@
 // NUMERRORS 13
 
 
+struct aPointer {
+  int* p;
+};
+
+//Store one local inside another.
+void storeLocals(void)
+{
+  int a;
+  struct aPointer localStruct;
+  int b;
+  struct aPointer *plocalStruct;
+  plocalStruct = &localStruct; //Try to confuse CCured about whether *plocalStruct is local.
+
+  localStruct.p = &a;
+
+  //These should be legal, even though b is lower on the stack than localStruct.
+  plocalStruct->p = &a;
+  plocalStruct->p = &b;
+}
+
+//Store a stack variable that sits higher in the stack inside a local
+void storeToStack(int* pStack)
+{
+  struct aPointer localStruct;
+  struct aPointer *plocalStruct = &localStruct;
+
+  //This should be legal, since localStruct will go away before *pStack does.
+  plocalStruct->p = pStack;
+}
+
 int *gptr;
 
 int global;
@@ -13,6 +43,11 @@ int main() {
 
   // This should work
   gptr = &global; //ERROR(0)
+
+  // so should this
+  storeLocals();
+  // and this
+  storeToStack(&local);
 
   // This should fail
   gptr = &local; // ERROR(1):Stack address
@@ -41,7 +76,10 @@ int main() {
   // The same trick with FSEQ
 #if ERROR == 4
   {
-    // ERROR(4):Lbound
+    //matth:  we get an LBound failure in Linux in "f = s" because the global is 
+    // stored below the stack.  In windows, we get a UBound failure converting f 
+    // to a SAFE in "gptr = f" because the global is above the stack.
+    // ERROR(4):bound
     int *f = &local;
     int *s = &local; s += (&global - s); // s is SEQ
     f ++; // f has type FSEQ
