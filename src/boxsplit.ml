@@ -279,11 +279,11 @@ class splitTypeVisitorClass : cilVisitor = object (self)
                     | _ -> a :: acc
                   end
                 | _ -> a :: acc)
-              args'
+              (argsToList args')
               []
           in
           if !argsChanged then
-            TFun(rt', newargs, va', a')
+            TFun(rt', Some newargs, va', a')
           else
             t
       | _ -> t

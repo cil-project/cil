@@ -40,7 +40,7 @@ let addSetRetVal (b: exp) (extra: stmt list) : unit =
 let printfFun: fundec = 
   let fdec = emptyFunction "printf" in
   let format = makeVarinfo "format" charPtrType in
-  fdec.svar.vtype <- TFun(intType, [format], true, []);
+  fdec.svar.vtype <- TFun(intType, Some [format], true, []);
   fdec
 
 
@@ -49,7 +49,7 @@ let memsetFun: fundec =
   let start = makeVarinfo "start" voidPtrType in
   let v = makeVarinfo "v" intType in
   let len = makeVarinfo "len" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, [start; v; len], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [start; v; len], false, []);
   fdec
 
 let checkOffsetFun: fundec = 
@@ -59,7 +59,7 @@ let checkOffsetFun: fundec =
   let expected_start = makeVarinfo "expected_start" intType in
   let expected_width = makeVarinfo "expected_width" intType in
   let name = makeVarinfo "name" charPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ start; len; expected_start;
+  fdec.svar.vtype <- TFun(voidType, Some [ start; len; expected_start;
                                       expected_width;
                                       name; ], false, []);
   fdec
@@ -69,7 +69,7 @@ let checkSizeOfFun: fundec =
   let len = makeVarinfo "len" uintType in
   let expected = makeVarinfo "expected" intType in
   let name = makeVarinfo "name" charPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ len; expected; name; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ len; expected; name; ], false, []);
   fdec
 
 
@@ -315,7 +315,7 @@ let createFile () =
 
   (* Now make a main function *)
   main := emptyFunction "main";
-  !main.svar.vtype <- TFun(intType, [], false, []);
+  !main.svar.vtype <- TFun(intType, None, false, []);
   mainRetVal := makeGlobalVar "retval" intType;
 
   addGlobal (GVar(!mainRetVal, None, lu));

@@ -137,10 +137,12 @@ let addCompatEdges (n1: node) =
 
     | TFun _, TFun _ when ignore_funs -> ()
 
-    | TFun (rt1, args1, _, _), TFun (rt2, args2, _, _) 
-          when List.length args1 = List.length args2 -> 
+    | TFun (rt1, args1, _, _), TFun (rt2, args2, _, _) ->
         doTypePair rt1 rt2;
-        List.iter2 (fun a1 a2 -> doTypePair a1.vtype a2.vtype) args1 args2
+        (match args1, args2 with
+          Some a1, Some a2 when List.length a1 = List.length a2 -> 
+            List.iter2 (fun a1 a2 -> doTypePair a1.vtype a2.vtype) a1 a2
+        | _ -> ())
       
     | TComp (ci1, _), TComp (ci2, _) 
       when (ci1.cstruct && ci2.cstruct && 

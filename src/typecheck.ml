@@ -77,7 +77,8 @@ let rec typecheck_wild_type t =
                           ci.cfields
     | TFun(t,vl,vararg,al) -> 
                      typecheck_wild_type t ;
-                     List.iter (fun vi -> typecheck_wild_type vi.vtype) vl
+                     List.iter (fun vi -> typecheck_wild_type vi.vtype) 
+                               (argsToList vl)
     | TArray(t2,_,al) -> let kind,why = kindOfAttrlist al in
                      (if kind <> Wild then ignore
                       (E.warn "typecheck: %a should be Wild" d_type t)) ;

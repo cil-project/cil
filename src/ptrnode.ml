@@ -937,9 +937,10 @@ and typeId = function
       let thelen = "len" in
       "A" ^ typeId t ^ "a" ^ prependLength thelen ^ attrsId a
   | TFun (tres, args, va, a) -> 
-      "F" ^ typeId tres ^ "f" ^ (string_of_int (List.length args)) ^ 
+      "F" ^ typeId tres ^ "f" ^ 
+      (string_of_int (List.length (argsToList args))) ^ 
       (List.fold_left (fun acc arg -> acc ^ typeId arg.vtype ^ "f") 
-         "" args) ^ (if va then "V" else "v") ^ attrsId a
+         "" (argsToList args)) ^ (if va then "V" else "v") ^ attrsId a
   | _ -> E.s (E.bug "typeId")
       
 and ikId = function

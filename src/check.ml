@@ -199,7 +199,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
                   ta.vstorage <> Extern &&
                   ta.vstorage <> Static &&
                   not ta.vaddrof) then
-            ignore (warn "Invalid argument varinfo")) targs
+            ignore (warn "Invalid argument varinfo")) (argsToList targs)
 
 (* Check that a type is a promoted integral type *)
 and checkIntegralType (t: typ) = 
@@ -593,7 +593,10 @@ and checkInstr (i: instr) =
             loopArgs formals args
         | _, _ -> ignore (warn "Not enough arguments")
       in
-      loopArgs formals args
+      if formals = None then 
+        ignore (warn "Call to function without prototype\n")
+      else
+        loopArgs (argsToList formals) args
         
   | Asm _ -> ()  (* Not yet implemented *)
   
@@ -698,7 +701,7 @@ let rec checkGlobal = function
           begin match vi.vtype with
             TFun (rt, args, isva, a) -> begin
               currentReturnType := rt;
-              loopArgs args fd.sformals
+              loopArgs (argsToList args) fd.sformals
             end
           | _ -> E.s (bug "Function %s does not have a function type" 
                         fname)

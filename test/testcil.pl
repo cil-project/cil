@@ -91,12 +91,12 @@ $TEST->newTest(
     Cmd => "make setup _GNUCC=1");
 
 $TEST->newTest(
-    Name => "apache!1",
+    Name => "apache!1setup",
     Dir => "..",
     Groups => ["apache", "slow"],
     Cmd => "make apachesetup");
 $TEST->newTest(
-    Name => "apache!2",
+    Name => "apache!2setup",
     Dir => "..",
     Groups => ["apache", "slow"],
     Cmd => "make apachesetup _GNUCC=1");
@@ -111,6 +111,8 @@ $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/apachefptr");
 $TEST->add2Tests("testrun/asm1", "_GNUCC=1");
+    $TEST->addBadComment("testrun/asm1-inferbox", 
+                         "Unimplemented inline assmebly");
 $TEST->add3Tests("testrun/offsetof");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");

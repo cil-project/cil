@@ -238,7 +238,7 @@ let rec doType (t: typ) (p: N.place)
             let t', i' = doType arg.vtype p nidx in
             arg.vtype <- t'; (* Can change in place because we shall copy the 
                               * varinfo for polymorphic functions *)
-            i') i0 args 
+            i') i0 (argsToList args) 
       in
       let newtp = TFun(restyp', args, isva, a) in
       newtp, i'
@@ -552,7 +552,7 @@ and expToType (e,et,en) t (callid: int) : exp =
               let argx  = makeLocalVar fdec "x" (TPtr(etn.N.btype, 
                                                       etn.N.attr)) in
               fdec.svar.vtype <- TFun(TPtr(desttn.N.btype, desttn.N.attr), 
-                                      [ argx ], false, []);
+                                      Some [ argx ], false, []);
               fdec.svar.vstorage <- Extern;
               theFile := GDecl (fdec.svar,lu) :: !theFile;
               fdec
@@ -616,9 +616,13 @@ let instantiatePolyFunc (fvi: varinfo) : varinfo * bool =
     match unrollType t with
       TFun (rt, args, isva, fa) -> 
         TFun (copyTypeNoNodes rt, 
-              List.map (fun a -> {a with vname = a.vname;
-                                         vtype = copyTypeNoNodes a.vtype}) 
-                       args,
+              (match args with
+                None -> None
+              | Some al -> 
+                  Some (List.map 
+                          (fun a -> {a with vname = a.vname;
+                                            vtype = copyTypeNoNodes a.vtype}) 
+                          al)),
               isva, fa)
     | _ -> E.s (bug "instantiating a non-function (%s)\n" fvi.vname)
   in
@@ -836,7 +840,7 @@ end
 let checkFormatArgsFun = 
   let fdec = emptyFunction "CHECK_FORMATARGS" in
   let argp  = makeVarinfo "format" (TPtr(charType, [Attr("rostring",[])])) in
-  fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argp ], false, []);
   fdec
 
 (* See if a function has a boxformat argument and return it *)
@@ -1157,7 +1161,7 @@ let processVarargBody (fdec: fundec) : unit =
                           fdec.svar.vname)
            | [l] -> l
            | _ :: rest -> getlast rest
-         in getlast formals
+         in getlast (argsToList formals)
        end else dummyFunDec.svar;
     let va_visit = new processVarargClass(fdec) in
     fdec.sbody <- visitCilBlock va_visit fdec.sbody;
@@ -1196,7 +1200,7 @@ let decomposeCall
   (* Fetch the function type *)
   let rt, formals = 
     match unrollType (typeOf f) with
-      TFun (rt, formals, _, _) -> rt, formals
+      TFun (rt, formals, _, _) -> rt, argsToList formals
     | _ -> E.s (E.bug "decomposingCall to a non-function")
   in
   if List.length formals <> List.length args then 
@@ -1388,7 +1392,7 @@ and doFunctionCall
 *)
   let (rt, formals, isva) = 
     match unrollType funct with
-      TFun(rt, formals, isva, _) -> rt, formals, isva
+      TFun(rt, formals, isva, _) -> rt, argsToList formals, isva
     | _ -> E.s (bug "Call to a non-function")
   in
   let preinstr, args' = 
@@ -1503,7 +1507,7 @@ let doFunctionBody (fdec: fundec) =
         | _ -> E.s (bug "scanFormals(%s) non-matching formal lists"
                       fdec.svar.vname)
       in
-      scanFormals targs fdec.sformals;
+      scanFormals (argsToList targs) fdec.sformals;
       (* Restore the sharing by writing the type *)
       setFormals fdec fdec.sformals;
       currentResultType := rt
@@ -1803,7 +1807,7 @@ let markFile fl =
         (* Make the sformals *)
         let rt, sformals, va, l = 
           match modeled.vtype with
-            TFun(rt, args, va, l) -> rt, args, va, l 
+            TFun(rt, args, va, l) -> rt, argsToList args, va, l 
           | _ -> 
               E.s (E.bug "Modeled function %s does not have a function type"
                      modeled.vname)

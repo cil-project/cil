@@ -759,7 +759,9 @@ sub new {
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
-            "-O" => { TYPE => "CC" },
+             # GCC defines some more macros if the optimization is On so pass
+             # the -O2 to the preprocessor and the compiler
+            "-O" => { TYPE => "PREPROC" },
             "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
                                    push @{$stub->{CCARGS}}, $_[0]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },

@@ -104,7 +104,7 @@ let logCalls (f: file) : unit =
     let fdec = emptyFunction (if !linux then "printk" else "printf") in
     (* let argi  = makeLocalVar fdec "prio" intType in *)
     let argf  = makeLocalVar fdec "format" charConstPtrType in
-    fdec.svar.vtype <- TFun(intType, [ (* argi ; *) argf ], true, []);
+    fdec.svar.vtype <- TFun(intType, Some [ argf ], true, []);
     fdec
   in
 

@@ -763,7 +763,7 @@ let lookupLabel (l: string) =
 let allocaFun = 
   let fdec = emptyFunction "alloca" in
   let len = makeLocalVar fdec "len" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ len ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [ len ], false, []);
   fdec
   
 (* Maps local variables that are variable sized arrays to the expression that 
@@ -944,12 +944,12 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
         raise (Failure "diferent vararg specifiers");
       (* If one does not have arguments, believe the one with the 
       * arguments *)
-      let loldargs = List.length oldargs in
-      let largs    = List.length args in
       let newargs = 
-        if loldargs = 0 then args else
-        if largs = 0 then oldargs else
-        if loldargs <> largs then 
+        if oldargs = None then args else
+        if args = None then oldargs else
+        let oldargslist = argsToList oldargs in
+        let argslist = argsToList args in
+        if List.length oldargslist <> List.length argslist then 
           raise (Failure "different number of arguments")
         else begin
           (* Go over the arguments and update the old ones with the 
@@ -959,7 +959,7 @@ let rec combineTypes (oldt: typ) (t: typ) : typ =
               if oldarg.vname = "" then oldarg.vname <- arg.vname;
               oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
               oldarg.vtype <- combineTypes oldarg.vtype arg.vtype)
-            oldargs args;
+            oldargslist argslist;
           oldargs
         end
       in
@@ -1814,9 +1814,12 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         enterScope ();
         let targs = 
           match List.map (makeVarInfo false locUnknown) args  with
-            [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> []
-          | l -> l
+          | [] -> None (* No argument list *)
+          | [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> 
+              Some []
+          | l -> Some l
         in
+        let argslist = argsToList targs in
         exitScope ();
         (* Turn [] types into pointers in the arguments and the result type. 
          * Turn function types into pointers to respective. This simplifies 
@@ -1839,7 +1842,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               | _ -> ());
               fixupArgumentTypes (argidx + 1) args'
         in
-        fixupArgumentTypes 0 targs;
+        fixupArgumentTypes 0 argslist;
         let tres = 
           match unrollType bt with
             TArray(t,_,attr) -> TPtr(t, attr)
@@ -2637,7 +2640,7 @@ and doExp (isconst: bool)    (* In a constant *)
                                                  * AExp None  *)
               with Not_found -> begin
                 ignore (warn "Calling function %s without prototype." n);
-                let ftype = TFun(intType, [], false, 
+                let ftype = TFun(intType, None, false, 
                                  [Attr("missingproto",[])]) in
                 (* Add a prototype to the environment *)
                 let proto, _ = 
@@ -2673,6 +2676,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | x ->  E.s (error "Unexpected type of the called function %a: %a" 
                          d_exp f' d_type x)
         in
+        let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
         let resType' = resType in (* 
           typeRemoveAttributes [Attr("cdecl", [])] resType in *)
@@ -2692,12 +2696,8 @@ and doExp (isconst: bool)    (* In a constant *)
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
-                if not isvar &&
+                if not isvar && argTypes != None then 
                   (* Do not give a warning for functions without a prototype*)
-                  (match f' with 
-                    Lval(Var f, _) when H.mem noProtoFunctions f.vid -> false
-                  | _ -> true) 
-                then
                   ignore (warn "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
                     [] -> (empty, [])
@@ -2708,7 +2708,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 in
                 loop args
         in
-        let (sargs, args') = loopArgs (argTypes, args) in
+        let (sargs, args') = loopArgs (argTypesList, args) in
         begin
           match what with 
             ADrop -> 
@@ -3859,7 +3859,7 @@ let convFile fname dl =
   let _ =
     let fdec = emptyFunction "__builtin_constant_p" in
     let argp  = makeLocalVar fdec "x" intType in
-    fdec.svar.vtype <- TFun(intType, [ argp ], false, []);
+    fdec.svar.vtype <- TFun(intType, Some [ argp ], false, []);
     alphaConvertVarAndAddToEnv true fdec.svar
   in
   (* Now do the globals *)
@@ -3927,7 +3927,11 @@ let convFile fname dl =
               currentReturnType   := returnType;
               (* Add the formals to the environment *)
               let formals' =
-                List.map (alphaConvertVarAndAddToEnv true) formals in
+                match formals with
+                  None -> None
+                | Some fl -> 
+                    Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
+              let formalsList' = argsToList formals' in
               let ftype = TFun(returnType, formals', isvararg, funta) in
               (* Add the function itself to the environment. Just in case we
                * have recursion and no prototype.  *)
@@ -3966,7 +3970,7 @@ let convFile fname dl =
                       with Not_found -> ());
                       fixbackFormals (idx + 1) args'
                 in
-                fixbackFormals 0 formals';
+                fixbackFormals 0 formalsList';
                 transparentUnionArgs := [];
               in
               (* Now do the body *)
@@ -4018,10 +4022,10 @@ let convFile fname dl =
               gotoTargetNextAddr := 0;
 
 
-              let (maxid, locals) = endFunction formals' in
+              let (maxid, locals) = endFunction formalsList' in
               let fdec = { svar     = thisFunctionVI;
                            slocals  = locals;
-                           sformals = formals';
+                           sformals = formalsList';
                            smaxid   = maxid;
                            sbody    = mkFunctionBody stm;
                            sinline  = inl;
@@ -4051,7 +4055,7 @@ let convFile fname dl =
                                                            NoOffset)),
                                              Lval (var shadow),
                                              !currentLoc)]) :: accbody))
-                  formals'
+                  formalsList'
                   ([], fdec.sbody.bstmts)
               in
               fdec.sbody.bstmts <- newbody;
@@ -4163,7 +4167,7 @@ let convFile fname dl =
                     | _ -> ExistsMaybe
                   in
                   ignore (existsType doOne a.vtype);
-                  !pacc) acc args
+                  !pacc) acc (argsToList args)
             | _ -> acc
           in
           loop (g :: acc') rest

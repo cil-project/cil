@@ -14,7 +14,7 @@ int fun1(int i1, int* p2, int* p3, int i4) {
 FUN1 g = fun1;
 
 
-void main() {
+int main() {
   int loc1 = 7, loc2 = 9, loc3 = 11;
 
   // Call fun1 through g

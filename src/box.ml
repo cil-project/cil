@@ -360,7 +360,7 @@ let getNodeAttributes t =
     | TComp (comp, a) -> TComp (comp, dropit N.AtOther a) 
     | TEnum (enum, a) -> TEnum (enum, dropit N.AtOther a)
     | TFun (r, args, v, a) -> 
-        List.iter (fun a -> a.vtype <- loop a.vtype) args;
+        List.iter (fun a -> a.vtype <- loop a.vtype) (argsToList args);
         TFun(loop r, args, v, dropit N.AtOther a)
   in
   loop t
@@ -587,27 +587,27 @@ let pkQualName (pk: N.opointerkind)
 let mallocFun = 
   let fdec = emptyFunction "malloc" in
   let argl  = makeVarinfo "len" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argl ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [ argl ], false, []);
   fdec
 
 let freeFun = 
   let fdec = emptyFunction "free" in
   let argp  = makeVarinfo "area" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp ], false, []);
   fdec
 
 (* sm: for tagged heapified areas *)
 let freeMinus4Fun =
   let fdec = emptyFunction "free_minus4" in
   let argp  = makeVarinfo "area" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp ], false, []);
   fdec
 
 let mainWrapper =
   let fdec = emptyFunction "_mainWrapper" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -616,7 +616,7 @@ let mainWrapper_w =
   let fdec = emptyFunction "_mainWrapper_w" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -625,7 +625,7 @@ let mainWrapper_fs =
   let fdec = emptyFunction "_mainWrapper_fs" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -634,7 +634,7 @@ let mainWrapper_ff =
   let fdec = emptyFunction "_mainWrapper_ff" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -643,7 +643,7 @@ let mainWrapper_fq =
   let fdec = emptyFunction "_mainWrapper_fq" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -652,7 +652,7 @@ let mainWrapper_qw =
   let fdec = emptyFunction "_mainWrapper_qw" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -661,7 +661,7 @@ let mainWrapper_fw =
   let fdec = emptyFunction "_mainWrapper_fw" in
   let argc  = makeVarinfo "argc" intType in
   let argv  = makeVarinfo "argv" (TPtr(charPtrType, [])) in
-  fdec.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+  fdec.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
   fdec
@@ -677,7 +677,7 @@ let declareGlobalChecker fdec =
 let checkNull =
   let fdec = emptyFunction "CHECK_NULL" in
   let argp  = makeVarinfo "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fun (what: exp) ->
@@ -687,7 +687,7 @@ let checkSafeRetFatFun =
   let fdec = emptyFunction "CHECK_SAFERETFAT" in
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "isptr" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -699,7 +699,7 @@ let checkFunctionPointer =
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
   let argnr  = makeVarinfo "nr" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argb; argnr ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp; argb; argnr ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fun whatp whatb whatkind nrargs ->
@@ -732,7 +732,7 @@ let checkFetchLength =
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vstorage <- Static;
-  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
+  fdec.svar.vtype <- TFun(uintType, Some [ argp; argb ], false, []);
   (declareGlobalChecker fdec);
   fun tmplen ptr base ->
     call (Some (var tmplen)) (Lval (var fdec.svar))
@@ -743,7 +743,7 @@ let checkFetchStringEnd =
   let fdec = emptyFunction "CHECK_FETCHSTRINGEND" in
   let args  = makeVarinfo "s" charPtrType in
   fdec.svar.vstorage <- Static;
-  fdec.svar.vtype <- TFun(voidPtrType, [ args; ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [ args; ], false, []);
   (declareGlobalChecker fdec);
   fdec
 
@@ -752,7 +752,7 @@ let checkStringMax =
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vstorage <- Static;
-  fdec.svar.vtype <- TFun(uintType, [ argp; argb ], false, []);
+  fdec.svar.vtype <- TFun(uintType, Some [ argp; argb ], false, []);
   (declareGlobalChecker fdec);
   fdec
 
@@ -760,7 +760,7 @@ let checkFetchEnd =
   let fdec = emptyFunction "CHECK_FETCHEND" in
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argp; argb ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [ argp; argb ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fun tmplen base ->
@@ -774,7 +774,7 @@ let checkLBoundFun =
   let fdec = emptyFunction "CHECK_LBOUND" in
   let argb  = makeVarinfo "b" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argp; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argb; argp; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   theFile := consGlobal (GDecl (fdec.svar, lu)) !theFile;
@@ -785,7 +785,7 @@ let checkUBoundFun =
   let argbend  = makeVarinfo "bend" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
   let argpl  = makeVarinfo "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -796,7 +796,7 @@ let checkUBoundOrNullFun =
   let argbend  = makeVarinfo "bend" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
   let argpl  = makeVarinfo "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argbend; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -808,7 +808,7 @@ let checkBoundsNullFun =
   let argbend  = makeVarinfo "bend" voidPtrType in
   let argp  = makeVarinfo "p" voidPtrType in
   let argpl  = makeVarinfo "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbend; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argb; argbend; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -819,7 +819,7 @@ let checkBoundsLenFun =
   let argbl  = makeVarinfo "bl" uintType in
   let argp  = makeVarinfo "p" voidPtrType in
   let argpl  = makeVarinfo "pl" uintType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; argbl; argp; argpl ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argb; argbl; argp; argpl ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -832,7 +832,7 @@ let interceptCastFunction =
   let argl = makeVarinfo "l" ulongType in
   let argf = makeVarinfo "fid" intType in
   let argid = makeVarinfo "lid" intType in
-  fdec.svar.vtype <- TFun(voidPtrType, [ argl; argf; argid ], false, []);
+  fdec.svar.vtype <- TFun(voidPtrType, Some [ argl; argf; argid ], false, []);
   theFile :=
      consGlobal (GDecl (fdec.svar, lu)) !theFile;
   fdec
@@ -844,7 +844,7 @@ let checkFatPointerRead =
   let argb  = makeVarinfo "b" voidPtrType in
   let arglen  = makeVarinfo "nrWords" uintType in
   let argp  = makeVarinfo "p" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argb; arglen; argp; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argb; arglen; argp; ], false, []);
   (declareGlobalChecker fdec);
   fdec.svar.vstorage <- Static;
 
@@ -860,7 +860,7 @@ let checkFatPointerWrite =
   let argwb  = makeVarinfo "wb" voidPtrType in
   let argwp  = makeVarinfo "wp" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argb; arglen; argp; argwb; argwp; ], false, []);
+     TFun(voidType, Some [ argb; arglen; argp; argwb; argwp; ], false, []);
   (declareGlobalChecker fdec);
   fdec.svar.vstorage <- Static;
 
@@ -875,7 +875,7 @@ let checkStoreFatPtr =
   let argb  = makeVarinfo "b" voidPtrType in
   let argp  = makeVarinfo "isptr" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argp; argb; ], false, []);
+     TFun(voidType, Some [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
 
@@ -889,7 +889,7 @@ let checkStorePtr =
   let fdec = emptyFunction "CHECK_STOREPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argp; ], false, []);
+     TFun(voidType, Some [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
 
@@ -902,7 +902,7 @@ let checkReturnPtr =
   let fdec = emptyFunction "CHECK_RETURNPTR" in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argp; ], false, []);
+     TFun(voidType, Some [ argp; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
 
@@ -916,7 +916,7 @@ let checkReturnFatPtr =
   let argp  = makeVarinfo "p" voidPtrType in
   let argb  = makeVarinfo "b" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argp; argb; ], false, []);
+     TFun(voidType, Some [ argp; argb; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
 
@@ -934,7 +934,7 @@ let checkZeroTagsFun =
   let argsize  = makeVarinfo "size" uintType in
   let offset  = makeVarinfo "offset" uintType in
   fdec.svar.vtype <-
-     TFun(voidType, [ argb; argbl; argp; argsize; offset ], false, []);
+     TFun(voidType, Some [ argb; argbl; argp; argsize; offset ], false, []);
   (declareGlobalChecker fdec);
   fdec.svar.vstorage <- Static;
   fdec
@@ -944,7 +944,7 @@ let checkFindHomeFun =
   let argk  = makeVarinfo "kind" intType in
   let argp  = makeVarinfo "p" voidPtrType in
   fdec.svar.vtype <-
-     TFun(voidPtrType, [ argk; argp ], false, []);
+     TFun(voidPtrType, Some [ argk; argp ], false, []);
   (declareGlobalChecker fdec);
   fdec.svar.vstorage <- Static;
   fdec
@@ -956,7 +956,7 @@ let checkFindHomeEndFun =
   let argp  = makeVarinfo "p" voidPtrType in
   let argea  = makeVarinfo "ea" (TPtr(voidPtrType,[])) in
   fdec.svar.vtype <-
-     TFun(voidPtrType, [ argk; argp; argea ], false, []);
+     TFun(voidPtrType, Some  [ argk; argp; argea ], false, []);
   (declareGlobalChecker fdec);
   fdec.svar.vstorage <- Static;
   fdec
@@ -978,7 +978,7 @@ let typeSigBox t = typeSigWithAttrs ignorePtrNode t
 let checkPositiveFun =
   let fdec = emptyFunction "CHECK_POSITIVE" in
   let argx  = makeVarinfo "x" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argx; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argx; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -987,7 +987,7 @@ let checkAdvanceFun =
   let fdec = emptyFunction "CHECK_ADVANCE" in
   let argp = makeVarinfo "p" charPtrType in
   let argx  = makeVarinfo "x" intType in
-  fdec.svar.vtype <- TFun(voidType, [ argp; argx; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argp; argx; ], false, []);
   fdec.svar.vstorage <- Static;
   (declareGlobalChecker fdec);
   fdec
@@ -1007,7 +1007,7 @@ let rec fixupFunctionType (funcid: int) (fkind: N.opointerkind) (t: typ) =
     TFun (rt, args, va, a) ->
       List.iter
         (fun a -> a.vtype <- fixupOneArgumentType (funcid, a.vid) a.vtype)
-        args;
+        (argsToList args);
       (* Leave alone the return type if it is not a pointer type since it 
        * creates more problems than we need (due to the restrictions on 
        * representing function calls in CIL)  *)
@@ -1048,7 +1048,8 @@ let rec fixupType t =
   (* Do not hash function types because they contain arguments whose types 
    * change later *)
   | TFun (rt, args, isva, a) -> begin
-      List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+      List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) 
+                (argsToList args);
       let res = TFun(fixupType rt, args, isva, a) in
       res
   end 
@@ -1138,7 +1139,8 @@ and fixit t =
             * in
             
             *)
-            List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) args;
+            List.iter (fun argvi -> argvi.vtype <- fixupType argvi.vtype) 
+                      (argsToList args);
             let res = TFun(fixupType rt, args, isva, a) in
             res
       in
@@ -1479,7 +1481,7 @@ let registerAreaFun =
   let argi  = makeVarinfo "k" intType in
   let argb  = makeVarinfo "b" voidPtrType in
   let arge  = makeVarinfo "e" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ argi; argb; arge; ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := 
      consGlobal (GDecl (fdec.svar, lu)) !checkFunctionDecls;
@@ -1487,7 +1489,7 @@ let registerAreaFun =
 
 let unregisterFrameFun =
   let fdec = emptyFunction "CHECK_UNREGISTERFRAME" in
-  fdec.svar.vtype <- TFun(voidType, [ ], false, []);
+  fdec.svar.vtype <- TFun(voidType, Some [ ], false, []);
   fdec.svar.vstorage <- Static;
   (* sm: this is a macro; don't declare it; avoids a gcc warning *)
   (*
@@ -1916,7 +1918,8 @@ let getFunctionDescriptor (vi: varinfo) : exp =
             mkCompInfo true "__functionDescriptor"
               (fun _ -> 
                 [ ("_len", uintType, None, []);
-                  ("_pfun", TPtr(TFun(voidType,[],false, []), []), None, []);
+                  ("_pfun", TPtr(TFun(voidType, None,false, []), []), 
+                  None, []);
                   ("_nrargs", uintType, None, []) ]) 
               []
           in
@@ -1929,7 +1932,7 @@ let getFunctionDescriptor (vi: varinfo) : exp =
     (* Need to know the number of arguments *)
     let nrformals = 
       match vi.vtype with
-        TFun (_, formals, _, _) -> List.length formals
+        TFun (_, formals, _, _) -> List.length (argsToList formals)
       | _ -> E.s (bug "getFunctionDescriptor: %s not a function type" vi.vname)
     in
     let descr = makeGlobalVar (vi.vname ^ "__descriptor") 
@@ -1944,7 +1947,7 @@ let getFunctionDescriptor (vi: varinfo) : exp =
                                      (doCast 
                                         (AddrOf (Var vi, 
                                                   NoOffset))
-                                     (TPtr(TFun(voidType,[],false, []), [])));
+                                     (TPtr(TFun(voidType,None,false, []),[])));
                                    SingleInit (integer nrformals) ])),
              !currentLoc)) :: !descriptorDefinitions;
     let pfunfld = List.nth descrInfo.cfields 1 in
@@ -3135,7 +3138,7 @@ let fixupGlobName vi =
     | TFun(tres, args, _, _) -> 
         let acc' = qualNames acc tres in
         List.fold_left 
-          (fun acc a -> qualNames acc a.vtype) acc' args 
+          (fun acc a -> qualNames acc a.vtype) acc' (argsToList args)
 
     | TNamed (_, t, _) -> qualNames acc t
 
@@ -3170,8 +3173,13 @@ let fixupGlobName vi =
                     TComp(ci, _) -> List.map (fun f -> f.ftype) ci.cfields
                   | _ -> [t]
                 in
-                TFun(rt,args @ (List.map (fun t -> makeVarinfo "" t) types),
-                     true, a)
+                let args' = 
+                  match args with
+                    Some a -> 
+                      Some (a @ (List.map (fun t -> makeVarinfo "" t) types))
+                  | _ -> E.s (bug "vararg function without prototype")
+                in
+                TFun(rt, args', true, a)
             | _ -> vi.vtype
           end
         | _ -> vi.vtype
@@ -3439,7 +3447,8 @@ and boxinstr (ins: instr) : stmt clist =
                 (append doa'' doresta,  a2 :: resta')
               | a :: resta, [] -> 
                   (* This is a case when we call with more args than the 
-                   * prototype has. We better be calling a vararg or a WILD function *)
+                   * prototype has. We better be calling a vararg or 
+                     a WILD function *)
                   if fkind <> N.Wild && not isva then 
                     E.s (bug "Calling non-wild %a with too many args"
                            d_exp f);
@@ -3457,7 +3466,7 @@ and boxinstr (ins: instr) : stmt clist =
                   (append doa'' doresta, a2 :: resta')
               | _ -> E.s (unimp "too few arguments in call to %a" d_exp f)
             in
-            doArgs args ftargs
+            doArgs args (argsToList ftargs)
             
         in
         let finishcall = 
@@ -4436,7 +4445,7 @@ let boxFile file =
     let main = emptyFunction "main" in
     let argc  = makeLocalVar main "argc" intType in
     let argv  = makeLocalVar main "argv" (TPtr(charPtrType, [])) in
-    main.svar.vtype <- TFun(intType, [ argc; argv ], false, []);
+    main.svar.vtype <- TFun(intType, Some [ argc; argv ], false, []);
     setFormals main [argc; argv];
     (* And remove them from the locals *)
     main.slocals <- [];

@@ -173,8 +173,11 @@ and typ =
                    of the type are stored in the compinfo. Always make sure 
                    there is a GTag for each structure or union that you use. *)
 
-  | TFun of typ * varinfo list * bool * attribute list
-               (** Function type. Indicates the type of the result, arguments. 
+  | TFun of typ * varinfo list option * bool * attribute list
+               (** Function type. Indicates the type of the result, the 
+                   arguments (None is no arguments were specified 
+                   (Some [] means void). Use argsToList to obtain a list of 
+                   arguments.
                    Also indicates if it is a variable-argument function *)
 
   | TNamed of string * typ * attribute list (* From a typedef. The attributes 
@@ -682,6 +685,9 @@ val isPointerType: typ -> bool
 
 (** True if the argument is a function type *)
 val isFunctionType: typ -> bool
+
+(** Obtain the argument list ([] if None) *)
+val argsToList: varinfo list option -> varinfo list
 
 (** True if the argument is an array type *)
 val isArrayType: typ -> bool

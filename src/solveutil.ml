@@ -121,10 +121,14 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
   (* fails to unify bitfields *)
   | TEnum(_),TEnum(_) -> true
   | TFun(rt1, args1,va1,_),TFun(rt2,args2,va2,_) -> 
-      not va1 && not va2 && List.length args1 = List.length args2 &&
+      not va1 && not va2 &&
       type_congruent rt1 q1 rt2 q2 &&
-      (List.for_all2 (fun a1 a2 -> type_congruent a1.vtype q1 a2.vtype q2)
-         args1 args2)
+      (match args1, args2 with
+        Some a1, Some a2 -> 
+          List.length a1 = List.length a2 &&
+          (List.for_all2 (fun a1 a2 -> type_congruent a1.vtype q1 a2.vtype q2)
+             a1 a2)
+      | _ -> false)
 
   | TPtr(_),TPtr(_) -> true
 (*

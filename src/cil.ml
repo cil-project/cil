@@ -186,7 +186,7 @@ and typ =
   | TComp of compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
-  | TFun of typ * varinfo list * bool * attribute list
+  | TFun of typ * varinfo list option * bool * attribute list
 
   | TNamed of string * typ * attribute list (* From a typedef. The attributes 
                                              * are in addition to the 
@@ -573,7 +573,9 @@ type file =
 
 
 
-
+let argsToList : varinfo list option -> varinfo list = function
+    None -> []
+  | Some al -> al
 
 
 
@@ -1329,7 +1331,8 @@ let rec typeSigWithAttrs doattr t =
   | TComp (comp, a) -> 
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
-                                  List.map (fun vi -> (typeSig vi.vtype)) args,
+                                  List.map (fun vi -> (typeSig vi.vtype)) 
+                                    (argsToList args),
                                   isva, doattr a)
   | TNamed(_, t, a) -> typeSigAddAttrs (doattr a) (typeSig t)
       
@@ -1514,11 +1517,10 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
             parenthname () a
             ++ text "("
             ++ (align 
-                  ++ (if args = [] then 
-                        (if hasAttribute "missingproto" a then 
-                             nil 
-                         else text "void")
-                      else (docList (chr ',' ++ break) (d_videcl ()) () args))
+                  ++ (if args = None then nil 
+                      else if args = Some [] then text "void"
+                      else (docList (chr ',' ++ break) (d_videcl ()) () 
+                              (argsToList args)))
                   ++ (if isvararg then break ++ text ", ..." else nil)
                   ++ unalign)
             ++ text ")")
@@ -2145,8 +2147,12 @@ and d_plaintype () (t: typ) =
   | TFun(tr,args,isva,a) -> 
       dprintf "TFun(@[%a,@?%a%s,@?%a@])"
         scanType tr 
-        (docList (chr ',' ++ break) 
-           (fun a -> dprintf "%s: %a" a.vname scanType a.vtype)) args
+        insert 
+        (if args = None then text "None"
+         else (docList (chr ',' ++ break) 
+                 (fun a -> dprintf "%s: %a" a.vname scanType a.vtype)) 
+                 () 
+                 (argsToList args))
         (if isva then "..." else "") d_attrlistpost a
   | TComp (comp, a) -> 
       if H.mem donecomps comp.ckey then 
@@ -2256,7 +2262,7 @@ let setFormals (f: fundec) (forms: varinfo list) =
   f.sformals <- forms;
   match unrollType f.svar.vtype with
     TFun(rt, _, isva, fa) -> 
-      f.svar.vtype <- TFun(rt, forms, isva, fa)
+      f.svar.vtype <- TFun(rt, Some forms, isva, fa)
   | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
                 f.svar.vname)
     
@@ -2266,16 +2272,16 @@ let setFunctionType (f: fundec) (t: typ) =
   match unrollType t with
     TFun (rt, args, va, a) -> 
       (* Change the function type. For now use the sformals instead of args *)
-      f.svar.vtype <- TFun (rt, f.sformals, va, a);
+      f.svar.vtype <- TFun (rt, Some f.sformals, va, a);
       (* Change the sformals and we know that indirectly we'll change the 
        * function type *)
-      if List.length f.sformals <> List.length args then 
+      if List.length f.sformals <> List.length (argsToList args) then 
         E.s (E.bug "setFunctionType: wrong number of arguments");
       List.iter2 
         (fun a f -> 
           f.vtype <- a.vtype; f.vattr <- a.vattr; 
           if a.vname <> "" then
-            f.vname <- a.vname) args f.sformals
+            f.vname <- a.vname) (argsToList args) f.sformals
 
   | _ -> E.s (E.bug "setFunctionType: not a function type")
       
@@ -2326,7 +2332,7 @@ let makeGlobalVar name typ =
 
    (* Make an empty function *)
 let emptyFunction name = 
-  { svar  = makeGlobalVar name (TFun(voidType, [], false,[]));
+  { svar  = makeGlobalVar name (TFun(voidType, Some [], false,[]));
     smaxid = 0;
     slocals = [];
     sformals = [];
@@ -2632,9 +2638,11 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
   | TFun(rettype, args, isva, a) -> 
       let rettype' = visitCilType vis rettype in
       (* iterate over formals, as variable declarations *)
-      let args' = mapNoCopy (visitCilVarDecl vis) args in
+      let argslist = argsToList args in
+      let argslist' = mapNoCopy (visitCilVarDecl vis) argslist in
       let a' = fAttr a in
-      if rettype' != rettype || args' != args || a' != a  then 
+      if rettype' != rettype || argslist' != argslist || a' != a  then 
+        let args' = if argslist' = argslist then args else Some argslist' in
         TFun(rettype', args', isva, a') else t
 
   | TNamed(s, t1, a) -> 
@@ -3156,7 +3164,7 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
         | TArray (t', _, _) -> loop t'
         | TPtr (t', _) -> loop t'
         | TFun (rt, args, _, _) -> 
-            (loop rt || List.exists (fun a -> loop a.vtype) args)
+            (loop rt || List.exists (fun a -> loop a.vtype) (argsToList args))
         | _ -> false)
   and loopComp c = 
     if H.mem memo c.ckey then 
