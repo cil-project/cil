@@ -68,7 +68,9 @@ code fragment\n";
         # Now run cilly
         my $cmd = "$cilly -c $tmpdir/ex$testnr.c -o $tmpdir/ex$testnr.o";
         # print "$cmd\n";
-        system($cmd);
+        if(system($cmd)) {
+            die "Error running CIL for $tmpdir/ex$testnr.c";
+        }
         # Now repackage the CIL file
         my $cilfile = "$tmpdir/ex$testnr" . "cil.c";
         open(CIL, "<$cilfile") || die "Cannot find CIL file for $testnr";
