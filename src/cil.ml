@@ -717,7 +717,11 @@ let attributeHash: (string, attributeClass) H.t =
   List.iter (fun a -> H.add table a (AttrName false))
     [ "section"; "constructor"; "destructor"; "unused"; "weak"; 
       "no_instrument_function"; "alias"; "no_check_memory_usage";
-      "exception"; "model"; "mode"; "aconst"];
+      "exception"; "model"; "mode"; "aconst"; "__asm__" (* Gcc uses this to 
+                                                         * specifiy the name 
+                                                         * to be used in 
+                                                         * assembly for a 
+                                                         * global *)];
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn" ];
   List.iter (fun a -> H.add table a (AttrFunType false))
@@ -1633,6 +1637,9 @@ let _ =
     | Attr("stdcall", []) when !msvcMode -> Some (text "__stdcall")
     | Attr("declspec", args) when !msvcMode -> 
         Some (dprintf "__declspec(%a)"
+                (docList (chr ',') (d_attrarg ())) args)
+    | Attr("asm", args) -> 
+        Some (dprintf "__asm__(%a)"
                 (docList (chr ',') (d_attrarg ())) args)
     | _ -> None
   in

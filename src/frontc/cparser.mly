@@ -177,7 +177,7 @@ let doOldParDecl (names: string list)
 %type <Cabs.definition> global
 
 
-%type <Cabs.attribute list> attributes
+%type <Cabs.attribute list> attributes attributes_with_asm
 %type <Cabs.statement> statement
 %type <Cabs.constant> constant
 %type <Cabs.expression> expression opt_expression
@@ -235,7 +235,7 @@ location:
 global:
   declaration  { $1 }
 | function_def          { $1 }
-| location ASM LPAREN CST_STRING RPAREN SEMICOLON
+| location ASM LPAREN string_list RPAREN SEMICOLON
                         { GLOBASM ($4, $1) }
 | location PRAGMA attr  { PRAGMA ($3, $1) }
 | location error SEMICOLON { PRAGMA (CONSTANT(CONST_STRING "error"), $1) }
@@ -599,7 +599,8 @@ enumerator:
 
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes    { let (n, decl) = $2 in
+   pointer_opt direct_decl attributes_with_asm    
+                                         { let (n, decl) = $2 in
                                            (n, applyPointer $1 decl, $3) }
 ;
 
@@ -749,6 +750,16 @@ attributes:
 |   attribute attributes	        { $1 :: $2 }
 ;
 
+/* (* In some contexts we can have an inline assembly to specify the name to 
+    * be used for a global. We treat this as a name attribute *) */
+attributes_with_asm:
+    /* empty */                         { [] }
+|   attribute attributes_with_asm       { $1 :: $2 }
+|   ASM LPAREN string_list RPAREN attributes        
+                                        { ("__asm__", 
+                                           [CONSTANT(CONST_STRING $3)]) :: $5 }
+;
+ 
 attribute:
     ATTRIBUTE LPAREN LPAREN attr_list_ne RPAREN RPAREN	
                                         { ("__attribute__", $4) }
@@ -770,7 +781,7 @@ attr:
 |   NAMED_TYPE                           { VARIABLE $1 }
 |   IDENT LPAREN attr_list_ne RPAREN     { CALL(VARIABLE $1, $3) }
 |   CST_INT                              { CONSTANT(CONST_INT $1) }
-|   CST_STRING                           { CONSTANT(CONST_STRING $1) }
+|   string_list                          { CONSTANT(CONST_STRING $1) }
                                            /*(* Const when it appears in 
                                             * attribute lists, is translated 
                                             * to aconst *)*/
@@ -814,7 +825,7 @@ asmoperandsne:
 |    asmoperandsne COMMA asmoperand     { $3 :: $1 }
 ;
 asmoperand:
-     CST_STRING LPAREN expression RPAREN    { ($1, $3) }
+     string_list LPAREN expression RPAREN    { ($1, $3) }
 ; 
 
 %%
