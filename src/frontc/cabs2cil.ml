@@ -17,6 +17,28 @@ let cabslu = {lineno = -10; filename = "cabs lu";}
 (* Keep a list of functions that were called without a prototype. *)
 let noProtoFunctions : (int, bool) H.t = H.create 13
 
+
+
+(* When doing function definitions we want to postpone the processing of 
+ * transparent unions *)
+let doTransparentUnions = ref true
+
+(* Check if a type is a transparent union, and return the first field if it 
+ * is *)
+let isTransparentUnion (t: typ) : fieldinfo option = 
+  match unrollType t with 
+    TComp (_, comp, _) when not comp.cstruct && !doTransparentUnions -> 
+      (* Turn transparent unions into the type of their first field *)
+      if hasAttribute "transparent_union" (typeAttrs t) then begin
+        match comp.cfields with
+          f :: _ -> Some f
+        | _ -> E.s (unimp "Empty transparent union: %s" (compFullName comp))
+      end else 
+        None
+  | _ -> None
+
+
+
 let convLoc (l : cabsloc) =
    {line = l.lineno; file = l.filename;}
 
@@ -1202,7 +1224,17 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
     | A.PROTO (d, args, isva) -> 
         (* Turn [] types into pointers in the arguments and the result type. 
          * This simplifies our life a lot  *)
-        let arrayToPtr t = 
+        let fixupArgumentType arg = 
+          match unrollType arg.vtype with
+            TArray(t,_,attr) -> arg.vtype <- TPtr(t, attr)
+          | TComp (_, comp, _) as t -> begin
+              match isTransparentUnion arg.vtype with
+                None -> ()
+              | Some fstfield -> arg.vtype <- fstfield.ftype
+          end
+          | _ -> ()
+        in
+        let fixupResultType t = 
           match unrollType t with
             TArray(t,_,attr) -> TPtr(t, attr)
           | _ -> t
@@ -1215,8 +1247,8 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | l -> l
         in
         exitScope ();
-        List.iter (fun a -> a.vtype <- arrayToPtr a.vtype) targs;
-        let tres = arrayToPtr bt in
+        List.iter fixupArgumentType targs;
+        let tres = fixupResultType bt in
         doDecl (TFun (tres, targs, isva, [])) acc d
 
   in
@@ -2803,9 +2835,13 @@ let convFile fname dl =
               enterScope ();  (* Start the scope *)
 
               let bt,sto,inl,attrs = doSpecList specs in
+              (* Do not process transparent unions in function definitions. 
+               * We'll do it later *)
+              doTransparentUnions := false;
               let ftyp, funattr = doType (AttrName false) bt 
                                          (A.PARENTYPE(attrs, dt, a)) in
                                         (* Do the type *)
+              doTransparentUnions := true;
               let (returnType, formals, isvararg, funta) = 
                 match unrollType ftyp with 
                   TFun(rType, formals, isvararg, a) -> 
@@ -2815,7 +2851,8 @@ let convFile fname dl =
               (* Record the returnType for doStatement *)
               currentReturnType   := returnType;
               let formals' = 
-                List.map (alphaConvertVarAndAddToEnv true) formals in
+                List.map (alphaConvertVarAndAddToEnv true) formals
+              in
               let ftype = TFun(returnType, formals', isvararg, funta) in
               (* Add the function itself to the environment. Just in case we 
                * have recursion and no prototype.  *)
@@ -2851,7 +2888,37 @@ let convFile fname dl =
                            sinline  = inl;
                          } 
               in
-              setFormals fdec formals'; (* To make sure sharing is proper *)
+              (* Now go over the types of the formals and pull out the 
+               * formals with transparent union type. Replace them with some 
+               * shadow parameters and then add assignments *)
+              let newformals, newbody = 
+                List.fold_right (* So that the formals come out in order *) 
+                  (fun f (accform, accbody) -> 
+                    match isTransparentUnion f.vtype with
+                      None -> (f :: accform, accbody)
+                    | Some fstfield -> 
+                        (* A new shadow to be placed in the formals *)
+                        let shadow = makeTempVar fdec fstfield.ftype in
+                        (* Now take it out of the locals and replace it with 
+                         * the current formal. It is not worth optimizing 
+                         * this one  *)
+                        fdec.slocals <-
+                         f ::
+                           (List.filter (fun x -> x.vid <> shadow.vid) 
+                              fdec.slocals);
+                        (shadow :: accform, 
+                         mkStmt (Instr [Set ((Var f, Field(fstfield, 
+                                                           NoOffset)),
+                                             Lval (var shadow), 
+                                             !currentLoc)]) :: accbody))
+                  formals'
+                  ([], fdec.sbody)
+              in
+              fdec.sbody <- newbody;
+              
+              setFormals fdec newformals; (* To make sure sharing with the 
+                                           * type is proper *)
+
 (*              ignore (E.log "The env after finishing the body of %s:\n%t\n"
                         n docEnv); *)
               theFile := GFun (fdec, !currentLoc) :: !theFile

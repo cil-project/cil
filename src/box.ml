@@ -3404,8 +3404,9 @@ let boxFile file =
                     let r1, r2 = loopFormals restf in
                     if form.vaddrof then begin
                       let tmp = makeTempVar f form.vtype in
-                  (* Now take it out of the locals and replace it with the 
-                     * current formal. It is not worth optimizing this one  *)
+                      (* Now take it out of the locals and replace it with 
+                       * the current formal. It is not worth optimizing this 
+                       * one  *)
                       f.slocals <-
                          form ::
                          (List.filter (fun x -> x.vid <> tmp.vid) f.slocals);

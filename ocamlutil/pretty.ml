@@ -32,7 +32,7 @@
 (* Pretty printer *)
 
 let debug = false
-let aman           = true
+let aman           = false
 let mode           = try Sys.getenv "Mode" with Not_found -> "" (* I hope ocamlopt realizes that this is dead if aman = false *)
 let aman_no_layout = (aman && (mode = "SkipLayout"))            (* Constant-foldable if aman = false? *)
 let aman_no_output = (aman && (mode = "SkipOutput"))
