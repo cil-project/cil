@@ -1210,7 +1210,7 @@ and markSimilar (index : int) : int =
 and isSimilar (a : instr) (b : instr) : bool =
   match a,b with
     Call (_,Lval(Var ax,_),argsa,_) , Call (_,Lval(Var bx,_),argsb,_) ->
-      if (amandebug && 
+      if (false && amandebug && 
 	  ax.vname="CHECK_LEANSTACKPOINTER" && bx.vname="CHECK_LEANSTACKPOINTER" &&
 	  not (expListEqual argsa argsb))
       then doMarshal [argsa;argsb];
@@ -1393,9 +1393,11 @@ let optimFun (f : fundec) (isGlobinit : bool) =
     optimizedF := numberNodesAndPeephole !optimizedF
   else begin
     (* Remove redundant CHECK_NULL *)
+    if amandebug then begin pr "Null Checks"; pr "\n"; end ;
     optimizedF := nullChecksOptim !optimizedF;
     
     (* Remove other redundant checks *)
+    if amandebug then begin pr "Other Redundant Checks"; pr "\n"; end ;
     optimizedF := eliminateRedundancy !optimizedF;
   end;
 
@@ -1409,7 +1411,7 @@ let optimFile file =
     ignore(printf "\n-------------------------------------------------\n");
     ignore(printf "OPTIM MODULE STARTS\n\n")
   end;
-
+ 
   (* Replace every function definition by its optimized version*)
   file.globals <- List.map
       (function
