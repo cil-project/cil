@@ -78,6 +78,7 @@ type node =
 
       (* The rest are the computed results of constraint resolution *)
       mutable kind: pointerkind;
+			mutable why_kind : whykind;
       
       mutable mark: bool;               (* For mark-and-sweep GC of nodes. 
                                          * Most of the time is false *)
@@ -93,6 +94,12 @@ and pointerkind =
   | Wild
   | Unknown
 
+and whykind = (* why did we give it this kind? *)
+	  BadCast of typ * typ
+	| SpreadFromEdge of node 
+	| SpreadPointsTo of node
+	| BoolFlag
+	| Default
 
 and edge = 
     { mutable efrom:    node;
@@ -131,8 +138,15 @@ let d_pointerkind () = function
   | Wild -> text "wild" 
   | Unknown -> text "unknown" 
 
+let d_whykind () = function
+		BadCast(t1,t2) -> dprintf "cast(%a<= %a)" d_type t1 d_type t2
+	| BoolFlag -> text "from_flag"
+	| SpreadFromEdge(n) -> dprintf "spread_from_edge(%d)" n.id
+	| SpreadPointsTo(n) -> dprintf "spread_points_to(%d)" n.id
+	| Default -> text "by_default"
+
 let d_node n = 
-  dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
+  dprintf "%d : %a (%s%s%s%s%s%s) (@[%a@])@! K=%a/%a T=%a@!  S=@[%a@]@!  P=@[%a@]@!" 
     n.id d_placeidx n.where
     (if n.onStack then "stack," else "")
     (if n.updated then "upd," else "")
@@ -143,6 +157,7 @@ let d_node n =
     (docList (chr ',' ++ break)
        (fun n -> num n.id)) n.pointsto
 		d_pointerkind n.kind
+		d_whykind n.why_kind
     d_type n.btype
     (docList (chr ',' ++ break)
        (fun e -> dprintf "%d%a" e.eto.id
@@ -211,6 +226,7 @@ let newNode (p: place) (idx: int) (bt: typ) (a: attribute list) : node =
             intcast = false;
             succ = [];
             kind = Unknown;
+						why_kind = Default; 
             pointsto = [];
             mark = false;
             pred = []; } in

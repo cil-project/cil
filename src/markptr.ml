@@ -455,7 +455,7 @@ let printFile (c: out_channel) fl =
   N.printGraph c;
   output_string c "// End of graph\n";
   output_string c "// Now the solved graph (simplesolve)\n";
-  Simplesolve.solve N.idNode ; 
+  Stats.time "simple solver" Simplesolve.solve N.idNode ; 
   N.printGraph c;
   output_string c "// End of solved graph\n"; 
   d_attrcustom := ocustom

@@ -826,11 +826,11 @@ let rec d_decl (docName: unit -> doc) () this =
                         else "union",  "uni", "on"
       in
       if not (!printShortTypes) && (n' = "" || canPrintName (su, n')) then
-        dprintf "%s@[%s %s%a {@!%a@]@!} %t" su1 su2 n' 
+        dprintf "%s@[%s %s%a {@!%a@]@!} %t " su1 su2 n' 
           d_attrlistpost comp.cattr
           (docList line (d_fielddecl ())) comp.cfields docName
       else
-        dprintf "%s%s %s %t" su1 su2 n' docName
+        dprintf "%s%s %s %t " su1 su2 n' docName
   | TForward (comp, a) -> 
       let su = if comp.cstruct then "struct" else "union" in
       dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
@@ -1951,7 +1951,8 @@ and bitsSizeOf t =
         
   | TArray _ -> 
       E.s (E.unimp "sizeOfInt for non-constant length array:@!%a" d_type t)
-  | (TVoid _ | TFun _) -> E.s (E.bug "bitsSizeOf")
+	| TFun _ -> 32
+  | TVoid _ -> E.s (E.bug "bitsSizeOf void")
 
 
 and addTrailing nrbits = 
