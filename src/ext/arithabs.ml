@@ -375,9 +375,12 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             ++ text "=" ++ self#pExp () e ++ text ";"
             
       | Call (Some (Var v, NoOffset), 
-              Lval (Var f, NoOffset), args, _)  when considerVariable v -> 
+              Lval (Var f, NoOffset), args, _) ->
           let gwt: varinfo list = getGlobalsWrittenTransitive f in
           let grt: varinfo list = getGlobalsReadTransitive f in
+
+          let gwt' = 
+            if considerVariable v then gwt @ [v] else gwt in 
           (* Prepare the arguments first *)
           let argdoc: doc = 
             (docList ~sep:break (self#pExp ())) 
@@ -388,7 +391,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             (docList 
                (fun v -> 
                  text (self#variableDef varRenameState v)))
-            (gwt @ [v])
+            gwt'
             f.vname
             insert argdoc
             
@@ -538,8 +541,6 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       match g with 
         GFun (fdec, l) -> 
           currentFundec <- fdec;
-          freshVars <- [];
-          uninitVars <- [];
 
           (* Make sure we use one return at most *)
           Oneret.oneret fdec;
@@ -584,6 +585,8 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
           
           lastFreshId := 0;
 
+          freshVars <- [];
+          uninitVars <- [];
           
           Array.iteri (fun i (b: S.cfgBlock) -> 
             (* compute the initial state *)
@@ -592,16 +595,40 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
             (* Initialize the renaming state *)
             self#initVarRenameState b;
           
-            (* Now scan the block and keep track of the definitions *)
+            (* Now scan the block and keep track of the definitions. This is 
+             * a huge hack. We try to rename the variables in the same order 
+             * in which we will rename them during actual printing of the 
+             * block. It would have been cleaner to print the names of the 
+             * variables after printing the function.  *)
             (match b.S.bstmt.skind with 
               Instr il -> begin
                 List.iter
                   (fun i -> 
                     match i with 
-                      Set ((Var v, NoOffset), _, _) 
-                    | Call (Some (Var v, NoOffset), _, _, _) 
-                      when considerVariable v ->
-                        ignore (self#variableDef varRenameState v)
+                      Set ((Var v, NoOffset), _, _)
+                        when considerVariable v ->
+                          ignore (self#variableDef varRenameState v)
+                    | Call (Some (Var v, NoOffset), 
+                            Lval (Var f, NoOffset), _, _) 
+                      ->
+                        let gwt: varinfo list = 
+                          getGlobalsWrittenTransitive f in
+                        let gwt' = 
+                          if considerVariable v then 
+                            gwt @ [ v ] else gwt 
+                        in
+                        List.iter (fun v -> 
+                          ignore (self#variableDef varRenameState v))
+                          gwt'
+
+
+                    | Call (None, 
+                            Lval (Var f, NoOffset), _, _) -> 
+                          let gwt: varinfo list = 
+                            getGlobalsWrittenTransitive f in
+                          List.iter (fun v -> 
+                            ignore (self#variableDef varRenameState v))
+                            gwt
 
                     | _ -> ())
                   il
@@ -742,7 +769,7 @@ let feature : featureDescr =
               E.s (E.bug "Function id=%d not in allFunctions" next)
           in
           (* If this is just a declaration, we ignore *)
-          match finfo with 
+          (match finfo with 
             Decl _ -> ()
           | Def fdec -> begin
               (* Find the callnode for it *)
@@ -772,7 +799,14 @@ let feature : featureDescr =
                   E.s (E.bug "Function %s not in globalsReadTransitive"
                       fdec.svar.vname)
               in
-
+(*
+              ignore (E.log "fixedpoint: doing %s\n read so far: %a\n written so far: %a\n"
+                        fdec.svar.vname
+                        (docList (fun (_, v) -> text v.vname))
+                        (IH.tolist ourRead)
+                        (docList (fun (_, v) -> text v.vname))
+                        (IH.tolist ourRead));
+*)
               H.iter
                 (fun n cn -> 
                   (* Get the callee's written *)
@@ -812,7 +846,9 @@ let feature : featureDescr =
                   (fun _ caller -> Queue.add caller.CG.cnInfo.vid worklist)
                   cnode.CG.cnCallers
               end
-          end
+          end);
+
+          fixedpoint ();
                 
         with Queue.Empty -> ()
       in
