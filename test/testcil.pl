@@ -407,7 +407,7 @@ $TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
 $TEST->add2TestsFail("testrun/simon6", "", "Failure:");
     
 $TEST->add2TestsFail("testrun/infer1", "", "Failure: ");
-    $TEST->addBadComment("testrun/failsscanf1-infer1", "Unsound solver casting of SEQ pointers");
+    $TEST->addBadComment("testrun/infer1-inferbox", "Unsound solver casting of SEQ pointers");
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Decrement FSEQ", 
                     ['inferbox']);
 $TEST->addTestsFail("testrun/fseq1", "", "Failure: Lbound", 
