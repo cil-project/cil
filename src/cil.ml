@@ -1762,6 +1762,9 @@ class type cilPrinter = object
   method pLval: unit -> lval -> doc
     (** Invoked on each lvalue occurence *)
 
+  method pOffset: doc -> offset -> doc
+    (** Invoked on each offset occurence. The second argument is the base. *)
+
   method pInstr: unit -> instr -> doc
     (** Invoked on each instruction occurrence. *)
 
@@ -1839,21 +1842,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
-    let rec d_offset (base: doc) = function
-      | NoOffset -> base
-      | Field (fi, o) -> 
-          d_offset (base ++ text "." ++ text fi.fname) o
-      | Index (e, o) ->
-          d_offset (base ++ text "[" ++ self#pExp () e ++ text "]") o
-    in
     match lv with
-      Var vi, o -> d_offset (self#pVar vi) o
+      Var vi, o -> self#pOffset (self#pVar vi) o
     | Mem e, Field(fi, o) ->
-        d_offset 
+        self#pOffset
           ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
     | Mem e, o ->
-        d_offset
+        self#pOffset
           (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
+
+  (** Offsets **)
+  method pOffset (base: doc) = function
+    | NoOffset -> base
+    | Field (fi, o) -> 
+        self#pOffset (base ++ text "." ++ text fi.fname) o
+    | Index (e, o) ->
+        self#pOffset (base ++ text "[" ++ self#pExp () e ++ text "]") o
 
   method private pLvalPrec (contextprec: int) () lv = 
     if getParenthLevel (Lval(lv)) >= contextprec then
@@ -2806,6 +2810,7 @@ let dumpInit (pp: cilPrinter) (out: out_channel) (ind: int) (i: init) : unit =
 (* Now define some short cuts *)
 let d_exp () e = printExp defaultCilPrinter () e
 let d_lval () lv = printLval defaultCilPrinter () lv
+let d_offset base () off = defaultCilPrinter#pOffset base off
 let d_init () i = printInit defaultCilPrinter () i
 let d_type () t = printType defaultCilPrinter () t
 let d_global () g = printGlobal defaultCilPrinter () g
@@ -3067,7 +3072,7 @@ let setFunctionType (f: fundec) (t: typ) =
   match unrollType t with
     TFun (rt, Some args, va, a) -> 
       if List.length f.sformals <> List.length args then 
-        E.s (E.bug "setFunctionType: wrong number of arguments");
+        E.s (E.bug "setFunctionType: number of arguments differs from the number of formals");
       (* Change the function type. *)
       f.svar.vtype <- t; 
       (* Change the sformals and we know that indirectly we'll change the 

@@ -126,11 +126,11 @@ let trace
   (* see if the subsystem's tracing is turned on *)
   if (traceActive subsys) then
     begin
-      (fprint stdout 80			(* print it *)
+      (fprint stderr 80			(* print it *)
          ((traceTag subsys) ++ d));	(* with prepended subsys tag *)
       (* mb: flush after every message; useful if the program hangs in an
 	 infinite loop... *)
-      (flush stdout)
+      (flush stderr)
     end
   else
     ()			                         (* eat it *)

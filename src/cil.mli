@@ -1703,6 +1703,9 @@ class type cilPrinter = object
   method pLval: unit -> lval -> Pretty.doc
     (** Invoked on each lvalue occurence *)
 
+  method pOffset: Pretty.doc -> offset -> Pretty.doc
+    (** Invoked on each offset occurence. The second argument is the base. *)
+
   method pInstr: unit -> instr -> Pretty.doc
     (** Invoked on each instruction occurrence. *)
 
@@ -1812,6 +1815,10 @@ val d_exp: unit -> exp -> Pretty.doc
 
 (** Pretty-print an lvalue using {!Cil.defaultCilPrinter}   *)
 val d_lval: unit -> lval -> Pretty.doc
+
+(** Pretty-print an offset using {!Cil.defaultCilPrinter}, given the pretty 
+ * printing for the base.   *)
+val d_offset: Pretty.doc -> unit -> offset -> Pretty.doc
 
 (** Pretty-print an initializer using {!Cil.defaultCilPrinter}.  This can be 
  * extremely slow (or even overflow the stack) for huge initializers. Use 
@@ -1955,7 +1962,7 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
 exception SizeOfError of typ
 
 (** The size of a type, in bits. Trailing padding is added for structs and
-    arrays. Raises {!Cil.SizeOfError} when it cannot compute the type. *)
+    arrays. Raises {!Cil.SizeOfError} when it cannot compute the size. *)
 val bitsSizeOf: typ -> int
 
 (** The size of a type, in bytes. Does not raises {!Cil.SizeOfError} but uses 
@@ -1965,8 +1972,10 @@ val sizeOf: typ -> exp
 (** The minimum alignment (in bytes) for a type *)
 val alignOf_int: typ -> int
 
-(** Converts an offset into a number of bits from the base address and a 
-   width (also expressed in bits) *)
+(** Give a type of a base and an offset, returns the number of bits from the 
+ * base address and the width (also expressed in bits) for the subobject 
+ * denoted by the offset. Raises {!Cil.SizeOfError} when it cannot compute 
+ * the size. *)
 val bitsOffset: typ -> offset -> int * int
 
 
