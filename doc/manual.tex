@@ -300,6 +300,131 @@ processed the calls to the polymorphic model lead to new instances of the
 model function. 
  
 
+    \section{Variable argument functions}
+
+ CCured supports variable-argument functions written using the \t{<stdarg.h>}
+ macros. There are two kinds of variable-argument functions in C: 
+\begin{itemize}
+\item Those that take an arbitrary number of arguments following the last
+specified formal (their function type contains \t{...} after the last formal).
+We'll call these functions vararg functions. An example is \t{printf}:
+\begin{verbatim}
+int printf(const char* format, ...)
+\end{verbatim}
+
+\item Those that take as arguments one or more pointers to lists of
+arguments. We'll call these functions valist functions. An example is
+\t{vprintf}:
+\begin{verbatim}
+int vprintf(const char* format, va_list args)
+\end{verbatim}
+\end{itemize}
+
+ To allow CCured to process calls to and bodies of variable-argument functions
+the programmer must specify a comprehensive list of all the types of arguments
+that can be passed to each such function. This is done by defining a \t{union}
+data type whose fields have the types that can be passed to the function. For
+example, such a union for \t{printf} would be the following:
+\begin{verbatim}
+union printf_arguments {
+   int      f_int;
+   double   f_double;
+   char    *f_string;
+};
+\end{verbatim}
+
+ Then we must specify for each local and formal of type \t{va\_list} which is
+the union that describes the possible argument types: 
+\begin{verbatim}
+va_list __BOXVARARG(union printf_arguments) args1;
+\end{verbatim}
+
+ This method does not work for vararg functions because there is no formal
+standing for the \t{...}. To solve this problem, and as an alternative
+specification for all variable argument functions, one can use the following
+pragma:
+\begin{verbatim}
+#pragma boxvararg("myvarargfunction", sizeof(union printf_arguments))
+\end{verbatim}
+
+ to associate with {\bf all} of the \t{va\_list} formals and locals in the
+function \t{myvarargfunction} the given union. (The \t{sizeof} operator is
+there because the syntax of pragmas is pretty much that of function calls.)
+{\bf The pragma must appear before the definition and any invocation of the
+function.} An equivalent method is to associate the \t{\_\_BOXVARARG(union
+printf\_arguments)} attribute with the type of the function
+\t{myvarargfunction}:
+\begin{verbatim}
+int (__BOXVARARG(union printf_arguments) myvarargfunction)(int last, ...);
+\end{verbatim}
+
+ In vararg functions, the macro \t{va\_start} is used to initialize an
+\t{va\_list} variable to point to the trailing arguments. CCured checks that
+this macro is used with a \t{va\_list} variable with the same \t{union} type
+as the host function itself, and also checks that the second argument is the
+last formal before the \t{...}. 
+
+ Both in vararg and valist functions the macro \t{va\_arg} can be used, as
+ follows: 
+\begin{verbatim}
+ T x = va_arg(args, T)
+\end{verbatim}
+
+ \t{args} must be a \t{va\_list} variable and \t{T} must be compatible after
+the usual argument promotions (e.g. \t{char} and \t{short} to \t{int} and
+\t{float} to \t{double}) with one of the types in the \t{union} associated
+with \t{args}. CCured checks this at run-time. 
+
+ The CCured support for variable argument functions is quite flexible.
+Multiple variable argument lists can be processed in parallel, an argument
+list can be re-initialized with \t{va\_start} and processed multiple times. A
+function can even work with variable argument lists that have different sets
+of types accepted. Variable argument lists can be passed down but the regular
+CCured checks for stack allocated variables will prevent the passing of these
+lists up the call chain and also their storing in the heap.
+
+ The main thing that is not supported in CCured is the fetching of an argument
+with a different type than it was stored. It remains to be seen if this is a
+problem. We have looked at several variable argument functions (including
+implementations of \t{printf} and \t{sprintf}) and so far we have found that
+CCured accepts those functions without any change except for the specification
+of the \t{union} of the accepted argument types. 
+
+      \subsection{Implementation Issues}
+
+ Almost all of the checking for variable-argument functions is done at
+run-time. At the time of a call each actual argument is compared with the
+types in the \t{union} associated with the vararg function. A global data
+structure is filled with the number of arguments and a list of indices
+describing for each actual argument the index within the \t{union} types. 
+
+ In the body of a vararg function, a data structure is allocated on the stack
+to hold a copy of the global description of the arguments that was created by
+the caller. The call to \t{va\_start} initializes this data structure and each
+call to \t{va\_arg} checks that we are are not reading past the end of the
+actuals and also that the type of the fetched argument matches that of the
+actual argument. 
+
+      \subsection{Printf-like functions}
+
+ Since the vast majority of uses of variable argument functions if for
+\t{printf}-like functions, CCured contains special support. Specifically if
+vararg function is declared to be a \t{printf}-like function then all of its
+invocations in which the format string is a constant will be checked
+statically. For the other invocations a wrapper for printf will be called that
+will check the types of the actuals agains the format string before calling
+the real \t{printf} function. 
+
+ To declare a function to be \t{printf}-like use the following pragma:
+\begin{verbatim}
+#pragma boxvararg_printf("printf", sizeof(union printf_format), 0)
+\end{verbatim}
+
+ where the last argument is the index of the format argument in the argument
+list. Note that you will get a run-time error if you try to use the
+\t{va\_arg} macro in the implemetation of such a function. You should invoke
+functions like \t{vprintf} and \t{vsprintf} instead. 
+
     \chapter{Using the patcher}
 
  Occasionally for the purposes of CCured we have needed to modify slightly the

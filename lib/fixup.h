@@ -105,11 +105,11 @@
     char * __ROSTRING f_string;
   };
   
-  #pragma boxvararg_format("printf", sizeof(union printf_format), 0)
-  #pragma boxvararg_format("fprintf", sizeof(union printf_format), 1)
-  #pragma boxvararg_format("snprintf", sizeof(union printf_format), 2)
-  #pragma boxvararg_format("syslog", sizeof(union printf_format), 1)
-  #pragma boxvararg_format("sprintf", sizeof(union printf_format), 1)
+  #pragma boxvararg_printf("printf", sizeof(union printf_format), 0)
+  #pragma boxvararg_printf("fprintf", sizeof(union printf_format), 1)
+  #pragma boxvararg_printf("snprintf", sizeof(union printf_format), 2)
+  #pragma boxvararg_printf("syslog", sizeof(union printf_format), 1)
+  #pragma boxvararg_printf("sprintf", sizeof(union printf_format), 1)
 
   // We want to force sprintf to carry a length
   static inline

@@ -1389,7 +1389,7 @@ let doGlobal (g: global) : global =
           applyToFunction s 
             (addFunctionTypeAttribute (Attr("boxvararg", [ASizeOf t])))
 
-      | Attr("boxvararg_format", [AStr s; ASizeOf t; AInt format_idx]) -> 
+      | Attr("boxvararg_printf", [AStr s; ASizeOf t; AInt format_idx]) -> 
           applyToFunction s 
             (fun vi -> 
               addFunctionTypeAttribute 
