@@ -31,7 +31,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
             { fcomp = our_compinfo ; fname = "" ;
               ftype = TArray(t,(Some(Const(CInt32(Int32.pred n,a,b)))),[]) ;
               fattr = [] ; } ] ; 
-        type_congruent t q1 (TComp(false, our_compinfo, [])) q2
+        type_congruent t q1 (TComp(our_compinfo, [])) q2
       end
     | _ -> false
   end in 
@@ -39,7 +39,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
     true
   else match (t1,t2) with
     (* unions can be reordered without loss *)
-  | TComp(_,c1,_),TComp(_,c2,_) 
+  | TComp(c1,_),TComp(c2,_) 
       when (not c1.cstruct) && (not c2.cstruct) -> begin
       let fields_match l1 l2 = 
         List.for_all (fun l1_elt ->
@@ -51,7 +51,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
         (fields_match c2.cfields c1.cfields)
     end
     (* structures match if all of their fields match in order *)
-  | TComp(_,c1,_),TComp(_,c2,_) when (c1.cstruct) && (c2.cstruct) -> 
+  | TComp(c1,_),TComp(c2,_) when (c1.cstruct) && (c2.cstruct) -> 
     (c1.cname = c2.cname) || 
     (((List.length c1.cfields) = (List.length c2.cfields)) && 
     List.for_all2 (fun f1 f2 -> type_congruent f1.ftype q1 f2.ftype q2) 
@@ -59,9 +59,9 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
 
 
     (* a structure with one element is equal to that element *)
-  | TComp(_,c1,_),_ when ((List.length c1.cfields) = 1) ->
+  | TComp(c1,_),_ when ((List.length c1.cfields) = 1) ->
     let f1 = List.hd c1.cfields in type_congruent f1.ftype q1 t2 q2 
-  | _,TComp(_,c2,_) when ((List.length c2.cfields) = 1) ->
+  | _,TComp(c2,_) when ((List.length c2.cfields) = 1) ->
     let f2 = List.hd c2.cfields in type_congruent t1 q1 f2.ftype q2
 
     (* t and t[1] are the same *)
@@ -109,36 +109,36 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
     true
   else match (t1,t2) with 
     (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
-    TComp(isf1,c1,a1),TComp(_,c2,_) when c1.cstruct && c2.cstruct -> begin
+    TComp(c1,a1),TComp(c2,_) when c1.cstruct && c2.cstruct -> begin
       (* is t2 congruent to a prefix of t1? *)
       (* we'll do it the expensive way: try all prefices of t1 *)
       let found_one = ref false in 
       for l = 1 to (List.length c1.cfields) do 
         if (not (!found_one)) then begin
           let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 q2 (TComp(isf1,prefix_struct_c1,a1)) q1) then
+          if (type_congruent t2 q2 (TComp(prefix_struct_c1,a1)) q1) then
             found_one := true
         end
       done ; !found_one
     end
     (* t1 x t2 <= t1 *)
-  | TComp(isf1,c1,a1),_ when c1.cstruct -> begin
+  | TComp(c1,a1),_ when c1.cstruct -> begin
     (* this is true if t2 is congruent to some prefix of c1, as above *)
       let found_one = ref false in 
       for l = 1 to (List.length c1.cfields) do 
         if (not (!found_one)) then begin
           let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent (TComp(isf1,prefix_struct_c1,a1)) q1) t2 q2 then
+          if (type_congruent (TComp(prefix_struct_c1,a1)) q1) t2 q2 then
             found_one := true
         end
       done ; !found_one
     end
     (* x <= a + b  iff x <= a && x <= b *)
-   | _,TComp(_,c2,_) when not c2.cstruct -> begin
+   | _,TComp(c2,_) when not c2.cstruct -> begin
       List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
    end
     (* a+b <= x    iff a <= x || b <= x *)
-   | TComp(_,c1,_),_ when not c1.cstruct -> begin
+   | TComp(c1,_),_ when not c1.cstruct -> begin
       List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
    end
 

@@ -843,7 +843,7 @@ and typeId = function
   | TFloat (fk, a) -> fkId fk ^ attrsId a
   | TEnum _ -> ikId IInt (* !!! *)
   | TNamed (_, t, a) -> typeId (typeAddAttributes a t)
-  | TComp (_, comp, a) when comp.cstruct -> begin
+  | TComp (comp, a) when comp.cstruct -> begin
       let hasPrefix s p = 
         let pl = String.length p in
         (String.length s >= pl) && String.sub s 0 pl = p
@@ -868,7 +868,7 @@ and typeId = function
         end else
           res
   end
-  | TComp (_, comp, a) when not comp.cstruct -> 
+  | TComp (comp, a) when not comp.cstruct -> 
       "N" ^ (string_of_int (List.length comp.cfields)) ^
       (List.fold_left (fun acc f -> acc ^ typeId f.ftype ^ "n") 
          "" comp.cfields) ^

@@ -120,15 +120,14 @@ and fieldinfo = {
 
 
 (* Information about a composite type (a struct or a union). Use mkCompInfo 
- * to create non-recursive or (potentially) recursive versions of this  *)
+ * to create non-recursive or (potentially) recursive versions of this. Make 
+ * sure you have a GCompTag for each one of these.  *)
 and compinfo = {
     mutable cstruct: bool;              (* true if struct *)
-    mutable cname: string;              (* the name. Always non-empty. If it 
-                                         * starts with @ then it is not 
-                                         * printed. Use compSetName to set 
-                                         * the name and the key. Use 
-                                         * compFullName to get the full name 
-                                         * of a comp *)
+    mutable cname: string;              (* the name. Always non-empty. Use 
+                                         * compSetName to set the name and 
+                                         * the key. Use compFullName to get 
+                                         * the full name of a comp  *)
     mutable ckey: int;                  (* A unique integer. Use Hashtbl.hash 
                                          * on the string returned by 
                                          * compFullName. All compinfo for a 
@@ -139,6 +138,17 @@ and compinfo = {
                                          * type *)
   } 
     
+(* Information about an enumeration. This is shared by all references to an 
+ * enumeration. Make sure you have a GEnumTag for each of of these.   *)
+and enuminfo = { 
+    mutable ename: string;             (* the name. Always non-empty *)
+    mutable eitems: (string * exp) list;(* items with names and values. This 
+                                         * list should be non-empty. The item 
+                                         * values must be compile-time 
+                                         * constants. *)
+    mutable eattr: attribute list      (* attributes *)
+}
+
 (* what is the type of an expression? Keep all attributes sorted. Use 
  * addAttribute and addAttributes to construct list of attributes *)
 and typ =
@@ -146,9 +156,13 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-           (* name, tags with values, attributes. The tag list should be 
-            * non-empty. The tag values must be compile-time constants  *)
-  | TEnum of string * (string * exp) list * attribute list
+
+           (* A reference to an enumeration type. All such references must 
+            * share the enuminfo. Make sure you have a GEnumTag for each one 
+            * of these. The attributes refer to this use of the enumeration. 
+            * The attributes of the enumeration itself are stored inside the 
+            * enumeration  *)
+  | TEnum of enuminfo * attribute list
 
   | TPtr of typ * attribute list        (* Pointer type. The attributes refer 
                                          * to the  *)
@@ -156,15 +170,14 @@ and typ =
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* Structs and Unions: If the first argument is true, then 
-                * this is a forward reference to a composite type. This is 
-                * always printed without the field definitions, so make sure 
-                * there eventually there is a mention of the same compinfo 
-                * with the first argument false. The attributes given are 
-                * those pertaining to this use of the type. The attributes 
-                * that were given at the definition of the type are stored in 
-                * the compinfo  *)
-  | TComp of bool * compinfo * attribute list
+               (* A reference to a struct or a union type. All references to 
+                * the same struct or union must share the same compinfo. mak 
+                * sure you have a GCompTag for each compinfo that you use. 
+                * The attributes given are those pertaining to this use of 
+                * the type. The attributes that were given at the definition 
+                * of the type are stored in the compinfo. Always make sure 
+                * there is a GTag for each structure or union that you use. *)
+  | TComp of compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
@@ -479,10 +492,21 @@ type fundec =
 type global =
     GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ * location    (* A typedef. The string can be empty 
-                                         * in which case we do not define a 
-                                         * name, just some structure tags 
-                                         * contains in typ. *)
+  | GType of string * typ * location    (* A typedef. The string should not 
+                                         * be empty. *)
+  | GEnumTag of enuminfo * location     (* Declares an enumeration tag with 
+                                         * some fields. There must be one of 
+                                         * these for each enumeration tag 
+                                         * that you use since this is the 
+                                         * only context in which the items 
+                                         * are printed. *)
+
+  | GCompTag of compinfo * location     (* Declares a struc/union tag with 
+                                         * some fields. There must be one of 
+                                         * these for each struct/union tag 
+                                         * that you use since this is the 
+                                         * only context in which the fields 
+                                         * are printed. *)
 
   | GDecl of varinfo * location         (* A variable declaration. Might be a 
                                          * prototype. There might be at most 
@@ -572,8 +596,9 @@ val compactBlock: block -> block
 val mkEmptyStmt: unit -> stmt
 val dummyStmt: stmt
   
-(* Generate fresh names from a prefix *)
+(* Generate fresh names from a prefix 
 val newTypeName: string -> string
+*)
 
 val isCompleteType: typ -> bool  (* Returns true if this is a complete type. 
                                   * This means that sizeof(t) makes sense. 

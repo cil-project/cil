@@ -115,36 +115,6 @@ let rec doType (t: typ) (p: N.place)
           TArray (bt', len, n.N.attr), i'
   end
           
-  | TComp (false, comp, a) -> (* Not a forward reference *)
-      if H.mem doneComposites comp.ckey then
-        ()
-      else begin
-        H.add doneComposites comp.ckey true; (* before we do the fields *)
-        List.iter 
-          (fun f -> 
-            let fftype = addArraySizedAttribute f.ftype f.fattr in 
-            let t', i' = doType fftype (N.PField f) 0 in
-            f.ftype <- t') comp.cfields;
-        (* Maybe we must turn this composite type into a struct *)
-        if not comp.cstruct &&
-          hasAttribute "safeunion" comp.cattr then
-          comp.cstruct <- true
-      end;
-      (* If this is not a forward reference then we pull out the definition 
-       * of the composite. This helps somewhat later in boxing because we do 
-       * not have to worry about definitions of composites being hidded 
-       * behing pointers or arrays. We do it this late because we want to 
-       * pull inner structs first. *)
-      if not (H.mem pulledOutComposites comp.ckey) then begin
-        (* No point in pulling out comps that appear at the top level in a 
-        * typedef *)
-        (if (match p, nextidx with N.PType _, 0 -> false | _ -> true) then
-          theFile := 
-             GType ("", TComp(false, comp, []), !currentLoc) :: !theFile);
-        (* But mark it as pulled out in any case *)
-        H.add pulledOutComposites comp.ckey true;
-      end;
-      t, nextidx
   | TComp _ -> t, nextidx (* A forward reference, leave alone *)
 (*
   | TComp (_, comp, a) -> (* A forward reference *)
@@ -220,7 +190,7 @@ let newOffsetNode (n: N.node)  (fname: string)
   (* Add edges between n and next *)
   let next = 
     match unrollType n.N.btype with
-      TComp (_, c, _) when not c.cstruct -> (* A union *)
+      TComp (c, _) when not c.cstruct -> (* A union *)
         let next = mkNext () in
         N.addEdge n next N.ECast (-1);
         N.addEdge n next N.ESafe (-1);
@@ -240,7 +210,7 @@ let newOffsetNode (n: N.node)  (fname: string)
         N.addEdge n next N.EIndex (-1);
         next
           
-    | TComp (_, c, _) when c.cstruct -> (* A struct *)
+    | TComp (c, _) when c.cstruct -> (* A struct *)
         let next = mkNext () in
         N.addEdge n next N.ESafe (-1);
         next
@@ -852,7 +822,7 @@ let doGlobal (g: global) : global =
   | _ -> begin
       if not !boxing then g
       else match g with
-      | GText _ | GAsm _ -> g
+      | GText _ | GAsm _ | GEnumTag _ -> g
 
        (* Keep the typedefs only because they are convenient to define son 
         * struct tags. We won't use the TNamed  *)
@@ -860,7 +830,36 @@ let doGlobal (g: global) : global =
           currentLoc := l;
           let t', _ = doType t (N.PType n) 0 in
           GType (n, t', l)
-            
+
+      | GCompTag (comp, l) -> 
+          currentLoc := l;
+          List.iter 
+            (fun f -> 
+              let fftype = addArraySizedAttribute f.ftype f.fattr in 
+              let t', i' = doType fftype (N.PField f) 0 in
+              f.ftype <- t') comp.cfields;
+          (* Maybe we must turn this composite type into a struct *)
+          if not comp.cstruct &&
+            hasAttribute "safeunion" comp.cattr then
+            comp.cstruct <- true;
+(*
+      (* If this is not a forward reference then we pull out the definition 
+       * of the composite. This helps somewhat later in boxing because we do 
+       * not have to worry about definitions of composites being hidded 
+       * behing pointers or arrays. We do it this late because we want to 
+       * pull inner structs first. *)
+      if not (H.mem pulledOutComposites comp.ckey) then begin
+        (* No point in pulling out comps that appear at the top level in a 
+        * typedef *)
+        (if (match p, nextidx with N.PType _, 0 -> false | _ -> true) then
+          theFile := 
+             GType ("", TComp(false, comp, []), !currentLoc) :: !theFile);
+        (* But mark it as pulled out in any case *)
+        H.add pulledOutComposites comp.ckey true;
+      end;
+*)
+          GCompTag (comp, l)
+  
       | GDecl (vi, l) -> 
           currentLoc := l;
          (* ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname

@@ -215,10 +215,8 @@ and baseTypeName = function
   | TFloat(FFloat,_) -> "float"
   | TFloat(FDouble,_) -> "double"
   | TFloat(FLongDouble,_) -> "ldouble"
-  | TEnum (n, _, _) -> 
-      if String.sub n 0 1 = "@" then "enum"
-      else "enum_" ^ n
-  | TComp (_, comp, _) -> 
+  | TEnum (enum, _) -> "enum_" ^ enum.ename
+  | TComp (comp, _) -> 
       let su = if comp.cstruct then "s_" else "u_" in
       if String.sub comp.cname 0 1 = "@" then su
       else su ^ comp.cname
@@ -294,8 +292,10 @@ let bitfieldCompinfo comp =
           (fun _ -> 
             List.map (fun f -> f.fname, f.ftype, f.fattr) bitfields) [] 
       in
+      (* Add it to the file *)
+      theFile := GCompTag (bundle, !currentLoc) :: !theFile;
       let bfinfo = 
-        { fname = bname; ftype = TComp (false, bundle,[]); 
+        { fname = bname; ftype = TComp (bundle, []); 
           fattr = []; fcomp = comp } in
       (* Go over the previous bitfields and add them to the host map *)
       List.iter2 (fun oldbf newbf -> 
@@ -341,8 +341,8 @@ let getNodeAttributes t =
         TArray(loop t', lo, dropit at a)
 
     | TArray (t', None, a) -> TArray(loop t', None, dropit N.AtOpenArray a)
-    | TComp (isf, comp, a) -> TComp (isf, comp, dropit N.AtOther a) 
-    | TEnum (n, f, a) -> TEnum (n, f, dropit N.AtOther a)
+    | TComp (comp, a) -> TComp (comp, dropit N.AtOther a) 
+    | TEnum (enum, a) -> TEnum (enum, dropit N.AtOther a)
     | TFun (r, args, v, a) -> 
         List.iter (fun a -> a.vtype <- loop a.vtype) args;
         TFun(loop r, args, v, dropit N.AtOther a)
@@ -365,7 +365,7 @@ let isFatComp (comp: compinfo) =
     (* Test if a type is FAT *)
 let isFatType t = 
   match unrollType t with
-    TComp (_, comp, _) when isFatComp comp -> true 
+    TComp (comp, _) when isFatComp comp -> true 
   | _ -> false
 
 (* Given a fat type, return the three fieldinfo corresponding to the ptr, 
@@ -373,7 +373,7 @@ let isFatType t =
 let getFieldsOfFat (t: typ) 
     : fieldinfo * (fieldinfo option) * (fieldinfo option) = 
   match unrollType t with
-    TComp (_, comp, _) when isFatComp comp -> begin
+    TComp (comp, _) when isFatComp comp -> begin
       match comp.cfields with 
         p :: b :: e :: _ -> p, Some b, Some e
       | p :: b :: [] -> 
@@ -469,7 +469,7 @@ let rec kindOfType t =
       | res -> res
     end
   | TNamed (_, nt, _) -> kindOfType nt(* Ignore the attributes of the TNamed *)
-  | TComp (_, comp, _) when comp.cstruct -> begin
+  | TComp (comp, _) when comp.cstruct -> begin
       match comp.cfields with
         p :: _ when p.fname = "_p" -> kindOfType p.ftype  (* A fat type *)
       | _ -> N.Scalar
@@ -616,7 +616,7 @@ let ptrOfBase (base: exp) =
   let rec replaceBasePtr = function
       Field(fip, NoOffset) when fip.fname = "_b" ->
              (* Find the fat type that this belongs to *)
-        let pfield, _, _ = getFieldsOfFat (TComp(false, fip.fcomp, [])) in
+        let pfield, _, _ = getFieldsOfFat (TComp(fip.fcomp, [])) in
         Field(pfield, NoOffset)
           
     | Field(f', o) -> Field(f',replaceBasePtr o)
@@ -847,7 +847,7 @@ let fixedComps : (int, unit) H.t = H.create 113
 
 let rec fixupType t = 
   match t with
-    TComp (true, _, _) -> t (* Ignore the forward references *)
+    TComp (_, _) -> t (* Ignore the forward references *)
     (* Keep the Named types
   | TNamed _ -> begin
      match getNodeAttributes t with
@@ -895,21 +895,23 @@ and fixit t =
               if pkNrFields pkind = 1 then newType 
               else
                 let tname  = newTypeName (pkTypePrefix pkind) fixed' in
-                let tstruct = 
-                  TComp 
-                    (false, 
-                     mkCompInfo true tname 
-                       (fun _ -> 
-                         List.map (fun (n,tf) -> (n, tf newType, []))
-                           (pkFields pkind))
-                       [],
-                     [])
+                let tcomp = 
+                    mkCompInfo true tname 
+                    (fun _ -> 
+                      List.map (fun (n,tf) -> (n, tf newType, []))
+                        (pkFields pkind))
+                    []
                 in
-                theFile := GType(tname, tstruct, !currentLoc) :: !theFile;
+                let tstruct = TComp (tcomp, []) in
+                (* Register the struct *)
+                theFile := GCompTag (tcomp, !currentLoc) :: !theFile;
+                (* Now define a type name *)
+                theFile := 
+                   GType(tname, tstruct, !currentLoc) :: !theFile;
                 let tres = TNamed(tname, tstruct, [N.k2attr pkind]) in
                 (* Add this to ensure that we do not try to box it twice *)
                 H.add fixedTypes (typeSigBox tres) tres;
-                H.add fixedTypes (typeSigBox tstruct) tres;
+                (* H.add fixedTypes (typeSigBox tstruct) tres; *)
                 (* And to make sure that for all identical pointer types we 
                  * create identical structure *)
                 H.add fixedTypes (typeSigBox newType) tres;
@@ -922,27 +924,7 @@ and fixit t =
               
         | TNamed (n, t', a) -> TNamed (n, fixupType t', a)
 
-        | TComp (true, _, _) -> t (* Leave the forward alone *)              
-        | TComp (_, comp, a) ->
-            if H.mem fixedComps comp.ckey then 
-              t (* Do nothing *)
-            else begin
-              (* Mark it as done before we do the fields *)
-              H.add fixedComps comp.ckey ();
-              (* Change the fields in place, so that everybody sees the 
-               * change  *)
-              List.iter 
-                (fun fi -> 
-                  let newa, newt = moveAttrsFromDataToType fi.fattr fi.ftype in
-                  fi.fattr <- newa ; 
-                  fi.ftype <- fixupType newt) 
-                comp.cfields;
-              bitfieldCompinfo comp;
-              (* Save the fixed comp so we don't redo it later. Important 
-               * since redoing it means that we change the fields in place.  *)
-              (* if not isforw then H.add fixedTypes (typeSigBox t) t; *)
-              t
-            end
+        | TComp (_, _) -> t (* Leave the forward alone *)              
               
         | TArray(t', l, a) -> 
             let sized = extractArrayTypeAttribute a in
@@ -1006,26 +988,26 @@ and addArraySize t =
                                         addAttribute (Attr("sized", [])) a)
         | TArray(bt, Some z, a) when isZero z -> 
             TArray(bt, Some z, addAttribute (Attr("sized", [])) a)
-        | TComp (_, ci, a) when ci.cfields = [] -> TArray(charType, Some zero, 
-                                                          [Attr("sized", [])])
+        | TComp (ci, a) when ci.cfields = [] -> TArray(charType, Some zero, 
+                                                       [Attr("sized", [])])
         | _ -> 
             E.s (unimp "Don't know how to tag incomplete type %a" 
                    d_plaintype t)
       end
     in
     let packAttr = if !msvcMode then [] else [Attr("packed", [])] in
-    let newtype = 
-      TComp 
-        (false, 
-         mkCompInfo true ""
+    let tname = newTypeName "_sized_" t in
+    let newtypecomp = 
+         mkCompInfo true tname
            (fun _ -> 
              [ ("_size", uintType, []); (* Don't pack the first field or else 
                                          * the whole variable will be packed 
                                          * against the preceeding one *)
-               ("_array", complt, packAttr); ]) [],
-         [])
+               ("_array", complt, packAttr); ]) []
     in
-    let tname = newTypeName "_sized_" t in
+    (* Register the new tag *)
+    theFile := GCompTag (newtypecomp, !currentLoc) :: !theFile;
+    let newtype = TComp (newtypecomp, []) in
     let named = TNamed (tname, newtype, [Attr("sized", [])]) in
     theFile := GType (tname, newtype, !currentLoc) :: !theFile;
     H.add sizedArrayTypes tsig named;
@@ -1047,16 +1029,15 @@ and tagType (t: typ) : typ =
   try
     H.find taggedTypes tsig
   with Not_found -> begin
+    let tname = newTypeName "_tagged_" t in
     let newtype = 
-      if isCompleteType t then 
+      if isCompleteType t then begin
         (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
                   d_type t bytes words tagwords); *)
         let _, tagWords = tagLength (SizeOf(t)) in
-        let tagAttr = if !msvcMode then [] else [Attr("packed", [])]
-        in
-        TComp 
-          (false, 
-           mkCompInfo true ""
+        let tagAttr = if !msvcMode then [] else [Attr("packed", [])] in
+        let tagComp = 
+           mkCompInfo true tname
              (fun _ -> 
                [ ("_len", uintType, []); (* Don't pack the first field,or 
                                           * else the entire thing will be 
@@ -1065,29 +1046,33 @@ and tagType (t: typ) : typ =
                  ("_tags", TArray(intType, 
                                   Some tagWords, []), tagAttr);
                ])
-             [],
-           [])
-      else begin (* An incomplete type *)
+             []
+        in
+        (* Register the type *)
+        theFile := GCompTag (tagComp, !currentLoc) :: !theFile;
+        TComp (tagComp, [])
+
+      end else begin (* An incomplete type *)
 	(* GCC does not like fields to have incomplete types *)
 	let complt = 
 	  match unrollType t with
 	    TArray(bt, None, a) -> TArray(bt, Some zero, a)
 	  | TArray(bt, Some z, a) when isZero z -> t
-	  | TComp (_, ci, _) when ci.cfields = [] -> 
+	  | TComp (ci, _) when ci.cfields = [] -> 
               TArray(charType, Some zero, [])
 	  | _ -> t (* E.s (unimp "Don't know how to tag incomplete type %a" 
                         d_plaintype t) *)
 	in
-        TComp 
-          (false, 
-           mkCompInfo true ""
+        let tagComp = 
+           mkCompInfo true tname
              (fun _ -> 
                [ ("_len", uintType, []);
-                 ("_data", complt, []); ]) [],
-           [])
+                 ("_data", complt, []); ]) [] in
+        (* Register the type *)
+        theFile := GCompTag (tagComp, !currentLoc) :: !theFile;
+        TComp (tagComp, [])
       end
     in
-    let tname = newTypeName "_tagged_" t in
     let named = TNamed (tname, newtype, []) in
     theFile := GType (tname, newtype, !currentLoc) :: !theFile;
     H.add taggedTypes tsig named;
@@ -1178,7 +1163,7 @@ let arrayPointerToIndex (t: typ)
    (* Test if we have changed the type *)
 let rec typeContainsFats t =
    existsType 
-   (function TComp (false, comp, _) -> 
+   (function TComp (comp, _) -> 
       begin
         match comp.cfields with
           [p;b] when comp.cstruct && p.fname = "_p" && b.fname = "_b" -> 
@@ -1288,7 +1273,7 @@ let splitTagType (tagged: typ)
   (* Get the data field, the length field, and a tag field *)
   let dfld, lfld, tfld = 
     match unrollType tagged with
-      TComp (_, comp, _) -> begin
+      TComp (comp, _) -> begin
         match comp.cfields with 
           [lfld; dfld; tfld] -> dfld, lfld, tfld
         | _ -> E.s (bug "splitTagType. No tags: %a\n" d_plaintype tagged)
@@ -1331,7 +1316,7 @@ let getHostIfBitfield (lv: lval) (t: typ) : lval * typ =
       let lv' = lvbase, getHost lvoff in
       let lv't = typeOfLval lv' in
       (match unrollType lv't with 
-        TComp (_, comp, _) when comp.cstruct -> 
+        TComp (comp, _) when comp.cstruct -> 
           if List.exists (fun f -> typeContainsFats f.ftype) comp.cfields then
             E.s (unimp "%s contains both bitfields and pointers.@!LV=%a@!T=%a@!" 
                    (compFullName comp) d_plainlval lv d_plaintype t)
@@ -1353,8 +1338,8 @@ let offsetOfFirstScalar (t: typ) : exp =
     match unrollType t with
       (TInt _ | TFloat _ | TEnum _) -> Some sofar
     | TPtr _ -> None
-    | TComp (_, comp, _) when isFatComp comp -> None
-    | TComp (_, comp, _) when comp.cstruct -> begin
+    | TComp (comp, _) when isFatComp comp -> None
+    | TComp (comp, _) when comp.cstruct -> begin
         let containsBitfield = ref false in
         let doOneField acc fi = 
           match acc, fi.ftype with
@@ -2058,7 +2043,7 @@ let rec checkMem (why: checkLvWhy)
       match unrollType t with 
       | (TInt _ | TFloat _ | TEnum _ | TBitfield _ ) -> acc
 (*    | TFun _ -> acc *)
-      | TComp (_, comp, _) when isFatComp comp -> begin (* A fat pointer *)
+      | TComp (comp, _) when isFatComp comp -> begin (* A fat pointer *)
           match why with
             ToRead -> (* a read *)
               if pkind = N.Wild then
@@ -2075,7 +2060,7 @@ let rec checkMem (why: checkLvWhy)
                 checkFatStackPointer whatp whatb :: acc
           | ToSizeOf -> acc
       end 
-      | TComp (_, comp, _) when comp.cstruct -> 
+      | TComp (comp, _) when comp.cstruct -> 
           let doOneField acc fi = 
             let newwhere = addOffsetLval (Field(fi, NoOffset)) where in
             let newwhy = 
@@ -2187,7 +2172,7 @@ let rec checkReturnValue
       (* This is a lean pointer *) 
       checkLeanStackPointer e :: acc
 
-  | TComp (_, comp, _) when isFatComp comp -> 
+  | TComp (comp, _) when isFatComp comp -> 
       let ptype, ptr, fb, fe = readFieldsOfFat e typ in
       (* Get the component that is null if an integer *)
       let nullIfInt = 
@@ -2199,7 +2184,7 @@ let rec checkReturnValue
       checkFatStackPointer ptr nullIfInt :: acc
 
     (* A regular struct *)                                          
-  | TComp (_, comp, _) when comp.cstruct ->
+  | TComp (comp, _) when comp.cstruct ->
       (* Better have an lvalue *)
       let lv = match e with
         Lval lv -> lv
@@ -2247,7 +2232,7 @@ let rec initializeType
       else 
         fun lv acc -> acc
   end
-  | TComp (_, comp, a) when comp.cstruct -> begin (* A struct *)
+  | TComp (comp, a) when comp.cstruct -> begin (* A struct *)
       match comp.cfields with
         [s; a] when s.fname = "_size" && a.fname = "_array" ->
               (* Sized arrays *)
@@ -2343,7 +2328,7 @@ let rec initializeType
                     [])) @ acc1)
       end
     (* A union type *)
-  | TComp (_, comp, a) -> begin
+  | TComp (comp, a) -> begin
       (* Go through all of the fields and find the one that is largest. 
        * Initialize that one. *)
       let (maxfld, themax) = 
@@ -2691,7 +2676,7 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
 (* Given a sized array type, return the size and the array field *)
 let getFieldsOfSized (t: typ) : fieldinfo * fieldinfo = 
   match unrollType t with
-   TComp (_, comp, _) when comp.cstruct -> begin
+   TComp (comp, _) when comp.cstruct -> begin
       match comp.cfields with 
         s :: a :: [] when s.fname = "_size" && a.fname = "_array" -> s, a
       | _ -> E.s (bug "getFieldsOfSized")
@@ -2726,7 +2711,7 @@ let fixupGlobName vi =
 
     (* We only go into struct that we created as part of "sized" or "seq" or 
      * "fatp" *)
-    | TComp (false, comp, _) -> begin
+    | TComp (comp, _) -> begin
         try
           let data_type = 
             match comp.cfields with
@@ -2739,7 +2724,6 @@ let fixupGlobName vi =
           qualNames acc data_type
         with Not_found -> acc
     end
-    | TComp _ -> acc  (* Do not go into recursive structs *)
   in
   (* weimer: static things too! *)
   if vi.vglob && (* vi.vstorage <> Static &&  *)
@@ -3040,7 +3024,7 @@ and boxlval (b, off) : (typ * N.opointerkind * lval * exp * exp * stmt list) =
     if debuglval then
         ignore (E.log "goIntoTypes: btype=%a\n" d_plaintype btype);
     match unrollType btype with
-      TComp (_, comp, _) when comp.cstruct -> begin
+      TComp (comp, _) when comp.cstruct -> begin
         match comp.cfields with
           f1 :: f2 :: [] when (f1.fname = "_size" && f2.fname = "_array") -> 
             begin
@@ -3177,8 +3161,9 @@ and boxexpf (e: exp) : stmt list * fexp =
             (function 
                 TPtr _ -> ExistsTrue
                     (* Pointers inside named structures are not exposed *)
-              | TComp (false, comp, _) when (String.length comp.cname > 1 &&
-                                 String.get comp.cname 0 <> '@') -> ExistsFalse
+              | TComp (comp, _) 
+                  when (String.length comp.cname > 1 &&
+                        String.get comp.cname 0 <> '@') -> ExistsFalse
               | _ -> ExistsMaybe) t 
         in
         if containsExposedPointers t then 
@@ -3388,6 +3373,7 @@ let boxFile file =
         | GDecl (vi, l) -> boxglobal vi false None l
         | GVar (vi, init, l) -> boxglobal vi true init l
         | GType (n, t, l) -> 
+            currentLoc := l;
             if debug then ignore (E.log "Boxing GType(%s)\n" n);
 (*            ignore (E.log "before GType(%s -> %a)@!"
                       n d_plaintype t); *)
@@ -3397,8 +3383,21 @@ let boxFile file =
                       n d_plaintype tnew);
 *)
             theFile := GType (n, tnew, l) :: !theFile
-                                               
+                       
+        | GCompTag (comp, l) -> 
+            currentLoc := l;
+            (* Change the fields in place, so that everybody sees the change *)
+            List.iter 
+              (fun fi -> 
+                let newa, newt = moveAttrsFromDataToType fi.fattr fi.ftype in
+                fi.fattr <- newa ; 
+                fi.ftype <- fixupType newt) 
+              comp.cfields;
+            bitfieldCompinfo comp;
+            theFile := g :: !theFile
+
         | GFun (f, l) -> 
+            currentLoc := l;
             if debug then ignore (E.log "Boxing GFun(%s)\n" f.svar.vname);
             (* Run the oneret first so that we have always a single return 
              * where to place the finalizers  *)
@@ -3479,10 +3478,12 @@ let boxFile file =
             f.sbody <- inilocals @ boxbody;
             theFile := GFun (f, l) :: !theFile
                                         
-        | (GAsm _ | GText _ | GPragma _) as g -> theFile := g :: !theFile
+        | (GAsm _ | GText _ | GPragma _ | GEnumTag _ ) as g -> 
+            theFile := g :: !theFile
     end
 
   and boxglobal vi isdef init (l: location) =
+    currentLoc := l;
     if debug then ignore (E.log "Boxing GVar(%s)\n" vi.vname);
     (* Leave alone some functions *)
     let origType = vi.vtype in

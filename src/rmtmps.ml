@@ -107,6 +107,7 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
           
           (* we have to handle TForward specially -- if a TForward *)
           (* is used, we need the associated TComp to be marked used also *)
+(*
           (match t with
           | TComp (true, cinfo, a) -> (
               (trace "usedType" (dprintf "also recursing into associated TComp: %a\n" d_type t));
@@ -117,7 +118,8 @@ class removeTempsVis (usedTypes : (typ,bool) H.t)
               (* presumably already in the Cil tree *)
               (visitCilType (self :> cilVisitor) (TComp(false, cinfo, a)))
             )
-          | _ -> ());
+          | _ -> ())
+*)
 
           (* then recurse into types reachable from here *)
           true
@@ -240,7 +242,9 @@ begin
                   (* not used, remove it *)
                   (trace "usedType" (dprintf "removing type %a\n"
                                              d_type t));
-                  false
+                  (* false *) true (* george: disabled removal of types for 
+                                    * now. We must fix the visitors for types 
+                                    * first *)
                 )
               )
               else (
@@ -258,7 +262,7 @@ begin
                 else (
                   (* not used, remove it *)
                   (trace "usedType" (dprintf "removing typedef %s\n" s));
-                  false
+                  (* false *) true (* george: disabled removal of types *)
                 )
               )
             )

@@ -24,7 +24,7 @@ let noProtoFunctions : (int, bool) H.t = H.create 13
  * is *)
 let isTransparentUnion (t: typ) : fieldinfo option = 
   match unrollType t with 
-    TComp (_, comp, _) when not comp.cstruct -> 
+    TComp (comp, _) when not comp.cstruct -> 
       (* Turn transparent unions into the type of their first field *)
       if hasAttribute "transparent_union" (typeAttrs t) then begin
         match comp.cfields with
@@ -356,7 +356,7 @@ let findCompType kind n a =
       else if kind = "struct" then true else false
     in
     let self = createCompInfo iss n in
-    TComp (true, self, a)
+    TComp (self, a)
   in
   try
     let old, _ = lookupTypeNoError kind n in (* already defined  *)
@@ -651,7 +651,7 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
           (* We assume that an IInt can hold even an IUShort *)
     TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
   | TInt _ -> t
-  | TEnum (_, _, a) -> TInt(IInt, a)
+  | TEnum (_, a) -> TInt(IInt, a)
   | TBitfield((IShort|IChar|ISChar), _, a) -> TInt(IInt, a)
   | TBitfield((IUShort|IUChar), _, a) -> TInt(IUInt, a)
   | TBitfield(i, _, a) -> TInt(ILong, a)
@@ -705,7 +705,7 @@ let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
       (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
       (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
         arithmeticConversion t2 t3 
-    | TComp (_, comp2,_), TComp (_, comp3,_) 
+    | TComp (comp2,_), TComp (comp3,_) 
           when comp2.ckey = comp3.ckey -> t2 
     | TPtr(_, _), TPtr(TVoid _, _) -> t2
     | TPtr(TVoid _, _), TPtr(_, _) -> t3
@@ -982,9 +982,9 @@ let rec doSpecList (specs: A.spec_elem list)
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist)] -> (* A definition of a union *)
-      let n' = if n <> "" then n else anonStructName "union" in
-      makeCompType false n' nglist []
-        
+        let n' = if n <> "" then n else anonStructName "union" in
+        makeCompType false n' nglist []
+          
     | [A.Tenum (n, None)] -> (* Just a reference to an enum *)
         if n = "" then E.s (error "Missing enum tag on incomplete enum");
         findCompType "enum" n []
@@ -993,7 +993,10 @@ let rec doSpecList (specs: A.spec_elem list)
         let n' = if n <> "" then n else anonStructName "enum" in
         (* make a new name for this enumeration *)
         let n'' = newAlphaName true "enum" n' in
-        
+        (* Create the enuminfo *)
+        let enum = { ename = n''; eitems = []; eattr = [] } in
+        let res = TEnum (enum, []) in
+
         (* sm: start a scope for the enum tag values, since they *
         * can refer to earlier tags *)
         (enterScope ());
@@ -1003,7 +1006,7 @@ let rec doSpecList (specs: A.spec_elem list)
           (* add the name to the environment, but with a faked 'typ' field; we 
           * don't know the full type yet (since that includes all of the tag 
           * values), but we won't need them in here  *)
-          (addLocalToEnv kname (EnvEnum (i, TEnum (n'', [], []))));
+          addLocalToEnv kname (EnvEnum (i, res));
           
           (* add this tag to the list so that it ends up in the real 
           * environment when we're finished  *)
@@ -1015,7 +1018,7 @@ let rec doSpecList (specs: A.spec_elem list)
             [] -> []
           | (kname, A.NOTHING) :: rest ->
               (* use the passed-in 'i' as the value, since none specified *)
-              (processName kname i rest)
+              processName kname i rest
                 
           | (kname, e) :: rest ->
               (* constant-eval 'e' to determine tag value *)
@@ -1024,23 +1027,29 @@ let rec doSpecList (specs: A.spec_elem list)
                   c, e', _ when isEmpty c -> e'
                 | _ -> E.s (error "enum with non-const initializer")
               in
-              (processName kname i rest)
+              processName kname i rest
         in
         
         (* sm: now throw away the environment we built for eval'ing the enum 
         * tags, so we can add to the new one properly  *)
-        (exitScope ());
+        exitScope ();
         
         let fields = loop zero eil in
-        let res = TEnum (n'', List.map (fun (_, x) -> x) fields, []) in
+        (* Now set the right set of items *)
+        enum.eitems <- List.map (fun (_, x) -> x) fields;
+(*
         (* Now we have the real host type. Set the environment properly *)
         List.iter
           (fun (n, (newname, fieldidx)) -> 
             addLocalToEnv n (EnvEnum (fieldidx, res)))
           fields;
+*)
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
+        (* And define the tag *)
+        theFile := GEnumTag (enum, !currentLoc) :: !theFile;
         res
+        
           
     | [A.TtypeofE e] -> 
         let (c, _, t) = doExp false e (AExp None) in
@@ -1249,7 +1258,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | a :: args' -> 
               (match unrollType a.vtype with
                 TArray(t,_,attr) -> a.vtype <- TPtr(t, attr)
-              | TComp (_, comp, _) as t -> begin
+              | TComp (comp, _) as t -> begin
                   match isTransparentUnion a.vtype with
                     None ->  ()
                   | Some fstfield -> 
@@ -1325,9 +1334,14 @@ and makeCompType (iss: bool)
   let a = dropAttribute a (AId("const")) in
   let a = dropAttribute a (AId("restrict")) in  *)
   comp.cattr <- a;
-  let res = TComp (false, comp, []) in
+  let toplevel_typedef = false in
+  let res = TComp (comp, []) in
+  (* Create a typedef for this one *)
+  theFile := GCompTag (comp, !currentLoc) :: !theFile;
+
       (* There must be a self cell created for this already *)
   addLocalToEnv (kindPlusName kind n) (EnvTyp res);
+  (* Now create a typedef with just this type *)
   res
   
      (* Process an expression and in the process do some type checking, 
@@ -1442,7 +1456,7 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let fid = 
           match unrollType t' with
-            TComp (_, comp, _) -> findField str comp.cfields
+            TComp (comp, _) -> findField str comp.cfields
           | _ -> E.s (error "expecting a struct with field %s" str)
         in
         let lv' = Lval(addOffsetLval (Field(fid, NoOffset)) lv) in
@@ -1461,7 +1475,7 @@ and doExp (isconst: bool)    (* In a constant *)
         in
         let fid = 
           match unrollType pointedt with 
-            TComp (_, comp, _) -> findField str comp.cfields
+            TComp (comp, _) -> findField str comp.cfields
           | x -> 
               E.s (error 
                      "expecting a struct with field %s. Found %a. t1 is %a" 
@@ -2330,7 +2344,7 @@ and doInitializer
       in
       acc', CompoundInit(newt, inits), newt, restinitl
   (* STRUCT or UNION *)
-  | TComp (_, comp, a) ->  begin
+  | TComp (comp, a) ->  begin
       let rec initStructUnion
          (nextflds: fieldinfo list) (* Remaining fields *)
          (sofar: init list) (* The initializer expressions so far, in reverse 

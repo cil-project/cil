@@ -32,11 +32,6 @@ let checkAttributes (attrs: attribute list) : unit =
   (* Keep track of defined types *)
 let typeDefs : (string, typ) H.t = H.create 117
 
-  (* Keep track of defined struct/union/enum tags *)
-let structTags : (string, typ) H.t = H.create 37
-let unionTags  : (string, typ) H.t = H.create 37
-let enumTags   : (string, typ) H.t = H.create 37
-
 
   (* Keep track of all variables names, enum tags and type names *)
 let varNamesEnv : (string, unit) H.t = H.create 117
@@ -116,10 +111,12 @@ type ctxType =
 let compInfoNameEnv : (string, unit) H.t = H.create 17
 let compInfoIdEnv : (int, compinfo) H.t = H.create 117
 
-(* Keep track of all TForward that we have see *)
+(* Keep track of all tags that we use. *)
 let compForwards : (int, compinfo) H.t = H.create 117
-(* Keep track of all definitions that we have seen *)
+let enumForwards : (string, enuminfo) H.t = H.create 117
+(* Keep track of all tags that we define *)
 let compDefined : (int, compinfo) H.t = H.create 117
+let enumDefined : (string, enuminfo) H.t = H.create 117
 
  
     
@@ -161,58 +158,16 @@ let rec checkType (t: typ) (ctx: ctxType) =
         ignore (E.warn "Named type %s is undefined\n" n));
       checkAttributes a
 
-  | TComp (true, comp, a) -> (* A forward reference *)
+  | TComp (comp, a) -> (* A forward reference *)
       checkAttributes a;
       (* Mark it as a forward. We'll check it later. If we try to check it 
        * now we might encounter undefined types *)
       H.add compForwards comp.ckey comp
 
-  | TComp (_, comp, a) -> 
-      checkAttributes a;
-      checkCompInfo comp;
-      (* Mark it as a definition. We'll use this later to check the forwards *)
-      H.add compDefined comp.ckey comp;
-      (* Check for circularity *)
-      (* ignore (E.log "Start circularity check on %s(%d)\n" 
-                (compFullName comp) comp.ckey); *)
-      let rec checkCircularity seen = function
-          TComp (false, c, a) ->
-(*            ignore (E.log "   visiting %s(%d)\n" (compFullName c) c.ckey);*)
-            if List.mem c.ckey seen then begin
-              ignore (E.log "T=%a\n" d_plaintype (TComp (false, c, a)));
-              E.s (E.bug "Circular type structure through %s and %s" 
-                     (compFullName comp) 
-                     (compFullName c))
-            end;
-            let seen' = c.ckey :: seen in
-            List.iter (fun f -> checkCircularity seen' f.ftype) c.cfields
 
-        | TComp (_, _, _) -> () (* Stop checking here since circularity is 
-                                 * allowed with a TForward  *)
-        | TArray (bt, _, _) -> checkCircularity seen bt
-        | TPtr (bt, _) -> checkCircularity seen bt
-        | TNamed (_, bt, _) -> checkCircularity seen bt
-        | TFun (bt, args, _, _) -> 
-            checkCircularity seen bt;
-            List.iter (fun a -> checkCircularity seen a.vtype) args
-        | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> ()
-      in
-      begin try checkCircularity [] t with _ -> () end
-
-  | TEnum (n, tags, a) -> begin
+  | TEnum (enum, a) -> begin
       checkAttributes a;
-      if n = "" then
-        E.s (E.bug "Enum with empty tag");
-      try
-        let t' = H.find enumTags n in
-        (* If we have seen one with the same name then it must be the same 
-         * one  *)
-        if t != t' then 
-          ignore (E.warn "Redefinition of enum %s" n)
-      with Not_found -> 
-        (* Add it to the enumTags *)
-        H.add enumTags n t;
-        List.iter (fun (tn, _) -> defineName tn) tags
+      H.add enumForwards enum.ename enum
   end
 
   | TArray(bt, len, a) -> 
@@ -644,6 +599,49 @@ let rec checkGlobal = function
           end)
         ()
 
+  | GCompTag (comp, _) -> 
+      checkCompInfo comp;
+      (* Mark it as a definition. We'll use this later to check the forwards *)
+      if H.mem compDefined comp.ckey then 
+        ignore (E.log "%s is multiply defined\n" (compFullName comp));
+      H.add compDefined comp.ckey comp;
+(*
+      (* Check for circularity *)
+      (* ignore (E.log "Start circularity check on %s(%d)\n" 
+                (compFullName comp) comp.ckey); *)
+      let rec checkCircularity seen = function
+          TComp (false, c, a) ->
+(*            ignore (E.log "   visiting %s(%d)\n" (compFullName c) c.ckey);*)
+            if List.mem c.ckey seen then begin
+              ignore (E.log "T=%a\n" d_plaintype (TComp (false, c, a)));
+              E.s (E.bug "Circular type structure through %s and %s" 
+                     (compFullName comp) 
+                     (compFullName c))
+            end;
+            let seen' = c.ckey :: seen in
+            List.iter (fun f -> checkCircularity seen' f.ftype) c.cfields
+
+        | TComp (_, _, _) -> () (* Stop checking here since circularity is 
+                                 * allowed with a TForward  *)
+        | TArray (bt, _, _) -> checkCircularity seen bt
+        | TPtr (bt, _) -> checkCircularity seen bt
+        | TNamed (_, bt, _) -> checkCircularity seen bt
+        | TFun (bt, args, _, _) -> 
+            checkCircularity seen bt;
+            List.iter (fun a -> checkCircularity seen a.vtype) args
+        | (TInt _ | TFloat _ | TEnum _ | TBitfield _ | TVoid _) -> ()
+      in
+      begin try checkCircularity [] t with _ -> () end
+*)
+
+  | GEnumTag (enum, _) -> 
+      if enum.ename = "" then
+        E.s (E.bug "Enum with empty tag");
+      if H.mem enumDefined enum.ename then 
+        ignore (E.log "enum %s is multiply defined\n" enum.ename);
+      (* Add it to the enumTags *)
+      List.iter (fun (tn, _) -> defineName tn) enum.eitems
+
   | GDecl (vi, _) -> 
       (* We might have seen it already *)
       E.withContext (fun _ -> dprintf "GDecl(%s)" vi.vname)
@@ -745,7 +743,7 @@ let checkFile flags fl =
         NoCheckGlobalIds -> checkGlobalIds := false)
     flags;
   iterGlobals fl (fun g -> try checkGlobal g with _ -> ());
-  (* Check that for all TForward there is a definition *)
+  (* Check that for all struct/union tags there is a definition *)
   (try
     H.iter 
       (fun k comp -> 
@@ -759,17 +757,28 @@ let checkFile flags fl =
                     (compFullName comp))) 
       compForwards
   with _ -> ());
+  (* Check that for all enum tags there is a definition *)
+  (try
+    H.iter 
+      (fun k enum -> 
+        try
+          let edef = H.find enumDefined k in
+          if edef != enum then 
+            ignore (E.warn "Enuminfo for %s not shared (forwards)" k)
+        with Not_found -> 
+          ignore (E.warn "Enuminfo %s is referenced but not defined" k))
+      enumForwards
+  with _ -> ());
   (* Clean the hashes to let the GC do its job *)
   H.clear typeDefs;
-  H.clear structTags;
-  H.clear unionTags;
-  H.clear enumTags;
   H.clear varNamesEnv;
   H.clear varIdsEnv;
   H.clear compInfoNameEnv;
   H.clear compInfoIdEnv;
   H.clear compForwards;
   H.clear compDefined;
+  H.clear enumForwards;
+  H.clear enumDefined;
   varNamesList := [];
   ignore (E.log "Finished checking file %s\n" fl.fileName);
   ()

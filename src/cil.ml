@@ -66,7 +66,6 @@ let currentLoc : location ref = ref locUnknown
 
 let printShortTypes = ref false
 
-
 (* Information about a variable. Use one of the makeLocalVar, makeTempVar or 
  * makeGlobalVar to create instances of this data structure. These structures a
  * re shared by all references to the variable. So, you can change the name
@@ -84,9 +83,13 @@ type varinfo = {
     mutable vdecl: location;            (* where was this variable declared? *)
     mutable vattr: attribute list;
     mutable vstorage: storage;
-    mutable vaddrof: bool;              (* Has its address taken *)
+    mutable vaddrof: bool;              (* Has its address taken. To insure 
+                                         * that this is always set, always 
+                                         * use mkAddrOf to construct an AddrOf
+                                           *)
 
     (* sm: is this var referenced?  this is computed by removeUnusedVars *)
+    (* it is safe to just initialize this to false *)
     mutable vreferenced: bool;
 }
 
@@ -112,15 +115,14 @@ and fieldinfo = {
 
 
 (* Information about a composite type (a struct or a union). Use mkCompInfo 
- * to create non-recursive or (potentially) recursive versions of this  *)
+ * to create non-recursive or (potentially) recursive versions of this. Make 
+ * sure you have a GCompTag for each one of these.  *)
 and compinfo = {
     mutable cstruct: bool;              (* true if struct *)
-    mutable cname: string;              (* the name. Always non-empty. If it 
-                                         * starts with @ then it is not 
-                                         * printed. Use compSetName to set 
-                                         * the name and the key. Use 
-                                         * compFullName to get the full name 
-                                         * of a comp *)
+    mutable cname: string;              (* the name. Always non-empty. Use 
+                                         * compSetName to set the name and 
+                                         * the key. Use compFullName to get 
+                                         * the full name of a comp  *)
     mutable ckey: int;                  (* A unique integer. Use Hashtbl.hash 
                                          * on the string returned by 
                                          * compFullName. All compinfo for a 
@@ -131,6 +133,17 @@ and compinfo = {
                                          * type *)
   } 
     
+(* Information about an enumeration. This is shared by all references to an 
+ * enumeration. Make sure you have a GEnumTag for each of of these.   *)
+and enuminfo = { 
+    mutable ename: string;             (* the name. Always non-empty *)
+    mutable eitems: (string * exp) list;(* items with names and values. This 
+                                         * list should be non-empty. The item 
+                                         * values must be compile-time 
+                                         * constants. *)
+    mutable eattr: attribute list      (* attributes *)
+}
+
 (* what is the type of an expression? Keep all attributes sorted. Use 
  * addAttribute and addAttributes to construct list of attributes *)
 and typ =
@@ -138,9 +151,13 @@ and typ =
   | TInt of ikind * attribute list
   | TBitfield of ikind * int * attribute list
   | TFloat of fkind * attribute list
-           (* name, tags with values, attributes. The tag list should be 
-            * non-empty  *)
-  | TEnum of string * (string * exp) list * attribute list
+
+           (* A reference to an enumeration type. All such references must 
+            * share the enuminfo. Make sure you have a GEnumTag for each one 
+            * of these. The attributes refer to this use of the enumeration. 
+            * The attributes of the enumeration itself are stored inside the 
+            * enumeration  *)
+  | TEnum of enuminfo * attribute list
 
   | TPtr of typ * attribute list        (* Pointer type. The attributes refer 
                                          * to the  *)
@@ -148,20 +165,14 @@ and typ =
               (* base type and length *)
   | TArray of typ * exp option * attribute list
 
-               (* Structs and Unions: If the first argument is true, then 
-                * this is a forward reference to a composite type. This is 
-                * always printed without the field definitions, so make sure 
-                * there eventually there is a mention of the same compinfo 
-                * with the first argument false. The attributes given are 
-                * those pertaining to this use of the type. The attributes 
-                * that were given at the definition of the type are stored in 
-                * the compinfo  *)
-  | TComp of bool * compinfo * attribute list
-               (* The field list can be empty *)
-               (* The name is never empty. mkCompInfo will create a unique 
-                * name for anonymous types *)
-
-
+               (* A reference to a struct or a union type. All references to 
+                * the same struct or union must share the same compinfo. mak 
+                * sure you have a GCompTag for each compinfo that you use. 
+                * The attributes given are those pertaining to this use of 
+                * the type. The attributes that were given at the definition 
+                * of the type are stored in the compinfo. Always make sure 
+                * there is a GTag for each structure or union that you use. *)
+  | TComp of compinfo * attribute list
 
                (* result, args, isVarArg, attributes *)
   | TFun of typ * varinfo list * bool * attribute list
@@ -194,14 +205,13 @@ and attrarg =
 
 (* literal constants *)
 and constant =
-  | CInt32 of int32 * ikind * string option  
-                                    (* Give the ikind (see ISO9899 6.1.3.2) 
-                                     * and the textual representation, if 
-                                     * available. Use "integer" to create 
-                                     * these. Watch out for integers that 
-                                     * cannot be represented on 32 bits. 
-                                     * OCAML does not give Overflow 
-                                     * exceptions.  *)
+  | CInt32 of int32 * ikind * string option 
+                 (* Give the ikind (see ISO9899 6.1.3.2) and the textual 
+                  * representation, if available. Use "integer" or "kinteger" 
+                  * to create these. Watch out for integers that cannot be 
+                  * represented on 32 bits. OCAML does not give Overflow 
+                  * exceptions. *)
+
   | CStr of string
   | CChr of char 
   | CReal of float * fkind * string option(* Give the fkind (see ISO 6.4.4.2) 
@@ -218,8 +228,10 @@ and unop =
 and binop =
     PlusA                               (* arithemtic + *)
   | PlusPI                              (* pointer + integer *)
-  | IndexPI                             (* pointer[integer]. The integer is 
-                                         * very likely positive *)
+  | IndexPI                             (* pointer[integer]. The difference 
+                                         * form PlusPI is that in this case 
+                                         * the integer is very likely 
+                                         * positive *)
   | MinusA                              (* arithemtic - *)
   | MinusPI                             (* pointer - integer *)
   | MinusPP                             (* pointer - pointer *)
@@ -244,57 +256,63 @@ and binop =
 and exp =
     Const      of constant
   | Lval       of lval                  (* l-values *)
-  | SizeOf    of typ                   (* Has UInt type ! (ISO 6.5.3.4). 
-                                         * Only sizeof for types is 
-                                         * available. This is not turned into 
-                                         * a constant because some 
-                                         * transformations might want to 
-                                         * change types *) 
+  | SizeOf     of typ                   (* Has UInt type ! (ISO 6.5.3.4).
+                                         * Only sizeof for types is
+                                         * available. This is not turned into
+                                         * a constant because some
+                                         * transformations might want to
+                                         * change types *)
 
-  | SizeOfE   of exp                    (* Like SizeOf *)
+  | SizeOfE    of exp                   (* Like SizeOf but for expressions *)
 
                                         (* Give the type of the result *)
   | UnOp       of unop * exp * typ
 
-                                        (* Give the type of the result. The 
-                                         * arithemtic conversions are made 
+                                        (* Give the type of the result. The
+                                         * arithemtic conversions are made
                                          * explicit for the arguments *)
   | BinOp      of binop * exp * exp * typ
 
   | Question   of exp * exp * exp      (* e1 ? e2 : e3. Sometimes we cannot 
                                         * turn this into a conditional 
                                         * statement (e.g. in global 
-                                        * initializers)  *)
+                                        * initializers). This is only allowed 
+                                        * inside constant initializers.!!! In 
+                                        * all other places it must bne turned 
+                                        * into IfThenElse  *)
   | CastE      of typ * exp            (* Use doCast to make casts *)
 
-  | AddrOf     of lval
+  | AddrOf     of lval                 (* Always use mkAddrOf to construct
+                                         * one of these *)
 
-  | StartOf    of lval                  (* There is no C correspondent for 
-                                         * this. C has implicit coercions 
-                                         * from an array to the address of 
-                                         * the first element and from a 
-                                         * function to the start address of 
-                                         * the function. StartOf is used in 
-                                         * CIL to simplify type checking and 
-                                         * is just an explicit form of the 
-                                         * above mentioned implicit 
-                                         * convertions *)
+  | StartOf    of lval                  (* There is no C correspondent for
+                                         * this. C has implicit coercions
+                                         * from an array to the address of
+                                         * the first element and from a
+                                         * function to the start address of
+                                         * the function. StartOf is used in
+                                         * CIL to simplify type checking and
+                                         * is just an explicit form of the
+                                         * above mentioned implicit
+                                         * convertions. You can use mkAddrOf
+                                         * to construct one of these *)
 
 (* Initializers for global variables *)
 and init = 
-  | SingleInit   of exp                 (* A single initializer *)
+  | SingleInit   of exp                 (* A single initializer, might be of 
+                                         * compound type *)
                                         (* Used only for initializers of 
-                                         * structures and arrays. For a 
-                                         * structure we have a list of 
+                                         * structures, unions and arrays. For 
+                                         * a structure we have a list of 
                                          * initializers for a prefix of all 
-                                         * fields, for a union we have 
-                                         * one initializer for the first 
-                                         * field, and for an array we have 
-                                         * some prefix of the initializers  *)
+                                         * fields, for a union we have one 
+                                         * initializer for the first field, 
+                                         * and for an array we have some 
+                                         * prefix of the initializers *)
   | CompoundInit   of typ * init list
 
 
-(* L-Values denote contents of memory addresses. A memory address is 
+(* L-Values denote contents of memory addresses. A memory address is
  * expressed as a base plus an offset. The base address can be the start 
  * address of storage for a local or global variable or, in general, any 
  * expression. We distinguish the two cases to avoid gratuituous introduction 
@@ -302,16 +320,16 @@ and init =
  * otherwise. *)
 
 and lval =
-    lbase * offset  
+    lbase * offset
 
-(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that 
- * returns a memory address "a" and a type "T" of the object storred starting 
+(* The meaning of an lval is expressed as a function "[lval] = (a, T)" that
+ * returns a memory address "a" and a type "T" of the object storred starting
  * at the address "a".  *)
 
 (* The meaning of an lbase is expressed as a similar function. *)
 
-(* The meaning of an offset is expressed as a function "[offset](a, T) = (a', 
- * T')" whose result also depends on a base address "a" and a base type "T". 
+(* The meaning of an offset is expressed as a function "[offset](a, T) = (a',
+ * T')" whose result also depends on a base address "a" and a base type "T".
  * The result is another address and another base type  *)
 
 (* With this notation we define
@@ -339,11 +357,11 @@ and offset =
     (* [Field(f, off)](a, struct {f : T, ...}) = [off](a + offsetof(f), T) *)
 
   | Index    of exp * offset           (* l[e] + offset. l must be an array 
-                                        * and l[e] has the element type *)
+                                         * and l[e] has the element type *)
     (* [Index(e, off)](a, array(T)) = [off](a + e * sizeof(T), T) *)
 
+
 (* the following equivalences hold *)
-(* Index(0, off) = off                                                 *)
 (* Mem(StartOf lv), NoOffset = StartOf (lv) if lv is a function *)
 (* Mem(AddrOf(Mem a, aoff)), off   = Mem(a, aoff + off)                *)
 (* Mem(AddrOf(Var v, aoff)), off   = Var(v, aoff + off)                *)
@@ -383,29 +401,33 @@ and instr =
                   string list *         (* register clobbers *)
                   location
 
-
-(* The statement is the structural unit in the control flow graph *)
+(* STATEMENTS. 
+ * The statement is the structural unit in the control flow graph. Use mkStmt 
+ * to make a statement and then fill in the fields. *)
 and stmt = {
-    mutable labels: label list;         (* Whether the statement starts with a 
-                                         * label *)
-    mutable skind: stmtkind;            (* The kind of statement *)
+    mutable labels: label list;        (* Whether the statement starts with 
+                                        * some labels, case statements or 
+                                        * default statement *)
+    mutable skind: stmtkind;           (* The kind of statement *)
 
-    (* Now some additional control flow information *)
+    (* Now some additional control flow information. Initially this is not 
+     * filled in. *)
     mutable sid: int;                   (* A >= 0 identifier that is unique 
                                          * in a function. *)
-    mutable succs: stmt list;         (* The successor blocks. They can 
-                                         * always be computed from the skind *)
-    mutable preds: stmt list;
+    mutable succs: stmt list;          (* The successor statements. They can 
+                                        * always be computed from the skind 
+                                        * and the context in which this 
+                                        * statement appears *)
+    mutable preds: stmt list;           (* The inverse of the succs function*)
   } 
 
-(* A block is a sequence of statements with the control falling through from 
- * one element to then next *)
-and block = stmt list
-
+(* A few kinds of statements *)
 and stmtkind = 
-  | Instr  of instr list                (* A bunch of instruction that do not 
-                                         * contain control flow stuff *)
-  | Return of exp option * location     (* The optional return *)
+  | Instr  of instr list                (* A bunch of instructions that do not 
+                                         * contain control flow stuff. 
+                                         * Control flows falls through. *)
+  | Return of exp option * location     (* The return statement. This is a 
+                                         * leaf in the CFG. *)
 
   | Goto of stmt ref * location         (* A goto statement. Appears from 
                                          * actual goto's in the code. *)
@@ -428,35 +450,58 @@ and stmtkind =
 
   | Loop of block * location            (* A "while(1)" loop *)
 
+
+(* A block is a sequence of statements with the control falling through from 
+ * one element to the next *)
+and block = stmt list
+
 and label = 
     Label of string * location          (* A real label *)
   | Case of exp * location              (* A case statement *)
   | Default of location                 (* A default statement *)
-        
-type fundec = 
-    { mutable svar:     varinfo;        (* Holds the name and type as a 
-                                         * variable, so we can refer to it 
+
+
+type fundec =
+    { mutable svar:     varinfo;        (* Holds the name and type as a
+                                         * variable, so we can refer to it
                                          * easily from the program *)
       mutable sformals: varinfo list;   (* These are the formals. These must 
                                          * be shared with the formals that 
                                          * appear in the type of the 
-                                         * function. Do not make copies of 
+                                         * function. Use setFormals to set 
+                                         * these formals and ensure that they 
+                                         * are reflected in the function 
+                                         * type. Do not make copies of 
                                          * these because the body refers to 
                                          * them. *)
-      mutable slocals: varinfo list;    (* locals, DOES NOT include the 
-                                         * sformals. Do not make copies of 
-                                         * these because the body refers to 
+      mutable slocals: varinfo list;    (* locals, DOES NOT include the
+                                         * sformals. Do not make copies of
+                                         * these because the body refers to
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
       mutable sbody: block;             (* the body *)
       mutable sinline: bool;            (* Whether the function is inline or 
                                          * not *)
-    } 
+    }
 
-type global = 
+type global =
     GFun of fundec * location           (* A function definition. Cannot have 
                                          * storage Extern *)
-  | GType of string * typ * location    (* A typedef *)
+  | GType of string * typ * location    (* A typedef. The string should not 
+                                         * be empty. *)
+  | GEnumTag of enuminfo * location     (* Declares an enumeration tag with 
+                                         * some fields. There must be one of 
+                                         * these for each enumeration tag 
+                                         * that you use since this is the 
+                                         * only context in which the items 
+                                         * are printed. *)
+
+  | GCompTag of compinfo * location     (* Declares a struc/union tag with 
+                                         * some fields. There must be one of 
+                                         * these for each struct/union tag 
+                                         * that you use since this is the 
+                                         * only context in which the fields 
+                                         * are printed. *)
 
   | GDecl of varinfo * location         (* A variable declaration. Might be a 
                                          * prototype. There might be at most 
@@ -469,7 +514,7 @@ type global =
                                          * Either has storage Extern or 
                                          * there must be a definition (Gvar 
                                          * or GFun) in this file  *)
-  | GVar  of varinfo * init option * location      
+  | GVar  of varinfo * init option * location
                                         (* A variable definition. Might have 
                                          * an initializer. There must be at 
                                          * most one definition for a variable 
@@ -485,15 +530,25 @@ type global =
     
 
 type file = 
-    { mutable fileName: string;
+    { mutable fileName: string;   (* the complete file name *)
       mutable globals: global list;
-      mutable globinit: fundec option;  (* A global initializer. It is not 
-                                         * part of globals and it is printed 
-                                         * last *)
+      mutable globinit: fundec option;  (* A global initializer. It 
+                                                  * is not part of globals 
+                                                  * and it is printed last. 
+                                                  * Use getGlobInit to 
+                                                  * create/get one.  *)
       mutable globinitcalled: bool;     (* Whether the global initialization 
                                          * function is called in main *)
     } 
-	(* global function decls, global variable decls *)
+
+
+
+
+
+
+
+
+
 
 (* sm: cil visitor interface for traversing Cil trees *)
 (* no provision for modifying trees at this time *)
@@ -662,11 +717,12 @@ let compactBlock (b: block) : block =
   in
   compress dummyStmt b
 
+(*
 let structId = ref 0 (* Find a better way to generate new names *)
 let newTypeName n = 
   incr structId;
-  "@anon" ^ n ^ (string_of_int (!structId))
-
+  "__anon" ^ n ^ (string_of_int (!structId))
+*)
 
 
 (** Construct sorted lists of attributes ***)
@@ -760,7 +816,8 @@ let compSetName comp n =
   comp.ckey <- H.hash (compFullName comp)
 
  
-(** Creates a a (potentially recursive) composite type **)
+(** Creates a a (potentially recursive) composite type. Make sure you add a 
+  * GTag for it to the file! **)
 let mkCompInfo
                (isstruct: bool) 
                (n: string)   (* empty for anonymous structures *)
@@ -771,15 +828,17 @@ let mkCompInfo
                (mkfspec: typ -> (string * typ * attribute list) list) 
                (a: attribute list) : compinfo =
    (* make an new name for anonymous structs *)
-   let n = if n = "" then 
-     newTypeName (if isstruct then "struct" else "union") else n in
+   if n = "" then 
+     E.s (E.bug "mkCompInfo: missing structure name\n");
+(*
+     newTypeName (if isstruct then "struct" else "union") else n in *)
    (* Make a new self cell and a forward reference *)
    let comp = 
      { cstruct = isstruct; cname = ""; ckey = 0; cfields = [];
        cattr = a; } in
    compSetName comp n;  (* fix the name and the key *)
    let self = ref voidType in
-   let tforward = TComp (true, comp, []) in
+   let tforward = TComp (comp, []) in
    let flds = 
        List.map (fun (fn, ft, fa) -> { fcomp = comp;
                                        ftype = ft;
@@ -1045,14 +1104,14 @@ let getParenthLevel = function
   (* When we print types for consumption by another compiler we must be 
    * careful to avoid printing multiple type definitions *)
 let definedTypes : ((string * string), bool) H.t = H.create 17
-let canPrintCompDef n =
+let canPrintCompDef n = true (*
   try begin
     ignore (H.find definedTypes n); false
   end with Not_found -> begin
     H.add definedTypes n true;
     true
   end
-
+*)
 
 (* Separate out the MSVC storage-modifier name attributes *)
 let separateStorageModifiers (al: attribute list) = 
@@ -1130,30 +1189,12 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
       dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i
   | TFloat(fkind, a) -> dprintf "%a%a %t" d_fkind fkind 
         d_attrlistpost a docName
-  | TComp (false, comp, a) -> 
-      let n = comp.cname in
-      let su, su1, su2 = 
-        if comp.cstruct then "struct", "str", "uct"
-                        else "union",  "uni", "on"
-      in
-      if not (!printShortTypes) && canPrintCompDef (su, n) then
-        dprintf "%s@[%s %s%a {@!%a@]@!} %a%t " su1 su2 n 
-          d_attrlistpost comp.cattr
-          (docList line (d_fielddecl ())) comp.cfields 
-          d_attrlistpre a docName
-      else
-        dprintf "%s%s %s %a%t " su1 su2 n d_attrlistpre a docName
-  | TComp (true, comp, a) -> (* A forward reference *)
+  | TComp (comp, a) -> (* A reference to a struct *)
       let su = if comp.cstruct then "struct" else "union" in
       dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName
 
-  | TEnum (n, kinds, a) -> 
-      if not (!printShortTypes) &&  canPrintCompDef ("enum", n) then
-        dprintf "enum@[ %s%a {%a@]@?} %t" n d_attrlistpost a
-          (docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i)) kinds
-          docName
-      else
-        dprintf "enum %s %t" n docName
+  | TEnum (enum, a) -> 
+        dprintf "enum %s %a%t" enum.ename d_attrlistpre a docName
 
   | TPtr (bt, a)  -> 
       d_decl 
@@ -1214,8 +1255,8 @@ and d_type () t =
     | TNamed (n, t, a) -> TNamed (n, t, fixthem a)
     | TPtr (bt, a) -> TPtr (bt, fixthem a)
     | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
-    | TComp (isf, comp, a) -> TComp (isf, comp, fixthem a)
-    | TEnum (n, items, a) -> TEnum (n, items, fixthem a)
+    | TComp (comp, a) -> TComp (comp, fixthem a)
+    | TEnum (enum, a) -> TEnum (enum, fixthem a)
     | TFun (rt, args, isva, a) -> TFun (rt, args, isva, a)
   in  
   d_decl (fun _ -> nil) DNNothing () (fixattrs t)
@@ -1581,7 +1622,12 @@ and d_plainoffset () = function
         fi.fname d_plaintype fi.ftype d_plainoffset o
   | Index(e, o) -> dprintf "Index(@[%a,@?%a@])" d_plainexp e d_plainoffset o
 
-and d_plaintype () = function
+and d_plaintype () (t: typ) = 
+  let donecomps : (int, unit) H.t = H.create 13 in (* Keep track of structure 
+                                                    * definitions to avoid 
+                                                    * going into infinite 
+                                                    * loop *)
+  let rec scanType () = function
     TVoid a -> dprintf "TVoid(@[%a@])" d_attrlistpost a
   | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])" 
         d_ikind ikind d_attrlistpost a
@@ -1590,33 +1636,37 @@ and d_plaintype () = function
   | TBitfield(ikind,i,a) -> 
       dprintf "TBitfield(@[%a,@?%d,@?%a@])" d_ikind ikind i d_attrlistpost a
   | TNamed (n, t, a) ->
-      dprintf "TNamed(@[%s,@?%a,@?%a@])" n d_plaintype t d_attrlistpost a
-  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" d_plaintype t d_attrlistpost a
+      dprintf "TNamed(@[%s,@?%a,@?%a@])" n scanType t d_attrlistpost a
+  | TPtr(t, a) -> dprintf "TPtr(@[%a,@?%a@])" scanType t d_attrlistpost a
   | TArray(t,l,a) -> 
       let dl = match l with 
         None -> text "None" | Some l -> dprintf "Some(@[%a@])" d_plainexp l in
       dprintf "TArray(@[%a,@?%a,@?%a@])" 
-        d_plaintype t insert dl d_attrlistpost a
-  | TEnum(n,_,a) -> dprintf "Enum(%s,@[%a@])" n d_attrlistpost a
+        scanType t insert dl d_attrlistpost a
+  | TEnum(enum,a) -> dprintf "Enum(%s,@[%a@])" enum.ename d_attrlistpost a
   | TFun(tr,args,isva,a) -> 
       dprintf "TFun(@[%a,@?%a%s,@?%a@])"
-        d_plaintype tr 
+        scanType tr 
         (docList (chr ',' ++ break) 
-           (fun a -> dprintf "%s: %a" a.vname d_plaintype a.vtype)) args
+           (fun a -> dprintf "%s: %a" a.vname scanType a.vtype)) args
         (if isva then "..." else "") d_attrlistpost a
-  | TComp (false, comp, a) -> 
-      dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
-        (if comp.cstruct then "struct" else "union") comp.cname
-        (docList (chr ',' ++ break) 
-           (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) 
-        comp.cfields
-        d_attrlistpost comp.cattr
-        d_attrlistpost a
-  | TComp(true, comp, a) -> (* A forward reference *)
-      dprintf "TForward(%s %s, _, %a)" 
-        (if comp.cstruct then "struct" else "union") comp.cname 
-        d_attrlistpost comp.cattr
-
+  | TComp (comp, a) -> 
+      if H.mem donecomps comp.ckey then 
+        dprintf "TCompLoop(%s %s, _, %a)" 
+          (if comp.cstruct then "struct" else "union") comp.cname 
+          d_attrlistpost comp.cattr
+      else begin
+        H.add donecomps comp.ckey (); (* Add it before we do the fields *)
+        dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])" 
+          (if comp.cstruct then "struct" else "union") comp.cname
+          (docList (chr ',' ++ break) 
+             (fun f -> dprintf "%s : %a" f.fname d_plaintype f.ftype)) 
+          comp.cfields
+          d_attrlistpost comp.cattr
+          d_attrlistpost a
+      end
+  in
+  scanType () t
 
 let _ = 
   let d_attrcustombase = function
@@ -1765,6 +1815,7 @@ begin
       (visitCilType vis t);
       (visitCilExpr vis e)
     )
+(* Find a way to iterate over types
   | TComp(false, cinfo, _) -> (
       (* iterate over fields *)
       (List.iter
@@ -1772,6 +1823,7 @@ begin
           (visitCilType vis finfo.ftype))
         cinfo.cfields)
     )
+*)
   | TFun(rettype, args, _, _) -> (
       (visitCilType vis rettype);
 
@@ -1825,6 +1877,16 @@ begin
       (*(trace "visitTypedef" (dprintf "%s = %a\n" s d_type t));*)
       if (vis#vtdec s t) then (visitCilType vis t)
     )
+  | GEnumTag (enum, _) ->
+      (* For now behave like the old GType *)
+      let t = TEnum (enum, []) in
+      if (vis#vtdec "" t) then (visitCilType vis t)
+
+  | GCompTag (comp, _) -> 
+      (* For now behave like the old GType *)
+      let t = TComp (comp, []) in
+      if (vis#vtdec "" t) then (visitCilType vis t)
+      
   | GDecl(v, _) -> (visitCilVarDecl vis v)
   | GVar (v, None, _) -> (visitCilVarDecl vis v)
   | GVar (v, Some i, _) -> (visitCilVarDecl vis v); (visitCilInit vis i)
@@ -2004,6 +2066,21 @@ let d_global () = function
         dprintf "%a;@!" (d_decl (fun _ -> nil) DNNothing) typ
       else 
         dprintf "typedef %a;@!" (d_decl (fun _ -> text str) DNString) typ
+
+  | GEnumTag (enum, _) -> 
+      dprintf "enum@[ %s%a {%a@]@?};" enum.ename d_attrlistpost enum.eattr
+        (docList line (fun (n,i) -> dprintf "%s = %a,@?" n d_exp i)) 
+        enum.eitems
+
+  | GCompTag (comp, _) -> (* This is a definition of a tag *)      
+      let n = comp.cname in
+      let su, su1, su2 = 
+        if comp.cstruct then "struct", "str", "uct"
+                        else "union",  "uni", "on"
+      in
+      dprintf "%s@[%s %s%a {@!%a@]@!};" su1 su2 n 
+        d_attrlistpost comp.cattr
+        (docList line (d_fielddecl ())) comp.cfields 
           
   | GVar (vi, io, _) -> 
       dprintf "%a %t;"
@@ -2245,8 +2322,8 @@ let rec typeAttrs = function
   | TNamed (n, t, a) -> addAttributes a (typeAttrs t)
   | TPtr (_, a) -> a
   | TArray (_, _, a) -> a
-  | TComp (_, comp, a) -> addAttributes comp.cattr a
-  | TEnum (_, _, a) -> a
+  | TComp (comp, a) -> addAttributes comp.cattr a
+  | TEnum (enum, a) -> addAttributes enum.eattr a
   | TFun (_, _, _, a) -> a
 
 
@@ -2259,8 +2336,8 @@ let setTypeAttrs t a =
   | TNamed (n, t, _) -> TNamed(n, t, a)
   | TPtr (t', _) -> TPtr(t', a)
   | TArray (t', l, _) -> TArray(t', l, a)
-  | TComp (isforw, comp, _) -> TComp (isforw, comp, a)
-  | TEnum (n, f, _) -> TEnum (n, f, a)
+  | TComp (comp, _) -> TComp (comp, a)
+  | TEnum (enum, _) -> TEnum (enum, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
 
 
@@ -2272,11 +2349,11 @@ let typeAddAttributes a0 t =
   | TInt (ik, a) -> TInt (ik, add a)
   | TFloat (fk, a) -> TFloat (fk, add a)
   | TBitfield (i, s, a) -> TBitfield (i, s, add a)
-  | TEnum (n, t, a) -> TEnum (n, t, add a)
+  | TEnum (enum, a) -> TEnum (enum, add a)
   | TPtr (t, a) -> TPtr (t, add a)
   | TArray (t, l, a) -> TArray (t, l, add a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-  | TComp (isforw, comp, a) -> TComp (isforw, comp, add a)
+  | TComp (comp, a) -> TComp (comp, add a)
   | TNamed (n, t, a) -> TNamed (n, t, add a)
 
 let typeRemoveAttributes (a0: attribute list) t = 
@@ -2286,11 +2363,11 @@ let typeRemoveAttributes (a0: attribute list) t =
   | TInt (ik, a) -> TInt (ik, drop a)
   | TFloat (fk, a) -> TFloat (fk, drop a)
   | TBitfield (i, s, a) -> TBitfield (i, s, drop a)
-  | TEnum (n, t, a) -> TEnum (n, t, drop a)
+  | TEnum (enum, a) -> TEnum (enum, drop a)
   | TPtr (t, a) -> TPtr (t, drop a)
   | TArray (t, l, a) -> TArray (t, l, drop a)
   | TFun (t, args, isva, a) -> TFun(t, args, isva, drop a)
-  | TComp (isforw, comp, a) -> TComp (isforw, comp, drop a)
+  | TComp (comp, a) -> TComp (comp, drop a)
   | TNamed (n, t, a) -> TNamed (n, t, drop a)
 
      (* Type signatures. Two types are identical iff they have identical 
@@ -2308,10 +2385,10 @@ let rec typeSigAttrs doattr t =
   let typeSig = typeSigAttrs doattr in
   match t with 
   | (TInt _ | TFloat _ | TBitfield _ | TVoid _) -> TSBase t
-  | TEnum (n, flds, a) -> TSEnum (n, doattr a)
+  | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
   | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
   | TArray (t,l,a) -> TSArray(typeSig t, l, doattr a)
-  | TComp (_, comp, a) -> 
+  | TComp (comp, a) -> 
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> TSFun(typeSig rt, 
                                   List.map (fun vi -> (typeSig vi.vtype, 
@@ -2361,20 +2438,20 @@ let existsType (f: typ -> existsAction) (t: typ) : bool =
     | ExistsMaybe -> 
         (match t with 
           TNamed (_, t', _) -> loop t'
-        | TComp (_, c, _) -> loopComp c
+        | TComp (c, _) -> loopComp c
         | TArray (t', _, _) -> loop t'
         | TPtr (t', _) -> loop t'
         | TFun (rt, args, _, _) -> 
             (loop rt || List.exists (fun a -> loop a.vtype) args)
         | _ -> false)
   and loopComp c = 
-    try
-      H.find memo c.ckey; 
+    if H.mem memo c.ckey then 
       (* We are looping, the answer must be false *)
       false
-    with Not_found -> 
+    else begin
       H.add memo c.ckey ();
       List.exists (fun f -> loop f.ftype) c.cfields
+    end
   in
   loop t
           
@@ -2481,11 +2558,11 @@ let rec makeZeroInit (t: typ) : init =
     TInt (ik, _) -> SingleInit (Const(CInt32(Int32.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | (TEnum _ | TBitfield _) -> SingleInit zero
-  | TComp (_, comp, _) as t' when comp.cstruct -> 
+  | TComp (comp, _) as t' when comp.cstruct -> 
       CompoundInit (t', 
                     List.map (fun f -> makeZeroInit f.ftype) 
                       comp.cfields)
-  | TComp (_, comp, _) as t' when not comp.cstruct -> 
+  | TComp (comp, _) as t' when not comp.cstruct -> 
       let fstfield = 
         match comp.cfields with
           f :: _ -> f
@@ -2533,7 +2610,7 @@ let foldLeftCompound (doinit: offset -> init -> typ -> 'a -> 'a)
       in
       foldArray zero initl acc
 
-  | TComp (_, comp, _) -> 
+  | TComp (comp, _) -> 
       if comp.cstruct then
         let rec foldFields 
             (allflds: fieldinfo list) 
@@ -2574,7 +2651,7 @@ let rec isCompleteType t =
   match unrollType t with
   | TArray(t, None, _) -> false
   | TArray(t, Some z, _) when isZero z -> false
-  | TComp (_, comp, _) -> (* Struct or union *)
+  | TComp (comp, _) -> (* Struct or union *)
       List.for_all (fun fi -> isCompleteType fi.ftype) comp.cfields
   | _ -> true
 
@@ -2703,7 +2780,7 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
         | TFloat(FFloat, _) -> 4
         | TFloat((FDouble|FLongDouble), _) -> 8
         | TNamed (_, t, _) -> internalPaddingAlign t
-        | TComp (_, comp, a) -> 4 (* Is this correct ? *)
+        | TComp (comp, a) -> 4 (* Is this correct ? *)
         | TArray _ -> 4 (* Is this correct ? *)
         | TPtr _ -> 4
         | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
@@ -2755,9 +2832,9 @@ and bitsSizeOf t =
   | TFloat((FDouble|FLongDouble), _) -> 64
   | TNamed (_, t, _) -> bitsSizeOf t
   | TPtr _ -> 32
-  | TComp (_, comp, _) when comp.cfields = [] -> 
+  | TComp (comp, _) when comp.cfields = [] -> 
       raise Not_found (*abstract type*)
-  | TComp (_, comp, _) when comp.cstruct -> (* Struct *)
+  | TComp (comp, _) when comp.cstruct -> (* Struct *)
         (* Go and get the last offset *)
       let startAcc = 
         { oaFirstFree = 0;
@@ -2771,7 +2848,7 @@ and bitsSizeOf t =
       in
       addTrailing lastoff.oaFirstFree
         
-  | TComp (_, comp, _) -> (* when not comp.cstruct *)
+  | TComp (comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
       let startAcc = 
         { oaFirstFree = 0;
