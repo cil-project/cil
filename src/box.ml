@@ -1192,28 +1192,31 @@ let registerAreaFun =
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
-let unregisterAreaFun =   
-  let fdec = emptyFunction "CHECK_UNREGISTERAREA" in
-  let argi  = makeLocalVar fdec "k" intType in
-  let argb  = makeLocalVar fdec "b" voidPtrType in
-  let arge  = makeLocalVar fdec "e" voidPtrType in
-  fdec.svar.vtype <- TFun(voidType, [ argi; argb; arge; ], false, []);
+let unregisterFrameFun =   
+  let fdec = emptyFunction "CHECK_UNREGISTERFRAME" in
+  fdec.svar.vtype <- TFun(voidType, [ ], false, []);
   fdec.svar.vstorage <- Static;
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fdec
 
 
-(* Everytime you register a variable, save here the unregister code *)  
-let unregisterAreas : stmt list ref = ref []
+(* Everytime you register a local variable, remember here *)  
+let hasRegisteredAreas = ref true
 
 (* Produce a statement to register an area and saves the code to unregister 
  * the area *)
 let registerArea (args: exp list) 
                  (acc: stmt list) : stmt list = 
-  unregisterAreas := 
-     (call None (Lval(var unregisterAreaFun.svar)) args) :: !unregisterAreas;
+  hasRegisteredAreas := true;
   let reg = call None (Lval(var registerAreaFun.svar)) args in
   reg :: acc
+
+let unregisterStmt () = 
+  if !hasRegisteredAreas then 
+    call None (Lval(var unregisterFrameFun.svar)) []
+  else
+    mkEmptyStmt ()
+
 
 (* Create a compound initializer for a tagged type *)
 let splitTagType tagged = 
@@ -2561,7 +2564,7 @@ and boxstmt (s: Cil.stmt) : block =
   try
     match s.skind with 
     | Break _ | Continue _ | Goto _ -> [s]
-    | Return (None, l) -> !unregisterAreas @ [ s ]
+    | Return (None, l) -> unregisterStmt () :: [ s ]
 
     | Return (Some e, l) -> 
         let retType =
@@ -2579,7 +2582,7 @@ and boxstmt (s: Cil.stmt) : block =
             doe2
         in
         s.skind <- Instr [];  
-        s :: doe'' @ !unregisterAreas @ [ mkStmt (Return (Some e2, l)) ]
+        s :: doe'' @ [ unregisterStmt (); mkStmt (Return (Some e2, l)) ]
                       
     | Loop (b, l) -> 
         s.skind <- Loop (boxblock b, l);
@@ -3157,7 +3160,7 @@ let boxFile file =
             (* Run the oneret first so that we have always a single return 
              * where to place the finalizers  *)
             Oneret.oneret f;
-            unregisterAreas := [];
+            hasRegisteredAreas := false;
             (* Fixup the return type as well, except if it is a vararg *)
             f.svar.vtype <- fixupType f.svar.vtype;
             (* If the type has changed and this is a global function then we 
