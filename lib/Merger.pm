@@ -38,7 +38,7 @@ use FindBin;
 use Data::Dumper;
 use File::Basename;
 
-use lib "$FindBin::Bin"; # The libraries are in the same dirctory
+use lib "$FindBin::Bin"; # The libraries are in the same directory
 
 use CompilerStub;
 

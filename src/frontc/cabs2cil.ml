@@ -1182,7 +1182,9 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
           * adjusted types *)
           List.iter2 
             (fun oldarg arg -> 
-              (* Update the names *)
+              (* Update the names. Always prefer the new name. This is very 
+               * important if the prototype uses different names than the 
+               * function definition. *)
               if arg.vname <> "" then oldarg.vname <- arg.vname;
               oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
               oldarg.vtype <- 
@@ -4297,7 +4299,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vreferenced = false;   (* sm *)
                 }
             in
-(*            if thisFunctionVI.vname = "insertEntry" then 
+(*            if thisFunctionVI.vname = "refile_buffer" then 
               ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_type thisFunctionVI.vtype 
                         d_attrlist thisFunctionVI.vattr);

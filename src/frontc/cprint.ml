@@ -751,7 +751,8 @@ and print_statement stat =
           end
         end;      
         print ");"
-      end
+      end;
+      new_line ()
 
 and print_block blk = 
   new_line();

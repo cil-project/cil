@@ -62,7 +62,15 @@ BEGIN {
              ? ".asm.exe" : ".byte.exe");
 }
 
-
+# We need to customize the collection of arguments
+sub collectOneArgument {
+    my($self, $arg, $pargs) = @_;
+    if($arg =~ m|--transval=(.+)$|)  {
+        $self->{TRANSVAL} = $1; return 1;
+    }
+    # See if the super class understands this
+    return $self->SUPER::collectOneArgument($arg, $pargs);
+}
 
 sub usage {
     print "cilly [options] [gcc_or_mscl arguments]\n";
@@ -89,9 +97,17 @@ sub applyCil {
 
     my ($base, $dir, $ext) = fileparse($src, "(\\.[^.]+)");
     # Make a name for the CIL file
-    my $cilfile = "$dir$base" . "cil.c";
+    my $outfile;
+    my $extraarg;
+    if($self->{USECABS}) {
+        $outfile = "$dir$base" . "cabs.c";
+        $extraarg = "--cabsout $outfile";
+    } else {
+        $outfile = "$dir$base" . "cil.c";
+        $extraarg = "--out $outfile";
+    }
 
-    if($self->{VERBOSE}) { print "Cilly compiling $src to $cilfile\n"; }
+    if($self->{VERBOSE}) { print "Cilly compiling $src to $outfile\n"; }
     
     my $cmd = "$CilCompiler::compiler ";
     
@@ -104,8 +120,36 @@ sub applyCil {
     if(defined $self->{CILARGS}) {
         $cmd .= join(' ', @{$self->{CILARGS}});
     }
-    $self->runShell("$cmd $src --out $cilfile");
+    $self->runShell("$cmd $src $extraarg");
 
-    return $cilfile;
+    return $outfile;
+}
+
+sub compile_cil {
+    my ($self, $src, $dest, $ppargs, $ccargs) = @_;
+
+    if(defined $self->{TRANSVAL}) {
+        # prepare new ccargs
+        my @tv_ccargs = (@{$ccargs}, "-S", "-dr");
+        # now produce the RTL for the original file
+        my ($orig) = ($src =~ m|^(.+)cil\.i$|);
+        if(! defined($orig)) {
+            die "Cannot find the name of the original C file\n";
+        }
+        $self->runShell("$self->{CC} -S -dr " . 
+                        join(' ', @{$ppargs}) . " " . 
+                        join(' ', @{$ccargs}) . " " .
+                        "$orig.i");
+        # now produce the RTL for the CIL file
+        $self->runShell("$self->{CC} -S -dr " . 
+                        join(' ', @{$ppargs}) . " " . 
+                        join(' ', @{$ccargs}) . " " .
+                        "$src");
+        # now run the translation validator
+        $self->runShell("$self->{TRANSVAL} -L tv.log $orig.i.rtl $orig" .
+                        "cil.i.rtl");
+    }
+    # now do the real thing
+    return $self->SUPER::compile_cil($src, $dest, $ppargs, $ccargs);
 }
 

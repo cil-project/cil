@@ -1006,7 +1006,9 @@ to the patcher (see \secref{patcher}). In particular this means that
 that directory contains subdirectories named based on the current compiler
 version. The patcher creates those directories. 
 \item \t{--usecabs}. Do not CIL, but instead just parse the source and print
-its AST out. This should looked like the preprocessed file.
+its AST out. This should looked like the preprocessed file. This is useful
+when you suspect that the conversion to CIL phase changes the meaning of the
+program. 
 \end{itemize}
  
  

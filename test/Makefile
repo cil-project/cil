@@ -1693,6 +1693,12 @@ endif
 ifdef PRINTSTAGES
   CILLY+= --stages
 endif
+ifdef TV
+  CILLY+= --transval=/home/necula/TransVal/obj/x86_LINUX/transval.asm.exe
+endif
+ifdef USECABS
+  CILLY+= --usecabs
+endif
 
 linuxclean: 
 	cd $(LINUXSRC); make clean
