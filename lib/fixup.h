@@ -159,6 +159,10 @@ extern long double __builtin_fabsl(long double);
   #pragma boxalloc("alloca", nozero, sizein(1))
   #pragma boxalloc("calloc", zero, sizemul(1,2))
 
+  //for the models that need it:
+  void * __SAFE  __endof(void *ptr);
+  #pragma boxpoly("__endof")
+
   // sm: not sure best way to handle this.. gcc's headers map all
   // these things to __builtin_blah, so we see that after
   // preprocessing..  could attack with patcher, but what if someone
@@ -178,9 +182,7 @@ extern long double __builtin_fabsl(long double);
     void *__builtin_memcpy(void *dest, const void *src, unsigned int n);
   #endif
 
-  void * __SAFE  __endof(void *ptr);
-  #pragma boxpoly("__endof")
-
+/*
   static inline
   void qsort_seq_model(void *base, unsigned int nmemb, unsigned int size,
           int (*compar)(const void *, const void *))
@@ -195,7 +197,7 @@ extern long double __builtin_fabsl(long double);
   #pragma boxpoly("qsort")
   #pragma boxmodelof("qsort_seq_model", "qsort")
   #pragma cilnoremove("qsort_seq_model")
-
+*/
 // Whenever you use MAKE_QSORT(foosort, ...) also add
 // #pragma cilnoremove("foosort_seq_model")
 // #pragma boxmodelof("foosort_seq_model", foosort)
