@@ -171,7 +171,11 @@ let restoreGA ?deepCopy (ga: 'a t) : (unit -> unit) =
          None -> copy ga
        | Some f -> deep_copy ga f)
   in
-  (fun () ->           
+  (fun () ->
+     if ga.gaFill != old.gaFill then
+       Errormsg.s 
+         (Errormsg.bug "restoreGA to an array with a different fill.");
+     ga.gaMaxInitIndex <- old.gaMaxInitIndex;
      for i = 0 to max_init_index ga do 
        set ga i (getg old i)
      done)
