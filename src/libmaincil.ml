@@ -42,7 +42,7 @@ module C = Cil
 module E = Errormsg
 
 (* print a Cil 'file' to stdout *)
-let quickndirtyunparse (cil : C.file) : unit =
+let unparsetostdout (cil : C.file) : unit =
 begin
   C.dumpFile C.defaultCilPrinter stdout cil
 end;;
@@ -53,9 +53,10 @@ begin
   Frontc.parse fname ()
 end;;
 
-(* sfg: register some functions *)
+(* register some functions - these may be called form C code *)
 Callback.register "cil_parse" parseOneFile;
-Callback.register "cil_unparse" quickndirtyunparse;
+Callback.register "cil_unparse" unparsetostdout;
+Callback.register "unroll_type_deep" C.unrollTypeDeep;
 
 (* initalize CIL *)
 C.initCIL ();
