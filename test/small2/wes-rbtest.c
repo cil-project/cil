@@ -12,7 +12,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _GNUCC
 #include <unistd.h>     // dup, close
+#endif
+#ifdef _MSVC
+#include <io.h>
+#endif
 
 /* A special purpose main */
 //#include "main.h"

@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>     // dup, close
 
+#ifdef _GNUCC
+#include <unistd.h>     // dup, close
+#endif
+#ifdef _MSVC
+#include <io.h>
+#endif
 
 //#include "main.h"
 /****** Data sizes *******

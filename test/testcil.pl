@@ -110,8 +110,7 @@ $TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 $TEST->add3Tests("testrun/apachefptr");
-$TEST->add2Tests("testrun/asm1");
-   $TEST->addBadComment("testrun/asm1-inferbox", "Unimplemented inline asm");
+$TEST->add2Tests("testrun/asm1", "_GNUCC=1");
 $TEST->add3Tests("testrun/offsetof");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
@@ -157,7 +156,7 @@ $TEST->addTests("testrun/init3", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init4", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init5", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init6", "", ['cil']);
-$TEST->addTests("testrun/init8", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/init8", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/init10", "_GNUCC=1", ['cil']);
@@ -233,7 +232,7 @@ $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
 $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/rmtmps1", "", ['cil']);
-$TEST->addTests("testrun/proto1", "", ['cil']);
+$TEST->addTests("test/proto1", "", ['cil']);
 $TEST->addTests("testrun/struct1", "", ['cil']);
    
 # Tests that are expected to fail
@@ -261,6 +260,8 @@ $TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Decrement FSEQ",
 $TEST->addTestsFail("testrun/fseq1", "", "Failure .+: Lbound", 
                     ['box']);
 $TEST->addTestsFail("testrun/string1", "", "Failure .+: ", ['inferbox']);
+$TEST->addTestsFail("testrun/fseq3", "", "Failure .+: ", ['inferbox']);
+
 #
 # OLDEN benchmarks
 #

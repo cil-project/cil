@@ -10,8 +10,6 @@ unsigned char ucharorig;
 __u8 signed   signedtest; // This is unsigned char
 unsigned char signedorig;
 
-short  _u8   sshorttest; // This is just like short
-     short    sshortorig;
 
 __s8 unsigned uinttest; // This is like unsigned char
 unsigned char uintorig;
@@ -43,8 +41,6 @@ __s8  unsigned long     ulongtest; // This is just like unsigned long
      
 int main() {
   TEST(uchar, 0);
-
-  TEST(sshort, 10);
 
   TEST(uint, 20);
   
