@@ -416,7 +416,8 @@ let markReachable file =
     | GEnumTag ({ereferenced = true}, _)
     | GCompTag ({creferenced = true}, _)
     | GVar ({vreferenced = true}, _, _)
-    | GFun ({svar = {vreferenced = true}}, _) ->
+    | GFun ({svar = {vreferenced = true}}, _)
+    | GPragma _ ->
 	ignore (visitCilGlobal visitor global)
     | _ ->
 	()
