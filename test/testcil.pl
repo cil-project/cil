@@ -13,6 +13,7 @@ use lib "$FindBin::Bin/../ocamlutil";
 
 use RegTest;
 
+
 $ENV{LANG} = 'C';
 
 print "Test infrastructure for CCured and CIL\n";
