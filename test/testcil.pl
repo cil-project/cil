@@ -384,6 +384,7 @@ $TEST->add3Tests("testrun/wchar2");
 $TEST->add3Tests("testrun/wchar3");
 $TEST->add3Tests("testrun/wchar4");
 $TEST->addTests("testrun/wchar5", "", ['cil']);
+$TEST->add3Tests("testrun/wchar6"); 
 $TEST->add2Tests("testrun/escapes");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
 $TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
