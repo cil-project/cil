@@ -693,16 +693,16 @@ should not normally be called by the user.
 CIL constructs using a pattern with holes that can be filled with a variety of
 kinds of elements. The pattern is a string that uses the C syntax to represent
 C language elements. For example, the following construct:
-\begin{verbatim}
+\begin{code}
 Formatcil.cType "void * const (*)(int x)"
-\end{verbatim}
+\end{verbatim}\end{code}
 
  will construct the internal representation of the type of pointer to function
  with an integer argument and a {void * const} as result: 
-\begin{verbatim}
+\begin{code}
 TPtr(TFun(TVoid [Attr("const", [])],
           [ ("x", TInt(IInt, []), []) ], false, []), [])
-\end{verbatim}
+\end{verbatim}\end{code}
 
  Similarly you can construct expressions and instructions. The pattern string
 can also contain a number of placeholders which are replaced during
@@ -714,17 +714,17 @@ that are understood.
 
  A dual feature is the interpreted deconstructors. This can be used to test
 whether a CIL construct has a certain form:
-\begin{verbatim}
+\begin{code}
 Formatcil.dType "void * const (*)(int x)" t
-\end{verbatim}
+\end{verbatim}\end{code}
 
  will test whether the actual argument \t{t} is indeed a function pointer of
 the required type. If it is then the result is \t{Some []} otherwise it is
 \t{None}. Furthermore, for the purpose of the interpreted deconstructors
 placeholders in patterns match anything of the right type. For example, 
-\begin{verbatim}
+\begin{code}
 Formatcil.dType "void * (*)(%F)" t
-\end{verbatim}
+\end{verbatim}\end{code}
 
  will match any function pointer type, independent of the type and number of
 the formals. If the match succeeds the result is \t{Some [ FF forms ]} where
@@ -991,12 +991,12 @@ be specified just before the brace that starts the function body.
  For example (in the following examples \t{A1},...,\t{An} are type attributes
 and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} syntax):
 
-\begin{verbatim}
+\begin{code}
  int x N;
  int x N, * y N = 0, z[] N;
  extern void exit() N;
  int fact(int x) N { ... }
-\end{verbatim}
+\end{verbatim}\end{code}
 
 
  Type attributes can be specified along with the type using the following
@@ -1008,20 +1008,20 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
     type, in between unsigned and int for example).
 
   For example:
-\begin{verbatim}
+\begin{code}
   int A1 x N;  /* A1 applies to the type int. An example is an attribute
                    "even" restricting the type int to even values. */
   struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
-\end{verbatim}
+\end{verbatim}\end{code}
  
  \item The type attributes for a pointer type must be specified immediately
  after the * symbol.
-\begin{verbatim}
+\begin{code}
  /* A pointer (A1) to an int (A2) */
  int A2 * A1 x;
  /* A pointer (A1) to a pointer (A2) to a float (A3) */
  float A3 * A2 * A1 x;
-\end{verbatim}
+\end{verbatim}\end{code}
 
 
  Note: The attributes for base types and for pointer types are a strict
@@ -1032,7 +1032,7 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
      specified using parenthesized declarators.
 
    For example:
-\begin{verbatim}
+\begin{code}
    /* A function (A1) from int (A2) to float (A3) */
    float A3 (A1 f)(int A2);
 
@@ -1054,7 +1054,7 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
    int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
       return & x2;
    }
-\end{verbatim}
+\end{verbatim}\end{code}
 
 \end{enumerate}
 
@@ -1069,9 +1069,9 @@ strange conflicts due to the parentheses that we introduce to scope the
 attributes. Take for example the type of x0 from above. It should be written
 as: 
  
-\begin{verbatim}
+\begin{code}
         int A2 (A1 )[]
-\end{verbatim}
+\end{verbatim}\end{code}
 
  But this will lead most C parsers into deep confusion because the parentheses
 around A1 will be confused for parentheses of a function designator. To push
@@ -1080,9 +1080,9 @@ parenthesized declarator with no name but with attributes, we comment out the
 attributes so you can see them (for whatever is worth) without confusing the
 compiler. For example, here is how we would print the above type:
 
-\begin{verbatim}
+\begin{code}
         int A2 /*(A1 )*/[]
-\end{verbatim}
+\end{verbatim}\end{code}
 
  \paragraph{Handling of predefined GCC attributes}
 
@@ -1372,9 +1372,9 @@ to the CIL application.
 to specifically keep the declarations and definitions of the function
 \t{func1} and variable \t{var2}, the definition of type \t{foo} and of
 structure \t{bar}):
-\begin{verbatim}
+\begin{code}
 #pragma cilnoremove("func1", "var2", "type foo", "struct bar")
-\end{verbatim}
+\end{verbatim}\end{code}
 
 
 
@@ -1470,7 +1470,7 @@ local variables cannot have the \t{const} qualifier.
 
 \end{itemize}
  
-\section{Known Bugs}
+\section{Known Bugs and Limitations}
 
 \begin{itemize}
 
@@ -1481,7 +1481,7 @@ Linux/gcc-2.95.3 and on Windows/MSVC.
 \item We do not support tri-graph sequences (ISO 5.2.1.1).
 
 \item GCC has a strange feature called ``extern inline''. Such a function can
-be defined twice. First with the ``extern inline'' specifier and the second
+be defined twice: first with the ``extern inline'' specifier and the second
 time without it. If optimizations are turned off then the ``extern inline''
 definition is considered a prototype (its body is ignored). If optimizations
 are turned on then the extern inline function is inlined at all of its
@@ -1503,6 +1503,31 @@ GCC. For example, when you use variable-length arrays, CIL turns them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
 \end{itemize}
+
+\item CIL cannot parse a line containing an empty #pragma.
+
+\item CIL cannot parse the following code (fixing this problem would require
+extensive hacking of the LALR grammar):
+\begin{code}
+int bar(int ()); // This prototype cannot be parsed
+int bar(int x()); // If you add a name to the function, it works
+int bar(int (*)()); // This also works (and it is more appropriate)
+\end{verbatim}\end{code}
+
+\item CIL also cannot parse certain K&R old-style prototypes with missing
+return type:
+\begin{code}
+g(); // This cannot be parsed
+int g(); // This is Ok
+\end{verbatim}\end{code}
+
+\item CIL does not understand some obscure combinations of type specifiers
+(``signed'' and ``unsigned'' applied to typedefs that themselves contain a
+sign specification; you could argue that this should not be allowed anyway):
+\begin{code}
+typedef signed char __s8;
+__s8 unsigned uchartest; // This is unsigned char for gcc
+\end{verbatim}\end{code}
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
 
@@ -1972,9 +1997,9 @@ int __attribute__ ((__mode__ (  __DI__ ))) i64;
 bug in Microsoft Visual C. It thinks that the shift is unsigned just because
 the second operator is unsigned. CIL reproduces this bug when in MSVC mode.)
 
-\begin{verbatim}
+\begin{code}
  return -3 >> (8 * sizeof(int));
-\end{verbatim}
+\end{verbatim}\end{code}
 
 \item Unnamed fields in a structure seem really strange at first. It seems
 that Microsoft Visual C introduced this extension, then GCC picked it up (but

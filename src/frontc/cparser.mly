@@ -318,8 +318,8 @@ location:
 
 /*** Global Definition ***/
 global:
-  declaration                           { $1 }
-| function_def                          { $1 }
+| declaration                           { $1 }
+| function_def                          { $1 } 
 | location ASM LPAREN string_constant RPAREN SEMICOLON
                                         { GLOBASM ($4, $1) }
 | location PRAGMA attr                  { PRAGMA ($3, $1) }

@@ -1,5 +1,5 @@
 # .gdbinit
 
-file transtest-ptr2.exe
+file strtoul.exe
 break main
 run

@@ -1,6 +1,7 @@
 // From c-torture
 
-g ();
+g (); // This line cannot be parsed
+      // add "int" in front and everythign is Ok
 
 f ()
 {
