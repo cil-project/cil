@@ -160,6 +160,7 @@ sub new {
          "--debug!",          # Run the debug version of spj
          "--run|r",           # Run the tests
          "--dryrun|n",        # Pretend to run the tests
+	 "--all",             # Enable all tests, even if disabled by default
          "--group=s@",        # Run a group of tests
          "--nogroup=s@",      # Omit a group of tests
          "--one=s",           # Run a single test
@@ -255,6 +256,8 @@ Options:
                                option is processed after all group options are
                                processed. 
   --listtests                  List the tests and their group memberships
+  --all                        Enable all tests, even those disabled by 
+                               default.  Useful in --listtests -all
   --one                        <name> Run a single test
   --param|-p=<pnames>          Create a report with values of the named 
                                parameters (separated by :). Use "ALL" for all
@@ -759,6 +762,14 @@ sub doit {
     }
     
 
+    # Enable all tests if specified
+    if(defined $option{all}) {
+        # Enable all tests
+        my $tst;
+        foreach $tst (keys %tests) {
+            $tests{$tst}->{Enabled} = 1;
+        }
+    }
     # Prune to a group if specified
     if(defined $option{group}) {
         # First go and disable all tests
