@@ -49,24 +49,35 @@ let splitStringList (sep: char) (str: string) : string list =
   loop 0
 
 let optionToArgs (od : optionDescr) : (string * Arg.spec * string) list = 
-  let sp = 
-    match od.optKind with 
-      OBool oref -> Arg.Unit (fun _ -> oref := true; od.optExtra ())
-    | OUnit -> Arg.Unit (fun _ -> od.optExtra ())
-    | OInt iref -> Arg.Int (fun i -> iref := i; od.optExtra ())
-    | OString sref -> Arg.String (fun s -> sref := s; od.optExtra ())
-    | OStringList (sep, lref) -> 
-        Arg.String (fun s -> lref := !lref @ splitStringList sep s; 
-                             od.optExtra ())
-  in
   if od.optCommandLine <> "" then begin 
-    [(od.optCommandLine, sp, od.optHelp)] @
-    begin match od.optKind with
-    | OBool oref -> 
-        ["-no" ^ od.optCommandLine, 
-         Arg.Unit (fun _ -> oref := false; od.optExtra ()),
-         "turn this option off"]
-    | _ -> []
-    end 
+    match od.optKind with 
+    | OUnit -> [ (od.optCommandLine, 
+                  Arg.Unit (fun _ -> od.optExtra ()), 
+                  od.optHelp) ]
+          
+    | OBool oref ->
+        [ (od.optCommandLine, 
+           Arg.Unit (fun _ -> oref := true; od.optExtra ()),
+           od.optHelp ^ (if !oref then " (default)" else "")); 
+          ("-no" ^ od.optCommandLine, 
+           Arg.Unit (fun _ -> oref := false; od.optExtra ()),
+           "turn this option off"  ^ (if !oref then "" else " (default)")) ]
+
+    | OInt iref -> 
+        [ (od.optCommandLine,
+           Arg.Int (fun i -> iref := i; od.optExtra ()),
+           od.optHelp ^ " (default " ^ string_of_int !iref ^ ")") ]
+    | OString sref -> 
+        [ (od.optCommandLine,
+           Arg.String (fun s -> sref := s; od.optExtra ()),
+           od.optHelp ^ " (default " ^ !sref ^ ")") ]
+          
+    | OStringList (sep, lref) -> 
+        [ (od.optCommandLine,
+           Arg.String (fun s -> lref := !lref @ splitStringList sep s; 
+             od.optExtra ()),
+           od.optHelp ^ 
+           " (initially " ^ 
+           (String.concat (String.make 1 sep) !lref) ^ ")") ]
   end else
     []
