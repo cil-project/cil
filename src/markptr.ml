@@ -850,7 +850,10 @@ let markFile fl =
   let interfglobs : (int, varinfo) H.t = H.create 111 in
   let processDecls = function
       GDecl (vi, _) ->
-        H.add interfglobs vi.vid vi
+        if not (H.mem interfglobs vi.vid) then 
+          (* Do not add multiple times since then deleting does not remove 
+           * all copies *)
+          H.add interfglobs vi.vid vi
     | _ -> ()
   in
   (* Add all the declarations *)
@@ -864,6 +867,8 @@ let markFile fl =
     | _ -> ()
   in
   List.iter processDefs fl.globals;
+(*  ignore (E.log "inferfglob:\n");
+  H.iter (fun sid v -> ignore (E.log "%s: %d@!" v.vname sid)) interfglobs; *)
 
   (* See what functions we must make polymorphic *)
   if !N.allPoly || !N.externPoly then
