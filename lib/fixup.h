@@ -97,7 +97,25 @@
 
 // Now specify some special pragmas
 #ifdef CCURED
-  #pragma boxpoly("__startof")
+
+  union printf_format {
+    int             f_int;
+    double          f_double;
+    char * __ROSTRING f_string;
+    #ifdef _GNUCC
+      // sm: needed for ftpd's file-length printout
+      long long     f_longlong;
+    #endif
+  };
+  #pragma cilnoremove("union printf_format")
+
+  #pragma boxvararg_printf("printf", 1)
+  #pragma boxvararg_printf("fprintf", 2)
+
+
+
+
+#pragma boxpoly("__startof")
   void *__startof(void *ptr); // Get the start of a pointer
   #pragma boxpoly("__endof")
   void *__endof(void *);
@@ -235,11 +253,6 @@
 #endif
 
 
-// ideally we could handle this better..
-// hack: 'restrict' is a problem with glibc 2.2
-// #define __restrict
-// #define restrict
-
 
 // sm: I think it's a bad idea to try to match signal's declaration since it's
 // such an unusual type; and it doesn't use any types that aren't built-in
@@ -255,7 +268,6 @@
   }
   #pragma cilnoremove("signal_model")
   #pragma boxmodelof("signal_model", "signal")
-
 
 #endif // CCURED
 
