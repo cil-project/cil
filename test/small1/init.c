@@ -2,10 +2,8 @@
 static char *usageplocal = "Usage";
 static char usageescape = 'C';
 
-#pragma box(off)
 char *usagep = "Usage non-local";
 char usages[] = "Usage string";
-#pragma box(on)
 
 char *null = (void*)0;
 

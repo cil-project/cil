@@ -40,6 +40,7 @@ $TEST->addTest("test/string");
 $TEST->addTest("test/smallstring");
 $TEST->addTest("test/init");
 $TEST->addTest("test/sizeof");
+$TEST->addTest("test/alloc");
 
 # $TEST->addTest("test/t");
 

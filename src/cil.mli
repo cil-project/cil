@@ -336,10 +336,15 @@ and instr =
     Set        of lval * exp             (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of varinfo option * exp * exp list
-			 (* result temporary variable, 
-                            function value, argument list, location. Casts 
-                          * are inserted for arguments *)
+  | Call       of (varinfo * bool) option * exp * exp list
+ 			 (* optional: result temporary variable and an 
+                          * indication that a cast is necessary (the declared 
+                          * type of the function is not the same as that of 
+                          * the result), the function value, argument list, 
+                          * location. Casts are inserted for arguments. If 
+                          * the type of the result variable is not the same 
+                          * as the declared type of the function result then 
+                          * an implicit cast exists. *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
@@ -529,7 +534,7 @@ val mkAddrOf: lval -> exp               (* Works for both arrays (in which
                                          * case it construct a StartOf) and 
                                          * for scalars. *)
 val assign: varinfo -> exp -> stmt
-val call: varinfo option -> exp -> exp list -> stmt
+val call: (varinfo * bool) option -> exp -> exp list -> stmt
 
 val mkString: string -> exp
 
@@ -736,6 +741,18 @@ val foldLeftCompound:
     initl: (offset option * exp) list ->
     acc: 'a -> 'a
 
+
+(**
+ ***
+ ***   OPTIMIZERS 
+ ***
+ ***)
+
+    (* Process all two adjacent statements and possibly replace them both. If 
+     * some replacement happens then the new statements are themselves 
+     * subject to optimization  *)
+val peepHole2: (stmt * stmt -> stmt list option) -> stmt list -> stmt list
+val peepHole1: (stmt -> stmt list option) -> stmt list -> stmt list
 
 (**
  **

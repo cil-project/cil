@@ -334,10 +334,15 @@ and instr =
     Set        of lval * exp             (* An assignment. A cast is present 
                                           * if the exp has different type 
                                           * from lval *)
-  | Call       of varinfo option * exp * exp list
-			 (* result temporary variable, 
-                            function value, argument list, location. Casts 
-                          * are inserted for arguments *)
+  | Call       of (varinfo * bool) option * exp * exp list
+ 			 (* optional: result temporary variable and an 
+                          * indication that a cast is necessary (the declared 
+                          * type of the function is not the same as that of 
+                          * the result), the function value, argument list, 
+                          * location. Casts are inserted for arguments. If 
+                          * the type of the result variable is not the same 
+                          * as the declared type of the function result then 
+                          * an implicit cast exists. *)
 
                          (* See the GCC specification for the meaning of ASM. 
                           * If the source is MS VC then only the templates 
@@ -1122,15 +1127,20 @@ and d_instr () i =
       | _ -> dprintf "%a = %a;" d_lval lv d_exp e
   end
   | Call(vio,e,args) ->
-      (* Maybe we need to print a cast *)
-      dprintf "%s%a(@[%a@]);" 
+      dprintf "%a%a(@[%a@]);" 
+        insert 
         (match vio with 
-          None -> "" | 
-          Some vi -> 
-            vi.vname ^ " = ")
-        insert (match e with Lval(Var _, _) -> d_exp () e 
-                             | _ -> dprintf "(%a)" d_exp e)
+          None -> nil | 
+          Some (vi, iscast) -> 
+            if iscast then
+              dprintf "%s = (%a)" vi.vname d_type vi.vtype 
+            else 
+              dprintf "%s = " vi.vname)
+        insert 
+        (match e with Lval(Var _, _) -> d_exp () e 
+        | _ -> dprintf "(%a)" d_exp e)
 	(docList (chr ',' ++ break) (d_exp ())) args
+
   | Asm(tmpls, isvol, outs, ins, clobs) ->
       if !msvcMode then
         dprintf "__asm {@[%a@]};@!"  (docList line text) tmpls
@@ -1556,7 +1566,7 @@ begin
   and fInst' (i:instr) : unit = match i with
     | Set(lv,e) -> fLval lv; fExp e
     | Call(None,f,args) -> fExp f; List.iter fExp args
-    | Call((Some v),fn,args) -> fVrbl v; fExp fn; List.iter fExp args 
+    | Call((Some (v, _)),fn,args) -> fVrbl v; fExp fn; List.iter fExp args 
     | Asm(_,_,outs,ins,_) -> begin
         List.iter (fun (_, lv) -> fLval lv) outs;
         List.iter (fun (_, e) -> fExp e) ins
@@ -1596,7 +1606,40 @@ begin
   | _ -> ()
 
   in iterGlobals f fGlob
-end;;
+end
+
+
+(******************** OPTIMIZATIONS *****)
+let peepHole1     (* Process one statement and possibly replace it *)
+                    (doone: stmt -> stmt list option)
+                    (ss: stmt list) : stmt list = 
+  let rec loop = function
+      [] -> []
+    | Sequence sl :: rest -> loop (sl @ rest)
+    | s :: rest -> begin
+        match doone s with
+          None -> s :: loop rest
+        | Some sl -> loop (sl @ rest)
+    end
+  in
+  loop ss
+
+let peepHole2     (* Process two statements and possibly replace them both *)
+                    (dotwo: stmt * stmt -> stmt list option)
+                    (ss: stmt list) : stmt list = 
+  let rec loop = function
+      [] -> []
+    | Sequence sl :: rest -> loop (sl @ rest)
+    | [s] -> [s]
+    | s1 :: ((s2 :: rest) as rest2) -> begin
+        match dotwo (s1,s2) with
+          None -> s1 :: loop rest2
+          | Some sl -> loop (sl @ rest)
+    end
+  in
+  loop ss
+
+
 
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ = 

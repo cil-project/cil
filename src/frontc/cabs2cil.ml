@@ -456,6 +456,25 @@ let doNameGroup (sng: A.single_name -> 'a)
 
 
 
+
+
+(**** PEEP-HOLE optimizations ***)
+let afterConversion (s: stmt list) : stmt list = 
+
+  let collapseCallCast = function
+      Instr(Call(Some(vi, false), f, args), loc1),
+      Instr(Set((Var destv, NoOffset), 
+                CastE (newt, Lval(Var vi', NoOffset))), loc2) 
+      when (not vi.vglob && 
+            String.length vi.vname >= 3 &&
+            String.sub vi.vname 0 3 = "tmp" &&
+            vi' == vi) 
+      -> Some [Instr(Call(Some(destv, true), f, args), loc1)]
+    | _ -> None
+  in
+  peepHole2 collapseCallCast s
+
+
 let rec makeVarInfo (isglob: bool) 
                 (ldecl: location)
                 ((bt,st,(n,nbt,a,e)) : A.single_name) : varinfo = 
@@ -1071,7 +1090,7 @@ and doExp (isconst: bool)    (* In a constant *)
           | _ -> e'
         in
         finishExp [] (SizeOfE(e'')) uintType
-          
+
     | A.CAST (bt, e) -> 
         let se1, typ = 
           match bt with
@@ -1080,13 +1099,17 @@ and doExp (isconst: bool)    (* In a constant *)
               se1, typ
           | _ -> [],  doType [] bt
         in
-        (* We treat the case when e is COMPOUND differently *)
         let what' = 
           match e with 
-            A.CONSTANT (A.CONST_COMPOUND _) -> Some typ
-          | _ -> None
+            (* We treat the case when e is COMPOUND differently *)
+            A.CONSTANT (A.CONST_COMPOUND _) -> AExp (Some typ)
+          | _ -> begin
+              match what with
+                AExp (Some _) -> AExp (Some typ)
+              | _ -> AExp None
+          end
         in
-        let (se, e', t) = doExp isconst e (AExp what') in
+        let (se, e', t) = doExp isconst e what' in
         let (t'', e'') = 
           match typ with
             TVoid _ when what = ADrop -> (t, e') (* strange GNU thing *)
@@ -1334,12 +1357,13 @@ and doExp (isconst: bool)    (* In a constant *)
                 (sf @ sargs @ [Instr(Call(None,f'',args'), lu)])
                 (integer 0) intType
               (* Set to a variable of corresponding type *)
-          | ASet((Var vi, NoOffset) as lv, vtype) 
-              when (typeSig resType = typeSig vtype) -> 
-                finishExp 
-                  (sf @ sargs @ [Instr(Call(Some vi,f'',args'), lu)])
-                  (Lval(lv))
-                  vtype
+          | ASet((Var vi, NoOffset) as lv, vtype) -> 
+              let mustCast = typeSig resType <> typeSig vtype in
+              finishExp 
+                (sf @ sargs @ [Instr(Call(Some (vi, mustCast),f'',args'), lu)])
+                (Lval(lv))
+                vtype
+
           | _ -> begin
               (* Must create a temporary *)
               match f'', args' with     (* Some constant folding *)
@@ -1347,9 +1371,15 @@ and doExp (isconst: bool)    (* In a constant *)
                   when fv.vname = "__builtin_constant_p" ->
                     finishExp (sf @ sargs) (integer 1) intType
               | _ -> 
-                  let tmp = newTempVar resType in
-                  let i = Instr(Call(Some tmp,f'',args'), lu) in
-                  finishExp (sf @ sargs @ [i]) (Lval(var tmp)) resType
+                  let tmp, restyp', iscast = 
+                    match what with
+                      AExp (Some t) -> 
+                        newTempVar t, t, 
+                        typeSig t <> typeSig resType
+                    | _ -> newTempVar resType, resType, false
+                  in
+                  let i = Instr(Call(Some (tmp, iscast),f'',args'), lu) in
+                  finishExp (sf @ sargs @ [i]) (Lval(var tmp)) restyp'
           end
         end
           
@@ -1742,7 +1772,7 @@ and doBody (b : A.body) : stmt list =
         let res = doStatement s in
         res @ loop rest
   in
-  let res = loop b in
+  let res = afterConversion (loop b) in
   exitScope ();
   res
       
@@ -1759,6 +1789,7 @@ and doStatement (s : A.statement) : stmt list =
         end else
           let (s', _, _) = doExp false e ADrop in
             (* drop the side-effect free expression *)
+            (* And now do some peep-hole optimizations *)
           s'
             
     | A.BLOCK b -> doBody b
@@ -1865,7 +1896,6 @@ and doStatement (s : A.statement) : stmt list =
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     [Label "booo_statement"]
   end
-
 
 
 (* Create and cache varinfo's for globals. Returns the varinfo and whether 

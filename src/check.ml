@@ -570,10 +570,22 @@ and checkStmt (s: stmt) =
             None, TVoid _ -> ()
           | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
           | None, _ -> () (* "Call of function is not assigned" *)
-          | Some destvi, _ -> 
+          | Some (destvi, iscast), rt' -> 
               checkVariable destvi;
               if typeSig destvi.vtype <> typeSig rt then
-                ignore (E.warn "Mismatch at return type in call"));
+                if iscast then 
+                  (* Not all types can be cast *)
+                  (match rt' with
+                    TArray _ -> E.s (E.warn "Cast of an array type")
+                  | TFun _ -> E.s (E.warn "Cast of a function type")
+                  | TComp _ -> E.s (E.warn "Cast of a composite type")
+                  | TVoid _ -> E.s (E.warn "Cast of a void type")
+                  | _ -> ())
+                else
+                  ignore (E.log "Type mismatch at function return value\n")
+              else
+                if iscast then 
+                  ignore (E.log "Call is marked \"iscast\" even though it shouldn't\n"));
           (* Now check the arguments *)
           let rec loopArgs formals args = 
             match formals, args with

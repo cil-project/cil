@@ -620,7 +620,8 @@ let rec doStmt (s: stmt) =
         | Some _, TVoid _ -> 
             ignore (E.warn "Call of subroutine is assigned")
         | None, _ -> () (* "Call of function is not assigned" *)
-        | Some destvi, _ -> 
+        | Some (destvi, iscast), _ -> 
+            (* Short-circuit the cast *)
             N.addEdge 
               (nodeOfType rt)
               (nodeOfType destvi.vtype) 

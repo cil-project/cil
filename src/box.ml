@@ -262,7 +262,8 @@ let taggedTypes: (typsig, typ) H.t = H.create 123
 (**** FIXUP TYPE ***)
 let fixedTypes : (typsig, typ) H.t = H.create 17
 
-(* Get rid of all Const attributes *)
+(* Get rid of all Const attributes. In the process also replaces the ptrnode 
+ * attributes with their corresponding pointer kind attributes *)
 let dropConst t =
   let dropit where a = 
     N.replacePtrNodeAttrList where (dropAttribute a (AId("const"))) in
@@ -517,7 +518,7 @@ let checkFetchLength =
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun tmplen base -> 
     let ptr = ptrOfBase base in
-    call (Some tmplen) (Lval (var fdec.svar))
+    call (Some (tmplen, false)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
 
@@ -538,7 +539,7 @@ let checkFetchEnd =
   checkFunctionDecls := GDecl (fdec.svar, lu) :: !checkFunctionDecls;
   fun tmplen base -> 
     let ptr = ptrOfBase base in
-    call (Some tmplen) (Lval (var fdec.svar))
+    call (Some (tmplen, false)) (Lval (var fdec.svar))
       [ castVoidStar ptr; 
         castVoidStar base ]
 
@@ -1234,7 +1235,7 @@ let stringToSeq (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, p,  (Lval (var tmpend)),
-  call (Some tmpend) (Lval (var checkFetchStringLength.svar))
+  call (Some (tmpend, false)) (Lval (var checkFetchStringLength.svar))
     [ p ] :: acc
 
 let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list) 
@@ -1242,7 +1243,7 @@ let stringToFseq (p: exp) (b: exp) (bend: exp) (acc: stmt list)
   (* Make a new temporary variable *)
   let tmpend = makeTempVar !currentFunction voidPtrType in
   p, (Lval (var tmpend)), zero,
-  call (Some tmpend) (Lval (var checkFetchStringLength.svar))
+  call (Some (tmpend, false)) (Lval (var checkFetchStringLength.svar))
     [ p ] :: acc
 
   
@@ -1519,7 +1520,7 @@ let castTo (fe: fexp) (newt: typ)
               let tmp = makeTempVar !currentFunction voidPtrType in
               Lval(var tmp),
               doe @
-              [call (Some tmp) (Lval(var interceptCastFunction.svar)) 
+              [call (Some (tmp, false)) (Lval(var interceptCastFunction.svar)) 
                   [ p ;integer !currentFileId; integer !interceptId ]
               ]
             end else 
@@ -1911,13 +1912,26 @@ and boxinstr (ins: instr) (l: location): stmt =
         let vi', setvi = 
           match vi with
             None -> vi, []
-          | Some vi -> begin
+          | Some (vi, iscast) -> begin
               match boxlval (Var vi, NoOffset) with
-                (_, _, (Var _, NoOffset), _, _, _) -> Some vi, []
+                (_, _, (Var _, NoOffset), _, _, _) -> 
+                  (* If the type is a structure and different from the 
+                   * function return type then we must split the call *)
+                  if iscast &&
+                     typeSig(ftret) <> typeSig (vi.vtype) &&
+                    (match unrollType vi.vtype with
+                      TComp _ -> true | _ -> false) then
+                    let tmp = makeTempVar !currentFunction ftret in
+                    Some (tmp, false), 
+                    [boxinstr (Set((Var vi, NoOffset), 
+                                   Lval (var tmp))) l]
+                  else
+                  Some (vi, iscast), []
               | (tv, _, ((Var _, Field(dfld, NoOffset)) as newlv), _, _,[]) -> 
                   let tmp = makeTempVar !currentFunction dfld.ftype in
-                  Some tmp, [boxinstr (Set((Var vi, NoOffset), 
-                                           Lval (var tmp))) l]
+                  Some (tmp, iscast), 
+                  [boxinstr (Set((Var vi, NoOffset), 
+                                 Lval (var tmp))) l]
               | _ -> E.s (E.bug "Result of call is not a variable")
           end
         in
