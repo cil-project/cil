@@ -3347,7 +3347,12 @@ let printFile (pp: cilPrinter) (out : out_channel) file =
     iterGlobals file (fun g -> print (printGlobal pp () g ++ line))
   else begin
     iterGlobals file (fun g -> print (d_global () g ++ line));
-  end
+  end;
+
+  (* sm: we have to flush the output channel; if we don't then under *)
+  (* some circumstances (I haven't figure out exactly when, but it happens *)
+  (* more often with big inputs), we get a truncated output file *)
+  flush out
 
 
 
