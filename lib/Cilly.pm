@@ -192,6 +192,9 @@ sub collectOneArgument {
         }
         return 1;
     }
+    if($arg eq '--keep') {
+	die "\"--keep\" requires an argument (e.g. --keep=.)";
+    }
     if($arg eq '--nomerge') {
         $self->{SEPARATE} = 1;
         return 1;
