@@ -31,6 +31,7 @@
  */
 
 #include <stdio.h>
+#include <wchar.h> //wchar_t
 
 #ifdef _GNUCC
 #define LONGLONG long long
