@@ -1,6 +1,6 @@
 
 (*
- * "Copyright (c) 2003 The Regents of the University  of California.  
+ * "Copyright (c) 2005 The Regents of the University  of California.  
  * All rights reserved.
  *
  * Permission to use, copy, modify, and distribute this software and its
@@ -35,10 +35,12 @@ module H = Hashtbl
 
 let sensitive_attributes = ["EQ_tainted" ; "LE_tainted" ; 
 			    "GE_untainted" ; "EQ_untainted";
-                            "Poly_tainted"]  
+                            "Poly_tainted" ; "EQ_const"]  
 let const_attribute      = "const"
 let tainted_attribute    = "EQ_tainted"
 let poly_taint_attribute = "Poly_tainted"
+
+let builtinLongLong = "builtinLongLong"
 
 (* Checks whether the given type has a the "tainted" attribute.
  *)
@@ -72,7 +74,7 @@ class smallocClearAttributes (attrnames : string list ) = object
   inherit nopCilVisitor
   method vattr a =
     match a with Attr(attrname, _) ->
-      if List.exists (fun a -> a = attrname) attrnames then 
+      if List.mem attrname attrnames then 
 	ChangeTo []
       else
 	DoChildren
@@ -136,15 +138,18 @@ let rec encodeType (t:typ):string =
       TInt _ as t' when bitsSizeOf t' = 32 -> (*int, uint, long, ulong*)
          taint^"int"
     | TInt _ as t' when bitsSizeOf t' = 8 -> taint^"char"
+    | TInt _ as t' when bitsSizeOf t' = 16 -> taint^"short"
+    | TInt _ as t' when bitsSizeOf t' = 64 ->  (* long long *)
+        "_"^taint^builtinLongLong
     | TPtr(bt, _) -> begin
         let bt' = encodeType bt in
         taint^"*" ^ bt'
       end
-    | TComp(ci, _) ->
+    | TComp(ci, _) when ci.cstruct ->
         "_" ^ ci.cname
     | TVoid _ -> taint^"void"
     | _ -> 
-        unimplemented ()
+        taint^(unimplemented ())
 
 
 (* For arrays inside structs, unroll them into "len" different fields *)
@@ -416,6 +421,13 @@ end
 
 let entry_point (f : file) =
   ignore (E.log "Annotating function parameters.\n");
+  let longlongU =
+    globalAnn structANN 
+      ("\"UbuiltinLongLong\", \"q1\", \"Uint\", \"q2\", \"Uint\"") in
+  let longlongT =
+    globalAnn structANN 
+      ("\"TbuiltinLongLong\", \"q1\", \"Tint\", \"q2\", \"Tint\"") in
+  newGlobals := [longlongU; longlongT];
   visitCilFileSameGlobals (new stringVisitor :>cilVisitor) f;
   f.globals <- Util.list_append !newGlobals f.globals;
   visitCilFile (new annotationVisitor :>cilVisitor) f;
