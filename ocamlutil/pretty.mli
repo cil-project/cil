@@ -1,12 +1,14 @@
 (*
  *
- * Copyright (c) 2000 by
+ * Copyright (c) 2001 by
  *  George C. Necula	necula@cs.berkeley.edu
+ *  Scott McPeak        smcpeak@cs.berkeley.edu
+ *  Wes Weimer          weimer@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
  * provided that the following conditions are met: 
- * 1.  Redistributions of source code must retain the above copyright notice, 
+ * 1. XSRedistributions of source code must retain the above copyright notice, 
  * this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright notice, 
  * this list of conditions and the following disclaimer in the documentation 

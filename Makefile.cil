@@ -17,7 +17,7 @@ ifdef RELEASE
 endif
 
 ifndef ARCHOS
-   ARCHOS=x86_LINUX
+   ARCHOS=x86_WIN32
 endif
 
 # Put here all the byproducts of make
