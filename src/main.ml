@@ -8,6 +8,7 @@ open Trace
 
 let outChannel : out_channel option ref = ref None
 let keepFiles = ref false
+let heapify = ref false
 
 let preproc = ref ""                    (* The preprocess command *)
 exception Done_Processing
@@ -73,7 +74,13 @@ let rec processOneFile fname =
     (trace "sm" (dprintf "removing unused temporaries\n"));
     (Rmtmps.removeUnusedTemps cil);
 
-    Logcalls.logCalls cil;
+		if (!Util.logCalls) then begin
+			Logcalls.logCalls cil 
+		end ; 
+
+		if (!heapify) then begin
+			Heapify.default_heapify cil
+		end ;
 
     (match !outChannel with
       None -> ()
@@ -120,6 +127,8 @@ let rec theMain () =
                      "turns off consistency checking of CIL";
     "-logcalls", Arg.Unit (fun _ -> Util.logCalls := true),
                      "turns on generation of code to log function calls in CIL";
+		"-heapify", Arg.Unit (fun _ -> heapify := true),
+					"apply the `heapify' transformation";
     "-nodebug", Arg.String (setDebugFlag false), 
                       "<xxx> turns off debugging flag xxx";
     "-log", Arg.String openLog, "the name of the log file";

@@ -229,11 +229,7 @@ realclean: clean
 # Dependencies for .mli files reside in corresponding .di files.
 #
 
-FIXDEPEND:=perl -e \
-	'while(<>) { \
-	     s%[^/\\ :]+[/\\]% %g; \
-	     s%([^ :\\\n]+)%\$$(OBJDIR)/$$1%g; \
-	     print $$_;}'
+FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]+[/\\]% %g; s%([^ :\\\n]+)%\$$(OBJDIR)/$$1%g; print $$_;}'
 # FIXDEPEND:=cat
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
