@@ -293,27 +293,21 @@ let lookupEnumField n =
  * concatenated and converted to statements *)
 module StatementChunk = 
   struct
-    type chunk = float * stmt list
+    type chunk = float * ostmt list
     let  c2s (_, s) = s
     let  s2c s = (0.0, s)
-    let  i2c i l = (0.0, [Instr(i, l)])
+    let  i2c i l = (0.0, [Instrs(i, l)])
         
     (* An empty chunk *)
     let empty : chunk = s2c []
         
-    (* Adding an instruction to the front of a chunk *)
-    let (++) (i: instr) (c: chunk) : chunk = 
-      s2c (Instr(i, lu) :: c2s c)
-
     (* Adding an instruction to the end of a chunk *)
     let (+++) (c: chunk) ((i, l): instr * location) : chunk = 
-      s2c (c2s c @ [Instr (i, l)])
+      s2c (c2s c @ [Instrs (i, l)])
 
 
     (* Chunk concatenation *)
     let (@@) (c1: chunk) (c2: chunk) : chunk = s2c ((c2s c1) @ (c2s c2))
-    let chunkConcat (cl : chunk list) = 
-      s2c (List.concat (List.map c2s cl))
         
     (* Check if a chunk is empty *)
     let isEmpty (c: chunk) : bool = (c2s c) == []
@@ -323,15 +317,17 @@ module StatementChunk =
     (* Add a label to the beginning of a chunk *)
     let consLabel l c = s2c (Label l :: c2s c)
         
-    let mkStatement (c: chunk) : stmt = mkSeq (c2s c)
+    let mkStatement (c: chunk) : ostmt = mkSeq (c2s c)
         
-    let mkFunctionBody (c: chunk) : stmt = mkSeq (c2s c)
+    let mkFunctionBody (c: chunk) : ostmt = mkSeq (c2s c)
 
     (* A skip *)
     let skipChunk : chunk = s2c [Skip]
 
     (* A break *)
-    let breakChunk : chunk = s2c [Break]
+    let breakChunk (l: location) : chunk = s2c [Break]
+
+    let continueChunk (l: location) : chunk = s2c [Continue]
 
     (* A loop *)
     let loopChunk (body: chunk) : chunk = 
@@ -366,7 +362,7 @@ module StatementChunk =
         | IfThenElse (_, _, _, _) | Block _ -> 100
         | Label _ -> 10000
         | Switchs _ -> 100
-        | (Gotos _|Returns _|Case _|Default|Break|Continue|Instr _) -> 1
+        | (Gotos _|Returns _|Case _|Default|Break|Continue|Instrs _) -> 1
       and costMany sl = List.fold_left (fun acc s -> acc + costOne s) 0 sl
       in
       costMany (c2s c) <= 3
@@ -375,7 +371,7 @@ module StatementChunk =
                                 * contain label definitions  *)
       let rec dropOne = function
           (Skip | Gotos _ | Returns _| Case _ | Default | 
-          Break | Continue | Instr _) -> true
+          Break | Continue | Instrs _) -> true
         | Sequence sl -> List.for_all dropOne sl
         | _ -> false
       in
@@ -385,26 +381,158 @@ module StatementChunk =
 
 module BlockChunk = 
   struct
-    type chunk = 
-        { first: block;  (* The starting block of the chunk *)
-          last: block; (* The last block of the chunk. Might be the same as 
-                        * first. The skind is always Jump and the succs 
-                        * contains just the dummy block. We assume that each 
-                        * chunk has only one fall-through exit. *)
+    type chunk = {
+        stmts: stmt list;
+        postins: (instr * location) list; (* Some instructions to append at 
+                                           * the ends of statements (in 
+                                           * reverse order)  *)
+        fixbreak: stmt -> unit;         (* A function that will fix all the 
+                                         * Goto due to Break statements *)
+        fixcont: stmt -> unit;          (* Same for Continue statements *)
+      } 
 
-                       (* A function to connect all of the break and continue 
-                        * points to other chunks *)
-          connect: break:chunk -> cont:chunk -> unit;
+    let empty = 
+      { stmts = []; postins = []; 
+        fixbreak = (fun _ -> ()); fixcont = (fun _ -> ()) }
 
-                       (* If the chunk is the body of a switch statement, it 
-                        * is actually a list of cases *)
-          cases: unit -> (int * location * chunk) list list
-        } 
-              
+    let isEmpty (c: chunk) = 
+      c.postins == [] && c.stmts == []
+    let isNotEmpty (c: chunk) = not (isEmpty c)
+      
+    (* Occasionally, we'll have to push postins into the statements *)
+    let pushPostIns (c: chunk) : stmt list = 
+      if c.postins = [] then c.stmts
+      else
+        let rec toLast = function
+            [{skind=Instr il} as s] as stmts -> 
+              let rec revOnto acc = function
+                  [] -> acc
+                | x :: rest -> revOnto (x :: acc) rest
+              in
+              s.skind <- Instr (revOnto il c.postins);
+              stmts
+
+          | [] -> [mkStmt (Instr (List.rev c.postins))]
+
+          | a :: rest -> a :: toLast rest
+        in
+        toLast c.stmts
+
+
+    (* Add an instruction at the end. Never refer to this instruction again 
+     * after you call this *)
+    let (+++) (c: chunk) (il : instr * location) =
+      {c with postins = il :: c.postins}
+
+    (* Append two chunks. Never refer to the original chunks after you call 
+     * this. And especially never share c2 with somebody else *)
+    let (@@) (c1: chunk) (c2: chunk) = 
+      { stmts = pushPostIns c1 @ c2.stmts;
+        postins = c2.postins;
+        fixbreak = (fun b -> c1.fixbreak b; c2.fixbreak b);
+        fixcont = (fun b -> c1.fixcont b; c2.fixcont b); 
+      } 
+
+    let skipChunk = empty
+        
+    let ifChunk (be: exp) (l: location) (t: chunk) (e: chunk) : chunk = 
+      
+      { stmts = [ mkStmt(If(be, pushPostIns t, pushPostIns e, l))];
+        postins = [];
+        fixbreak = (fun b -> t.fixbreak b; e.fixbreak b);
+        fixcont = (fun b -> t.fixcont b; e.fixcont b);
+      } 
+
+    let loopChunk (body: chunk) : chunk = 
+      (* Make the statement *)
+      let loop = mkStmt (Loop (pushPostIns body, lu)) in
+      (* Fix the continue statements *)
+      body.fixcont loop;
+      (* Now add a new statement at the end as the target of break *)
+      let n = mkEmptyStmt () in
+      body.fixcont n;
+      { stmts = [ loop; n ];
+        postins = [];
+        fixbreak = (fun b -> ());
+        fixcont = (fun b -> ());
+      } 
+      
+    let breakChunk (l: location) : chunk = 
+      (* Make a statement reference *)
+      let bref = ref dummyStmt in
+      { stmts = [ mkStmt (Goto (bref, l)) ];
+        postins = [];
+        fixbreak = (fun b -> bref := b);
+        fixcont  = (fun c -> ())
+      } 
+      
+    let continueChunk (l: location) : chunk = 
+      (* Make a statement reference *)
+      let bref = ref dummyStmt in
+      { stmts = [ mkStmt (Goto (bref, l)) ];
+        postins = [];
+        fixcont = (fun b -> bref := b);
+        fixbreak  = (fun c -> ())
+      } 
+
+        (* Keep track of the gotos *)
+    let backPatchGotos : (string, stmt ref list ref) H.t = H.create 17
+    let addGoto (lname: string) (bref: stmt ref) : unit = 
+      let gotos = 
+        try
+          H.find backPatchGotos lname
+        with Not_found -> begin
+          let gotos = ref [] in
+          H.add backPatchGotos lname gotos;
+          gotos
+        end
+      in
+      gotos := bref :: !gotos
+
+        (* Keep track of the labels *)
+    let labelStmt : (string, stmt) H.t = H.create 17
+    let initLabels () = 
+      H.clear backPatchGotos;
+      H.clear labelStmt
+      
+    let resolveGotos () = 
+      H.iter
+        (fun lname gotos ->
+          try
+            let dest = H.find labelStmt lname in
+            List.iter (fun gref -> gref := dest) !gotos
+          with Not_found -> begin
+            E.s (E.bug "Label %s not found\n" lname)
+          end)
+        backPatchGotos
+
+    let consLabel (l: string) (c: chunk) : chunk = 
+      (* Get the first statement and add the label to it *)
+      let c', labstmt = 
+        match c.stmts with
+          s :: _ -> s.label <- Some l; c, s
+        | [] -> (* Add a statement *)
+            let n = mkEmptyStmt () in
+            n.label <- Some l;
+            let c' = {c with stmts = [ n ]} in
+            c', n
+      in
+      H.add labelStmt l labstmt;
+      c'
+
+    let gotoChunk (ln: string) (l: location) : chunk = 
+      let gref = ref dummyStmt in
+      addGoto ln gref;
+      { stmts = [ mkStmt (Goto (gref, l)) ];
+        postins = [];
+        fixbreak = (fun b -> ());
+        fixcont = (fun b -> ()) }
+
+            
   end
 
 open StatementChunk
-
+(* open BlockChunk *)
 
 
 (************ Labels ***********)
@@ -422,19 +550,16 @@ let startLoop iswhile =
   continues := (if iswhile then While else NotWhile (ref "")) :: !continues
 
 let labelId = ref 0
-let doContinue () : stmt = 
+let continueOrLabelChunk (l: location) : chunk = 
   match !continues with
     [] -> E.s (E.bug "continue not in a loop")
-  | While :: _ -> Continue
+  | While :: _ -> continueChunk l
   | NotWhile lr :: _ -> 
       if !lr = "" then begin
         incr labelId;
         lr := "Cont" ^ (string_of_int !labelId)
       end;
-      Gotos !lr
-  
-let continueChunk : unit -> chunk = 
-  fun () -> s2c [doContinue ()]
+      gotoChunk !lr
 
 let consLabContinue (c: chunk) = 
   match !continues with
@@ -2009,7 +2134,7 @@ and createLocal = function
 and doDecl : A.definition -> chunk = function
   | A.DECDEF ng ->
       let stmts = doNameGroup createLocal ng in
-      chunkConcat stmts
+      List.fold_left (fun acc c -> acc @@ c) empty stmts
         
   | _ -> E.s (E.unimp "doDecl")
     
@@ -2113,13 +2238,13 @@ and doStatement (s : A.statement) : chunk =
         let s' = doStatement s in
         exitLoop ();
         loopChunk ((doCondition e skipChunk
-                      breakChunk) 
+                      (breakChunk lu)) 
                    @@ s')
           
     | A.DOWHILE(e,s) -> 
         startLoop false;
         let s' = doStatement s in
-        let s'' = consLabContinue (doCondition e skipChunk breakChunk)
+        let s'' = consLabContinue (doCondition e skipChunk (breakChunk lu))
         in
         exitLoop ();
         loopChunk (s' @@ s'')
@@ -2135,12 +2260,12 @@ and doStatement (s : A.statement) : chunk =
           A.NOTHING -> (* This means true *)
             se1 @@ loopChunk (s' @@ s'')
         | _ -> 
-            se1 @@ loopChunk ((doCondition e2 skipChunk breakChunk)
+            se1 @@ loopChunk ((doCondition e2 skipChunk (breakChunk lu))
                               @@ s' @@ s'')
     end
-    | A.BREAK -> breakChunk
+    | A.BREAK -> breakChunk lu
           
-    | A.CONTINUE -> continueChunk () 
+    | A.CONTINUE -> continueOrLabelChunk lu
           
     | A.RETURN A.NOTHING -> returnChunk None lu
     | A.RETURN e -> 

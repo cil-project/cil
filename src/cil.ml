@@ -359,61 +359,52 @@ and instr =
 
 
 (**** STATEMENTS. Mostly structural information ****)
-and stmt = 
+and ostmt = 
   | Skip                                (* empty statement *)
-  | Sequence of stmt list               (* Use mkSeq to make a Sequence. This 
+  | Sequence of ostmt list               (* Use mkSeq to make a Sequence. This 
                                          * will optimize the result and will 
                                          * make sure that there are no 
                                          * trailing Default of Label or Case *)
-  | Loops of stmt                       (* A loop. When stmt is done the 
+  | Loops of ostmt                       (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * stmt * stmt * location    (* if *)
+  | IfThenElse of exp * ostmt * ostmt * location    (* if *)
   | Label of string 
   | Gotos of string
   | Returns of exp option * location
-  | Switchs of exp * stmt * location    (* no work done to break this appart *)
+  | Switchs of exp * ostmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
   | Default
   | Break
   | Continue
-  | Instr of instr * location
+  | Instrs of instr * location
 
   | Block of block                      (* Just a placeholder to allow us to 
                                          * mix blocks and statements *)
-
-and block = 
-    BB of bblock                        (* A basic block *)
-  | Seq of block list                   (* A sequence of blocks. Possibly 
-                                         * empty in which case we have a 
-                                         * fall-through *)
-  | Loop of block                       (* A loop block *)
-
-(* A basic block is a block what has some place for attaching information *)
-and bblock = {
-    mutable label: string option;       (* Whether the block starts with a 
+(* The statement is the structural unit in the control flow graph *)
+and stmt = {
+    mutable label: string option;       (* Whether the statement starts with a 
                                          * label *)
-    mutable ins: (instr * location) list;(* The instructions, except maybe 
-                                          * the final one in the block, which 
-                                          * goes into skind *)
-    mutable skind: succkind;            (* The kind of successsor, and 
-                                         * implicitly the form of the last 
-                                         * statement in the block *)
+    mutable skind: stmtkind;            (* The kind of statement *)
 
     (* Now some additional control flow information *)
-    mutable nid: int;                   (* A >= 0 identifier that is unique 
+    mutable sid: int;                   (* A >= 0 identifier that is unique 
                                          * in a function. *)
-    mutable succs: bblock list;         (* The successor blocks. They can 
+    mutable succs: stmt list;         (* The successor blocks. They can 
                                          * always be computed from the skind *)
-    mutable preds: bblock list;
+    mutable preds: stmt list;
   } 
 
-and succkind = 
+(* A block is a sequence of statements with the control falling through from 
+ * one element to then next *)
+and block = stmt list
+
+and stmtkind = 
+  | Instr  of (instr * location) list   (* A bunck of instruction that do not 
+                                         * contain control flow stuff *)
   | Return of exp option * location     (* The optional return *)
 
-  | Fall                                (* Fall-through. The successor is 
-                                         * dependent on the context *)
-  | Goto of bblock ref * location       (* One successor, the target of an 
+  | Goto of stmt ref * location         (* One successor, the target of an 
                                          * explicit goto or a break or a 
                                          * continue statement. *)
   | If of exp * block * block * location (* Two successors, the "then" and the 
@@ -434,7 +425,7 @@ and succkind =
                                          * we have cases that fall-through to 
                                          * other cases, we replace that with 
                                          * explicit goto's *)
-
+  | Loop of block * location            (* A "while(1)" loop *)
 
         
 type fundec = 
@@ -452,7 +443,7 @@ type fundec =
                                          * these because the body refers to 
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
-      mutable sbody: stmt;              (* the body *)
+      mutable sbody: ostmt;              (* the body *)
     } 
 
 type global = 
@@ -504,7 +495,7 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : stmt -> bool        (* constrol-flow statement *)
+  method vstmt : ostmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
@@ -521,7 +512,7 @@ class nopCilVisitor = object
   method vlval (l:lval) = true        (* lval (base is 1st field) *)
   method voffs (o:offset) = true      (* lval offset *)
   method vinst (i:instr) = true       (* imperative instruction *)
-  method vstmt (s:stmt) = true        (* constrol-flow statement *)
+  method vstmt (s:ostmt) = true        (* constrol-flow statement *)
   method vfunc (f:fundec) = true      (* function definition *)
   method vfuncPost (f:fundec) = true  (*   postorder version *)
   method vglob (g:global) = true      (* global (vars, types, etc.) *)
@@ -587,6 +578,18 @@ let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
 let doubleType = TFloat(FDouble, [])
 
+
+let mkStmt (sk: stmtkind) : stmt = 
+  { skind = sk;
+    label = None;
+    sid = -1; succs = []; preds = [] }
+
+let mkEmptyStmt () = mkStmt (Instr [])
+
+let dummyStmt = 
+  mkStmt (Instr [(Asm(["dummy statement!!"], false, [], [], []), lu)])
+
+ 
 let structId = ref 0 (* Find a better way to generate new names *)
 let newTypeName n = 
   incr structId;
@@ -696,7 +699,7 @@ let rec unrollType = function   (* Might drop some attributes !! *)
 
                                    
 let var vi : lval = (Var vi, NoOffset)
-let assign vi e = Instr(Set (var vi, e), lu)
+let assign vi e = Instrs(Set (var vi, e), lu)
 
 let mkString s = Const(CStr s)
 
@@ -721,27 +724,27 @@ let mkSeq sl =
 
 
 
-let mkWhile (guard:exp) (body: stmt list) : stmt = 
+let mkWhile (guard:exp) (body: ostmt list) : ostmt = 
   (* Do it like this so that the pretty printer recognizes it *)
   Loops (Sequence (IfThenElse(guard, Skip, Break, lu) :: body))
 
-let mkFor (start: stmt) (guard: exp) (next: stmt) (body: stmt list) : stmt = 
+let mkFor (start: ostmt) (guard: exp) (next: ostmt) (body: ostmt list) : ostmt = 
   mkSeq 
     (start ::
      mkWhile guard (body @ [next]) :: [])
 
 
 let mkForIncr (iter: varinfo) (first: exp) (past: exp) (incr: exp) 
-    (body: stmt list) : stmt = 
+    (body: ostmt list) : ostmt = 
       (* See what kind of operator we need *)
       let compop, nextop = 
         match unrollType iter.vtype with
           TPtr _ -> LtP, PlusPI
         | _ -> Lt, PlusA
       in
-      mkFor (Instr(Set (var iter, first), lu))
+      mkFor (Instrs(Set (var iter, first), lu))
         (BinOp(compop, Lval(var iter), past, intType))
-        (Instr(Set (var iter, 
+        (Instrs(Set (var iter, 
                     (BinOp(nextop, Lval(var iter), incr, iter.vtype))), lu))
         body
   
@@ -1245,7 +1248,7 @@ and d_stmt () s =
                   dangling elses. ASM gives some problems with MSVC so 
                   bracket them as well  *) 
     match a with
-      IfThenElse _ | Loops _ | Instr(Asm _, _) | Switchs _ -> 
+      IfThenElse _ | Loops _ | Instrs(Asm _, _) | Switchs _ -> 
         Sequence [a]
     | _ -> a
   in
@@ -1271,7 +1274,7 @@ and d_stmt () s =
   | Returns(Some e,_) -> dprintf "return (%a);" d_exp e
   | Switchs(e,s,_) -> dprintf "@[switch (%a)@!%a@]" d_exp e d_stmt s
   | Default -> dprintf "default:"
-  | Instr(i,_) -> d_instr () i
+  | Instrs(i,_) -> d_instr () i
 
 
 and d_fun_decl () f = 
@@ -1634,7 +1637,7 @@ begin
 end
 
 (* visit all nodes in a Cil statement tree in preorder *)
-and visitCilStmt (vis: cilVisitor) (body: stmt) : unit =
+and visitCilStmt (vis: cilVisitor) (body: ostmt) : unit =
 begin
   let rec fExp e = (visitCilExpr vis e)
   and fLval lv = (visitCilLval vis lv)
@@ -1650,7 +1653,7 @@ begin
     | IfThenElse (e, s1, s2, _) -> fExp e; fStmt s1; fStmt s2
     | Returns(Some e, _) -> fExp e
     | Switchs (e, s, _) -> fExp e; fStmt s
-    | Instr(i, _) -> fInst i
+    | Instrs(i, _) -> fInst i
   end
 
   in

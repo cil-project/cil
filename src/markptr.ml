@@ -648,7 +648,7 @@ let isPrintf reso orig_func args = begin
 end
 
 (* Do a statement *)
-let rec doStmt (s: stmt) = 
+let rec doStmt (s: ostmt) = 
   match s with 
     (Skip | Label _ | Case _ | Default | Break | Continue | Gotos _) -> s
   | Sequence sl -> Sequence (List.map doStmt sl)
@@ -659,16 +659,16 @@ let rec doStmt (s: stmt) =
   | Returns (None, _) -> s
   | Returns (Some e, l) -> 
       Returns (Some (doExpAndCast e !currentResultType), l)
-  | Instr (Asm _, _) -> s
-  | Instr (Set (lv, e), l) -> 
+  | Instrs (Asm _, _) -> s
+  | Instrs (Set (lv, e), l) -> 
       let lv', lvn = doLvalue lv true in
       (* Now process the copy *)
 (*      ignore (E.log "Setting lv=%a\n lvt=%a (ND=%d)" 
                 d_plainlval lv d_plaintype (typeOfLval lv) lvn.N.id); *)
       let e' = doExpAndCast e lvn.N.btype in
-      Instr (Set (lv', e'), l)
+      Instrs (Set (lv', e'), l)
 
-  | Instr (Call (reso, orig_func, args), l) -> 
+  | Instrs (Call (reso, orig_func, args), l) -> 
       let args = 
         match isPrintf reso orig_func args with
           Some(o) -> o
@@ -720,7 +720,7 @@ let rec doStmt (s: stmt) =
                                rt, N.dummyNode) destvi.vtype !callId)
 	end 
       end;
-      Instr (Call(reso, func', loopArgs formals args), l)
+      Instrs (Call(reso, func', loopArgs formals args), l)
   
       
 (* Now do the globals *)

@@ -25,7 +25,7 @@ let debug = true
 (* Take a stmt  and a list of lval (nnl means NotNullList) guaranteed 
    to be non-null. Return (s',l') where s is the optimized s' and l'
    is the updated l *)
-let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
+let rec nullChecksOptimStmt (s:Cil.ostmt) (nnl:Cil.lval list) =
   match s with
     Skip -> (s,nnl)
   | Sequence(l) -> 
@@ -43,7 +43,7 @@ let rec nullChecksOptimStmt (s:Cil.stmt) (nnl:Cil.lval list) =
       (s,nnl)
 (*      E.s (E.unimp "OPTIM cannot handle switch, case, default yet")*)
   | Break | Continue -> (s,nnl)
-  | Instr(i, l) -> (match i with
+  | Instrs(i, l) -> (match i with
       Call(_,Lval(Var x,_),args) when x.vname = "CHECK_NULL" ->
         (* args must be a list of one element -- the exp which we
            have to ensure is non-null *)

@@ -515,7 +515,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end)
     () (* The argument of withContext *)
 
-and checkStmt (s: stmt) = 
+and checkStmt (s: ostmt) = 
   E.withContext 
     (fun _ -> 
       (* Print context only for certain small statements *)
@@ -549,56 +549,61 @@ and checkStmt (s: stmt) =
           checkExpType false e intType;
           checkStmt s
             
-      | Instr (Set (dest, e), _) -> 
-          let t = checkLval false dest in
-          (* Not all types can be assigned to *)
-          (match unrollType t with
-            TFun _ -> ignore (E.warn "Assignment to a function type")
-          | TArray _ -> ignore (E.warn "Assignment to an array type")
-          | TVoid _ -> ignore (E.warn "Assignment to a void type")
-          | _ -> ());
-          checkExpType false e t
+      | Instrs (i,l) -> checkInstr i)
+    () (* argument of withContext *)
+
+and checkInstr (i: instr) = 
+  match i with 
+  | Set (dest, e) -> 
+      let t = checkLval false dest in
+      (* Not all types can be assigned to *)
+      (match unrollType t with
+        TFun _ -> ignore (E.warn "Assignment to a function type")
+      | TArray _ -> ignore (E.warn "Assignment to an array type")
+      | TVoid _ -> ignore (E.warn "Assignment to a void type")
+      | _ -> ());
+      checkExpType false e t
             
-      | Instr (Call(dest, what, args), _) -> 
-          let (rt, formals, isva) = 
-            match checkExp false what with
-              TFun(rt, formals, isva, _) -> rt, formals, isva
-            | _ -> E.s (E.bug "Call to a non-function")
-          in
+  | Call(dest, what, args) -> 
+      let (rt, formals, isva) = 
+        match checkExp false what with
+          TFun(rt, formals, isva, _) -> rt, formals, isva
+        | _ -> E.s (E.bug "Call to a non-function")
+      in
           (* Now check the return value*)
-          (match dest, unrollType rt with
-            None, TVoid _ -> ()
-          | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
-          | None, _ -> () (* "Call of function is not assigned" *)
-          | Some (destvi, iscast), rt' -> 
-              checkVariable destvi;
-              if typeSig destvi.vtype <> typeSig rt then
-                if iscast then 
+      (match dest, unrollType rt with
+        None, TVoid _ -> ()
+      | Some _, TVoid _ -> ignore (E.warn "Call of subroutine is assigned")
+      | None, _ -> () (* "Call of function is not assigned" *)
+      | Some (destvi, iscast), rt' -> 
+          checkVariable destvi;
+          if typeSig destvi.vtype <> typeSig rt then
+            if iscast then 
                   (* Not all types can be cast *)
-                  (match rt' with
-                    TArray _ -> E.s (E.warn "Cast of an array type")
-                  | TFun _ -> E.s (E.warn "Cast of a function type")
-                  | TComp _ -> E.s (E.warn "Cast of a composite type")
-                  | TVoid _ -> E.s (E.warn "Cast of a void type")
-                  | _ -> ())
-                else
-                  ignore (E.log "Type mismatch at function return value\n")
-              else
-                if iscast then 
-                  ignore (E.log "Call is marked \"iscast\" even though it shouldn't\n"));
+              (match rt' with
+                TArray _ -> E.s (E.warn "Cast of an array type")
+              | TFun _ -> E.s (E.warn "Cast of a function type")
+              | TComp _ -> E.s (E.warn "Cast of a composite type")
+              | TVoid _ -> E.s (E.warn "Cast of a void type")
+
+              | _ -> ())
+            else
+              ignore (E.log "Type mismatch at function return value\n")
+          else
+            if iscast then 
+              ignore (E.log "Call is marked \"iscast\" even though it shouldn't\n"));
           (* Now check the arguments *)
-          let rec loopArgs formals args = 
-            match formals, args with
-              [], _ when (isva || args = []) -> ()
-            | fo :: formals, a :: args -> 
-                checkExpType false a fo.vtype;
-                loopArgs formals args
-            | _, _ -> ignore (E.warn "Not enough arguments")
-          in
-          loopArgs formals args
-            
-      | Instr (Asm _, _) -> ())  (* Not yet implemented *)
-    () (* The argument to withContext *)
+      let rec loopArgs formals args = 
+        match formals, args with
+          [], _ when (isva || args = []) -> ()
+        | fo :: formals, a :: args -> 
+            checkExpType false a fo.vtype;
+            loopArgs formals args
+        | _, _ -> ignore (E.warn "Not enough arguments")
+      in
+      loopArgs formals args
+        
+  | Asm _ -> ()  (* Not yet implemented *)
   
 let rec checkGlobal = function
     GAsm _ -> ()

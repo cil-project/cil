@@ -362,61 +362,53 @@ and instr =
                   string list           (* register clobbers *)
 
 (**** STATEMENTS. Mostly structural information ****)
-and stmt = 
+and ostmt = 
   | Skip                                (* empty statement *)
-  | Sequence of stmt list               (* Use mkSeq to make a Sequence. This 
+  | Sequence of ostmt list               (* Use mkSeq to make a Sequence. This 
                                          * will optimize the result and will 
                                          * make sure that there are no 
                                          * trailing Default of Label or Case *)
-  | Loops of stmt                       (* A loop. When stmt is done the 
+  | Loops of ostmt                       (* A loop. When stmt is done the 
                                          * control starts back with stmt. 
                                          * Ends with break or a Goto outside.*)
-  | IfThenElse of exp * stmt * stmt * location    (* if *)
+  | IfThenElse of exp * ostmt * ostmt * location    (* if *)
   | Label of string 
   | Gotos of string
   | Returns of exp option * location
-  | Switchs of exp * stmt * location    (* no work done to break this appart *)
+  | Switchs of exp * ostmt * location    (* no work done to break this appart *)
   | Case of int * location              (* The case expressions are resolved *)
   | Default
   | Break
   | Continue
-  | Instr of instr * location
+  | Instrs of instr * location
 
   | Block of block                      (* Just a placeholder to allow us to 
                                          * mix blocks and statements *)
 
-and block = 
-    BB of bblock                        (* A basic block *)
-  | Seq of block list                   (* A sequence of blocks. Possibly 
-                                         * empty in which case we have a 
-                                         * fall-through *)
-  | Loop of block                       (* A loop block *)
-
-(* A basic block is a block what has some place for attaching information *)
-and bblock = {
-    mutable label: string option;       (* Whether the block starts with a 
+(* The statement is the structural unit in the control flow graph *)
+and stmt = {
+    mutable label: string option;       (* Whether the statement starts with a 
                                          * label *)
-    mutable ins: (instr * location) list;(* The instructions, except maybe 
-                                          * the final one in the block, which 
-                                          * goes into skind *)
-    mutable skind: succkind;            (* The kind of successsor, and 
-                                         * implicitly the form of the last 
-                                         * statement in the block *)
+    mutable skind: stmtkind;            (* The kind of statement *)
 
     (* Now some additional control flow information *)
-    mutable nid: int;                   (* A >= 0 identifier that is unique 
+    mutable sid: int;                   (* A >= 0 identifier that is unique 
                                          * in a function. *)
-    mutable succs: bblock list;         (* The successor blocks. They can 
+    mutable succs: stmt list;         (* The successor blocks. They can 
                                          * always be computed from the skind *)
-    mutable preds: bblock list;
+    mutable preds: stmt list;
   } 
 
-and succkind = 
+(* A block is a sequence of statements with the control falling through from 
+ * one element to then next *)
+and block = stmt list
+
+and stmtkind = 
+  | Instr  of (instr * location) list   (* A bunck of instruction that do not 
+                                         * contain control flow stuff *)
   | Return of exp option * location     (* The optional return *)
 
-  | Fall                                (* Fall-through. The successor is 
-                                         * dependent on the context *)
-  | Goto of bblock ref * location       (* One successor, the target of an 
+  | Goto of stmt ref * location         (* One successor, the target of an 
                                          * explicit goto or a break or a 
                                          * continue statement. *)
   | If of exp * block * block * location (* Two successors, the "then" and the 
@@ -437,6 +429,8 @@ and succkind =
                                          * we have cases that fall-through to 
                                          * other cases, we replace that with 
                                          * explicit goto's *)
+  | Loop of block * location            (* A "while(1)" loop *)
+
 
 type fundec =
     { mutable svar:     varinfo;        (* Holds the name and type as a
@@ -456,7 +450,7 @@ type fundec =
                                          * these because the body refers to
                                          * them  *)
       mutable smaxid: int;              (* max local id. Starts at 0 *)
-      mutable sbody: stmt;              (* the body *)
+      mutable sbody: ostmt;              (* the body *)
     }
 
 type global =
@@ -527,6 +521,11 @@ val intPtrType: typ
 val uintPtrType: typ
 val doubleType: typ
 
+
+val mkStmt: stmtkind -> stmt
+val mkEmptyStmt: unit -> stmt
+val dummyStmt: stmt
+  
 (* Generate fresh names from a prefix *)
 val newTypeName: string -> string
 
@@ -571,27 +570,27 @@ val var: varinfo -> lval
 val mkAddrOf: lval -> exp               (* Works for both arrays (in which 
                                          * case it construct a StartOf) and 
                                          * for scalars. *)
-val assign: varinfo -> exp -> stmt
+val assign: varinfo -> exp -> ostmt
 
 val mkString: string -> exp
 
     (* Make a sequence out of a list of statements *)
-val mkSeq: stmt list -> stmt
+val mkSeq: ostmt list -> ostmt
 
 
     (* Make a while loop. Can contain Break or Continue *)
-val mkWhile: guard:exp -> body:stmt list -> stmt
+val mkWhile: guard:exp -> body:ostmt list -> ostmt
 
     (* Make a for loop for(i=start; i<past; i += incr) { ... }. The body 
      * should not contain Break or Continue !!!. Can be used with i a pointer 
      * or an integer. Start and done must have the same type but incr 
      * must be an integer *)
 val mkForIncr:  iter:varinfo -> first:exp -> stopat:exp -> incr:exp 
-                -> body:stmt list -> stmt
+                -> body:ostmt list -> ostmt
 
     (* Make a for loop for(start; guard; next) { ... }. The body should not 
      * contain Break or Continue !!! *) 
-val mkFor: start:stmt -> guard:exp -> next:stmt -> body: stmt list -> stmt
+val mkFor: start:ostmt -> guard:exp -> next:ostmt -> body: ostmt list -> ostmt
  
 
 
@@ -633,9 +632,9 @@ val d_attrlist: bool -> unit -> attribute list -> Pretty.doc (* Whether it
        
 val d_lval: unit -> lval -> Pretty.doc
 val d_instr: unit -> instr -> Pretty.doc
-val d_stmt: unit -> stmt -> Pretty.doc
+val d_stmt: unit -> ostmt -> Pretty.doc
 val d_fun_decl: unit -> fundec -> Pretty.doc
-val d_videcl : unit -> varinfo -> Pretty.doc
+val d_videcl: unit -> varinfo -> Pretty.doc
 val printFile: out_channel -> file -> unit
 
 (* Set this function to intercept attributes as are printed. *)
@@ -672,7 +671,7 @@ class type cilVisitor = object
   method vlval : lval -> bool        (* lval (base is 1st field) *)
   method voffs : offset -> bool      (* lval offset *)
   method vinst : instr -> bool       (* imperative instruction *)
-  method vstmt : stmt -> bool        (* constrol-flow statement *)
+  method vstmt : ostmt -> bool        (* constrol-flow statement *)
   method vfunc : fundec -> bool      (* function definition *)
   method vfuncPost : fundec -> bool  (*   postorder version *)
   method vglob : global -> bool      (* global (vars, types, etc.) *)
@@ -681,7 +680,7 @@ class type cilVisitor = object
 end
 
 (* visit all nodes in a Cil statement tree in preorder *)
-val visitCilStmt: cilVisitor -> stmt -> unit
+val visitCilStmt: cilVisitor -> ostmt -> unit
 
 (* other cil constructs *)
 val visitCilFile : cilVisitor -> file -> unit
@@ -855,3 +854,4 @@ val sizeOf: typ -> exp
 val offsetOf: fi:fieldinfo -> startcomp: int -> int * int 
       
  
+
