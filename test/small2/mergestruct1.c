@@ -8,8 +8,19 @@ struct A {
 // make A's type part of the interface
 extern struct A *connection;          
 
+// decl of foo()
+int foo();
+
 // refer to A::x
 int foo()
 {
-  return connection->x;
+  if (connection) {
+    return connection->x;
+  }
+  else {
+    return 3;
+  }
 }
+
+// unrelated: test merging of 'unsigned char' and 'signed char'
+unsigned char sharedChar;

@@ -13,9 +13,14 @@ int main()
 {
   int whatever;
 
-  whatever = connection->y;
+  if (connection) {
+    whatever = connection->y;
+  }
   whatever += foo();    // for the heck of it
   
   return whatever-whatever;
 }
 
+// unrelated: test merging of 'unsigned char' and 'signed char'
+// (I edit this to introduce inconsistency..)
+unsigned char sharedChar;

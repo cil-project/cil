@@ -23,3 +23,5 @@ Makefile
 config.status
 Makefile.cil
 *.tar.gz
+.ccuredrc
+allsrcs

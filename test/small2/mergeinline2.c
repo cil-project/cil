@@ -12,6 +12,7 @@ int bar()
 }
 
 // inline definition
+// (remove "__inline" to work around the bug)
 __inline static long *fill()
 {
   return 0;

@@ -126,3 +126,6 @@ qsort_wild
 regparm0
 unscomp
 *optimcured.c
+mergestruct
+trace
+

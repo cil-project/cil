@@ -34,6 +34,7 @@ module P = Pretty
 open Cil
 module E = Errormsg
 module H = Hashtbl
+open Trace
 
 let debugMerge = false
 let debugInlines = false
@@ -343,8 +344,14 @@ let rec combineTypes (what: combineWhat)
            && (what = CombineFunarg || what = CombineFunret) 
         then 
           k
-        else
-          raise (Failure "(different integer types)")
+        else (
+          let msg =
+            P.sprint ~width:80
+              (P.dprintf
+                 "(different integer types %a and %a)"
+                 d_type oldt d_type t) in
+          raise (Failure msg)
+        )
       in
       TInt (combineIK oldik ik, addAttributes olda a)
 
