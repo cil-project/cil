@@ -96,8 +96,9 @@ let defineVariable vi =
   varNamesList := (vi.vname, vi.vid) :: !varNamesList;
   (* Check the id *)
   if vi.vglob then 
-    if !checkGlobalIds && vi.vid <> H.hash vi.vname then
-      ignore (warn "Id of global %s is not valid\n" vi.vname);
+    if vi.vid >= 0 then 
+      ignore (warn "Id of global %s should be negative. It is %d\n"
+                vi.vname vi.vid);
   if H.mem varIdsEnv vi.vid then
     ignore (warn "Id %d is already defined (%s)\n" vi.vid vi.vname);
   H.add varIdsEnv vi.vid vi
@@ -297,9 +298,6 @@ and checkCompInfo (isadef: defuse) comp =
     (* Check that the name is unique *)
     if H.mem compNames fullname then
       ignore (warn "Duplicate name %s" fullname);
-    (* Check that the ckey is correct *)
-    if comp.ckey <> H.hash fullname then
-      ignore (warn "Invalid ckey for compinfo %s" fullname);
     (* Add it to the map before we go on *)
     H.add compUsed comp.ckey (comp, ref isadef);
     H.add compNames fullname ();

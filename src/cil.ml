@@ -248,8 +248,6 @@ and attrparam =
 and compinfo = {
     mutable cstruct: bool;              (** True if struct, False if union *)
     mutable cname: string;              (** The name. Always non-empty. Use 
-                                         * {!Cil.compSetName} to set the name 
-                                         * and the key simulateneously. Use 
                                          * {!Cil.compFullName} to get the 
                                          * full name of a comp (along with 
                                          * the struct or union) *)
@@ -866,6 +864,12 @@ let rec get_stmtLoc (statement : stmtkind) =
                  else get_stmtLoc ((List.hd b.bstmts).skind)
 
 
+(* The next variable identifier to use. Counts down *)
+let nextGlobalVID = ref (-1)
+
+(* The next compindo identifier to use. Counts up. *)
+let nextCompinfoKey = ref 1
+
 (* Some error reporting functions *)
 let d_loc (_: unit) (loc: location) : doc =  
   text loc.file ++ chr ':' ++ num loc.line
@@ -1287,11 +1291,6 @@ let partitionAttributes
 let compFullName comp = 
   (if comp.cstruct then "struct " else "union ") ^ comp.cname
 
-(* Set the name of a composite type. Also changes the key *)
-let compSetName comp n = 
-  comp.cname <- n;
-  comp.ckey <- H.hash (compFullName comp)
-
  
 let missingFieldName = "___missing_field_name"
 
@@ -1317,7 +1316,9 @@ let mkCompInfo
        (* Make this compinfo undefined by default *)
        cdefined = false; } 
    in
-   compSetName comp n;  (* fix the name and the key *)
+   comp.cname <- n;
+   comp.ckey <- !nextCompinfoKey;
+   incr nextCompinfoKey;
    let self = ref voidType in
    let flds = 
        List.map (fun (fn, ft, fb, fa) -> 
@@ -1329,6 +1330,12 @@ let mkCompInfo
    comp.cfields <- flds;
    if flds <> [] then comp.cdefined <- true;
    comp
+
+(** Make a copy of a compinfo, changing the name and the key *)
+let copyCompInfo (ci: compinfo) (n: string) : compinfo = 
+  let ci' = {ci with cname = n; ckey = !nextCompinfoKey } in
+  incr nextCompinfoKey;
+  ci'
 
 (**** Utility functions ******)
 let rec unrollType = function   (* Might drop some attributes !! *)
@@ -3219,7 +3226,7 @@ let makeFormalVar fdec ?(where = "$") name typ : varinfo =
     * is unique *)
 let makeGlobalVar name typ =
   let vi = { vname = name;
-             vid   = H.hash name;
+             vid   = !nextGlobalVID;
              vglob = true;
              vtype = typ;
              vinline = false;
@@ -3229,6 +3236,7 @@ let makeGlobalVar name typ =
              vaddrof = false;
              vreferenced = false;    (* sm *)
            }  in
+  decr nextGlobalVID; (* Keep the VID negative for globals *)
   vi
 
 
@@ -5180,7 +5188,9 @@ let initCIL () =
   in      
   upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
   typeOfSizeOf := TInt(findIkind true !theMachine.M.sizeof_sizeof, []);
-  wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, [])
+  wcharType := TInt(findIkind false !theMachine.M.sizeof_wchar, []);
+  nextGlobalVID := (-1);
+  nextCompinfoKey := 1
     
 
 (* We want to bring all type declarations before the data declarations. This 

@@ -318,18 +318,19 @@ and attrparam =
  * {!Cil.getCompField}. *)
 
 (** The definition of a structure or union type. Use {!Cil.mkCompInfo} to 
- * make one. *)
+ * make one and use {!Cil.copyCompInfo} to copy one (this ensures that a new 
+ * key is assigned). *)
 and compinfo = {
     mutable cstruct: bool;              
    (** True if struct, False if union *)
     mutable cname: string;              
-   (** The name. Always non-empty. Use {!Cil.compSetName} to set the name and 
-    * the key simultaneously. Use {!Cil.compFullName} to get the full name of 
-    * a comp (along with the struct or union) *)
+   (** The name. Always non-empty. Use {!Cil.compFullName} to get the full 
+    * name of a comp (along with the struct or union) *)
     mutable ckey: int;                  
-    (** A unique integer constructed from the name. Use {!Hashtbl.hash} on 
-     * the string returned by {!Cil.compFullName}, or better yet use 
-     * {!Cil.compSetName}. All compinfo for a given key are shared. *)
+    (** A unique integer. This is assigned by {!Cil.mkCompInfo} using a 
+     * global variable in the Cil module. Thus two identical structs in two 
+     * different files might have different keys. Use {!Cil.copyCompInfo} to 
+     * copy structures so that a new key is assigned. *)
     mutable cfields: fieldinfo list;    
     (** Information about the fields *) 
     mutable cattr:   attributes;        
@@ -413,9 +414,10 @@ structure. A global {!Cil.varinfo} can be introduced with the [GVarDecl] or
 function definition. 
 
  All references to a given global or local variable must refer to the same
-copy of the [varinfo]. Each [varinfo] has a unique identifier that can be use
-to index maps and hashtables. The identifier for globals is constructed by
-hashing the name and the identifier for locals is an integer between 0 and the
+copy of the [varinfo]. Each [varinfo] has a unique identifier that can be used
+to index maps and hashtables (the name can also be used for this purpose). 
+The identifier for globals is constructed by using a global counter and is 
+always negative. The identifier for locals is an integer between 0 and the
 number of locals in the function. 
 
  It is very important that you construct [varinfo] structures using only one
@@ -459,9 +461,10 @@ and varinfo = {
     (** Location of variable declaration. Not yet implemented. *)
 
     mutable vid: int;  
-    (** A unique integer identifier. For globals this is a hash of the name. 
-     * Locals are numbered from 0 starting with the formal arguments. This 
-     * field will be set for you if you use one of the {!Cil.makeFormalVar}, 
+    (** A unique integer identifier. For globals this is negative and is 
+     * assigned based on a global counter in the Cil module. Locals are 
+     * numbered from 0 starting with the formal arguments. This field will be 
+     * set for you if you use one of the {!Cil.makeFormalVar}, 
      * {!Cil.makeLocalVar}, {!Cil.makeTempVar} or {!Cil.makeGlobalVar}. *)
 
     mutable vaddrof: bool;              
@@ -1132,6 +1135,8 @@ val mkCompInfo: bool ->      (* whether it is a struct or a union *)
                   constructing a recursive type.  *)
                attributes -> compinfo
 
+(** Makes a shallow copy of a {!Cil.compinfo} changing the name and the key.*)
+val copyCompInfo: compinfo -> string -> compinfo
 
 (** This is a constant used as the name of an unnamed bitfield. These fields
     do not participate in initialization and their name si not printed. *)
@@ -1139,9 +1144,6 @@ val missingFieldName: string
 
 (** Get the full name of a comp *)
 val compFullName: compinfo -> string
-
-(** Set the name of a composite type. Also changes the key *)
-val compSetName: compinfo -> string -> unit
 
 (** Returns true if this is a complete type. 
    This means that sizeof(t) makes sense. 
