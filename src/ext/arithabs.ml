@@ -577,12 +577,12 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
       in
         
       ignore (p ~ind:ind
-                "%sstmt %d %ssuccs %a%s %spreds %a%s %sidom %a%s\n%a  @[%a@]\n"
+                "%sstmt %d %a %ssuccs %a%s %spreds %a%s %sidom %a%s\n  @[%a@]\n"
                 prologue s.sid (** Statement id *)
+                insert headerstuff
                 prologue (d_list "," (fun _ s' -> num s'.sid)) s.succs epilogue
                 prologue (d_list "," (fun _ s' -> num s'.sid)) s.preds epilogue
                 prologue insert idom epilogue
-                insert headerstuff
                 (docList ~sep:line 
                    (fun pv -> 
                      let (lhs, rhs) = getPhiAssignment pv in 
