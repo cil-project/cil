@@ -473,3 +473,42 @@ let compute_alias_frequency () : unit =
     Printf.printf "Naive queries : %d of %d possible\n" (!a_count) (!a_total);
     Printf.printf "Smart queries : %d of %d possible\n" (!s_count) (!a_total)
     
+
+
+(** abstract location interface *)
+
+type absloc = A.absloc
+
+let rec lvalueVarinfo (vi : varinfo) : A.lvalue =
+  try
+    H.find lvalue_hash vi
+  with 
+      Not_found -> failwith ( Pretty.sprint ~width:80 (Pretty.dprintf 
+          "lvalueVarinfo unable to find varinfo for %s in lvalue_hash"
+          vi.vname ))
+and lvalueLval (lv : lval) : A.lvalue =
+  match lv with
+    | (Var vi, _) -> lvalueVarinfo vi
+    | (Mem e, _) -> A.deref (A.rvalue (lvalueExp e))
+
+(* do not export - AddrOf only ok if it's dereferenced later *)
+and lvalueExp (e : exp) : A.lvalue =  
+  match e with 
+    | Lval lv -> lvalueLval lv
+    | CastE (_,e) -> lvalueExp e
+    | BinOp((PlusPI|IndexPI|MinusPI),e,_,_) -> lvalueExp e
+
+    | (AddrOf lv | StartOf lv) -> 
+        A.phonyAddrOf (lvalueLval lv)
+
+    | (Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE
+           _ | UnOp _ | BinOp _ )-> 
+        failwith "lvalueExp: fishy exp in lval"
+
+(** return an abstract location for a varinfo, resp. lval *)
+let abslocVarinfo vi = A.abslocLvalue (lvalueVarinfo vi)
+let abslocLval lv = A.abslocLvalue (lvalueLval lv)
+
+let abslocEq = A.abslocEq
+let d_absloc = A.d_absloc
+

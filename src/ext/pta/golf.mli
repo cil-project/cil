@@ -1,5 +1,7 @@
 type lvalue
 type tau
+type absloc
+
 val debug : bool ref
 val debug_constraints : bool ref
 val debug_aliases : bool ref
@@ -28,3 +30,10 @@ val string_of_lvalue : lvalue -> string
 val global_lvalue : lvalue -> bool
 val alias_query : bool -> lvalue list -> int * int
 val alias_frequency : (lvalue * bool) list -> int * int
+
+
+val abslocLvalue : lvalue -> absloc
+val abslocEq : absloc -> absloc -> bool
+val d_absloc : unit -> absloc -> Pretty.doc
+val phonyAddrOf : lvalue -> lvalue
+

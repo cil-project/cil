@@ -38,3 +38,19 @@ val compute_aliases : bool -> unit
 
 (** Compute alias frequncy *)
 val compute_alias_frequency : unit -> unit
+
+
+(** type for abstract locations *)
+type absloc 
+
+(** Give an abstract location for a varinfo *)
+val abslocVarinfo : Cil.varinfo -> absloc
+
+(** Give an abstract location for an Cil lvalue *)
+val abslocLval : Cil.lval -> absloc
+
+(** are the two abstract locations may be aliased? *)
+val abslocEq : absloc -> absloc -> bool
+
+(** Pretty print an abstract location *)
+val d_absloc : unit -> absloc -> Pretty.doc

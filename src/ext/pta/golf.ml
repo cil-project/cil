@@ -1839,3 +1839,18 @@ let alias_frequency (lvl : (lvalue * bool) list) : int * int =
   in check_alias ptsets lbls;
     (!naive_count,!smart_count)
 
+
+(** an interface for extracting abstract locations from this analysis *)
+
+type absloc = label
+
+let abslocLvalue (l : lvalue) : absloc = l.l
+let abslocEq = smart_alias_query
+let absloc_print_name = ref true
+let d_absloc () (p : absloc) = 
+  let a = find p in 
+    if !absloc_print_name then Pretty.dprintf "%s" a.l_name
+    else Pretty.dprintf "%d" a.l_stamp
+
+let phonyAddrOf (lv : lvalue) : lvalue =
+  make_lval (fresh_label true, address lv)
