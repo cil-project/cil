@@ -2,11 +2,15 @@ open Cil
 open Pretty 
 
 module H = Hashtbl
+module E = Errormsg
 
 let debugType = false
 let debug = false
 
 let checkReturn = true
+
+let lu = locUnknown
+
            (* After processing an expression, we create its type, a list of 
             * instructions that should be executed before this exp is used, 
             * and a replacement exp *)

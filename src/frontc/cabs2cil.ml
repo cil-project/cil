@@ -7,6 +7,7 @@ open Pretty
 open Cil
 
 
+let lu = locUnknown
 
 (*** EXPRESSIONS *************)
                                         (* We collect here the program *)
@@ -123,7 +124,7 @@ let newVarName lookupname =
     let rc = H.find alphaTable prefix in
     let newsuffix = if suffix > !rc then suffix else !rc + 1 in
     rc := newsuffix;
-    prefix ^ (string_of_int newsuffix)
+    prefix ^ "_" ^ (string_of_int newsuffix)
   with Not_found -> begin (* First variable with this prefix *)
     H.add alphaTable prefix (ref suffix);
     lookupname  (* Return the original name *)

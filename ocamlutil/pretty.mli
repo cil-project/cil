@@ -2,14 +2,7 @@
  * Description:
  *
  * Copyright (c) 2000 by
- *  David Blei			blei@cs.berkeley.edu
- *  Chris Harrelson		chrishtr@cs.berkeley.edu
- *  Ranjit Jhala		jhala@cs.berkeley.edu
- *  Rupak Majumdar		rupak@cs.berkeley.edu
  *  George C. Necula	necula@cs.berkeley.edu
- *  Shree P. Rahul		sprahul@cs.berkeley.edu
- * 	Wes Weimer			weimer@cs.berkeley.edu
- *  Dror Weitz			dror@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
@@ -123,6 +116,10 @@ val gprintf      : (doc -> doc) -> ('a, unit, doc) format -> 'a
  * have properly nested align/unalign pairs. When the nesting depth surpasses 
  * !printDepth then we print ... and we skip until the matching unalign *)
 val printDepth   : int ref
+
+val printIndent  : bool ref  (* If false then does not indent *)
+
+val withPrintDepth : int -> (unit -> unit) -> unit
 
 (* And some instances of gprintf. Use with ignore because they return doc. *)
 val fprintf      : out_channel -> ('a, unit, doc) format -> 'a  

@@ -2,14 +2,7 @@
  * Description:
  *
  * Copyright (c) 2000 by
- *  David Blei			blei@cs.berkeley.edu
- *  Chris Harrelson		chrishtr@cs.berkeley.edu
- *  Ranjit Jhala		jhala@cs.berkeley.edu
- *  Rupak Majumdar		rupak@cs.berkeley.edu
  *  George C. Necula	necula@cs.berkeley.edu
- *  Shree P. Rahul		sprahul@cs.berkeley.edu
- * 	Wes Weimer			weimer@cs.berkeley.edu
- *  Dror Weitz			dror@cs.berkeley.edu
  *   
  * All rights reserved.  Permission to use, copy, modify and distribute
  * this software for research purposes only is hereby granted, 
@@ -39,6 +32,8 @@
 (* Pretty printer *)
 
 let debug = false
+let printIndent = ref true
+
 let fprintf x = Printf.fprintf stderr x
 
 type doc = 
@@ -271,6 +266,10 @@ let fit start accString width =
     | CText (d,s) -> 
         scan aligns breaks col 
           (fun a b c -> cont a b (c + String.length s)) d
+    | Break when not !printIndent -> 
+        (* Pretend we have seen a space *)
+        cont aligns breaks (col + 1)
+
     | (Break | Line) as doc ->            
         let ar =                        (* Find the matching align. There 
                                          * must always be one because we 
@@ -335,6 +334,9 @@ let fit start accString width =
     | Text s -> doString acc s
     | Concat (d1, d2) -> layout (layout acc d1) d2
     | CText (d, s) -> doString (layout acc d) s
+    | Break when not !printIndent -> 
+        (* Pretend we have a space *)
+        doString acc " "
     | Break | Line -> 
         let b = 
           match !allBreaks with
@@ -542,3 +544,8 @@ let sprintf format = gprintf (fun x -> sprint 80 x) format
 let printf  format = gprintf (fun x -> fprint stdout 80 x) format
 *)
 
+let withPrintDepth dp thunk = 
+  let opd = !printDepth in
+  printDepth := dp;
+  thunk ();
+  printDepth := opd

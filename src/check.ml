@@ -1,5 +1,7 @@
 (* A consistency checker for CIL *)
 open Cil
+module E = Errormsg
+module H = Hashtbl
 open Pretty
 
 
@@ -15,7 +17,7 @@ type ctxAttr =
 let checkAttributes (attrs: attribute list) : unit = 
   let aName = function (* Attribute name *)
       AId s -> s | ACons (s, _) -> s
-    | _ -> E.s (E.unimp "Unexpected attribute")
+    | _ -> E.s (E.bug "Unexpected attribute")
   in 
   let rec loop lastname = function
       [] -> ()
