@@ -22,6 +22,9 @@ Front-end
 are applies on both operands instead of just integral promotions. We duplicate
 this bug in doBinOp in bacs2cil.
 
+ - we should allow the user to specify a logging function that takes
+   printf()-style arguments (rather than hardcoding syslog/printk/printf). 
+
 
 CCURED
 ==============
