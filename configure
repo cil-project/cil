@@ -9,7 +9,6 @@
 ## M4sh Initialization.  ##
 ## --------------------- ##
 
-
 # Be Bourne compatible
 if test -n "${ZSH_VERSION+set}" && (emulate sh) >/dev/null 2>&1; then
   emulate sh
@@ -2518,9 +2517,10 @@ ocamlDownloadInstructions="
         make install
       Then come back here and re-run ./configure."
 
-# required major/minor
+# required major/minor.
+# (OCaml 3.04 would work if you changed a few places in the code)
 reqMaj=3
-reqMin=04
+reqMin=07
 
 # latest known-good major/minor; all versions between 'req'
 # and 'known' are expected to be ok
