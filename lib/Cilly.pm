@@ -70,6 +70,7 @@ sub new {
       SFILES => [],    # Assembly language files
       OFILES => [],    # Other input files
       IFILES => [],    # Already preprocessed files
+      EARLY_PPARGS => [], # Preprocessor args, first (pre-CIL) pass only
       PPARGS => [],    # Preprocessor args
       CCARGS => [],    # Compiler args
       LINKARGS => [],  # Linker args
