@@ -171,7 +171,7 @@ let compNames : (string, unit) H.t = H.create 17
 let rec checkType (t: typ) (ctx: ctxType) = 
   (* Check that it appears in the right context *)
   let rec checkContext = function
-      TVoid _ -> ctx = CTPtr || ctx = CTFRes
+      TVoid _ -> ctx = CTPtr || ctx = CTFRes || ctx = CTDecl
     | TNamed (ti, a) -> checkContext ti.ttype
     | TArray _ -> 
         (ctx = CTStruct || ctx = CTUnion 
