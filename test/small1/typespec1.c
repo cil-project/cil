@@ -10,7 +10,7 @@ unsigned char ucharorig;
 __u8 signed   signedtest; // This is unsigned char
 unsigned char signedorig;
 
-__u8 short    sshorttest; // This is just like short
+short  _u8   sshorttest; // This is just like short
      short    sshortorig;
 
 __s8 unsigned uinttest; // This is like unsigned char
