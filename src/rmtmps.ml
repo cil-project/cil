@@ -319,32 +319,35 @@ let hasExportingAttribute funvar =
  * linker and dynamic loader.  For variables, this consists of
  * anything that is not "static".  For functions, this consists of:
  *
- * - functions declared extern inline
- * - functions declared neither inline nor static
  * - functions bearing a "constructor" or "destructor" attribute
+ * - functions declared extern but not inline
+ * - functions declared neither inline nor static
  *)
 
 let isExportedRoot global =
-  let result = match global with
-  | GVar ({vstorage = storage}, _, _) as global
-    when storage != Static ->
-      true
-  | GFun ({svar = v} as fundec, _) as global ->
-      if hasExportingAttribute v then
-        true
-      else if v.vstorage = Extern then (* Keep all extern functions *)
-        true
-      else if v.vstorage = Static then (* Do not keep static functions *)
-        false
-      else if v.vinline then (* Do not keep inline functions, unless they 
-                              * are Extern also *)
-        false
-      else
-        true
-  | global ->
-      false
+  let result, reason = match global with
+  | GVar ({vstorage = Static}, _, _) ->
+      false, "static variable"
+  | GVar _ ->
+      true, "non-static variable"
+  | GFun ({svar = v}, _) ->
+      begin
+	match hasExportingAttribute v, v.vstorage, v.vinline with
+	| true, _, _ ->
+	    true, "constructor or destructor function"
+	| _, Extern, false ->
+	    true, "extern non-inline function"
+	| _, Extern, true ->
+	    false, "extern inline function"
+	| _, Static, _ ->
+            false, "static function"
+	| _ ->
+	    true, "other function"
+      end
+  | _ ->
+      false, "neither function nor variable"
   in
-  trace (dprintf "exported root -> %b for %a@!" result d_shortglobal global);
+  trace (dprintf "isExportedRoot %a -> %b, %s@!" d_shortglobal global result reason);
   result
 
 
