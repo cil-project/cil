@@ -703,7 +703,7 @@ cleancompress: defaulttarget mustbegcc
 	cd $(COMPRESSDIR)/src; make clean
 
 LIDIR=$(SPECDIR)/130.li
-LISAFECC=$(SAFECC) --combine --keep=safeccout $(CONLY)
+LISAFECC=$(SAFECC) --combine --keep=safeccout
 li: defaulttarget mustbegcc
 	cd $(LIDIR)/src; \
             make build CC="$(LISAFECC) $(CONLY)" \
@@ -721,3 +721,66 @@ liinfer: li
                  $(DOOPT) \
                  trial_li.c \
                  $(EXEOUT)trial_li.exe
+
+
+### SPEC95 GO
+GODIR=$(SPECDIR)/099.go
+GOSAFECC=$(SAFECC) --combine --keep=safeccout
+
+goclean: 	
+	cd $(GODIR)/src; make clean
+	cd $(GODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+
+go: defaulttarget mustbegcc
+	cd $(GODIR)/src; \
+            make build CC="$(GOSAFECC) $(CONLY)" \
+                       LD="$(GOSAFECC)" 
+	$(GODIR)/exe/base/go_ultra \
+            <$(GODIR)/data/train/input/2stone9.in
+
+
+
+### SPEC95 vortex
+VORDIR=$(SPECDIR)/147.vortex
+VORSAFECC=$(SAFECC) --combine --keep=safeccout
+
+vortexclean: 	
+	cd $(VORDIR)/src; make clean
+	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+
+vortex: defaulttarget mustbegcc
+	cd $(VORDIR)/src; \
+            make build CC="$(VORSAFECC) $(CONLY)" \
+                       LD="$(VORSAFECC)" 
+	$(GODIR)/exe/base/vortex_ultra \
+            <$(GODIR)/data/train/input/2stone9.in
+
+### SPEC95 m88ksim
+M88DIR=$(SPECDIR)/124.m88ksim
+M88SAFECC=$(SAFECC) --combine --keep=safeccout
+
+m88kclean: 	
+	cd $(M88DIR)/src; make clean
+	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+
+m88k: defaulttarget mustbegcc
+	cd $(M88DIR)/src; \
+            make build CC="$(M88SAFECC) $(CONLY)" \
+                       LD="$(M88SAFECC)" 
+	$(GODIR)/exe/base/m88ksim.ultra
+
+### SPEC95 ijpeg
+IJPEGDIR=$(SPECDIR)/132.ijpeg
+IJPEGSAFECC=$(SAFECC) --combine --keep=safeccout
+
+ijpegclean: 	
+	cd $(IJPEGDIR)/src; make clean
+	cd $(VODIR)/src; rm -f *cil.c *box.c *.i *_ppp.c *.origi
+
+ijpeg: defaulttarget mustbegcc
+	cd $(IJPEGDIR)/src; \
+            make build CC="$(IJPEGSAFECC) $(CONLY)" \
+                       LD="$(IJPEGSAFECC)" 
+	$(GODIR)/exe/base/vortex_ultra \
+            <$(GODIR)/data/train/input/2stone9.in
+

@@ -3,3 +3,6 @@ hola
 *infer.c
 *box.c
 *.cabs
+*.i
+*_ppp.c
+*.origi
