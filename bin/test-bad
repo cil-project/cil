@@ -1,16 +1,29 @@
 #!/bin/sh
 # run a regression test containing one or more intentional failures
+#
 # To create a source file to be processed by this script do:
 # - the file should be a standalone program with main without any arguments
-# - add a comment 
-#    // NUMERRORS n 
+# - add a comment
+#    // NUMERRORS n
 #   where n is the number of errors to be tested by this file
 # - add after certain lines in your file comments (1 <= k <= n)
 #    // ERROR(k)
 # - first all ERROR-lines are removed and the program must succeed.
-# - to test for error k all lines but those with label ERROR(k) are removed
-#   from the file and the program is expected to fail
+# - to test for error k all ERROR lines except those with label ERROR(k)
+#   are removed from the file, and the program is expected to fail
 #
+# Simple example:
+#   // simple.c
+#   // NUMERRORS 2
+#   int main()
+#   {
+#     char *p = (char*)0;   // ERROR(1)
+#     *p = 0;               // ERROR(1) - segfault
+#     return 2;             // ERROR(2) - returning failure code
+#     return 0;             // non-error case
+#   }
+#
+
 if [ "$1" = "" ]; then
   # most parameters are passed by name, instead of as positional
   # arguments, for better impedance match with Makefile; but it's

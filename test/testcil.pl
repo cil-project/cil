@@ -523,7 +523,7 @@ smAddTest("scott/struct_cs");
 $TEST->setField(smAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
 
   Failure of this test case usually indicates the stdin/out/err
-  section of the patch file (lib/safec_???.patch) does not exactly
+  section of the patch file (lib/ccured_???.patch) does not exactly
   match your /usr/include/stdio.h.
 
 EOF
