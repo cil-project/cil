@@ -1,0 +1,72 @@
+
+5/21/01 11:52
+
+tcsh: setenv CVS_RSH ssh
+bash: export CVS_RSH=ssh
+more info: http://www-inst.EECS.Berkeley.EDU/~cs164/unix.html#env
+
+cvs -d :ext:smcpeak@brooksie.cs:/home/cvs-repository checkout cil
+
+ocaml: http://caml.inria.fr/ocaml/
+
+make (GNU make)
+
+cvs commands:
+  commit: commit your changes to repository
+  update: get others' changes
+  other info: http://www.cvshome.org/
+
+make hola INFERBOX=3
+(actually worked)
+
+scott's regression test: ./regrtest
+
+george's regression test: cd test; ./testsafec --run
+
+src: (ML code)
+  box: insert runtime checks
+  check: ?
+  cil: representation of intermediate lang (C but no side
+       effects in expressions); includes cil -> doc
+  cilparse: parsing our stuff?
+  errormsg: ?
+  frontc: C parser (C source -> cabs -> cil)
+  globinit: add initializers to modules?
+  main: entry point to 'safec' tool; processes command-line flags
+  markptr: marks pointers based on usage (input to inferencer)
+  mllex: ?
+  notes.txt: describes syntax of 'asm' statements in gcc
+  oneret: ?
+  optim: rahul's bounds-check elim stuff
+  pretty: generic pretty-printer (doc -> string)
+  ptrnode: graph for inference algorithm
+  rmtmps: remove unused temporaries introduced by 'box'
+  secondsolve: 2nd solver?
+  simplesolve: 1st solver; decides which pointer flavors to use
+    based on how those pointers were used by programmer
+  stats: ?
+  thirdsolve: 3rd solver (currently used; INFERBOX=3)
+  trace: something for debugging output
+  util: ?
+  wildsolve: ?
+
+lib: (C code for use at runtime)
+  fixup.h: prepended to every input source file before boxing
+  safec.c: library wrappers (e.g. fopen_w)
+  safec_gcc.patch: patching nonsense
+  safecc.pl: intended to be drop-in replacement for 'gcc'
+  safeccheck.h: "inline" macros for doing runtime checks
+  safecmain.c: wrapper for 'main' in case it takes arguments
+  scaninfer: ?
+  gc/: boehm-weiser garbage collector (http://www.hpl.hp.com/personal/Hans_Boehm/gc/)
+  
+ML tutorial: http://www.dcs.napier.ac.uk/course-notes/sml/manual.html
+  
+
+
+
+
+
+
+
+
