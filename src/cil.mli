@@ -376,7 +376,7 @@ and stmt =
   | Instr of instr * location
 
 type fundec =
-    { svar:     varinfo;                (* Holds the name and type as a
+    { mutable svar:     varinfo;        (* Holds the name and type as a
                                          * variable, so we can refer to it
                                          * easily from the program *)
       mutable sformals: varinfo list;   (* These are the formals. There are
@@ -663,7 +663,7 @@ val mkMem: addr:exp -> off:offset -> exp
 val isIntegralType: typ -> bool
 val isArithmeticType: typ -> bool
 val isPointerType: typ -> bool
-
+val isFunctionType: typ -> bool
 
 (** Construct sorted lists of attributes ***)
 val addAttribute: attribute -> attribute list -> attribute list

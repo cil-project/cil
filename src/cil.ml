@@ -372,7 +372,7 @@ and stmt =
   | Instr of instr * location
         
 type fundec = 
-    { svar:     varinfo;                (* Holds the name and type as a 
+    { mutable svar:     varinfo;        (* Holds the name and type as a 
                                          * variable, so we can refer to it 
                                          * easily from the program *)
       mutable sformals: varinfo list;   (* These are the formals. There are 
@@ -1199,12 +1199,6 @@ and d_fun_decl () f =
       [], _ -> false, pre
     | _, pre' -> true, pre'
   in
-    (* Make sure that the formals in the type agree with the real ones *)
-  (match unrollType f.svar.vtype with
-    TFun (restyp, args, isva, a) -> 
-      if args != f.sformals then 
-        f.svar.vtype <- TFun(restyp, f.sformals, isva, a)
-  | _ -> ignore (E.warn "Type of %s is not a function\n" f.svar.vname));
   dprintf "%s%a%a %a@!{ @[%a@!%a@]@!}" 
     (if isinline then 
       if !msvcMode then "__inline " else "inline " 
@@ -1638,6 +1632,11 @@ let isArithmeticType t =
 let isPointerType t = 
   match unrollType t with
     TPtr _ -> true
+  | _ -> false
+
+let isFunctionType t = 
+  match unrollType t with
+    TFun _ -> true
   | _ -> false
 
 

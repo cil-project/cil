@@ -13,6 +13,11 @@ module E = Errormsg
  * variables that are specifically TAGGED contain tags *)
 let defaultIsWild  = ref false
 
+
+(* If allPoly is true then all un-defined functions are treated 
+ * polymorphically *)
+let allPoly = ref false
+
 (* A place where a pointer type can occur *)
 type place = 
     PGlob of string  (* A global variable or a global function *)

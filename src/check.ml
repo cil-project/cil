@@ -622,7 +622,11 @@ let rec checkGlobal = function
           begin match init with
             None -> ()
           | Some i -> ignore (checkExpType true i vi.vtype)
-          end)
+          end;
+          (* Cannot be a function *)
+          if isFunctionType vi.vtype then
+            E.s (E.bug "GVar for a function (%s)\n" vi.vname);
+          )
         ()
         
 

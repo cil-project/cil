@@ -14,6 +14,7 @@ let currentResultType = ref voidType
 
 let callId = ref (-1)  (* Each call site gets a new ID *)
 
+let polyId = ref (-1) 
 
 (* A number of functions will be treated polymorphically *)
 let polyFunc : (string, bool) H.t = H.create 7
@@ -101,14 +102,16 @@ let rec doType (t: typ) (p: N.place)
         
   | TFun (restyp, args, isva, a) -> 
       let restyp', i0 = doType restyp p nextidx in
-          (* Rewrite the argument types in place *)
-      let i' = 
+      (* Rewrite the argument types and copy them !!! (to allow polymorphism)
+          *)
+      let i', args' = 
         List.fold_left 
-          (fun nidx arg -> 
+          (fun (nidx, acc) arg -> 
             let t', i' = doType arg.vtype p nidx in
-            arg.vtype <- t';
-            i') i0 args in
-      TFun(restyp', args, isva, a), i'
+            let arg' = {arg with vtype = t'} in
+            (i', arg' :: acc)) (i0, []) args in
+      let newtp = TFun(restyp', List.rev args', isva, a) in
+      newtp, i'
 
           
 
@@ -212,10 +215,12 @@ let doVarinfo vi =
     else
       N.PLocal (!currentFileName, !currentFunctionName, vi.vname)
   in
-  (* Do the type of the variable. Start the index at 1 *)
   let vi_vtype = addArraySizedAttribute vi.vtype vi.vattr in 
+  (* Do the type of the variable. Start the index at 1 *)
   let t', _ = doType vi_vtype place 1 in
   vi.vtype <- t';
+(*  ignore (E.log "Did varinfo: %s. T=%a\n" vi.vname
+            d_plaintype vi.vtype); *)
   (* Associate a node with the variable itself. Use index = 0 *)
   let n = N.getNode place 0 vi.vtype vi.vattr in
   (* Add this to the variable attributes *)
@@ -372,6 +377,28 @@ and doExpAndCast e t =
 and doExpAndCastCall e t callid = 
   expToType (doExp e) t callid
 
+
+
+(* We will accumulate the marked globals in here *)
+let theFile : global list ref = ref []
+
+let instantiatePolyFunc (vi: varinfo) : varinfo =
+  if H.mem polyFunc vi.vname then begin
+(*    ignore (E.log "InstatiatePoly:%s T=%a\n" vi.vname
+              d_plaintype vi.vtype); *)
+            (* In this case the original varinfo has not been touched. So we 
+             * make a copy of it and we change that *)
+    let newvi = 
+      {vi with vname = 
+                  ("/*" ^ (string_of_int (!polyId + 1)) ^ "*/" ^ vi.vname)} in
+    incr polyId;
+     (* Now process it *)
+(*    ignore (E.log "instantiating to %s\n" newvi.vname); *)
+    doVarinfo newvi;
+    newvi
+  end else
+    vi
+
 (* Do a statement *)
 let rec doStmt (s: stmt) = 
   match s with 
@@ -393,39 +420,15 @@ let rec doStmt (s: stmt) =
       Instr (Set (lv', e'), l)
 
   | Instr (Call (reso, orig_func, args), l) -> 
-      let is_polymorphic v = H.mem polyFunc v.vname in
-      let func = begin (* check and see if it is malloc *)
+      let func = (* check and see if it is polymorphic *)
         match orig_func with
-          (Lval(Var(v),x)) when is_polymorphic v -> 
-            (* now we have to do a lot of work to make a copy of this
-             * function with all of the _ptrnode attributes stripped so 
-             * that it will get a new node in the graph correctly *) 
-            let strip a = dropAttribute a (ACons("_ptrnode",[])) in
-            let rec strip_va va = { va with vtype = new_type va.vtype ;
-                                        vattr = strip va.vattr } 
-            and new_type t = begin match t with
-              TVoid(a) -> TVoid(strip a)
-            | TInt(i,a) -> TInt(i, strip a)
-            | TBitfield(i,j,a) -> TBitfield(i,j, strip a)
-            | TFloat(f,a) -> TFloat(f, strip a)
-            | TEnum(s,l,a) -> TEnum(s,l, strip a)
-            | TPtr(t,a) -> TPtr(new_type t, strip a)
-            | TArray(t,e,a) -> TArray(new_type t,e,strip a)
-            | TComp(c) -> TComp({ c with cattr = strip c.cattr}) 
-            | TForward(c,a) -> TForward({c with cattr = strip c.cattr}, strip a)
-            | TFun(t,v,b,a) -> TFun(new_type t,List.map strip_va v,b,strip a)
-            | TNamed(s,t,a) -> TNamed(s,new_type t,strip a)
-            end in 
-            let new_vtype = new_type v.vtype in
-            (* this is the bit where we actually make this call unique *)
-            let new_varinfo = makeGlobalVar 
-              ("/*" ^ (string_of_int (!callId + 1)) ^ "*/" ^ v.vname) 
-                new_vtype 
-            in
-            doVarinfo new_varinfo ;  
-            (Lval(Var(new_varinfo),x)) 
+          (Lval(Var(v),NoOffset)) -> 
+            let newvi = instantiatePolyFunc v in
+            (* And add a declaration for it *)
+            theFile := GDecl (newvi, lu) :: !theFile;
+            (Lval(Var(newvi), NoOffset)) 
         | _ -> orig_func
-      end in
+      in
       let func', funct, funcn = doExp func in
       let (rt, formals, isva) = 
         match unrollType funct with
@@ -476,9 +479,12 @@ let doGlobal (g: global) : global =
   | GType (n, t, l) -> 
       let t', _ = doType t (N.PType n) 0 in
       GType (n, t', l)
-  | GDecl (vi, _) -> doVarinfo vi; g
+  | GDecl (vi, _) -> 
+(*      ignore (E.log "Found GDecl of %s. T=%a\n" vi.vname
+                d_plaintype vi.vtype); *)
+      if not (H.mem polyFunc vi.vname) then doVarinfo vi; 
+      g
   | GVar (vi, init, l) -> 
-      doVarinfo vi;
       let init' = 
         match init with
           None -> None
@@ -486,14 +492,20 @@ let doGlobal (g: global) : global =
       in
       GVar (vi, init', l)
   | GFun (fdec, l) -> 
-      doVarinfo fdec.svar;
+      let newvi = instantiatePolyFunc fdec.svar in
+      fdec.svar <- newvi; (* Change the varinfo if the instantiation has 
+                           * changed it *)
       currentFunctionName := fdec.svar.vname;
+      (* Do the formals (the local version). Must do them because they are 
+       * not part of the type *)
+     List.iter doVarinfo fdec.sformals;
+      (* Put the formals into the function type so that we get the right 
+       * information to BOX *)
       (match fdec.svar.vtype with
-        TFun(rt, _, _, _) -> currentResultType := rt
+        TFun(rt, _, isva, fa) -> 
+          fdec.svar.vtype <- TFun(rt, fdec.sformals, isva, fa);
+          currentResultType := rt
       | _ -> E.s (E.bug "Not a function"));
-      (* Do the formals (the local version). Reuse the types from the 
-       * function type *)
-      List.iter doVarinfo fdec.sformals;
       (* Do the other locals *)
       List.iter doVarinfo fdec.slocals;
       (* Do the body *)
@@ -506,12 +518,41 @@ let markFile fl =
   currentFileName := fl.fileName;
   E.hadErrors := false;
   H.clear polyFunc;
-  List.iter (fun s -> H.add polyFunc s true) 
-    ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
-  let newGlobals = List.map doGlobal fl.globals in
+  if !N.allPoly then
+    (* Go through the file once and find all declarations - definitions (for 
+     * functions only) *)
+    let processGlob = function
+        GDecl (vi, _) when isFunctionType vi.vtype ->
+          (* Make a shallow copy of the arguments in the function type to 
+           * ensure that we do not have interference with the formals of a 
+           * previous definition 
+
+          (match unrollType vi.vtype with
+            TFun (rt, args, isva, fa) -> 
+              vi.vtype 
+                <- TFun (rt, List.map 
+                           (fun a -> 
+                             {a with vname = "/**/" ^ a.vname}) args,
+                         isva, fa)
+          | _ -> ()); *)
+          H.add polyFunc vi.vname true
+      | GFun (f, l) -> H.add polyFunc f.svar.vname true
+      | _ -> ()
+    in
+(*    ignore (E.log "The polymorphic functions:\n");
+    H.iter (fun n -> fun _ -> ignore (E.log " %s@!" n)) polyFunc; *)
+    List.iter processGlob fl.globals
+  else begin
+    (* Otherwise we start with some defaults *)
+    List.iter (fun s -> H.add polyFunc s true) 
+      ["free"; "malloc"; "calloc"; "calloc_fseq"; "realloc"];
+  end;
+  theFile := [];
+  List.iter (fun g -> let g' = doGlobal g in 
+                      theFile := g' :: !theFile) fl.globals;
   ignore (E.log "Markptr: %s\n"
             (if !E.hadErrors then "Error" else "Success"));
-  {fl with globals = newGlobals}
+  {fl with globals = List.rev !theFile}
 
         
 

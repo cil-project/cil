@@ -2022,7 +2022,14 @@ let convFile fname dl =
                 else
                   E.s (E.unimp "%s is extern and with initializer" vi.vname)
               else
-                theFile := GVar(vi, init,lu) :: !theFile
+                (* If it has fucntion type it is a declaration *)
+                if isFunctionType vi.vtype then begin
+                  if init <> None then
+                    E.s (E.bug "Function declaration with initializer (%s)\n"
+                           vi.vname);
+                  theFile := GDecl(vi, lu) :: !theFile
+                end else
+                  theFile := GVar(vi, init, lu) :: !theFile
             end
           with e -> begin
             ignore (E.log "error in CollectGlobal (%s)\n" 
