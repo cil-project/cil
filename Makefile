@@ -104,6 +104,16 @@ _GNUCC=1
 USE_GC=1
 USER_SCOTT=1
 endif
+ifeq ($(COMPUTERNAME), seamonkey) # another for scott
+BASEDIR=/home/scott/wrk/safec
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+USE_GC=1
+USER_SCOTT=1
+endif
 ifeq ($(COMPUTERNAME), brooksie_scott) # scott on brooksie
 BASEDIR=/home/smcpeak
 SAFECCDIR=$(BASEDIR)
@@ -176,7 +186,7 @@ USE_GC=1
 endif
 
 # sm: I keep getting bit by this
-ifndef COMPUTERNAME
+ifndef BASEDIR
 # sm: why doesn't this do what the manual says?
 #HMM=$(error "wtf")
 HMM="you_have_to_set_the_COMPUTERNAME_environment_variable"
