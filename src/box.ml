@@ -10,7 +10,7 @@ let debug = false
 
 let checkReturn = true
 
-let allAreWild = false
+let defaultIsWild  = ref false
 
 let interceptCasts = ref false  (* If true it will insert calls to 
                                  * __scalar2pointer when casting scalars to 
@@ -127,42 +127,32 @@ and baseTypeName = function
 
 (**** Inspect the boxing style attribute *)
 let extractPointerTypeAttribute al = 
-  let pkind = ref P.Unknown in
   let rec loop = function
-      [] -> []
+      [] -> P.Unknown
     | a :: al -> begin
         match a with
-          AId("safe") -> pkind := P.Safe; al
-        | AId("wild") -> pkind := P.Wild; al
-        | AId("index") -> pkind := P.Index; al
-        | AId("seq") -> pkind := P.FSeq; al
-        | _ -> a :: loop al
+          AId("safe") -> P.Safe
+        | AId("wild") -> P.Wild
+        | AId("index") -> P.Index
+        | AId("seq") -> P.FSeq
+        | _ -> loop al
     end
   in
-  let res = loop al in
-  if !pkind = P.Unknown then (!pkind, al) else (!pkind, res)
+  loop al
           
 
 let kindOfType t = 
-  let pkind, _ = extractPointerTypeAttribute (typeAttrs t) in
-  if pkind = P.Unknown then
-    P.Scalar
-  else
-    pkind
+  match extractPointerTypeAttribute (typeAttrs t) with
+    P.Unknown -> begin
+        match unrollType t with
+          TPtr _ -> if !defaultIsWild then P.Wild else P.Safe
+        | _ -> P.Scalar
+    end
+  | res -> res
 
 
 let extractArrayTypeAttribute al = 
-  let sized = ref false in
-  let rec loop = function
-      [] -> []
-    | a :: al -> begin
-        match a with
-          AId("sized") -> sized := true; al
-        | _ -> a :: loop al
-    end
-  in
-  let res = loop al in
-  if !sized then (true, res) else (false, al)
+  filterAttributes "sized" al <> []
 
 (**** Make new string names *)
 let stringId = ref 0 
@@ -273,10 +263,10 @@ and fixit t =
           (* Now do the base type *)
           let fixed' = fixupType t' in
           (* Extract the boxing style attribute *)
-          let pkind, newa = extractPointerTypeAttribute a in
+          let pkind = kindOfType t in 
           let fixed = 
             match pkind with
-              (P.Safe|P.Unknown) -> TPtr(fixed', a)
+               P.Safe -> TPtr(fixed', a)
             | (P.Wild|P.Index) -> 
                 let tname  = newTypeName "fatp_" fixed' in (* The name *)
                 let fixed = 
@@ -329,8 +319,8 @@ and fixit t =
           t
             
       | TArray(t', l, a) -> 
-          let sized, newa = extractArrayTypeAttribute a in
-          let newarray = TArray(fixupType t', l, newa) in
+          let sized = extractArrayTypeAttribute a in
+          let newarray = TArray(fixupType t', l, a) in
           if sized then
             addArraySize newarray
           else
@@ -599,7 +589,7 @@ let rec typeContainsFats t =
  * for tags and for the length  *)
 (* Check whether the type contains an embedded array *)
 let mustBeTagged v = 
-  if allAreWild then
+  if !defaultIsWild then
     let rec containsArray t =
       existsType 
         (function 
