@@ -67,6 +67,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg trace stats util clist \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
               canonicalize heap oneret partial simplemem simplify \
+	      dataslicing \
               testcil \
 	      $(CILLY_FEATURES) \
 	      feature_config
