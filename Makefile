@@ -1828,6 +1828,66 @@ bind-noclean: mustbegcc mustbelinux mustbemanju
 bind-gcc: mustbelinux mustbemanju bindclean
 	cd $(BINDSRC) ; make CC=gcc
 
+#### ------------- WU-FTPD -------------------------
+
+# source available at www.wu-ftpd.org
+
+
+## compiled binaries can be found under /bin ##
+
+WUFTPDSRC := /usr/local/src/wu-ftpd-2.6.2
+
+wuftpdclean:
+	cd $(WUFTPDSRC); ./build clean
+	-cd $(WUFTPDSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+wuftpd: mustbegcc mustbelinux mustbemanju wuftpdclean
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/lib/cilly.pl lnx
+
+wuftpd-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(WUFTPDSRC) ; ./build CC=$(CCUREDHOME)/lib/cilly.pl lnx
+
+wuftpd-gcc: mustbelinux mustbemanju wuftpdclean
+	cd $(WUFTPDSRC) ; ./build CC=gcc lnx
+
+#### ------------- OPENSSH -------------------------
+
+# downloads available at: 
+# ftp://download.sourceforge.net/pub/mirrors/OpenBSD/OpenSSH/portable/
+
+# website at www.openssh.org
+
+OPENSSHSRC := /usr/local/src/openssh-3.0.2p1
+
+opensshclean:
+	cd $(OPENSSHSRC); make clean
+	-cd $(OPENSSHSRC); find . \( \
+		-name '*cil.c' -o \
+		-name '*.exe' -o \
+		-name '*.i' -o \
+		-name '*.o' -o \
+		-name '*.obj' -o \
+		-name '*cabs.c' -o \
+		-name '*_comb*.c' \
+	      	\) -exec rm -f {} \;
+
+openssh: mustbegcc mustbelinux mustbemanju opensshclean
+	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
+
+openssh-noclean: mustbegcc mustbelinux mustbemanju
+	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
+
+openssh-gcc: mustbelinux mustbemanju opensshclean
+	cd $(OPENSSHSRC) ; make CC=gcc
+
 #### ------------- GIMP AND FRIENDS ----------------
 
 # downloads:
