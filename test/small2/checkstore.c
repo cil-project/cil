@@ -38,7 +38,7 @@ int *gptr;
 
 int global;
 
-int main() {
+int function() {
   int local;
 
   // This should work
@@ -50,7 +50,7 @@ int main() {
   storeToStack(&local);
 
   // This should fail
-  gptr = &local; // ERROR(1):Storing stack address
+  gptr = &local; // ERROR(1):STORE_SP
 
   // Play a trick with pointer arithemtic (SEQ)
 #if ERROR == 2
@@ -142,6 +142,8 @@ int main() {
 }
 
 
-
-
-
+// We must do all tests not in main, because CCured now allows
+// addresses of locals in main to be stored into the heap
+int main() {
+  function();
+}

@@ -17,7 +17,7 @@ int *somePtr;
 //matth: making e1 global so ERROR(1) below fails.
 struct Entry e1;
 
-int main(int argc, char **argv)
+int function(int argc, char **argv)
 {
   //matth: if e1 is local, there's nothing wrong with storing &e2.x in it.
   struct Entry /*e1,*/ e2; 
@@ -38,3 +38,6 @@ int main(int argc, char **argv)
 }
 
 
+int main(int argc, char **argv) {
+  function(argc, argv);
+}
