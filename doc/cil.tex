@@ -633,6 +633,13 @@ the files of a composite type. use visitGlobal to visit the [GCompTag] that
 defines the fields.
 \end{itemize}
 
+Some transformations may want to use visitors to insert additional
+instructions before statements and instructions. To do so, pass a list of
+instructions to the  \cilvalref{queueInstr} method of the specialized
+object. The instructions will automatically be inserted before that
+instruction in the transformed code. The \cilvalref{unqueueInstr} method
+should not normally be called by the user. 
+
  \subsection{Printing and Debugging support}
  
 The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively

@@ -1490,7 +1490,8 @@ type 'a visitAction =
  * this type by specializing the class {!Cil.nopCilVisitor}. Each of the 
  * specialized visiting functions can also call the [queueInstr] to specify 
  * that some instructions should be inserted before the current instruction 
- * or statement. *)
+ * or statement. Use syntax like [self#queueInstr] to call a method
+ * associated with the current object. *)
 class type cilVisitor = object
   method vvdec: varinfo -> varinfo visitAction  
     (** Invoked for each variable declaration. The subtrees to be traversed 

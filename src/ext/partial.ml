@@ -529,9 +529,12 @@ module MakePartial =
           end in 
 
           if (e' = one) then begin
-            if b2.bstmts = [] && b2.battrs = [] then 
-              stmt.skind <- Block(b1)
-            else 
+            if b2.bstmts = [] && b2.battrs = [] then begin
+              stmt.skind <- Block(b1) ;
+              match b1.bstmts with
+                [] -> failwith "partial: completely empty if" 
+              | hd :: tl -> stmt.succs <- [hd]
+            end else 
               stmt.skind <- Block( 
               { bstmts = 
                 [ mkStmt (Block(b1)) ;
@@ -540,9 +543,12 @@ module MakePartial =
             remove b2 b1 ;
             state
           end else if (e' = zero) then begin
-            if b1.bstmts = [] && b1.battrs = [] then 
-              stmt.skind <- Block(b2)
-            else 
+            if b1.bstmts = [] && b1.battrs = [] then begin
+              stmt.skind <- Block(b2) ;
+              match b2.bstmts with
+                [] -> failwith "partial: completely empty if" 
+              | hd :: tl -> stmt.succs <- [hd]
+            end else 
             stmt.skind <- Block(
             { bstmts = 
               [ mkStmt (Block(b2)) ;
@@ -558,6 +564,15 @@ module MakePartial =
       | Return(Some(e),loc) ->
           let e' = S.evaluate state e in 
           stmt.skind <- Return(Some(e'),loc) ;
+          state
+
+      | Block(b) ->
+          if List.length stmt.succs > 1 then begin
+            ignore (Pretty.printf "(%a) has successors [%a]@!"
+              d_stmt stmt 
+              (docList (chr '@') (d_stmt ()))
+              stmt.succs)
+          end ;
           state
 
       | _ -> state

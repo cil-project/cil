@@ -201,7 +201,7 @@ let rec theMain () =
     "--MSVC", Arg.Unit (fun _ ->   C.msvcMode := true;
                                    F.setMSVCMode ();
                                    if not Machdep.hasMSVC then
-                                     E.s (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
+                                     ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
                        ), "Produce MSVC output. Default is GNU";
     "--stages", Arg.Unit (fun _ -> Util.printStages := true),
                "print the stages of the algorithm as they happen";
