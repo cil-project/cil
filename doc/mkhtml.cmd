@@ -25,7 +25,9 @@ cp ../ccuredheader.html .
 
 rm -rf ccured
 mkdir ccured
-mkdir ccured\cil
+cd ccured
+mkdir cil
+cd ..
 
 cp ccured*.html ccured
 mv ccured/ccuredindex.html ccured/index.html

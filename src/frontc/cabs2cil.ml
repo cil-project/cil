@@ -1622,7 +1622,8 @@ and doAttr (a: A.attribute) : attribute list =
     String.sub n st (fin - st + 1)
   in
   match a with
-    (s, []) -> [Attr (stripUnderscore s, [])]
+    ("restrict", []) -> []
+  | (s, []) -> [Attr (stripUnderscore s, [])]
   | (s, el) -> 
       let rec attrOfExp (strip: bool) (a: A.expression) : attrarg =
         match a with

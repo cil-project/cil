@@ -1,3 +1,7 @@
+#ifndef __FSEQN
+#define __FSEQN
+#endif
+
 typedef struct {
     char * name;
     int data;
