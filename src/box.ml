@@ -1859,25 +1859,7 @@ and castTo (fe: fexp) (newt: typ)
       seqToSafe oldk ep pfld.ftype eb zero
 
 
-(****** FAT3 -> LEAN *******)
-  (* SEQ -> SAFE. Must do bounds checking *)
-  | W1(oldt, P.Seq, e), P.Safe ->
-      let (base_oldt, p, b, bend) = readFieldsOfFat e oldt in
-      seqToSafe P.Seq p base_oldt b bend
-  | W3(oldt, P.Seq, ep, eb, ebend), P.Safe ->
-      let pfld, _, _ = getFieldsOfFat oldt in
-      seqToSafe P.Seq ep pfld.ftype eb ebend
-
-
-(******* FAT2 -> FAT2 *******)
-  (* INDEX -> SEQ *)
-  | F1(oldt, P.Index, e), P.Seq -> 
-      let _, ep, eb, _ = readFieldsOfFat e oldt in
-      indexToSeq ep eb
-  | F2(oldt, P.Index, ep, eb), P.Seq -> indexToSeq ep eb
-  | FC(oldt, P.Index, prevt, _, e), P.Seq -> 
-      castTo (F1(prevt, P.Index, e)) newt doe
-      
+(****** FAT2 -> FAT2 *****)
   (* INDEX -> INDEX. No bounds checking necessary here. WILD -> WILD is also 
    * the same *)
   | F1(oldt, ((P.Index|P.Wild) as oldk), e), _ when newkind = oldk -> 
@@ -1892,6 +1874,27 @@ and castTo (fe: fexp) (newt: typ)
     when newkind = oldk && prevk = oldk -> 
       (doe, FC(newt, newkind, prevt, prevk, e))
 
+(******* FAT2 -> FAT3 *******)
+  (* INDEX -> SEQ *)
+  | F1(oldt, P.Index, e), P.Seq -> 
+      let _, ep, eb, _ = readFieldsOfFat e oldt in
+      indexToSeq ep eb
+  | F2(oldt, P.Index, ep, eb), P.Seq -> indexToSeq ep eb
+  | FC(oldt, P.Index, prevt, _, e), P.Seq -> 
+      castTo (F1(prevt, P.Index, e)) newt doe
+      
+
+(****** FAT3 -> LEAN *******)
+  (* SEQ -> SAFE. Must do bounds checking *)
+  | W1(oldt, P.Seq, e), P.Safe ->
+      let (base_oldt, p, b, bend) = readFieldsOfFat e oldt in
+      seqToSafe P.Seq p base_oldt b bend
+  | W3(oldt, P.Seq, ep, eb, ebend), P.Safe ->
+      let pfld, _, _ = getFieldsOfFat oldt in
+      seqToSafe P.Seq ep pfld.ftype eb ebend
+
+
+(***** FAT3 -> FAT3 *******)
    (* SEQ -> SEQ. No bounds checking necessary here. *)
   | W1(oldt, P.Seq, e), P.Seq -> 
       (doe, WC(newt, newkind, oldt, P.Seq, e))
