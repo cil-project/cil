@@ -323,8 +323,8 @@ testpcc/% : $(PCCDIR)/src/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 
 
 testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
+	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
@@ -337,8 +337,8 @@ ifdef _MSVC
 MSLINK=--mode=mslink
 endif
 combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
+	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
 	make -C $(PCCDIR) \
              CC="$(SAFECC) --patch=$(CILDIR)/lib/$(PATCHFILE) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
              LD="$(SAFECC) $(MSLINK) --combine --keep=$(CILDIR)/test/PCCout" \
@@ -353,7 +353,7 @@ allpcc: $(EXECUTABLE)$(EXE) $(SAFEMAINLIB) $(SAFECLIB)
 	cd $(PCCTEST); \
            $(SAFECC) --keep=. \
                  $(DOOPT) \
-                 ../PCC/bin/engine.x86_WIN32_MSVC._DEBUG.exe.c \
+                 ../PCC/bin/engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe.c \
                  $(EXEOUT)allengine.exe
 
 runpcc:

@@ -507,7 +507,7 @@ sub runShell {
 sub setCompilerMode {
     my ($mode, $arg) = @_;
     if(defined $compiler && $compiler->{MODENAME} ne $mode) {
-        die "Found a $mode argument ($arg) while in $compiler->{NAME} mode";
+#        die "Found a $mode argument ($arg) while in $compiler->{NAME} mode";
     }
     if($mode eq "mscl") {
         $compiler = MSCL->new; return;
