@@ -96,4 +96,6 @@ void exit(int);
 #pragma boxprintf("fprintf", 1)
 #pragma boxprintf("sprintf", 1)
 #pragma boxprintf("snprintf", 2)
+
+#pragma boxexported("main")
 #endif

@@ -246,6 +246,10 @@ let newStringName () =
   "__string" ^ (string_of_int !stringId)
 
 
+let isNullTerm = function
+    N.SeqN | N.FSeqN | N.SeqNT | N.FSeqNT -> true
+  | _ -> false
+
 (* sm: scan a list of strings for one element
  * (never know where to put this kind of stuff in ML) *)
 let stringListContains (str:string) (sl:string list) : bool =
@@ -351,7 +355,8 @@ let getNodeAttributes t =
 let isFatComp (comp: compinfo) = 
   (comp.cstruct && 
    (match comp.cfields with 
-     p :: b :: rest when p.fname = "_p" && b.fname = "_b" -> 
+     p :: b :: rest when p.fname = "_p" 
+                 && (b.fname = "_b" || b.fname = "_e") -> 
        (match rest with
          [] -> true (* A two word pointer *)
        | [e] when e.fname = "_e" -> true
@@ -367,23 +372,33 @@ let isFatType t =
 
 (* Given a fat type, return the three fieldinfo corresponding to the ptr, 
  * base and (optional) end *)
-let getFieldsOfFat (t: typ) : fieldinfo * fieldinfo * (fieldinfo option) = 
+let getFieldsOfFat (t: typ) 
+    : fieldinfo * (fieldinfo option) * (fieldinfo option) = 
   match unrollType t with
     TComp comp when isFatComp comp -> begin
       match comp.cfields with 
-        p :: b :: e :: _ -> p, b, Some e
-      | p :: b :: [] -> p, b, None
+        p :: b :: e :: _ -> p, Some b, Some e
+      | p :: b :: [] -> 
+          (* b could either be the base field or the end field *)
+          if b.fname = "_b" then p, Some b, None else p, None, Some b
       | _ -> E.s (E.bug "getFieldsOfFat")
     end
   | _ -> E.s (E.bug "getFieldsOfFat %a\n" d_type t)
         
-let rec readFieldsOfFat (e: exp) et =     
+(* Given an expression of a fat type, return three expressions, encoding the 
+ * pointer, the base and the end. Also return the type of the first 
+ * expression *)
+let rec readFieldsOfFat (e: exp) (et: typ) 
+    : typ * exp * exp * exp =     
   if isFatType et then
-    let fptr, fbase, fendo = getFieldsOfFat et in
+    let fptr, fbaseo, fendo = getFieldsOfFat et in
     let rec compOffsets = function
         NoOffset -> 
-          Field(fptr, NoOffset), Field(fbase, NoOffset), 
-          (match fendo with Some x -> Field(x, NoOffset) | _ -> NoOffset)
+          Field(fptr, NoOffset), 
+          (match fbaseo with Some fbase -> Field(fbase, NoOffset) 
+                            | _ -> Field(fptr, NoOffset)),
+          (match fendo with Some x -> Field(x, NoOffset) 
+                            | _ -> Field(fptr, NoOffset))
             
       | Field(fi, o) -> 
           let po, bo, lo = compOffsets o in
@@ -422,15 +437,20 @@ let rec readFieldsOfFat (e: exp) et =
 let setFatPointer (t: typ) (p: typ -> exp) (b: exp) (e: exp)
     : stmt list * lval = 
   let tmp = makeTempVar !currentFunction t in
-  let fptr, fbase, fendo = getFieldsOfFat t in
+  let fptr, fbaseo, fendo = getFieldsOfFat t in
   let p' = p fptr.ftype in
+  let setbase = 
+    match fbaseo with
+      None -> []
+    | Some fbase -> [mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b)]
+  in
   let setend = 
     match fendo with
       None -> []
     | Some fend -> [mkSet (Var tmp, Field(fend,NoOffset)) (castVoidStar e)]
   in
   ( mkSet (Var tmp, Field(fptr,NoOffset)) p' ::
-    mkSet (Var tmp, Field(fbase,NoOffset)) (castVoidStar b)  :: setend, 
+    setbase @ setend, 
     (Var tmp, NoOffset))
       
 let readPtrField (e: exp) (t: typ) : exp = 
@@ -475,7 +495,13 @@ let pkNrFields = function
 let pkFields (pk: N.opointerkind) : (string * (typ -> typ)) list = 
   match pkNrFields pk with
     1 -> [ ("", fun x -> x) ]
-  | 2 -> [ ("_p", fun x -> x); ("_b", fun _ -> voidPtrType) ]
+  | 2 -> begin
+      match pk with
+        N.FSeq | N.FSeqN -> [ ("_p", fun x -> x); 
+                              ("_e", fun _ -> voidPtrType) ]
+      | _ -> [ ("_p", fun x -> x); 
+               ("_b", fun _ -> voidPtrType) ]
+  end
   | 3 -> [ ("_p", fun x -> x); 
            ("_b", fun _ -> voidPtrType);
            ("_e", fun _ -> voidPtrType) ]
@@ -485,12 +511,6 @@ let pkFields (pk: N.opointerkind) : (string * (typ -> typ)) list =
  * composite value is denoted by a single expression *)
 let mkFexp1 (t: typ) (e: exp) : fexp  = 
   let k = kindOfType t in
-(*  match k with
-    (N.Safe|N.Scalar|N.String|N.ROString|
-    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, e)
-  | (N.Index|N.Wild|N.FSeq|N.FSeqN|N.Seq|N.SeqN) -> FS (t, k, e)
-  | _ -> E.s (E.bug "mkFexp1(%a)" N.d_opointerkind k)
-*)
   match pkNrFields k with 
     1 -> L (t, k, e)
   | _ -> FS (t, k, e)
@@ -504,22 +524,6 @@ let mkFexp3 (t: typ) (ep: exp) (eb: exp) (ee: exp) : fexp  =
     1 -> L (t, k, ep)
   | _ -> FM (t, k, ep, eb, ee)
 
-(*
-  | (N.Safe|N.Scalar|N.String|N.ROString|
-    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L (t, k, ep)
-  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
-  | (N.Seq|N.SeqN) -> FM (t, k, ep, eb, ee)
-  | _ -> E.s (E.bug "mkFexp3(%a): ep=%a\nt=%a" 
-                N.d_opointerkind k d_plainexp ep d_plaintype t)
-*)
-let mkFexp2 (t: typ) (ep: exp) (eb: exp) : fexp = 
-  let k = kindOfType t in
-  match k with
-    (N.Safe|N.Scalar|N.String|N.ROString|
-    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT) -> L  (t, k, ep)
-  | (N.Index|N.Wild|N.FSeq|N.FSeqN) -> FM (t, k, ep, eb, zero)
-  | _ -> E.s (E.bug "mkFexp2(%a)" N.d_opointerkind k)
-
 
 let pkTypePrefix (pk: N.opointerkind) = 
   match pk with
@@ -531,10 +535,8 @@ let pkTypePrefix (pk: N.opointerkind) =
 let pkQualName (pk: N.opointerkind) 
                (acc: string list) 
                (dobasetype: string list -> string list) : string list = 
+  if pkNrFields pk = 1 then dobasetype ("s" :: acc) else
   match pk with
-    N.Safe |
-    N.WildT|N.FSeqT|N.SeqT|N.FSeqNT|N.SeqNT|N.IndexT -> dobasetype ("s" :: acc)
-  | N.String | N.ROString -> dobasetype ("s" :: acc)
   | N.Wild -> "w" :: acc (* Don't care about what it points to *)
   | N.Index -> dobasetype ("i" :: acc)
   | N.Seq -> dobasetype ("q" :: acc)
@@ -1072,16 +1074,16 @@ let pkAddrOf (lv: lval)
              (fe: exp) : (fexp * stmt list) = 
   let ptrtype = mkPointerTypeKind lvt lvk in
   match lvk with
-    N.Safe -> mkFexp1 ptrtype (AddrOf(lv)), []
-  | (N.Index | N.Wild | N.FSeq | N.FSeqN ) -> 
+    N.Safe -> mkFexp1 ptrtype (mkAddrOf lv), []
+  | (N.Index | N.Wild | N.FSeq | N.FSeqN | N.Seq | N.SeqN) -> 
       mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
-  | (N.Seq | N.SeqN)  ->  mkFexp3 ptrtype (AddrOf(lv)) fb fe, []
   | _ -> E.s (E.bug "pkAddrOf(%a)" N.d_opointerkind lvk)
          
          
 (* Given an array type return the element type, pointer kind, base and bend *)
 let arrayPointerToIndex (t: typ) (k: N.opointerkind) 
-                        (lv: lval) (base: exp) = 
+                        (lv: lval) 
+                        (base: exp) = 
   match unrollType t with
     TArray(elemt, _, a) when k = N.Wild -> 
       (elemt, N.Wild, base, zero)
@@ -1465,7 +1467,7 @@ let fromTable (fe: fexp) : stmt list * fexp =
   match oldk with
     N.WildT -> 
       let b, s = fetchHome p in
-      [s], mkFexp2 (newt N.Wild) p (Lval(var b))
+      [s], mkFexp3 (newt N.Wild) p (Lval(var b)) zero
   | N.SeqT -> 
       let b, e, s = fetchHomeEnd p in
       [s], mkFexp3 (newt N.Seq) p (Lval(var b)) (Lval(var e))
@@ -1533,27 +1535,26 @@ let rec beforeIndex ((btype, pkind, mklval, base, bend, stmts) as input) =
 let rec pkStartOf (lv: lval)
               (lvt: typ)
               (lvk: N.opointerkind)  (* The kind of the StartOf pointer *)
-              (f2: exp)
-              (f3: exp) : (fexp * stmt list) = 
+              (fb: exp)
+              (fe: exp) : (fexp * stmt list) = 
   match unrollType lvt with
     TArray(t, _, _) -> begin
       let newp = AddrOf(addOffsetLval (Index(zero, NoOffset)) lv) in
       match lvk with
         N.Safe -> 
           let (_, pkind, base, bend) = 
-            arrayPointerToIndex lvt lvk lv f2
+            arrayPointerToIndex lvt lvk lv fb
           in
           let pres = mkPointerTypeKind t pkind in
-          if pkind = N.Seq || pkind = N.SeqN then
-            mkFexp3 pres newp base bend, []
-          else
-            mkFexp2 pres newp base, []
+          mkFexp3 pres newp base bend, []
+
       | N.Wild -> 
-          mkFexp2 (mkPointerTypeKind t lvk) newp f2, []
+          mkFexp3 (mkPointerTypeKind t lvk) newp fb zero, []
+
       | N.Seq|N.FSeq|N.Index -> 
           (* multi-dim arrays. Convert to SAFE first *)
           let (lvt', lvk', mklval', base', bend', stmts') = 
-            beforeField (lvt,lvk, (fun o -> addOffsetLval o lv), f2, f3, []) in
+            beforeField (lvt,lvk, (fun o -> addOffsetLval o lv), fb, fe, []) in
           if lvk' <> N.Safe then
             E.s (E.bug "pkStartOf: I expected a safe here\n");
           let (res, stmts'') = pkStartOf lv lvt lvk' base' bend' in
@@ -1569,9 +1570,9 @@ let rec pkStartOf (lv: lval)
       let start = StartOf lv in
       match lv with
         Var vi, NoOffset when !N.defaultIsWild -> 
-          mkFexp2 (mkPointerTypeKind lvt N.Wild) start start, []
+          mkFexp3 (mkPointerTypeKind lvt N.Wild) start start zero, []
       | _ -> 
-          mkFexp2 (mkPointerTypeKind lvt lvk) start f2, []
+          mkFexp3 (mkPointerTypeKind lvt lvk) start fb zero, []
   end
         
   | _ -> E.s (E.unimp "pkStartOf on a non-array and non-function: %a"
@@ -1600,7 +1601,7 @@ let stringLiteral (s: string) (strt: typ) =
                result, 
                castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
-      let l = (if k = N.FSeqN || k = N.SeqN then 0 else 1) + String.length s in
+      let l = (if isNullTerm k then 0 else 1) + String.length s in
       let tmp = makeTempVar !currentFunction charPtrType in
       (* Make it a SEQ for now *)
       let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
@@ -1608,11 +1609,7 @@ let stringLiteral (s: string) (strt: typ) =
         match k with 
           N.Safe | N.String | N.ROString -> 
             mkFexp1 fixChrPtrType (Lval (var tmp))
-        | N.FSeq | N.FSeqN -> 
-            mkFexp2  fixChrPtrType 
-              (Lval (var tmp))
-              theend 
-        | N.Seq | N.SeqN -> 
+        | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
             mkFexp3  fixChrPtrType 
               (Lval (var tmp))
               (Lval (var tmp))
@@ -1630,14 +1627,14 @@ let pkArithmetic (ep: exp)
                  (ek: N.opointerkind) (* kindOfType et *)
                  (bop: binop)  (* Either PlusPI or MinusPI or IndexPI *)
                  (e2: exp) : (fexp * stmt list) = 
-  let ptype, ptr, f2, f3 = readFieldsOfFat ep et in
+  let ptype, ptr, fb, fe = readFieldsOfFat ep et in
   match ek with
     N.Wild|N.Index -> 
-      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2,   []
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb zero,   []
   | (N.Seq|N.SeqN) -> 
-      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) f2 f3,   []
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe,   []
   | (N.FSeq|N.FSeqN) -> 
-      mkFexp2 et (BinOp(bop, ptr, e2, ptype)) f2, 
+      mkFexp3 et (BinOp(bop, ptr, e2, ptype)) fb fe, 
       [call None (Lval (var checkPositiveFun.svar)) [ e2 ]]
   | N.Safe ->
       E.s (E.bug "pkArithmetic: pointer arithmetic on safe pointer: %a@!"
@@ -1646,7 +1643,7 @@ let pkArithmetic (ep: exp)
       (* Arithmetic on strings is tricky. We must first convert to a FSeq and 
        * then do arithmetic. We leave it a SeqN to be converted back to 
        * string late if necessary *)
-      let p', b', bend', acc' = stringToSeq ptr f2 f3 [] in
+      let p', b', bend', acc' = stringToSeq ptr fb fe [] in
       (* Change the type from String into a SeqN pointer *)
       let ptype' = 
         match ptype with
@@ -1794,7 +1791,7 @@ let rec castTo (fe: fexp) (newt: typ)
       | N.Safe, N.Wild 
             when (match unrollType oldt 
                      with TPtr(TFun _, _) -> true | _ -> false) -> 
-              (doe, mkFexp2 newt (castP p) zero)
+              (doe, mkFexp3 newt (castP p) zero zero)
 
         (* SAFE -> FSEQ *)          
       | N.Safe, N.FSeq -> 
@@ -2116,126 +2113,22 @@ let checkWrite e = checkMem (Some e)
 
 (********** Initialize variables ***************)
 
-    (* Scan the type for arrays. Maybe they must be SIZED or NULLTERM *)
-let rec initForType 
-                 (t: typ) 
-                 (withivar: (varinfo -> 'a) -> 'a) (* Allocate temporarily an 
-                                                    * iteration variable *)
-                 (mustZero: bool)  (* The area is not zeroed already *)
-                 (endo: exp option) (* The end of the home area. To be used 
-                                     * for initializing arrays of size 0 *)
-                 (doit: offset -> exp -> stmt list -> stmt list) 
-                 (addrof: offset -> exp) (* Get the address of the field *)
-                 (acc: stmt list) : stmt list = 
-  match unrollType t with
-    TInt _ | TFloat _ | TBitfield _ | TEnum _ -> acc
-  | TComp comp when comp.cstruct -> begin
-      match comp.cfields with
-        [s; a] when s.fname = "_size" && a.fname = "_array" ->
-              (* Sized arrays *)
-              (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
-          let bt, l, thissize = 
-            match unrollType a.ftype with
-              TArray(bt, Some l, _) when not (isZero l) -> 
-                bt, l,
-                (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
-                  
-            | TArray(bt, _, _) -> begin
-                match endo with
-                  Some e -> 
-                  (* We know the end of the area *)
-                    let sz = 
-                      BinOp(MinusA, e, 
-                            doCast (addrof (Field(a, NoOffset))) uintType, 
-                            uintType) in
-                    bt, 
-                    (BinOp(Div, sz, SizeOf(bt), uintType)), 
-                    sz
-                      
-                | None -> 
-                    ignore (E.warn "Initializing SIZED open array with length 0: %a" d_exp (addrof (Field(s, NoOffset))));
-                    bt, zero, zero
-            end
-            | _ -> E.s (E.bug "SIZED array is not an array\n")
-          in
-          let dothissize = doit (Field(s, NoOffset)) thissize acc in
-          (* Now register the sized array *)
-          let acc' = 
-            registerArea [ integer registerAreaSizedInt;
-                          castVoidStar (addrof (Field(a, NoOffset)));
-                          castVoidStar zero ] dothissize 
-          in
-              (* Prepare the "doit" function for the base type *)
-          withivar 
-            (fun iter ->
-              let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-                mkForIncr iter zero l one 
-                  (doit (Field(a, Index (Lval(var iter), off))) what []) @ acc
-              in
-              let doaddrforarray (off: offset) = 
-                E.s (E.bug "OPEN arrays inside SIZED arrays ???") 
-              in
-              initForType bt withivar mustZero endo 
-                doforarray doaddrforarray acc')
+let rec initializeType
+    (t: typ)   (* The type of the lval to initialize *)
+    (withivar: (varinfo -> 'a) -> 'a) (* Allocate temporarily an iteration 
+                                       * variable  *)
+    (mustZero: bool)   (* The area is not zeroed already *)
+    (endo: exp option) (* The end of the home area. To be used for 
+                        * initializing arrays of size 0  *)
 
-      | _ -> (* A regular struct. Do all the fields in sequence *)
-          List.fold_left 
-            (fun acc fld -> 
-              initForType fld.ftype withivar mustZero endo
-                (fun off what acc -> doit (Field(fld, off)) what acc)
-                (fun off -> addrof (Field(fld, off)))
-                acc)
-            acc
-            comp.cfields
-  end
-  | TComp comp -> (* UNION *)
-      (* Go into all fields and check that we do not have anything to 
-       * initialize *)
-      let doforunion off what acc =
-        E.s (E.unimp "Initialization inside a union (%s)\n"
-               (compFullName comp))
-      in
-      List.fold_left 
-        (fun acc fld -> 
-          initForType fld.ftype withivar mustZero endo
-            doforunion
-            (fun off -> addrof (Field(fld, off)))
-            acc)
-        acc
-        comp.cfields
-      
-  | TArray(bt, Some l, a) -> 
-      if filterAttributes "nullterm" a <> [] && mustZero then begin
-            (* Write a zero at the very end *)
-        (match unrollType bt with
-          TInt((IChar|ISChar|IUChar), _) -> ()
-        | _ -> E.s (E.unimp "NULLTERM array of base type %a" d_type bt));
-        doit (Index(BinOp(MinusA, l, one, intType), NoOffset)) zero acc
-      end else
-        (* Register the array begining and the end *)
-        let acc' = 
-          registerArea 
-            [ integer registerAreaSeqInt;
-              castVoidStar (addrof NoOffset);
-              castVoidStar (addrof (Index(l, NoOffset))) ] acc
-        in
-            (* Initialize all elements *)
-            (* Prepare the "doit" function for the base type *)
-        withivar
-          (fun iter -> 
-            let doforarray (off: offset) (what: exp) (acc: stmt list) = 
-              mkForIncr iter zero l one 
-                (doit (Index (Lval(var iter), off)) what []) @ acc
-            in
-            let doaddrforarray (off: offset) = 
-              (* We are registering arrays inside arrays. Right now we 
-               * register only the first array !! *)
-              ignore (E.warn "Array inside array. Registering only one elem.");
-              addrof (Index(zero, NoOffset))
-            in
-            initForType bt withivar 
-              mustZero endo doforarray doaddrforarray acc')
-          
+    (* Produces a function that, when given an lval of the given type, 
+     * accumulates (prepends) some initialization statements to a give 
+     * accumulator  *)
+    : (lval -> stmt list -> stmt list) =
+  match unrollType t with
+    TInt _ | TFloat _ | TBitfield _ | TEnum _ -> (fun lv acc -> acc)
+  | TFun _ -> (fun lv acc -> acc) (* Probably a global function prototype *)
+  | TVoid _ -> fun lv acc -> acc (* allocating and returning a void* *)
   | TPtr (bt, a) -> begin
           (* If a non-wild pointer then initialize to zero *)
       let mustinit = 
@@ -2246,13 +2139,110 @@ let rec initForType
         | _ -> true) 
       in
       if mustinit then
-        doit NoOffset (doCastT zero intType t) acc
+        
+        fun lv acc -> mkSet lv (doCastT zero intType t) :: acc
       else 
-        acc
+        fun lv acc -> acc
   end
-  | TFun _ -> acc (* Probably a global function prototype *)
-  | TVoid _ -> acc (* allocating and returning a void* *)
-  | _ -> E.s (E.unimp "initializeVar (for type %a)" d_plaintype t)
+  | TComp comp when comp.cstruct -> begin (* A struct *)
+      match comp.cfields with
+        [s; a] when s.fname = "_size" && a.fname = "_array" ->
+              (* Sized arrays *)
+          let bt, sizeo = 
+            match unrollType a.ftype with
+              TArray(bt, lo,_) -> bt,lo
+              | _ -> E.s (E.bug "SIZED array is not an array\n")
+          in
+          (* Construct the array initializer *)
+          (* Prepare the initializer for one element *)
+          let initone = initializeType bt withivar mustZero None in
+              (* ignore (E.log "Initializing sized for %s\n" v.vname); *)
+          fun lv acc -> 
+            let thesizelv = addOffsetLval (Field(s, NoOffset)) lv in
+            let thearraylv = addOffsetLval (Field(a, NoOffset)) lv in
+            let l, thissize = 
+              match sizeo with
+                Some l when not (isZero l) -> 
+                  l, (BinOp(Mult, doCast l uintType, SizeOf(bt), uintType))
+                    
+              | _ -> begin
+                  match endo with
+                    Some e -> 
+                          (* We know the end of the area *)
+                      let sz = 
+                        BinOp(MinusA, e, 
+                              doCast (mkAddrOf thearraylv) uintType, 
+                              uintType) in
+                    (BinOp(Div, sz, SizeOf(bt), uintType)), 
+                    sz
+                      
+                | None -> 
+                    ignore 
+                      (E.warn "Initializing SIZED open array with len 0: %a" 
+                         d_exp (mkAddrOf thesizelv));
+                    zero, zero
+              end
+            in
+             (* Register the sized array *)
+            let acc1 = 
+              registerArea [ integer registerAreaSizedInt;
+                             castVoidStar (mkAddrOf thearraylv);
+                             castVoidStar zero ] acc 
+            in
+             (* Set the size *)
+            let acc2 = mkSet thesizelv thissize :: acc1 in
+            withivar 
+              (fun iter -> 
+                (mkForIncr iter zero l one
+                   (initone 
+                      (addOffsetLval (Index (Lval(var iter), NoOffset)) 
+                         thearraylv)
+                      [])) @ acc2)
+
+      | _ -> (* A regular struct. Do all the fields in sequence *)
+          List.fold_left 
+            (fun initsofar fld -> 
+              let initone = initializeType fld.ftype withivar mustZero endo in
+              fun lv acc ->
+                initone (addOffsetLval (Field(fld, NoOffset)) lv) 
+                  (initsofar lv acc))
+            (fun lv acc -> acc)
+            comp.cfields
+  end
+  | TArray(bt, Some l, a) -> 
+      if filterAttributes "nullterm" a <> [] && mustZero then begin
+            (* Write a zero at the very end *)
+        (match unrollType bt with
+          TInt((IChar|ISChar|IUChar), _) -> ()
+        | _ -> E.s (E.unimp "NULLTERM array of base type %a" d_type bt));
+        fun lv acc -> 
+          mkSet (addOffsetLval 
+                   (Index(BinOp(MinusA, l, one, intType), NoOffset)) lv)
+            zero :: acc
+      end else begin
+        (* Prepare the initializer for one element *)
+        let initone = initializeType bt withivar mustZero endo in
+        (* Register the array begining and the end *)
+        fun lv acc ->
+          (* Register the array *)
+          let acc1 = 
+            registerArea 
+              [ integer registerAreaSeqInt;
+                castVoidStar (mkAddrOf lv);
+                castVoidStar (mkAddrOf (addOffsetLval 
+                                          (Index(l, NoOffset)) lv)) ] acc
+          in
+          withivar 
+            (fun iter -> 
+              (mkForIncr iter zero l one
+                 (initone 
+                    (addOffsetLval (Index (Lval(var iter), NoOffset)) lv)
+                    [])) @ acc1)
+      end
+  | _ -> E.s (E.unimp "initializeType (for type %a)" d_plaintype t)
+
+    
+    
 
 
 (* Create and accumulate the initializer for a variable *)
@@ -2288,10 +2278,8 @@ let initializeVar (withivar: (varinfo -> 'a) -> 'a) (* Allocate an iteration
         else
           acc'))
   end else begin
-    initForType v.vtype withivar (not v.vglob) None
-      (fun off what acc -> mkSet (Var v, off) what :: acc)
-      (fun off -> mkAddrOf (Var v, off))
-      acc
+    let doinit = initializeType v.vtype withivar (not v.vglob) None in
+    doinit (Var v, NoOffset) acc
   end
 
 
@@ -2364,10 +2352,13 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
   (* And the base, if necessary *)
   let assign_base = 
     match k with 
-      N.Wild | N.Seq | N.SeqN | N.Index -> 
-        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
-        (mkSet (Var vi, Field(fbase, NoOffset))
-           (doCast tmpvar voidPtrType))
+      N.Wild | N.Seq | N.SeqN | N.Index -> begin
+        let fptr, fbaseo, fendo = getFieldsOfFat vi.vtype in
+        match fbaseo with
+          Some fbase -> (mkSet (Var vi, Field(fbase, NoOffset))
+                           (doCast tmpvar voidPtrType))
+        | _ -> mkEmptyStmt ()
+      end
     | _ -> mkEmptyStmt ()
   in
 
@@ -2419,11 +2410,8 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
                            nrdatabytes, uintType) in
         (* Now initialize. *)
         let inits = 
-          initForType basetype (withIterVar !currentFunction) mustZero
-            (Some theend)
-            (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
-            (fun off -> mkAddrOf (Mem tmpvar, off))
-            []
+          initializeType basetype (withIterVar !currentFunction) mustZero
+            (Some theend) (Mem tmpvar, NoOffset) []
         in
         check_enough :: inits
 
@@ -2439,12 +2427,10 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
         (* Now initialize. Use the tmp variable to iterate over a number of 
          * copies  *)
         let initone = 
-          initForType basetype 
-            (withIterVar !currentFunction) mustZero
-            None
-            (fun off what acc -> mkSet (Mem tmpvar, off) what :: acc)
-            (fun off -> mkAddrOf (Mem tmpvar, off))
-            []
+          initializeType basetype
+            (withIterVar !currentFunction) mustZero None
+            (Mem tmpvar, NoOffset) []
+            
         in
         savetheend ::
         mkFor 
@@ -2470,15 +2456,12 @@ let pkAllocate (ai:  allocInfo) (* Information about the allocation function *)
    * of sequences we now know the precise end of the allocated sequence  *)
   let assign_end = 
     match k with 
-      N.Seq | N.SeqN -> begin
+      N.Seq | N.SeqN | N.FSeq | N.FSeqN -> begin
         let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
         match fendo with
           None -> mkEmptyStmt ()
         | Some fend -> mkSet (Var vi, Field(fend, NoOffset)) tmpvar
       end
-    | N.FSeq | N.FSeqN -> 
-        let fptr, fbase, fendo = getFieldsOfFat vi.vtype in
-        mkSet (Var vi, Field(fbase, NoOffset)) tmpvar
     | _ -> mkEmptyStmt ()
   in
   (* Now add the home area to the table *)

@@ -845,6 +845,9 @@ let markFile fl =
   boxing := true;
   E.hadErrors := false;
   H.clear polyFunc;
+  (* Some globals that are exported and must thus be considered part of the 
+   * interface *)
+  let exported : (string, bool) H.t = H.create 111 in
   (* Find the globals that are declared but not defined. They are part of 
    * the interface. *)
   let interfglobs : (int, varinfo) H.t = H.create 111 in
@@ -854,17 +857,24 @@ let markFile fl =
           (* Do not add multiple times since then deleting does not remove 
            * all copies *)
           H.add interfglobs vi.vid vi
+    | GPragma (ACons("boxexported", [AStr s]), _) ->
+        H.add exported s true
+        
     | _ -> ()
   in
   (* Add all the declarations *)
   List.iter processDecls fl.globals;
   (* Take out the defined functions *)
-  let processDefs = function
-      GVar (vi, _, _) -> 
-        H.remove interfglobs vi.vid
-    | GFun (fdec, _) -> 
-        H.remove interfglobs fdec.svar.vid
+  let rec processDefs = function
+      GVar (vi, _, _) -> processVarinfo vi
+    | GFun (fdec, _) -> processVarinfo fdec.svar
     | _ -> ()
+  and processVarinfo vi = 
+    if H.mem exported vi.vname then begin
+      if not (H.mem interfglobs vi.vid) then
+        H.add interfglobs vi.vid vi
+    end else
+      H.remove interfglobs vi.vid
   in
   List.iter processDefs fl.globals;
 (*  ignore (E.log "inferfglob:\n");
