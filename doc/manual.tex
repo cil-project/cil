@@ -871,13 +871,13 @@ example instead of
 
  you should write
 \begin{verbatim}
- ... (resetScanfCounter(), 
-      entry = ccured_fscanf_int(file, "Entry:\%d");
-      then  = ccured_fscanf_double(file, "   Then:\%lf");
-      getScanfCounter ()) ...
+ ... (resetScanfCount(), 
+      entry = ccured_fscanf_int(file, "Entry:\%d"),
+      then  = ccured_fscanf_double(file, "   Then:\%lf"),
+      getScanfCount ()) ...
 \end{verbatim}
 
- The functions \t{resetScanCounter} and \t{getScanfCounter} are necessary only
+ The functions \t{resetScanCount} and \t{getScanfCount} are necessary only
 if you use the result of the call to \t{fscanf} in the original code. Note
 that our replacement \t{scanf} functions can be used to return only one result
 at a time, consequently the format string that is passed must contain only one

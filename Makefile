@@ -1251,30 +1251,35 @@ spr/%:  test/spr/%.c
 ######################### PTRDIST Benchmarks
 ANAGRAMDIR := test/ptrdist-1.1/anagram
 anagram: mustbegcc
-	cd $(ANAGRAMDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(ANAGRAMDIR); rm -f *.o; \
+             make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(ANAGRAMDIR); make test
 
 
 BCDIR := test/ptrdist-1.1/bc
 bc: mustbegcc
-	cd $(BCDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(BCDIR); rm -f *.o; \
+            make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(BCDIR); make test
 
 FTDIR := test/ptrdist-1.1/ft
 ft: mustbegcc
-	cd $(FTDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(FTDIR); rm -f *.o; \
+           make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(FTDIR); make test
 
 
 KSDIR := test/ptrdist-1.1/ks
 ks: mustbegcc
-	cd $(KSDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(KSDIR); rm -f *.o; \
+           make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(KSDIR); make test
 
 
 YACRDIR := test/ptrdist-1.1/yacr2
 yacr: mustbegcc
-	cd $(YACRDIR); rm -f *.o; make CC="$(CCURED) --combine"
+	cd $(YACRDIR); rm -f *.o; \
+           make CC="$(CCURED) $(STANDARDPATCH) --combine"
 	cd $(YACRDIR); make test
 
 
