@@ -149,7 +149,7 @@ TEMP_DIR = TEMP_cil-distrib
 # The tar archive members will be relative to this directory
 TOP_DIR = $(TEMP_DIR)/cil
 
-DISTRIB_ROOT = Makefile.cil.in  \
+DISTRIB_ROOT = README Makefile.cil.in  \
                Makefile.ocaml Makefile.ocaml.build \
 	       configure configure.in install-sh config.guess config.sub  
 

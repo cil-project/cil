@@ -1011,6 +1011,7 @@ let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
 let doubleType = TFloat(FDouble, [])
 
+
 (* An integer type that fits pointers. We hardwire to unsigned long for now *)
 let upointType = TInt(IULong, []) 
 
@@ -4082,6 +4083,16 @@ let increm (e: exp) (i: int) =
   let bop = if isPointerType et then PlusPI else PlusA in
   constFold false (BinOp(bop, e, integer i, et))
       
+exception LenOfArray
+let lenOfArray (eo: exp option) : int = 
+  match eo with 
+    None -> raise LenOfArray
+  | Some e -> begin
+      match constFold true e with
+      | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
+          Int64.to_int ni
+      | e -> raise LenOfArray
+  end
   
 
 (*** Make a initializer for zeroe-ing a data type ***)

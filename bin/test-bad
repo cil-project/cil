@@ -27,6 +27,12 @@
 #
 # set RUNONLY=n to run only the test case n
 #
+# For each run the ERROR macro is also defined to 0, 1, .../. Thus you can
+# use preprocessor conditionals to exclude portions of code:
+#
+# #if ERROR >= 2
+#  ...
+# #endif
 if [ "$1" = "" ]; then
   # most parameters are passed by name, instead of as positional
   # arguments, for better impedance match with Makefile; but it's
@@ -70,7 +76,7 @@ while [ $i -le $numcases ]; do
   echo "generating test $i"
   rm -f $tmpname.c 2>/dev/null
   cat "$srcfile" | sed "s|ERROR($i)|(selected: $i)|" \
-                 | grep -v ERROR > "$tmpname.c"
+                 | grep -v "ERROR(" > "$tmpname.c"
   chmod a-w "$tmpname.c"
 
   # Grab the errorline for this test case
@@ -83,7 +89,7 @@ while [ $i -le $numcases ]; do
   rm -f test-bad.out test-bad.err
   echo $CCURED $CFLAGS $tmpname.c -o $tmpname
   $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
-                         $CCURED $CFLAGS $tmpname.c -o $tmpname
+                         $CCURED $CFLAGS -DERROR=$i $tmpname.c -o $tmpname
   status=$?
   if [ $status != 0 ]; then
     if [ $i = 0 ] ;then

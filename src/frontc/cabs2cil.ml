@@ -1515,15 +1515,9 @@ let rec collectInitializer
     | _ , SinglePre e -> SingleInit e
     | TArray (bt, leno, _), CompoundPre (pMaxIdx, pArray) -> 
         let len = 
-          match leno with
-            None -> E.s (bug "collectInitializer: open array")
-          | Some n' -> begin
-              match constFold true n' with
-              | Const(CInt64(ni, _, _)) when ni > Int64.zero -> 
-                  Int64.to_int ni
-              | e -> E.s (error "Initializing non-constant-length array\n  length=%a\n"
-                            d_exp e)
-          end
+          try lenOfArray leno 
+          with LenOfArray -> 
+            E.s (error "Initializing non-constant-length array\n")
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"

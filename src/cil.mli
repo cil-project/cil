@@ -1102,6 +1102,14 @@ val argsToList: varinfo list option -> varinfo list
 (** True if the argument is an array type *)
 val isArrayType: typ -> bool
 
+(** Raised when {!Cil.lenOfArray} fails either because the length is [None] 
+  * or because it is a non-constant expression *)
+exception LenOfArray
+
+(** Call to compute the array length as present in the array type, to an 
+  * integer. Raises {!Cil.LenOfArray} if not able to compute the length *)
+val lenOfArray: exp option -> int
+
 (** Return a named fieldinfo in compinfo, or raise Not_found *)
 val getCompField: compinfo -> string -> fieldinfo
 
