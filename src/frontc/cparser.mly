@@ -109,7 +109,7 @@ let apply_mod (typ, sto) modi =
   in
   let check_access typ =
     match typ with
-      PROTO _ | OLD_PROTO _ | ATTRTYPE _ (* | CONST _ | VOLATILE _ *) -> false
+      PROTO _ | OLD_PROTO _ (* | CONST _ | VOLATILE _ *) -> false
     | _ -> true in
   match modi with
     BASE_SIGN _ -> (mod_root typ, sto)

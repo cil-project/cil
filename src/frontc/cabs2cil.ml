@@ -137,7 +137,7 @@ let addNewVar vi =
     if not vi.vglob then begin
       locals := newvi :: !locals;
       (match !scopes with
-        [] -> E.s (E.bug "Adding a local but not in a scope")
+        [] -> E.s (E.bug "Adding a local %s but not in a scope" vi.vname)
       | s :: _ -> s := vi.vname :: !s)
     end;
     newvi
@@ -375,6 +375,26 @@ let arithmeticConversion    (* c.f. K&R A6.5 *)
       | _, _ -> E.s (E.unimp "arithmetic Conversion.@!T1=%a@!T2=%a@!"
                        d_plaintype t1 d_plaintype t2)
   end
+
+let conditionalConversion (e2: exp) (t2: typ) (e3: exp) (t3: typ) : typ =
+  let tresult =  (* K&R A7.16 *)
+    match unrollType t2, unrollType t3 with
+      (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
+      (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
+        arithmeticConversion t2 t3 
+    | TStruct(n2, _, _), TStruct(n3, _, _) when n2 = n3 -> t2
+    | TUnion(n2, _, _), TUnion(n3, _, _) when n2 = n3 -> t2
+    | TPtr(_, _), TPtr(TVoid _, _) -> t2
+    | TPtr(TVoid _, _), TPtr(_, _) -> t3
+    | TPtr(t2'', _), TPtr(t3'', _) 
+          when typeSig t2'' = typeSig t3'' -> t2
+    | TPtr(_, _), TInt _ when 
+            (match e3 with Const(CInt(0,_),_) -> true | _ -> false) -> t2
+    | TInt _, TPtr _ when 
+              (match e2 with Const(CInt(0,_),_) -> true | _ -> false) -> t3
+    | _, _ -> E.s (E.unimp "A.QUESTION")
+  in
+  tresult
 
   
 let rec castTo (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
@@ -1167,39 +1187,47 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
         E.s (E.unimp " e1 ? : e3 not yet implemented")
 
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
-        let _, e2', t2' = doExp e2 (AExp None) in (* Do these only to collect 
-                                                   * the types  *)
-        let _, e3', t3' = doExp e3 (AExp None) in
-        let tresult =  (* K&R A7.16 *)
-          match unrollType t2', unrollType t3' with
-            (TInt _ | TEnum _ | TBitfield _ | TFloat _), 
-            (TInt _ | TEnum _ | TBitfield _ | TFloat _) -> 
-              arithmeticConversion t2' t3' 
-          | TStruct(n2, _, _), TStruct(n3, _, _) when n2 = n3 -> t2'
-          | TUnion(n2, _, _), TUnion(n3, _, _) when n2 = n3 -> t2'
-          | TPtr(_, _), TPtr(TVoid _, _) -> t2'
-          | TPtr(TVoid _, _), TPtr(_, _) -> t3'
-          | TPtr(t2'', _), TPtr(t3'', _) 
-                when typeSig t2'' = typeSig t3'' -> t2'
-          | TPtr(_, _), TInt _ when 
-               (match e3' with Const(CInt(0,_),_) -> true | _ -> false) -> t2'
-          | TInt _, TPtr _ when 
-               (match e2' with Const(CInt(0,_),_) -> true | _ -> false) -> t3'
-          | _, _ -> E.s (E.unimp "A.QUESTION")
-        in
-        (* Now see if we need to create a temporary *)
-        let lv, lvt = 
-          match what with
-            AExp _ -> 
-              let tmp = newTempVar tresult in
-              var tmp, tresult
-          | ASet (lv, lvt) -> lv, lvt
-          | _ -> E.s (E.bug "A.QUESTION")
-        in
-        (* Now do e2 and e3 for real *)
-        let (se2, _, _) = doExp e2 (ASet(lv, lvt)) in
-        let (se3, _, _) = doExp e3 (ASet(lv, lvt)) in
-        finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
+                    (* Do these only to collect the types  *)
+        let se2, e2', t2' = 
+          match e2 with 
+            A.NOTHING -> (* A GNU thing. Use e1 as e2 *) doExp e1 (AExp None)
+          | _ -> doExp e2 (AExp None) in 
+        let se3, e3', t3' = doExp e3 (AExp None) in
+        let tresult = conditionalConversion e2' t2' e3' t3' in
+        match e2 with 
+          A.NOTHING -> 
+              let tmp = var (newTempVar tresult) in
+              let (se1, _, _) = doExp e1 (ASet(tmp, tresult)) in
+              let (se3, _, _) = doExp e3 (ASet(tmp, tresult)) in
+              finishExp (se1 @ [IfThenElse(Lval(tmp), Skip, 
+                                           mkSeq se3)])
+                (Lval(tmp))
+                tresult
+        | _ -> 
+            if se2 = [] && se3 = [] then begin (* Use the Question *)
+              let se1, e1', t1 = doExp e1 (AExp None) in
+              ignore (checkBool t1 e1');
+              let e2'' = doCast e2' t2' tresult in
+              let e3'' = doCast e3' t3' tresult in
+              let resexp = 
+                match e1' with
+                  Const(CInt(i, _), _) when i <> 0 -> e2''
+                | Const(CInt(0, _), _) -> e3''
+                | _ -> Question(e1', e2'', e3'', lu)
+              in
+              finishExp se1 resexp tresult
+            end else (* Use a conditional *)
+              let lv, lvt = 
+                match what with
+                | ASet (lv, lvt) -> lv, lvt
+                | _ -> 
+                    let tmp = newTempVar tresult in
+                    var tmp, tresult
+              in
+              (* Now do e2 and e3 for real *)
+              let (se2, _, _) = doExp e2 (ASet(lv, lvt)) in
+              let (se3, _, _) = doExp e3 (ASet(lv, lvt)) in
+              finishExp (doCondition e1 se2 se3) (Lval(lv)) tresult
     end
 (*              
 
@@ -1261,13 +1289,13 @@ and doExp (e : A.expression) (what: expAction) : (stmt list * exp * typ) =
      integer 0, intType)
   end
     
-
 and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   let constFold e1' e2' tres = 
     if isIntegralType tres then
       let newe = 
-        let mkInt = function
+        let rec mkInt = function
             Const(CChr c, _) -> Const(CInt(Char.code c, None),lu)
+          | CastE(TInt _, e, _) -> mkInt e
           | e -> e
         in
         match bop, mkInt e1', mkInt e2' with

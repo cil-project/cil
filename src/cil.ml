@@ -391,19 +391,25 @@ let d_const () c =
  * parentheses level is >= that that of its context. Identifiers have the 
  * lowest level and weakly binding operators (e.g. |) have the largest level 
  *)
+let derefStarLevel = 20
+let indexLevel = 20
+let arrowLevel = 20
+let addrOfLevel = 30
+let bitwiseLevel = 75
+let additiveLevel = 60
 let getParenthLevel = function
   | Compound _ -> 100
 
   | Question _ -> 80
                                         (* Bit operations. *)
-  | BinOp((BOr|BXor|BAnd),_,_,_,_) -> 75
+  | BinOp((BOr|BXor|BAnd),_,_,_,_) -> bitwiseLevel (* 75 *)
 
                                         (* Comparisons *)
   | BinOp((Eq|Ne|Gt|Lt|Ge|Le),_,_,_,_) -> 70
                                         (* Additive. Shifts can have higher 
                                          * level but I want parentheses 
                                          * around them *)
-  | BinOp((Minus|Plus|Shiftlt|Shiftrt),_,_,_,_)  -> 60
+  | BinOp((Minus|Plus|Shiftlt|Shiftrt),_,_,_,_)  -> additiveLevel (* 60 *)
 
                                         (* Multiplicative *)
   | BinOp((Div|Mod|Mult),_,_,_,_) -> 40
@@ -422,10 +428,6 @@ let getParenthLevel = function
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
   | Const _ -> 0                        (* Constants *)
 
-let derefStarLevel = 20
-let indexLevel = 20
-let arrowLevel = 20
-let addrOfLevel = 30
 
 (* types. Call with a function that when invoked will fill-in the declared name *)
 
@@ -550,7 +552,10 @@ and d_fieldinfo () f =
  * number to parenthesize the printed expression. 0 guarantees parentheses. 1 
  * will parenthesize everything but identifiers. *)
 and d_expprec contextprec () e = 
-  if getParenthLevel e >= contextprec then
+  let thisLevel = getParenthLevel e in
+                                 (* This is to quite down GCC warnings *)
+  if thisLevel >= contextprec || (thisLevel = additiveLevel &&
+                                  contextprec = bitwiseLevel) then
     dprintf "(%a)" d_exp e
   else
     d_exp () e
@@ -623,9 +628,9 @@ and d_attrlist () al =
         match remaining with
           [] -> nil
         | _ -> 
-            dprintf " __attribute__(%a)"
+            dprintf " __attribute__((%a))"
               (docList (chr ',' ++ break) 
-                 (fun a -> dprintf "(%a)" d_attr a)) al
+                 (fun a -> dprintf "%a" d_attr a)) al
       end
     | (AId("const")) :: rest -> 
         dprintf " const%a" insert (loop remaining rest)
@@ -697,7 +702,7 @@ and d_instr () i =
       else
         dprintf "__asm__ %a(@[%a%a%a%a@]);@!"
           insert (if isvol then text "__volatile__" else nil)
-          (docList (chr ',' ++ line) 
+          (docList line 
              (fun x -> dprintf "\"%s\"" (escape_string x))) tmpls
           insert 
           (if outs = [] && ins = [] && clobs = [] then 
@@ -807,7 +812,7 @@ let printFile (out : out_channel) (globs : file) =
         d_videcl vi 
         insert (match eo with None -> nil | Some e -> 
                 dprintf " = %a" d_exp e)
-  | GAsm s -> dprintf "__asm__(\"%s\")@!" (escape_string s)
+  | GAsm s -> dprintf "__asm__(\"%s\");@!" (escape_string s)
   | GPragma s -> dprintf "#pragma %s@!" s
   in
   List.iter (fun g -> print (d_global () g ++ line)) globs;

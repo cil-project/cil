@@ -45,7 +45,9 @@ spec : $(EXECUTABLE)$(EXE)
 
 export EXTRAARGS
 export BOX
-_MSVC = 1			# Use the MSVC compiler
+ifndef _GNUCC
+_MSVC = 1			# Use the MSVC compiler by default
+endif
 
 ifdef BOX
 SRCEXT=box
@@ -100,17 +102,17 @@ PCCSOURCES = hash lf huffman x86/x86SE extensions/javaclasses
 PCCTEST=test/PCC
 testpcc: $(PCCSOURCES:%=testpcc/%)
 testpcc/% : ../../Source/Touchstone/PCC/src/%.c $(EXECUTABLE)$(EXE) 
-	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 /D_DEBUG /c \
+	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 $(DEF)_DEBUG /c \
                   ../../Source/Touchstone/PCC/src/$*.c \
-                  /Fo$(PCCTEST)/$(notdir $*).o
+                  $(OUT)$(PCCTEST)/$(notdir $*).o
 
 testhash: $(PCCTEST)/main.c $(EXECUTABLE)$(EXE)
-	$(SAFECC) --keep=$(PCCTEST) /Dx86_WIN32 \
-                 /I../../Source/Touchstone/PCC/src \
+	$(SAFECC) --keep=$(PCCTEST) $(DEF)x86_WIN32 \
+                 $(INC)../../Source/Touchstone/PCC/src \
                  ../../Source/Touchstone/PCC/src/hash.c \
                  ../../Source/Touchstone/PCC/src/redblack.c \
                  $(PCCTEST)/hashtest.c \
-                 /Fe$(PCCTEST)/hashtest.exe
+                 $(EXEOUT)$(PCCTEST)/hashtest.exe
 
 ifdef RELEASE
 PCCTYPE=RELEASE
@@ -119,11 +121,17 @@ else
 PCCTYPE=_DEBUG
 SPJARG=-DC --save-temps=pccout
 endif
+ifdef _GNUCC
+PCCCOMP=_GNUCC
+else
+PCCCOMP=_MSVC
+endif
 testallpcc: $(EXECUTABLE)$(EXE)
-	-rm ../../Source/Touchstone/PCC/x86_WIN32_MSVC/$(PCCTYPE)/*.o
+	-rm ../../Source/Touchstone/PCC/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	make -C ../../Source/Touchstone/PCC \
-             CC="$(SAFECC) --keep=D:/Necula/SafeC/cil/test/PCC /c" \
+             CC="$(SAFECC) --keep=D:/Necula/SafeC/cil/test/PCC $(CONLY)" \
              USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
+             COMPILER=$(PCCCOMP) \
 	     defaulttarget
 
 runpcc:

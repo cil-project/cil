@@ -1,0 +1,13 @@
+*.cil
+*.cabs
+*.box
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.cpp
+*.i
+*.s
+*cil.c
+*box.c
