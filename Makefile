@@ -1173,8 +1173,8 @@ go-noclean: defaulttarget mustbegcc
 
 ### SPEC95 vortex
 VORDIR=$(SPECDIR)/147.vortex
-#VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
-VORSAFECC=$(SAFECC)  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) --keep=safeccout
+VORSAFECC=$(SAFECC) --combine   --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
+#VORSAFECC=$(SAFECC)  --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE)
 
 vortexclean: 	
 	cd $(VORDIR)/src; make clean
@@ -1184,18 +1184,26 @@ vortex: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make clean build CC="$(VORSAFECC) $(CONLY)" \
                              LD="$(VORSAFECC)"
-	cd $(VORDIR)/src; ./testit vortex
+	cd $(VORDIR)/src; sh -c "./testit ../exe/base/vortex.ultra.exe"
+
+vortex-run:
+	cd $(VORDIR)/src; sh -c "./testit ../exe/base/vortex.ultra.exe"
 
 vortex-noclean: defaulttarget mustbegcc
 	cd $(VORDIR)/src; \
             make build CC="$(VORSAFECC) $(CONLY)" \
                        LD="$(VORSAFECC)"
-	cd $(VORDIR)/src; ./testit vortex
+	cd $(VORDIR)/src; sh -c "./testit ../exe/base/vortex.ultra.exe"
 
 vortex-combined: defaulttarget mustbegcc
 	cd $(VORDIR)/exe/base; \
             $(SAFECC) vortex.ultra_all.c $(VOREXTRA) $(EXEOUT)vortex.ultra.exe
 
+vortex-combined-gcc: defaulttarget mustbegcc
+	cd $(VORDIR)/exe/base; \
+            gcc vortex.ultra_all.c \
+               $(SAFECCDIR)/cil/lib/cillibdebug.a $(EXEOUT)vortex.ultra.exe
+	cd $(VORDIR)/src; sh -c "./testit ../exe/base/vortex.ultra.exe"
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
