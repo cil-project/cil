@@ -75,7 +75,7 @@ if [ "$_MSVC" == "1" ]; then
 else
   LINEOPT=""
   OUTFLAG="-o "
-  OUTEXT=""
+  OUTEXT=".exe" # So that I can delete the executables
 fi
 
 # Start it in the right directory
@@ -152,9 +152,9 @@ while [ $i -le $numcases ]; do
   fi
 
   # run it
-  echo "./$tmpname"
+  echo "./$tmpname$OUTEXT"
   rm -f test-bad.out test-bad.err
-  if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname ; then
+  if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
     # cat test-bad.out test-bad.err
     if [ $i = 0 ]; then
       # expected success on 0th iteration

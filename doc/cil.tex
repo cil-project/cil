@@ -23,6 +23,7 @@
 
 % cilversion.tex is generated automatically to define \cilversion
 \include{cil.version}
+\include{ccured.version}
 
 \def\secref#1{Section~\ref{sec-#1}}
 \def\chref#1{Chapter~\ref{ch-#1}}
@@ -236,6 +237,34 @@ Run \t{cl} with no arguments to get the compiler version.
 \item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0 and 3.2.
 \item On Linux, using \t{gcc} version 2.95.3, 3.0 and 3.2.
 \end{itemize}
+
+  \section{Testing CIL} 
+  Once you have built CIL you can run 
+\begin{verbatim}
+make quicktest
+\end{verbatim}
+
+  This will run a few small examples. If you want to test CIL on a large
+part of our own regression suite you need to do the following:
+\begin{itemize}
+\item Download the CCured regression suite from the
+\ahref{distrib}{distribution} directory. The latest version is
+\ahrefurl{distrib/ccured-tests-\ccuredversion.tar.gz}.
+\item Unpack that file in the \t{cil} (you must end up with \t{cil/test}).
+\item Run \t{./configure} to create the file \t{cil/test/Makefile}
+\item Re-run \t{make}
+\item In the \t{test} directory, run
+\begin{verbatim}
+USECILLY=1 testsafec --run --group cil --nogroup slow
+\end{verbatim}
+\end{itemize}
+
+ Drop the argument \t{--nogroup slow} to run even larger tests. 
+
+ {\bf Note that some tests will fail either because they are not included in
+ our distribution, or because we still have a few failing test cases.}
+
+  \section{Distribution Contents}
 
 The file \ahrefurl{distrib/cil-\cilversion.tar.gz} 
 contains the complete source CIL distribution, 
@@ -2590,6 +2619,7 @@ Necula}.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf May 30, 2003}: Released the regression tests. 
 \item {\bf May 28, 2003}: {\bf Released version 1.1.2}
 \item {\bf May 26, 2003}: Add the \t{simplify} module that compiles CIL
 expressions into simpler expressions, similar to those that appear in a

@@ -232,7 +232,8 @@ doc/cilpp.tex: doc/cilcode.pl doc/cil.tex
 # Documentation generated from latex files using "hevea"
 texdoc: doc/cilpp.tex
 # Create the version document
-	cd doc/html/cil; echo "\def\cilversion{@CIL_VERSION@}" >cil.version
+	cd doc/html/cil; echo "\def\cilversion{@CIL_VERSION@}" >cil.version.tex
+	cd doc/html/cil; echo "\def\ccuredversion{@CCURED_VERSION@}" >>cil.version.tex
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; mv cilpp.html cil.html
@@ -242,6 +243,7 @@ texdoc: doc/cilpp.tex
 
 pdfdoc: doc/cilpp.tex 
 	cd doc; echo "\def\cilversion{@CIL_VERSION@}" >cil.version.tex
+	cd doc; echo "\def\ccuredversion{@CCURED_VERSION@}" >>cil.version.tex
 	cd doc; pdflatex cilpp.tex
 	cd doc; mv cilpp.pdf html/cil/CIL.pdf
 	ocamldoc -o doc/cil-api.tex -v -stars \
@@ -274,7 +276,7 @@ TOP_DIR = $(TEMP_DIR)/cil
 
 DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
                Makefile.ocaml Makefile.ocaml.build \
-	       config.h.in \
+	       config.h.in Makefile.gcc Makefile.msvc \
 	       configure configure.in install-sh config.guess config.sub  
 
 DISTRIB_SRC = pretty.ml pretty.mli errormsg.ml errormsg.mli \
@@ -310,7 +312,7 @@ DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
 DISTRIB_LIB = Cilly.pm KeptFile.pm OutputFile.pm TempFile.pm
 
 DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
-              patcher patcher.bat.in
+              patcher patcher.bat.in test-bad teetwo
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 

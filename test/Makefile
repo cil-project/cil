@@ -1,4 +1,4 @@
-# -*- Mode: makefile -*-
+# -*- Mode: makefile -*- 
 # Makefile.in for running the test cases for the CCured compiler
 # Use from the test directory !!!
 # author: George Necula
@@ -52,7 +52,6 @@ clean:
 		-name '*.obj' -o \
 		-name '*.cabs.c' -o \
 		-name '*.infer.c' -o \
-		-name '*_all*.c' -o \
 	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' -o \
 		-name 'libmerge.a*' \
@@ -89,15 +88,17 @@ ifdef RELEASE
   # use native code tools
   export NATIVECAML := 1
   # enable the optimizer inside our translator
-  export OPTIM := 1
-  # use runtime library with minimal debugging checks
-  export RELEASELIB := 1
-  # turn on gcc's optimizer for the resulting executables
-  export CCURED += -O2
-  ifndef FAILISVERBOSE
-    export FAILISTERSE := 1
-    CCURED += --alwaysStopOnError
+  ifndef USECILLY
+    export OPTIM := 1
+    # use runtime library with minimal debugging checks
+    export RELEASELIB := 1
+    # turn on gcc's optimizer for the resulting executables
+    ifndef FAILISVERBOSE
+      export FAILISTERSE := 1
+      CCURED += --alwaysStopOnError
+    endif
   endif
+  export CCURED += -O2
 endif
 
 # By default we are on Linux
@@ -677,22 +678,23 @@ ifndef NOPRINTLN
 endif
 
 # sm: attempt at a single rule for my testing purposes
+# gn: I added .exe so that I can delete the executables
 scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*
+	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(NOPRINTLN) \
                  $*.c \
-                 $(EXEOUT)$*
-	sh -c "time $(TESTDIR)/small2/$*"
+                 $(EXEOUT)$*.exe
+	sh -c "time $(TESTDIR)/small2/$*.exe"
 
 scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*
+	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	cd $(TESTDIR)/small2; $(CCURED) --nomerge $(CONLY) --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
-                 $(EXEOUT)$*
+                 $(EXEOUT)$*.exe
 
 #
 # Some performance tests
@@ -724,15 +726,15 @@ perf/%-optimvariant: $(TESTDIR)/small1/%.optimcured.c
 # test/Makefile is being used) it actually collides with the name of
 # the generated binary, so sometimes make thinks it's up-to-date!
 badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/bad/$*
+	rm -f $(TESTDIR)/bad/$*.exe
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
 	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
                  -g $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
-                 $(EXEOUT)$*
-	echo $(TESTDIR)/bad/$*
-	@if $(TESTDIR)/bad/$*; then \
+                 $(EXEOUT)$*.exe
+	echo $(TESTDIR)/bad/$*.exe
+	@if $(TESTDIR)/bad/$*.exe; then \
 		echo "(worked as expected, when FAIL not defined)"; exit 0; \
 	else \
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
@@ -741,9 +743,9 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/bad; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
-                 $(EXEOUT)$*
-	echo $(TESTDIR)/bad/$*
-	@if $(TESTDIR)/bad/$*; then \
+                 $(EXEOUT)$*.exe
+	echo $(TESTDIR)/bad/$*.exe
+	@if $(TESTDIR)/bad/$*.exe; then \
 		echo "That should have failed!"; exit 2; \
 	else \
 		echo "(failed as expected)"; exit 0; \
@@ -752,14 +754,14 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 # same rules, this time in 'scott' directory, since it's a pain to
 # move the file just to add a failure case
 bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*
+	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
 	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
-                 $(EXEOUT)$*
-	if $(TESTDIR)/small2/$*; then \
+                 $(EXEOUT)$*.exe
+	if $(TESTDIR)/small2/$*.exe; then \
 		echo "(worked as expected, when FAIL not defined)"; exit 0; \
 	else \
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
@@ -768,8 +770,8 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; $(CCURED) --nomerge --keep=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
-                 $(EXEOUT)$*
-	if $(TESTDIR)/small2/$*; then \
+                 $(EXEOUT)$*.exe
+	if $(TESTDIR)/small2/$*.exe; then \
 		echo "That should have failed!"; exit 2; \
 	else \
 		echo "(failed as expected)"; exit 0; \
@@ -823,34 +825,35 @@ test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --keep=.
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
-	rm -f $(TESTDIR)/small2/comb
+	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
 	  $(MYSAFECC)  comb1.c $(CONLY) $(OBJOUT) comb1.o; \
 	  $(MYSAFECC)  comb2.c $(CONLY) $(OBJOUT) comb2.o; \
-          $(MYSAFECC)  comb1.o comb2.o $(EXEOUT)comb
-	$(TESTDIR)/small2/comb
+          $(MYSAFECC)  comb1.o comb2.o $(EXEOUT)comb.exe
+	$(TESTDIR)/small2/comb.exe
 
 # sm: another merger test
 mergestruct: $(TESTDIR)/small2/mergestruct1.c $(TESTDIR)/small2/mergestruct2.c
 	cd $(TESTDIR)/small2; \
-	  $(CCURED) mergestruct1.c mergestruct2.c -o mergestruct
-	$(TESTDIR)/small2/mergestruct
+	  $(CCURED) mergestruct1.c mergestruct2.c -o mergestruct.exe
+	$(TESTDIR)/small2/mergestruct.exe
 
 # sm: yet another merger test (I know there's a target somewhere)
 mergeinline: $(TESTDIR)/small2/mergeinline1.c $(TESTDIR)/small2/mergeinline2.c
 	cd $(TESTDIR)/small2; \
-	  $(CCURED) mergeinline1.c mergeinline2.c -o mergeinline
-	$(TESTDIR)/small2/mergeinline
+	  $(CCURED) mergeinline1.c mergeinline2.c -o mergeinline.exe
+	$(TESTDIR)/small2/mergeinline.exe
 
 # sm: test of combiner's ability to report inconsistencies
 baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c 
-	cd $(TESTDIR)/small2; $(CC) baddef1.c baddef2.c -o baddef && ./baddef
-	rm -f $(TESTDIR)/small2/baddef
+	cd $(TESTDIR)/small2; $(CC) baddef1.c baddef2.c -o baddef.exe \
+           && ./baddef.exe
+	rm -f $(TESTDIR)/small2/baddef.exe
 	cd $(TESTDIR)/small2; \
 	  $(MYSAFECC)  baddef1.c $(CONLY) $(OBJOUT) baddef1.o; \
 	  $(MYSAFECC)  baddef2.c $(CONLY) $(OBJOUT) baddef2.o; \
-          $(MYSAFECC)  baddef1.o baddef2.o $(EXEOUT)baddef
-	$(TESTDIR)/small2/baddef
+          $(MYSAFECC)  baddef1.o baddef2.o $(EXEOUT)baddef.exe
+	$(TESTDIR)/small2/baddef.exe
 
 # sm: Run CCured in all-wild mode, and see if we get the right answer.
 # The final grep will succeed only once the inference correctly says
@@ -864,36 +867,36 @@ doThrowFv:
 # (the tagfile is called tagfile.txt)
 # update: run this with TAGFILE=tagfile.txt
 test-tagfile:
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge -o tagfile \
-	  tagfile1.c tagfile2.c && ./tagfile
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge -o tagfile.exe \
+	  tagfile1.c tagfile2.c && ./tagfile.exe
 
 # cfrac: a memory benchmark which factorizes into products of primes
 CFRACDIR := $(CCUREDHOME)/../bench/cfrac
 cfrac: 
 	-rm $(CFRACDIR)/*.o
-	-rm $(CFRACDIR)/cfrac
+	-rm $(CFRACDIR)/cfrac.exe
 	make -C $(CFRACDIR) \
 	  CC="$(CCURED) --nomerge --keep=$(CFRACDIR)" \
 	  LD="$(CCURED) --nomerge --keep=$(CFRACDIR)"
-	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
+	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
 
 comcfrac: 
 	-rm $(CFRACDIR)/*.o
-	-rm $(CFRACDIR)/cfrac
+	-rm $(CFRACDIR)/cfrac.exe
 	make -C $(CFRACDIR) \
 	  CC="$(CCURED) --keep=$(CFRACDIR)" \
 	  LD="$(CCURED) --keep=$(CFRACDIR)"
-	csh -c "time $(CFRACDIR)/cfrac 327905606740421458831903"
+	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
 
 # espresso: memory benchmark that does logic minimization
-ESPRESSODIR := $(CCUREDHOME)/../bench/espresso
+ESPRESSODIR := $(CCUREDHOME)/../bench/espresso.exe
 espresso: 
 	@true -rm $(ESPRESSODIR)/*.o
-	@true -rm $(ESPRESSODIR)/espresso
+	@true -rm $(ESPRESSODIR)/espresso.exe
 	make -C $(ESPRESSODIR) \
 	  CC="$(CCURED) --keep=$(ESPRESSODIR)" \
 	  LD="$(CCURED) --keep=$(ESPRESSODIR)"
-	csh -c "time $(ESPRESSODIR)/espresso -t $(ESPRESSODIR)INPUT/Z5xp1.espresso >/dev/null"
+	csh -c "time $(ESPRESSODIR)/espresso.exe -t $(ESPRESSODIR)INPUT/Z5xp1.espresso >/dev/null"
 
 
 
@@ -2874,51 +2877,37 @@ tile:
 
 #----------------------------------------------------------------------
 # Generate a distribution of the CIL/CCured regression tests
+# This is done AUTOMATICALLY as part of distributing CCured !
 
 .PHONY: distrib distrib-nocheck checkdistrib
 TESTS_TAR_GZ:=ccured-tests-@CIL_VERSION@.tar.gz
-## Make a distribution and check it
-distrib: distrib-nocheck checkdistrib
 
 # Work in a temporary directory
 TEMP_DIR = ../TEMP_ccured-distrib
 
 # The tar archive members will be relative to this directory
-TOP_DIR = $(TEMP_DIR)/test
+TOP_DIR = $(TEMP_DIR)/ccured/test
 
 DISTRIB_TEST = Makefile.in RegTest.pm testsafec testsafec.pl testcil.h
 
-distrib-nocheck: clean
+distrib: clean
         # Clean the test directory
         # Create the distribution from scratch
 	-mkdir $(TEMP_DIR)
+	-mkdir $(TEMP_DIR)/ccured
 	rm -rf $(TOP_DIR)
-
-	rm -rf $(TESTS_TAR_GZ)
 	mkdir $(TOP_DIR) 
 
+	rm -rf ../$(TESTS_TAR_GZ)
+
 	cp $(patsubst %,%,$(DISTRIB_TEST)) $(TOP_DIR)
-	cp -r small1 small2 olden spec95 ptrdist-1.1 bad ftpd ping $(TOP_DIR)
+	cp -r tile small1 small2 olden spec95 \
+              ptrdist-1.1 bad ftpd ping $(TOP_DIR)
 # Delete all CVS directories
 	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
             rm -rf `cat cvss.txt` ;fi
 # Now make the TAR ball
-	cd $(TEMP_DIR); tar cfz $(TESTS_TAR_GZ) test
-	mv $(TEMP_DIR)/$(TESTS_TAR_GZ) ..
+	cd $(TEMP_DIR)/ccured; tar cfz ../../$(TESTS_TAR_GZ) test
 
 #	rm -rf $(TEMP_DIR)
 
-## Check a distribution
-checkdistrib:
-	cd $(TOP_DIR) && ./configure && $(MAKE) && $(MAKE) quicktest
-
-
-## Publish the distribution
-TESTSHTMLDEST=/usr/local/apache-1.3.22/htdocs/ccured
-publish_distrib: doc
-	if test -d $(TESTSHTMLDEST); then \
-           cp -f $(TESTS_TAR_GZ) $(TESTSHTMLDEST)/distrib; \
-           ln -sf $(TESTSHTMLDEST)/distrib/$(TESTS_TAR_GZ) $(TESTSHTMLDEST)/distrib/ccured-tests-latest.tar.gz ; \
-	else \
-	   error "Cannot publish because $(TESTSHTMLDEST) does not exist" ; \
-        fi

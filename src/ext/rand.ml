@@ -43,6 +43,205 @@ module H = Hashtbl
 
 let enabled = ref false
 
+
+(** This is some testing code for polynomial encoding of trees *)
+
+
+(* A tree with named leaves *)
+type tree = Leaf of string | Node of tree * tree
+
+
+(* A polynomial is a list of leaf * monomial. A monomial is a sorted list of 
+ * variables. *)
+type mono  = int list 
+type poly  = (string * mono) list
+
+
+(* Multiply a monomial by a variable. Keep the monomial sorted *)
+let rec varTimesMono (v: int) (m: mono) = 
+  match m with 
+    [] -> [v]
+  | v' :: rest when v' >= v -> v :: m
+  | v' :: rest -> v' :: varTimesMono v rest
+ 
+(* Multiply a polynomial by a variable *)
+let varTimesPoly (v: int) (p: poly) : poly = 
+  List.map (fun (l, m) -> (l, varTimesMono v m)) p
+
+
+(* Add a number of polynomials *)
+let addPoly (pl : poly list) = List.concat pl
+
+
+(* Group a polynomial by leaf *)
+let groupByLeaf (p: poly) : (string * mono list) list = 
+  let h: (string, mono) H.t = H.create 127 in
+  let leaves: (string, unit) H.t = H.create 13 in
+  List.iter 
+    (fun (l, m) -> 
+      H.replace leaves l ();
+      H.add h l m)
+    p;
+  (* Sort the leaves *)
+  let ll = H.fold (fun l _ acc -> l :: acc) leaves [] in
+  let ll = List.sort (fun l1 l2 -> compare l1 l2) ll in
+  List.map 
+    (fun l -> 
+      let ml = H.find_all h l in
+      (l, ml))
+    ll
+      
+
+(* Group a polynomial by monomials *)
+let groupByMonomial (p: poly) : (mono * string list) list = 
+  let h: (mono, string) H.t = H.create 127 in
+  let monomials: (mono, unit) H.t = H.create 13 in
+  List.iter 
+    (fun (l, m) -> 
+      H.replace monomials m ();
+      H.add h m l)
+    p;
+  (* Sort the monomials *)
+  let ml = H.fold (fun m _ acc -> m :: acc) monomials [] in
+  let ml = List.sort (fun l1 l2 -> compare l1 l2) ml in
+  List.map 
+    (fun m -> 
+      let ll = H.find_all h m in
+      let ll = List.sort compare ll in
+      (m, ll))
+    ml
+
+let docMono (m: mono) : doc = 
+  let rec loop (v: int) (degree: int) (rest: mono) : doc = 
+    match rest with
+      v' :: rest' when v = v' -> loop v (degree + 1) rest'
+    | _ -> 
+        let this = 
+          if degree = 1 then 
+            dprintf "V%d" v
+          else
+            dprintf "V%d^%d" v degree
+        in
+        this ++
+          (match rest with 
+            v :: rest -> loop v 1 rest
+          | [] -> nil)
+  in
+  match m with 
+    [] -> num 1
+  | v :: rest -> loop v 1 rest
+    
+let printPolyByLeaf (p: poly) = 
+  let poly' = groupByLeaf p in
+  List.iter
+    (fun (l, ml) -> 
+      ignore (E.log " %s * (@[%a@]) +\n"
+                l (docList (chr '+' ++ break) docMono) ml))
+    poly'
+
+let printPolyByMonomial (p: poly) = 
+  let poly' = groupByMonomial p in
+  List.iter
+    (fun (m, ll) -> 
+      ignore (E.log " %a * (@[%a@]) +\n"
+                insert (docMono m)
+                (docList (chr '+' ++ break) text) ll))
+    poly'
+    
+
+(* Solve a polynomial to find the leaves *)
+let solved: (string, unit) H.t = H.create 17
+let nrSolved = ref 0
+let rec solve (p: poly) = 
+  let solvedOne = ref false in
+  (* Find the monos with singletons *)
+  let rec solveMono
+      (mono: (mono * string list))
+      (acc : (mono * string list) list)
+      : (mono * string list) list 
+      = 
+    let m, vl = mono in
+    (* Find how many unsolved variables we have for this monomial *)
+    let unsolved = List.filter (fun v -> not (H.mem solved v)) vl in
+    match unsolved with 
+      [] -> (* Drop it *) acc
+    | [v] -> (* One new variable *)
+        ignore (E.log "Solved %s\n" v);
+        solvedOne := true;
+        H.add solved v ();
+        (* Drop this monomial *)
+        acc
+    | _ -> (m, unsolved) :: acc
+  in
+  H.clear solved;
+  nrSolved := 0;
+  let rec repeat (m: (mono * string list) list) = 
+    solvedOne := false;
+    let m' = 
+      List.fold_left
+        (fun acc m -> solveMono m acc)
+        []
+        m
+    in
+    if m' = [] then 
+      ignore (E.log "That worked\n")
+    else 
+      if !solvedOne then repeat m' else begin
+        ignore (E.log "Got stuck with:\n");
+        List.iter
+          (fun (m, ll) -> 
+            ignore (E.log " %a * (@[%a@]) +\n"
+                      insert (docMono m)
+                      (docList (chr '+' ++ break) text) ll))
+          m'
+      end
+  in
+  repeat (groupByMonomial p)
+
+(* Evaluate the ith polynomial for a tree *)
+let rec eval2 (i: int) (t: tree)  = 
+  match i, t with 
+    _, Leaf l -> [(l, [])]
+  | 1, Node (t1, t2) -> 
+      addPoly [ varTimesPoly 0 (eval2 1 t1);
+                varTimesPoly 0 (eval2 1 t2);
+                varTimesPoly 1 (eval2 2 t1);
+                varTimesPoly 2 (eval2 2 t2) ]
+  | 2, Node(t1, t2) -> 
+      addPoly [ eval2 2 t1; 
+                eval2 2 t2 ]
+  | _ -> E.s (bug "eval2")
+
+
+let rec eval2m (i: int) (t: tree)  = 
+  match i, t with 
+    _, Leaf l -> [(l, [])]
+  | 1, Node (t1, t2) -> 
+      addPoly [ varTimesPoly 0 (eval2m 1 t1);
+                varTimesPoly 1 (eval2m 1 t2);
+                varTimesPoly 2 (eval2m 2 t1);
+                varTimesPoly 3 (eval2m 2 t2) ]
+  | 2, Node(t1, t2) -> 
+      addPoly [ varTimesPoly 4 (eval2m 2 t1); 
+                varTimesPoly 5 (eval2m 2 t2) ]
+  | _ -> E.s (bug "eval2m")
+
+
+let test_poly () = 
+  ignore (E.log "Here I am playing with polynomials\n");
+  let rec mkBalanced (path: string) (depth: int) = 
+    if depth = 0 then 
+      Leaf path
+    else
+      Node (mkBalanced (path ^ "L") (depth - 1),
+            mkBalanced (path ^ "R") (depth - 1))
+  in
+  let t = mkBalanced "" 4 in
+  let p = eval2m 1 t in
+  printPolyByMonomial p;
+  solve p;
+  ()
+
 let doit (f: file) = 
   let rec doOneFunction (fi: fundec) = 
     ignore (E.log "RAND: doing function %s\n" fi.svar.vname);
@@ -107,7 +306,10 @@ let feature : featureDescr =
   { fd_name = "rand";
     fd_enabled = enabled;
     fd_description = "randomized global value numbering";
-    fd_extraopt = [];
+    fd_extraopt = [
+      ("--rand-test-poly", Arg.Unit test_poly, 
+        "do some testing with polynomials")
+    ];
     fd_doit = doit;
     fd_post_check = false; (* No changes to the file *)
 }
