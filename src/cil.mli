@@ -995,10 +995,10 @@ val foldLeftCompoundAll:
 val voidType: typ
 
 (* is the given type "void"? *)
-val isVoidType : typ -> bool
+val isVoidType: typ -> bool
 
 (* is the given type "void *"? *)
-val isVoidPtrType : typ -> bool
+val isVoidPtrType: typ -> bool
 
 (** int *)
 val intType: typ
@@ -1039,9 +1039,13 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(** An integer type that fits pointers. Depends on {!Cil.msvcMode} 
-    and is set when CIL starts. *)
+(* An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode} 
+ *  and is set when you call {!Cil.initCIL}.*)
 val upointType: typ ref
+
+(* An unsigned integer type that is the type of sizeof. Depends on 
+ * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
+val typeOfSizeOf: typ ref
 
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 

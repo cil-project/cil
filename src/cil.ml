@@ -1008,6 +1008,10 @@ let doubleType = TFloat(FDouble, [])
 (* An integer type that fits pointers. Initialized by initCIL *)
 let upointType = ref voidType 
 
+
+(* An integer type that is the type of sizeof. Initialized by initCIL *)
+let typeOfSizeOf = ref voidType
+
 let mkStmt (sk: stmtkind) : stmt = 
   { skind = sk;
     labels = [];
@@ -1554,8 +1558,8 @@ let rec typeOf (e: exp) : typ =
   | Const(CStr _) -> charPtrType 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
   | Lval(lv) -> typeOfLval lv
-  | SizeOf _ | SizeOfE _ -> typeOfSizeof ()
-  | AlignOf _ | AlignOfE _ -> typeOfSizeof ()
+  | SizeOf _ | SizeOfE _ -> !typeOfSizeOf
+  | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
   | UnOp (_, _, t) -> t
   | BinOp (_, _, _, t) -> t
   | CastE (t, _) -> t
@@ -1566,13 +1570,6 @@ let rec typeOf (e: exp) : typ =
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
       
-and typeOfSizeof () = 
-  if (if !msvcMode then M.MSVC.ikind_sizeof_is_long 
-                   else M.GCC.ikind_sizeof_is_long) then 
-    TInt(IULong, [])
-  else
-    uintType
-    
 and typeOfInit (i: init) : typ = 
   match i with 
     SingleInit e -> typeOf e
@@ -4509,11 +4506,13 @@ let computeCFGInfo (f : fundec) : stmt list =
   res
 
 let initCIL () = 
-  let szptr, szlong, szint = 
+  let szptr, szlong, szint, sizeof_is_long = 
     if !msvcMode then 
-      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,M.MSVC.sizeof_int
+      M.MSVC.sizeof_ptr,M.MSVC.sizeof_long,
+      M.MSVC.sizeof_int,M.MSVC.ikind_sizeof_is_long
     else
-      M.GCC.sizeof_ptr,M.GCC.sizeof_long,M.GCC.sizeof_int 
+      M.GCC.sizeof_ptr,M.GCC.sizeof_long,
+      M.GCC.sizeof_int,M.GCC.ikind_sizeof_is_long 
   in
   upointType := 
      if szlong = szptr then 
@@ -4521,7 +4520,13 @@ let initCIL () =
      else if szint = szptr then 
        TInt(IUInt, [])
      else
-       E.s (E.unimp "Cannot find the size of the integer as wide as a pointer")
+       E.s(E.unimp "Cannot find the size of the integer as wide as a pointer");
+  typeOfSizeOf := 
+     if sizeof_is_long then 
+       TInt(IULong, [])
+     else
+       uintType
+    
 
 
   
