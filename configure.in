@@ -35,7 +35,7 @@ AC_PREREQ(2.50)
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=1
-CIL_VERSION_REV=0
+CIL_VERSION_REV=1
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 CCURED_VERSION_MAJOR=1
@@ -311,7 +311,7 @@ AC_HEADER_TIME
 
 # checks for library functions; more autoscan stuff
 AC_FUNC_MEMCMP
-AC_CHECK_FUNCS(mkdir select socket)
+AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 
 
 
