@@ -89,37 +89,35 @@ let addSetRetVal (b: exp) (extra: stmt list) : unit =
 
 let printfFun: fundec = 
   let fdec = emptyFunction "printf" in
-  let format = makeVarinfo "format" charPtrType in
-  fdec.svar.vtype <- TFun(intType, Some [format], true, []);
+  fdec.svar.vtype <- 
+     TFun(intType, Some [ ("format", charPtrType, [])], true, []);
   fdec
 
 
 let memsetFun: fundec = 
   let fdec = emptyFunction "memset" in
-  let start = makeVarinfo "start" voidPtrType in
-  let v = makeVarinfo "v" intType in
-  let len = makeVarinfo "len" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, Some [start; v; len], false, []);
+  fdec.svar.vtype <- 
+     TFun(voidPtrType, Some [ ("start", voidPtrType, []);
+                              ("v", intType, []);
+                              ("len", uintType, [])], false, []);
   fdec
 
 let checkOffsetFun: fundec = 
   let fdec = emptyFunction "checkOffset" in
-  let start = makeVarinfo "start" voidPtrType in
-  let len = makeVarinfo "len" uintType in
-  let expected_start = makeVarinfo "expected_start" intType in
-  let expected_width = makeVarinfo "expected_width" intType in
-  let name = makeVarinfo "name" charPtrType in
-  fdec.svar.vtype <- TFun(voidType, Some [ start; len; expected_start;
-                                      expected_width;
-                                      name; ], false, []);
+  fdec.svar.vtype <- 
+     TFun(voidType, Some [ ("start", voidPtrType, []);
+                           ("len", uintType, []);
+                           ("expected_start", intType, []);
+                           ("expected_width", intType, []);
+                           ("name", charPtrType, []) ], false, []);
   fdec
 
 let checkSizeOfFun: fundec = 
   let fdec = emptyFunction "checkSizeOf" in
-  let len = makeVarinfo "len" uintType in
-  let expected = makeVarinfo "expected" intType in
-  let name = makeVarinfo "name" charPtrType in
-  fdec.svar.vtype <- TFun(voidType, Some [ len; expected; name; ], false, []);
+  fdec.svar.vtype <- 
+     TFun(voidType, Some [ ("len", uintType, []);
+                           ("expected", intType, []);
+                           ("name", charPtrType, []) ], false, []);
   fdec
 
 

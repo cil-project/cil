@@ -225,7 +225,7 @@ let rec print_specifiers (specs: spec_elem list) =
   comprint "specifier(";
   let print_spec_elem = function
       SpecTypedef -> print "typedef "
-    | SpecFunspec INLINE -> print "__inline "
+    | SpecInline -> print "__inline "
     | SpecStorage sto ->
         print (match sto with
           NO_STORAGE -> (comstring "/*no storage*/")

@@ -42,7 +42,7 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
 
 and storage =
-    NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER | MUTABLE
+    NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
 
 and funspec = 
     INLINE | VIRTUAL | EXPLICIT
@@ -56,20 +56,10 @@ and spec_elem =
     SpecTypedef
   | SpecAttr of attribute
   | SpecStorage of storage
+  | SpecInline
   | SpecType of typeSpecifier
   | SpecPattern of string       (* specifier pattern variable *)
 
-    (* The rest of part of the experimental front-end for C++ *)
-  | SpecFunspec of funspec
-  | SpecArray of expression      (* Print as "[e]" *)
-  | SpecParen of spec_elem list  (* Print as ( se1, ..., sen ) *)
-  | SpecInit  of init_expression (* Print as "= e" *)
-  | SpecEllipsis                 (* Print as "..." *)
-  | SpecPtr                      (* Print as "*" *)
-  | SpecReference                (* Print as "&" *) 
-  | SpecName of string           (* Print as "name". Can be a name of a type 
-                                  * or an identifier *)
-  | SpecExc of (spec_elem list * decl_type) list  (* Print as "throw (...)" *)
 (* decided to go ahead and replace 'spec_elem list' with specifier *)
 and specifier = spec_elem list
 
@@ -243,7 +233,6 @@ and constant =
   | CONST_CHAR of string
   | CONST_STRING of string
   | CONST_WSTRING of string
-  | CONST_BOOL of bool
 
 and init_expression =
   | NO_INIT
@@ -278,7 +267,7 @@ let rec isExtern = function
 
 let rec isInline = function
     [] -> false
-  | SpecFunspec INLINE :: _ -> true
+  | SpecInline :: _ -> true
   | _ :: rest -> isInline rest
 
 let rec isTypedef = function

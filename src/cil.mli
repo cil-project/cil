@@ -180,13 +180,16 @@ and typ =
   | TArray of typ * exp option * attributes
            (** Array type. It indicates the base type and the array length. *)
 
-  | TFun of typ * varinfo list option * bool * attributes
-          (** Function type. Indicates the type of the result, the formal 
-           * arguments ([None] if no arguments were specified, as in a 
-           * function whose definition or prototype we have not seen; [Some 
-           * \[\]] means void). Use {!Cil.argsToList} to obtain a list of 
-           * arguments. The boolean indicates if it is a variable-argument 
-           * function. *)
+  | TFun of typ * (string * typ * attributes) list option * bool * attributes
+          (** Function type. Indicates the type of the result, the name, type 
+           * and name attributes of the formal arguments ([None] if no 
+           * arguments were specified, as in a function whose definition or 
+           * prototype we have not seen; [Some \[\]] means void). Use 
+           * {!Cil.argsToList} to obtain a list of arguments. The boolean 
+           * indicates if it is a variable-argument function. If this is the 
+           * type of a varinfo for which we have a function declaration then 
+           * the information for the formals must match that in the 
+           * function's sformals. *)
 
   | TNamed of typeinfo * attributes 
           (* The use of a named type. Each such type name must be preceeded 
@@ -266,6 +269,7 @@ and fkind =
     FFloat      (** [float] *)
   | FDouble     (** [double] *)
   | FLongDouble (** [long double] *)
+
 
 (** {b Attributes.} *)
 
@@ -728,11 +732,12 @@ and fundec =
           * in a function call or in a prototype must point to the same 
           * [varinfo]. *)
       mutable sformals: varinfo list;   
-        (** Formals. These must be shared with the formals that appear in the 
-         * type of the function. Use {!Cil.setFormals} or 
-         * {!Cil.makeFormalVar} or {!Cil.setFunctionType} to set these 
-         * formals and ensure that they are reflected in the function type. 
-         * Do not make copies of these because the body refers to them. *)
+        (** Formals. These must be in the same order and with the same 
+         * information as the formal information in the type of the function. 
+         * Use {!Cil.setFormals} or {!Cil.makeFormalVar} or 
+         * {!Cil.setFunctionType} to set these formals and ensure that they 
+         * are reflected in the function type. Do not make copies of these 
+         * because the body refers to them. *)
       mutable slocals: varinfo list;    
         (** Locals. Does NOT include the sformals. Do not make copies of 
          * these because the body refers to them. *)
@@ -925,11 +930,12 @@ and location = {
 val emptyFunction: string -> fundec
 
 (** Update the formals of a [fundec] and make sure that the function type 
-    shares them *)
+    has the same information. Will copy the name as well into the type. *)
 val setFormals: fundec -> varinfo list -> unit
 
 (** Set the types of arguments and results as given by the function type 
-    passed as the second argument *)
+ * passed as the second argument. Will not copy the names from the function 
+ * type to the formals *)
 val setFunctionType: fundec -> typ -> unit
 
 (** A dummy function declaration handy when you need one as a placeholder. It 
@@ -1119,7 +1125,8 @@ val isPointerType: typ -> bool
 val isFunctionType: typ -> bool
 
 (** Obtain the argument list ([] if None) *)
-val argsToList: varinfo list option -> varinfo list
+val argsToList: (string * typ * attributes) list option 
+                  -> (string * typ * attributes) list
 
 (** True if the argument is an array type *)
 val isArrayType: typ -> bool
@@ -1158,10 +1165,12 @@ val existsType: (typ -> existsAction) -> typ -> bool
 (** Given a function type split it into return type, 
  * arguments, is_vararg and attributes. An error is raised if the type is not 
  * a function type *)
-val splitFunctionType: typ -> typ * varinfo list option * bool * attributes
+val splitFunctionType: 
+    typ -> typ * (string * typ * attributes) list option * bool * attributes
 (** Same as {!Cil.splitFunctionType} but takes a varinfo. Prints a nicer 
  * error message if the varinfo is not for a function *)
-val splitFunctionTypeVI: varinfo -> typ * varinfo list option * bool * attributes
+val splitFunctionTypeVI: 
+    varinfo -> typ * (string * typ * attributes) list option * bool * attributes
 
 
 (** {b Type signatures} ****)
@@ -1197,8 +1206,9 @@ val typeSigAttrs: typsig -> attributes
 (*********************************************************)
 (**  LVALUES *)
 
-(** Make a varinfo (for use in a TFun). Use other functions to make locals 
-    and globals *)
+(** Make a varinfo. Use this to make a raw varinfo. Use other functions to 
+ * make locals ({!Cil.makeLocalVar} or {!Cil.makeFormalVar} or 
+ * {!Cil.makeTempVar}) and globals ({!Cil.makeGlobalVar}) *)
 val makeVarinfo: string -> typ -> varinfo
 
 (** Make a formal variable for a function. Insert it in both the sformals 

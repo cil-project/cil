@@ -385,12 +385,7 @@ let startFile () =
      (* Eliminate all locals from the alphaTable. Return the maxlocal id and 
       * the list of locals (but remove the arguments first) *)
 let endFunction (formals: varinfo list) : (int * varinfo list) = 
-  let rec loop revlocals = function
-      [] -> revlocals
-    | lvi :: t -> (* H.remove alphaTable lvi.vname; *) 
-        loop (lvi :: revlocals) t
-  in
-  let revlocals = loop [] !locals in
+  let revlocals = List.rev !locals in
   let maxid = !localId + 1 in
   resetLocals ();
   let rec drop formals locals = 
@@ -627,6 +622,7 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 (*** When we do statements we need to know the current return type *)
 let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionVI : varinfo ref = ref dummyFunDec.svar
+let currentFunctionFormals : varinfo list ref = ref []
 
 
 (* A simple visitor that searchs a statement for labels *)
@@ -938,8 +934,8 @@ let lookupLabel (l: string) =
 (** ALLOCA ***)
 let allocaFun = 
   let fdec = emptyFunction "alloca" in
-  let len = makeLocalVar fdec "len" uintType in
-  fdec.svar.vtype <- TFun(voidPtrType, Some [ len ], false, []);
+  fdec.svar.vtype <- 
+     TFun(voidPtrType, Some [ ("len", uintType, []) ], false, []);
   fdec
   
 (* Maps local variables that are variable sized arrays to the expression that 
@@ -1309,20 +1305,22 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         else begin
           (* Go over the arguments and update the old ones with the 
           * adjusted types *)
-          List.iter2 
-            (fun oldarg arg -> 
-              (* Update the names. Always prefer the new name. This is very 
-               * important if the prototype uses different names than the 
-               * function definition. *)
-              if arg.vname <> "" then oldarg.vname <- arg.vname;
-              oldarg.vattr <- cabsAddAttributes oldarg.vattr arg.vattr;
-              oldarg.vtype <- 
-                 combineTypes 
-                   (if what = CombineFundef then 
-                     CombineFunarg else CombineOther) 
-                   oldarg.vtype arg.vtype)
-            oldargslist argslist;
-          oldargs
+          Some 
+            (List.map2 
+               (fun (on, ot, oa) (an, at, aa) -> 
+                 (* Update the names. Always prefer the new name. This is 
+                  * very important if the prototype uses different names than 
+                  * the function definition. *)
+                 let n = if an <> "" then an else on in
+                 let t = 
+                   combineTypes 
+                     (if what = CombineFundef then 
+                       CombineFunarg else CombineOther) 
+                     ot at
+                 in
+                 let a = addAttributes oa aa in
+                 (n, t, a))
+               oldargslist argslist)
         end
       in
       TFun (newrt, newargs, oldva, cabsAddAttributes olda a)
@@ -1779,7 +1777,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
                   : A.typeSpecifier list = 
     match se with 
       A.SpecTypedef -> acc
-    | A.SpecFunspec INLINE -> isinline := true; acc
+    | A.SpecInline -> isinline := true; acc
     | A.SpecStorage st ->
         if !storage <> NoStorage then 
           E.s (error "Multiple storage specifiers");
@@ -2226,18 +2224,18 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             (args', !newisva)
           end else (args, isva)
         in
-        let doOneArg (s, ((n, _, _) as nm)) = 
+        (* Make the argument as for a formal *)
+        let doOneArg (s, ((n, _, _) as nm)) : varinfo = 
           let s' = doSpecList n s in
           makeVarInfo false locUnknown s' nm
         in
-        let targs = 
+        let targs : varinfo list option = 
           match List.map doOneArg args'  with
           | [] -> None (* No argument list *)
           | [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> 
               Some []
           | l -> Some l
         in
-        let argslist = argsToList targs in
         exitScope ();
         (* Turn [] types into pointers in the arguments and the result type. 
          * Turn function types into pointers to respective. This simplifies 
@@ -2260,13 +2258,19 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               | _ -> ());
               fixupArgumentTypes (argidx + 1) args'
         in
-        fixupArgumentTypes 0 argslist;
+        let args = 
+          match targs with 
+            None -> None
+          | Some argl -> 
+              fixupArgumentTypes 0 argl;
+              Some (List.map (fun a -> (a.vname, a.vtype, a.vattr)) argl)
+        in
         let tres = 
           match unrollType bt with
             TArray(t,_,attr) -> TPtr(t, attr)
           | _ -> bt
         in
-        doDeclType (TFun (tres, targs, isva', [])) acc d
+        doDeclType (TFun (tres, args, isva', [])) acc d
 
   in
   doDeclType bt [] dt
@@ -2910,11 +2914,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 | [a] -> a
                 | _ :: rest -> getLast rest 
               in
-              let last = 
-                getLast 
-                  (let _, args, _, _ = splitFunctionTypeVI !currentFunctionVI 
-                  in argsToList args)
-              in
+              let last = getLast !currentFunctionFormals in
               let res = mkAddrOfAndMark (var last) in
               let tres = typeOf res in
               let tres', res' = castTo tres (TInt(IULong, [])) res in
@@ -3231,7 +3231,7 @@ and doExp (isconst: bool)    (* In a constant *)
         let resType' = resType in 
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
-            : varinfo list * A.expression list 
+            : (string * typ * attributes) list * A.expression list 
           -> (chunk * exp list) = function
             | ([], []) -> (empty, [])
 
@@ -3240,17 +3240,17 @@ and doExp (isconst: bool)    (* In a constant *)
                           "Too few arguments in call to %a. Filling with 0."
                           d_exp f');
                 (* Pretend we have a few NULL arguments *)
-                let makeOneArg (a: varinfo) = 
-                  match makeZeroInit a.vtype with
+                let makeOneArg ((_, at, _)) = 
+                  match makeZeroInit at with
                     SingleInit e -> e
                   | _ -> E.s (unimp "Creating composite missing argument")
                 in
                 (empty, List.map makeOneArg args)
 
-            | (varg :: atypes, a :: args) -> 
+            | ((_, at, _) :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
-                let (sa, a', att) = doExp false a (AExp (Some varg.vtype)) in
-                let (at'', a'') = castTo att varg.vtype a' in
+                let (sa, a', att) = doExp false a (AExp (Some at)) in
+                let (at'', a'') = castTo att at a' in
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
@@ -4459,8 +4459,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   vreferenced = false;   (* sm *)
                 }
             in
-(*            if thisFunctionVI.vname = "refile_buffer" then 
-              ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
+(*
+            ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
                         n d_type thisFunctionVI.vtype 
                         d_attrlist thisFunctionVI.vattr);
 *)
@@ -4474,23 +4474,34 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * (when combining it with the type of the prototype). So get the 
              * type only now. *)
             (* Extract the information from the type *)
-            let (returnType, formals, isvararg, funta) =
+            let (returnType, formals_t, isvararg, funta) =
               splitFunctionTypeVI thisFunctionVI 
             in
             (* Record the returnType for doStatement *)
             currentReturnType   := returnType;
             
 
-            
-
-            (* Add the formals to the environment *)
-            let formals' =
-              match formals with
-                None -> None
-              | Some fl -> 
-                  Some (List.map (alphaConvertVarAndAddToEnv true) fl) in
-            let formalsList' = argsToList formals' in
-            let ftype = TFun(returnType, formals', isvararg, funta) in
+            (* Create the formals and add them to the environment. *)
+            let formals = 
+              localId := 0;
+              List.map 
+                (fun (fn, ft, fa) -> 
+                  let f = { vname = fn; vtype = ft; vattr = fa; 
+                            vglob = false; vid = newVarId fn false; 
+                            vreferenced = false; vaddrof = false;
+                            vstorage = NoStorage; vdecl = !currentLoc; } in
+                  alphaConvertVarAndAddToEnv true f)
+                (argsToList formals_t)
+            in
+            (* Recreate the type *)
+            let ftype = TFun(returnType, 
+                             Some (List.map (fun f -> (f.vname,
+                                                       f.vtype, 
+                                                       f.vattr)) formals), 
+                             isvararg, funta) in
+(*
+            ignore (E.log "Funtype of %s: %a\n" n' d_type ftype);
+*)
             (* Now fix the names of the formals in the type of the function 
             * as well *)
             thisFunctionVI.vtype <- ftype;
@@ -4498,6 +4509,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             if H.mem alreadyDefined thisFunctionVI.vid then
               E.s (error "There is a definition already for %s" n);
             currentFunctionVI := thisFunctionVI;
+            currentFunctionFormals := formals;
             (* Now change the type of transparent union args back to what it 
              * was so that the body type checks. We must do it this late 
              * because makeGlobalVarinfo from above might choke if we give 
@@ -4514,7 +4526,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                     with Not_found -> ());
                     fixbackFormals (idx + 1) args'
               in
-              fixbackFormals 0 formalsList';
+              fixbackFormals 0 formals;
               transparentUnionArgs := [];
             in
             (* Now do the body *)
@@ -4566,10 +4578,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             gotoTargetNextAddr := 0;
 
 
-            let (maxid, locals) = endFunction formalsList' in
+            let (maxid, locals) = endFunction formals in
             let fdec = { svar     = thisFunctionVI;
                          slocals  = locals;
-                         sformals = formalsList';
+                         sformals = formals;
                          smaxid   = maxid;
                          sbody    = mkFunctionBody stm;
                          sinline  = inl;
@@ -4599,7 +4611,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                                                          NoOffset)),
                                            Lval (var shadow),
                                            !currentLoc)]) :: accbody))
-                formalsList'
+                formals
                 ([], fdec.sbody.bstmts)
             in
             fdec.sbody.bstmts <- newbody;
@@ -5059,8 +5071,7 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   (* Setup the built-ins, but do not add their prototypes to the file *)
   let _ =
     let fdec = emptyFunction "__builtin_constant_p" in
-    let argp  = makeLocalVar fdec "x" intType in
-    fdec.svar.vtype <- TFun(intType, Some [ argp ], false, []);
+    fdec.svar.vtype <- TFun(intType, Some [ ("x", intType, []) ], false, []);
     alphaConvertVarAndAddToEnv true fdec.svar
   in
   let globalidx = ref 0 in

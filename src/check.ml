@@ -222,14 +222,9 @@ let rec checkType (t: typ) (ctx: ctxType) =
       checkAttributes a;
       checkType rt CTFRes;
       List.iter 
-        (fun ta -> 
-          checkType ta.vtype CTFArg;
-          checkAttributes ta.vattr;
-          if not (not ta.vglob &&
-                  ta.vstorage <> Extern &&
-                  ta.vstorage <> Static &&
-                  not ta.vaddrof) then
-            ignore (warn "Invalid argument varinfo")) (argsToList targs)
+        (fun (an, at, aa) -> 
+          checkType at CTFArg;
+          checkAttributes aa) (argsToList targs)
 
 (* Check that a type is a promoted integral type *)
 and checkIntegralType (t: typ) = 
@@ -711,8 +706,8 @@ and checkInstr (i: instr) =
       let rec loopArgs formals args = 
         match formals, args with
           [], _ when (isva || args = []) -> ()
-        | fo :: formals, a :: args -> 
-            checkExpType false a fo.vtype;
+        | (fn,ft,_) :: formals, a :: args -> 
+            checkExpType false a ft;
             loopArgs formals args
         | _, _ -> ignore (warn "Not enough arguments")
       in
@@ -801,11 +796,11 @@ let rec checkGlobal = function
           let rec loopArgs targs formals = 
             match targs, formals with
               [], [] -> ()
-            | ta :: targs, fo :: formals -> 
-                if ta != fo then 
+            | (fn, ft, fa) :: targs, fo :: formals -> 
+                if fn <> fo.vname || ft != fo.vtype || fa != fo.vattr then 
                   ignore (warnContext 
                             "Formal %s not shared (type + locals) in %s" 
-                         fo.vname fname);
+                            fo.vname fname);
                 loopArgs targs formals
 
             | _ -> 

@@ -169,7 +169,8 @@ let annotate (f : Cil.file) ei = begin
   let printfFun =
     let fdec = emptyFunction "printf" in
     let argf  = makeLocalVar fdec "format" charConstPtrType in
-    fdec.svar.vtype <- TFun(intType, Some [ argf ], true, []);
+    fdec.svar.vtype <- TFun(intType, Some [ ("format", charConstPtrType, [])],
+                            true, []);
     fdec
   in
   let visitor = (new enumVisitor printfFun.svar ei.statements 

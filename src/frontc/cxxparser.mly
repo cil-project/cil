@@ -246,8 +246,8 @@ literal:
 |   CST_CHAR				{CONST_CHAR $1}
 |   string_list				{CONST_STRING $1}
 |   wstring_list			{CONST_WSTRING $1}
-|   TRUE                                {CONST_BOOL true}
-|   FALSE                               {CONST_BOOL false}
+|   TRUE                                {CONST_INT "1"}
+|   FALSE                               {CONST_INT "0"}
 ;    
 
 string_list:

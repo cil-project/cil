@@ -41,9 +41,10 @@ class logWriteVisitor = object
    * file *)
   val printfFun =   
     let fdec = emptyFunction "syslog" in
-    let argp  = makeLocalVar fdec "prio" intType in
-    let argf  = makeLocalVar fdec "format" charConstPtrType in
-    fdec.svar.vtype <- TFun(intType, Some [ argp ; argf ], true, []);
+    fdec.svar.vtype <- TFun(intType, 
+                            Some [ ("prio", intType, []);
+                                   ("format", charConstPtrType, []) ], 
+                            true, []);
     fdec
 
   method vinst (i: instr) : instr list visitAction = 

@@ -428,7 +428,8 @@ let rec combineTypes (what: combineWhat)
   | TFun _, TFun (_, _, _, [Attr("missingproto",_)]) -> oldt
         
   | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
-      let newrt = combineTypes 
+      let newrt = 
+        combineTypes 
           (if what = CombineFundef then CombineFunret else CombineOther) 
           oldfidx oldrt fidx rt 
       in
@@ -446,17 +447,19 @@ let rec combineTypes (what: combineWhat)
         else begin
           (* Go over the arguments and update the old ones with the 
           * adjusted types *)
-          List.iter2 
-            (fun oldarg arg -> 
-              if arg.vname <> "" then oldarg.vname <- arg.vname;
-              oldarg.vattr <- addAttributes oldarg.vattr arg.vattr;
-              oldarg.vtype <- 
-                 combineTypes 
-                   (if what = CombineFundef then 
-                     CombineFunarg else CombineOther) 
-                   oldfidx oldarg.vtype fidx arg.vtype)
-            oldargslist argslist;
-          oldargs
+          Some 
+            (List.map2 
+               (fun (on, ot, oa) (an, at, aa) -> 
+                 let n = if an <> "" then an else on in
+                 let t = 
+                   combineTypes 
+                     (if what = CombineFundef then 
+                       CombineFunarg else CombineOther) 
+                     oldfidx ot fidx at
+                 in
+                 let a = addAttributes oa aa in
+                 (n, t, a))
+               oldargslist argslist)
         end
       in
       TFun (newrt, newargs, oldva, addAttributes olda a)
@@ -723,7 +726,7 @@ let rec oneFilePass1 (f:file) : unit =
           (* Save the names of the formal arguments *)
           let _, args, _, _ = splitFunctionTypeVI fdec.svar in
           H.add formalNames (!currentFidx, fdec.svar.vname) 
-            (List.map (fun f -> f.vname) (argsToList args));
+            (List.map (fun (fn, _, _) -> fn) (argsToList args));
           (* Force inline functions to be static *) 
           fdec.svar.vreferenced <- false;
           if fdec.sinline && fdec.svar.vstorage = NoStorage then 
@@ -1021,7 +1024,9 @@ let oneFilePass2 (f: file) =
               E.s (unimp "After merging the function has more arguments");
             List.iter2
               (fun oldn a -> if oldn <> "" then a.vname <- oldn)
-              oldnames argl;
+              oldnames fdec.sformals;
+            (* Reflect them in the type *)
+            setFormals fdec fdec.sformals
           end;
           (** See if we can remove this inline function *)
           if fdec'.sinline && mergeInlines then begin
@@ -1165,7 +1170,7 @@ let oneFilePass2 (f: file) =
                               (P.dprintf "/* error at %t:" d_thisloc)));
     mergePushGlobal g;
     mergePushGlobal (GText ("*************** end of error*/"));
-        
+    raise e    
   end
   in
   List.iter processOneGlobal f.globals
