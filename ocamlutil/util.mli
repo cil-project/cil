@@ -34,6 +34,7 @@ val list_head_default: 'a -> 'a list -> 'a
 val list_iter3 : ('a -> 'b -> 'c -> unit) ->
   'a list -> 'b list -> 'c list -> unit
 val get_some_option_list : 'a option list -> 'a list
+val list_append: ('a list) -> ('a list) -> ('a list) (* tail-recursive append*)
 
 (** Iterate over a list passing the index as you go *)
 val list_iteri: (int -> 'a -> unit) -> 'a list -> unit

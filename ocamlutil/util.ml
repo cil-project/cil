@@ -150,6 +150,13 @@ let rec get_some_option_list (xs : 'a option list) : 'a list =
   end
 ;;
 
+(* tail-recursive append: reverses xs twice *)
+let list_append (xs: 'a list) (ys: 'a list): 'a list =
+  match xs with (* optimize some common cases *)
+      [] -> ys
+    | [x] -> x::ys
+    | _ -> list_rev_append (List.rev xs) ys
+
 let list_iteri (f: int -> 'a -> unit) (l: 'a list) : unit = 
   let rec loop (i: int) (l: 'a list) : unit = 
     match l with 
