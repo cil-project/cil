@@ -1435,7 +1435,7 @@ gcc-optimvariant: mustbegcc
 
 ### SPEC95 vortex
 VORDIR := $(SPECDIR)/147.vortex
-VORSAFECC := $(CCURED)    $(PATCHARG)
+VORSAFECC := $(CCURED)  --verbose --noRTTI  $(PATCHARG)
 #VORSAFECC := $(CCURED)  $(PATCHARG)
 ifdef _GNUCC
   VOREXTRA := -lm
