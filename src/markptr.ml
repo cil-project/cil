@@ -287,8 +287,22 @@ let newOffsetNode (n: N.node)  (fname: string)
   next
 
 (* Create a field successor *)
+(* weimer : Tue Dec 11 23:47:00  2001
+ * I need the node (which is associated with the address of the field)
+ * to be stored in the fi.fattr attribute list so that I can get it
+ * out later when I want to typecheck "&(struct.field)". Previously
+ * the node was just created and returned. In addition, this function
+ * could get called multiple times for the same structure field, creating
+ * multiple distinct node to stand for the address of that field. As
+ * I understand the CCured type system, it would be non-sensical for
+ * them to have different kinds, so here we do not create a new node
+ * if there is already one for this field. *)
 let fieldOfNode (n: N.node) (fi: fieldinfo) : N.node =
-  newOffsetNode n fi.fname fi.ftype []
+  match N.nodeOfAttrlist fi.fattr with
+    Some(n) -> n
+  | None -> let answer = newOffsetNode n fi.fname fi.ftype [] in
+            fi.fattr <- addAttributes fi.fattr answer.N.attr ; 
+            answer
 
 let startOfNode (n: N.node) : N.node =
   match unrollType n.N.btype with
