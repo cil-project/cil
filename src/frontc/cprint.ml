@@ -786,7 +786,13 @@ and print_substatement stat =
 ** GCC Attributes
 *)
 and print_attribute (name,args) = 
-  if args = [] then print name
+  if args = [] then print (
+    match name with 
+      "restrict" -> "__restrict" 
+      (* weimer: Fri Dec  7 17:12:35  2001
+       * must not print 'restrict' and the code below does allows some
+       * plan 'restrict's to slip though! *)
+    | x -> x)
   else begin
     print name;
     print "("; if name = "__attribute__" then print "(";
