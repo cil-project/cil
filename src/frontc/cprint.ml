@@ -23,6 +23,7 @@
 open Cabs
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
+let msvcMode = ref false
 
 (*
 ** FrontC Pretty printer
@@ -174,12 +175,16 @@ let get_size siz =
         | CHAR -> "char "
 	| SHORT -> "short "
 	| LONG -> "long "
-	| LONG_LONG -> "long long "
+	| LONG_LONG -> "<unexpected size> "
 
 let rec print_base_type  typ =
   match typ with
     NO_TYPE -> ()
   | VOID -> print "void"
+  | INT (LONG_LONG, sign) -> 
+      let sz = if !msvcMode then "__int64 " else "long long int " in
+      print ((get_sign sign) ^ sz)
+
   | INT (size, sign) -> 
       print ((get_sign sign) ^ (get_size size) ^ 
              (if size <> CHAR then "int" else ""))
@@ -250,44 +255,34 @@ and print_enum id items =
 (*
 ** Declaration Printing 
 *)
-and get_base_type typ =
-  match typ with
-    PTR typ -> get_base_type typ
-(*
-  | CONST typ -> get_base_type typ
-  | VOLATILE typ -> get_base_type typ
-*)
-  | ATTRTYPE (typ, _) -> get_base_type typ
-  | ARRAY (typ, _) -> get_base_type typ
-  | _ -> typ
-	
 and print_pointer typ =
   match typ with
     PTR typ -> print_pointer typ; print "*"
-(*
-  | CONST typ -> print_pointer typ; print " const "
-  | VOLATILE typ -> print_pointer typ; print " volatile "
-*)
   | ATTRTYPE (typ, a) -> begin 
       print_pointer typ;
         (* Extract the const and volatile attributes *)
       let rec doconstvol = function
           [] -> []
-        | ("const", []) :: rest -> print " const "; doconstvol rest
+        | ("const", []) :: rest -> print "" (* " const "*); doconstvol rest
         | ("volatile", []) :: rest -> print " volatile "; doconstvol rest
+        | ("cdecl", []) :: rest when !msvcMode -> 
+            print "" (* " __cdecl "*); doconstvol rest
+        | ("stdcall", []) :: rest when !msvcMode -> 
+            print ""(*" __stdcall "*); doconstvol rest
         | a :: rest -> a :: doconstvol rest
       in
       let rest = doconstvol a in
-      if rest <> [] then begin
-        print " __attribute__((";
-        let printOne (s, el) =
-          print s;
-          if el <> [] then
-            print_commas false (fun e -> print_expression e 1) el
-        in
-        print_commas false printOne rest;
-        print ")) "
-      end
+      if rest <> [] then 
+        begin
+          print " __attribute__((";
+          let printOne (s, el) =
+            print s;
+            if el <> [] then
+              print_commas false (fun e -> print_expression e 1) el
+          in
+          print_commas false printOne rest;
+          print ")) "
+        end
   end
 
   | ARRAY (typ, _) -> print_pointer typ
@@ -303,17 +298,39 @@ and print_array typ =
   | _ -> ()
 
 and print_type (fct : unit -> unit) (typ : base_type ) =
+  let rec get_base_type typ =
+    match typ with
+      PTR typ -> get_base_type typ
+    | ATTRTYPE (typ, _) -> get_base_type typ
+    | ARRAY (typ, _) -> get_base_type typ
+    | _ -> typ
+  in
+  let rec parentProto = function
+      PTR _ -> true
+    | ARRAY _ -> true
+    | ATTRTYPE (typ, a) -> begin
+        let rec loop = function
+            [] -> parentProto typ
+        | ("cdecl", []) :: rest when !msvcMode -> loop rest
+        | ("stdcall", []) :: rest when !msvcMode -> loop rest
+        | _ -> true
+        in
+        loop a
+    end
+    | _ -> false
+  in
   let base = get_base_type typ in
   match base with
     BITFIELD (_, exp) -> fct (); print " : "; print_expression exp 1
   | PROTO (typ', pars, ell, _) ->
       print_type
 	(fun _ ->
-	  if base <> typ then print "(";
+          let p = parentProto typ in
+	  if p then print "(";
 	  print_pointer typ;
 	  fct ();
 	  print_array typ;
-	  if base <> typ then print ")";
+	  if p then print ")";
 	  print "(";
 	  print_params pars ell;
 	  print ")")
@@ -337,9 +354,8 @@ and print_onlytype typ =
   print_type (fun _ -> ()) typ
     
 and print_name ((id, typ, attr, exp) : name) =
-  if id = "___missing_field_name" then () 
-  else begin
-    print_type (fun _ -> print id) typ;
+  begin
+    print_type (fun _ -> if id <> "___missing_field_name" then print id) typ;
     print_attributes attr;
     if exp <> NOTHING then begin
       space ();
@@ -666,19 +682,24 @@ and print_statement stat =
       let print_asm_operand (cnstr, e) = 
         print_string cnstr; space (); print_expression e 100
       in
-      print "__asm__ "; if isvol then print "__volatile__ ";
-      print "("; 
-      print_list (fun () -> new_line()) print_string tlist;(* templates *)
-      print ":"; space ();
-      print_commas false print_asm_operand outs;
-      print ":"; space ();
-      print_commas false print_asm_operand ins;
-      if clobs <> [] then begin
+      if !msvcMode then begin
+        print "__asm {";
+        print_list (fun () -> new_line()) print tlist; (* templates *)
+        print "};"
+      end else begin
+        print "__asm__ "; if isvol then print "__volatile__ ";
+        print "("; 
+        print_list (fun () -> new_line()) print_string tlist;(* templates *)
+          print ":"; space ();
+        print_commas false print_asm_operand outs;
         print ":"; space ();
-        print_commas false print_string clobs
-      end;
-      print ");"
-        
+        print_commas false print_asm_operand ins;
+        if clobs <> [] then begin
+          print ":"; space ();
+          print_commas false print_string clobs
+        end;
+        print ");"
+      end
 and print_substatement stat =
   match stat with
     IF _
@@ -713,6 +734,8 @@ and print_attribute (name,args) =
 
 and print_attributes attrs = 
   if attrs = [] then ()
+  else if !msvcMode then
+    print_list space print_attribute attrs
   else
     begin
       space (); print "__attribute__((";

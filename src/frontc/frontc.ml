@@ -20,6 +20,9 @@ let set_output filename =
     output_string stderr ("Error while opening output: " ^ msg); exit 1);
   close_me := true
        
+   (* Signal that we are in MS VC mode *)
+let setMSVCMode () = 
+  Cprint.msvcMode := true
 
 (*
 ** Argument definition

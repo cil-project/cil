@@ -331,6 +331,18 @@ testallpcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
              TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
 	     defaulttarget 
 
+combinepcc: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
+	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
+	make -C $(PCCDIR) \
+             CC="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout $(CONLY)" \
+             LD="$(SAFECC) --combine --keep=$(CILDIR)/test/PCCout" \
+             USE_JAVA= USE_JUMPTABLE= TYPE=$(PCCTYPE) \
+             COMPILER=$(PCCCOMP) \
+             ENGINE_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+             TRANSLF_OTHERS="C:$(SAFECLIB) C:$(SAFEMAINLIB)" \
+	     defaulttarget 
+
 testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB) 
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.o
 	-rm $(PCCDIR)/x86_WIN32$(PCCCOMP)/$(PCCTYPE)/*.exe
@@ -344,11 +356,11 @@ testallspj: $(EXECUTABLE)$(EXE) $(TVEXE) $(SAFECLIB) $(SAFEMAINLIB)
 
 .PHONY : allpcc
 allpcc: $(EXECUTABLE)$(EXE) $(SAFEMAINLIB) $(SAFECLIB)
-	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(PCCTEST); \
+           $(SAFECC) --keep=. \
                  $(DOOPT) \
                  --patch=../../lib/$(PATCHFILE)\
-                 $(INC)$(PCCDIR)/src \
-                 ../PCC/all.c \
+                 ../PCC/bin/engine.x86_WIN32_MSVC._DEBUG.exe.c \
                  $(EXEOUT)allengine.exe
 
 runpcc:
@@ -421,18 +433,32 @@ testc/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE) $(TVEXE)
 	       $*.c $(DOOPT) $(EXEOUT)$*.exe
 	$(SMALL1)/$*.exe
 
+HASHTESTCC = $(SAFECC) --keep=.  --patch=../../lib/$(PATCHFILE) \
+              $(DOOPT) $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+              $(INC)$(PCCDIR)/src 
+
 
 hashtest: test/small2/hashtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)
 	rm -f $(PCCTEST)/hashtest.exe
 	cd $(PCCTEST); $(SAFECC) --keep=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(DOOPT) $(HASHTESTEXTRA) \
+                 $(DOOPT) \
                  --patch=../../lib/$(PATCHFILE)\
                  $(INC)$(PCCDIR)/src \
                  $(PCCDIR)/src/hash.c \
                  ../small2/hashtest.c \
                  $(EXEOUT)hashtest.exe
 	$(PCCTEST)/hashtest.exe
+
+combinehashtest: $(EXECUTABLE)$(EXE)
+	rm -f $(PCCTEST)/hashtest.exe
+	cd $(PCCTEST); \
+          $(HASHTESTCC) $(CONLY) --combine $(PCCDIR)/src/hash.c \
+                                           $(OBJOUT)hash.obj; \
+          $(HASHTESTCC) $(CONLY) --combine ../small2/hashtest.c \
+                                           $(OBJOUT)hashtest.obj;\
+          $(HASHTESTCC) --combine ./hash.obj ./hashtest.obj \
+                                           $(EXEOUT)hashtest.exe
 
 rbtest: test/small2/rbtest.c $(EXECUTABLE)$(EXE) \
                                  $(SAFECLIB) $(SAFEMAINLIB)  $(TVEXE)

@@ -443,7 +443,7 @@ sub classifyArguments {
                     push @sources, $fullarg; return;
                 }
                 if($action->{TYPE} eq 'OUT') {
-                    if(defined$outarg) {
+                    if(defined($outarg)) {
                         print "Warning: output file is multiply defined: $outarg and $fullarg\n";
                     }
                     $outarg = $fullarg; return;
@@ -722,10 +722,12 @@ sub combineSourcesCompile {
     my $src;
     foreach $src (@sources) {
         # Get the name of the output file
-        my $outfile = $compiler->outputFile($src);
+        my $outfile = $compiler->compileOutputFile($src);
         open(OUT, ">$outfile") 
             || die "Cannot create $outfile";
-        print OUT "// Combiner input: " . join(' ', @ccargs), "\n";
+        print "Creating fake object file $outfile from $src\n";
+        print OUT "#pragma combiner(\"$src\", \"" . 
+            join(' ', @ccargs), "\")\n";
         open(IN, "<$src") 
             || die "Cannot read $src";
         print OUT <IN>;
@@ -741,12 +743,11 @@ sub combineSourcesLink {
     my @tocombine = ();
     foreach $src (@sources) {
         my ($base, $dir, $ext) = fileparse($src, "\\.[^\\.]+");
-        print "Combining $src. Ext=$ext\n";
-        if($ext eq ".obj" || $ext eq ".o") {
+        if($ext eq ".obj" || $ext eq ".o" || $ext eq ".lib" || $ext eq ".a") {
             # Look inside and see if it is a C or not
             open(IN, "<$src") || die "Cannot read $src";
             my $fstline = <IN>;
-            if($fstline =~ m|// Combiner input: |) {
+            if($fstline =~ m|\#pragma combiner\(|) {
                 push @tocombine, $src; next; 
             } else {
                 push @objfiles, $src; next;
@@ -755,7 +756,7 @@ sub combineSourcesLink {
         if($ext eq ".c" || $ext eq ".i") {
             push @tocombine, $src; next;
         }
-        die "I don't know how to combine $src\n";
+        die "I don't know how to combine $(link) src\n";
     }
     # Now call the combiner 
     my $outfile = $compiler->linkOutputFile();
@@ -877,6 +878,8 @@ sub new {
 # additional word.
 #
           ["[^/]" => { TYPE => "SOURCE" },
+           "/OUT:" => { RUN => sub { my ($f) = ($_[0] =~ m|/OUT:(.+)|);
+                                     $outarg = "/Fe$f"; }},
            "/O" => { TYPE => "CC" },
            "/G" => { TYPE => "CC" },
            "/[DI]" => { TYPE => "PREPROC"},
@@ -976,6 +979,9 @@ sub compileOutputFile {
 sub linkOutputFile {
     my($self, $src) = @_;
     if($outarg =~ m|/Fe(.+)|) {
+        return $1;
+    }
+    if($outarg =~ m|/OUT:(.+)|) {
         return $1;
     }
     die "I do not know what is the link output file\n";

@@ -1,3 +1,6 @@
+   (* Signal that we are in MS VC mode *)
+val setMSVCMode: unit -> unit
+
    (* Parse a file in *)
 exception ParseError of string
 
