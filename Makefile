@@ -79,7 +79,7 @@ CONLY=-c
 OUT=-o
 EXEOUT=-o
 DEF=-D
-ASMONLY=-S -o
+ASMONLY=-S -o 
 CPPSTART=gcc -E %i -Dx86_WIN32 -D_GNUCC
 CPPOUT=-o %o
 CPP=$(CPPSTART) $(CPPOUT)
@@ -95,7 +95,7 @@ CONLY=/c
 OUT=/Fo
 EXEOUT=/Fe
 DEF=/D
-ASMOUT=/Fa
+ASMONLY=/Fa
 INC=/I
 CPPSTART=cl /Dx86_WIN32 /D_MSVC /E /TC /I./lib /FI fixup.h /DBEFOREBOX
 CPPOUT= %i >%o
@@ -165,7 +165,7 @@ runpcc:
 ############ Small tests
 SMALL1=test/small1
 test/% : $(SMALL1)/%.c $(EXECUTABLE)$(EXE)
-	$(SAFECC) $(SMALL1)/$*.c $(CONLY) $(DOOPT) $(ASMOUT)$(SMALL1)/$*.s
+	$(SAFECC) $(SMALL1)/$*.c $(CONLY) $(DOOPT) $(ASMONLY)$(SMALL1)/$*.s
 
 
 ### Generic test
