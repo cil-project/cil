@@ -58,6 +58,14 @@ let printLn= ref true                 (* Whether to print line numbers *)
 let printLnComment= ref false
  
 let print_CIL_Input = ref false
+                                 
+(* sm: return the string 's' if we're printing output for gcc, suppres
+ * it if we're printing for CIL to parse back in.  the purpose is to
+ * hide things from gcc that it complains about, but still be able
+ * to do lossless transformations when CIL is the consumer *)
+let forgcc (s: string) : string =
+  if (!print_CIL_Input) then "" else s
+
 
 let debugConstFold = false
 
@@ -2806,13 +2814,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           match in__attr__ with
             [] -> nil
           | _ :: _->
+              (* sm: added 'forgcc' calls to not comment things out
+               * if CIL is the consumer; this is to address a case
+               * Daniel ran into where blockattribute(nobox) was being
+               * dropped by the merger
+               *)
               (if block then 
-                text " /* __blockattribute__(" else text "__attribute__((")
+                text (" " ^ (forgcc "/*") ^ " __blockattribute__(")
+               else
+                 text "__attribute__((")
 
-                ++ (docList (chr ',' ++ break) 
+                ++ (docList (chr ',' ++ break)
                       (fun a -> a)) () in__attr__
                 ++ text ")"
-                ++ (if block then text "*/" else text ")")
+                ++ (if block then text (forgcc "*/") else text ")")
         end
       | x :: rest -> 
           let dx, ina = self#pAttr x in
