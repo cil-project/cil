@@ -1675,50 +1675,54 @@ let rec offsetOfFieldAcc (fi: fieldinfo)
           oaLastFieldWidth = sofar.oaLastFieldWidth;
           oaPrevBitPack = None }
   | _ -> 
-  (* no active bitfield pack. Compute the internalPadding. Returns the 
-   * alignment boundary for internal padding for the current field  *)
-  let rec internalPaddingAlign = function 
-      TInt((IChar|ISChar|IUChar), _) -> 1
-    | TInt((IShort|IUShort), _) -> 2
-    | TInt((IInt|IUInt), _) -> 4
-    | TInt((ILong|IULong), _) -> 4
-    | TInt((ILongLong|IULongLong), _) -> 4  (* !!! is this correct *)
-    | TEnum _ -> 4 (* !!! Is this correct? *)
-    | TBitfield(ik, _, a) -> internalPaddingAlign (TInt(ik, a)) (* Is this 
-                                                              * correct ? *)
-    | TFloat(FFloat, _) -> 4
-    | TFloat((FDouble|FLongDouble), _) -> 8
-    | TNamed (_, t, _) -> internalPaddingAlign t
-    | TForward (comp, _) -> internalPaddingAlign (TComp comp)
-    | TComp _ -> 4 (* Is this correct ? *)
-    | TArray _ -> 4 (* Is this correct ? *)
-    | TPtr _ -> 4
-    | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
-  in
-  let internPad = (internalPaddingAlign ftype) lsl 3 in
-  let newStart = 
-    (sofar.oaFirstFree + internPad - 1) land (lnot (internPad - 1)) in
-  (* Now compute the width of this field *)
-  let mkRes thiswd btpack = 
-    { oaFirstFree = newStart + thiswd;
-      oaLastFieldStart = sofar.oaFirstFree;
-      oaLastFieldWidth = thiswd;
-      oaPrevBitPack = btpack }
-  in
-  match unrollType ftype with
-    TBitfield(ik, wd, a) -> 
-      let wdpack = bitsSizeOf (TInt(ik, a)) in
-      { oaFirstFree = newStart + wd;
-        oaLastFieldStart = newStart;
-        oaLastFieldWidth = wd;
-        oaPrevBitPack = Some (newStart, ik, wdpack); }
-  | _ ->
-      let wd = (bitsSizeOf ftype) lsl 3 in
-      { oaFirstFree = newStart + wd;
-        oaLastFieldStart = newStart;
-        oaLastFieldWidth = wd;
-        oaPrevBitPack = None;
-      } 
+      (* no active bitfield pack. Compute the internalPadding. Returns the 
+       * alignment boundary for internal padding for the current field  *)
+      let rec internalPaddingAlign = function 
+          TInt((IChar|ISChar|IUChar), _) -> 1
+        | TInt((IShort|IUShort), _) -> 2
+        | TInt((IInt|IUInt), _) -> 4
+        | TInt((ILong|IULong), _) -> 4
+        | TInt((ILongLong|IULongLong), _) -> 4  (* !!! is this correct *)
+        | TEnum _ -> 4 (* !!! Is this correct? *)
+        | TBitfield(ik, _, a) -> 
+            internalPaddingAlign (TInt(ik, a)) (* Is this correct ? *)
+        | TFloat(FFloat, _) -> 4
+        | TFloat((FDouble|FLongDouble), _) -> 8
+        | TNamed (_, t, _) -> internalPaddingAlign t
+        | TForward (comp, _) -> internalPaddingAlign (TComp comp)
+        | TComp _ -> 4 (* Is this correct ? *)
+        | TArray _ -> 4 (* Is this correct ? *)
+        | TPtr _ -> 4
+        | (TVoid _ | TFun _) -> E.s (E.bug "internalPaddingAlign")
+      in
+      let internPad = (internalPaddingAlign ftype) lsl 3 in
+      let newStart = 
+        (sofar.oaFirstFree + internPad - 1) land (lnot (internPad - 1)) in
+      (* ignore (E.log "firstFree = %d, internPad = %d, newStart = %d\n"
+                sofar.oaFirstFree internPad newStart); *)
+      (* Now compute the width of this field *)
+      let mkRes thiswd btpack = 
+        { oaFirstFree = newStart + thiswd;
+          oaLastFieldStart = sofar.oaFirstFree;
+          oaLastFieldWidth = thiswd;
+          oaPrevBitPack = btpack }
+      in
+      match unrollType ftype with
+        TBitfield(ik, wd, a) -> 
+          let wdpack = bitsSizeOf (TInt(ik, a)) in
+          { oaFirstFree = newStart + wd;
+            oaLastFieldStart = newStart;
+            oaLastFieldWidth = wd;
+            oaPrevBitPack = Some (newStart, ik, wdpack); }
+      | _ ->
+          let wd = bitsSizeOf ftype in
+          (* ignore (E.log "non-bitfield (%a): wd=%d\n"
+                    d_type ftype wd); *)
+          { oaFirstFree = newStart + wd;
+            oaLastFieldStart = newStart;
+            oaLastFieldWidth = wd;
+            oaPrevBitPack = None;
+          } 
         
 (* The size of a type, in bits. If struct or array then trailing padding is 
  * added *)

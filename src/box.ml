@@ -420,10 +420,12 @@ let tagType (t: typ) : typ =
   with Not_found -> begin
     let newtype = 
       try
-        let bytes = (bitsSizeOf t) lsl 3 in (* Might raise not-found for 
+        let bytes = (bitsSizeOf t) lsr 3 in (* Might raise not-found for 
                                              * incomplete types  *)
         let words = (bytes + 3) lsr 2 in
         let tagwords = (words + 15) lsr 4 in
+        (* ignore (E.log "Type %a -> bytes=%d, words=%d, tagwords=%d\n"
+                  d_type t bytes words tagwords); *)
         TComp 
           (mkCompInfo true ""
              (fun _ -> 
