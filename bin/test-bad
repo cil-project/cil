@@ -47,6 +47,17 @@ srcfile="$1"
 srcfilenoext=`echo $srcfile | sed s/.c\$//`
 tmpname="$srcfilenoext-tmp"
 
+# for GCC, use "# xx foo.c".  For MSVC, use "#line xx foo.c"
+if [ "$_MSVC" == "1" ]; then 
+  LINEOPT="line"
+  OUTFLAG="/Fe"
+  OUTEXT=".exe"
+else
+  LINEOPT=""
+  OUTFLAG="-o "
+  OUTEXT=""
+fi
+
 # Start it in the right directory
 # cd "$CCUREDHOME/test/small2" || exit
 
@@ -79,9 +90,9 @@ while [ $i -le $numcases ]; do
   # lines 
   echo "generating test $i"
   rm -f $tmpname.c 2>/dev/null
-  (echo "# 1 \"$srcfile\""; echo "#define ERROR $i"; cat "$srcfile") | \
+  (echo "#$LINEOPT 1 \"$srcfile\""; echo "#define ERROR $i"; cat "$srcfile") |\
        sed "s|ERROR($i)|(selected: $i)|" | \
-       perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "# $ln\n"; } else { print $_; }}' \
+       perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "#'$LINEOPT' $ln\n"; } else { print $_; }}' \
          > "$tmpname.c"
 #    | grep -v "ERROR(" 
   chmod a-w "$tmpname.c"
@@ -94,9 +105,9 @@ while [ $i -le $numcases ]; do
 
   # compile this with our tool
   rm -f test-bad.out test-bad.err
-  echo $CCURED $CFLAGS $tmpname.c -o $tmpname
+  echo $CCURED $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
-                         $CCURED $CFLAGS -DERROR=$i $tmpname.c -o $tmpname
+              $CCURED $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   status=$?
   if [ $status != 0 ]; then
     if [ $i = 0 ] ;then
