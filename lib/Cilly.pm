@@ -1106,6 +1106,9 @@ sub compilerArgument {
               &{$action->{'RUN'}}($self, @fullarg, $onemore, $pargs);
               $argument_done = 1;
           }
+          # Quote special SHELL caracters 
+          @fullarg = map { $_ =~ s%([<>;&|])%'$1'%g; $_ } @fullarg;
+          # print "fullarg = ", @fullarg, "\n";
           if(defined $action->{'TYPE'}) {
               &classifyArgDebug("  type=$action->{TYPE}\n");
               if($action->{TYPE} eq 'EARLY_PREPROC') {

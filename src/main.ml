@@ -321,7 +321,7 @@ let rec theMain () =
       let one =
         match files with
           [one] -> one
-        | [] -> E.s (E.error "No arguments\n")
+        | [] -> E.s (E.error "No arguments for CIL\n")
         | _ ->
             let merged =
               Stats.time "merge" (Mergecil.merge files)

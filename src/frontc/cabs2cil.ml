@@ -1371,7 +1371,23 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         match oldsz, sz with
           None, Some _ -> sz
         | Some _, None -> oldsz
-        | _ -> raise (Failure "different array lengths")
+        | Some oldsz', Some sz' -> 
+           (* They are not structurally equal. But perhaps they are equal if 
+            * we evaluate them. Check first machine independent comparison  *)
+           let checkEqualSize (machdep: bool) = 
+              Util.equals (constFold machdep oldsz') 
+                          (constFold machdep sz') 
+           in
+           if checkEqualSize false then 
+              oldsz
+           else if checkEqualSize true then begin
+              ignore (warn "Array type comparison succeeds only based on machine-dependent constant evaluation: %a and %a\n" 
+                       d_exp oldsz' d_exp sz');
+              oldsz
+           end else
+              raise (Failure "different array lengths")
+           
+        | None, None -> assert false
       in
       TArray (newbt, newsz, cabsAddAttributes olda a)
         
@@ -1866,7 +1882,13 @@ let afterConversion (c: chunk) : chunk =
             String.length vi.vname >= 3 &&
             (* Watch out for the possibility that we have an implied cast in 
              * the call *)
-            Util.equals (typeSig vi.vtype) (typeSig (typeOfLval destlv)) &&
+           (let tcallres = 
+              match unrollType (typeOf f) with
+                 TFun (rt, _, _, _) -> rt
+               | _ -> E.s (E.bug "Function call to a non-function")
+           in 
+           Util.equals (typeSig tcallres) (typeSig vi.vtype) &&
+           Util.equals (typeSig newt) (typeSig (typeOfLval destlv))) && 
             String.sub vi.vname 0 3 = "tmp" &&
             vi' == vi) 
       -> Some [Call(Some destlv, f, args, l)]
