@@ -734,7 +734,9 @@ sub link {
         $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs);
     }
 
-    push @{$trueobjs}, $mergedobj;
+    # Put the merged OBJ at the beginning because maybe some of the trueobjs
+    # are libraries which like to be at the end
+    unshift @{$trueobjs}, $mergedobj;
 
     # And finally link
     # sm: hack: made this conditional for dsw
