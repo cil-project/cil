@@ -589,6 +589,7 @@ smAddTest("scott/mknod $box");
 smAddTest("badd/nullfield $manualbox");
 smAddTest("scott/constfold");
 smAddTest("scott/mode_sizes");       # mode(__QI__) stuff
+smFailTest("compile problem with brlock.c", "scott/brlock");
 
 # test of strings (need more!)
 smFailTest("unsound user annotation RWSTRING", "badd/ovwrnull $box");
