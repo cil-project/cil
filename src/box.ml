@@ -112,7 +112,6 @@ and fixit t =
   try
     H.find fixedTypes ts 
   with Not_found -> begin
-<<<<<<< box.ml
     let doit t =
       match t with 
         (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
@@ -174,66 +173,6 @@ and fixit t =
               (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args in
           let res = TFun(fixupType rt, args', isva, a) in
           res
-=======
-    let doit t =
-      match t with 
-        (TInt _|TEnum _|TFloat _|TVoid _|TBitfield _) -> t
-      | TPtr (t', a) -> begin
-        (* Now do the base type *)
-          let fixed' = fixupType t' in
-          let tname  = newFatPointerName fixed' in (* The name *)
-          let fixed = 
-            TStruct(tname, [ { fstruct = tname;
-                               fname   = "_p";
-                               ftype   = TPtr(fixed', a);
-                               fattr   = [];
-                             };
-                             { fstruct = tname;
-                               fname   = "_b";
-                               ftype   = TPtr(TVoid ([]), a);
-                               fattr   = [];
-                             }; ], []) 
-          in
-          let tres = TNamed(tname, fixed) in
-          H.add fixedTypes (typeSig fixed) fixed; (* We add fixed ourselves. 
-                                                   * The TNamed will be added 
-                                                   * after doit  *)
-          H.add fixedTypes (typeSig (TPtr(fixed',a))) fixed;
-          theFile := GType(tname, fixed) :: !theFile;
-          tres
-      end
-            
-      | TForward _ ->  t              (* Don't follow TForward *)
-      | TNamed (n, t') -> TNamed (n, fixupType t')
-            
-      | TStruct(n, flds, a) -> begin
-          let r = 
-            TStruct(n, 
-                    List.map 
-                      (fun fi -> 
-                        {fi with ftype = fixupType fi.ftype}) flds,
-                    a) in
-          replaceForwardType ("struct " ^ n) r;
-          r
-      end
-      | TUnion (n, flds, a) -> 
-          let r = 
-            TUnion(n, 
-                   List.map (fun fi -> 
-                     {fi with ftype = fixupType fi.ftype}) flds,
-                   a) in
-          replaceForwardType ("union " ^ n) r;
-          r
-            
-      | TArray(t', l, a) -> TArray(fixupType t', l, a)
-            
-      | TFun(rt,args,isva,a) ->
-          let args' = 
-            List.map
-              (fun argvi -> {argvi with vtype = fixupType argvi.vtype}) args in
-          let res = TFun(fixupType rt, args', isva, a) in
-          res
->>>>>>> 1.8
     in
     let fixed = doit t in
     H.add fixedTypes ts fixed;
@@ -241,15 +180,12 @@ and fixit t =
     fixed
   end
 
-<<<<<<< box.ml
 (** Create some fat types *)
 let _ = fixupType (voidPtrType) 
 let _ = fixupType (charPtrType)
 let _ = fixupType (TPtr(TInt(IChar, [AId("const")]), []))
 let _ = theFile := []   (* Remove them from the file *)
 
-=======
->>>>>>> 1.8
 (**** We know in what function we are ****)
 let currentFunction : fundec ref  = ref dummyFunDec
 
