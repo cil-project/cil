@@ -978,6 +978,12 @@ val foldLeftCompoundAll:
 (** void *)
 val voidType: typ
 
+(* is the given type "void"? *)
+val isVoidType : typ -> bool
+
+(* is the given type "void *"? *)
+val isVoidPtrType : typ -> bool
+
 (** int *)
 val intType: typ
 

@@ -1084,9 +1084,15 @@ let rec unrollType = function   (* Might drop some attributes !! *)
     TNamed (_, r, _) -> unrollType r
   | x -> x
 
+let isVoidType t = 
+  match unrollType t with
+    TVoid _ -> true
+  | _ -> false
+let isVoidPtrType t = 
+  match unrollType t with
+    TPtr(tau,_) when isVoidType tau -> true
+  | _ -> false
 
-
-                                   
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 

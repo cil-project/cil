@@ -330,15 +330,19 @@ int main(void)
 #if 0
 /* Now the graph */
 /* Now the solved graph (simplesolve) */
+-2 : Anon(0).0 () ()
+ K=SCALAR/"special scalar node" at :-1 T=void 
+  S=
+  P=
 0 : Glob(@dummy).0 () ()
  K=SAFE/unconstrained T=void 
   S=
   P=
-1 : Field(anIntPtr).0 () ()
+1 : Field(anIntPtr).1 () ()
  K=SAFE/unconstrained T=int 
   S=
   P=
-2 : Type(_box_sig_fn).0 () ()
+2 : Type(_box_sig_fn).1 () ()
  K=SAFE/unconstrained T=void (int  )
   S=
   P=
@@ -365,8 +369,8 @@ int main(void)
   P=10:Cast
 8 : Static(./ptr1.i.strdup_model).2 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=char const   
-  S=13:Cast, 15:Cast
-  P=
+  S=15:Cast
+  P=15:Compat, 13:Compat
 9 : Static(./ptr1.i.strdup_model).0 () (8, 7)
  K=SAFE/unconstrained T=char * __NODE(7)   (char const   * __NODE(8)   s  __NODE(16)  )
   S=
@@ -383,17 +387,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-13 : Glob(/*0*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=8:Cast, 15:Cast(0)
+13 : (rep is 8) Glob(/*0*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=8:Compat
+  P=15:Cast(0)
 14 : Glob(/*0*/__endof).0 () (13, 12)
  K=SAFE/unconstrained T=void * __NODE(12)   (void * __NODE(13)    )
   S=
   P=
-15 : Anon(0).0 (posarith,reach_q,) ()
+15 : (rep is 8) Anon(1).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=13:Cast(0)
+  S=8:Compat, 13:Cast(0)
   P=8:Cast
 16 : Local(./ptr1.i.strdup_model.s).0 (stack,) (8)
  K=SAFE/unconstrained T=char const   * __NODE(8)   
@@ -405,12 +409,12 @@ int main(void)
   P=31:Cast
 18 : Static(./ptr1.i.strpbrk_model).2 (escape,posarith,reach_q,) ()
  K=FSEQ/from_flag T=char const   
-  S=22:Cast, 31:Cast, 24:Cast
-  P=
+  S=31:Cast, 24:Cast
+  P=24:Compat, 22:Compat
 19 : Static(./ptr1.i.strpbrk_model).3 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=char const   
-  S=27:Cast, 29:Cast
-  P=
+  S=29:Cast
+  P=29:Compat, 27:Compat
 20 : Static(./ptr1.i.strpbrk_model).0 () (19, 18, 17)
  K=SAFE/unconstrained T=char * __NODE(17)   (char const   * __NODE(18)   s  __NODE(25)  ,
                                              char const   * __NODE(19)   accept  __NODE(30)  )
@@ -420,17 +424,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-22 : Glob(/*1*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=18:Cast, 24:Cast(1)
+22 : (rep is 18) Glob(/*1*/__endof).2 (escape,posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=18:Compat
+  P=24:Cast(1)
 23 : Glob(/*1*/__endof).0 () (22, 21)
  K=SAFE/unconstrained T=void * __NODE(21)   (void * __NODE(22)    )
   S=
   P=
-24 : Anon(1).0 (posarith,reach_q,) ()
+24 : (rep is 18) Anon(2).1 (escape,posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=22:Cast(1)
+  S=18:Compat, 22:Cast(1)
   P=18:Cast
 25 : Local(./ptr1.i.strpbrk_model.s).0 (stack,) (18)
  K=SAFE/unconstrained T=char const   * __NODE(18)   
@@ -440,23 +444,23 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-27 : Glob(/*2*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=19:Cast, 29:Cast(2)
+27 : (rep is 19) Glob(/*2*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=19:Compat
+  P=29:Cast(2)
 28 : Glob(/*2*/__endof).0 () (27, 26)
  K=SAFE/unconstrained T=void * __NODE(26)   (void * __NODE(27)    )
   S=
   P=
-29 : Anon(2).0 (posarith,reach_q,) ()
+29 : (rep is 19) Anon(3).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=27:Cast(2)
+  S=19:Compat, 27:Cast(2)
   P=19:Cast
 30 : Local(./ptr1.i.strpbrk_model.accept).0 (stack,) (19)
  K=SAFE/unconstrained T=char const   * __NODE(19)   
   S=
   P=
-31 : Anon(3).0 () ()
+31 : Anon(4).1 () ()
  K=SAFE/unconstrained T=char 
   S=17:Cast
   P=18:Cast
@@ -466,12 +470,12 @@ int main(void)
   P=33:Cast
 33 : Static(./ptr1.i.strtok_model).2 (escape,posarith,reach_q,) ()
  K=FSEQ/from_flag T=char 
-  S=37:Cast, 32:Cast, 39:Cast
-  P=
+  S=32:Cast, 39:Cast
+  P=39:Compat, 37:Compat
 34 : Static(./ptr1.i.strtok_model).3 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=char const   
-  S=42:Cast, 44:Cast
-  P=
+  S=44:Cast
+  P=44:Compat, 42:Compat
 35 : Static(./ptr1.i.strtok_model).0 () (34, 33, 32)
  K=SAFE/unconstrained T=char * __NODE(32)   (char * __NODE(33)   s  __NODE(40)  ,
                                              char const   * __NODE(34)   delim  __NODE(45)  )
@@ -481,17 +485,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-37 : Glob(/*3*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=33:Cast, 39:Cast(3)
+37 : (rep is 33) Glob(/*3*/__endof).2 (escape,posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=33:Compat
+  P=39:Cast(3)
 38 : Glob(/*3*/__endof).0 () (37, 36)
  K=SAFE/unconstrained T=void * __NODE(36)   (void * __NODE(37)    )
   S=
   P=
-39 : Anon(4).0 (posarith,reach_q,) ()
+39 : (rep is 33) Anon(5).1 (escape,posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=37:Cast(3)
+  S=33:Compat, 37:Cast(3)
   P=33:Cast
 40 : Local(./ptr1.i.strtok_model.s).0 (stack,) (33)
  K=SAFE/unconstrained T=char * __NODE(33)   
@@ -501,34 +505,34 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-42 : Glob(/*4*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=34:Cast, 44:Cast(4)
+42 : (rep is 34) Glob(/*4*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=34:Compat
+  P=44:Cast(4)
 43 : Glob(/*4*/__endof).0 () (42, 41)
  K=SAFE/unconstrained T=void * __NODE(41)   (void * __NODE(42)    )
   S=
   P=
-44 : Anon(5).0 (posarith,reach_q,) ()
+44 : (rep is 34) Anon(6).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=42:Cast(4)
+  S=34:Compat, 42:Cast(4)
   P=34:Cast
 45 : Local(./ptr1.i.strtok_model.delim).0 (stack,) (34)
  K=SAFE/unconstrained T=char const   * __NODE(34)   
   S=
   P=
-46 : Static(./ptr1.i.qsort_seq_model).1 (posarith,reach_q,) ()
+46 : (rep is 56) Static(./ptr1.i.qsort_seq_model).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=48:Cast, 47:Cast, 61:Cast, 60:Cast, 56:Cast(5)
+  S=56:Compat, 61:Cast, 60:Cast, 56:Cast(5)
   P=
-47 : Static(./ptr1.i.qsort_seq_model).3 () ()
- K=SAFE/unconstrained T=void const   
-  S=
-  P=46:Cast, 60:Cast(6)
-48 : Static(./ptr1.i.qsort_seq_model).4 () ()
- K=SAFE/unconstrained T=void const   
-  S=
-  P=46:Cast, 61:Cast(6)
+47 : (rep is 56) Static(./ptr1.i.qsort_seq_model).3 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void const   
+  S=56:Compat
+  P=60:Cast(6)
+48 : (rep is 56) Static(./ptr1.i.qsort_seq_model).4 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void const   
+  S=56:Compat
+  P=61:Cast(6)
 49 : Static(./ptr1.i.qsort_seq_model).2 () (48, 47)
  K=SAFE/unconstrained T=int (void const   * __NODE(47)    ,
                              void const   * __NODE(48)    )
@@ -541,17 +545,17 @@ int main(void)
                                                           void const   * __NODE(48)    )  __NODE(59)  )
   S=
   P=
-51 : Local(./ptr1.i.qsort_seq_model.end).1 () ()
+51 : (rep is 55) Local(./ptr1.i.qsort_seq_model.end).1 () ()
  K=SAFE/unconstrained T=void 
-  S=
-  P=55:Cast, 53:Cast
+  S=55:Compat
+  P=53:Cast
 52 : Local(./ptr1.i.qsort_seq_model.end).0 (stack,) (51)
  K=SAFE/unconstrained T=void * __NODE(51)   
   S=
   P=
-53 : Local(./ptr1.i.qsort_seq_model.tmp).1 () ()
+53 : (rep is 55) Local(./ptr1.i.qsort_seq_model.tmp).1 () ()
  K=SAFE/unconstrained T=void 
-  S=51:Cast
+  S=55:Compat, 51:Cast
   P=55:Cast(5)
 54 : Local(./ptr1.i.qsort_seq_model.tmp).0 (stack,) (53)
  K=SAFE/unconstrained T=void * __NODE(53)   
@@ -559,12 +563,12 @@ int main(void)
   P=
 55 : Glob(/*5*/__endof).1 () ()
  K=SAFE/unconstrained T=void 
-  S=51:Cast, 53:Cast(5)
-  P=
-56 : Glob(/*5*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
+  S=53:Cast(5)
+  P=53:Compat, 51:Compat
+56 : Glob(/*5*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
   S=
-  P=46:Cast(5)
+  P=61:Compat, 60:Compat, 48:Compat, 47:Compat, 46:Compat, 46:Cast(5)
 57 : Glob(/*5*/__endof).0 () (56, 55)
  K=SAFE/unconstrained T=void * __NODE(55)   (void * __NODE(56)    )
   S=
@@ -578,26 +582,26 @@ int main(void)
                                               void const   * __NODE(48)    )
   S=
   P=
-60 : Anon(6).0 () ()
- K=SAFE/unconstrained T=void const   
-  S=47:Cast(6)
+60 : (rep is 56) Anon(7).1 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void const   
+  S=56:Compat, 47:Cast(6)
   P=46:Cast
-61 : Anon(7).0 () ()
- K=SAFE/unconstrained T=void const   
-  S=48:Cast(6)
+61 : (rep is 56) Anon(8).1 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void const   
+  S=56:Compat, 48:Cast(6)
   P=46:Cast
 62 : Static(./ptr1.i.execv_model).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=char 
-  S=67:Cast, 69:Cast
-  P=
+  S=69:Cast
+  P=69:Compat, 67:Compat
 63 : Static(./ptr1.i.execv_model).3 () ()
  K=SAFE/unconstrained T=char 
   S=
   P=
 64 : Static(./ptr1.i.execv_model).2 (posarith,reach_q,) (63)
  K=FSEQ/from_flag T=char * __NODE(63)   
-  S=72:Cast, 74:Cast
-  P=
+  S=74:Cast
+  P=74:Compat, 72:Compat
 65 : Static(./ptr1.i.execv_model).0 () (64, 62)
  K=SAFE/unconstrained T=int (char * __NODE(62)   path  __NODE(70)  ,
                              char * __NODE(63)   * __NODE(64)   argv  __NODE(75)  )
@@ -607,17 +611,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-67 : Glob(/*6*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=62:Cast, 69:Cast(7)
+67 : (rep is 62) Glob(/*6*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=62:Compat
+  P=69:Cast(7)
 68 : Glob(/*6*/__endof).0 () (67, 66)
  K=SAFE/unconstrained T=void * __NODE(66)   (void * __NODE(67)    )
   S=
   P=
-69 : Anon(8).0 (posarith,reach_q,) ()
+69 : (rep is 62) Anon(9).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=67:Cast(7)
+  S=62:Compat, 67:Cast(7)
   P=62:Cast
 70 : Local(./ptr1.i.execv_model.path).0 (stack,) (62)
  K=SAFE/unconstrained T=char * __NODE(62)   
@@ -627,17 +631,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-72 : Glob(/*7*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=64:Cast, 74:Cast(8)
+72 : (rep is 64) Glob(/*7*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=64:Compat
+  P=74:Cast(8)
 73 : Glob(/*7*/__endof).0 () (72, 71)
  K=SAFE/unconstrained T=void * __NODE(71)   (void * __NODE(72)    )
   S=
   P=
-74 : Anon(9).0 (posarith,reach_q,) ()
+74 : (rep is 64) Anon(10).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=72:Cast(8)
+  S=64:Compat, 72:Cast(8)
   P=64:Cast
 75 : Local(./ptr1.i.execv_model.argv).0 (stack,) (64)
  K=SAFE/unconstrained T=char * __NODE(63)   * __NODE(64)   
@@ -649,8 +653,8 @@ int main(void)
   P=
 77 : Static(./ptr1.i.getopt_model).1 (posarith,reach_q,) (76)
  K=FSEQ/from_flag T=char * __NODE(76)   
-  S=81:Cast, 83:Cast
-  P=
+  S=83:Cast
+  P=83:Compat, 81:Compat
 78 : Static(./ptr1.i.getopt_model).3 () ()
  K=SAFE/unconstrained T=char const   
   S=
@@ -665,17 +669,17 @@ int main(void)
  K=SAFE/unconstrained T=void 
   S=
   P=
-81 : Glob(/*8*/__endof).2 () ()
- K=SAFE/unconstrained T=void 
-  S=
-  P=77:Cast, 83:Cast(9)
+81 : (rep is 77) Glob(/*8*/__endof).2 (posarith,reach_q,) ()
+ K=FSEQ/from_flag T=void 
+  S=77:Compat
+  P=83:Cast(9)
 82 : Glob(/*8*/__endof).0 () (81, 80)
  K=SAFE/unconstrained T=void * __NODE(80)   (void * __NODE(81)    )
   S=
   P=
-83 : Anon(10).0 (posarith,reach_q,) ()
+83 : (rep is 77) Anon(11).1 (posarith,reach_q,) ()
  K=FSEQ/from_flag T=void 
-  S=81:Cast(9)
+  S=77:Compat, 81:Cast(9)
   P=77:Cast
 84 : Local(./ptr1.i.getopt_model.argv).0 (stack,) (77)
  K=SAFE/unconstrained T=char * __NODE(76)   * __NODE(77)   
@@ -723,7 +727,7 @@ int main(void)
  K=WILD/cast(int (95) <= int * __NODE(93)   (94)) at testkinds.h:12 T=int * __NODE(93)   
   S=95:Cast
   P=
-95 : Anon(11).0 () ()
+95 : Anon(12).1 () ()
  K=WILD/cast(int (95) <= int * __NODE(93)   (94)) at testkinds.h:12 T=int 
   S=93:Cast
   P=94:Cast
@@ -762,8 +766,8 @@ int main(void)
   P=
 104 : Local(./ptr1.i.main.z).1 (stack,) (103)
  K=WILD/cast(int * __NODE(103)   (104) <= int (111)) at ptr1.c:13 T=int * __NODE(103)   
-  S=118:Cast, 120:Cast
-  P=111:Compat, 112:Cast
+  S=120:Cast
+  P=120:Compat, 118:Compat, 111:Compat, 112:Cast
 105 : Local(./ptr1.i.main.z).0 (stack,) (104)
  K=WILD/spread_from_edge(112) T=int * __NODE(103)   * __NODE(104)   
   S=112:Cast
@@ -788,19 +792,19 @@ int main(void)
  K=SAFE/unconstrained T=int 
   S=
   P=
-111 : Anon(12).1 (stack,) ()
+111 : Anon(13).2 (stack,) ()
  K=WILD/cast(int * __NODE(103)   (104) <= int (111)) at ptr1.c:13 T=int 
   S=104:Compat
   P=103:Compat
-112 : Anon(12).0 (stack,) (111)
+112 : Anon(13).1 (stack,) (111)
  K=WILD/spread_from_edge(104) T=int * __NODE(111)   
   S=104:Cast
   P=105:Cast
-113 : Anon(13).0 () ()
+113 : Anon(14).1 () ()
  K=SAFE/unconstrained T=char 
   S=106:Cast
   P=
-114 : Anon(14).0 () ()
+114 : Anon(15).1 () ()
  K=SAFE/unconstrained T=char 
   S=106:Cast
   P=
@@ -816,27 +820,27 @@ int main(void)
  K=SAFE/unconstrained T=char 
   S=108:Cast(10)
   P=
-118 : Glob(/*9*/ccured_kind_of).2 (stack,) ()
+118 : (rep is 104) Glob(/*9*/ccured_kind_of).2 (stack,) ()
  K=WILD/spread_from_edge(104) T=void 
-  S=
-  P=104:Cast, 120:Cast(10)
+  S=104:Compat
+  P=120:Cast(10)
 119 : Glob(/*9*/ccured_kind_of).0 () (118, 117)
  K=SAFE/unconstrained T=char * __NODE(117)   (void * __NODE(118)    )
   S=
   P=
-120 : Anon(15).0 (stack,) ()
+120 : (rep is 104) Anon(16).1 (stack,) ()
  K=WILD/spread_from_edge(104) T=void 
-  S=118:Cast(10)
+  S=104:Compat, 118:Cast(10)
   P=104:Cast
-121 : Anon(16).0 () ()
+121 : Anon(17).1 () ()
  K=SAFE/unconstrained T=char const   
   S=90:Cast(11)
   P=106:Cast
-122 : Anon(17).0 () ()
+122 : Anon(18).1 () ()
  K=SAFE/unconstrained T=char const   
   S=100:Cast(12)
   P=123:Cast
-123 : Anon(18).0 () ()
+123 : Anon(19).1 () ()
  K=SAFE/unconstrained T=char 
   S=122:Cast
   P=
@@ -844,11 +848,11 @@ int main(void)
  K=SAFE/unconstrained T=int 
   S=
   P=
-125 : Anon(19).0 () ()
+125 : Anon(20).1 () ()
  K=SAFE/unconstrained T=char const   
   S=100:Cast(13)
   P=126:Cast
-126 : Anon(20).0 () ()
+126 : Anon(21).1 () ()
  K=SAFE/unconstrained T=char 
   S=125:Cast
   P=
