@@ -1,3 +1,4 @@
+#include <string.h>
 struct dirent {
   char d_name[256];		 
 };
