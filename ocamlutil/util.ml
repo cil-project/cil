@@ -379,11 +379,10 @@ let tryFinally
  * set of registers. *)
 type registerInfo = {
     rName: string; (** The name of the register *)
-    rGroup: string; (** The name of the group to which this register belongs. 
-                     * The special group {!Engine.machineRegisterGroup} 
-                     * contains the machine registers. *)
-    rVal: Pretty.doc; (** The value to be displayed about a register *)
-    rOneLineVal: Pretty.doc option (** The value to be displayed on one line *)
+    rGroup: string; (** The name of the group to which this register belongs.*)
+    rOneLineVal: Pretty.doc;(** The value to be displayed on one line *)
+    rExpandedVal: (unit -> registerInfo list) option; 
+    (** The value to be displayed about a register when expanded *)
 } 
 
 

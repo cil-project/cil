@@ -143,8 +143,9 @@ val tryFinally:
 type registerInfo = {
     rName: string; (** The name of the register *)
     rGroup: string; (** The name of the group to which this register belongs.*)
-    rVal: Pretty.doc; (** The value to be displayed about a register *)
-    rOneLineVal: Pretty.doc option (** The value to be displayed on one line *)
+    rOneLineVal: Pretty.doc;(** The value to be displayed on one line *)
+    rExpandedVal: (unit -> registerInfo list) option; 
+    (** The value to be displayed about a register when expanded *)
 } 
 
 
