@@ -71,6 +71,8 @@ TVDIR=$(BASEDIR)/Source/TransVal
 CILDIR=$(SAFECCDIR)/cil
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
+OLDPATCH=1
+PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), FETA) # George's home machine
 BASEDIR=C:/Necula
@@ -78,6 +80,7 @@ TVDIR=$(BASEDIR)/Source/TransVal
 CILDIR=$(SAFECCDIR)/cil
 SAFECCDIR=$(BASEDIR)/SafeC
 PCCDIR=$(SAFECCDIR)/cil/test/PCC
+OLDPATCH=1
 PATCHINCLUDES=1
 endif
 ifeq ($(COMPUTERNAME), tenshi) # Wes's laptop

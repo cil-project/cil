@@ -67,5 +67,5 @@ Front-end
 
 CIL:
 X - take TBitfield out of types
- - allow an lval to the left of a call
+X - allow an lval to the left of a call
  - bitfields of size 0 !

@@ -2816,14 +2816,20 @@ let rec stringLiteral (s: string) (strt: typ) : stmt clist * fexp =
                castVoidStar result, zero))
   | N.Seq | N.Safe | N.FSeq | N.String | N.ROString | N.SeqN | N.FSeqN -> 
       let l = (if isNullTerm k then 0 else 1) + String.length s in
-      let tmp = makeTempVar !currentFunction charPtrType in
-      (* Make it a SEQ for now *)
-      let theend = BinOp(IndexPI, Lval (var tmp), integer l, charPtrType) in
+      (* Make a global variable that points to this string. This way we can 
+       * register the area just once in the global initializer. *)
+      let gvar = makeGlobalVar (newStringName ()) charPtrType in
+      gvar.vstorage <- Static;
+      theFile := 
+         consGlobal (GVar (gvar, Some (SingleInit(Const(CStr s))), 
+                           !currentLoc)) !theFile;
+      (* Get the end so that we can make a SEQ *)
+      let theend = BinOp(IndexPI, Lval (var gvar), integer l, charPtrType) in
       (* Register the area *)
       let regarea = 
         registerArea
           [ integer registerAreaSeqInt;
-            castVoidStar (Lval (var tmp)); 
+            castVoidStar (Lval (var gvar)); 
             castVoidStar theend ] !extraGlobInit
       in
       (* Add the registration to the global initializer *)
@@ -2831,16 +2837,16 @@ let rec stringLiteral (s: string) (strt: typ) : stmt clist * fexp =
       let res = 
         match k with 
           N.Safe | N.String | N.ROString -> 
-            mkFexp1 fixChrPtrType (Lval (var tmp))
+            mkFexp1 fixChrPtrType (Lval (var gvar))
         | N.Seq | N.SeqN | N.FSeq | N.FSeqN -> 
             mkFexp3  fixChrPtrType 
-              (Lval (var tmp))
-              (Lval (var tmp))
+              (Lval (var gvar))
+              (Lval (var gvar))
               theend 
 
         | _ -> E.s (bug "stringLiteral")
       in
-      (single (mkSet (var tmp) (Const (CStr s))), res)
+      (empty (* single (mkSet (var tmp) (Const (CStr s)))*), res)
         
   | N.WildT | N.SeqT | N.FSeqT | N.SeqNT | N.FSeqNT -> 
       let kno_t = N.stripT k in

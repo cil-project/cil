@@ -123,6 +123,7 @@ $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
 $TEST->add3Tests("test/bh1", "", @runpattern);
 $TEST->add3Tests("test/bitfield");
+$TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");

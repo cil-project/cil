@@ -385,11 +385,10 @@ and instr =
                                           * if the exp has different type 
                                           * from lval *)
   | Call       of lval option * exp * exp list * location
- 			 (* optional: result temporary variable. A cast might 
+ 			 (* optional: result is an lval. A cast might 
                           * be necessary if the declared result type of the 
                           * function is not the same as that of the 
-                          * destination, the function value, argument list, 
-                          * location. If the function is declared then casts 
+                          * destination. If the function is declared then casts 
                           * are inserted for those arguments that correspond 
                           * to declared formals. (The actual number of 
                           * arguments might be smaller or larger than the 

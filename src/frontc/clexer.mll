@@ -1,26 +1,7 @@
 (* FrontC -- lexical analyzer
 **
-** Project: FrontC
-** File:	frontc.mll
-** Version:	1.0e
-** Date:	9.1.99
-** Author:	Hugues Cassé
-**
-**	1.0	3.22.99	Hugues Cassé	First version.
-**	a	4.19.99	Hugues Cassé	Now accept floating notation `<int part>.'.
-**	b	4.26.99	Hugues Cassé	Correctly handle the # <lineno> <file> ...
-**								directive. Previous bug was taking last
-**								integer of the line as line number.
-**	c	6.4.99	Hugues Cassé	Added context handling to manage local variables
-**								and type definition with the same name.
-**	d	8.26.99	Hugues Cassé	Now, manage escape sequences in string and
-**								characters.
-**	e	9.1.99	Hugues Cassé	Fix, '\0' now recognized.
-**	f	10.8.99	Hugues Cassé	Understand "__const" GCC.
-**
-**      George Necula 12/12/00: 
-**          added tokens for __inline__, __typeof__,__asm__,__volatile__
-**          ignores ^L
+** 1.0	3.22.99	Hugues Cassé	First version.
+** 2.0  George Necula 12/12/00: Many extensions
 *)
 {
 open Cparser
@@ -69,12 +50,12 @@ let init_lexicon _ =
       ("return", RETURN);
       ("switch", SWITCH);
       ("case", CASE); 
-		("default", DEFAULT);
+      ("default", DEFAULT);
       ("while", WHILE);  
       ("do", DO);  
       ("for", FOR);
       ("if", IF);
-		("else", ELSE);
+      ("else", ELSE);
       (*** Implementation specific keywords ***)
       ("__signed__", SIGNED);
       ("__inline__", INLINE); ("inline", INLINE); 
