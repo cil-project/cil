@@ -490,6 +490,13 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+test_withtrusted/% : $(SMALL1)/%.c $(SMALL1)/%_trusted.c
+	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted \
+               $(STANDARDPATCH) \
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c $*_trusted.c 
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
 cxx/% : $(CXXDIR)/%.cc  
 	cd $(CXXDIR); $(CILLY) --separate --cxx \
                $(CFLAGS) $(EXEOUT)$*.exe $*.cc
