@@ -1,5 +1,7 @@
 (** Utility functions for Coolaid *)
 module E = Errormsg
+module H = Hashtbl
+
 open Pretty
 
 exception GotSignal of int
@@ -41,26 +43,30 @@ let withTimeout (secs: float) (* Seconds for timeout *)
   end
 
 (** Print a hash table *)
-let docHash (one: 'a -> 'b -> doc) () (h: ('a, 'b) Hashtbl.t) = 
+let docHash (one: 'a -> 'b -> doc) () (h: ('a, 'b) H.t) = 
   let theDoc = ref nil in
-  (Hashtbl.fold 
+  (H.fold 
      (fun key data acc -> acc ++ one key data)
      h
      align) ++ unalign
     
 
 
-let hash_to_list (h: ('a, 'b) Hashtbl.t) : ('a * 'b) list =
-  Hashtbl.fold
+let hash_to_list (h: ('a, 'b) H.t) : ('a * 'b) list =
+  H.fold
     (fun key data acc -> (key, data) :: acc)
     h
     []
 
-let keys (h: ('a, 'b) Hashtbl.t) : 'a list =
-  Hashtbl.fold
+let keys (h: ('a, 'b) H.t) : 'a list =
+  H.fold
     (fun key data acc -> key :: acc)
     h
     []
+
+let hash_copy_into (hfrom: ('a, 'b) H.t) (hto: ('a, 'b) H.t) : unit = 
+  H.clear hto;
+  H.iter (H.add hto) hfrom
 
 let anticompare a b = compare b a
 ;;
@@ -223,3 +229,21 @@ let hasPrefix (prefix: string) (what: string) : bool =
   let pl = String.length prefix in
   try String.sub what 0 pl = prefix 
   with Invalid_argument _ -> false
+
+
+
+let restoreRef (r: 'a ref) : (unit -> unit) = 
+  let old = !r in
+  (fun () -> r := old)
+
+let restoreHash (h: ('a, 'b) H.t) : (unit -> unit) = 
+  let old = H.copy h in
+  (fun () -> 
+    hash_copy_into old h)
+
+let restoreArray (a: 'a array) : (unit -> unit) = 
+  let old = Array.copy a in
+  (fun () -> Array.blit old 0 a 0 (Array.length a))
+
+let runThunks (l: (unit -> unit) list) : (unit -> unit) = 
+  fun () -> List.iter (fun f -> f ()) l

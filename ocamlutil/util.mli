@@ -16,6 +16,10 @@ val hash_to_list: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 
 val keys: ('a, 'b) Hashtbl.t -> 'a list
 
+
+(** Copy a hash table into another *)
+val hash_copy_into: ('a, 'b) Hashtbl.t -> ('a, 'b) Hashtbl.t -> unit
+
 (** First, a few utility functions I wish were in the standard prelude *)
 
 val anticompare: 'a -> 'a -> int
@@ -60,3 +64,16 @@ val copyGrowArray: 'a growArray -> 'a growArray
 (** hasPrefix prefix str returns true with str starts with prefix *)
 val hasPrefix: string -> string -> bool
 
+
+(** Given a ref cell, produce a thunk that later restores it to its current value *)
+val restoreRef: 'a ref -> unit -> unit
+
+(** Given a hash table, produce a thunk that later restores it to its current value *)
+val restoreHash: ('a, 'b) Hashtbl.t -> unit -> unit
+
+(** Given an array, produce a thunk that later restores it to its current value *)
+val restoreArray: 'a array -> unit -> unit
+
+
+(** Given a list of thunks, produce a thunk that runs them all *)
+val runThunks: (unit -> unit) list -> unit -> unit
