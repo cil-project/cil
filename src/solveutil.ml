@@ -14,6 +14,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
   (* t[n] and struct { t ; t[n-1] ; } are congruent *)
   let t1 = unrollType t1 in
   let t2 = unrollType t2 in 
+
   let array_helper_function t eo al x = begin
     match eo with
       Some(Const(CInt32(n,a,b))) when n > Int32.one -> begin
@@ -36,6 +37,7 @@ let rec type_congruent (t1 : typ) (q1 : opointerkind)
       end
     | _ -> false
   end in 
+
   if (q1 = Wild && q2 = Wild) then 
     true
   else match (t1,t2) with
@@ -108,6 +110,14 @@ let rec sublist l n = begin
   | hd :: tl -> hd :: (sublist tl (n-1))
 end
 
+let rec product_subtype (product_typ1: typ list) (q1: opointerkind)
+                        (product_typ2: typ list) (q2: opointerkind) =
+  match (product_typ1, product_typ2) with
+    _, [] -> true           (* everything is a subtype of the empty product *)
+  | [], _ -> false
+  | hd1::tl1, hd2::tl2 ->
+      (type_congruent hd1 q1 hd2 q2) && (product_subtype tl1 q1 tl2 q2)
+
 (* do we have t1,q1 <= t2,q2 (as in infer.tex)? *)
 (* t1 = from, t2 = to *)
 let rec subtype (t1 : typ) (q1 : opointerkind) 
@@ -116,43 +126,33 @@ let rec subtype (t1 : typ) (q1 : opointerkind)
   let t2 = unrollType t2 in 
   if t1 == t2 || (type_congruent t1 q1 t2 q2) then
     true
-  else match (t1,t2) with 
-    (* t1 x t2 x t3 ... <= t1 x t2, general case  *)
-    TComp(c1,a1),TComp(c2,_) when c1.cstruct && c2.cstruct -> begin
-      (* is t2 congruent to a prefix of t1? *)
-      (* we'll do it the expensive way: try all prefices of t1 *)
-      let found_one = ref false in 
-      for l = 1 to (List.length c1.cfields) do 
-        if (not (!found_one)) then begin
-          let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent t2 q2 (TComp(prefix_struct_c1,a1)) q1) then
-            found_one := true
-        end
-      done ; !found_one
-    end
+  else
+    let extract_typ = function x -> x.ftype in
+    match (t1,t2) with 
+      TComp(c1,a1),TComp(c2,_) when c1.cstruct && c2.cstruct -> 
+        (* this is a weird addition because "subtyping" in C is based
+           on memory alignment.  rule should look like
+           (TComp, AnyType) -> subtype Struct.hd AnyType || ... 
+           For now this is just a hack until I modify the solver to
+           add compatibility edges correctly. *)
+        type_congruent (extract_typ (List.hd c1.cfields)) q1 t2 q2 ||
+        product_subtype (List.map extract_typ c1.cfields) q1
+                        (List.map extract_typ c2.cfields) q2
     (* t1 x t2 <= t1 *)
-  | TComp(c1,a1),_ when c1.cstruct -> begin
+    | TComp(c1,a1),_ when c1.cstruct ->
     (* this is true if t2 is congruent to some prefix of c1, as above *)
-      let found_one = ref false in 
-      for l = 1 to (List.length c1.cfields) do 
-        if (not (!found_one)) then begin
-          let prefix_struct_c1 = { c1 with cfields = (sublist c1.cfields l) } in
-          if (type_congruent (TComp(prefix_struct_c1,a1)) q1) t2 q2 then
-            found_one := true
-        end
-      done ; !found_one
-    end
+        product_subtype (List.map extract_typ c1.cfields) q1 [t2] q2 
     (* x <= a + b  iff x <= a && x <= b *)
-   | _,TComp(c2,_) when not c2.cstruct -> begin
-      List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
-   end
+    | _,TComp(c2,_) when not c2.cstruct -> begin
+        List.for_all (fun elt -> subtype t1 q1 elt.ftype q2) c2.cfields 
+    end
     (* a+b <= x    iff a <= x || b <= x *)
-   | TComp(c1,_),_ when not c1.cstruct -> begin
-      List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
-   end
-
-  | _,_ -> false
-
+    | TComp(c1,_),_ when not c1.cstruct -> begin
+        List.exists (fun elt -> subtype elt.ftype q1 t2 q2) c1.cfields 
+    end
+          
+    | _,_ -> false
+          
 (* a predicate to determine if a polymorphic function call is involved *)
 let rec is_p n other_n = match n.where with
     PGlob(s),_ when String.contains s '*' -> true
