@@ -147,6 +147,7 @@ $TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/scope3");
   $TEST->add3BadComment("test/scope3", "missing prototype");
 $TEST->add3Tests("test/scope4");
+$TEST->add3Tests("testrun/scope5");
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("wes-hashtest", "", @runpattern);
 $TEST->add3Tests("wes-rbtest", "", @runpattern);
@@ -197,6 +198,12 @@ $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow");
 #  $TEST->addBadComment("ijpeg-cil", "EOF / read error?? (only on Win)");
   $TEST->addBadComment("ijpeg-inferbox", "missing wrappers");
+
+$TEST->add2Tests("m88k", "_GNUCC=1");
+  $TEST->add2Group("m88k", "slow");
+  $TEST->addBadComment("m88k-cil", "Don't know how to run");
+  $TEST->enable("m88k-inferbox", 0); # Infinite loop
+  $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 $TEST->add2Tests("vortex", "_GNUCC=1");
   $TEST->add2Group("vortex", "slow");

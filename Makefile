@@ -1146,7 +1146,8 @@ vortex-combined: defaulttarget mustbegcc
 
 ### SPEC95 m88ksim
 M88DIR=$(SPECDIR)/124.m88ksim
-M88SAFECC=$(SAFECC) --combine --keep=safeccout
+M88SAFECC=$(SAFECC) --combine --keep=safeccout \
+                    --patch=$(SAFECCDIR)/cil/lib/$(PATCHFILE) 
 ifdef BOX
 M88EXTRA=$(CILDIR)/$(SAFEMAINLIB)
 else
@@ -1162,14 +1163,14 @@ m88k: defaulttarget mustbegcc m88kclean
             make    build CC="$(M88SAFECC) $(CONLY)" \
                           LD="$(M88SAFECC)" \
                           EXTRA_LIBS=$(M88EXTRA) 
-	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+#	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
 
 m88k-noclean: defaulttarget mustbegcc
 	cd $(M88DIR)/src; \
             make       build CC="$(M88SAFECC) $(CONLY)" \
                              LD="$(M88SAFECC)" \
                              EXTRA_LIBS=$(M88EXTRA) 
-	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
+#	sh -c "time $(M88DIR)/exe/base/m88ksim.ultra"
 
 
 ### SPEC95 ijpeg

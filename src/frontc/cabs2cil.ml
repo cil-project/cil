@@ -2514,6 +2514,16 @@ and createGlobal (specs: A.spec_elem list)
 and createLocal (specs: A.spec_elem list) 
                 (((n, ndt, a) as name, (e: A.init_expression)) as init_name) 
   : chunk =
+  (* Check if we are declaring a function *)
+  let rec isProto (dt: decl_type) : bool = 
+    match dt with
+    | PROTO (JUSTBASE, _, _) -> true
+    | PROTO (x, _, _) -> isProto x
+    | PARENTYPE (_, x, _) -> isProto x
+    | ARRAY (x, _) -> isProto x
+    | PTR (_, x) -> isProto x
+    | _ -> false
+  in
   match ndt with 
     _ when A.isStatic specs -> 
       (* Now alpha convert it to make sure that it does not conflict with 
@@ -2548,7 +2558,7 @@ and createLocal (specs: A.spec_elem list)
       empty
 
   (* Maybe we have a function prototype in local scope. Make it global *)
-  | A.PROTO _ -> 
+  | _ when isProto ndt -> 
       createGlobal specs init_name;
       empty
     
