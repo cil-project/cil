@@ -45,19 +45,24 @@
     Addrof(Var v, NoOffset)
     StartOf(Var v, NoOffset)
     Lval(Var v, off), where v is a variable whose address is not taken
-                      and off contains only exp
+                      and off contains only "basic"
 
  exp::=
     basic
     Lval(Mem basic, NoOffset)
     BinOp(bop, basic, basic)
     UnOp(uop, basic)
+    CastE(t, basic)
    
+ lval ::= 
+    Mem basic, NoOffset
+    Var v, off, where v is a variable whose address is not taken and off
+                contains only "basic"
+
  - all sizeof and alignof are turned into constants
  - accesses to variables whose address is taken is turned into "Mem" accesses
  - same for accesses to arrays
  - all field and index computations are turned into address arithmetic
-
 
 *)
 
@@ -86,7 +91,7 @@ let rec makeThreeAddress
   | UnOp(uo, e1, tres) -> 
       UnOp(uo, makeBasic setTemp e1, tres)
   | CastE(t, e) -> 
-      mkCast (makeBasic setTemp e) t
+      CastE(t, makeBasic setTemp e)
   | AddrOf lv -> begin
       match simplifyLval setTemp lv with 
         Mem a, NoOffset -> a
@@ -152,8 +157,10 @@ and simplifyLval
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
       let off' = offsetToInt v.vtype off in
-      let a' = setTemp (add (mkCast (mkAddrOrStartOf (Var v, NoOffset))
-                               !upointType) off') in
+      let a' = makeBasic setTemp 
+          (add (mkCast (mkAddrOrStartOf (Var v, NoOffset))
+                  !upointType) off') 
+      in
       Mem (mkCast a' tres), NoOffset
 
   | Var v, off -> (Var v, simplifyOffset setTemp off)
@@ -165,8 +172,8 @@ and simplifyOffset (setTemp: taExp -> bExp) = function
     NoOffset -> NoOffset
   | Field(fi, off) -> Field(fi, simplifyOffset setTemp off)
   | Index(ei, off) -> 
-      let ei' = makeThreeAddress setTemp ei in
-      Index(ei, simplifyOffset setTemp off)
+      let ei' = makeBasic setTemp ei in
+      Index(ei', simplifyOffset setTemp off)
 
 
       
