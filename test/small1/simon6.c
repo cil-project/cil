@@ -2,8 +2,12 @@
 #define ASZ 10
 
 extern void printf(char *fmt, ...);
+#pragma ccuredvararg("printf", printf(1))
+extern void exit(int);
 
-void main(int argc, char **argv)
+int argc;
+
+void main()
 {
   int n = argc;
   int i;
@@ -19,5 +23,5 @@ void main(int argc, char **argv)
     a[i] = (i*3 + 1) % ASZ;
     printf("[%d:%d]", i, p[i]);
   }
-  
+  exit(0);
 }

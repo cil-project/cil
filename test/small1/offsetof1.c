@@ -6,7 +6,7 @@ struct align_short {
 
 
 
-int main(int argc, char **argv)
+int main()
 {
     int align_of_short;
 

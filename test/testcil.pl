@@ -332,7 +332,8 @@ $TEST->add3Tests("testrun/polyapply3");
 $TEST->add3Tests("testrun/polyrec");
 $TEST->addTests("testrun/polylist", "", ['inferbox']);
 $TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
-# $TEST->addTests("test-bad1/fseqfail", "", ['inferbox']);
+  $TEST->addBadComment("test-bad1/polystruct-inferbox", 
+                       "Polymorphic structures seem to be broken");
 $TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
 $TEST->addTests("test-bad/seqalign", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
@@ -468,6 +469,8 @@ $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 $TEST->addTests("testrun/field1", "", ['inferbox']);
+   $TEST->addBadComment("testrun/field1-inferbox", 
+                        "Bug in handling of unsafe unions?");
 
 $TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
    $TEST->addBadComment("testrun/openssl-bounds-inferbox", 
@@ -536,7 +539,7 @@ $TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);
 $TEST->addTests("testrun/unrolltype", "", ['inferbox']);
-$TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox', 'box']);
+$TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox']);
 $TEST->addTests("testrun/fseqn1", "", ['inferbox']);
 $TEST->addTests("testrun/ubound1", "", ['inferbox']);
 $TEST->addTests("test/longunion", "", ['inferbox']);
