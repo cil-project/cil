@@ -109,6 +109,14 @@ TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
 endif
+ifeq ($(COMPUTERNAME), brooksie_george) # Rahul's desktop, for George
+BASEDIR=/home/necula/Source
+SAFECCDIR=$(BASEDIR)
+PCCDIR=$(SAFECCDIR)/cil/test/PCC
+TVDIR=$(BASEDIR)/TransVal
+CILDIR=$(BASEDIR)/cil
+_GNUCC=1
+endif
 
 # sm: I keep getting bit by this
 ifndef COMPUTERNAME
