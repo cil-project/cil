@@ -858,10 +858,12 @@ sub doit {
     # Maybe we must preprocess only
     if($self->{OPERATION} eq "TOI") {
         # Then we do not do anything
-        my $cmd = $self->{CPP} . " " . 
-            join(' ', @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
-                      @{$self->{CFILES}}, @{$self->{SFILES}},
-                      $self->{OUTARG});
+	my @cmd = ($self->{CPP},
+		   @{$self->{PPARGS}}, @{$self->{CCARGS}}, 
+		   @{$self->{CFILES}}, @{$self->{SFILES}});
+	push @cmd, $self->{OUTARG} if defined $self->{OUTARG};
+
+        my $cmd = join(' ', @cmd);
         return $self->runShell($cmd);
     }
     # We expand some libraries names. Maybe they just contain some 
