@@ -311,7 +311,8 @@ and attrparam =
  * easily fetch the {!Cil.fieldinfo} for a given field in a structure with 
  * {!Cil.getCompField}. *)
 
-(** The definition of a structure or union type. *)
+(** The definition of a structure or union type. Use {!Cil.mkCompInfo} to 
+ * make one. *)
 and compinfo = {
     mutable cstruct: bool;              
    (** True if struct, False if union *)

@@ -51,8 +51,8 @@
 
 #ifdef _GNUCC
 extern void *__builtin_memset (void *__s, int __c, unsigned int __n);
-extern int __builtin_memcmp (__const void *__s1,
-                             __const void *__s2, unsigned int __n);
+extern int __builtin_memcmp (const void *__s1,
+                             const void *__s2, unsigned int __n);
 extern double __builtin_fabs(double);
 extern float __builtin_fabsf(float);
 extern long double __builtin_fabsl(long double);
@@ -152,8 +152,7 @@ extern long double __builtin_fabsl(long double);
     void *voidPtr;
     char *charPtr;
   };
-  #pragma boxvararg("__suppress_optim_on_vars_in_try",
-                    sizeof(union suppress_optim_format))
+  #pragma boxvararg("__suppress_optim_on_vars_in_try", sizeof(union suppress_optim_format))
 
 #endif
 
