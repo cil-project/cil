@@ -97,7 +97,6 @@ $TEST->add3Tests("test/huff1");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init_gcc", "_GNUCC=1");
 $TEST->add3Tests("test/initial", "_GNUCC=1");
- $TEST->add3Comment("test/initial", "GCC/MSVC bug");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic");
  $TEST->add3Comment("test/linux_atomic", "parsing error");
@@ -118,8 +117,7 @@ $TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
 $TEST->add3Tests("test/tags");
-$TEST->add3Tests("test/task");
-    $TEST->add3Comment("test/task", "undefined structure");
+$TEST->add3Tests("test/task", "_GNUCC=1");
 $TEST->add3Tests("testrun/scope1");
 $TEST->add3Tests("test/scope2");
 $TEST->add3Tests("test/voidstar");
@@ -137,11 +135,16 @@ $TEST->add3Tests("compress", "_GNUCC=1");
    $TEST->addComment("compress-box", "missing wrappers");
 $TEST->add3Tests("go", "_GNUCC=1");
 $TEST->add3Tests("apache/gzip");
+   $TEST->add3Group("apache/gzip", "apache");
 $TEST->add3Tests("apache/rewrite");
-  $TEST->addComment("apache/rewrite-cil", "missing main");
+   $TEST->addComment("apache/rewrite-cil", "missing main");
+   $TEST->add3Group("apache/rewrite", "apache");
 $TEST->add3Tests("apache/urlcount");
+   $TEST->add3Group("apache/urlcount", "apache");
 $TEST->add3Tests("apache/layout");
+   $TEST->add3Group("apache/layout", "apache");
 $TEST->add3Tests("apache/random");
+   $TEST->add3Group("apache/random", "apache");
 
 # scott's tiny testcases
 $TEST->add3Tests("scott/multiplestatics");
@@ -299,6 +302,13 @@ sub add3Comment {
     $self->addComment($name . "-cil", $comm);
     $self->addComment($name . "-box", $comm);
     $self->addComment($name . "-inferbox", $comm);
+}
+
+sub add3Group {
+    my ($self, $name, @groups) = @_;
+    $self->addGroups($name . "-cil", @groups);
+    $self->addGroups($name . "-box", @groups);
+    $self->addGroups($name . "-inferbox", @groups);
 }
 
 sub prepend3Command {

@@ -1020,14 +1020,18 @@ attrs:
 attr:
     IDENT				{ ($1,[]) }
 |   IDENT COLON CST_INT                 { ($1 ^ ":" ^ $3, []) }
-|   IDENT LPAREN args RPAREN		{ ($1, $3) }
+|   IDENT LPAREN attr_args RPAREN       { ($1, $3) }
 ;
 
-args:
-    expression                           { [$1] }
+attr_args:
+                                         { [] }
+|   attr_args_ne                         { $1 }
+;
+attr_args_ne:
+|   expression                           { [$1] }
 |   IDENT COLON CST_INT                  { [VARIABLE ($1 ^ ":" ^ $3)] }
 |   DEFAULT COLON CST_INT                { [VARIABLE ("default:" ^ $3)] }
-|   expression COMMA args                { $1 :: $3 }
+|   expression COMMA attr_args_ne        { $1 :: $3 }
 ;
 
 /*** GCC ASM instructions ***/
