@@ -3448,7 +3448,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   let oldloc = !currentLoc in
   currentLoc := (get_stmtLoc s.skind) ;
   if vis#unqueueInstr () <> [] then 
-    ignore (warn "visitCilStmt: loosing some accumInstr\n");
+    ignore (warn "visitCilStmt: losing some accumInstr\n");
   let res = doVisit vis vis#vstmt childrenStmt s in
   currentLoc := oldloc;
   res
@@ -3497,7 +3497,7 @@ and childrenStmt (vis: cilVisitor) (s: stmt) : stmt =
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
   if vis#unqueueInstr () <> [] then 
-    ignore (warn "childrenStmt: loosing some accumulated instructions");
+    ignore (warn "childrenStmt: losing some accumulated instructions");
   let labels' = 
     let fLabel = function
         Case (e, l) as lb -> 
