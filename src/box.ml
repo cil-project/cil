@@ -3743,6 +3743,8 @@ and boxexpf (e: exp) : stmt clist * fexp =
               | TComp (comp, _) 
                   when (String.length comp.cname > 1 &&
                         String.get comp.cname 0 <> '@') -> ExistsFalse
+                    (* Pointers behind names are not exposed *)
+              | TNamed (n, _, _) -> ExistsFalse
               | _ -> ExistsMaybe) t 
         in
         if containsExposedPointers t then 

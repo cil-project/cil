@@ -72,6 +72,10 @@ let printfFunc : (string, int ) H.t = H.create 15
 (* We keep track of the models to use *)
 let boxModels : (string, fundec) H.t = H.create 15
 
+(* We keep track of a number of type that we should not unroll *)
+let dontUnrollTypes : (string, bool) H.t = H.create 19
+
+
 (* if some enclosing context [like the attributes for a field] says that
  * this array should be sized ... we do not want to forget it! *)
 let addArraySizedAttribute arrayType enclosingAttr =
@@ -143,10 +147,11 @@ let rec doType (t: typ) (p: N.place)
      * nicer looking programs. We also don't do it for base types *)
   | TNamed (n, bt, a) -> 
       let mustunroll = 
-        match bt with 
+        (not (H.mem dontUnrollTypes n)) &&
+        (match bt with 
         | TPtr _ -> true
         | TArray _ -> true
-        | _ -> false
+        | _ -> false)
       in
       if not mustunroll then
         let t', _ = doType bt (N.PType n) 0 in
@@ -1062,6 +1067,7 @@ let markFile fl =
   E.hadErrors := false;
   H.clear polyFunc;
   H.clear boxModels;
+  H.clear dontUnrollTypes;
   (* Some globals that are exported and must thus be considered part of the 
    * interface *)
   let exported : (string, bool) H.t = H.create 111 in
@@ -1077,6 +1083,8 @@ let markFile fl =
           H.add interfglobs vi.vid vi
     | GPragma (Attr("boxexported", [AStr s]), _) ->
         H.add exported s true
+    | GPragma (Attr("boxnounroll", [AStr s]), _) ->
+        H.add dontUnrollTypes s true
         
     | _ -> ()
   in
@@ -1163,6 +1171,7 @@ let markFile fl =
   H.clear pulledOutComposites;
   H.clear polyFunc;
   H.clear boxModels;
+  H.clear dontUnrollTypes;
   newfile
 
         

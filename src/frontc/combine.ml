@@ -902,7 +902,7 @@ and doDefinition (isglobal: bool) (* Whether at global scope *)
         FUNDEF ((specs2, 
                  (n', decl', attrs')), body', loc) 
       in
-      if true || (isInline specs2) then 
+      if isInline specs2 then 
         (* For inline functions we might see the same definition multiple 
          * times. Keep only one. Index everything, including the location. 
          * There is no point in throwing the location away unless we rewrite 
