@@ -680,6 +680,24 @@ $TEST->newTest(
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
+#
+# Sendmail
+#
+$TEST->newTest(
+    Name => "sendmail-cil",
+    Dir => ".",
+    Cmd => "make sendmail " . $TEST->testCommandExtras(""),
+    Enabled => 1,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+$TEST->newTest(
+    Name => "sendmail-inferbox",
+    Dir => ".",
+    Cmd => "make sendmail " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Enabled => 0,
+    Group => ['vslow'],
+    Patterns => \%commonerrors);
+
 
 # -------------- scott's testcases --------------
 # sm: trying to make a regrtest-like interface

@@ -1972,7 +1972,28 @@ linux-clean3:
 ######################## SENDMAIL
 # source available at www.sendmail.org
 
+
+sendmail: mustbegcc
+ifndef BIG_EXAMPLES_DIR
+	@echo "You should BIG_EXAMPLES_DIR.  I'll assume it's ../../big-examples."
+	BIG_EXAMPLES_DIR=../../big-examples
+endif
+ifeq ($(INFERBOX),none)
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) sendmail-cil
+else
+ ifeq ($(INFERBOX),infer)
+	$(MAKE) -C $(BIG_EXAMPLES_DIR) sendmail-inferbox
+ else
+	@echo "Sendmail supports INFERBOX=none or INFERBOX=infer."
+ endif
+endif
+
+
+
+# matth: use the big-examples sendmail instead of this
+ifdef 0
 SENDMAILSRC := /usr/local/src/sendmail-8.12.1/obj.Linux.2.4.5.i686/sendmail
+
 
 sendmailclean:
 	cd $(SENDMAILSRC); make clean
@@ -1995,6 +2016,7 @@ sendmail-noclean: mustbegcc mustbelinux mustbemanju
 sendmail-gcc: mustbelinux mustbemanju linuxclean
 	cd $(SENDMAILSRC) ; make CC=gcc
 
+endif # 0
 #### ------------- EMACS ---------------------------
 
 # source available at ftp.gnu.org/gnu/emacs
