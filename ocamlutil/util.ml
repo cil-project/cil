@@ -56,6 +56,12 @@ let hash_to_list (h: ('a, 'b) Hashtbl.t) : ('a * 'b) list =
     h
     []
 
+let keys (h: ('a, 'b) Hashtbl.t) : 'a list =
+  Hashtbl.fold
+    (fun key data acc -> key :: acc)
+    h
+    []
+
 let anticompare a b = compare b a
 ;;
 
@@ -176,9 +182,12 @@ type 'a growArray = {
     mutable gaData: 'a array;
   } 
 
-let growTheArray (ga: 'a growArray) (toidx: int) : unit = 
+let growTheArray (ga: 'a growArray) (toidx: int) (why: string) : unit = 
   let len = Array.length ga.gaData in
   if toidx >= len then begin
+(*
+    ignore (E.log "growing an array to idx=%d (%s)\n" toidx why);
+*)
     let data' = begin match ga.gaFill with
       Elem x ->
 
@@ -193,11 +202,11 @@ let growTheArray (ga: 'a growArray) (toidx: int) : unit =
   end
 
 let getReg (ga: 'a growArray) (r: int) : 'a = 
-  growTheArray ga r;
+  growTheArray ga r "get";
   ga.gaData.(r)
 
 let setReg (ga: 'a growArray) (r: int) (what: 'a) : unit = 
-  growTheArray ga r;
+  growTheArray ga r "set";
   ga.gaData.(r) <- what
 
 let newGrowArray (initsz: int) (fill: 'a growArrayFill) : 'a growArray = 

@@ -14,6 +14,8 @@ val docHash : ('a -> 'b -> Pretty.doc) -> unit ->
 
 val hash_to_list: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 
+val keys: ('a, 'b) Hashtbl.t -> 'a list
+
 (** First, a few utility functions I wish were in the standard prelude *)
 
 val anticompare: 'a -> 'a -> int
