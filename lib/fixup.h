@@ -226,6 +226,9 @@ extern long double __builtin_fabsl(long double);
   #define __LENGTH(p) ( ((unsigned int)__endof(p)) - ((unsigned int)__ptrof_nocheck(p)) )
   // Type inference:  ptr must allow forwards arithmetic.
   // In the wrapper:  returns ptr._e - ptr._p (or the WILD equivalent).
+  #define __NUM_ELEMENTS(p) ( __LENGTH(p) / sizeof(*p) )
+  // Type inference:  ptr must allow forwards arithmetic.
+  // In the wrapper:  returns number of elements in the buffer.
 
 //These functions may call fp_fail:
 
