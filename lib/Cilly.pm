@@ -117,12 +117,24 @@ sub new {
             $self->{$key} = $compiler->{$key};
         }
     }
+    
+    # Scan and process the arguments
+    collectArgumentList($self, @args);
+
+    return $self;
+}
+
+# work through an array of arguments, processing each one
+sub collectArgumentList {
+    my ($self, @args) = @_;
+
     # Scan and process the arguments
     while($#args >= 0) {
         my $arg = $self->fetchEscapedArg(\@args);
         if(! defined($arg)) {
             last;
         }
+        #print("arg: $arg\n");
 #
 #        my $arg = shift @args; # Grab the next one
         if(! $self->collectOneArgument($arg, \@args)) {
@@ -130,8 +142,6 @@ sub new {
             push @{$self->{CCARGS}}, $arg;
         }
     }
-#    print Dumper($self);
-    return $self;
 }
 
 # Grab the next argument and escape it if necessary
@@ -153,7 +163,7 @@ sub fetchEscapedArg {
 }
 
 # Collecting arguments. Take a look at one argument. If we understand it then
-# we return 1. Otherwise we return 0. Might pop soem more arguments from pargs.
+# we return 1. Otherwise we return 0. Might pop some more arguments from pargs.
 sub collectOneArgument {
     my($self, $arg, $pargs) = @_;
     my $res;
@@ -195,7 +205,7 @@ sub collectOneArgument {
         push @{$self->{INCLUDEDIR}}, $1; return 1;
     }
     if($arg =~ m|--stages|) {
-        $self->{SHOWSTAGES} = 1; 
+        $self->{SHOWSTAGES} = 1;
         push @{$self->{CILARGS}}, $arg;
         return 1;
     }
@@ -208,6 +218,38 @@ sub collectOneArgument {
     if($arg eq "--no-idashdot") {
         $self->{IDASHDOT} = 0; return 1;
     }
+
+    # sm: response file
+    if($arg =~ m|-@(.+)$|) {
+        my $fname = $1;         # name of response file
+        #print("processing response file: $fname\n");
+
+        # read the lines into an array
+        if (!open(RF, "<$fname")) {
+            die("cannot open response file $fname: $!\n");
+        }
+        my @respArgs = <RF>;
+        close(RF) or die;
+
+        # chomp the newlines
+        for (my $i=0; $i < @respArgs; $i++) {
+            chomp($respArgs[$i]);
+        }
+
+        # Scan and process the arguments
+        collectArgumentList($self, @respArgs);
+
+        #print("done with response file: $fname\n");
+        return 1;      # argument undestood
+    }
+    if($arg eq "-@") {
+        # sm: I didn't implement the case where it takes the next argument
+        # because I wasn't sure how to grab add'l args (none of the
+        # cases above do..)
+        die("For ccured/cilly, please don't separate the -@ from the\n",
+            "response file name.  e.g., use -@", "respfile.\n");
+    }
+
     # All other arguments starting with -- are passed to CIL
     if($arg =~ m|^--|) {
         # Split the ==
