@@ -680,8 +680,7 @@ smAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 smAddTest("scott/unscomp");               # kernel/fs/buffer.c
 smAddTest("scott/suppress_optim $box");
 smAddTest("scott/suppress_optim $wildbox");
-smFailTest("need wild_www",
-           "scott/suppress_optim $wildbox TAGALLFNS=1");
+smAddTest("scott/suppress_optim $wildbox TAGALLFNS=1");
 
 # current problematic test cases
 smAddTest("scott/complex_float $box");
@@ -695,10 +694,10 @@ smFailTest("infers a safe ptr argument to __throw_setup",
            "doThrowFv $wildbox UNTAGGEDFNS=1");
 smAddTest("scott/uninit_tmp");
 smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt");
-smFailTest("descriptor for static function is not static",
-           "test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
-smFailTest("pointer arithmetic on safe pointer",
-           "scott/monthname $box");
+smAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
+smAddTest("scott/monthname $box");
+smFailTest("problem with gcc coercions",
+           "scott/floatarg INFERBOX=wild TAGALLFNS=1");
 
 # tests of things implemented for EDG compatibility
 smAddTest("mergestruct");
