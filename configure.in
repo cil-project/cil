@@ -91,18 +91,26 @@ binaryExists() {
 # overrides this below
 CCUREDHOME=`pwd`
 
+DEFAULT_COMPILER=_GNUCC
+
 # is the microsoft compiler available?
 # hmm.. I think we should check the version or something, because
 # sometimes people have Common Lisp's interpreter called 'cl' ..
 AC_MSG_CHECKING(for msvc cl.exe (optional))
-if binaryExists cl; then
-  AC_MSG_RESULT(found)
+# See if CC points to the MS compiler
+if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then 
+  AC_MSG_RESULT([found, set as default])
   HAS_MSVC=yes
+  DEFAULT_COMPILER=_MSVC
 else
-  AC_MSG_RESULT(not found)
-  HAS_MSVC=no
+  if cl 2>&1 | grep "Microsoft" >/dev/null ;then
+     AC_MSG_RESULT(found)
+     HAS_MSVC=yes
+  else
+     AC_MSG_RESULT(not found)
+     HAS_MSVC=no
+  fi
 fi
-DEFAULT_COMPILER=_GNUCC
 
 # is ocaml available?
 # needed binaries: ocamllex ocamlyacc ocamldep ocamlopt ocamlc

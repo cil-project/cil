@@ -2477,21 +2477,30 @@ binaryExists() {
 # overrides this below
 CCUREDHOME=`pwd`
 
+DEFAULT_COMPILER=_GNUCC
+
 # is the microsoft compiler available?
 # hmm.. I think we should check the version or something, because
 # sometimes people have Common Lisp's interpreter called 'cl' ..
 echo "$as_me:$LINENO: checking for msvc cl.exe (optional)" >&5
 echo $ECHO_N "checking for msvc cl.exe (optional)... $ECHO_C" >&6
-if binaryExists cl; then
-  echo "$as_me:$LINENO: result: found" >&5
-echo "${ECHO_T}found" >&6
+# See if CC points to the MS compiler
+if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
+  echo "$as_me:$LINENO: result: found, set as default" >&5
+echo "${ECHO_T}found, set as default" >&6
   HAS_MSVC=yes
+  DEFAULT_COMPILER=_MSVC
 else
-  echo "$as_me:$LINENO: result: not found" >&5
+  if cl 2>&1 | grep "Microsoft" >/dev/null ;then
+     echo "$as_me:$LINENO: result: found" >&5
+echo "${ECHO_T}found" >&6
+     HAS_MSVC=yes
+  else
+     echo "$as_me:$LINENO: result: not found" >&5
 echo "${ECHO_T}not found" >&6
-  HAS_MSVC=no
+     HAS_MSVC=no
+  fi
 fi
-DEFAULT_COMPILER=_GNUCC
 
 # is ocaml available?
 # needed binaries: ocamllex ocamlyacc ocamldep ocamlopt ocamlc

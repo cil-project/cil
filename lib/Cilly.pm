@@ -1048,7 +1048,7 @@ sub doit {
 
     # See if we must create a library only
     if($self->{OPERATION} eq "TOLIB") {
-        $out = $self->linkOutputFile();
+        $out = $self->linkOutputFile(@tolink);
         $self->linktolib(\@tolink,  $out, 
                          $self->{PPARGS}, $self->{CCARGS}, 
                          $self->{LINKARGS});
@@ -1057,7 +1057,7 @@ sub doit {
 
     # Now link all of the files into an executable
     if($self->{OPERATION} eq "TOEXE") {
-        $out = $self->linkOutputFile();
+        $out = $self->linkOutputFile(@tolink);
         $self->link(\@tolink,  $out, 
                     $self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
         return;
@@ -1260,6 +1260,16 @@ use strict;
 use File::Basename;
 use Data::Dumper;
 
+# For MSVC we remember which was the first source, because we use that to 
+# determine the name of the output file
+sub setFirstSource {
+    my ($self, $src) = @_;
+    
+    if(! defined ($self->{FIRST_SOURCE})) { 
+        $self->{FIRST_SOURCE} = $src;
+    }
+}
+
 sub new {
     my ($proto, $stub) = @_;
     my $class = ref($proto) || $proto;
@@ -1305,7 +1315,9 @@ sub new {
 # given subroutine is invoked with the self, the argument and the (possibly
 # empty) additional word and a pointer to the list of remaining arguments
 #
-          ["^[^/\\-@].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+          ["^[^/\\-@].*\\.($::cilbin|c|cpp|cc)\$" => 
+           { TYPE => 'CSOURCE',
+             RUN => sub { &MSVC::setFirstSource(@_); } },
            "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
            "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
            "[^/\\-@]" => { TYPE => "OSOURCE" },
@@ -1455,10 +1467,13 @@ sub assembleOutputFile {
 
 sub linkOutputFile {
     my($self, $src) = @_;
+    $src = $src->filename if ref $src;
     if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fe(.+)|) {
         return $1;
     }
-    return "a.exe";
+    # Use the name of the first source file, in the current directory
+    my ($base, $dir, $ext) = fileparse ($src, "\\.[^.]+");
+    return "./$base.exe";
 }
 
 sub setVersion {

@@ -217,7 +217,9 @@ your bug reports as well.
 You can control its actions by passing the following arguments:
 \begin{itemize}
 \item \t{CC=foo} Specifies the path for the \t{gcc} executable. By default
-whichever version is in the PATH is used.
+whichever version is in the PATH is used. If \t{CC} specifies the Microsoft
+\t{cl} compiler, then that compiler will be set as the default one. Otherwise,
+the \t{gcc} compiler will be the default.
 \end{itemize}
 
  CIL requires an underlying C compiler and preprocessor. CIL depends on the
@@ -2703,6 +2705,9 @@ Necula}.
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 7, 2004}: Allow now to run ./configure CC=cl and set the MSVC
+compiler to be the default. The MSVC driver will now select the default name
+of the .exe file like the CL compiler. 
 \item {\bf April 7, 2004}: Fixed a bug in the driver. The temporary files are
 deleted by the Perl script before the CL compiler gets to them?
 \item {\bf April 7, 2004}: Added the - form of arguments to the MSVC driver.
