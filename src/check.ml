@@ -439,10 +439,10 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tlv = checkLval isconst lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
-          | TArray _ | TVoid _ -> 
+          | TVoid _ -> 
               E.s (E.bug "AddrOf on improper type");
               
-          | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ ) -> 
+          | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ | TArray _ ) -> 
               TPtr(tlv, [])
 
           | TEnum _ -> intPtrType
@@ -747,7 +747,7 @@ let rec checkGlobal = function
 
 
 let checkFile flags fl = 
-  ignore (E.log "Checking file %s\n" fl.fileName);
+  if !E.verboseFlag then ignore (E.log "Checking file %s\n" fl.fileName);
   List.iter 
     (function
         NoCheckGlobalIds -> checkGlobalIds := false)
@@ -790,6 +790,7 @@ let checkFile flags fl =
   H.clear enumForwards;
   H.clear enumDefined;
   varNamesList := [];
-  ignore (E.log "Finished checking file %s\n" fl.fileName);
+  if !E.verboseFlag then 
+    ignore (E.log "Finished checking file %s\n" fl.fileName);
   ()
   

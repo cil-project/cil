@@ -669,21 +669,21 @@ let luindex = { line = -1000; file = ""; }
 
 
 let lastFileName = ref ""
-let printLine (l : location) : string =
+let printLine (forcefile: bool) (l : location) : string =
   let str = ref "" in
-    if !printLn && l.line > 0 then begin
-      if !printLnComment then str := "//";
-      str := !str ^ "#";
-      if !msvcMode then str := !str ^ "line";
-      if l.line > 0 then str := !str ^ " " ^ string_of_int(l.line);
-      if (* l.file <> !lastFileName *) true then begin
-        lastFileName := l.file;
-        str := !str ^ " \"" ^ l.file ^ "\""
-      end
-    end;
-    currentLoc := l;
-   !str
-
+  if !printLn && l.line > 0 then begin
+    if !printLnComment then str := "//";
+    str := !str ^ "#";
+    if !msvcMode then str := !str ^ "line";
+    str := !str ^ " " ^ string_of_int(l.line);
+    if forcefile || l.file <> !lastFileName then begin
+      lastFileName := l.file;
+      str := !str ^ " \"" ^ l.file ^ "\""
+    end
+  end;
+  currentLoc := l;
+  !str
+    
 (* Construct an integer of a given kind. *)
 let kinteger (k: ikind) (i: int) = Const (CInt64(Int64.of_int i, k,  None))
 let kinteger64 (k: ikind) (i: int64) =  Const (CInt64(i, k,  None))
@@ -1405,30 +1405,19 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
     end
   in
   match this with 
-    TVoid a -> (* dprintf "void%a %t" d_attrlistpost a docName *)
+    TVoid a ->
       text "void"
        ++ d_attrlistpost () a 
         ++ text " " 
         ++ docName ()
 
   | TInt (ikind,a) -> 
-      (* dprintf "%a%a %t" d_ikind ikind d_attrlistpost a docName *)
       d_ikind () ikind 
         ++ d_attrlistpost () a 
         ++ text " "
         ++ docName ()
-(*
-  | TBitfield(ikind,i,a) -> 
-      (* dprintf "%a%a %t : %d" d_ikind ikind d_attrlistpost a docName i *)
-     d_ikind () ikind 
-        ++ d_attrlistpost () a 
-        ++ text " " 
-        ++ docName () 
-        ++ text " : " 
-        ++ num i
-*) 
+
   | TFloat(fkind, a) -> 
-     (* dprintf "%a%a %t" d_fkind fkind d_attrlistpost a docName *)
     d_fkind () fkind 
         ++ d_attrlistpost () a 
         ++ text " " 
@@ -1436,13 +1425,11 @@ let rec d_decl (docName: unit -> doc) (dnwhat: docNameWhat) () this =
 
   | TComp (comp, a) -> (* A reference to a struct *)
       let su = if comp.cstruct then "struct" else "union" in
-(*      dprintf "%s %s %a%t" su comp.cname d_attrlistpre a docName *)
     text (su ^ " " ^ comp.cname ^ " ") 
         ++ d_attrlistpre () a 
         ++ docName()
 
   | TEnum (enum, a) -> 
-(*        dprintf "enum %s %a%t" enum.ename d_attrlistpre a docName *)
      text ("enum " ^ enum.ename ^ " ")
         ++ d_attrlistpre () a 
         ++ docName ()
@@ -1495,17 +1482,13 @@ and d_type () t =
         match !d_attrcustom a with
           Some _ -> true
         | _ -> false)
-(*
-(Attr(an, _)) -> 
-        match an with 
-          "const" | "volatile" -> true | _ -> false)
-*)
       ta
   in
   let fixattrs = function
       TVoid a -> TVoid (fixthem a)
     | TInt (ik, a) -> TInt (ik, fixthem a)
     | TFloat (fk, a) -> TFloat (fk, fixthem a)
+
     | TNamed (n, t, a) -> TNamed (n, t, fixthem a)
     | TPtr (bt, a) -> TPtr (bt, fixthem a)
     | TArray (bt, lo, a) -> TArray (bt, lo, fixthem a)
@@ -1731,16 +1714,12 @@ and d_instr () i =
       match e with
         BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
           when lv == lv' && one = Int64.one ->
-          (* dprintf "\n%s@!%a ++;" (printLine l) d_lval lv *)
           d_line l
            ++ d_lval () lv
            ++ text " ++;"
 
       | BinOp((MinusA|MinusPI),Lval(lv'),
               Const(CInt64(one,_,_)), _) when lv == lv' && one = Int64.one ->
-(*
-          dprintf "\n%s@!%a --;" (printLine l) d_lval lv
-*)
          d_line l
           ++ d_lval () lv
           ++ text " --;"
@@ -1786,9 +1765,6 @@ and d_instr () i =
 
   | Asm(tmpls, isvol, outs, ins, clobs, l) ->
       if !msvcMode then
-(*
-        dprintf "\n%s@!__asm {@[%a@]};@!" (printLine l) (docList line text) tmpls
-*)
         d_line l
           ++ text "__asm {"
           ++ (align
@@ -1880,40 +1856,33 @@ and d_block () (blk: block) =
 
 (* Make sure that you only call d_line on an empty line *)
 and d_line l = 
-  let ls = printLine l in
-  if ls <> "" then leftflush ++ text (printLine l) ++ line else nil
-
+  let ls = printLine false l in
+  if ls <> "" then leftflush ++ text ls ++ line else nil
+   
 and d_stmtkind (next: stmt) () = function
     Return(None, l) ->
       d_line l
         ++ text "return;"
   | Return(Some e, l) ->
-      (* dprintf "\n%s@!return (%a);" (printLine l) d_exp e *)
       d_line l
         ++ text "return ("
         ++ d_exp () e
         ++ text ");"
 
   | Goto (sref, l) -> d_goto !sref
-  | Break l -> (* dprintf "\n%s@!break;" (printLine l) *)
+  | Break l ->
       d_line l
         ++ text "break;"
-  | Continue l -> (* dprintf "\n%s@!continue;" (printLine l) *)
+  | Continue l -> 
       d_line l
         ++ text "continue;"
 
-(*  | Instr [] -> text "/* empty block */" *)
   | Instr il ->
-(*
-      dprintf "@[%a@]"
-        (docList line (fun i -> d_instr () i)) il
-*)
       align
         ++ (docList line (fun i -> d_instr () i) () il)
         ++ unalign
 
   | If(be,t,{bstmts=[];battrs=[]},l) ->
-(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
       d_line l
         ++ text "if"
         ++ (align
@@ -1925,7 +1894,6 @@ and d_stmtkind (next: stmt) () = function
   | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
              battrs=[]},l)
       when !gref == next ->
-(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp be d_block t *)
         d_line l
           ++ text "if"
           ++ (align
@@ -1935,10 +1903,6 @@ and d_stmtkind (next: stmt) () = function
                 ++ d_block () t)
 
   | If(be,{bstmts=[];battrs=[]},e,l) ->
-(*
-      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp (UnOp(LNot,be,intType)) d_block e
-
-*)
       d_line l
         ++ text "if"
         ++ (align
@@ -1950,9 +1914,6 @@ and d_stmtkind (next: stmt) () = function
   | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
            battrs=[]},e,l)
       when !gref == next ->
-(*      dprintf "\n%s@!if@[ (%a)@!%a@]" (printLine l) d_exp
-                  (UnOp(LNot,be,intType)) d_block e
-*)
       d_line l
         ++ text "if"
         ++ (align
@@ -1962,9 +1923,6 @@ and d_stmtkind (next: stmt) () = function
               ++ d_block () e)
 
   | If(be,t,e,l) ->
-(*      dprintf "\n%s@!@[if@[ (%a)@!%a@]@!el@[se@!%a@]@]" (printLine l)
-        d_exp be d_block t d_block e
-*)
       d_line l
         ++ (align
               ++ text "if"
@@ -1980,22 +1938,12 @@ and d_stmtkind (next: stmt) () = function
               ++ unalign)
 
   | Switch(e,b,_,l) ->
-(*      dprintf "\n%s@!@[switch (%a)@!%a@]" (printLine l) d_exp e d_block b
-*)
       d_line l
         ++ (align
               ++ text "switch ("
               ++ d_exp () e
               ++ text ") "
               ++ d_block () b)
-(*
-  | Loop(b, l) ->
-      See if the first thing in the block is a "if e then skip else break"
-      let rec findBreakExp = function
-  | Loop({skind=If(e,[],[{skind=Goto (gref,_)} as brk],_)} :: rest, _)
-    when !gref == next && brk.labels == [] ->
-      dprintf "wh@[ile (%a)@!%a@]" d_exp e d_block rest
-*)
   | Loop(b, l) -> begin
       (* Maybe the first thing is a conditional. Turn it into a WHILE *)
       try
@@ -2014,9 +1962,6 @@ and d_stmtkind (next: stmt) () = function
             end
           | _ -> raise Not_found
         in
-(*
-        dprintf "\n%s@!wh@[ile (%a)@!%a@]" (printLine l) d_exp
-                  term d_block body *)
         d_line l
           ++ text "wh"
           ++ (align
@@ -2026,7 +1971,6 @@ and d_stmtkind (next: stmt) () = function
                 ++ d_block () {bstmts=bodystmts; battrs=b.battrs})
 
     with Not_found ->
-(*        dprintf "\n%s@!wh@[ile (1)@!%a@]" (printLine l) d_block b *)
       d_line l
         ++ text "wh"
         ++ (align
@@ -2075,15 +2019,6 @@ and d_videcl () vi =
     ++ d_attrlistpost () rest
 
 and d_fielddecl () fi = 
-(*
-  dprintf "%a %a;"
-    (d_decl 
-       (fun _ -> 
-         text (if fi.fname = "___missing_field_name" then "" else fi.fname))
-       DNString) 
-    fi.ftype
-    d_attrlistpost fi.fattr
-*)       
   (d_decl 
      (fun _ -> 
        text (if fi.fname = "___missing_field_name" then "" else fi.fname))
@@ -2832,10 +2767,6 @@ let d_global () = function
         if comp.cstruct then "struct", "str", "uct"
                         else "union",  "uni", "on"
       in
-(*      dprintf "%s@[%s %s%a {@!%a@]@!};" su1 su2 n
-        d_attrlistpost comp.cattr
-        (docList line (d_fielddecl ())) comp.cfields
-*)
       d_line l ++
       text su1 ++ (align ++ text su2 ++ chr ' ' ++ text n
                      ++ (d_attrlistpost () comp.cattr)
@@ -2845,13 +2776,7 @@ let d_global () = function
         ++ line ++ text "};"
 
   | GVar (vi, io, l) ->
-(*
-      dprintf "%a %t;"
-        d_videcl vi
-        (fun _ -> match io with None -> nil
-        | Some i -> dprintf " = %a" d_init i)
-*)
-        d_line l ++
+      d_line l ++
         (d_videcl () vi)
         ++ chr ' '
         ++ (match io with
@@ -2860,15 +2785,13 @@ let d_global () = function
         ++ chr ';'
 
   | GDecl (vi, l) ->
-(*
-      dprintf "%a;" d_videcl vi
-*)
       d_line l ++
       (d_videcl () vi)
         ++ chr ';'
 
-  | GAsm (s, l) -> d_line l ++
-     text ("__asm__(\"" ^ escape_string s ^ "\");")
+  | GAsm (s, l) -> 
+      d_line l ++
+        text ("__asm__(\"" ^ escape_string s ^ "\");")
 
   | GPragma (Attr(an, args), l) ->
       let d =

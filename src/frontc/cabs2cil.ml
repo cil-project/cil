@@ -1966,17 +1966,15 @@ and doExp (isconst: bool)    (* In a constant *)
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
             let (se, e', t) = doExp false e (AExp None) in
+            (* ignore (E.log "ADDROF on %a : %a\n" d_plainexp e'
+                      d_plaintype t); *)
             match e' with 
               Lval x -> finishExp se (mkAddrOfAndMark x) (TPtr(t, []))
-(*
-            | CastE (t', Lval x) -> 
-                finishExp se (CastE(TPtr(t', []),
-                                    (mkAddrOfAndMark x))) (TPtr(t', []))
-*)
-            | StartOf (lv) -> (* !!! is this correct ? *)
-                let tres = TPtr(typeOfLval lv, []) in
-                finishExp se (mkStartOfAndMark lv) tres
-                  
+
+            | StartOf (lv) ->
+                let tres = TPtr(typeOfLval lv, []) in (* pointer to array *)
+                finishExp se (mkAddrOfAndMark lv) tres
+
               (* Function names are converted into pointers to the function. 
                * Taking the address-of again does not change things *)
             | AddrOf (Var v, NoOffset) when isFunctionType v.vtype ->

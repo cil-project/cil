@@ -543,7 +543,7 @@ pointers to \t{long} when passing them to \t{printf}-like functions.
 
     \subsection{Scanf-like functions}
 
- Since it proved too much trouble to handle \t{scanf} like functions in a safe
+ Since it proved too much trouble to handle \t{scanf}-like functions in a safe
 yet transparent way we currently require the programmer to rewrite the
 invocations to \t{scanf} using a number of functions that we provide. For
 example instead of 
@@ -579,11 +579,14 @@ format specifier, possibly along with characters to be matched.
 \t{fscanf} from \t{stdin}. If instead your program contains \t{sscanf} then
 you can use the function 
 \begin{verbatim}
-FILE* stringToFILE(char *string);
+void resetSScanfCount(char *string);
 \end{verbatim}
 
- to dump the string to a file and then use the replacement for \t{fscanf} from
-above. 
+ to dump the string to the file \t{ccured\_sscanf\_file} then use the
+replacement for \t{fscanf} from above. 
+
+ {\bf Note that the current support for \t{scanf} is far from satisfactory and
+ will likely change in the future}
 
 
     \chapter{Using the patcher}

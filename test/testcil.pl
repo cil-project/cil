@@ -100,12 +100,12 @@ $TEST->newTest(
     Cmd => "make apachesetup _GNUCC=1");
     
 # Now add tests
-$TEST->add3Tests("btreetest", "", @runpattern);
-$TEST->add3Tests("hashtest", "", @runpattern);
-$TEST->add3Tests("rbtest", "", @runpattern);
-$TEST->add3Tests("hufftest", "", @runpattern);
+$TEST->add3Tests("btreetest");
+$TEST->add3Tests("hashtest");
+$TEST->add3Tests("rbtest");
+$TEST->add3Tests("hufftest");
 $TEST->add3Tests("test/alloc");
-$TEST->add3Tests("test/argcast", "", @runpattern);
+$TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
 $TEST->add3Tests("test/matrix");
@@ -115,14 +115,14 @@ $TEST->add3Tests("test/attr");
 $TEST->add3Tests("test/attr2", "_GNUCC=1");
 $TEST->add3Tests("test/attr3", "_GNUCC=1");
 $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
-$TEST->add3Tests("test/bh1", "", @runpattern);
+$TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add3Tests("test/constprop");
-$TEST->add1Test("testrun/const1", "_GNUCC=1");
+$TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
@@ -135,9 +135,9 @@ $TEST->add3Tests("test/huff1");
   $TEST->addBadComment("test/huff1-inferbox", "pragma box misuse");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init1");
-$TEST->add1Test("testrun/init2", "_GNUCC=1");
-$TEST->add1Test("testrun/init3", "_GNUCC=1");
-$TEST->add1Test("testrun/init4", "_GNUCC=1");
+$TEST->addTests("testrun/init2", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/init3", "_GNUCC=1", ['cil']);
+$TEST->addTests("testrun/init4", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/initial", "_GNUCC=1");
 $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
@@ -187,29 +187,28 @@ $TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testmodel/model1");
 $TEST->add3Tests("testmodel/modelpoly");
-$TEST->add1Test("testrun/decl1", "_GNUCC=1");
-$TEST->add3Tests("wes-hashtest", "", @runpattern);
-$TEST->add3Tests("wes-rbtest", "", @runpattern);
-$TEST->add1Test("test/alloc-manualinferbox",
-                "test/alloc INFERBOX=$inferbox MANUALBOX=1",
-                %commonerrors);
-$TEST->add1Test("testrun/addr-array");
+$TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
+$TEST->add3Tests("wes-hashtest", "");
+$TEST->add3Tests("wes-rbtest", "");
+$TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
+$TEST->add3Tests("testrun/addr-array");
 
 # Tests that are expected to fail
-$TEST->add2TestFail("testrun/failubound1", "Failure: Ubound");
-$TEST->add2TestFail("testrun/failnull1", "Failure: Non-pointer");
-$TEST->add2TestFail("testrun/failprintf1", "Failure: Non-pointer");
-$TEST->add2TestFail("testrun/failprintf2", "Failure: Non-pointer");
-$TEST->add2TestFail("testrun/failprintf3", "Failure: type mismatch");
-$TEST->add2TestFail("testrun/failprintf4", "Failure: type mismatch");
-$TEST->add2TestFail("testrun/failprintf5", "Failure: non-terminated string");
-$TEST->add2TestFail("testrun/failprintf6", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failubound1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failnull1", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf1", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf2", "", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failprintf3", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failprintf4", "", "Failure: type mismatch");
+$TEST->add2TestsFail("testrun/failprintf5", "", 
+    "Failure: non-terminated string");
+$TEST->add2TestsFail("testrun/failprintf6", "", "Failure: type mismatch");
 
-$TEST->add2TestFail("testrun/failsprintf1", "Failure: Ubound");
-$TEST->add2TestFail("testrun/failsprintf2", "Failure: Ubound");
-$TEST->add2TestFail("testrun/failsprintf3", "Failure: Non-pointer");
+$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure: Non-pointer");
 
-$TEST->add2TestFail("testrun/failsscanf1", "Failure: Ubound");
+$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure: Ubound");
     
 #
 # OLDEN benchmarks
@@ -311,19 +310,19 @@ $TEST->add3Tests("scott/litstruct", "_GNUCC=1");
 $TEST->add3Tests("scott/xlsubr");
 $TEST->add3Tests("scott/heapify");
 $TEST->add3Tests("scott/argv");
-$TEST->add1Test("scott/main", "_GNUCC=1");
-$TEST->add1Test("scott/globalprob", "_GNUCC=1");
-$TEST->add1Test("scott/bisonerror", "_GNUCC=1");
-$TEST->add1Test("scott/cmpzero");
-$TEST->add1Test("scott/mknod", "_GNUCC=1");
-$TEST->add1Test("scott/kernel1", "_GNUCC=1");
-$TEST->add1Test("scott/kernel2", "_GNUCC=1");
-$TEST->add1Test("scott/xcheckers", "_GNUCC=1");
-$TEST->add1Test("scott/memberofptr", "_GNUCC=1");
-$TEST->add1Test("scott/invalredef", "_GNUCC=1");
-$TEST->add1Test("scott/invalredef2", "_GNUCC=1");
-$TEST->add3Tests("scott/stralloc", "_GNUCC=1");
-$TEST->add1Test("scott/errorinfn");
+$TEST->addTests("scott/main", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/globalprob", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/bisonerror", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/cmpzero", "", ['cil']);
+$TEST->addTests("scott/mknod", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/kernel1", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/kernel2", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/xcheckers", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/memberofptr", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/invalredef", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/invalredef2", "_GNUCC=1", ['cil']);
+$TEST->add3Tests("scott/stralloc", "_GNUCC=1", ['cil']);
+$TEST->addTests("scott/errorinfn", "", ['cil']);
 
 # $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
 # my $tst = $TEST->getTest("apache/gzip-inferbox");
@@ -417,106 +416,71 @@ sub availableParameters {
     return %::availpars;
 }
 
-sub add3Tests {
-    my($self, $name, $extraargs, %patterns) = @_;
-    
+
+# Add a number of tests them. 
+# name is the base name of the tests
+# extrargs are passed on the command line for each test
+# kinds must be a list containint: cil, inferbox, box
+# fields must be fields to be added to the newly created tests
+sub addTests {
+    my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
+
     my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
     $theargs .= " $extraargs ";
-    
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";
     }
-    my $k;
+    # Turn on the verbose flag
+    $theargs .= " VERBOSE=1 ";
+
     my %patterns = %commonerrors;
+    my $kind;
+    my @tests = ();
+    foreach $kind (@{$pkinds}) {
+        my $thisargs = $theargs;
+        if($kind eq 'inferbox') {
+            $thisargs .= "  INFERBOX=$inferbox ";
+        }
+        if($kind eq 'box') {
+            $thisargs .= "  INFERBOX=wild ";
+        }
+        my $tst = 
+            $self->newTest(Name => $name . "-" . $kind,
+                           Dir => "..",
+                           Cmd => "make " . $name . $thisargs,
+                           Group => [$kind],
+                           Patterns => \%patterns);
+        # Add the extra fields
+        my $key;
+        foreach $key (keys %extrafields) {
+            $tst->{$key} = $extrafields{$key};
+        }
+    }
+    return @tests;
+}
 
-    $self->newTest(Name => $name . "-cil",
-                   Dir => "..",
-                   Cmd => "make " . $name . $theargs,
-                   Group => ["cil"],
-                   Patterns => \%patterns);
 
-    $self->newTest(Name => $name . "-box",
-                   Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=wild " . $theargs,
-                   Group => ["box"],
-                   Patterns => \%patterns);
-
-    $self->newTest(Name => $name . "-inferbox",
-                   Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
-                   Group => ["infer"], 
-                   Patterns => \%patterns);
+sub add3Tests {
+    my($self, $name, $extraargs) = @_;
+    return $self->addTests($name, $extraargs, ['cil', 'inferbox', 'box']);
 }
 
 sub add2Tests {
-    my($self, $name, $extraargs, %patterns) = @_;
-    
-    my $theargs = defined($self->{option}->{safecdebug}) ? " " : " RELEASE=1 ";
-    $theargs .= " $extraargs ";
-    
-    if(defined $self->{option}->{noremake}) {
-        $theargs .= " NOREMAKE=1";
-    }
-    my $k;
-    my %patterns = %commonerrors;
-
-    $self->newTest(Name => $name . "-cil",
-                   Dir => "..",
-                   Cmd => "make " . $name . $theargs,
-                   Group => ["cil"],
-                   Patterns => \%patterns);
-
-
-    $self->newTest(Name => $name . "-inferbox",
-                   Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
-                   Group => ["infer"], 
-                   Patterns => \%patterns);
+    my($self, $name, $extraargs) = @_;
+    return $self->addTests($name, $extraargs, ['cil', 'inferbox']);
 }
 
-
-sub add1Test {
-    my($self, $name, $args, %patterns) = @_;
-    
-    my $theargs = 
-        defined($self->{option}->{safecdebug}) ? $args : " $args RELEASE=1 ";
-
-    my $k;
-    my %patterns = %commonerrors;
-
-    $self->newTest(Name => $name,
-                   Dir => "..",
-                   Cmd => "make " . $name . $theargs,
-                   Group => ["cil"],
-                   Patterns => \%patterns);
+sub addTestsFail {
+    my($self, $name, $extraargs, $failpattern, $pkinds) = @_;
+    my @tests = $self->addTests($name, $extraargs, $pkinds, 
+                                MustFail => $failpattern);
+    return @tests;
 }
-
-sub add2TestFail {
-    my($self, $name, $args, $failpattern, %patterns) = @_;
-    
-    my $theargs = 
-        defined($self->{option}->{safecdebug}) ? $args : " $args RELEASE=1 ";
-
-    my $k;
-    my %patterns = %commonerrors;
-
-    $self->newTest(Name => $name . "-box",
-                   Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=wild " . $theargs,
-                   Group => ["cil"],
-                   MustFail => $failpattern,
-                   Patterns => \%patterns);
-
-
-    $self->newTest(Name => $name . "-inferbox",
-                   Dir => "..",
-                   Cmd => "make " . $name . " INFERBOX=$inferbox " . $theargs,
-                   Group => ["infer"], 
-                   MustFail => $failpattern,
-                   Patterns => \%patterns);
-
+sub add2TestsFail {
+    my($self, $name, $extraargs, $failpattern) = @_;
+    return $self->addTestsFail($name, $extraargs, $failpattern, 
+                               ['box', 'inferbox']);
 }
-
 
 sub addBadComment {
     my($self, $name, $comm) = @_;
@@ -563,14 +527,5 @@ sub add2Group {
     $self->addGroups($name . "-inferbox", @groups);
 }
 
-sub prepend3Command {
-    my ($self, $name, $comm) = @_;
-    my $tst = $self->getTest($name . "-cil");
-    $tst->{Cmd} = $comm . $tst->{Cmd};
-    my $tst = $self->getTest($name . "-box");
-    $tst->{Cmd} = $comm . $tst->{Cmd};
-    my $tst = $self->getTest($name . "-inferbox");
-    $tst->{Cmd} = $comm . $tst->{Cmd};
-}
 
 1;
