@@ -251,8 +251,8 @@ $TEST->add3Tests("tsp");
    $TEST->add3Group("tsp", "olden");
 $TEST->add3Tests("bisort", "_GNUCC=1");
    $TEST->add3Group("bisort", "olden");
-$TEST->add3Tests("mst");
-   $TEST->add3Group("mst", "olden");
+$TEST->add2Tests("mst");
+   $TEST->add2Group("mst", "olden");
 $TEST->add3Tests("em3d", "_GNUCC=1");
    $TEST->add3Group("em3d", "olden");
 $TEST->add3Tests("treeadd", "_GNUCC=1");
@@ -262,6 +262,7 @@ $TEST->add3Tests("treeadd", "_GNUCC=1");
 
 # PTR INTENSIVE BENCHMARKS
 $TEST->add2Tests("anagram", "_GNUCC=1");
+  $TEST->addBadComment("anagram-inferbox", "missing wrapper for qsort");
 $TEST->add2Tests("bc", "_GNUCC=1");
 $TEST->add2Tests("ft", "_GNUCC=1");
 $TEST->add2Tests("ks", "_GNUCC=1");
@@ -343,6 +344,7 @@ $TEST->addTests("scott/globalprob", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/bisonerror", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/cmpzero", "", ['cil']);
 $TEST->addTests("scott/mknod", "_GNUCC=1", ['cil']);
+ $TEST->add2BadComment("scott/mknod", "Strange C code");
 $TEST->addTests("scott/kernel1", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/kernel2", "_GNUCC=1", ['cil']);
 $TEST->addTests("scott/xcheckers", "_GNUCC=1", ['cil']);

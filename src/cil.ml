@@ -3429,7 +3429,7 @@ and constFold (machdep: bool) (e: exp) : exp =
   | SizeOf t when machdep -> begin
       try
         let bs = bitsSizeOf t in
-        kinteger IUInt (bs / 32)
+        kinteger IUInt (bs / 8)
       with SizeOfError _ -> e
   end
   | SizeOfE e when machdep -> constFold machdep (SizeOf (typeOf e))
