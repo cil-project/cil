@@ -2,7 +2,7 @@
 
 /* Test that we do not share too many inlines */
 static int g;
-inline int foo(int x) { return g; }
+static inline int foo(int x) { return g; }
 
 extern int getfoo2();
 
