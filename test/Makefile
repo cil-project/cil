@@ -139,7 +139,7 @@ endif
 # NOTE: you should *never* set EXTRAARGS within this Makefile,
 # because *any* such settings will be overridden if someone
 # specified EXTRAARGS on the command line
-CCURED+= $(EXTRAARGS)
+CCURED+= --save-temps $(EXTRAARGS)
 
 ifneq ($(INFERBOX),none)
   ifeq ($(INFERBOX),wild)
@@ -2860,3 +2860,10 @@ js: mustbegcc mustbelinux js-clean
 	        LD="$(CCURED) $(STANDARDPATCH) --verbose --keepmerged" \
                 AR="$(CILLY) --mode=AR --merge --verbose --keepmerged"
 	cd $(JSDIR); ./src/Linux_All_DBG.OBJ/js -f test.js
+
+TILEDIR:=$(TESTDIR)/tile
+.PHONY: tile
+tile: 	
+	cd $(TILEDIR); rm -f tile.exe *.o; \
+               make CC="$(COMBINECCURED)"
+	cd $(TILEDIR); make run

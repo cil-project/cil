@@ -287,19 +287,6 @@ $(OBJDIR)/%.$(OBJ): %.c
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $(OBJDIR)
 
-      # This is a generic function that builds your project
-      # See start of this file for usage instructions
-      # 
-# 
-
-define make-ocaml-project
-$(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(OBJ))
-	@$(NARRATIVE) Linking $(COMPILETOWHAT) $$@
-	$(AT)$(CAMLLINK) -o $$@ \
-                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-                    $(PROJECT_LIBS:%=-cclib -l%) \
-                    $$^
-endef
 
 
 # ("PHONY" targets are "remade" even if someone mistakenly creates them)

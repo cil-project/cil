@@ -211,6 +211,10 @@ sub collectOneArgument {
         $self->{KEEPMERGED} = 1;
         return 1;
     }
+    if($arg eq '--save-temps') {
+        $self->{SAVE_TEMPS} = 1;
+        return 1;
+    }
     if($arg =~ m|--leavealone=(.+)$|)  {
         push @{$self->{LEAVEALONE}}, $1; 
         return 1;
