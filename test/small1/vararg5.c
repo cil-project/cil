@@ -11,6 +11,8 @@ separate function.
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <string.h>
 
 #pragma boxvararg_printf("talking", 2)
 void talking(FILE *out, char *s, ...);
@@ -32,7 +34,6 @@ int main(int argc, char** argv) {
   fseek(out, 0, SEEK_SET);
   fread(buff, 1, sizeof(buff), out);
   fclose(out);
-  unlink("vararg.out");
   buff[10] = '\0';
   printf("Should be 5 5.0 10.0: %s\n", buff);
   if(strncmp(buff, "5 5.0 10.0", 10)) E(2);

@@ -272,8 +272,6 @@ $TEST->add3Tests("em3d", "_GNUCC=1");
    $TEST->add3Group("em3d", "olden");
 $TEST->add3Tests("treeadd", "_GNUCC=1");
    $TEST->add3Group("treeadd", "olden");
-#$TEST->add3Tests("voronoi", "_GNUCC=1");
-#   $TEST->add3Group("voronoi", "olden", "bad");
 
 # PTR INTENSIVE BENCHMARKS
 $TEST->add2Tests("anagram", "_GNUCC=1");

@@ -879,7 +879,7 @@ HEALTHDIR=test/olden/health
 ifdef _MSVC
   HEALTHARGS := _MSVC=1
 endif
-health: mustbegcc
+health: 
 	cd $(HEALTHDIR); \
                make PLAIN=1 clean defaulttarget \
                     $(HEALTHARGS) \
