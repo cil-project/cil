@@ -367,6 +367,9 @@ $TEST->addTests("test-bad/seqalign", "", ['inferbox']);
 $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->addTests("test-bad/stackptr", "", ['inferbox']);
+$TEST->addTests("test-bad1/escape", "", ['inferbox']);
+  $TEST->addBadComment("test-bad1/escape-inferbox", 
+                       "The optimizer removes too many checks.");
 
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
