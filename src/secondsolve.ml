@@ -166,6 +166,17 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
     ) (ecast_edges_only cur.succ) ;
   ) node_ht ;
 
+  (* our wild-rule helper function: for n1 and n3 to be compatible *)
+  let rec wild_rule n1 n3 = 
+    if (height n1.kind) < (height n3.kind) then 
+      wild_rule n3 n1
+    else begin
+      if (n1.kind = Wild) || (n1.kind = Index) || (n1.kind = FSeq) ||
+          (n1.kind = Seq) || (n1.kind = SeqN) || (n1.kind = FSeqN) then
+          update n3 n1.kind (SpreadFromEdge n1)
+    end
+  in
+
   (* _(4)_
    * Now we have all of the "basic kinds" in the graph. Must must propagate
    * them to the whole graph and resolve conflicts. *)
@@ -177,6 +188,18 @@ let solve (node_ht : (int,node) Hashtbl.t) = begin
       (* handle successor edges *)
       List.iter (fun e -> 
         (if cur.kind = Wild then update e.eto Wild (SpreadFromEdge cur)) ;
+        (if cur.kind <> Wild && e.ekind = ECast && e.eto.kind <> Wild then begin
+          (* "The Wild Rule"
+           * int * 1 * 2 x;
+           * int * 3 * 4 y;
+           * x=y;
+           * The types int * 1 and int * 3 must be compatible. Either both
+           * must be wild, or both must be index, or both must be safe. *)
+           match (nodeOfAttrlist (typeAttrs cur.btype)),
+                 (nodeOfAttrlist (typeAttrs e.eto.btype)) with
+             Some(n1),Some(n3) -> wild_rule n1 n3
+           | _ -> ()
+        end); 
         (if e.ekind = ECast &&
             (e.eto.kind = String || 
              e.eto.kind = FSeqN || e.eto.kind = SeqN) then
