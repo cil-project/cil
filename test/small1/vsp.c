@@ -10,6 +10,7 @@ ns_client_logv(void *client, void *category,
         char peerbuf[2048];
 
         vsnprintf(msgbuf, sizeof(msgbuf), fmt, ap);
+        puts(msgbuf); 
 }
 
 void
