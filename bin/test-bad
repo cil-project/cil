@@ -11,7 +11,9 @@
 # - first all ERROR-lines are removed and the program must succeed.
 # - to test for error k all ERROR lines except those with label ERROR(k)
 #   are removed from the file, and the program is expected to fail
-#
+# - If you add after the ERROR(k) label a ":" then the failure is considered
+#   expected only if everything that follows the 
+#   colon in that line appears in the output of the program 
 # Simple example:
 #   // simple.c
 #   // NUMERRORS 2
@@ -33,6 +35,7 @@ if [ "$1" = "" ]; then
   exit 0
 fi
 srcfile="$1"
+# Construct the name of the temporary file to use
 srcfilenoext=`echo $srcfile | sed s/.c\$//`
 tmpname="$srcfilenoext-tmp"
 cd "$CCUREDHOME/test/small2" || exit
@@ -56,15 +59,23 @@ while [ $i -le $numcases ]; do
   # run into problems where e.g. ERROR1 is a substring of ERROR10)
   echo "generating test $i"
   rm -f $tmpname.c 2>/dev/null
-  cat "$srcfile" | sed "s/ERROR($i)/(selected: $i)/" | grep -v ERROR > $tmpname.c
-  chmod a-w $tmpname.c
+  cat "$srcfile" | sed "s/ERROR($i)/(selected: $i)/" \
+                 | grep -v ERROR > "$tmpname.c"
+  chmod a-w "$tmpname.c"
 
-  # compile this with our tool
   echo
   echo
   echo "********************** Iteration $i"
   echo
   echo
+  # Grab the errorline for this test case
+  themsg=`cat "$srcfile" | grep "ERROR($i).*:" | sed "s/^.*ERROR.*://" `
+  if [ "x$themsg" != "x" ] ;then 
+     echo "Expecting: $themsg"
+  fi
+
+  # compile this with our tool
+  rm -f test-bad.out
   echo $CCURED $CFLAGS $tmpname.c -o $tmpname
   $CCURED $CFLAGS $tmpname.c -o $tmpname
   status=$?
@@ -73,15 +84,24 @@ while [ $i -le $numcases ]; do
       echo "The 0th iteration failed to CURE! It is supposed to succeed."
       exit $status
     else
-      echo "The ${i}th iteration failed to CURE!  It is supposed to fail."
+      if [ "x$themsg" != "x" ] ;then
+         if ! grep "$themsg" test-bad.out ;then
+            echo "The ${i}th iteration failed to CURE but cannot find: $themsg"
+            exit 3
+         else
+           echo "The ${i}th iteration failed to CURE, as expected!"
+         fi
+      else
+         echo "The ${i}th iteration failed to CURE. We expected some failure!"
+      fi
       i=`expr $i + 1`
       continue
     fi
   fi
 
   # run it
-  echo ./$tmpname
-  if ./$tmpname; then
+  echo "./$tmpname"
+  if ./$tmpname ; then
     if [ $i = 0 ]; then
       # expected success on 0th iteration
       echo "(succeeded as expected)"
@@ -98,6 +118,15 @@ while [ $i -le $numcases ]; do
       exit 2
     else
       # expected failure on >0th iteration
+      if [ "x$themsg" != "x" ] ;then
+         # Run it again to get its output
+         rm -f test-bad.out
+         ./$tmpname 1>&2 2>test-bad.out 
+         if ! grep "$themsg" test-bad.out ;then
+            echo "The ${i}th iteration failed but cannot find: $themsg"
+            exit 3
+         fi
+      fi
       echo "(failed as expected)"
     fi
   fi
@@ -112,3 +141,4 @@ while [ $i -le $numcases ]; do
 done
 
 echo "all $numcases cases in $srcfile failed as expected"
+
