@@ -42,7 +42,7 @@ EOF
 
 while ($ARGV[0] =~ m"^-") {
   if ($ARGV[0] =~ m"^-level=") {
-    $level = ($ARGV[0] =~ m"=(\d+)");
+    ($level) = ($ARGV[0] =~ m/\=(\d+)/);
   }
   elsif ($ARGV[0] eq "-u") {
     $undo = 1;
