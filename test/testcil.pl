@@ -337,6 +337,7 @@ $TEST->addTests("combineinline1", "", ['cil']);
 $TEST->addTests("combineinline2", "", ['cil']);
 $TEST->addTests("combineinline3", "", ['cil']);
 $TEST->addTests("combineinline4", "", ['cil']);
+$TEST->addTests("combinestruct1", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");

@@ -674,14 +674,22 @@ class renameVisitorClass = object (self)
         else begin
           match findReplacement true sEq !currentFidx f.fcomp.cname with
             None -> DoChildren (* We did not replace it *)
-          | Some (ci', _) -> begin
-              try
-                let f' = 
-                  List.find (fun fld -> fld.fname = f.fname) ci'.cfields in
-                ChangeDoChildrenPost (Field (f', o), fun x -> x)
-              with Not_found -> 
-                E.s (bug "Cannot find field %s in replacement for %s(%d)\n"
-                       f.fname (compFullName f.fcomp) !currentFidx)
+          | Some (ci', oldfidx) -> begin
+              (* First, find out the index of the original field *)
+              let rec indexOf (i: int) = function
+                  [] -> 
+                    E.s (bug "Cannot find field %s in %s(%d)\n"
+                           f.fname (compFullName f.fcomp) !currentFidx)
+                | f' :: rest when f' == f -> i
+                | _ :: rest -> indexOf (i + 1) rest
+              in
+              let index = indexOf 0 f.fcomp.cfields in
+              if List.length ci'.cfields <= index then 
+                E.s (bug "Too few fields in replacement %s(%d) for %s(%d)\n"
+                       (compFullName ci') oldfidx
+                       (compFullName f.fcomp) !currentFidx);
+              let f' = List.nth ci'.cfields index in 
+              ChangeDoChildrenPost (Field (f', o), fun x -> x)
           end
         end
       end
