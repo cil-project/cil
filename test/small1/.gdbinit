@@ -1,5 +1,5 @@
 # .gdbinit
 
-file wrapper2.exe
+file sized.exe
 break main
 run
