@@ -93,6 +93,7 @@ int main()
     for (i=0; i<1000; i++) {
       p = (void**)malloc(sizeof(*p));
       *p = (void*)5;
+      //**((int**)p) = 7;
     }
   }
 

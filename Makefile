@@ -90,6 +90,7 @@ PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
+USE_GC=1
 endif
 ifeq ($(COMPUTERNAME), leetch) # scott's laptop
 BASEDIR=/home/scott/wrk/safec
@@ -98,6 +99,7 @@ PCCDIR=$(SAFECCDIR)/cil/test/PCC
 TVDIR=$(BASEDIR)/TransVal
 CILDIR=$(BASEDIR)/cil
 _GNUCC=1
+USE_GC=1
 endif
 ifeq ($(COMPUTERNAME), fuji) # Rahul's laptop
 BASEDIR=/home/sprahul/research
