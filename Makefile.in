@@ -278,7 +278,7 @@ odoc:
                     ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
 	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli \
-                    ocamlutil/alpha/mli
+                    ocamlutil/alpha.mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
 	-rm -rf doc/html/cil
