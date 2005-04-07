@@ -339,6 +339,7 @@ $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
 }
+$TEST->addTests("test-bad/vararg", "", ['inferbox']);
 $TEST->addTests("test-bad/arrsize", "", ['cil']);
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
@@ -402,7 +403,10 @@ $TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->addTests("test-bad/stackptr", "", ['inferbox']);
 $TEST->addTests("test-bad1/escape", "", ['inferbox']);
   $TEST->addBadComment("test-bad1/escape-inferbox", 
-                       "The optimizer removes too many checks.");
+                       "BUG: The optimizer removes too many checks.");
+$TEST->addTests("test-bad1/alias", "", ['inferbox']);
+  $TEST->addBadComment("test-bad1/alias-inferbox", 
+                       "BUG: The optimizer removes too many checks.");
 
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
