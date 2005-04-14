@@ -62,6 +62,7 @@ module F = Map.Make(VarInfoKey)
 (*                                                                     *)
 (***********************************************************************)
 
+let model_strings = ref false
 let print_constraints = A.print_constraints
 let debug_constraints = A.debug_constraints
 let debug_aliases = A.debug_aliases
@@ -254,6 +255,11 @@ and analyze_expr (e : exp ) : A.tau =
     H.add expressions e e;*)
   let result = 
     match e with
+      | Const (CStr s) -> 
+	  if (!model_strings) then 
+	    A.address (A.make_lvalue false s (Some (makeVarinfo false s charConstPtrType)))
+	  else
+	    A.bottom()
       | Const c -> A.bottom()
       | Lval l -> A.rvalue (analyze_lval l)
       | SizeOf _ -> A.bottom()
@@ -755,6 +761,8 @@ let feature : featureDescr =
      "Print out results of may alias queries");
     ("--ptr_unify", Arg.Unit (fun _ -> no_sub := true),
      "Make the alias analysis unification-based");
+    ("--ptr_model_strings", Arg.Unit (fun _ -> model_strings := true),
+     "Make the alias analysis model string constants");
     ("--ptr_conservative", 
      Arg.Unit (fun _ -> conservative_undefineds := true),
      "Treat undefineds conservatively in alias analysis");
