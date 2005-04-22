@@ -54,6 +54,7 @@
   # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
   # PROFILE    - if set then it will compile and link with "gprof" profiling
   #              support (NATIVECAML mode only)
+  # ASSEMBLY   - if set then it will keep assembly files
   # STATIC     - if set then it will compile and link statically
   #              (NATIVECAML mode only)
 
@@ -172,6 +173,9 @@ ifdef NATIVECAML
    LINKFLAGS      += -p
    COMPILEMSG     += (profile)
    LINKMSG        += (profile)
+ endif
+ ifdef ASSEMBLY
+   COMPILEFLAGS   += -S
  endif
  ifdef STATIC
    COMPILEFLAGS   += -ccopt -static
