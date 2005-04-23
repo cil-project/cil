@@ -4152,6 +4152,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
         fi.fattr <- visitCilAttributes vis fi.fattr
       in
       List.iter fieldVisit comp.cfields;
+      comp.cattr <- visitCilAttributes vis comp.cattr;
       g
 
   | GVarDecl(v, l) -> 
