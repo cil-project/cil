@@ -1,4 +1,4 @@
-#!/bin/perl
+#!/usr/bin/perl
 
 
 use Getopt::Long 2.17;
@@ -66,8 +66,10 @@ sub parseTextSymbol {
     my ($l) = @_;
     if($fileformat eq "pei-i386" && $l =~ m|.*\s+0x(\S+)\s+(\S+)$|) {
         return ($2, $textvma + &hextodec($1));
-    } else {
-        # warn "Cannot parse text symbol line: $l";
+    } elsif($fileformat eq "elf32-i386" && 
+            $l =~ m|^\s*(\S*)\s.*\s\.text\s+\d+\s+(\S+)$|) {
+        # print("parsed 1=$1, 2=$2, 3=$3\n");
+        return ($2, &hextodec($1));
     }
 }
 
@@ -88,6 +90,7 @@ foreach my $l (&objdump("-f | grep 'file format'")) {
 if(! defined($fileformat)) {
     die "Cannot find the file format";
 }
+&pdebug("File format is $fileformat\n");
 
 # Get the parameters of the .text section
 my $textoffset;
@@ -135,7 +138,7 @@ for(my $i=0;$i<@symbolnames;$i++) {
             die "Not implemented: the last function";
         }
         $functions{$symbolnames[$i]} = 1;
-        print "$symbolnames[$i] ", &dectohex($start), " ", &dectohex($end), "\n";
+        print $start, "-", $end, " ";
     }
 }
 
