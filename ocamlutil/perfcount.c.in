@@ -202,19 +202,20 @@ void loadTable() {
   }
 }
 
-void mcount() {
+// We must tell GCC not to instrument this function for profiling  
+void mcount1() {
   unsigned long selfpc, frompc;
   selfpc = (unsigned long)__builtin_return_address(0);
   frompc = (unsigned long)__builtin_return_address(1);
   /*
   printf("You called mcount. PC=0x%lx, FROM=0x%lx, GRAND=0x%lx\n",
-         selfpc, frompc, grand);
+         selfpc, frompc, grand); 
   */
   if(! tableLoaded) loadTable ();
 
   // fprintf(stderr, "findInTable %ld\n", frompc);
   if(0 && findInTable(frompc)) {
-    fprintf(stderr, "  found\n");
+    // fprintf(stderr, "  found\n");
     frompc = (unsigned long)__builtin_return_address(2);
   } else {
     // fprintf(stderr, "  not found\n");
