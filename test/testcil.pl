@@ -405,8 +405,6 @@ $TEST->addTests("test-bad1/escape", "", ['inferbox']);
   $TEST->addBadComment("test-bad1/escape-inferbox", 
                        "BUG: The optimizer removes too many checks.");
 $TEST->addTests("test-bad1/alias", "", ['inferbox']);
-  $TEST->addBadComment("test-bad1/alias-inferbox", 
-                       "BUG: The optimizer removes too many checks.");
 $TEST->addTests("test-bad1/overflow", "", ['inferbox']);
   $TEST->addBadComment("test-bad1/overflow-inferbox", 
                        "BUG: CCured doesn't handle multiplication overflow.");
