@@ -183,8 +183,10 @@ if binaryExists ocamlc; then
   fi
 else
   AC_MSG_ERROR([
-      The "ocamlc" OCaml compiler was not found in the path.  Most of
-      this program is written in the OCaml language, so its compiler is required.
+      The "ocamlc" OCaml compiler was not found in the path: $PATH.
+
+      Most of this program is written in the OCaml language, so its compiler
+      is required.
       $ocamlDownloadInstructions
   ])
 fi
