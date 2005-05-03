@@ -402,8 +402,6 @@ $TEST->addTests("test-bad/globinit", "", ['inferbox']);
 $TEST->addTests("test-bad/index1", "", ['inferbox']);
 $TEST->addTests("test-bad/stackptr", "", ['inferbox']);
 $TEST->addTests("test-bad1/escape", "", ['inferbox']);
-  $TEST->addBadComment("test-bad1/escape-inferbox", 
-                       "BUG: The optimizer removes too many checks.");
 $TEST->addTests("test-bad1/alias", "", ['inferbox']);
 $TEST->addTests("test-bad1/overflow", "", ['inferbox']);
   $TEST->addBadComment("test-bad1/overflow-inferbox", 
@@ -661,6 +659,8 @@ $TEST->addTests("testrun/scanf3", "", ['inferbox']);
 $TEST->add2Tests("testrun/stringsize");
 #fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 #fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
+$TEST->addTests("testrun/argv2", "", ['inferbox']);
+
 
 $TEST->addTests("test/simplify_structs1", 
                 "USECILLY=1 EXTRAARGS=--dosimplify",  ['cil']);
