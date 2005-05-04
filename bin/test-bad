@@ -83,7 +83,7 @@ fi
 
 # read how many failure cases are in the file; expect line of form
 # "// NUMERRORS n"
-numcases=`grep NUMERRORS "$srcfile" | awk '{ print $3 }'`
+numcases=`grep NUMERRORS "$srcfile" | perl -e '$_ = <>; m|(\d+)|; print $1;'`
 if [ -z "$numcases" ]; then
   echo "didn't find a string of form NUMERRORS <n> in the file"
   exit 2

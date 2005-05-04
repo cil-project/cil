@@ -404,8 +404,6 @@ $TEST->addTests("test-bad/stackptr", "", ['inferbox']);
 $TEST->addTests("test-bad1/escape", "", ['inferbox']);
 $TEST->addTests("test-bad1/alias", "", ['inferbox']);
 $TEST->addTests("test-bad1/overflow", "", ['inferbox']);
-  $TEST->addBadComment("test-bad1/overflow-inferbox", 
-                       "BUG: CCured doesn't handle multiplication overflow.");
 
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
