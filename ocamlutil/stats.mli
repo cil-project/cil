@@ -40,6 +40,12 @@ exception NoPerfCount
 
 (** Check if we have performance counters *)
 val has_performance_counters: unit -> bool
+                           
+(** Sample the current cycle count, in megacycles. *)
+val sample_pentium_perfcount_20: unit -> int
+
+(** Sample the current cycle count, in kilocycles. *)
+val sample_pentium_perfcount_10: unit -> int
 
 (** Time a function and associate the time with the given string. If some
     timing information is already associated with that string, then accumulate

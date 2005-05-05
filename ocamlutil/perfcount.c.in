@@ -40,6 +40,33 @@ inline static unsigned long long read_ppc() {
 }
 
 
+/* sm: I want a version that is as fast as possible, dropping
+ * bits that aren't very important to achieve it. *
+ *
+ * This version drops the low 20 bits and the high 14 bits so the
+ * result is 30 bits (always a positive Ocaml int); this yields
+ * megacycles, which for GHz machines will be something like
+ * milliseconds. */
+inline static unsigned long sample_ppc_20()
+{
+  unsigned long low, high;
+  __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+
+  return ((low >> 20) | (high << 12)) & 0x3FFFFFFF;
+}
+
+/* This version drops the low 10 bits, yielding something like
+ * microseconds. */
+inline static unsigned long sample_ppc_10()
+{
+  unsigned long low, high;
+  __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+
+  return ((low >> 10) | (high << 22)) & 0x3FFFFFFF;
+}
+
+
+
 #ifndef CONFIGURATION_ONLY
 /*** This is the OCAML stub for the read_ppc ***/
 #include <caml/mlvalues.h>
@@ -53,7 +80,7 @@ value read_pentium_perfcount()
   return copy_double(counter);
 }
 
-/* The Ocaml system can use this function to figure out if there are 
+/* The Ocaml system can use this function to figure out if there are
  * performance counters available */
 value has_performance_counters() {
   // HAS_PERFCOUNT is set by the configuration code at the end of
@@ -62,7 +89,18 @@ value has_performance_counters() {
   return Val_true;
 #else
   return Val_false;
-#endif  
+#endif
+}
+
+/* sm: interface to above from Ocaml */
+value sample_pentium_perfcount_20()
+{
+  return Val_long(sample_ppc_20());
+}
+
+value sample_pentium_perfcount_10()
+{
+  return Val_long(sample_ppc_10());
 }
 
 #endif

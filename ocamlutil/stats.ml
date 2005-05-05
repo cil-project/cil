@@ -6,6 +6,11 @@ external has_performance_counters: unit -> bool = "has_performance_counters"
 (* Returns number of seconds since the first read *)
 external read_pentium_perfcount : unit -> float = "read_pentium_perfcount"
 
+(* Returns current cycle counter, divided by 1^20, and truncated to 30 bits *)
+external sample_pentium_perfcount_20 : unit -> int = "sample_pentium_perfcount_20"
+
+(* Returns current cycle counter, divided by 1^10, and truncated to 30 bits *)
+external sample_pentium_perfcount_10 : unit -> int = "sample_pentium_perfcount_10"
 
 
 (* Whether to use the performance counters (on Pentium only) *)
