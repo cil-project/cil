@@ -160,7 +160,14 @@ int main() {
   printf("%.3lf\n", cycles_per_usec);
   exit(0);
 }
-#endif
+#endif //defined CONFIGURATION_ONLY
+
+#ifndef CONFIGURATION_ONLY
+//matth: On Cygwin, the call to _mcount doesn't link, so only override mcount
+//on Linux.  This tests whether @ARCHOS@ == x86_LINUX:
+#define x86_LINUX 1
+#define ARCHOS @ARCHOS@
+#if ARCHOS == 1
 
 // Try to put here the new mcount function
 extern int _mcount(unsigned long, unsigned long);
@@ -260,3 +267,6 @@ void mcount1() {
   }
   _mcount(frompc, selfpc);
 }
+
+#endif  //ARCHOS == "x86_LINUX"
+#endif  //not def CONFIGURATION_ONLY
