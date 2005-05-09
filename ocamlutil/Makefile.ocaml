@@ -286,9 +286,9 @@ $(OBJDIR)/%.$(CMC): %.c
 	$(AT)$(CAMLC) $(CAMLFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
-              # Special rule for perfcount.c
+              # Special rule for profile.c
 CAMLC_NOPROF=$(subst -p,,$(CAMLC))
-$(OBJDIR)/perfcount.$(CMC): perfcount.c
+$(OBJDIR)/perfcount.$(CMC): profile.c
 	@$(NARRATIVE) "Compiling C file $<"
 	$(AT)$(CAMLC_NOPROF) $(CAMLFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
