@@ -1,13 +1,25 @@
 #include <stdio.h>
 #include <string.h>
 
-//matth: On Cygwin, the call to _mcount doesn't link, so only override mcount
-//on Linux.  This tests whether @ARCHOS@ == x86_LINUX:
-#define ARCHOS  @ARCHOS@
-#if ARCHOS == x86_LINUX
 
-// Try to put here the new mcount function
-extern int _mcount(unsigned long, unsigned long);
+// We must tell GCC not to instrument this function for profiling  
+// Put here the profiling code
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+// #define DEBUG
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+#ifndef PROF_HZ
+#define PROF_HZ 0
+#endif
+
 static int tableLoaded = 0; // Whether we have loaded the table
 // The table contains the ranges we must skip
 #define MAX_RANGE 128
@@ -75,6 +87,7 @@ void loadTable() {
     fclose(ff);
   }
   tableLoaded = 1;
+#ifdef DEBUG  
   if(1) {
     int i;
     fprintf(stderr, "Table is:\n");
@@ -82,17 +95,497 @@ void loadTable() {
       fprintf(stderr, "  %ld-%ld\n", rangetable[i].low, rangetable[i].high);
     }
   }
+#endif
+  
 }
 
-// We must tell GCC not to instrument this function for profiling  
-void mcount1() {
+
+/*
+ * Structure prepended to gmon.out profiling data file.
+ */
+struct gmonhdr {
+	u_long	lpc;		/* base pc address of sample buffer */
+	u_long	hpc;		/* max pc address of sampled buffer */
+	int	ncnt;		/* size of sample buffer (plus this header) */
+	int	version;	/* version number */
+	int	profrate;	/* profiling clock rate */
+	int	spare[3];	/* reserved */
+};
+#define GMONVERSION	0x00051879
+
+/*
+ * histogram counters are unsigned shorts (according to the kernel).
+ */
+#define	HISTCOUNTER	unsigned short
+
+/*
+ * fraction of text space to allocate for histogram counters here, 1/2
+ */
+#define	HISTFRACTION	2
+
+/*
+ * Fraction of text space to allocate for from hash buckets.
+ * The value of HASHFRACTION is based on the minimum number of bytes
+ * of separation between two subroutine call points in the object code.
+ * Given MIN_SUBR_SEPARATION bytes of separation the value of
+ * HASHFRACTION is calculated as:
+ *
+ *	HASHFRACTION = MIN_SUBR_SEPARATION / (2 * sizeof(short) - 1);
+ *
+ * For example, on the VAX, the shortest two call sequence is:
+ *
+ *	calls	$0,(r0)
+ *	calls	$0,(r0)
+ *
+ * which is separated by only three bytes, thus HASHFRACTION is
+ * calculated as:
+ *
+ *	HASHFRACTION = 3 / (2 * 2 - 1) = 1
+ *
+ * Note that the division above rounds down, thus if MIN_SUBR_FRACTION
+ * is less than three, this algorithm will not work!
+ *
+ * In practice, however, call instructions are rarely at a minimal
+ * distance.  Hence, we will define HASHFRACTION to be 2 across all
+ * architectures.  This saves a reasonable amount of space for
+ * profiling data structures without (in practice) sacrificing
+ * any granularity.
+ */
+#define	HASHFRACTION	2
+
+/*
+ * percent of text space to allocate for tostructs with a minimum.
+ */
+#define ARCDENSITY	2
+#define MINARCS		50
+#define MAXARCS		((1 << (8 * sizeof(HISTCOUNTER))) - 2)
+
+struct tostruct {
+	u_long	selfpc;
+	long	count;
+	u_short	link;
+	u_short pad;
+};
+
+/*
+ * a raw arc, with pointers to the calling site and
+ * the called site and a count.
+ */
+struct rawarc {
+	u_long	raw_frompc;
+	u_long	raw_selfpc;
+	long	raw_count;
+};
+
+/*
+ * general rounding functions.
+ */
+#define ROUNDDOWN(x,y)	(((x)/(y))*(y))
+#define ROUNDUP(x,y)	((((x)+(y)-1)/(y))*(y))
+
+/*
+ * The profiling data structures are housed in this structure.
+ */
+struct gmonparam {
+	int		state;
+	u_short		*kcount;
+	u_long		kcountsize;
+	u_short		*froms;
+	u_long		fromssize;
+	struct tostruct	*tos;
+	u_long		tossize;
+	long		tolimit;
+	u_long		lowpc;
+	u_long		highpc;
+	u_long		textsize;
+	u_long		hashfraction;
+};
+extern struct gmonparam _gmonparam;
+
+/*
+ * Possible states of profiling.
+ */
+#define	GMON_PROF_ON	0
+#define	GMON_PROF_BUSY	1
+#define	GMON_PROF_ERROR	2
+#define	GMON_PROF_OFF	3
+
+/*
+ * Sysctl definitions for extracting profiling information from the kernel.
+ */
+#define	GPROF_STATE	0	/* int: profiling enabling variable */
+#define	GPROF_COUNT	1	/* struct: profile tick count buffer */
+#define	GPROF_FROMS	2	/* struct: from location hash bucket */
+#define	GPROF_TOS	3	/* struct: destination/count structure */
+#define	GPROF_GMONPARAM	4	/* struct: profiling parameters (see above) */
+
+
+
+
+struct gmonparam _gmonparam = { GMON_PROF_OFF };
+
+static int	s_scale;
+/* see profil(2) where this is describe (incorrectly) */
+#define		SCALE_1_TO_1	0x10000L
+
+#define ERR(s) write(2, s, sizeof(s))
+
+void	moncontrol __P((int));
+
+static void *
+fake_sbrk(int size)
+{
+    void *rv = malloc(size);
+    if (rv)
+      return rv;
+    else
+      return (void *) -1;
+}
+
+void
+__monstartup(lowpc, highpc)
+	u_long lowpc;
+	u_long highpc;
+{
+	register int o;
+	char *cp;
+	struct gmonparam *p = &_gmonparam;
+
+#ifdef DEBUG        
+        printf("You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
+               lowpc, highpc);
+#endif
+	/*
+	 * round lowpc and highpc to multiples of the density we're using
+	 * so the rest of the scaling (here and in gprof) stays in ints.
+	 */
+	p->lowpc = ROUNDDOWN(lowpc, HISTFRACTION * sizeof(HISTCOUNTER));
+	p->highpc = ROUNDUP(highpc, HISTFRACTION * sizeof(HISTCOUNTER));
+	p->textsize = p->highpc - p->lowpc;
+	p->kcountsize = p->textsize / HISTFRACTION;
+	p->hashfraction = HASHFRACTION;
+	p->fromssize = p->textsize / p->hashfraction;
+	p->tolimit = p->textsize * ARCDENSITY / 100;
+	if (p->tolimit < MINARCS)
+		p->tolimit = MINARCS;
+	else if (p->tolimit > MAXARCS)
+		p->tolimit = MAXARCS;
+	p->tossize = p->tolimit * sizeof(struct tostruct);
+
+	cp = fake_sbrk(p->kcountsize + p->fromssize + p->tossize);
+	if (cp == (char *)-1) {
+		ERR("monstartup: out of memory\n");
+		return;
+	}
+#ifdef notdef
+	bzero(cp, p->kcountsize + p->fromssize + p->tossize);
+#endif
+	p->tos = (struct tostruct *)cp;
+	cp += p->tossize;
+	p->kcount = (u_short *)cp;
+	cp += p->kcountsize;
+	p->froms = (u_short *)cp;
+
+	/* XXX minbrk needed? */
+	//minbrk = fake_sbrk(0);
+	p->tos[0].link = 0;
+
+	o = p->highpc - p->lowpc;
+	if (p->kcountsize < o) {
+#ifndef notdef
+		s_scale = ((float)p->kcountsize / o ) * SCALE_1_TO_1;
+#else /* avoid floating point */
+		int quot = o / p->kcountsize;
+
+		if (quot >= 0x10000)
+			s_scale = 1;
+		else if (quot >= 0x100)
+			s_scale = 0x10000 / quot;
+		else if (o >= 0x800000)
+			s_scale = 0x1000000 / (o / (p->kcountsize >> 8));
+		else
+			s_scale = 0x1000000 / ((o << 8) / p->kcountsize);
+#endif
+	} else
+		s_scale = SCALE_1_TO_1;
+
+	moncontrol(1);
+}
+
+void
+_mcleanup()
+{
+	int fd;
+	int hz;
+	int fromindex;
+	int endfrom;
+	u_long frompc;
+	int toindex;
+	struct rawarc rawarc;
+	struct gmonparam *p = &_gmonparam;
+	struct gmonhdr gmonhdr, *hdr;
+	char *proffile;
+#ifdef DEBUG
+	int log, len;
+	char dbuf[200];
+#endif
+
+#ifdef DEBUG        
+        printf("You called mcleanup\n");
+#endif
+        
+	if (p->state == GMON_PROF_ERROR)
+		ERR("_mcleanup: tos overflow\n");
+
+	hz = PROF_HZ;
+	moncontrol(0);
+
+#ifdef nope
+	if ((profdir = getenv("PROFDIR")) != NULL) {
+		extern char *__progname;
+		char *s, *t, *limit;
+		pid_t pid;
+		long divisor;
+
+		/* If PROFDIR contains a null value, no profiling
+		   output is produced */
+		if (*profdir == '\0') {
+			return;
+		}
+
+		limit = buf + sizeof buf - 1 - 10 - 1 -
+		    strlen(__progname) - 1;
+		t = buf;
+		s = profdir;
+		while((*t = *s) != '\0' && t < limit) {
+			t++;
+			s++;
+		}
+		*t++ = '/';
+
+		/*
+		 * Copy and convert pid from a pid_t to a string.  For
+		 * best performance, divisor should be initialized to
+		 * the largest power of 10 less than PID_MAX.
+		 */
+		pid = getpid();
+		divisor=10000;
+		while (divisor > pid) divisor /= 10;	/* skip leading zeros */
+		do {
+			*t++ = (pid/divisor) + '0';
+			pid %= divisor;
+		} while (divisor /= 10);
+		*t++ = '.';
+
+		s = __progname;
+		while ((*t++ = *s++) != '\0')
+			;
+
+		proffile = buf;
+	} else {
+		proffile = "gmon.out";
+	}
+#else
+	{
+	  char gmon_out[] = "gmon.out";
+	  proffile = gmon_out;
+	}
+#endif
+
+	fd = open(proffile , O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0666);
+	if (fd < 0) {
+		perror( proffile );
+		return;
+	}
+#ifdef DEBUG
+	log = open("gmon.log", O_CREAT|O_TRUNC|O_WRONLY, 0664);
+	if (log < 0) {
+		perror("mcount: gmon.log");
+		return;
+	}
+	len = sprintf(dbuf, "[mcleanup1] kcount 0x%x ssiz %d\n",
+	    p->kcount, p->kcountsize);
+	write(log, dbuf, len);
+#endif
+	hdr = (struct gmonhdr *)&gmonhdr;
+	hdr->lpc = p->lowpc;
+	hdr->hpc = p->highpc;
+	hdr->ncnt = p->kcountsize + sizeof(gmonhdr);
+	hdr->version = GMONVERSION;
+	hdr->profrate = hz;
+	write(fd, (char *)hdr, sizeof *hdr);
+	write(fd, p->kcount, p->kcountsize);
+	endfrom = p->fromssize / sizeof(*p->froms);
+	for (fromindex = 0; fromindex < endfrom; fromindex++) {
+		if (p->froms[fromindex] == 0)
+			continue;
+
+		frompc = p->lowpc;
+		frompc += fromindex * p->hashfraction * sizeof(*p->froms);
+		for (toindex = p->froms[fromindex]; toindex != 0;
+		     toindex = p->tos[toindex].link) {
+#ifdef DEBUG
+			len = sprintf(dbuf,
+			"[mcleanup2] frompc 0x%x selfpc 0x%x count %d\n" ,
+				frompc, p->tos[toindex].selfpc,
+				p->tos[toindex].count);
+			write(log, dbuf, len);
+#endif
+			rawarc.raw_frompc = frompc;
+			rawarc.raw_selfpc = p->tos[toindex].selfpc;
+			rawarc.raw_count = p->tos[toindex].count;
+			write(fd, &rawarc, sizeof rawarc);
+		}
+	}
+	close(fd);
+}
+
+/*
+ * Control profiling
+ *	profiling is what mcount checks to see if
+ *	all the data structures are ready.
+ */
+void
+moncontrol(mode)
+	int mode;
+{
+	struct gmonparam *p = &_gmonparam;
+
+	if (mode) {
+		/* start */
+		profil((u_short *)p->kcount, p->kcountsize, p->lowpc,
+		    s_scale);
+		p->state = GMON_PROF_ON;
+	} else {
+		/* stop */
+		profil((u_short *)0, 0, 0, 0);
+		p->state = GMON_PROF_OFF;
+	}
+}
+
+
+
+inline void
+_mcount(frompc, selfpc)	/* _mcount; may be static, inline, etc */
+	register u_long frompc, selfpc;
+{
+	register u_short *frompcindex;
+	register struct tostruct *top, *prevtop;
+	register struct gmonparam *p;
+	register long toindex;
+
+	p = &_gmonparam;
+	/*
+	 * check that we are profiling
+	 * and that we aren't recursively invoked.
+	 */
+	if (p->state != GMON_PROF_ON)
+		return;
+	p->state = GMON_PROF_BUSY;
+	/*
+	 * check that frompcindex is a reasonable pc value.
+	 * for example:	signal catchers get called from the stack,
+	 *		not from text space.  too bad.
+	 */
+	frompc -= p->lowpc;
+	if (frompc > p->textsize)
+		goto done;
+
+#if (HASHFRACTION & (HASHFRACTION - 1)) == 0
+	if (p->hashfraction == HASHFRACTION)
+		frompcindex =
+		    &p->froms[frompc / (HASHFRACTION * sizeof(*p->froms))];
+	else
+#endif
+		frompcindex =
+		    &p->froms[frompc / (p->hashfraction * sizeof(*p->froms))];
+	toindex = *frompcindex;
+	if (toindex == 0) {
+		/*
+		 *	first time traversing this arc
+		 */
+		toindex = ++p->tos[0].link;
+		if (toindex >= p->tolimit)
+			/* halt further profiling */
+			goto overflow;
+
+		*frompcindex = toindex;
+		top = &p->tos[toindex];
+		top->selfpc = selfpc;
+		top->count = 1;
+		top->link = 0;
+		goto done;
+	}
+	top = &p->tos[toindex];
+	if (top->selfpc == selfpc) {
+		/*
+		 * arc at front of chain; usual case.
+		 */
+		top->count++;
+		goto done;
+	}
+	/*
+	 * have to go looking down chain for it.
+	 * top points to what we are looking at,
+	 * prevtop points to previous top.
+	 * we know it is not at the head of the chain.
+	 */
+	for (; /* goto done */; ) {
+		if (top->link == 0) {
+			/*
+			 * top is end of the chain and none of the chain
+			 * had top->selfpc == selfpc.
+			 * so we allocate a new tostruct
+			 * and link it to the head of the chain.
+			 */
+			toindex = ++p->tos[0].link;
+			if (toindex >= p->tolimit)
+				goto overflow;
+
+			top = &p->tos[toindex];
+			top->selfpc = selfpc;
+			top->count = 1;
+			top->link = *frompcindex;
+			*frompcindex = toindex;
+			goto done;
+		}
+		/*
+		 * otherwise, check the next arc on the chain.
+		 */
+		prevtop = top;
+		top = &p->tos[top->link];
+		if (top->selfpc == selfpc) {
+			/*
+			 * there it is.
+			 * increment its count
+			 * move it to the head of the chain.
+			 */
+			top->count++;
+			toindex = prevtop->link;
+			prevtop->link = top->link;
+			top->link = *frompcindex;
+			*frompcindex = toindex;
+			goto done;
+		}
+	}
+done:
+	p->state = GMON_PROF_ON;
+	return;
+overflow:
+	p->state = GMON_PROF_ERROR;
+	return;
+}
+
+void mcount() {
   unsigned long selfpc, frompc;
   selfpc = (unsigned long)__builtin_return_address(0);
   frompc = (unsigned long)__builtin_return_address(1);
-  /*
-  printf("You called mcount. PC=0x%lx, FROM=0x%lx, GRAND=0x%lx\n",
-         selfpc, frompc, grand); 
-  */
+
+#ifdef DEBUG  
+  printf("You called mcount. PC=0x%lx, FROM=0x%lx\n",
+         selfpc, frompc); 
+#endif
+  
   if(! tableLoaded) loadTable ();
 
   // fprintf(stderr, "findInTable %ld\n", frompc);
@@ -105,4 +598,3 @@ void mcount1() {
   _mcount(frompc, selfpc);
 }
 
-#endif  //ARCHOS == "x86_LINUX"
