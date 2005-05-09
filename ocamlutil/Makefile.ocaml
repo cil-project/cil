@@ -73,7 +73,8 @@
   #
   # COMPILEFLAGS      - if defined, then it is passed as argument to ocamlc
   #                     and ocamlopt
-  # CFLAGS     - flags used only for the compilation of C files
+  # CAML_CFLAGS   - flags used only for the compilation of C files.
+  #                 e.g. '-ccopt <gcc flag>'
   #
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
@@ -283,14 +284,14 @@ $(OBJDIR)/%.$(CMO): %.ml
              # They appear to be left in the current directory as .o files
 $(OBJDIR)/%.$(CMC): %.c
 	@$(NARRATIVE) "Compiling C file $< $(COMPILEMSG)"
-	$(AT)$(CAMLC) $(CAMLFLAGS) $(CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC) $(CAMLFLAGS) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
               # Special rule for profile.c
 CAMLC_NOPROF=$(subst -p,,$(CAMLC))
 $(OBJDIR)/profile.$(CMC): profile.c
 	@$(NARRATIVE) "Compiling C file $<"
-	$(AT)$(CAMLC_NOPROF) $(CAMLFLAGS) $(CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC_NOPROF) $(CAMLFLAGS) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
 
