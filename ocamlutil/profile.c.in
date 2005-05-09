@@ -34,7 +34,7 @@
  * we hook these functions in ourselves in initProfiler */
 #if defined(x86_LINUX)
  #define MONSTARTUP  __monstartup
- #define MONCLEANUP  mcleanup
+ #define MONCLEANUP  _mcleanup
  #define GMONOUT     "gmon.out"
 #elif defined(x86_WIN32)
  #define MONSTARTUP my_monstartup
@@ -80,45 +80,50 @@ void my_mcleanup(void);
 void initProfiler() {
   // See if we have defined the magic environment variable
   char *f = getenv("PROFILE_SKIP_RANGE_FILE");
+  nextIdx = 0;
   if(f) {
     FILE *ff = fopen(f, "r");
-    while(! feof(ff))  {
-      unsigned long low, high;
-      int i;
-      if(nextIdx >= MAX_RANGE) {
-        fprintf(stderr, "Too many profile ranges");
-        break;
-      }
-      if(2 != fscanf(ff, "%ld-%ld ", &low, &high)) {
-        fprintf(stderr, "Invalid line in profile ranges file %s\n", f);
-        break;
-      }
-      fprintf(stderr,
-              "Loaded profile skip range %ld-%ld\n", low, high);
-      // Insert it sorted in the table
-      for(i=0;i<nextIdx;i++) {
-        if(rangetable[i].low == low)
+    if(ff) {
+      while(! feof(ff))  {
+        unsigned long low, high;
+        int i;
+        if(nextIdx >= MAX_RANGE) {
+          fprintf(stderr, "Too many profile ranges");
           break;
-
-        if(rangetable[i].low > low) {
-          memmove(& rangetable[i + 1], &rangetable[i],
-                  sizeof(rangetable[0]) * (nextIdx - i));
+        }
+        if(2 != fscanf(ff, "%ld-%ld ", &low, &high)) {
+          fprintf(stderr, "Invalid line in profile ranges file %s\n", f);
+          break;
+        }
+        fprintf(stderr,
+                "Loaded profile skip range %ld-%ld\n", low, high);
+        // Insert it sorted in the table
+        for(i=0;i<nextIdx;i++) {
+          if(rangetable[i].low == low)
+            break;
+          
+          if(rangetable[i].low > low) {
+            memmove(& rangetable[i + 1], &rangetable[i],
+                    sizeof(rangetable[0]) * (nextIdx - i));
+            rangetable[i].low = low;
+            rangetable[i].high = high;
+            nextIdx ++;
+            break;
+          } 
+        }
+        if(i == nextIdx) {
+          // We have not inserted it yet
           rangetable[i].low = low;
           rangetable[i].high = high;
           nextIdx ++;
-          break;
-        } 
+        }
       }
-      if(i == nextIdx) {
-        // We have not inserted it yet
-        rangetable[i].low = low;
-        rangetable[i].high = high;
-        nextIdx ++;
-      }
+      fclose(ff);
     }
-    fclose(ff);
   }
 
+  printf("finished initProfiler\n");
+  
   /* Now we must call the initialization functions, if we are not on Linux */
 #ifdef MUST_INIT_PROFILES
   MONSTARTUP(0,0);
@@ -371,8 +376,8 @@ void MONCLEANUP()
 		perror("mcount: gmon.log");
 		return;
 	}
-	len = sprintf(dbuf, "[mcleanup1] kcount 0x%x ssiz %d\n",
-	    p->kcount, p->kcountsize);
+	len = sprintf(dbuf, "[mcleanup1] kcount 0x%lx ssiz %ld\n",
+	    (u_long)p->kcount, p->kcountsize);
 	write(log, dbuf, len);
 #endif
 	hdr = (struct gmonhdr *)&gmonhdr;
@@ -394,7 +399,7 @@ void MONCLEANUP()
 		     toindex = p->tos[toindex].link) {
 #ifdef DEBUG
 			len = sprintf(dbuf,
-			"[mcleanup2] frompc 0x%x selfpc 0x%x count %d\n" ,
+			"[mcleanup2] frompc 0x%lx selfpc 0x%lx count %ld\n" ,
 				frompc, p->tos[toindex].selfpc,
 				p->tos[toindex].count);
 			write(log, dbuf, len);
@@ -630,8 +635,8 @@ void mcount() {
   frompc = (unsigned long)__builtin_return_address(1);
 
 #ifdef DEBUG  
-  printf("You called mcount. PC=0x%lx, FROM=0x%lx\n",
-         selfpc, frompc); 
+//  printf("You called mcount. PC=0x%lx, FROM=0x%lx\n",
+//         selfpc, frompc); 
 #endif
   
   // fprintf(stderr, "findInTable %ld\n", frompc);
