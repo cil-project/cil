@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 
-// #define DEBUG
+#define DEBUG
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -28,14 +28,28 @@
 #define PROF_HZ 0
 #endif
 
-// On cygwin we do not have profil.
-#ifndef x86_LINUX
-//void profil(u_short *v, u_long countsize, u_long low, int scale) {
-//  return;
-//}
+
+/* On Linux if we re-define the __monstartup and the mcleanup symbol then 
+ * these take over the ones defined in the library. On other architectures, 
+ * we hook these functions in ourselves in initProfiler */
+#if defined(x86_LINUX)
+ #define MONSTARTUP  __monstartup
+ #define MONCLEANUP  mcleanup
+ #define GMONOUT     "gmon.out"
+#elif defined(x86_WIN32)
+ #define MONSTARTUP my_monstartup
+ #define MONCLEANUP my_mcleanup
+ #define MUST_INIT_PROFILER 1
+ #define GMONOUT     "gmon.out0"
+ void MONSTARTUP(u_long low, u_long high);
+ void MONCLEANUP(void);
+#else
+ #error Unknown architecture
 #endif
 
-static int tableLoaded = 0; // Whether we have loaded the table
+
+
+static int profilerInitialized = 0; // Whether we have loaded the table
 // The table contains the ranges we must skip
 #define MAX_RANGE 128
 struct range {
@@ -60,7 +74,10 @@ int findInTable(unsigned long pc) {
   }
   return 0;
 }
-void loadTable() {
+
+void my_mcleanup(void);
+
+void initProfiler() {
   // See if we have defined the magic environment variable
   char *f = getenv("PROFILE_SKIP_RANGE_FILE");
   if(f) {
@@ -101,7 +118,14 @@ void loadTable() {
     }
     fclose(ff);
   }
-  tableLoaded = 1;
+
+  /* Now we must call the initialization functions, if we are not on Linux */
+#ifdef MUST_INIT_PROFILES
+  MONSTARTUP(0,0);
+  atexit(& MONCLEANUP);
+#endif  
+  
+  profilerInitialized = 1;
 #ifdef DEBUG  
   if(1) {
     int i;
@@ -257,86 +281,7 @@ fake_sbrk(int size)
       return (void *) -1;
 }
 
-// This will be called from the main library
-void
-#if defined(x86_LINUX)
-__monstartup
-#elsif defined(x86_WIN32)
-monstartup
-#else
-#error Unknown architecture
-#endif
-(lowpc, highpc)
-	u_long lowpc;
-	u_long highpc;
-{
-	register int o;
-	char *cp;
-	struct gmonparam *p = &_my_gmonparam;
-
-#ifdef DEBUG        
-        printf("You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
-               lowpc, highpc);
-#endif
-	/*
-	 * round lowpc and highpc to multiples of the density we're using
-	 * so the rest of the scaling (here and in gprof) stays in ints.
-	 */
-	p->lowpc = ROUNDDOWN(lowpc, HISTFRACTION * sizeof(HISTCOUNTER));
-	p->highpc = ROUNDUP(highpc, HISTFRACTION * sizeof(HISTCOUNTER));
-	p->textsize = p->highpc - p->lowpc;
-	p->kcountsize = p->textsize / HISTFRACTION;
-	p->hashfraction = HASHFRACTION;
-	p->fromssize = p->textsize / p->hashfraction;
-	p->tolimit = p->textsize * ARCDENSITY / 100;
-	if (p->tolimit < MINARCS)
-		p->tolimit = MINARCS;
-	else if (p->tolimit > MAXARCS)
-		p->tolimit = MAXARCS;
-	p->tossize = p->tolimit * sizeof(struct tostruct);
-
-	cp = fake_sbrk(p->kcountsize + p->fromssize + p->tossize);
-	if (cp == (char *)-1) {
-		ERR("monstartup: out of memory\n");
-		return;
-	}
-#ifdef notdef
-	bzero(cp, p->kcountsize + p->fromssize + p->tossize);
-#endif
-	p->tos = (struct tostruct *)cp;
-	cp += p->tossize;
-	p->kcount = (u_short *)cp;
-	cp += p->kcountsize;
-	p->froms = (u_short *)cp;
-
-	/* XXX minbrk needed? */
-	//minbrk = fake_sbrk(0);
-	p->tos[0].link = 0;
-
-	o = p->highpc - p->lowpc;
-	if (p->kcountsize < o) {
-#ifndef notdef
-		s_scale = ((float)p->kcountsize / o ) * SCALE_1_TO_1;
-#else /* avoid floating point */
-		int quot = o / p->kcountsize;
-
-		if (quot >= 0x10000)
-			s_scale = 1;
-		else if (quot >= 0x100)
-			s_scale = 0x10000 / quot;
-		else if (o >= 0x800000)
-			s_scale = 0x1000000 / (o / (p->kcountsize >> 8));
-		else
-			s_scale = 0x1000000 / ((o << 8) / p->kcountsize);
-#endif
-	} else
-		s_scale = SCALE_1_TO_1;
-
-	my_moncontrol(1);
-}
-
-// This must be called from the standard library
-void _mcleanup()
+void MONCLEANUP()
 {
 	int fd;
 	int hz;
@@ -406,11 +351,11 @@ void _mcleanup()
 
 		proffile = buf;
 	} else {
-		proffile = "gmon.out";
+		proffile = GMONOUT;
 	}
 #else
 	{
-	  char gmon_out[] = "gmon.out";
+	  char gmon_out[] = GMONOUT;
 	  proffile = gmon_out;
 	}
 #endif
@@ -463,6 +408,77 @@ void _mcleanup()
 	close(fd);
 }
 
+// This will be called from the main library
+void MONSTARTUP(lowpc, highpc)
+	u_long lowpc;
+	u_long highpc;
+{
+	register int o;
+	char *cp;
+	struct gmonparam *p = &_my_gmonparam;
+
+#ifdef DEBUG        
+        printf("You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
+               lowpc, highpc);
+#endif
+	/*
+	 * round lowpc and highpc to multiples of the density we're using
+	 * so the rest of the scaling (here and in gprof) stays in ints.
+	 */
+	p->lowpc = ROUNDDOWN(lowpc, HISTFRACTION * sizeof(HISTCOUNTER));
+	p->highpc = ROUNDUP(highpc, HISTFRACTION * sizeof(HISTCOUNTER));
+	p->textsize = p->highpc - p->lowpc;
+	p->kcountsize = p->textsize / HISTFRACTION;
+	p->hashfraction = HASHFRACTION;
+	p->fromssize = p->textsize / p->hashfraction;
+	p->tolimit = p->textsize * ARCDENSITY / 100;
+	if (p->tolimit < MINARCS)
+		p->tolimit = MINARCS;
+	else if (p->tolimit > MAXARCS)
+		p->tolimit = MAXARCS;
+	p->tossize = p->tolimit * sizeof(struct tostruct);
+
+	cp = fake_sbrk(p->kcountsize + p->fromssize + p->tossize);
+	if (cp == (char *)-1) {
+		ERR("monstartup: out of memory\n");
+		return;
+	}
+#ifdef notdef
+	bzero(cp, p->kcountsize + p->fromssize + p->tossize);
+#endif
+	p->tos = (struct tostruct *)cp;
+	cp += p->tossize;
+	p->kcount = (u_short *)cp;
+	cp += p->kcountsize;
+	p->froms = (u_short *)cp;
+
+	/* XXX minbrk needed? */
+	//minbrk = fake_sbrk(0);
+	p->tos[0].link = 0;
+
+	o = p->highpc - p->lowpc;
+	if (p->kcountsize < o) {
+#ifndef notdef
+		s_scale = ((float)p->kcountsize / o ) * SCALE_1_TO_1;
+#else /* avoid floating point */
+		int quot = o / p->kcountsize;
+
+		if (quot >= 0x10000)
+			s_scale = 1;
+		else if (quot >= 0x100)
+			s_scale = 0x10000 / quot;
+		else if (o >= 0x800000)
+			s_scale = 0x1000000 / (o / (p->kcountsize >> 8));
+		else
+			s_scale = 0x1000000 / ((o << 8) / p->kcountsize);
+#endif
+	} else
+		s_scale = SCALE_1_TO_1;
+
+	my_moncontrol(1);
+}
+
+
 /*
  * Control profiling
  *	profiling is what mcount checks to see if
@@ -477,12 +493,16 @@ my_moncontrol(mode)
 
 	if (mode) {
 		/* start */
+#ifdef HAS_PROFIL          
 		profil((u_short *)p->kcount, p->kcountsize, p->lowpc,
 		    s_scale);
+#endif                
 		p->state = GMON_PROF_ON;
 	} else {
 		/* stop */
+#ifdef HAS_PROFIL          
 		profil((u_short *)0, 0, 0, 0);
+#endif                
 		p->state = GMON_PROF_OFF;
 	}
 }
@@ -603,6 +623,9 @@ overflow:
 
 void mcount() {
   unsigned long selfpc, frompc;
+
+  if(! profilerInitialized) initProfiler ();
+
   selfpc = (unsigned long)__builtin_return_address(0);
   frompc = (unsigned long)__builtin_return_address(1);
 
@@ -611,8 +634,6 @@ void mcount() {
          selfpc, frompc); 
 #endif
   
-  if(! tableLoaded) loadTable ();
-
   // fprintf(stderr, "findInTable %ld\n", frompc);
   if(0 && findInTable(frompc)) {
     // fprintf(stderr, "  found\n");
