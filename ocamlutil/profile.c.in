@@ -1,3 +1,10 @@
+// -*- Mode: c -*-
+//
+
+/* This is a replacement for the standard library profiling functions. I 
+ * have copied most of this code from the cygwin distribution. The "mcount" 
+ * function is new. */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +17,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+
 // #define DEBUG
 
 #ifndef O_BINARY
@@ -18,6 +26,13 @@
 
 #ifndef PROF_HZ
 #define PROF_HZ 0
+#endif
+
+// On cygwin we do not have profil.
+#ifndef x86_LINUX
+//void profil(u_short *v, u_long countsize, u_long low, int scale) {
+//  return;
+//}
 #endif
 
 static int tableLoaded = 0; // Whether we have loaded the table
@@ -200,7 +215,7 @@ struct gmonparam {
 	u_long		textsize;
 	u_long		hashfraction;
 };
-extern struct gmonparam _gmonparam;
+extern struct gmonparam _my_gmonparam;
 
 /*
  * Possible states of profiling.
@@ -222,7 +237,7 @@ extern struct gmonparam _gmonparam;
 
 
 
-struct gmonparam _gmonparam = { GMON_PROF_OFF };
+struct gmonparam _my_gmonparam = { GMON_PROF_OFF };
 
 static int	s_scale;
 /* see profil(2) where this is describe (incorrectly) */
@@ -230,7 +245,7 @@ static int	s_scale;
 
 #define ERR(s) write(2, s, sizeof(s))
 
-void	moncontrol __P((int));
+void	my_moncontrol(int);
 
 static void *
 fake_sbrk(int size)
@@ -242,14 +257,22 @@ fake_sbrk(int size)
       return (void *) -1;
 }
 
+// This will be called from the main library
 void
-__monstartup(lowpc, highpc)
+#if defined(x86_LINUX)
+__monstartup
+#elsif defined(x86_WIN32)
+monstartup
+#else
+#error Unknown architecture
+#endif
+(lowpc, highpc)
 	u_long lowpc;
 	u_long highpc;
 {
 	register int o;
 	char *cp;
-	struct gmonparam *p = &_gmonparam;
+	struct gmonparam *p = &_my_gmonparam;
 
 #ifdef DEBUG        
         printf("You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
@@ -309,11 +332,11 @@ __monstartup(lowpc, highpc)
 	} else
 		s_scale = SCALE_1_TO_1;
 
-	moncontrol(1);
+	my_moncontrol(1);
 }
 
-void
-_mcleanup()
+// This must be called from the standard library
+void _mcleanup()
 {
 	int fd;
 	int hz;
@@ -322,7 +345,7 @@ _mcleanup()
 	u_long frompc;
 	int toindex;
 	struct rawarc rawarc;
-	struct gmonparam *p = &_gmonparam;
+	struct gmonparam *p = &_my_gmonparam;
 	struct gmonhdr gmonhdr, *hdr;
 	char *proffile;
 #ifdef DEBUG
@@ -338,7 +361,7 @@ _mcleanup()
 		ERR("_mcleanup: tos overflow\n");
 
 	hz = PROF_HZ;
-	moncontrol(0);
+	my_moncontrol(0);
 
 #ifdef nope
 	if ((profdir = getenv("PROFDIR")) != NULL) {
@@ -445,11 +468,12 @@ _mcleanup()
  *	profiling is what mcount checks to see if
  *	all the data structures are ready.
  */
+
 void
-moncontrol(mode)
+my_moncontrol(mode)
 	int mode;
 {
-	struct gmonparam *p = &_gmonparam;
+	struct gmonparam *p = &_my_gmonparam;
 
 	if (mode) {
 		/* start */
@@ -465,6 +489,7 @@ moncontrol(mode)
 
 
 
+
 inline void
 _mcount(frompc, selfpc)	/* _mcount; may be static, inline, etc */
 	register u_long frompc, selfpc;
@@ -474,7 +499,7 @@ _mcount(frompc, selfpc)	/* _mcount; may be static, inline, etc */
 	register struct gmonparam *p;
 	register long toindex;
 
-	p = &_gmonparam;
+	p = &_my_gmonparam;
 	/*
 	 * check that we are profiling
 	 * and that we aren't recursively invoked.
