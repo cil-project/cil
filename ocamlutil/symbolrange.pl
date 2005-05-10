@@ -144,6 +144,6 @@ for(my $i=0;$i<@symbolnames;$i++) {
 
 foreach my $f (keys %functions) {
     if(! $functions{$f}) {
-        die "Could not find the range for function $f\n";
+        warn "Could not find the range for function $f\n";
     }
 }

@@ -146,7 +146,8 @@ void initProfiler() {
     int i;
     fprintf(stderr, "Profiler skip table is:\n");
     for(i=0;i<nextIdx;i++) {
-      fprintf(stderr, "  %ld-%ld\n", rangetable[i].low, rangetable[i].high);
+      fprintf(stderr, "  0x%lx-0x%lx\n",
+              rangetable[i].low, rangetable[i].high);
     }
   }
 #endif
@@ -315,7 +316,7 @@ void MONCLEANUP()
 #endif
 
 #if DEBUG >= 1
-        fprintf(stderr, "Calling the standard profiler cleanup function\n");
+        fprintf(stderr, "Saving profile output in %s\n", GMONOUT);
 #endif
         
 	if (p->state == GMON_PROF_ERROR)
@@ -522,7 +523,7 @@ my_moncontrol(mode)
 
 
 
-inline void
+inline static void
 _mcount(p, frompc, selfpc)	/* _mcount; may be static, inline, etc */
      register struct gmonparam *p;
      register u_long frompc, selfpc;
@@ -531,7 +532,7 @@ _mcount(p, frompc, selfpc)	/* _mcount; may be static, inline, etc */
 	register struct tostruct *top, *prevtop;
 	register long toindex;
 
-
+        frompc -= p->lowpc;
 #if (HASHFRACTION & (HASHFRACTION - 1)) == 0
 	if (p->hashfraction == HASHFRACTION)
 		frompcindex =
@@ -651,8 +652,7 @@ void mcount() {
 	 * for example:	signal catchers get called from the stack,
 	 *		not from text space.  too bad.
 	 */
-  frompc -= p->lowpc;
-  if (frompc > p->textsize) {
+  if (frompc - p->lowpc > p->textsize) {
 #if DEBUG >= 3
     fprintf(stderr, "ignoring PC out of range\n");
 #endif    
@@ -663,18 +663,26 @@ void mcount() {
   fprintf(stderr, "\n");
 #endif
   
-  // fprintf(stderr, "findInTable %ld\n", frompc);
   if(findInTable(frompc)) {
 #if DEBUG >= 2    
     fprintf(stderr, "  found in skip table FROM=0x%lx.", frompc);
 #endif    
-    frompc = (unsigned long)__builtin_return_address(2) - p->lowpc;
-#if DEBUG >= 2    
-    fprintf(stderr, ". Replaced with 0x%lx.", frompc + p->lowpc);
+    frompc = (unsigned long)__builtin_return_address(2);
+    if (frompc - p->lowpc > p->textsize) {
+#if DEBUG >= 2
+      fprintf(stderr, " replacement 0x%lx out of range\n", frompc);
 #endif    
-  } else {
-    // fprintf(stderr, "  not found\n");
+      p->state = GMON_PROF_ON;
+      return;
+    } else {
+#if DEBUG >= 2    
+      fprintf(stderr, " Replaced with 0x%lx.\n", frompc);
+#endif
+    }
   }
+#if DEBUG >= 2
+  fflush(stderr);
+#endif  
   _mcount(p, frompc, selfpc); // Will reset p->state
 }
 
