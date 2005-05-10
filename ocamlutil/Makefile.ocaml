@@ -46,6 +46,8 @@
   # you must defined the following variables (which are glob al for all Ocaml 
   # projects specified in one Makefile):
   # 
+  # CAMLDIR    - the directory where to get the ocaml executables from. 
+  #              Must be empty (defaul) or end with a /
   # OBJDIR     - the directory where to put all object files. This directory 
   #              must exist (default obj)
   # DEPENDDIR  - the directory where to put dependency files. This directory 
@@ -183,8 +185,8 @@ ifdef NATIVECAML
    LINKFLAGS      += -ccopt -static
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = ocamlopt $(COMPILEFLAGS)
- CAMLLINK       = ocamlopt $(LINKFLAGS)
+ CAMLC          = $(CAMLDIR)ocamlopt $(COMPILEFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlopt $(LINKFLAGS)
  CMO            = cmx
  CMC            = opt.o  # compiled (and optimized) C
  CMXA           = cmxa
@@ -194,11 +196,11 @@ ifdef NATIVECAML
  # sm: by adding -native in native mode, we prevent spurious
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
- CAMLDEP        = ocamldep -native
+ CAMLDEP        = $(CAMLDIR)ocamldep -native
  CAMLFLAGS      += -ccopt -O3
 else 
- CAMLC          = ocamlc -g $(COMPILEFLAGS)
- CAMLLINK       = ocamlc -custom -g $(LINKFLAGS)
+ CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlc -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
  CMC            = o

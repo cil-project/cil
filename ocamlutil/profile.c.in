@@ -3,11 +3,11 @@
 
 /* This is a replacement for the standard library profiling functions. I 
  * have copied most of this code from the cygwin distribution. The "mcount" 
- * function is new. */
+ * function is new, and so is the startup/exit mechanism. */
 
 #include <stdio.h>
 #include <string.h>
-
+#include <assert.h>
 
 // We must tell GCC not to instrument this function for profiling  
 // Put here the profiling code
@@ -17,8 +17,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
-#define DEBUG
+// If DEBUG == 1 we print some start-up and exit info
+// If DEBUG == 2 we print also information on some mcount invocations
+// If DEBUG >= 3 we print information on all mcount invocations
+#define DEBUG 2
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -43,6 +45,8 @@
  #define GMONOUT     "gmon.out0"
  void MONSTARTUP(u_long low, u_long high);
  void MONCLEANUP(void);
+ extern u_char etext asm ("etext");
+ extern void _monstartup(void);
 #else
  #error Unknown architecture
 #endif
@@ -80,6 +84,12 @@ void my_mcleanup(void);
 void initProfiler() {
   // See if we have defined the magic environment variable
   char *f = getenv("PROFILE_SKIP_RANGE_FILE");
+  assert(! profilerInitialized);
+  
+  profilerInitialized = 1;
+#if DEBUG >= 1
+  fprintf(stderr, "Initializing the profiler\n");
+#endif  
   nextIdx = 0;
   if(f) {
     FILE *ff = fopen(f, "r");
@@ -122,19 +132,19 @@ void initProfiler() {
     }
   }
 
-  printf("finished initProfiler\n");
-  
   /* Now we must call the initialization functions, if we are not on Linux */
-#ifdef MUST_INIT_PROFILES
-  MONSTARTUP(0,0);
+#ifdef MUST_INIT_PROFILER
+#if DEBUG >= 1
+  fprintf(stderr, " calling the standard profiler startup function\n");
+#endif  
+  MONSTARTUP((u_long) & _monstartup, (u_long)&etext);
   atexit(& MONCLEANUP);
 #endif  
   
-  profilerInitialized = 1;
-#ifdef DEBUG  
-  if(1) {
+#if DEBUG >= 1
+  {
     int i;
-    fprintf(stderr, "Table is:\n");
+    fprintf(stderr, "Profiler skip table is:\n");
     for(i=0;i<nextIdx;i++) {
       fprintf(stderr, "  %ld-%ld\n", rangetable[i].low, rangetable[i].high);
     }
@@ -143,7 +153,8 @@ void initProfiler() {
   
 }
 
-
+// Start code copied from elsewhere
+//
 /*
  * Structure prepended to gmon.out profiling data file.
  */
@@ -298,13 +309,13 @@ void MONCLEANUP()
 	struct gmonparam *p = &_my_gmonparam;
 	struct gmonhdr gmonhdr, *hdr;
 	char *proffile;
-#ifdef DEBUG
+#if DEBUG >= 1
 	int log, len;
 	char dbuf[200];
 #endif
 
-#ifdef DEBUG        
-        printf("You called mcleanup\n");
+#if DEBUG >= 1
+        fprintf(stderr, "Calling the standard profiler cleanup function\n");
 #endif
         
 	if (p->state == GMON_PROF_ERROR)
@@ -370,7 +381,7 @@ void MONCLEANUP()
 		perror( proffile );
 		return;
 	}
-#ifdef DEBUG
+#if DEBUG >= 1
 	log = open("gmon.log", O_CREAT|O_TRUNC|O_WRONLY, 0664);
 	if (log < 0) {
 		perror("mcount: gmon.log");
@@ -397,7 +408,7 @@ void MONCLEANUP()
 		frompc += fromindex * p->hashfraction * sizeof(*p->froms);
 		for (toindex = p->froms[fromindex]; toindex != 0;
 		     toindex = p->tos[toindex].link) {
-#ifdef DEBUG
+#if DEBUG >= 1
 			len = sprintf(dbuf,
 			"[mcleanup2] frompc 0x%lx selfpc 0x%lx count %ld\n" ,
 				frompc, p->tos[toindex].selfpc,
@@ -422,9 +433,9 @@ void MONSTARTUP(lowpc, highpc)
 	char *cp;
 	struct gmonparam *p = &_my_gmonparam;
 
-#ifdef DEBUG        
-        printf("You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
-               lowpc, highpc);
+#if DEBUG >= 1
+        fprintf(stderr, "You called monstartup(LOW=0x%lx, HIGH=0x%lx)\n",
+                lowpc, highpc);
 #endif
 	/*
 	 * round lowpc and highpc to multiples of the density we're using
@@ -498,16 +509,12 @@ my_moncontrol(mode)
 
 	if (mode) {
 		/* start */
-#ifdef HAS_PROFIL          
 		profil((u_short *)p->kcount, p->kcountsize, p->lowpc,
 		    s_scale);
-#endif                
 		p->state = GMON_PROF_ON;
 	} else {
 		/* stop */
-#ifdef HAS_PROFIL          
 		profil((u_short *)0, 0, 0, 0);
-#endif                
 		p->state = GMON_PROF_OFF;
 	}
 }
@@ -516,30 +523,14 @@ my_moncontrol(mode)
 
 
 inline void
-_mcount(frompc, selfpc)	/* _mcount; may be static, inline, etc */
-	register u_long frompc, selfpc;
+_mcount(p, frompc, selfpc)	/* _mcount; may be static, inline, etc */
+     register struct gmonparam *p;
+     register u_long frompc, selfpc;
 {
 	register u_short *frompcindex;
 	register struct tostruct *top, *prevtop;
-	register struct gmonparam *p;
 	register long toindex;
 
-	p = &_my_gmonparam;
-	/*
-	 * check that we are profiling
-	 * and that we aren't recursively invoked.
-	 */
-	if (p->state != GMON_PROF_ON)
-		return;
-	p->state = GMON_PROF_BUSY;
-	/*
-	 * check that frompcindex is a reasonable pc value.
-	 * for example:	signal catchers get called from the stack,
-	 *		not from text space.  too bad.
-	 */
-	frompc -= p->lowpc;
-	if (frompc > p->textsize)
-		goto done;
 
 #if (HASHFRACTION & (HASHFRACTION - 1)) == 0
 	if (p->hashfraction == HASHFRACTION)
@@ -627,25 +618,67 @@ overflow:
 }
 
 void mcount() {
-  unsigned long selfpc, frompc;
+  register struct gmonparam *p;
+  register u_long frompc, selfpc;
 
   if(! profilerInitialized) initProfiler ();
 
   selfpc = (unsigned long)__builtin_return_address(0);
   frompc = (unsigned long)__builtin_return_address(1);
 
-#ifdef DEBUG  
-//  printf("You called mcount. PC=0x%lx, FROM=0x%lx\n",
-//         selfpc, frompc); 
+  
+#if DEBUG >= 3
+  fprintf(stderr, "You called mcount. PC=0x%lx, FROM=0x%lx. ",
+          selfpc, frompc); 
+#endif
+
+  // This code was copied from _mcount. We moved it here because we want
+  // to avoid expensive table lookups if not necessary
+  p = &_my_gmonparam;
+	/*
+	 * check that we are profiling
+	 * and that we aren't recursively invoked.
+	 */
+  if (p->state != GMON_PROF_ON) {
+#if DEBUG >= 3
+    fprintf(stderr, "already profiling\n");
+#endif    
+    return;
+  }
+  p->state = GMON_PROF_BUSY;
+	                      /*
+	 * check that frompcindex is a reasonable pc value.
+	 * for example:	signal catchers get called from the stack,
+	 *		not from text space.  too bad.
+	 */
+  frompc -= p->lowpc;
+  if (frompc > p->textsize) {
+#if DEBUG >= 3
+    fprintf(stderr, "ignoring PC out of range\n");
+#endif    
+    p->state = GMON_PROF_ON;
+    return;
+  }
+#if DEBUG >= 3
+  fprintf(stderr, "\n");
 #endif
   
   // fprintf(stderr, "findInTable %ld\n", frompc);
-  if(0 && findInTable(frompc)) {
-    // fprintf(stderr, "  found\n");
-    frompc = (unsigned long)__builtin_return_address(2);
+  if(findInTable(frompc)) {
+#if DEBUG >= 2    
+    fprintf(stderr, "  found in skip table FROM=0x%lx.", frompc);
+#endif    
+    frompc = (unsigned long)__builtin_return_address(2) - p->lowpc;
+#if DEBUG >= 2    
+    fprintf(stderr, ". Replaced with 0x%lx.", frompc + p->lowpc);
+#endif    
   } else {
     // fprintf(stderr, "  not found\n");
   }
-  _mcount(frompc, selfpc);
+  _mcount(p, frompc, selfpc); // Will reset p->state
 }
 
+#ifdef MUST_INIT_PROFILER
+asm (".text");
+asm ("__eprol:");
+#endif
