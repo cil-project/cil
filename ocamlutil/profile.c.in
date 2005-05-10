@@ -662,7 +662,9 @@ void mcount() {
 #if DEBUG >= 3
   fprintf(stderr, "\n");
 #endif
-  
+
+  // Disable this because Ocaml does not push EBP on the stack
+  //
   if(findInTable(frompc)) {
 #if DEBUG >= 2    
     fprintf(stderr, "  found in skip table FROM=0x%lx.", frompc);
