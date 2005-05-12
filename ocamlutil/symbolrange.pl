@@ -65,13 +65,18 @@ my $fileformat;
 
 sub parseTextSymbol {
     my ($l) = @_;
+    my $name;
+    my $vma;
     if($fileformat eq "pei-i386" && $l =~ m|.*\s+0x(\S+)\s+(\S+)$|) {
-        return ($2, $textvma + &hextodec($1));
+        $name = $2;
+        $vma = $textvma + &hextodec($1);
     } elsif($fileformat eq "elf32-i386" && 
-            $l =~ m|^\s*(\S*)\s.*\s\.text\s+(\S+)\s+(\S+)$|) {
-        # print("parsed 1=$1, 2=$2, 3=$3\n");
-        return ($2, &hextodec($1));
+            $l =~ m|^\s*(\S*)\s.*\s\.text\s+\S+\s+(\S+)$|) {
+        $name = $2;
+        $vma = &hextodec($1);
     }
+    &pdebug("parseTextSymbol:$l  name=$name, vma=".&dectohex($vma)."\n");
+    return ($name, $vma);
 }
 
 my %options = 
@@ -100,14 +105,17 @@ foreach my $l (&objdump("-h | grep .text")) {
     while($line[0] eq '') {
         shift @line;
     }
-    # &pdebug("line=", join(':', @line), "\n");
+    &pdebug("Parsing .text info: line=", join(':', @line), "\n");
     if($fileformat eq "pei-i386" && $line[1] eq ".text") {
         $text_section_idx = 1 + $line[0];
         $textoffset = &hextodec($line[5]);
         $textvma = &hextodec($line[3]);
         last;
-    } elsif($fileformat eq "elf32-i386") {
-        die "";
+    } elsif($fileformat eq "elf32-i386" && $line[1] eq ".text") {
+        $text_section_idx = 0;
+        $textoffset = &hextodec($line[5]);
+        $textvma = &hextodec($line[3]);
+        last;
     } else {
         die "Found unexpected output for -h: $l";
     }
@@ -143,27 +151,33 @@ my @symbolnames = sort { $symbols{$a} <=> $symbols{$b} } (keys %symbols);
 
 # For each function that we got as argument produce its range of VMA
 my %functions = ();
-foreach my $f (@ARGV) { $functions{$f} = 0; }
+foreach my $f (@ARGV) { $functions{$f} = ""; }
 
 for(my $i=0;$i<@symbolnames;$i++) {
     &pdebug("Found symbol $symbolnames[$i] at ". 
             &dectohex($symbols{$symbolnames[$i]})."\n");
-    if(defined $functions{$symbolnames[$i]}) {
-        # A function we care about
-        my $start = $symbols{$symbolnames[$i]};
-        my $end;
-        if($i + 1 < @symbolnames) { 
-            $end = $symbols{$symbolnames[$i + 1]}
-        } else {
-            die "Not implemented: the last function";
+    # See if the symbolname matches the start of a function that we must print
+    foreach my $f (@ARGV) {
+        if($symbolnames[$i]=~ m|^$f|) {
+            $functions{$f} = $symbolnames[$i] . "," . $functions{$f};
+            print STDERR "Found symbol $symbolnames[$i]\n";
+
+            # A function we care about
+            my $start = $symbols{$symbolnames[$i]};
+            my $end;
+            if($i + 1 < @symbolnames) { 
+                $end = $symbols{$symbolnames[$i + 1]}
+            } else {
+                die "Not implemented: the last function";
+            }
+            $functions{$symbolnames[$i]} = 1;
+            print $start, "-", $end, " ";
         }
-        $functions{$symbolnames[$i]} = 1;
-        print $start, "-", $end, " ";
     }
 }
 
 foreach my $f (keys %functions) {
-    if(! $functions{$f}) {
-        warn "Could not find the range for function $f\n";
+    if($functions{$f} eq '') {
+        warn "Warning: Could not find the range for function $f\n";
     }
 }

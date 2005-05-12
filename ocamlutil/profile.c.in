@@ -19,8 +19,9 @@
 
 // If DEBUG == 1 we print some start-up and exit info
 // If DEBUG == 2 we print also information on some mcount invocations
+//               when something interesting happens
 // If DEBUG >= 3 we print information on all mcount invocations
-#define DEBUG 3
+#define DEBUG 1
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -105,8 +106,10 @@ void initProfiler() {
           fprintf(stderr, "Invalid line in profile ranges file %s\n", f);
           break;
         }
+#if DEBUG >= 3        
         fprintf(stderr,
                 "Loaded profile skip range %ld-%ld\n", low, high);
+#endif        
         // Insert it sorted in the table
         for(i=0;i<nextIdx;i++) {
           if(rangetable[i].low == low)
@@ -620,17 +623,22 @@ overflow:
 	return;
 }
 
-static struct range* last_selfpc = 0;
-                              /* Store here the last selfpc, when we see a 
-                               * call to a function that we must skip. In 
-                               * this case, store in last_frompc, the 
-                               * "frompc". Keep 0 here if the last call was 
-                               * to a function that we do not skip. */
-static u_long last_frompc;
+/* I have no idea how to find the backtrace in the Ocaml native code 
+ * compilation. So, we maintain a stack outselves. We put on the stack only 
+ * the functions we must skip.  */
+static int stackTop = 0; // The top of the stack. There is always an element
+static struct {
+  struct range range; // Range of the PC for the function
+  u_long frompc;      // The address it was called from
+  u_long  frame_address; // The frame address for this function
+} stack[128];
+  
 
 void mcount() {
   register struct gmonparam *p;
   register u_long frompc, selfpc;
+  register u_long frame_address;
+  struct range *selfrange;
 
   if(! profilerInitialized) initProfiler ();
 
@@ -654,8 +662,8 @@ void mcount() {
 
   
 #if DEBUG >= 3
-  fprintf(stderr, "You called mcount. SELFPC=0x%lx, FROM=0x%lx. ",
-          selfpc, frompc); 
+  fprintf(stderr, "mcount 0x%lx -> 0x%lx.\n",
+          frompc, selfpc); 
 #endif
 
 	                      /*
@@ -664,36 +672,53 @@ void mcount() {
 	 *		not from text space.  too bad.
 	 */
   if (frompc - p->lowpc > p->textsize) {
-#if DEBUG >= 3
-    fprintf(stderr, "ignoring FROMPC out of range\n");
+#if DEBUG >= 2
+    fprintf(stderr, "ignoring FROMPC 0x%lx out of range (SELF=0x%lx)\n",
+            frompc, selfpc);
 #endif    
     p->state = GMON_PROF_ON;
     return;
   }
 
-  if(last_selfpc && frompc >= last_selfpc->low && frompc < last_selfpc->high) {
+  frame_address = (u_long)__builtin_frame_address(0);
+  // Pop some things from our stack if needed
+  while(stackTop > 0 && frame_address > stack[stackTop].frame_address) {
+#if DEBUG >= 2
+    fprintf(stderr, "Poping profiling stack entry 0x%lx\n",
+            stack[stackTop].frame_address);
+#endif    
+    stackTop --;
+  }
+  
+  if(frompc >= stack[stackTop].range.low
+     && frompc < stack[stackTop].range.high) {
     // This means we are calling from a function that we have to skip
-#if DEBUG >= 3    
-    fprintf(stderr, "  Skipping to FROM=0x%lx.", last_frompc);
+#if DEBUG >= 2    
+    fprintf(stderr, "Changing FROM=0x%lx (0x%lx->0x%lx).\n",
+            stack[stackTop].frompc, frompc, selfpc);
 #endif
     // Pretend we are coming directly from grandparent
-    frompc = last_frompc;
+    frompc = stack[stackTop].frompc;
   } 
                               /* We are not skipping this, but we must 
                                * update the last_selfpc */
-  struct range *selfrange = findInTable(selfpc);
+  selfrange = findInTable(selfpc);
   if(selfrange) {
-#if DEBUG >= 3    
-    fprintf(stderr, "  SELF found in skip table.\n");
+#if DEBUG >= 2    
+    fprintf(stderr, "Pushing profiling entry (0x%lx-0x%lx) frame 0x%lx, from 0x%lx\n",
+            selfrange->low, selfrange->high, frame_address, frompc);
 #endif
-    last_selfpc = selfrange;
-    last_frompc = frompc;
+    stackTop ++;
+    if(stackTop >= sizeof(stack) / sizeof(stack[0])) {
+      fprintf(stderr, "Profiling stack overflow\n");
+      stackTop = 1;
+    }
+    stack[stackTop].range = *selfrange;
+    stack[stackTop].frompc = frompc;
+    stack[stackTop].frame_address = frame_address;
   } else {
-    last_selfpc = 0; // To make sure we will not believe we have to skip
-#if DEBUG >= 3    
-    fprintf(stderr, "\n");
-#endif
   }
+  
   _mcount(p, frompc, selfpc); // Will reset p->state
 }
 
