@@ -20,7 +20,7 @@
 // If DEBUG == 1 we print some start-up and exit info
 // If DEBUG == 2 we print also information on some mcount invocations
 // If DEBUG >= 3 we print information on all mcount invocations
-#define DEBUG 2
+#define DEBUG 3
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -31,7 +31,7 @@
 #endif
 
 
-/* On Linux if we re-define the __monstartup and the mcleanup symbol then 
+/* On Linux if we re-define the __monstartup and the _mcleanup symbols then 
  * these take over the ones defined in the library. On other architectures, 
  * we hook these functions in ourselves in initProfiler */
 #if defined(x86_LINUX)
@@ -61,7 +61,7 @@ struct range {
 } rangetable[MAX_RANGE];
 int nextIdx = 0; // The index of the next free element
 
-int findInTable(unsigned long pc) {
+struct range* findInTable(unsigned long pc) {
   int l = 0, h = nextIdx; // If the element exists its index is >= l and < h
   while(l < h) {
     int m = (l + h) >> 1;
@@ -73,7 +73,7 @@ int findInTable(unsigned long pc) {
         l = m + 1; // make progress because m + 1 > l
       } else {
         // m is the one we need
-        return 1;
+        return & rangetable[m];
       }
   }
   return 0;
@@ -325,6 +325,8 @@ void MONCLEANUP()
 	hz = PROF_HZ;
 	my_moncontrol(0);
 
+        profilerInitialized = 0;
+        
 #ifdef nope
 	if ((profdir = getenv("PROFDIR")) != NULL) {
 		extern char *__progname;
@@ -618,20 +620,19 @@ overflow:
 	return;
 }
 
+static struct range* last_selfpc = 0;
+                              /* Store here the last selfpc, when we see a 
+                               * call to a function that we must skip. In 
+                               * this case, store in last_frompc, the 
+                               * "frompc". Keep 0 here if the last call was 
+                               * to a function that we do not skip. */
+static u_long last_frompc;
+
 void mcount() {
   register struct gmonparam *p;
   register u_long frompc, selfpc;
 
   if(! profilerInitialized) initProfiler ();
-
-  selfpc = (unsigned long)__builtin_return_address(0);
-  frompc = (unsigned long)__builtin_return_address(1);
-
-  
-#if DEBUG >= 3
-  fprintf(stderr, "You called mcount. PC=0x%lx, FROM=0x%lx. ",
-          selfpc, frompc); 
-#endif
 
   // This code was copied from _mcount. We moved it here because we want
   // to avoid expensive table lookups if not necessary
@@ -641,12 +642,22 @@ void mcount() {
 	 * and that we aren't recursively invoked.
 	 */
   if (p->state != GMON_PROF_ON) {
-#if DEBUG >= 3
+#if DEBUG >= 2
     fprintf(stderr, "already profiling\n");
 #endif    
     return;
   }
   p->state = GMON_PROF_BUSY;
+
+  selfpc = (unsigned long)__builtin_return_address(0);
+  frompc = (unsigned long)__builtin_return_address(1);
+
+  
+#if DEBUG >= 3
+  fprintf(stderr, "You called mcount. SELFPC=0x%lx, FROM=0x%lx. ",
+          selfpc, frompc); 
+#endif
+
 	                      /*
 	 * check that frompcindex is a reasonable pc value.
 	 * for example:	signal catchers get called from the stack,
@@ -654,37 +665,35 @@ void mcount() {
 	 */
   if (frompc - p->lowpc > p->textsize) {
 #if DEBUG >= 3
-    fprintf(stderr, "ignoring PC out of range\n");
+    fprintf(stderr, "ignoring FROMPC out of range\n");
 #endif    
     p->state = GMON_PROF_ON;
     return;
   }
-#if DEBUG >= 3
-  fprintf(stderr, "\n");
-#endif
 
-  // Disable this because Ocaml does not push EBP on the stack
-  //
-  if(findInTable(frompc)) {
-#if DEBUG >= 2    
-    fprintf(stderr, "  found in skip table FROM=0x%lx.", frompc);
-#endif    
-    frompc = (unsigned long)__builtin_return_address(2);
-    if (frompc - p->lowpc > p->textsize) {
-#if DEBUG >= 2
-      fprintf(stderr, " replacement 0x%lx out of range\n", frompc);
-#endif    
-      p->state = GMON_PROF_ON;
-      return;
-    } else {
-#if DEBUG >= 2    
-      fprintf(stderr, " Replaced with 0x%lx.\n", frompc);
+  if(last_selfpc && frompc >= last_selfpc->low && frompc < last_selfpc->high) {
+    // This means we are calling from a function that we have to skip
+#if DEBUG >= 3    
+    fprintf(stderr, "  Skipping to FROM=0x%lx.", last_frompc);
 #endif
-    }
+    // Pretend we are coming directly from grandparent
+    frompc = last_frompc;
+  } 
+                              /* We are not skipping this, but we must 
+                               * update the last_selfpc */
+  struct range *selfrange = findInTable(selfpc);
+  if(selfrange) {
+#if DEBUG >= 3    
+    fprintf(stderr, "  SELF found in skip table.\n");
+#endif
+    last_selfpc = selfrange;
+    last_frompc = frompc;
+  } else {
+    last_selfpc = 0; // To make sure we will not believe we have to skip
+#if DEBUG >= 3    
+    fprintf(stderr, "\n");
+#endif
   }
-#if DEBUG >= 2
-  fflush(stderr);
-#endif  
   _mcount(p, frompc, selfpc); // Will reset p->state
 }
 

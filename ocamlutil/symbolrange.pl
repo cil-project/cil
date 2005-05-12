@@ -60,6 +60,7 @@ sub dectohex {
 }
 
 my $textvma;
+my $text_section_idx;
 my $fileformat;
 
 sub parseTextSymbol {
@@ -67,7 +68,7 @@ sub parseTextSymbol {
     if($fileformat eq "pei-i386" && $l =~ m|.*\s+0x(\S+)\s+(\S+)$|) {
         return ($2, $textvma + &hextodec($1));
     } elsif($fileformat eq "elf32-i386" && 
-            $l =~ m|^\s*(\S*)\s.*\s\.text\s+\d+\s+(\S+)$|) {
+            $l =~ m|^\s*(\S*)\s.*\s\.text\s+(\S+)\s+(\S+)$|) {
         # print("parsed 1=$1, 2=$2, 3=$3\n");
         return ($2, &hextodec($1));
     }
@@ -95,22 +96,39 @@ if(! defined($fileformat)) {
 # Get the parameters of the .text section
 my $textoffset;
 foreach my $l (&objdump("-h | grep .text")) {
-    if($l =~ m|.*\s(\S+)\s+(\S+)\s+\S+\s*$|) {
-        $textoffset = &hextodec($2);
-        $textvma = &hextodec($1);
+    my @line = split(/\s+/, $l);
+    while($line[0] eq '') {
+        shift @line;
+    }
+    # &pdebug("line=", join(':', @line), "\n");
+    if($fileformat eq "pei-i386" && $line[1] eq ".text") {
+        $text_section_idx = 1 + $line[0];
+        $textoffset = &hextodec($line[5]);
+        $textvma = &hextodec($line[3]);
         last;
+    } elsif($fileformat eq "elf32-i386") {
+        die "";
     } else {
         die "Found unexpected output for -h: $l";
     }
 }
 
-&pdebug(".text section is at offset $textoffset (" . &dectohex($textoffset) .
+&pdebug(".text section is at index $text_section_idx, offset $textoffset (" . &dectohex($textoffset) .
         ") and VMA=$textvma (" . &dectohex($textvma) . ")\n");
 
 # Now load all the symbols
 my %symbols = (); # Indexed by their name
 
-my @lines = &objdump("--syms");
+# Construct here the grep expression for the diffent architectures
+my $grep;
+if($fileformat eq "pei-i386") {
+    $grep = "sec  $text_section_idx";
+} elsif($fileformat eq "elf32-i386") {
+    $grep = '\.text';
+} else {
+    die "";
+}
+my @lines = &objdump("--syms | grep \"$grep\"");
 # Get the one we care about
 foreach my $l (@lines) {
     my ($name, $vma) = &parseTextSymbol($l);
@@ -128,6 +146,8 @@ my %functions = ();
 foreach my $f (@ARGV) { $functions{$f} = 0; }
 
 for(my $i=0;$i<@symbolnames;$i++) {
+    &pdebug("Found symbol $symbolnames[$i] at ". 
+            &dectohex($symbols{$symbolnames[$i]})."\n");
     if(defined $functions{$symbolnames[$i]}) {
         # A function we care about
         my $start = $symbols{$symbolnames[$i]};
