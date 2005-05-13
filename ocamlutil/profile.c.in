@@ -35,6 +35,10 @@
 /* On Linux if we re-define the __monstartup and the _mcleanup symbols then 
  * these take over the ones defined in the library. On other architectures, 
  * we hook these functions in ourselves in initProfiler */
+extern u_char start_this_file, end_this_file;
+asm (".text");
+asm ("_start_this_file:");
+
 #if defined(x86_LINUX)
  #define MONSTARTUP  __monstartup
  #define MONCLEANUP  _mcleanup
@@ -722,7 +726,5 @@ void mcount() {
   _mcount(p, frompc, selfpc); // Will reset p->state
 }
 
-#ifdef MUST_INIT_PROFILER
 asm (".text");
-asm ("__eprol:");
-#endif
+asm ("_end_this_file:");
