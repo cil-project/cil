@@ -72,7 +72,7 @@ the CIL API.
 
 %build
 %configure
-%define cilmake make %{?_smp_mflags} -f Makefile.cil
+%define cilmake make -f Makefile.cil
 %cilmake cilversion machdep
 %cilmake cillib NATIVECAML=
 %cilmake cillib NATIVECAML=1
