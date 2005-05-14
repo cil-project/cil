@@ -107,18 +107,18 @@ let repeattime limit str f arg =
   let oldcurrent = !current in
   current := stat :: oldcurrent;
   let start = get_current_time () in
-  let rec loop count = 
+  let rec repeatf count = 
     let res   = f arg in
     let diff = get_current_time () -. start in
     if diff < limit then
-      loop (count + 1)
+      repeatf (count + 1)
     else begin
       stat.time <- stat.time +. (diff /. float(count));
       current := oldcurrent;                (* Pop the current stat *)
       res                                   (* Return the function result *)
     end
   in
-  loop 1
+  repeatf 1
 
 
 let time str f arg = repeattime 0.0 str f arg

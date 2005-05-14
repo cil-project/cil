@@ -48,6 +48,7 @@
  void MONSTARTUP(u_long low, u_long high);
  void MONCLEANUP(void);
  extern u_char etext asm ("etext");
+ extern u_char mainCRTStartup;
  extern void _monstartup(void);
 #else
  #error Unknown architecture
@@ -163,7 +164,7 @@ void initProfiler() {
 #if DEBUG >= 1
   fprintf(stderr, " calling the standard profiler startup function\n");
 #endif  
-  MONSTARTUP((u_long) & _monstartup, (u_long)&etext);
+  MONSTARTUP((u_long) & mainCRTStartup, (u_long)&etext);
   atexit(& MONCLEANUP);
 #endif  
   
@@ -729,22 +730,8 @@ void mcount() {
           frompc, selfpc); 
 #endif
 
-	                      /*
-	 * check that frompcindex is a reasonable pc value.
-	 * for example:	signal catchers get called from the stack,
-	 *		not from text space.  too bad.
-	 */
-  if (frompc - p->lowpc > p->textsize) {
-#if DEBUG >= 2
-    fprintf(stderr, "ignoring FROMPC 0x%lx out of range (SELF=0x%lx)\n",
-            frompc, selfpc);
-#endif    
-    p->state = GMON_PROF_ON;
-    return;
-  }
-
+  // See if we need to pop some things off the stack
   frame_address = (u_long)__builtin_frame_address(0);
-  // Pop some things from our stack if needed
   while(stackTop > stack && frame_address >= stackTop->frame_address) {
 #if DEBUG >= 2
     fprintf(stderr, "Poping profiling stack entry 0x%lx\n",
@@ -752,7 +739,9 @@ void mcount() {
 #endif    
     stackTop --;
   }
-  
+
+  /* See if we need to change the frompc to pretend we are coming from 
+   * somewhere else */
   if(frompc >= stackTop->range.low
      && frompc < stackTop->range.high) {
     // This means we are calling from a function that we have to skip
@@ -763,8 +752,9 @@ void mcount() {
     // Pretend we are coming directly from grandparent
     frompc = stackTop->frompc;
   } 
-                              /* We are not skipping this, but we must 
-                               * update the last_selfpc */
+
+  /* See if we must push a new entry on the stack, for a SELFPC that we must 
+   * skip */
   selfrange = findInTable(selfpc);
   if(selfrange) {
     if(stackTop->frompc != frompc
@@ -784,7 +774,19 @@ void mcount() {
       stackTop->frame_address = frame_address;
     }
   }
-  
+
+
+  /* Finally, ignore those cases when the FROMPC is not in the range that we 
+   * care about */
+  if (frompc - p->lowpc > p->textsize) {
+#if DEBUG >= 2
+    fprintf(stderr, "ignoring FROMPC 0x%lx out of range (SELF=0x%lx)\n",
+            frompc, selfpc);
+#endif    
+    p->state = GMON_PROF_ON;
+    return;
+  }
+
   _mcount(p, frompc, selfpc); // Will reset p->state
 }
 
