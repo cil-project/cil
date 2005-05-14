@@ -118,26 +118,43 @@ void initProfiler() {
 #endif        
         // Insert it sorted in the table
         for(i=0;i<nextIdx;i++) {
-          if(rangetable[i].low == low)
-            break;
+          if(rangetable[i].low < low) continue;
           
-          if(rangetable[i].low > low) {
-            memmove(& rangetable[i + 1], &rangetable[i],
-                    sizeof(rangetable[0]) * (nextIdx - i));
-            rangetable[i].low = low;
-            rangetable[i].high = high;
-            nextIdx ++;
-            break;
-          } 
+          if(rangetable[i].low == low) // Already inserted
+            goto DoneInserting;
+
+          break;
         }
-        if(i == nextIdx) {
-          // We have not inserted it yet
-          rangetable[i].low = low;
-          rangetable[i].high = high;
-          nextIdx ++;
-        }
+        // We get here if we must insert at i
+        // Make room by moving the tail
+        memmove(& rangetable[i + 1], &rangetable[i],
+                sizeof(rangetable[0]) * (nextIdx - i));
+        rangetable[i].low = low;
+        rangetable[i].high = high;
+        nextIdx ++;
+      DoneInserting:
       }
       fclose(ff);
+      // Coalesce adjacent entries in the table
+      {
+        int current = 0;
+        int next = 1;
+        while(next < nextIdx) {
+          if(rangetable[current].high + 8 >= rangetable[next].low) {
+            // Coalesce
+            rangetable[current].high = rangetable[next].high;
+            next ++;
+          } else {
+            // Do not coalesce
+            current ++;
+            if(current != next) {
+              rangetable[current] = rangetable[next];
+            }
+            next ++;
+          }
+        }
+        nextIdx = current + 1;
+      }
     }
   }
 
@@ -294,7 +311,12 @@ static int	s_scale;
 #define		SCALE_1_TO_1	0x10000L
 
 #define PCTOIDX(pc,base) \
-        (((u_long)(pc) - (u_long)(base)) / 2 * s_scale / 65536)
+        ((unsigned int) \
+            (((unsigned long long)((u_long)(pc) - (u_long)(base)) / 2) \
+               * (unsigned long long)s_scale / 65536))
+#define IDXTOPC(idx,base) \
+        ((u_long)((unsigned long long)(idx) * 65536LL / s_scale * 2) + \
+         (u_long)(base))
 
 #define ERR(s) write(2, s, sizeof(s))
 
@@ -413,29 +435,36 @@ void MONCLEANUP()
 	hdr->version = GMONVERSION;
 	hdr->profrate = hz;
 	write(fd, (char *)hdr, sizeof *hdr);
-//        /* Clear out the counts associated with PCs in this file */
-//        {
-//          unsigned int first_idx = PCTOIDX(&mcount, p->lowpc);
-//          unsigned int last_idx  = PCTOIDX(&aftermcount, p->lowpc);
-//          fprintf(stderr, "findInTable at 0x%lx, mcount  at 0x%lx, after 0x%lx\n",
-//                  (u_long)&start_this_file, (u_long)&mcount,
-//                  (u_long)&aftermcount);
-//          if(first_idx >= p->kcountsize / sizeof(p->kcount[0]) ||
-//             last_idx >= p->kcountsize / sizeof(p->kcount[0])) {
-//            fprintf(stderr, "Invalid indices into the profile table\n");
-//          } else {
-//#if DEBUG >= 1
-//            fprintf(stderr, "Will clear from %d-%d\n", first_idx, last_idx);
-//#endif          
-//            for(;first_idx<=last_idx;first_idx++) {
-//#if DEBUG >= 1
-//              fprintf(stderr, "Clear index %d in count table\n",
-//                      first_idx);
-//#endif            
-//              p->kcount[first_idx] = 0;
-//            }
-//          }
-//        }
+
+        /* Clear out the counts associated with PCs in this file */
+        {
+          unsigned int first_idx = PCTOIDX(&mcount, p->lowpc);
+          unsigned int last_idx  = PCTOIDX(&aftermcount, p->lowpc);
+
+          /*fprintf(stderr, "s_scale = %d, base = 0x%lx\n",
+                  s_scale, p->lowpc);
+          fprintf(stderr, "findInTable at 0x%lx, mcount  at 0x%lx, after 0x%lx\n",
+                  (u_long)&start_this_file, (u_long)&mcount,
+                  (u_long)&aftermcount);*/
+          if(first_idx >= p->kcountsize / sizeof(p->kcount[0]) ||
+             last_idx >= p->kcountsize / sizeof(p->kcount[0])) {
+            fprintf(stderr, "Invalid indices into the profile table\n");
+          } else {
+#if DEBUG >= 2
+            fprintf(stderr, "Will clear from %d-%d\n", first_idx, last_idx);
+#endif          
+            for(;first_idx<=last_idx;first_idx++) {
+#if DEBUG >= 2
+              fprintf(stderr, "Clear index %d in count table: 0x%lx-0x%lx.\n",
+                      first_idx,
+                      IDXTOPC(first_idx,p->lowpc),
+                      IDXTOPC(first_idx+1,p->lowpc));
+#endif            
+              p->kcount[first_idx] = 0;
+            }
+          }
+        }
+
 	write(fd, p->kcount, p->kcountsize);
 	endfrom = p->fromssize / sizeof(*p->froms);
 	for (fromindex = 0; fromindex < endfrom; fromindex++) {
@@ -658,12 +687,14 @@ overflow:
 /* I have no idea how to find the backtrace in the Ocaml native code 
  * compilation. So, we maintain a stack outselves. We put on the stack only 
  * the functions we must skip.  */
-static int stackTop = 0; // The top of the stack. There is always an element
-static struct {
+static struct stackentry {
   struct range range; // Range of the PC for the function
   u_long frompc;      // The address it was called from
   u_long  frame_address; // The frame address for this function
 } stack[128];
+static struct stackentry *stackTop = &stack[0];
+                              /* The top of the stack. There is always an 
+                               * element with 0 */
   
 
 void mcount() {
@@ -714,41 +745,44 @@ void mcount() {
 
   frame_address = (u_long)__builtin_frame_address(0);
   // Pop some things from our stack if needed
-  while(stackTop > 0 && frame_address >= stack[stackTop].frame_address) {
+  while(stackTop > stack && frame_address >= stackTop->frame_address) {
 #if DEBUG >= 2
     fprintf(stderr, "Poping profiling stack entry 0x%lx\n",
-            stack[stackTop].frame_address);
+            stackTop->frame_address);
 #endif    
     stackTop --;
   }
   
-  if(frompc >= stack[stackTop].range.low
-     && frompc < stack[stackTop].range.high) {
+  if(frompc >= stackTop->range.low
+     && frompc < stackTop->range.high) {
     // This means we are calling from a function that we have to skip
 #if DEBUG >= 2    
     fprintf(stderr, "Changing FROM=0x%lx (0x%lx->0x%lx).\n",
-            stack[stackTop].frompc, frompc, selfpc);
+            stackTop->frompc, frompc, selfpc);
 #endif
     // Pretend we are coming directly from grandparent
-    frompc = stack[stackTop].frompc;
+    frompc = stackTop->frompc;
   } 
                               /* We are not skipping this, but we must 
                                * update the last_selfpc */
   selfrange = findInTable(selfpc);
   if(selfrange) {
+    if(stackTop->frompc != frompc
+       || stackTop->range.low != selfrange->low
+       || stackTop->range.high != selfrange->high) {
 #if DEBUG >= 2    
-    fprintf(stderr, "Pushing profiling entry (0x%lx-0x%lx) frame 0x%lx, from 0x%lx\n",
-            selfrange->low, selfrange->high, frame_address, frompc);
+      fprintf(stderr, "Pushing profiling entry (0x%lx-0x%lx) frame 0x%lx, from 0x%lx\n",
+              selfrange->low, selfrange->high, frame_address, frompc);
 #endif
-    stackTop ++;
-    if(stackTop >= sizeof(stack) / sizeof(stack[0])) {
-      fprintf(stderr, "Profiling stack overflow\n");
-      stackTop = 1;
+      stackTop ++;
+      if(stackTop - stack >= sizeof(stack) / sizeof(stack[0])) {
+        fprintf(stderr, "Profiling stack overflow\n");
+        stackTop = stack;
+      }
+      stackTop->range = *selfrange;
+      stackTop->frompc = frompc;
+      stackTop->frame_address = frame_address;
     }
-    stack[stackTop].range = *selfrange;
-    stack[stackTop].frompc = frompc;
-    stack[stackTop].frame_address = frame_address;
-  } else {
   }
   
   _mcount(p, frompc, selfpc); // Will reset p->state
