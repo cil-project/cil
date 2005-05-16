@@ -19,36 +19,11 @@ external clear: bitvector (*v*) -> int (*n*) -> unit = "bitvector_clear"
 external unioneq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_unioneq"
 external intersecteq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_intersecteq"
 external complementeq: bitvector (*a*) -> unit = "bitvector_complementeq"
+external count: bitvector (*v*) -> int = "bitvector_count"
+external fold_left: ('a -> int -> 'a) (*f*) -> bitvector (*v*) -> 'a (*init*) -> 'a = "bitvector_fold_left"
 
 
 (* ----------------- utilities ---------------- *)
-let rec d_bitvector () (vec: bitvector) : doc =
-begin
-  let len:int = (length vec) in
-  let b:Buffer.t = (Buffer.create (len+2)) in
-
-  (* build up the string using a Buffer *)
-  (Buffer.add_char b '"');
-  let rec loop (i: int) : unit =
-  begin
-    if (i < len) then (
-      (Buffer.add_char b
-        (if (test vec i) then '1' else '0'));
-      (if (i mod 8 == 7) then
-        (Buffer.add_char b '_'));
-      (loop (i+1))
-    )
-    else
-      ()
-  end in
-  (loop 0);
-  (Buffer.add_char b '"');
-
-  (* extract the built string and make a doc *)
-  (text (Buffer.contents b))
-end
-
-
 let copy (src: bitvector) : bitvector =
 begin
   let ret:bitvector = (create (length src)) in
@@ -79,10 +54,67 @@ begin
 end
 
 
+let iter (f: int -> unit) (vec: bitvector): unit =
+begin
+  let wrapper () (i: int) : unit =
+    (f i)
+  in
+  (fold_left wrapper vec ())
+end
+
+
+let rec d_bitvector () (vec: bitvector) : doc =
+begin
+  let len:int = (length vec) in
+  let b:Buffer.t = (Buffer.create (len+2)) in
+
+  (* build up the string using a Buffer *)
+  (Buffer.add_char b '"');
+  let rec loop (i: int) : unit =
+  begin
+    if (i < len) then (
+      (Buffer.add_char b
+        (if (test vec i) then '1' else '0'));
+      (if (i mod 8 == 7) then
+        (Buffer.add_char b '_'));
+      (loop (i+1))
+    )
+    else
+      ()
+  end in
+  (loop 0);
+  (Buffer.add_char b '"');
+
+  (* extract the built string and make a doc *)
+  (text (Buffer.contents b))
+end
+
+
+let d_bitvector_as_set () (vec: bitvector) : doc =
+begin
+  if ((count vec) == 0) then
+    (text "{}")
+  else (
+    let init:doc = (text "{") in
+    let f (acc: doc) (i: int) : doc =
+      if (acc == init) then
+        acc ++ (num i)
+      else
+        acc ++ (text ",") ++ (num i)
+    in
+    (fold_left f vec init) ++ (text "}")
+  )
+end
+
+
 (* ------------------ unit tests -------------------- *)
 let printVec (name: string) (vec: bitvector) : unit =
 begin
-  ignore (printf "%s: %a\n" name d_bitvector vec);
+  ignore (printf "%s: %a %a (%d)\n" 
+                 name 
+                 d_bitvector vec 
+                 d_bitvector_as_set vec
+                 (count vec));
 end
 
 

@@ -37,6 +37,7 @@ external clear: bitvector (*v*) -> int (*n*) -> unit = "bitvector_clear"
 
 
 (* Set-like operations on set of '1' bits. *)
+
 (* These mutate the value of 'a'. *)
 external unioneq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_unioneq"
 external intersecteq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_intersecteq"
@@ -47,10 +48,19 @@ val      union: bitvector (*a*) -> bitvector (*b*) -> bitvector
 val      intersect: bitvector (*a*) -> bitvector (*b*) -> bitvector
 val      complement: bitvector (*a*) -> bitvector
 
+(* Count the number of '1' bits. *)
+external count: bitvector (*v*) -> int = "bitvector_count"
+
+(* Apply a function to each index where a '1' appears. *)
+external fold_left: ('a -> int -> 'a) (*f*) -> bitvector (*v*) -> 'a (*init*) -> 'a = "bitvector_fold_left"
+val      iter: (int -> unit) (*f*) -> bitvector (*v*) -> unit
+
+
 
 (* Print a bitvector. *)
 val      d_bitvector: unit -> bitvector -> Pretty.doc
-   
+val      d_bitvector_as_set: unit -> bitvector -> Pretty.doc
+
 
 (* Run unit tests, then exit. *)
 val      testBitvector: unit -> unit

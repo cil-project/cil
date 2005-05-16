@@ -1,9 +1,16 @@
 /* bitvectori.c */
 /* C implementation of some of bitvector.mli */
 
+/* Note: I have not added all the CAMLparam and CAMLreturn statements
+ * the manual says I need, since I think they are only needed if I
+ * call back into the ocaml code. */
+
 #include <caml/alloc.h>         /* caml_alloc */
 #include <caml/mlvalues.h>      /* value */
 #include <caml/fail.h>          /* caml_invalid_argument */
+#include <caml/memory.h>        /* CAMLparam, etc. */
+#include <caml/callback.h>      /* caml_callback2 */
+
 #include <string.h>             /* memset, memcpy */
 #include <assert.h>             /* assert */
 #include <stdio.h>              /* printf (for debugging) */
@@ -33,11 +40,14 @@ inline long getNumWords(value vec)
 
 value bitvector_create(value n_)
 {
+  CAMLparam1(n_);
+  CAMLlocal1(ret);
+
   int bits = Int_val(n_);
   int words;
-  value ret;
 
   if (bits < 0) {
+    debugf(("bits=%d\n", bits));
     caml_invalid_argument("Negative bitvector size.");
   }
 
@@ -53,14 +63,13 @@ value bitvector_create(value n_)
   /* zero */
   memset(getBits(ret), 0, words * sizeof(unsigned long));
 
-  return ret;
+  CAMLreturn(ret);
 }
 
 
 value bitvector_length(value vec)
 {
   long words = getNumWords(vec);
-  debugf(("bitvector_length: words=%ld\n", words));
   return Val_long(words * BITS_PER_WORD);
 }
 
@@ -93,6 +102,7 @@ void bitvector_clearAll(value vec)
   unsigned long *bits = getBits(vec);         \
   long words = getNumWords(vec);              \
   if (n < 0 || n > words * BITS_PER_WORD) {   \
+    debugf(("n=%d words=%ld\n", n, words));   \
     caml_array_bound_error();                 \
   }                                           \
   bits += n / BITS_PER_WORD;                  \
@@ -104,7 +114,20 @@ value bitvector_test(value vec, value n_)
   int n = Int_val(n_);
   int bit;
 
-  OFFSET_CALCULATION;
+  unsigned long *bits = getBits(vec);
+  long words = getNumWords(vec);
+
+  if (n < 0) {
+    debugf(("n=%d words=%ld\n", n, words));
+    caml_array_bound_error();
+  }
+  else if (n > words * BITS_PER_WORD) {
+    /* not an error; this bit is simply regarded as not set */
+    return Val_int(0);
+  }
+
+  bits += n / BITS_PER_WORD;
+  n = n % BITS_PER_WORD;
 
   bit = (*bits >> n) & 1;
   return Val_int(bit);
@@ -125,7 +148,15 @@ void bitvector_clear(value vec, value n_)
 {
   int n = Int_val(n_);
 
-  OFFSET_CALCULATION;
+  unsigned long *bits = getBits(vec);
+  long words = getNumWords(vec);
+  if (n < 0 || n > words * BITS_PER_WORD) {
+    debugf(("clear: n=%d words=%ld\n", n, words));
+    caml_array_bound_error();
+  }
+  bits += n / BITS_PER_WORD;
+  n = n % BITS_PER_WORD;
+  //OFFSET_CALCULATION;
 
   *bits &= ~(1L << n);
 }
@@ -200,6 +231,59 @@ void bitvector_complementeq(value a)
     aBits++;
     aWords--;
   }
+}
+
+
+value bitvector_count(value vec)
+{
+  long words = getNumWords(vec);
+  unsigned long *bits = getBits(vec);
+
+  int ct = 0;
+
+  while (words) {
+    unsigned long w = *bits;
+    while (w) {
+      ct++;
+
+      /* set the least significant 1 bit of 'w' to 0 */
+      w ^= (w & (~w + 1));
+    }
+
+    words--;
+    bits++;
+  }
+  
+  return Val_int(ct);
+}
+
+
+value bitvector_fold_left(value f, value vec, value result)
+{
+  CAMLparam3(f, vec, result);
+
+  long words = getNumWords(vec);
+  unsigned long *bits = getBits(vec);
+
+  int bit = 0;
+
+  while (words) {
+    unsigned long w = *bits;
+
+    int i;
+    for (i=0; i < BITS_PER_WORD; i++) {
+      if (w & 1) {
+        result = caml_callback2(f, result, Val_int(bit));
+      }
+      w >>= 1;
+      bit++;
+    }
+    
+    words--;
+    bits++;
+  }
+  
+  CAMLreturn(result);
 }
 
 
