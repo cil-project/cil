@@ -21,6 +21,7 @@ external intersecteq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_in
 external complementeq: bitvector (*a*) -> unit = "bitvector_complementeq"
 external count: bitvector (*v*) -> int = "bitvector_count"
 external fold_left: ('a -> int -> 'a) (*f*) -> bitvector (*v*) -> 'a (*init*) -> 'a = "bitvector_fold_left"
+external inplace_union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> unit = "bitvector_inplace_union_except"
 
 
 (* ----------------- utilities ---------------- *)

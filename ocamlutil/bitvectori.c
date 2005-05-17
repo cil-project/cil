@@ -101,7 +101,7 @@ void bitvector_clearAll(value vec)
 #define OFFSET_CALCULATION                    \
   unsigned long *bits = getBits(vec);         \
   long words = getNumWords(vec);              \
-  if (n < 0 || n > words * BITS_PER_WORD) {   \
+  if (n < 0 || n >= words * BITS_PER_WORD) {  \
     debugf(("n=%d words=%ld\n", n, words));   \
     caml_array_bound_error();                 \
   }                                           \
@@ -121,7 +121,7 @@ value bitvector_test(value vec, value n_)
     debugf(("n=%d words=%ld\n", n, words));
     caml_array_bound_error();
   }
-  else if (n > words * BITS_PER_WORD) {
+  else if (n >= words * BITS_PER_WORD) {
     /* not an error; this bit is simply regarded as not set */
     return Val_int(0);
   }
@@ -150,7 +150,7 @@ void bitvector_clear(value vec, value n_)
 
   unsigned long *bits = getBits(vec);
   long words = getNumWords(vec);
-  if (n < 0 || n > words * BITS_PER_WORD) {
+  if (n < 0 || n >= words * BITS_PER_WORD) {
     debugf(("clear: n=%d words=%ld\n", n, words));
     caml_array_bound_error();
   }
@@ -261,6 +261,9 @@ value bitvector_count(value vec)
 value bitvector_fold_left(value f, value vec, value result)
 {
   CAMLparam3(f, vec, result);
+                       
+  /* experiment... */
+  value orig_vec = vec;
 
   long words = getNumWords(vec);
   unsigned long *bits = getBits(vec);
@@ -274,6 +277,7 @@ value bitvector_fold_left(value f, value vec, value result)
     for (i=0; i < BITS_PER_WORD; i++) {
       if (w & 1) {
         result = caml_callback2(f, result, Val_int(bit));
+        assert(vec == orig_vec);    /* gc causing problems? no.. */
       }
       w >>= 1;
       bit++;
@@ -284,6 +288,73 @@ value bitvector_fold_left(value f, value vec, value result)
   }
   
   CAMLreturn(result);
+}
+
+
+/* a |= (b & ~c) */
+/* This is implemented as a primitive function because it is the
+ * behavior I need and building it on top of the other primitives
+ * would require an extra allocation. */
+void bitvector_inplace_union_except(value a, value b, value c)
+{
+  long aWords = getNumWords(a);
+  long bWords = getNumWords(b);
+  long cWords = getNumWords(c);
+
+  unsigned long *aBits = getBits(a);
+  unsigned long const *bBits = getBits(b);
+  unsigned long const *cBits = getBits(c);
+  
+  while (aWords && bWords) {
+    /* mask of bits to consider */
+    unsigned long mask;
+    if (cWords) {
+      mask = *cBits;
+      cBits++;
+      cWords--;
+    }
+    else {
+      /* it is ok for 'c' to end early; we just treat it as having
+       * as many extra 0s as we need */
+      mask = 0;
+    }
+    mask = ~mask;
+
+    /* add everything in both 'b' and 'mask' to 'a' */
+    *aBits |= (*bBits & mask);
+
+    aBits++;
+    bBits++;
+    aWords--;
+    bWords--;
+  }
+  
+  /* If we exhausted 'b', then fine.  But if we exhausted 'a' without
+   * exhausting 'b', see if there are some bits in 'b' that are supposed
+   * to go into 'a' but cannot because 'a' is not large enough. */
+
+  while (bWords) {
+    /* like above */
+    unsigned long mask;
+    if (cWords) {
+      mask = *cBits;
+      cBits++;
+      cWords--;
+    }
+    else {
+      mask = 0;
+    }
+    mask = ~mask;
+
+    if (*bBits & mask) {
+      caml_invalid_argument(
+        "inplace_union_except: there are bits from 'b' not masked by 'c' "
+        "that exceed the capacity of 'a' to store");
+    }
+
+    bBits++;
+    bWords--;
+  }
 }
 
 

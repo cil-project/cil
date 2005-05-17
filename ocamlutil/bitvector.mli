@@ -56,6 +56,10 @@ external fold_left: ('a -> int -> 'a) (*f*) -> bitvector (*v*) -> 'a (*init*) ->
 val      iter: (int -> unit) (*f*) -> bitvector (*v*) -> unit
 
 
+(* Add to 'a' (modifying it) all the bits in 'b', except do not add
+ * bits if they are also in 'c'. *)
+external inplace_union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> unit = "bitvector_inplace_union_except"
+
 
 (* Print a bitvector. *)
 val      d_bitvector: unit -> bitvector -> Pretty.doc
