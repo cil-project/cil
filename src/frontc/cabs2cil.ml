@@ -41,6 +41,7 @@
 module A = Cabs
 module E = Errormsg
 module H = Hashtbl
+module IH = Inthash
 module AL = Alpha
 
 open Cabs
@@ -73,8 +74,12 @@ let withCprint (f: 'a -> unit) (x: 'a) : unit =
   Cprint.out := old
 
 
+(** Keep a list of the variable ID for the variables that were created to 
+ * hold the result of function calls *)
+let callTempVars: unit IH.t = IH.create 13
+
 (* Keep a list of functions that were called without a prototype. *)
-let noProtoFunctions : (int, bool) H.t = H.create 13
+let noProtoFunctions : bool IH.t = IH.create 13
 
 (* Check that s starts with the prefix p *)
 let prefix p s = 
@@ -194,7 +199,7 @@ let cabsPushGlobal (g: global) =
  * we see another definition with an initializer. But if we don't see any 
  * then we turn the last such declaration into a definition without 
  * initializer *)
-let mustTurnIntoDef: (int, bool) H.t = H.create 117
+let mustTurnIntoDef: bool IH.t = IH.create 117
 
 (* Globals that have already been defined. Indexed by the variable name. *)
 let alreadyDefined: (string, location) H.t = H.create 117
@@ -215,8 +220,8 @@ let popGlobals () =
       [] -> tail
 
     | GVarDecl (vi, l) :: rest 
-      when vi.vstorage != Extern && H.mem mustTurnIntoDef vi.vid -> 
-        H.remove mustTurnIntoDef vi.vid;
+      when vi.vstorage != Extern && IH.mem mustTurnIntoDef vi.vid -> 
+        IH.remove mustTurnIntoDef vi.vid;
         revonto (GVar (vi, {init = None}, l) :: tail) rest
 
     | x :: rest -> revonto (x :: tail) rest
@@ -995,7 +1000,7 @@ let allocaFun =
   
 (* Maps local variables that are variable sized arrays to the expression that 
  * denotes their length *)
-let varSizeArrays : (int, exp) H.t = H.create 17
+let varSizeArrays : exp IH.t = IH.create 17
   
 (**** EXP actions ***)
 type expAction = 
@@ -1896,8 +1901,8 @@ let afterConversion (c: chunk) : chunk =
            in 
            Util.equals (typeSig tcallres) (typeSig vi.vtype) &&
            Util.equals (typeSig newt) (typeSig (typeOfLval destlv))) && 
-            String.sub vi.vname 0 3 = "tmp" &&
-            vi' == vi) 
+           IH.mem callTempVars vi.vid &&
+           vi' == vi) 
       -> Some [Call(Some destlv, f, args, l)]
     | _ -> None
   in
@@ -3060,7 +3065,7 @@ and doExp (isconst: bool)    (* In a constant *)
                 (* Maybe we are taking the sizeof a variable-sized array *)
           | Lval (Var vi, NoOffset) -> begin
               try 
-                H.find varSizeArrays vi.vid 
+                IH.find varSizeArrays vi.vid 
               with Not_found -> SizeOfE e' 
           end
           | _ -> SizeOfE e'
@@ -3479,7 +3484,7 @@ and doExp (isconst: bool)    (* In a constant *)
                   makeGlobalVarinfo false (makeGlobalVar n ftype) in
                 (* Make it EXTERN *)
                 proto.vstorage <- Extern;
-                H.add noProtoFunctions proto.vid true;
+                IH.add noProtoFunctions proto.vid true;
                 (* Add it to the file as well *)
                 cabsPushGlobal (GVarDecl (proto, !currentLoc));
                 (empty, Lval(var proto), ftype)
@@ -3678,6 +3683,9 @@ and doExp (isconst: bool)    (* In a constant *)
                       AExp (Some t) -> newTempVar t, t
                     | _ -> newTempVar resType', resType'
                   in
+                  (* Remember that this variable has been created for this 
+                   * specific call. We will use this in collapseCallCast *)
+                  IH.add callTempVars tmp.vid ();
                   let i = Call(Some (var tmp),f3,args3, !currentLoc) in
                   finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
           end
@@ -4595,14 +4603,14 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           vi.vstorage <- NoStorage;     (* equivalent and canonical *)
 
         H.add alreadyDefined vi.vname !currentLoc;
-        H.remove mustTurnIntoDef vi.vid;
+        IH.remove mustTurnIntoDef vi.vid;
         cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
         vi
       end else begin
         if not (isFunctionType vi.vtype) 
-           && not (H.mem mustTurnIntoDef vi.vid) then 
+           && not (IH.mem mustTurnIntoDef vi.vid) then 
           begin
-            H.add mustTurnIntoDef vi.vid true
+            IH.add mustTurnIntoDef vi.vid true
           end;
         if not alreadyInEnv then begin (* Only one declaration *)
           (* If it has function type it is a prototype *)
@@ -4727,7 +4735,7 @@ and createLocal ((_, sto, _, _) as specs)
                   SizeOfE (Lval(Mem(Lval(var vi)), NoOffset)),
                   Lval (var savelen), !typeOfSizeOf) in
           (* Register the length *)
-          H.add varSizeArrays vi.vid sizeof;
+          IH.add varSizeArrays vi.vid sizeof;
           (* There can be no initializer for this *)
           if inite != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");
@@ -4841,6 +4849,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
         (fun _ -> dprintf "2cil: %s" n)
         (fun _ ->
           try
+            IH.clear callTempVars;
+
             (* Make the fundec right away, and we'll populate it later. We 
              * need this throughout the code to create temporaries. *)
             currentFunctionFDEC := 
@@ -4861,7 +4871,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             * they need alpha-conv  *)
             enterScope ();  (* Start the scope *)
             
-            H.clear varSizeArrays;
+            IH.clear varSizeArrays;
             
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
@@ -5670,9 +5680,10 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   E.hadErrors := false;
   initGlobals();
   startFile ();
+  IH.clear noProtoFunctions;
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
-  H.clear mustTurnIntoDef;
+  IH.clear mustTurnIntoDef;
   H.clear alreadyDefined;
   H.clear staticLocals;
   H.clear typedefs;                      
@@ -5733,8 +5744,8 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   List.iter doOneGlobal dl;
   let globals = ref (popGlobals ()) in
 
-  H.clear noProtoFunctions;
-  H.clear mustTurnIntoDef;  
+  IH.clear noProtoFunctions;
+  IH.clear mustTurnIntoDef;  
   H.clear alreadyDefined;
   H.clear compInfoNameEnv;
   H.clear enumInfoNameEnv;
@@ -5743,6 +5754,8 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
   H.clear typedefs;
   H.clear env;
   H.clear genv;
+  IH.clear callTempVars;
+
   if false then ignore (E.log "Cabs2cil converted %d globals\n" !globalidx);
   (* We are done *)
   { fileName = fname;
