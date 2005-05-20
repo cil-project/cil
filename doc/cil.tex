@@ -2222,7 +2222,7 @@ gcc file1.o -lfile2 -o a.out
 
  In each of the cases above you must replace all occurrences of \t{gcc} and
 \t{ld} with \t{cilly --merge}, and all occurrences of \t{ar} with \t{cilly
---merge --mode AR}. It is very important that the \t{--merge} flag be used
+--merge --mode=AR}. It is very important that the \t{--merge} flag be used
 throughout the build process. If you want to see the merged source file you
 must also pass the \t{--keepmerged} flag to the linking phase. 
 

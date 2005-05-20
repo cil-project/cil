@@ -233,6 +233,7 @@ $TEST->add3Tests("testrun/bitfield3");
 $TEST->add3Tests("testrun/bitfield2");
 $TEST->add3Tests("test/box1");
 $TEST->addTests("testrun/call1", "", ['inferbox']);
+$TEST->addTests("testrun/call2", "", ['cil']);
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add2Tests("test/cast4", "_GNUCC=1");
