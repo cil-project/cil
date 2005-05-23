@@ -25,6 +25,9 @@ config.status: configure
 configure: configure.in
 	autoconf
 
+ocamlutil/perfcount.c: config.status ocamlutil/perfcount.c.in
+	./$<
+
 @DEFAULT_COMPILER@=1
 
 
