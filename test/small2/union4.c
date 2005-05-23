@@ -49,7 +49,8 @@ int main() {
 
   // Same for a function call
   x.f3.f3_1 = &i;
-  x.f2 = foo(x.f3.f3_1); // Make sure we check the read before the write
+  x.f2 = x.f3.f3_1; // Make sure we check the read before the write
+  if (x.f2 != &i) E(6);
   
   x.f4 = foo;
   x.f2 = x.f4(&i); // make sure that we check the read before the write
