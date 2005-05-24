@@ -123,7 +123,7 @@ while [ $i -le $numcases ]; do
   fi
 
   # compile this with our tool
-  rm -f test-bad.out test-bad.err
+  rm -f test-bad.out test-bad.err ${tmpname}$OUTEXT
   echo $CCURED $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
               $CCURED $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
