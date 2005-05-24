@@ -18,8 +18,8 @@ int global;
 struct str1 retstr() {
   int local;
   struct str1 res = { 0, &global, 1, &global }; // ERROR(0)
-  struct str1 res = { 0, &local, 1, &global }; // ERROR(1):Below stack
-  struct str1 res = { 0, &global, 1, &local }; // ERROR(2):Below stack
+  struct str1 res = { 0, &local, 1, &global }; // ERROR(1):Returning a local
+  struct str1 res = { 0, &global, 1, &local }; // ERROR(2):Returning a local
   return res;
 }
 
@@ -32,7 +32,7 @@ struct strarr {
 struct strarr retarr() {
   int local;
   struct strarr res = { 0, &global, &global, &global }; // ERROR(3):Error 3
-  struct strarr res = { 0, &global, &local, &global }; // ERROR(4):Below stack
+  struct strarr res = { 0, &global, &local, &global }; // ERROR(4):Returning a local
   return res;
 }
 
@@ -44,7 +44,7 @@ union unfoo {
 
 union unfoo retunion() {
   int local;
-  union unfoo res = { &global, &local, &global }; // ERROR(5):Below stack
+  union unfoo res = { &global, &local, &global }; // ERROR(5):Returning a local
   return res;
 }
 #else
