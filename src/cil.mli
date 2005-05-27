@@ -2005,6 +2005,12 @@ end
 class defaultCilPrinterClass: cilPrinter
 val defaultCilPrinter: cilPrinter
 
+(** These are pretty-printers that will show you more details on the internal 
+ * CIL representation, without trying hard to make it look like C *)
+class plainCilPrinterClass: cilPrinter
+val plainCilPrinter: cilPrinter
+
+
 (* Top-level printing functions *)
 (** Print a type given a pretty printer *)
 val printType: cilPrinter -> unit -> typ -> Pretty.doc

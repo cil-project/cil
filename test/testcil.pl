@@ -725,11 +725,6 @@ $TEST->add2Tests("go", "_GNUCC=1");
 
 $TEST->add2Tests("ijpeg", "_GNUCC=1");
   $TEST->add2Group("ijpeg", "slow", "spec");
-$TEST->add2Tests("m88k", "_GNUCC=1");
-  $TEST->add2Group("m88k", "slow", "spec");
-  $TEST->addBadComment("m88k-cil", "Don't know how to build");
-  $TEST->enable("m88k-inferbox", 0); # Infinite loop
-  $TEST->addBadComment("m88k-inferbox", "missing wrappers");
 
 #$TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
 #  $TEST->add2Group("vortex", "vslow", "spec", "slow");
