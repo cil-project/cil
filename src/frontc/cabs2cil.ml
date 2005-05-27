@@ -3570,135 +3570,156 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                 loop args
         in
         let (sargs, args') = loopArgs (argTypesList, args) in
-        let f3, what3, args3, is__builtin_va_arg = 
-          let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
-          (* Get the name of the last formal *)
-          let getNameLastFormal () : string = 
-            match !currentFunctionFDEC.svar.vtype with
-              TFun(_, Some args, true, _) -> begin
-                match List.rev args with
-                  (last_par_name, _, _) :: _ -> last_par_name
-                | _ -> ""
-              end
-            | _ -> ""
-          in
-          match f'' with 
-            Lval(Var fv, NoOffset) -> begin
-              if fv.vname = "__builtin_va_arg" then begin
-                match args' with 
-                  marker :: SizeOf resTyp :: _ -> begin
-                    (* Make a variable of the desired type *)
-                    let destlv, destlvtyp = 
-                      match what with 
-                        ASet (lv, lvt) -> lv, lvt
-                      | _ -> var (newTempVar resTyp), resTyp
-                    in
-                    f'',
-                    ASet (destlv, destlvtyp), 
-                    [marker; SizeOf resTyp; AddrOf destlv],
-                    true
-                  end
-                | _ -> 
-                    ignore (warn "Invalid call to %s\n" fv.vname);
-                    f'',what, args', false
-              end else if fv.vname = "__builtin_stdarg_start" then begin
-                match args' with 
-                  marker :: last :: [] -> begin
-                    let isOk = 
-                      match dropCasts last with 
-                        Lval (Var lastv, NoOffset) -> 
-                          lastv.vname = getNameLastFormal ()
-                      | _ -> false
-                    in
-                    if not isOk then 
-                      ignore (warn "The second argument in call to %s should be the last formal argument\n" fv.vname);
-                    
-                    (* Check that "lastv" is indeed the last variable in the 
-                     * prototype and then drop it *)
-                    f'', what, [marker], false
-                  end
-                | _ -> 
-                    ignore (warn "Invalid call to %s\n" fv.vname);
-                    f'',what, args', false
+        (* Setup some pointer to the elements of the call. We may change 
+         * these below *)
+        let prechunk: chunk ref = ref (sf @@ sargs) in (* comes before *)
 
-              (* We have to turn uses of __builtin_varargs_start into uses 
-               * of __builtin_stdarg_start (because we have dropped the 
-               * __builtin_va_alist argument from this function *)
+        (* Do we actually have a call, or an expression? *)
+        let piscall: bool ref = ref true in 
 
-              end else if fv.vname = "__builtin_varargs_start" then begin
-                (* Lookup the prototype for the replacement *)
-                let v, _  = 
-                  try lookupGlobalVar "__builtin_stdarg_start" 
-                  with Not_found -> E.s (bug "Cannot find __builtin_stdarg_start to replace %s\n" fv.vname)
-                in
-                Lval (var v),
-                what,
-                args',
-                false
+        let pf: exp ref = ref f'' in (* function to call *)
+        let pargs: exp list ref = ref args' in (* arguments *)
+        let pis__builtin_va_arg: bool ref = ref false in 
+        let pwhat: expAction ref = ref what in (* what to do with result *)
 
-              end else if fv.vname = "__builtin_next_arg" then begin
-                match args' with 
-                  last :: [] -> begin
-                    let isOk = 
-                      match dropCasts last with 
-                        Lval (Var lastv, NoOffset) -> 
-                          lastv.vname = getNameLastFormal ()
-                      | _ -> false
-                    in
-                    if not isOk then 
-                      ignore (warn "The argument in call to %s should be the last formal argument\n" fv.vname);
-                    
-                    f'', what, [ ], false
-                  end
-                | _ -> 
-                    ignore (warn "Invalid call to %s\n" fv.vname);
-                    f'',what, args', false
-              end else
-                f'', what, args', false
+        let pres: exp ref = ref zero in (* If we do not have a call, this is 
+                                        * the result *)
+        let prestype: typ ref = ref intType in
+
+        let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
+        (* Get the name of the last formal *)
+        let getNameLastFormal () : string = 
+          match !currentFunctionFDEC.svar.vtype with
+            TFun(_, Some args, true, _) -> begin
+              match List.rev args with
+                (last_par_name, _, _) :: _ -> last_par_name
+              | _ -> ""
             end
-          | _ -> f'',what, args', false
+          | _ -> ""
         in
-        begin
-          match what3 with 
-            ADrop -> 
-              finishExp 
-                (sf @@ sargs +++ (Call(None,f3,args3, !currentLoc)))
-                (integer 0) intType
-              (* Set to a variable of corresponding type *)
+
+        (* Try to intercept some builtins *)
+        (match !pf with 
+          Lval(Var fv, NoOffset) -> begin
+            if fv.vname = "__builtin_va_arg" then begin
+              match !pargs with 
+                marker :: SizeOf resTyp :: _ -> begin
+                  (* Make a variable of the desired type *)
+                  let destlv, destlvtyp = 
+                    match !pwhat with 
+                      ASet (lv, lvt) -> lv, lvt
+                    | _ -> var (newTempVar resTyp), resTyp
+                  in
+                  pwhat := (ASet (destlv, destlvtyp));
+                  pargs := [marker; SizeOf resTyp; AddrOf destlv];
+                  pis__builtin_va_arg := true;
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to %s\n" fv.vname);
+            end else if fv.vname = "__builtin_stdarg_start" then begin
+              match !pargs with 
+                marker :: last :: [] -> begin
+                  let isOk = 
+                    match dropCasts last with 
+                      Lval (Var lastv, NoOffset) -> 
+                        lastv.vname = getNameLastFormal ()
+                    | _ -> false
+                  in
+                  if not isOk then 
+                    ignore (warn "The second argument in call to %s should be the last formal argument\n" fv.vname);
+                  
+                  (* Check that "lastv" is indeed the last variable in the 
+                   * prototype and then drop it *)
+                  pargs := [ marker ]
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to %s\n" fv.vname);
+                  
+                  (* We have to turn uses of __builtin_varargs_start into uses 
+                   * of __builtin_stdarg_start (because we have dropped the 
+                   * __builtin_va_alist argument from this function) *)
+                  
+            end else if fv.vname = "__builtin_varargs_start" then begin
+              (* Lookup the prototype for the replacement *)
+              let v, _  = 
+                try lookupGlobalVar "__builtin_stdarg_start" 
+                with Not_found -> E.s (bug "Cannot find __builtin_stdarg_start to replace %s\n" fv.vname)
+              in
+              pf := Lval (var v)
+            end else if fv.vname = "__builtin_next_arg" then begin
+              match !pargs with 
+                last :: [] -> begin
+                  let isOk = 
+                    match dropCasts last with 
+                      Lval (Var lastv, NoOffset) -> 
+                        lastv.vname = getNameLastFormal ()
+                    | _ -> false
+                  in
+                  if not isOk then 
+                    ignore (warn "The argument in call to %s should be the last formal argument\n" fv.vname);
+                  
+                  pargs := [ ]
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to %s\n" fv.vname);
+            end else if fv.vname = "__builtin_constant_p" then begin
+              (* Drop the side-effects *)
+              prechunk := empty;
+
+              (* Constant-fold the argument and see if it is a constant *)
+              (match !pargs with 
+                [ arg ] -> begin 
+                  match constFold true arg with 
+                    Const _ -> piscall := false; 
+                               pres := integer 1; 
+                               prestype := intType
+
+                  | _ -> piscall := false; 
+                         pres := integer 0;
+                         prestype := intType
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to builtin_constant_p"));
+            end
+          end
+        | _ -> ());
+
+
+        (* Now we must finish the call *)
+        if !piscall then begin 
+          let addCall (calldest: lval option) (res: exp) (t: typ) = 
+            prechunk := !prechunk +++
+                (Call(calldest, !pf, !pargs, !currentLoc));
+            pres := res;
+            prestype := t
+          in
+          match !pwhat with 
+            ADrop -> addCall None zero intType
+                
+                (* Set to a variable of corresponding type *)
           | ASet(lv, vtype) -> 
               (* Make an exception here for __builtin_va_arg *)
-              if is__builtin_va_arg then 
-                finishExp 
-                  (sf @@ sargs                                         
-                           +++ (Call(None,f3,args3, !currentLoc)))
-                  (Lval(lv))
-                  vtype
+              if !pis__builtin_va_arg then 
+                addCall None (Lval(lv)) vtype
               else
-                finishExp 
-                  (sf @@ sargs                                         
-                           +++ (Call(Some lv,f3,args3, !currentLoc)))
-                  (Lval(lv))
-                  vtype
-
+                addCall (Some lv) (Lval(lv)) vtype
+                  
           | _ -> begin
-              (* Must create a temporary *)
-              match f3, args3 with     (* Some constant folding *)
-                Lval(Var fv, NoOffset), [Const _] 
-                  when fv.vname = "__builtin_constant_p" ->
-                    finishExp (sf @@ sargs) (integer 1) intType
-              | _ -> 
-                  let tmp, restyp' = 
-                    match what3 with
-                      AExp (Some t) -> newTempVar t, t
-                    | _ -> newTempVar resType', resType'
-                  in
-                  (* Remember that this variable has been created for this 
-                   * specific call. We will use this in collapseCallCast *)
-                  IH.add callTempVars tmp.vid ();
-                  let i = Call(Some (var tmp),f3,args3, !currentLoc) in
-                  finishExp (sf @@ sargs +++ i) (Lval(var tmp)) restyp'
+              let tmp, restyp' = 
+                match !pwhat with
+                  AExp (Some t) -> newTempVar t, t
+                | _ -> newTempVar resType', resType'
+              in
+              (* Remember that this variable has been created for this 
+               * specific call. We will use this in collapseCallCast and 
+               * above in finishCall. *)
+              IH.add callTempVars tmp.vid ();
+              addCall (Some (var tmp)) (Lval(var tmp)) restyp'
           end
-        end
+        end;
+              
+        finishExp !prechunk !pres !prestype
+
           
     | A.COMMA el -> 
         if tryconst then 

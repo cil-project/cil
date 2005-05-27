@@ -2568,6 +2568,7 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
   H.add h "__builtin_frame_address" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_strchr" (charPtrType, [ charPtrType; charType ], false);
   let longDouble = TFloat (FLongDouble, []) in
   H.add h "__builtin_fabsl" (longDouble, [ longDouble ], false);
   H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType;
