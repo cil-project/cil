@@ -79,18 +79,12 @@
 \end{latexonly}
 \maketitle
 
-\section{SourceForge}\label{sec-source-forge}
-
-  CIL now has a page on SourceForge:
-\ahref{http://sourceforge.net/projects/cil}
-      {http://sourceforge.net/projects/cil}. 
-
-  You can find there the latest announcements, a source distribution,
-bug report submission instructions and a mailing list: cil-users[at
-sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
-as it will ensure your message is viewed by a broad audience. 
 
 \section{Introduction}
+
+ New: CIL now has a Source Forge page: 
+      \ahref{http://sourceforge.net/projects/cil}
+            {http://sourceforge.net/projects/cil}. 
 
  CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation
 along with a set of tools that permit easy analysis and source-to-source
@@ -2737,12 +2731,21 @@ POSSIBILITY OF SUCH DAMAGE.
  
  We are certain that there are still some remaining bugs in CIL. If you find
 one please file a bug report in our Source Forge space 
-(see \secref{source-forge}).
- 
+\ahref{http://sourceforge.net/projects/cil}
+      {http://sourceforge.net/projects/cil}. 
+
+  You can find there the latest announcements, a source distribution,
+bug report submission instructions and a mailing list: cil-users[at
+sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
+as it will ensure your message is viewed by a broad audience. 
+
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf May 27, 2005}: Fixed bug in generation of type signatures. Now they
+  should not contain expressions anymore, so you can use structural equality.
+  This used to lead to Out\_of\_Memory exceptions.
 \item {\bf May 27, 2005}: Fixed bug in type comparisons using
-  TBuiltin_va_list.
+  TBuiltin\_va\_list.
 \item {\bf May 27, 2005}: Improved the constant folding in array lengths and
   case expressions. 
 \item {\bf May 27, 2005}: Added the \t{\_\_builtin\_frame\_address} to the set

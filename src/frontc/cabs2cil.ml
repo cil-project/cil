@@ -50,6 +50,9 @@ open Cil
 open Trace
 
 
+let mydebugfunction () = 
+  E.s (error "mydebugfunction")
+
 let debugGlobal = false
 
 (* Leave a certain global alone. Use a negative number to disable. *)
@@ -1093,7 +1096,7 @@ let rec castTo ?(fromsource=false)
             (if fromsource then "(source)" else "")
             d_type ot d_type nt);
 *)
-  if not fromsource && typeSig ot = typeSig nt then
+  if not fromsource && Util.equals (typeSig ot) (typeSig nt) then
     (* Do not put the cast if it is not necessary, unless it is from the 
      * source. *)
     (ot, e) 
@@ -1121,7 +1124,7 @@ let rec castTo ?(fromsource=false)
           
     | TArray _, TPtr _ -> result
           
-    | TArray(t1,_,_), TArray(t2,None,_) when typeSig t1 = typeSig t2 -> (nt, e)
+    | TArray(t1,_,_), TArray(t2,None,_) when Util.equals (typeSig t1) (typeSig t2) -> (nt, e)
           
     | TPtr _, TArray(_,_,_) -> (nt, e)
           
@@ -2635,7 +2638,7 @@ and makeCompType (isstruct: bool)
     * the type structure. We do a thourough check and then we reuse the type 
     * for A *)
     let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
-    if fieldsSig comp.cfields <> fieldsSig flds then
+    if not (Util.equals (fieldsSig comp.cfields) (fieldsSig flds)) then
       ignore (error "%s seems to be multiply defined" (compFullName comp))
   end else 
     comp.cfields <- flds;
@@ -3899,6 +3902,7 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
 
   with e -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
+    E.hadErrors := true;
     (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc),
      integer 0, intType)
   end

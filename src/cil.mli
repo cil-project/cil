@@ -1040,7 +1040,7 @@ and location = {
  * the formal arguments are given the same signature. Also, [TNamed] 
  * constructors are unrolled. *)
 and typsig = 
-    TSArray of typsig * exp option * attribute list
+    TSArray of typsig * int64 option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * typsig list * bool * attribute list
