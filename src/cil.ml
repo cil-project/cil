@@ -3575,10 +3575,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           bt'
 
     | TArray (elemt, lo, a) -> 
+        (* ignore the const attribute for arrays *)
+        let a' = dropAttributes [ "const" ] a in 
         let name' = 
-          if a == [] then name else
-          if nameOpt == None then printAttributes a else 
-          text "(" ++ printAttributes a ++ name ++ text ")" 
+          if a' == [] then name else
+          if nameOpt == None then printAttributes a' else 
+          text "(" ++ printAttributes a' ++ name ++ text ")" 
         in
         self#pType 
           (Some (name'
