@@ -754,9 +754,11 @@ $TEST->add2Tests("apache/gzip");
 
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->add2Tests("testrun/sizeof2");
+$TEST->addTests("test/outofmem", "", ['cil']);
 $TEST->addTests("testrun/seq1", "", ['inferbox']);
 $TEST->addTests("testrun/seq2", "", ['inferbox']);
 $TEST->addTests("testrun/builtin", "", ['cil']);
+$TEST->addTests("test/builtin2", "", ['cil']);
 $TEST->addTests("blockattr", "", ['cil']);
 $TEST->add2Tests("testrun/comparisons");
     

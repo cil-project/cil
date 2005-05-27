@@ -79,7 +79,7 @@
 \end{latexonly}
 \maketitle
 
-\section{SourceForge}
+\section{SourceForge}\label{sec-source-forge}
 
   CIL now has a page on SourceForge:
 \ahref{http://sourceforge.net/projects/cil}
@@ -2736,11 +2736,13 @@ POSSIBILITY OF SUCH DAMAGE.
 \section{Bug reports}
  
  We are certain that there are still some remaining bugs in CIL. If you find
-one please send email to \ahref{mailto:necula@cs.berkeley.edu}{George
-Necula}.  
+one please file a bug report in our Source Forge space 
+(see \secref{source-forge}).
  
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf May 27, 2005}: Fixed bug in type comparisons using
+  TBuiltin_va_list.
 \item {\bf May 27, 2005}: Improved the constant folding in array lengths and
   case expressions. 
 \item {\bf May 27, 2005}: Added the \t{\_\_builtin\_frame\_address} to the set

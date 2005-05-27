@@ -1446,6 +1446,9 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | TNamed (oldt, olda), TNamed (t, a) when oldt.tname = t.tname ->
       TNamed (oldt, cabsAddAttributes olda a)
         
+  | TBuiltin_va_list olda, TBuiltin_va_list a -> 
+      TBuiltin_va_list (cabsAddAttributes olda a)
+
         (* Unroll first the new type *)
   | _, TNamed (t, a) -> 
       let res = combineTypes what oldt t.ttype in
