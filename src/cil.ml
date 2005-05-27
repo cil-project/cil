@@ -1983,6 +1983,7 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_constant_p" (intType, [ intType ], false);
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_frame_address" (voidPtrType, [ uintType ], false);
   let longDouble = TFloat (FLongDouble, []) in
   H.add h "__builtin_fabsl" (longDouble, [ longDouble ], false);
   H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType;
@@ -5035,6 +5036,18 @@ and constFold (machdep: bool) (e: exp) : exp =
       | _ -> constFold machdep (AlignOf (typeOf e))
   end
 
+  | CastE(it, 
+          AddrOf (Mem (CastE(TPtr(bt, _), z)), off)) 
+    when machdep && isZero z -> begin
+      try 
+        let start, width = bitsOffset bt off in
+        if start mod 8 <> 0 then 
+          E.s (error "Using offset of bitfield\n");
+        constFold machdep (CastE(it, (integer (start / 8))))
+      with SizeOfError _ -> e
+  end
+
+ 
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 
         (* Might truncate silently *)

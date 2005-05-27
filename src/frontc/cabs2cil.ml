@@ -2214,9 +2214,10 @@ and makeVarInfoCabs
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
-(*
-  ignore (E.log "Created varinfo %s : %a\n" vi.vname d_type vi.vtype); 
-*)
+
+  if false then 
+    ignore (E.log "Created varinfo %s : %a\n" vi.vname d_type vi.vtype); 
+
   vi
 
 (* Process a local variable declaration and allow variable-sized arrays *)
@@ -2529,8 +2530,8 @@ and isVariableSizedArray (dt: A.decl_type)
   let res = ref None in
   let rec findArray = function
     ARRAY (JUSTBASE, al, lo) when lo != A.NOTHING -> 
-      (* Allow non-constant expressions *)
-      let (se, e', _) = doExp false lo (AExp (Some intType)) in
+      (* Try to compile the expression to a constant *)
+      let (se, e', _) = doExp true lo (AExp (Some intType)) in
       if isNotEmpty se || not (isConstant e') then begin
         res := Some (se, e');
         PTR (al, JUSTBASE)
@@ -2717,7 +2718,9 @@ and isIntegerConstant (aexp) : int option =
 
      (* Process an expression and in the process do some type checking,
       * extract the effects as separate statements  *)
-and doExp (isconst: bool)    (* In a constant *)
+and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This 
+                              * is useful when the expression is used in the 
+                              * place of a constant *)
           (e: A.expression) 
           (what: expAction) : (chunk * exp * typ) = 
   (* A subexpression of array type is automatically turned into StartOf(e). 
@@ -2803,10 +2806,10 @@ and doExp (isconst: bool)    (* In a constant *)
           let envdata = H.find env n in
           match envdata with
             EnvVar vi, _ ->
-              if isconst && 
+              (* if isconst && 
                  not (isFunctionType vi.vtype) && 
                  not (isArrayType vi.vtype)then
-                E.s (error "variable appears in constant");
+                E.s (error "variable appears in constant"); *)
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ), _ ->
               finishExp empty tag typ
@@ -2846,8 +2849,8 @@ and doExp (isconst: bool)    (* In a constant *)
 
     end      
     | A.UNARY (A.MEMOF, e) -> 
-        if isconst then
-          E.s (error "MEMOF in constant");
+        if tryconst then
+          ignore (warn "MEMOF in constant");
         let (se, e', t) = doExp false e (AExp None) in
         let tresult = 
           match unrollType t with
@@ -2882,8 +2885,8 @@ and doExp (isconst: bool)    (* In a constant *)
           
        (* e->str = * (e + off(str)) *)
     | A.MEMBEROFPTR (e, str) -> 
-        if isconst then
-          E.s (error "MEMBEROFPTR in constant");
+        if tryconst then
+          ignore (warn "MEMBEROFPTR in constant");
         let (se, e', t') = doExp false e (AExp None) in
         let pointedt = 
           match unrollType t' with
@@ -3034,7 +3037,7 @@ and doExp (isconst: bool)    (* In a constant *)
       (* Intercept the sizeof("string") *)
     | A.EXPR_SIZEOF (A.CONSTANT (A.CONST_STRING s)) -> begin
         (* Process the string first *)
-        match doExp isconst (A.CONSTANT (A.CONST_STRING s)) (AExp None) with 
+        match doExp tryconst (A.CONSTANT (A.CONST_STRING s)) (AExp None) with 
           _, Const(CStr s), _ -> 
             finishExp empty (SizeOfStr s) !typeOfSizeOf
         | _ -> E.s (bug "cabs2cil: sizeOfStr")
@@ -3112,7 +3115,7 @@ and doExp (isconst: bool)    (* In a constant *)
         (* Remember here if we have done the Set *)
         let (se, e', t') = 
           match ie' with
-            A.SINGLE_INIT e -> doExp isconst e what'
+            A.SINGLE_INIT e -> doExp tryconst e what'
 
           | A.NO_INIT -> E.s (error "missing expression in cast")
           | A.COMPOUND_INIT _ -> begin
@@ -3131,7 +3134,7 @@ and doExp (isconst: bool)    (* In a constant *)
               in
               (* Now pretend that e is just a reference to the newly created 
                * variable *)
-              let se, e', t' = doExp isconst (A.VARIABLE newvar) what' in
+              let se, e', t' = doExp tryconst (A.VARIABLE newvar) what' in
               (* If typ is an array then the doExp above has already added a 
                * StartOf. We must undo that now so that it is done once by 
                * the finishExp at the end of this case *)
@@ -3154,7 +3157,7 @@ and doExp (isconst: bool)    (* In a constant *)
         finishExp se e'' t''
           
     | A.UNARY(A.MINUS, e) -> 
-        let (se, e', t) = doExp isconst e (AExp None) in
+        let (se, e', t) = doExp tryconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
           let e'' = 
@@ -3170,7 +3173,7 @@ and doExp (isconst: bool)    (* In a constant *)
             E.s (error "Unary - on a non-arithmetic type")
         
     | A.UNARY(A.BNOT, e) -> 
-        let (se, e', t) = doExp isconst e (AExp None) in
+        let (se, e', t) = doExp tryconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
           let e'' = UnOp(BNot, mkCastT e' t tres, tres) in
@@ -3178,7 +3181,7 @@ and doExp (isconst: bool)    (* In a constant *)
         else
           E.s (error "Unary ~ on a non-integral type")
           
-    | A.UNARY(A.PLUS, e) -> doExp isconst e what 
+    | A.UNARY(A.PLUS, e) -> doExp tryconst e what 
           
           
     | A.UNARY(A.ADDROF, e) -> begin
@@ -3223,7 +3226,7 @@ and doExp (isconst: bool)    (* In a constant *)
                           * a local we are going to get the address of a copy 
                           * of the local ! *)
                 
-              doExp isconst
+              doExp tryconst
                 (A.CALL (A.VARIABLE "__builtin_next_arg", 
                          [A.CONSTANT (A.CONST_INT "0")]))
                 what
@@ -3256,12 +3259,12 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.UNARY((A.PREINCR|A.PREDECR) as uop, e) -> begin
         match e with 
           A.COMMA el -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.COMMA (replaceLastInList el 
                           (fun e -> A.UNARY(uop, e))))
               what
         | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.QUESTION (e1, A.UNARY(uop, e2q), 
                            A.UNARY(uop, e3q)))
               what
@@ -3270,8 +3273,8 @@ and doExp (isconst: bool)    (* In a constant *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
            A.CAST _ (* A GCC extension *)) -> begin
              let uop' = if uop = A.PREINCR then PlusA else MinusA in
-             if isconst then
-               E.s (error "PREINCR or PREDECR in constant");
+             if tryconst then
+               ignore (warn "PREINCR or PREDECR in constant");
              let (se, e', t) = doExp false e (AExp None) in
              let lv = 
                match e' with 
@@ -3293,20 +3296,20 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.UNARY((A.POSINCR|A.POSDECR) as uop, e) -> begin
         match e with 
           A.COMMA el -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.COMMA (replaceLastInList el 
                           (fun e -> A.UNARY(uop, e))))
               what
         | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.QUESTION (e1, A.UNARY(uop, e2q), A.UNARY(uop, e3q)))
               what
 
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
            A.CAST _ (* A GCC extension *) ) -> begin
-             if isconst then
-               E.s (error "POSTINCR or POSTDECR in constant");
+             if tryconst then
+               ignore (warn "POSTINCR or POSTDECR in constant");
              (* If we do not drop the result then we must save the value *)
              let uop' = if uop = A.POSINCR then PlusA else MinusA in
              let (se, e', t) = doExp false e (AExp None) in
@@ -3339,17 +3342,17 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.BINARY(A.ASSIGN, e1, e2) -> begin
         match e1 with 
           A.COMMA el -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.COMMA (replaceLastInList el 
                           (fun e -> A.BINARY(A.ASSIGN, e, e2))))
               what
         | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.QUESTION (e1, A.BINARY(A.ASSIGN, e2q, e2), 
                            A.BINARY(A.ASSIGN, e3q, e2)))
               what
         | A.CAST (t, A.SINGLE_INIT e) -> (* GCC extension *)
-            doExp isconst
+            doExp tryconst
               (A.CAST (t, 
                        A.SINGLE_INIT (A.BINARY(A.ASSIGN, e, 
                                                A.CAST (t, A.SINGLE_INIT e2)))))
@@ -3357,7 +3360,7 @@ and doExp (isconst: bool)    (* In a constant *)
 
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
-             if isconst then E.s (error "ASSIGN in constant");
+             if tryconst then ignore (warn "ASSIGN in constant");
              let (se1, e1', lvt) = doExp false e1 (AExp None) in
              let lv = 
                match e1' with 
@@ -3374,8 +3377,8 @@ and doExp (isconst: bool)    (* In a constant *)
     | A.BINARY((A.ADD|A.SUB|A.MUL|A.DIV|A.MOD|A.BAND|A.BOR|A.XOR|
       A.SHL|A.SHR|A.EQ|A.NE|A.LT|A.GT|A.GE|A.LE) as bop, e1, e2) -> 
         let bop' = convBinOp bop in
-        let (se1, e1', t1) = doExp isconst e1 (AExp None) in
-        let (se2, e2', t2) = doExp isconst e2 (AExp None) in
+        let (se1, e1', t1) = doExp tryconst e1 (AExp None) in
+        let (se2, e2', t2) = doExp tryconst e2 (AExp None) in
         let tresult, result = doBinOp bop' e1' t1 e2' t2 in
         finishExp (se1 @@ se2) result tresult
           
@@ -3385,12 +3388,12 @@ and doExp (isconst: bool)    (* In a constant *)
       A.SHR_ASSIGN|A.XOR_ASSIGN) as bop, e1, e2) -> begin
         match e1 with 
           A.COMMA el -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.COMMA (replaceLastInList el 
                           (fun e -> A.BINARY(bop, e, e2))))
               what
         | A.QUESTION (e1, e2q, e3q) -> (* GCC extension *)
-            doExp isconst 
+            doExp tryconst 
               (A.QUESTION (e1, A.BINARY(bop, e2q, e2), 
                            A.BINARY(bop, e3q, e2)))
               what
@@ -3398,8 +3401,8 @@ and doExp (isconst: bool)    (* In a constant *)
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
            A.CAST _ (* GCC extension *) ) -> begin
-             if isconst then
-               E.s (error "op_ASSIGN in constant");
+             if tryconst then
+               ignore (warn "op_ASSIGN in constant");
              let bop' = match bop with          
                A.ADD_ASSIGN -> PlusA
              | A.SUB_ASSIGN -> MinusA
@@ -3437,7 +3440,7 @@ and doExp (isconst: bool)    (* In a constant *)
                
           
     | A.BINARY((A.AND|A.OR), _, _) | A.UNARY(A.NOT, _) -> begin
-        let ce = doCondExp isconst e in
+        let ce = doCondExp tryconst e in
         (* We must normalize the result to 0 or 1 *)
         match ce with
           CEExp (se, ((Const _) as c)) -> 
@@ -3461,8 +3464,8 @@ and doExp (isconst: bool)    (* In a constant *)
     end
 
     | A.CALL(f, args) -> 
-        if isconst then
-          E.s (error "CALL in constant");
+        if tryconst then
+          ignore (warn "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
                                          * becase we might be calling a 
@@ -3692,8 +3695,8 @@ and doExp (isconst: bool)    (* In a constant *)
         end
           
     | A.COMMA el -> 
-        if isconst then 
-          E.s (error "COMMA in constant");
+        if tryconst then 
+          ignore (warn "COMMA in constant");
         let rec loop sofar = function
             [e] -> 
               let (se, e', t') = doExp false e what in (* Pass on the action *)
@@ -3710,19 +3713,19 @@ and doExp (isconst: bool)    (* In a constant *)
         loop empty el
           
     | A.QUESTION (e1,e2,e3) when what = ADrop -> 
-        if isconst then
-          E.s (error "QUESTION with ADrop in constant");
+        if tryconst then
+          ignore (warn "QUESTION with ADrop in constant");
         let (se3,_,_) = doExp false e3 ADrop in
         let se2 = 
           match e2 with 
             A.NOTHING -> skipChunk
           | _ -> let (se2,_,_) = doExp false e2 ADrop in se2
         in
-        finishExp (doCondition isconst e1 se2 se3) zero intType
+        finishExp (doCondition tryconst e1 se2 se3) zero intType
           
     | A.QUESTION (e1, e2, e3) -> begin (* what is not ADrop *)
         (* Compile the conditional expression *)
-        let ce1 = doCondExp isconst e1 in
+        let ce1 = doCondExp tryconst e1 in
         (* Now we must find the type of both branches, in order to compute 
          * the type of the result *)
         let se2, e2'o (* is an option. None means use e1 *), t2 = 
@@ -3734,11 +3737,11 @@ and doExp (isconst: bool)    (* In a constant *)
               | _ -> empty, None, intType
             end
           | _ -> 
-              let se2, e2', t2 = doExp isconst e2 (AExp None) in
+              let se2, e2', t2 = doExp tryconst e2 (AExp None) in
               se2, Some e2', t2
         in
         (* Do e3 for real *)
-        let se3, e3', t3 = doExp isconst e3 (AExp None) in
+        let se3, e3', t3 = doExp tryconst e3 (AExp None) in
         (* Compute the type of the result *)
         let tresult = conditionalConversion t2 t3 in
         match ce1 with
@@ -3758,8 +3761,8 @@ and doExp (isconst: bool)    (* In a constant *)
             match e2 with 
               A.NOTHING -> 
                 let tmp = var (newTempVar tresult) in
-                let (se1, _, _) = doExp isconst e1 (ASet(tmp, tresult)) in
-                let (se3, _, _) = doExp isconst e3 (ASet(tmp, tresult)) in
+                let (se1, _, _) = doExp tryconst e1 (ASet(tmp, tresult)) in
+                let (se3, _, _) = doExp tryconst e3 (ASet(tmp, tresult)) in
                 finishExp (se1 @@ ifChunk (Lval(tmp)) lu
                                     skipChunk se3)
                   (Lval(tmp))
@@ -3773,9 +3776,9 @@ and doExp (isconst: bool)    (* In a constant *)
                       var tmp, tresult
                 in
                 (* Now do e2 and e3 for real *)
-                let (se2, _, _) = doExp isconst e2 (ASet(lv, lvt)) in
-                let (se3, _, _) = doExp isconst e3 (ASet(lv, lvt)) in
-                finishExp (doCondition isconst e1 se2 se3) (Lval(lv)) tresult
+                let (se2, _, _) = doExp tryconst e2 (ASet(lv, lvt)) in
+                let (se3, _, _) = doExp tryconst e3 (ASet(lv, lvt)) in
+                finishExp (doCondition tryconst e1 se2 se3) (Lval(lv)) tresult
         end
 
 (*
@@ -3985,7 +3988,9 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 (* Constant fold a conditional. This is because we want to avoid having 
  * conditionals in the initializers. So, we try very hard to avoid creating 
  * new statements. *)
-and doCondExp (isconst: bool) 
+and doCondExp (tryconst: bool) (** Try to evaluate the conditional expression 
+                                * to TRUE or FALSE, because it occurs in a 
+                                * constant *)
               (e: A.expression) : condExpRes = 
   let rec addChunkBeforeCE (c0: chunk) = function
       CEExp (c, e) -> CEExp (c0 @@ c, e)
@@ -4000,14 +4005,14 @@ and doCondExp (isconst: bool)
   in
   match e with 
     A.BINARY (A.AND, e1, e2) -> begin
-      let ce1 = doCondExp isconst e1 in
-      let ce2 = doCondExp isconst e2 in
+      let ce1 = doCondExp tryconst e1 in
+      let ce2 = doCondExp tryconst e2 in
       match ce1, ce2 with
         CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
           if not (isZero ci1) then 
             addChunkBeforeCE se1 ce2
           else 
-            (* se2 might contain labels so we cannot drop it *)
+            (* se2 might contain labels so we cannot always drop it *)
             if canDropCE ce2 then 
               ce1 
             else 
@@ -4021,8 +4026,8 @@ and doCondExp (isconst: bool)
     end
 
   | A.BINARY (A.OR, e1, e2) -> begin
-      let ce1 = doCondExp isconst e1 in
-      let ce2 = doCondExp isconst e2 in
+      let ce1 = doCondExp tryconst e1 in
+      let ce2 = doCondExp tryconst e2 in
       match ce1, ce2 with
         CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
           if isZero ci1 then 
@@ -4042,7 +4047,7 @@ and doCondExp (isconst: bool)
     end
 
   | A.UNARY(A.NOT, e1) -> begin
-      match doCondExp isconst e1 with 
+      match doCondExp tryconst e1 with 
         CEExp (se1, (Const(CInt64 _) as ci1)) -> 
           if isZero ci1 then 
             CEExp (se1, one) 
@@ -4058,9 +4063,9 @@ and doCondExp (isconst: bool)
   end
 
   | _ -> 
-      let (se, e, t) as rese = doExp isconst e (AExp None) in
+      let (se, e, t) as rese = doExp tryconst e (AExp None) in
       ignore (checkBool t e);
-      CEExp (se, constFold isconst e)
+      CEExp (se, constFold tryconst e)
 
 and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk = 
   match ce with 
@@ -5515,7 +5520,7 @@ and doStatement (s : A.statement) : chunk =
     | A.CASE (e, s, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (se, e', et) = doExp false e (AExp None) in
+        let (se, e', et) = doExp true e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
         caseRangeChunk [constFold false e'] loc' (doStatement s)

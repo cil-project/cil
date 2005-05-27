@@ -1026,7 +1026,7 @@ an example (from gcc manual):
  v}
 *)
 
-(** Describes a location in a source file *)
+(** Describes a location in a source file. *)
 and location = { 
     line: int;		   (** The line number. -1 means "do not know" *)
     file: string;          (** The name of the source file*)

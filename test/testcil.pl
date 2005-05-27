@@ -250,6 +250,7 @@ $TEST->addTests("testrun/const5", "_GNUCC=1", ['cil']);
 $TEST->addTests("testrun/const6", "", ['cil']);
 $TEST->addTests("test/const7", "", ['cil']);
 $TEST->addTests("testrun/const8", "", ['cil']);
+$TEST->addTests("test/const9", "", ['cil']);
 $TEST->add2Tests("test/deref", "_GNUCC=1");
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
