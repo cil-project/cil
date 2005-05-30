@@ -4078,13 +4078,17 @@ let rec d_typsig () = function
   | TSBase t -> dprintf "TSBase(%a)" d_type t
 
 
+let newVID () = 
+  let t = !nextGlobalVID in 
+  incr nextGlobalVID;
+  t
 
    (* Make a varinfo. Used mostly as a helper function below  *)
 let makeVarinfo global name typ =
   (* Strip const from type for locals *)
   let vi = 
     { vname = name;
-      vid   = !nextGlobalVID;
+      vid   = newVID ();
       vglob = global;
       vtype = if global then typ else typeRemoveAttributes ["const"] typ;
       vdecl = lu;
@@ -4094,12 +4098,10 @@ let makeVarinfo global name typ =
       vaddrof = false;
       vreferenced = false;    (* sm *)
     } in
-  incr nextGlobalVID;
   vi
       
 let copyVarinfo (vi: varinfo) (newname: string) : varinfo = 
-  let vi' = {vi with vname = newname; vid = !nextGlobalVID } in
-  incr nextGlobalVID;
+  let vi' = {vi with vname = newname; vid = newVID () } in
   vi'
 
 let makeLocal fdec name typ = (* a helper function *)
@@ -5454,8 +5456,7 @@ class copyFunctionVisitor (newname: string) = object (self)
     try
       ChangeTo (H.find map v.vname)
     with Not_found -> begin
-      let v' = {v with vid = !nextGlobalVID} in
-      incr nextGlobalVID;
+      let v' = {v with vid = newVID () } in
       H.add map v.vname v';
       ChangeDoChildrenPost (v', fun x -> x)
     end

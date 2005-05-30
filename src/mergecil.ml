@@ -1316,7 +1316,7 @@ let oneFilePass2 (f: file) =
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
                                            vi.vname d_loc vloc newName);
           vi.vname <- newName;
-          vi.vid <- H.hash vi.vname;
+          vi.vid <- newVID ();
           vi.vreferenced <- true;
           vi
         end else begin

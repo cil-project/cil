@@ -3119,11 +3119,12 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                 AExp None (* We'll create a temporary *)
         in
         (* Remember here if we have done the Set *)
-        let (se, e', t') = 
+        let (se, e', t'), (needcast: bool) = 
           match ie' with
-            A.SINGLE_INIT e -> doExp tryconst e what'
+            A.SINGLE_INIT e -> doExp tryconst e what', true
 
           | A.NO_INIT -> E.s (error "missing expression in cast")
+
           | A.COMPOUND_INIT _ -> begin
               (* Pretend that we are declaring and initializing a brand new 
                * variable  *)
@@ -3149,15 +3150,25 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                   TArray _, StartOf lv -> Lval lv, typ
                 | _, _ -> e', t'
               in
-              se1 @@ se, e2, t2
+              (* If we are here, then the type t2 is guaranteed to match the 
+               * type of the expression e2, so we do not need a cast. We have 
+               * to worry about this because otherwise, we might need to cast 
+               * between arrays or structures. *)
+              (se1 @@ se, e2, t2), false
           end
         in
         let (t'', e'') = 
           match typ with
             TVoid _ when what' = ADrop -> (t', e') (* strange GNU thing *)
           |  _ -> 
-              (* Do this to check the cast *)
-              let newtyp, newexp = castTo ~fromsource:true t' typ e' in 
+              (* Do this to check the cast, unless we are sure that we do not 
+               * need the check. *)
+              let newtyp, newexp = 
+                if needcast then 
+                  castTo ~fromsource:true t' typ e' 
+                else
+                  t', e'
+              in
               newtyp, newexp
         in
         finishExp se e'' t''
