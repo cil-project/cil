@@ -1439,14 +1439,16 @@ let attributeHash: (string, attributeClass) H.t =
 
   (* Now come the MSVC declspec attributes *)
   List.iter (fun a -> H.add table a (AttrName true))
-    [ "thread"; "naked"; "dllimport"; "dllexport"; "noreturn";
+    [ "thread"; "naked"; "dllimport"; "dllexport";
       "selectany"; "allocate"; "nothrow"; "novtable"; "property";
       "uuid"; "align" ];
 
   List.iter (fun a -> H.add table a (AttrFunType false))
-    [ "format"; "regparm"; "longcall" ];
+    [ "format"; "regparm"; "longcall"; "noreturn" ];
+
   List.iter (fun a -> H.add table a (AttrFunType true))
     [ "stdcall";"cdecl"; "fastcall" ];
+
   List.iter (fun a -> H.add table a AttrType)
     [ "const"; "volatile"; "restrict"; "mode" ];
   table
@@ -1462,7 +1464,8 @@ let partitionAttributes
     | (Attr(an, _) as a) :: rest -> 
         match (try H.find attributeHash an with Not_found -> default) with 
           AttrName _ -> loop (addAttribute a n, f, t) rest
-        | AttrFunType _ -> loop (n, addAttribute a f, t) rest
+        | AttrFunType _ -> 
+            loop (n, addAttribute a f, t) rest
         | AttrType -> loop (n, f, addAttribute a t) rest
   in
   loop ([], [], []) attrs
