@@ -255,7 +255,8 @@ val registerSymbolName: string -> symbol
 
 (** Register a number of consecutive symbol ids. The naming function will be 
  * invoked with indices from 0 to the counter - 1. Returns the id of the 
- * first symbol created *)
+ * first symbol created. The naming function is invoked lazily, only when the 
+ * name of the symbol is required. *)
 val registerSymbolRange: int -> (int -> string) -> symbol
 
 

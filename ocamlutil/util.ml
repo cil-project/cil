@@ -714,6 +714,9 @@ let registeredSymbolNames: (string, symbol) H.t = H.create 113
 let symbolNames: string IH.t = IH.create 113 
 let nextSymbolId = ref 0 
 
+(* When we register symbol ranges, we store a naming function for use later 
+ * when we print the symbol *)
+let symbolRangeNaming: (int * int * (int -> string)) list ref = ref []
 
 (* Reset the symbols. We want to allow the registration of symbols at the 
  * top-level. This means that we cannot simply clear the hash tables. The 
@@ -723,7 +726,8 @@ let resetThunk: (unit -> unit) option ref = ref None
 let snapshotSymbols () : unit -> unit = 
   runThunks [ restoreIntHash symbolNames;
               restoreRef nextSymbolId;
-              restoreHash registeredSymbolNames ]
+              restoreHash registeredSymbolNames;
+              restoreRef symbolRangeNaming ]
 
 let resetSymbols () = 
   match !resetThunk with 
@@ -755,17 +759,26 @@ let registerSymbolName (n: string) : symbol =
 let registerSymbolRange (count: int) (mkname: int -> string) : symbol = 
   if count < 0 then E.s (E.bug "registerSymbolRange: invalid counter");
   let first = !nextSymbolId in
-  for i = 0 to count - 1 do 
-    let res = registerSymbolName (mkname i) in
-    assert(i + first = res)
-  done;
+  nextSymbolId := !nextSymbolId + count;
+  symbolRangeNaming := 
+    (first, !nextSymbolId - 1, mkname) :: !symbolRangeNaming;
   first
     
 let symbolName (id: symbol) : string = 
   try IH.find symbolNames id
   with Not_found -> 
-    ignore (E.warn "Cannot find the name of symbol %d" id);
-    "symbol" ^ string_of_int id
+    (* Perhaps it is one of the lazily named symbols *)
+    try 
+      let (fst, _, mkname) = 
+        List.find 
+          (fun (fst,lst,_) -> fst <= id && id <= lst) 
+          !symbolRangeNaming in
+      let n = mkname (id - fst) in
+      IH.add symbolNames id n;
+      n
+    with Not_found ->
+      ignore (E.warn "Cannot find the name of symbol %d" id);
+      "symbol" ^ string_of_int id
 
 (************************************************************************)
 
