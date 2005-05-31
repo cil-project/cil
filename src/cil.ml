@@ -1440,11 +1440,11 @@ let attributeHash: (string, attributeClass) H.t =
   (* Now come the MSVC declspec attributes *)
   List.iter (fun a -> H.add table a (AttrName true))
     [ "thread"; "naked"; "dllimport"; "dllexport";
-      "selectany"; "allocate"; "nothrow"; "novtable"; "property";
+      "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
       "uuid"; "align" ];
 
   List.iter (fun a -> H.add table a (AttrFunType false))
-    [ "format"; "regparm"; "longcall"; "noreturn" ];
+    [ "format"; "regparm"; "longcall"; ];
 
   List.iter (fun a -> H.add table a (AttrFunType true))
     [ "stdcall";"cdecl"; "fastcall" ];
