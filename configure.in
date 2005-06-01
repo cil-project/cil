@@ -425,6 +425,11 @@ case "$target" in
 esac
 CILHOME=$CCUREDHOME
 
+# Make the object directory if not already present
+AC_CHECK_FILE(obj/$ARCHOS,, AC_MSG_RESULT(creating obj/$ARCHOS);
+                            mkdir -p obj/$ARCHOS)
+   
+
 # We will use substitution variables whose definition contains newlines. The
 # problem is that when config.status runs, it wants to break the series of
 # substitution commands for sed into fragments based on line count. We could
