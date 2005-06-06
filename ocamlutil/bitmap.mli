@@ -16,11 +16,16 @@ val  card  : t -> int
 val  clone : t -> t 
 
 val  cloneEmpty : t -> t                (* An empty set with the same 
-                                         * dimentions *)
+                                         * dimensions *)
 
+                                        (* Set the bit *)
 val  set : t -> int -> bool -> unit
 val  get : t -> int -> bool
-                                        (* destructive union. The first 
+
+val  getset: t -> int -> bool -> bool  (** Set the value and return the old 
+                                        * value *)
+
+                                        (** destructive union. The first 
                                          * element is updated. Returns true 
                                          * if any change was actually 
                                          * necessary  *)

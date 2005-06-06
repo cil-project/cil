@@ -185,16 +185,19 @@ let get bmp i =
   (Int32.logand bmp.bitmap.(wrd) msk) <> Int32.zero
 
 
-let set bmp i tv = 
+let getset bmp i tv = 
   assert(i >= 0);
   let wrd = i lsr 5 in
   let msk = Int32.shift_left Int32.one (i - (wrd lsl 5)) in
   if i >= bmp.nrBits then enlarge bmp (wrd + 1) else ();
-  if tv then 
+  let old = Int32.logand bmp.bitmap.(wrd) msk <> 0l in
+  (if tv then 
     bmp.bitmap.(wrd) <- Int32.logor bmp.bitmap.(wrd) msk
   else
-    bmp.bitmap.(wrd) <- Int32.logand bmp.bitmap.(wrd) (Int32.lognot msk)
+    bmp.bitmap.(wrd) <- Int32.logand bmp.bitmap.(wrd) (Int32.lognot msk));
+  old
 
+let set bmp i tv = ignore (getset bmp i tv)
   
 
                                         (* Iterate over all elements in a 
