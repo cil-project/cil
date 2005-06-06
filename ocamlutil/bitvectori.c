@@ -137,7 +137,7 @@ value bitvector_test(value vec, value n_)
 void bitvector_set(value vec, value n_)
 {
   int n = Int_val(n_);
-
+  
   OFFSET_CALCULATION;
 
   *bits |= (1L << n);
@@ -148,15 +148,7 @@ void bitvector_clear(value vec, value n_)
 {
   int n = Int_val(n_);
 
-  unsigned long *bits = getBits(vec);
-  long words = getNumWords(vec);
-  if (n < 0 || n >= words * BITS_PER_WORD) {
-    debugf(("clear: n=%d words=%ld\n", n, words));
-    caml_array_bound_error();
-  }
-  bits += n / BITS_PER_WORD;
-  n = n % BITS_PER_WORD;
-  //OFFSET_CALCULATION;
+  OFFSET_CALCULATION;
 
   *bits &= ~(1L << n);
 }
@@ -164,12 +156,34 @@ void bitvector_clear(value vec, value n_)
 
 void bitvector_setTo(value vec, value n_, value bit_)
 {
+  int n = Int_val(n_);
+
+  OFFSET_CALCULATION;
+
   if (Int_val(bit_)) {
-    bitvector_set(vec, n_);
+    *bits |= (1L << n);
   }
   else {
-    bitvector_clear(vec, n_);
+    *bits &= ~(1L << n);
   }
+}
+
+value bitvector_testAndsetTo(value vec, value n_, value bit_)
+{
+  int n = Int_val(n_);
+  value res;
+  
+  OFFSET_CALCULATION;
+
+  res = Val_int((*bits >> n) & 1);
+                
+  if (Int_val(bit_)) {
+    *bits |= (1L << n);
+  }
+  else {
+    *bits &= ~(1L << n);
+  }
+  return res;
 }
 
 

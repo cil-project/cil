@@ -19,10 +19,10 @@ val  cloneEmpty : t -> t                (* An empty set with the same
                                          * dimensions *)
 
                                         (* Set the bit *)
-val  set : t -> int -> bool -> unit
-val  get : t -> int -> bool
+val  setTo : t -> int -> bool -> unit
+val  test : t -> int -> bool
 
-val  getset: t -> int -> bool -> bool  (** Set the value and return the old 
+val  testAndSetTo: t -> int -> bool -> bool  (** Set the value and return the old 
                                         * value *)
 
                                         (** destructive union. The first 
@@ -31,9 +31,9 @@ val  getset: t -> int -> bool -> bool  (** Set the value and return the old
                                          * necessary  *)
 val  union  : t -> t -> bool
 
-                                        (* accLive livein liveout def. Does 
-                                         * liveIn += (liveout - def) *)
-val  accLive : t -> t -> t -> bool
+                                        (* union_except livein liveout def. 
+                                         * Does liveIn += (liveout - def) *)
+val  union_except : t -> t -> t -> bool
 
                                         (* Copy the second argument onto the 
                                          * first *)

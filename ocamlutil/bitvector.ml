@@ -8,12 +8,13 @@ open Pretty            (* pretty printing *)
 type bitvector         (* details are opaque to Ocaml *)
 
 (* externals implemented in bitvectori.c *)
-external create: int (*n*) -> bitvector = "bitvector_create"
-external length: bitvector (*v*) -> int = "bitvector_length"
+external make: int (*n*) -> bitvector = "bitvector_create"
+external size: bitvector (*v*) -> int = "bitvector_length"
 external copyBits: bitvector (*dest*) -> bitvector (*src*) -> unit = "bitvector_copyBits"
 external clearAll: bitvector (*v*) -> unit = "bitvector_clearAll"
 external test: bitvector (*v*) -> int (*n*) -> bool = "bitvector_test"
 external setTo: bitvector (*v*) -> int (*n*) -> bool (*bit*) -> unit = "bitvector_setTo"
+external testAndSetTo: bitvector (*v*) -> int (*n*) -> bool (*bit*) -> bool = "bitvector_testAndSetTo"
 external set: bitvector (*v*) -> int (*n*) -> unit = "bitvector_set"
 external clear: bitvector (*v*) -> int (*n*) -> unit = "bitvector_clear"
 external unioneq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_unioneq"
@@ -27,7 +28,7 @@ external inplace_union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (
 (* ----------------- utilities ---------------- *)
 let copy (src: bitvector) : bitvector =
 begin
-  let ret:bitvector = (create (length src)) in
+  let ret:bitvector = (make (size src)) in
   (copyBits ret src);
   ret
 end
@@ -66,7 +67,7 @@ end
 
 let rec d_bitvector () (vec: bitvector) : doc =
 begin
-  let len:int = (length vec) in
+  let len:int = (size vec) in
   let b:Buffer.t = (Buffer.create (len+2)) in
 
   (* build up the string using a Buffer *)
@@ -121,7 +122,7 @@ end
 
 let testBitvector () : unit =
 begin
-  let v1:bitvector = (create 10) in
+  let v1:bitvector = (make 10) in
   (printVec "v1 initial       " v1);
 
   (set v1 4);
@@ -149,7 +150,7 @@ begin
   (printVec "v1 with primes   " v1);
 
 
-  let v2:bitvector = (create 30) in
+  let v2:bitvector = (make 30) in
   (printVec "v2 initial       " v2);
 
   (set v2 2);
@@ -179,7 +180,7 @@ begin
   (printVec "~v2              " (complement v2));
   
   
-  let v3:bitvector = (create 64) in
+  let v3:bitvector = (make 64) in
   (unioneq v3 v2);
   (printVec "v3 = v2          " v3);
   (printVec "v1 | ~v3         " (union v1 (complement v3)));

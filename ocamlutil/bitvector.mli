@@ -7,7 +7,7 @@ type bitvector     (* details are opaque to Ocaml *)
                                  
 
 (* Create a new bitvector with 'n' bits, all initialized to 0. *)
-external create: int (*n*) -> bitvector = "bitvector_create"
+external make: int (*n*) -> bitvector = "bitvector_create"
 
 (* Make a copy of 'src'. *)
 val      copy: bitvector (*src*) -> bitvector
@@ -15,7 +15,7 @@ val      copy: bitvector (*src*) -> bitvector
 
 (* Query how many bits are available in 'v'; this might be more
  * than was originally requested. *)
-external length: bitvector (*v*) -> int = "bitvector_length"
+external size: bitvector (*v*) -> int = "bitvector_length"
 
 (* Copy the bits of 'src' into 'dest'.  If they have different
  * sizes, copy the smaller number of bits. *)
@@ -30,6 +30,8 @@ external test: bitvector (*v*) -> int (*n*) -> bool = "bitvector_test"
 
 (* Set bit 'n' of vector 'v' to value 'bit'. *)
 external setTo: bitvector (*v*) -> int (*n*) -> bool (*bit*) -> unit = "bitvector_setTo"
+
+external testAndSetTo: bitvector (*v*) -> int (*n*) -> bool (*newval*)-> bool = "bitvector_testAndSetTo"
 
 (* Specialized versions for setting to 0 or 1. *)
 external set: bitvector (*v*) -> int (*n*) -> unit = "bitvector_set"

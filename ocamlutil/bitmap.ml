@@ -79,7 +79,7 @@ let union b1 b2 =
     ! changed
   end
                                         (* lin += (lout - def) *)
-let accLive lin lout def = 
+let union_except lin lout def = 
   begin                                 (* Need to enlarge def to lout *)
     let n = lout.nrWords in
     if def.nrWords < n then enlarge def n else ();
@@ -177,7 +177,7 @@ let diff b1 b2 =
 
       
 
-let get bmp i = 
+let test bmp i = 
   assert (i >= 0);
   if i >= bmp.nrBits then enlarge bmp ((i lsr 5) + 1) else ();
   let wrd = i lsr 5 in
@@ -185,7 +185,7 @@ let get bmp i =
   (Int32.logand bmp.bitmap.(wrd) msk) <> Int32.zero
 
 
-let getset bmp i tv = 
+let testAndSetTo bmp i tv = 
   assert(i >= 0);
   let wrd = i lsr 5 in
   let msk = Int32.shift_left Int32.one (i - (wrd lsl 5)) in
@@ -197,7 +197,7 @@ let getset bmp i tv =
     bmp.bitmap.(wrd) <- Int32.logand bmp.bitmap.(wrd) (Int32.lognot msk));
   old
 
-let set bmp i tv = ignore (getset bmp i tv)
+let setTo bmp i tv = ignore (testAndSetTo bmp i tv)
   
 
                                         (* Iterate over all elements in a 
