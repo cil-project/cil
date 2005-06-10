@@ -5211,9 +5211,11 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                    end else begin
                       (* We must examine all cases. If any falls through, 
                        * then the switch falls through. *)
-                      blockFallsThrough b
+                      blockFallsThrough b || blockCanBreak b
                    end
-              | Loop _ -> true (* Conservative *)
+              | Loop (b, _, _, _) -> 
+                  (* A loop falls through if it can break. *)
+                  blockCanBreak b
               | Block b -> blockFallsThrough b
               | TryFinally (b, h, _) -> blockFallsThrough h
               | TryExcept (b, _, h, _) -> true (* Conservative *)
@@ -5251,6 +5253,21 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               ignore (E.log "blockFallsThrough=%b %a\n" res d_block b);
 *)
               res
+            (* will we leave this statement or block with a break command? *)
+            and stmtCanBreak (s: stmt) : bool = 
+              match s.skind with
+                Instr _ | Return _ | Continue _ | Goto _ -> false
+              | Break _ -> true
+              | If (_, b1, b2, _) -> 
+                  blockCanBreak b1 || blockCanBreak b2
+              | Switch _ | Loop _ -> 
+                  (* switches and loops catch any breaks in their bodies *)
+                  false
+              | Block b -> blockCanBreak b
+              | TryFinally (b, h, _) -> blockCanBreak b || blockCanBreak h
+              | TryExcept (b, _, h, _) -> blockCanBreak b || blockCanBreak h
+            and blockCanBreak b = 
+              List.exists stmtCanBreak b.bstmts
             in
             if blockFallsThrough !currentFunctionFDEC.sbody then begin
               let retval = 

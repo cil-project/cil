@@ -419,7 +419,10 @@ $TEST->addTests("test/noreturn", "", ['cil']);
                 
 $TEST->addTests("test-bad-ln/handler1",
     "CCURED_ERROR_HANDLERS=handler1.handlers FAILISVERBOSE=1", ['inferbox']);
-    
+
+$TEST->addTests("runall/cilreturn", "", ['inferbox']);
+
+
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");

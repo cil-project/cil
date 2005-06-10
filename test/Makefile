@@ -863,6 +863,11 @@ test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
+runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	cd $(TESTDIR)/small2; \
+	COMMAND="$(CCURED) $(CFLAGS) $(WARNALL) __FILE__" \
+	COMMENT="// " \
+	 perl ../../ocamlutil/runall.pl $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --save-temps=.
