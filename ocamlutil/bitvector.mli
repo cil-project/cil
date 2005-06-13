@@ -4,7 +4,8 @@
  * is in bitvectori.c and bitvector.ml. *)
 
 type bitvector     (* details are opaque to Ocaml *)
-                                 
+     
+type t = bitvector (* a synonim *)                            
 
 (* Create a new bitvector with 'n' bits, all initialized to 0. *)
 external make: int (*n*) -> bitvector = "bitvector_create"
@@ -59,8 +60,8 @@ val      iter: (int -> unit) (*f*) -> bitvector (*v*) -> unit
 
 
 (* Add to 'a' (modifying it) all the bits in 'b', except do not add
- * bits if they are also in 'c'. *)
-external inplace_union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> unit = "bitvector_inplace_union_except"
+ * bits if they are also in 'c'. Return true if something was added to a. *)
+external union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> bool = "bitvector_inplace_union_except"
 
 
 (* Print a bitvector. *)

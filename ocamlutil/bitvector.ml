@@ -7,6 +7,8 @@ open Pretty            (* pretty printing *)
 
 type bitvector         (* details are opaque to Ocaml *)
 
+type t = bitvector
+
 (* externals implemented in bitvectori.c *)
 external make: int (*n*) -> bitvector = "bitvector_create"
 external size: bitvector (*v*) -> int = "bitvector_length"
@@ -22,7 +24,7 @@ external intersecteq: bitvector (*a*) -> bitvector (*b*) -> unit = "bitvector_in
 external complementeq: bitvector (*a*) -> unit = "bitvector_complementeq"
 external count: bitvector (*v*) -> int = "bitvector_count"
 external fold_left: ('a -> int -> 'a) (*f*) -> bitvector (*v*) -> 'a (*init*) -> 'a = "bitvector_fold_left"
-external inplace_union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> unit = "bitvector_inplace_union_except"
+external union_except: bitvector (*a*) -> bitvector (*b*) -> bitvector (*c*) -> bool = "bitvector_inplace_union_except"
 
 
 (* ----------------- utilities ---------------- *)

@@ -168,7 +168,7 @@ void bitvector_setTo(value vec, value n_, value bit_)
   }
 }
 
-value bitvector_testAndsetTo(value vec, value n_, value bit_)
+value bitvector_testAndSetTo(value vec, value n_, value bit_)
 {
   int n = Int_val(n_);
   value res;
@@ -309,7 +309,7 @@ value bitvector_fold_left(value f, value vec, value result)
 /* This is implemented as a primitive function because it is the
  * behavior I need and building it on top of the other primitives
  * would require an extra allocation. */
-void bitvector_inplace_union_except(value a, value b, value c)
+value bitvector_inplace_union_except(value a, value b, value c)
 {
   long aWords = getNumWords(a);
   long bWords = getNumWords(b);
@@ -318,6 +318,8 @@ void bitvector_inplace_union_except(value a, value b, value c)
   unsigned long *aBits = getBits(a);
   unsigned long const *bBits = getBits(b);
   unsigned long const *cBits = getBits(c);
+
+  int changes = 0;
   
   while (aWords && bWords) {
     /* mask of bits to consider */
@@ -335,7 +337,11 @@ void bitvector_inplace_union_except(value a, value b, value c)
     mask = ~mask;
 
     /* add everything in both 'b' and 'mask' to 'a' */
-    *aBits |= (*bBits & mask);
+    {
+      unsigned long oldaBits = *aBits;
+      *aBits |= (*bBits & mask);
+      if(*aBits != oldaBits) { changes = 1; }
+    }
 
     aBits++;
     bBits++;
@@ -369,6 +375,8 @@ void bitvector_inplace_union_except(value a, value b, value c)
     bBits++;
     bWords--;
   }
+
+  return Val_bool(changes);
 }
 
 

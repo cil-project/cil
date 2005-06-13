@@ -1,4 +1,3 @@
-
                               (* Imperative bitmaps *)
 
 type t
@@ -32,7 +31,9 @@ val  testAndSetTo: t -> int -> bool -> bool  (** Set the value and return the ol
 val  union  : t -> t -> bool
 
                                         (* union_except livein liveout def. 
-                                         * Does liveIn += (liveout - def) *)
+                                         * Does liveIn += (liveout - def). 
+                                         * Return true if the first set was 
+                                         * changed.  *)
 val  union_except : t -> t -> t -> bool
 
                                         (* Copy the second argument onto the 
