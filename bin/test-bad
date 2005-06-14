@@ -112,7 +112,7 @@ while [ $i -le $numcases ]; do
   rm -f $tmpname.c 2>/dev/null
   ( echo "#define ERROR $i"; echo "#$LINEOPT 1 \"$srcfile\"";cat "$srcfile") |\
        sed "s|ERROR($i)|(selected: $i)|" | \
-       perl -e 'my $ln = 0; while(<>) { $ln ++; if($_ =~ m|ERROR\(|) { print "#'$LINEOPT' $ln\n"; } else { print $_; }}' \
+       perl -e 'my $ln = 0; while(<>) { if($_ =~ m|ERROR\(|) { print "#'$LINEOPT' $ln\n"; } else { print $_; }; $ln ++}' \
          > "$tmpname.c"
   chmod a-w "$tmpname.c"
 

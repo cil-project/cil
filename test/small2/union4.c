@@ -45,14 +45,16 @@ int main() {
   if (CCURED_HASUNIONTAG(x.f4)) E(18);
   if (!CCURED_HASUNIONTAG(x.f2)) E(19); 
 
-  x.f3.f3_1 = &i1;
-  //FIXME: this should not clear x.f3.f3_1
-  //x.f3.f3_2 = &i;
-  if(x.f3.f3_1 != &i1) E(4);
+  //writing to f3.f3_2 should clear f3.f3_1
+  x.f3.f3_2 = &i1;
+  if (x.f3.f3_1 != 0) E(3);
+  //but writing to f3 again should not clear f3_2!
+  x.f3.f3_1 = &i;
+  if(x.f3.f3_2 != &i1) E(4);
 
   // And some trick with the thing appearing both on left and right-side
   x.f2 = x.f3.f3_1;
-  if(px->f2 != &i1) E(5);
+  if(px->f2 != &i) E(5);
 
   // Same for a function call
   x.f3.f3_1 = &i;

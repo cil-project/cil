@@ -38,10 +38,12 @@ int main() {
 
   u.f3.f3_u.s.s2 = &i;
 #if ERROR == 0
-  if (! CCURED_HASUNIONTAG(u.f3.f3_u.s.s1)) E(1);
-  if (CCURED_HASUNIONTAG(u.f3.f3_u.x)) E(2);
-  if (CCURED_HASUNIONTAG(u.f1.a)) E(3);
-  if (u.f3.f3_u.s.s2 != &i) E(4);
+  if (u.f3.f3_u.s.s2 != &i) E(1);
+  if (u.f3.f3_u.s.s1 != 0) E(2);
+  if (u.f3.f3_int != 0) E(3);
+  if (! CCURED_HASUNIONTAG(u.f3.f3_u.s.s1)) E(4);
+  if (CCURED_HASUNIONTAG(u.f3.f3_u.x)) E(5);
+  if (CCURED_HASUNIONTAG(u.f1.a)) E(6);
 
 #else
   i = * u.f3.f3_u.s.s1; //ERROR(2): Null pointer
