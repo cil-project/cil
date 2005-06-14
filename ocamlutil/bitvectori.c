@@ -276,7 +276,7 @@ value bitvector_fold_left(value f, value vec, value result)
 {
   CAMLparam3(f, vec, result);
                        
-  /* experiment... */
+  /* This is so I can detect when the GC moves the vector's storage. */
   value orig_vec = vec;
 
   long words = getNumWords(vec);
@@ -284,21 +284,30 @@ value bitvector_fold_left(value f, value vec, value result)
 
   int bit = 0;
 
-  while (words) {
-    unsigned long w = *bits;
+  long word;
+  for (word=0; word<words; word++) {
+    unsigned long w = bits[word];
 
     int i;
     for (i=0; i < BITS_PER_WORD; i++) {
       if (w & 1) {
         result = caml_callback2(f, result, Val_int(bit));
-        assert(vec == orig_vec);    /* gc causing problems? no.. */
+        if (vec != orig_vec) {
+          /* the GC moved my storage, so get my pointer again */
+          bits = getBits(vec);
+
+          /* should not have changed the size */
+          assert(words == getNumWords(vec));
+
+          /* 2005-06-14: The above code *has* been tested, by
+           *   verifier$ ./runvml -kettle -dry ex/doublylinked.c
+           * though of course that command's ability to exercise
+           * this code will not last. */
+        }
       }
       w >>= 1;
       bit++;
     }
-    
-    words--;
-    bits++;
   }
   
   CAMLreturn(result);
