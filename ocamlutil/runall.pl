@@ -298,7 +298,7 @@ sub runOneTest {
     }
     print "$command\n";
     my $msgfile = "runall_out";
-    my $code = system("$command >$msgfile 2>&1");
+    my $code = system("($command) >$msgfile 2>&1");
     open(MSG, "<$msgfile") || die "Cannot read $msgfile";
     my @msgs = <MSG>;
     close(MSG) || die "Cannot close $msgfile";
