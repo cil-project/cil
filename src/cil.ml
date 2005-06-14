@@ -1665,6 +1665,9 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
     body
   
 
+let rec stripCasts (e: exp) = 
+  match e with CastE(_, e') -> stripCasts e' | _ -> e
+
 
 
 (* the name of the C function we call to get ccgr ASTs
@@ -2949,10 +2952,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * destination *)
     | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
-          let rec stripCast = function 
-              CastE (_, e) -> stripCast e
-            | e -> e in
-          let destlv = match stripCast adest with 
+          let destlv = match stripCasts adest with 
             AddrOf destlv -> destlv
           | _ -> E.s (E.error "Encountered unexpected call to %s\n" vi.vname)
           in

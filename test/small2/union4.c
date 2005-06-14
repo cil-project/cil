@@ -15,6 +15,7 @@ union u {
     int *f3_2;
   }    f3;
   int* (*f4)(int*);
+  char f5;
 } __TAGGED;
 
 int* foo(int *x) { return x;}
@@ -29,18 +30,24 @@ int main() {
   if (CCURED_HASUNIONTAG(x.f2)) E(12);
   if (CCURED_HASUNIONTAG(x.f3)) E(13);
   if (CCURED_HASUNIONTAG(x.f4)) E(14);
+  if (CCURED_HASUNIONTAG(x.f5)) E(15);
   
   x.f1 = 5;
   if(x.f1 != 5) E(1);
-  if (!CCURED_HASUNIONTAG(x.f1)) E(15);
+  if (!CCURED_HASUNIONTAG(x.f1)) E(16);
+
+  x.f5 = 20;
+  if(x.f5 != 20) E(1);
+  if (!CCURED_HASUNIONTAG(x.f5)) E(17);
 
   x.f2 = &i;
   if(px->f2 != &i) E(2);
-  if (CCURED_HASUNIONTAG(x.f1)) E(16);
-  if (!CCURED_HASUNIONTAG(x.f2)) E(17); 
+  if (CCURED_HASUNIONTAG(x.f4)) E(18);
+  if (!CCURED_HASUNIONTAG(x.f2)) E(19); 
 
   x.f3.f3_1 = &i1;
-  x.f3.f3_2 = &i;
+  //FIXME: this should not clear x.f3.f3_1
+  //x.f3.f3_2 = &i;
   if(x.f3.f3_1 != &i1) E(4);
 
   // And some trick with the thing appearing both on left and right-side

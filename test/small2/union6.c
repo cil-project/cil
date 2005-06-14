@@ -35,10 +35,18 @@ int main() {
 
   //Union in a union.  This will clear the f3 struct and (redundantly) the 
   // f3.f3_u.s struct.
-  u.f3.f3_u.s.s2 = &i;
 
+  u.f3.f3_u.s.s2 = &i;
+#if ERROR == 0
+  if (! CCURED_HASUNIONTAG(u.f3.f3_u.s.s1)) E(1);
+  if (CCURED_HASUNIONTAG(u.f3.f3_u.x)) E(2);
+  if (CCURED_HASUNIONTAG(u.f1.a)) E(3);
+  if (u.f3.f3_u.s.s2 != &i) E(4);
+
+#else
   i = * u.f3.f3_u.s.s1; //ERROR(2): Null pointer
   i = * u.f1.b; //ERROR(3): WRONGFIELD
+#endif
 
   SUCCESS;
 }

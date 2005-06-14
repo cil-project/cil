@@ -646,6 +646,7 @@ $TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/union7", "", [ 'inferbox' ]);
   $TEST->addBadComment("test-bad/union7-inferbox", 
                        "Discriminated unions not yet implemented");
+$TEST->addTests("runall/union8", "", [ 'inferbox' ]);
 $TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
 $TEST->addTests("scott/union5", "", ['inferbox']);
 $TEST->addTests("scott/funptr1", "", ['inferbox']);

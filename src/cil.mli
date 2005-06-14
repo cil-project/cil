@@ -1551,6 +1551,11 @@ val mkCastT: e:exp -> oldt:typ -> newt:typ -> exp
 (** Like {!Cil.mkCastT} but uses typeOf to get [oldt] *)  
 val mkCast: e:exp -> newt:typ -> exp 
 
+(** Removes casts from this expression, but ignores casts within
+  other expression constructs.  So we delete the (A) and (B) casts from 
+  "(A)(B)(x + (C)y)", but leave the (C) cast. *)
+val stripCasts: exp -> exp
+
 (** Compute the type of an expression *)
 val typeOf: exp -> typ
 
