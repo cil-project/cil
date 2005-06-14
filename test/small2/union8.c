@@ -30,7 +30,7 @@ union {
   Child *  cp;
 } __TAGGED u;
 
-int global[10];
+int global[11];
 
 int* foo(int* x) { return x; }
 
@@ -49,8 +49,9 @@ int main() {
 
   u.cp = &carray[2];
   Parent * __RTTI p= u.pp;
+  if (__endof(p) != (unsigned long)(carray + 5)) E(2);  //KEEP fseq
   Child * c = p;
-  c++;  //KEEP fseq
+  c++;           //KEEP fseq
   x += c->f2;
 
   u.vp = p; //make sure we preserve the RTTI.
