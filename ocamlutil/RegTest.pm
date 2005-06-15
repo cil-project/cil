@@ -1122,7 +1122,12 @@ sub run {
       $extraArgs .= $self->{option}->{extraArgs};
     }
 
-    my $res =
+
+    if (defined($tst->{ExtraArgs})) {
+      $extraArgs .= " " . $tst->{ExtraArgs};
+    }
+ 
+   my $res =
         $self->runCommand($tst->{Dir},
                           $tst->{Cmd} . $extraArgs,
                           $stdoutFile, $stderrFile);
