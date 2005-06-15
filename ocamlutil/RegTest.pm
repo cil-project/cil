@@ -596,7 +596,7 @@ sub runTests {
             # analyze success/failure
             if($self->expectedToFail($tstname) ? !$res : $res) {
                 # test resolved the opposite way from what was expected
-                if (!$self->{regrtest}) {
+                if (! $self->{regrtest}) {
                     print "\t--FAILED\n";
                 }
                 if(defined $self->{option}->{stoponerror}) {
@@ -1210,7 +1210,7 @@ sub finishParsingLog {
     if($tst->{ErrorCode} == 0 && # Looks like success so far
        defined $tst->{ExpectPattern} &&
        ! $tst->{FoundExpectedPattern}) {
-
+        
         $tst->{ErrorCode} = 10001;
     }
     if($tst->{ErrorCode} == 0) {
