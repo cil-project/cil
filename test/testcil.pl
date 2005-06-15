@@ -533,6 +533,7 @@ $TEST->addTests("testrun/rtti5", "", ['inferbox']);
 $TEST->addTests("testrun/rtti6", "", ['inferbox']);
 $TEST->addTests("testrun/rtti7", "", ['inferbox']);
 $TEST->addTests("testrun/rtti8", "", ['inferbox']);
+$TEST->addTests("test-bad1/rtti9", "", ['inferbox']);
 $TEST->addTests("test/rtti10", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
