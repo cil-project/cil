@@ -28,6 +28,7 @@ union {
   double d;
   Parent * __RTTI pp;
   Child *  cp;
+  int** ptrptr;
 } __TAGGED u;
 
 int global[11];
@@ -59,6 +60,34 @@ int main() {
 
   u.d = 1.0 / 10;  //DROP double: error = wrong union field
   double dd = u.d;
+
+  //Use a union to cast an int* __FSEQ * to void* __RTTI, and back to int**.
+  //Make sure the right compatibility edges are added.
+  int * z2 = &global[0];
+  int* __FSEQ z = global;                       //KEEP ptrptr: success
+  u.ptrptr = &z;                                //KEEP ptrptr
+  void * __RTTI r = u.vp;                       //KEEP ptrptr
+  *((int**)r) = z2;   // z2 should be FSEQ!     //KEEP ptrptr
+  if (KIND_OF(z) != FSEQ_KIND) E(3);            //KEEP ptrptr
+  if (KIND_OF(z2) != FSEQ_KIND) E(4);           //KEEP ptrptr
+
+  if (KIND_OF(z2) != SAFE_KIND) E(5);           //DROP ptrptr
+  
+  //The dual of the above test: RTTI first, then the union.
+  int * z3 = &global[0];
+  void * __RTTI r = &z3;                        //KEEP ptrptr2: success
+  u.vp = r;
+  int* __FSEQ z = global;                       //KEEP ptrptr2
+  (*(u.ptrptr))++;                              //KEEP ptrptr2
+  // u.ptrptr (and therefore z3) should be FSEQ!
+  if (KIND_OF(z) != FSEQ_KIND) E(6);            //KEEP ptrptr2
+  if (KIND_OF(z3) != FSEQ_KIND) E(7);           //KEEP ptrptr2
+
+  if (KIND_OF(z3) != SAFE_KIND) E(8);           //DROP ptrptr2
+
+  int* __FSEQ z = global;
+  void* __RTTI r = &z;
+
 
   SUCCESS;
 }
