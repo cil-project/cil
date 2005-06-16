@@ -137,7 +137,13 @@ int function() {
   }
 #endif
 
-  
+  //make this function look recursive to discourage inlining.
+  // (if we are inlined into main, then 'local' looks like one of main's
+  // locals, and will be treated like a global because we treate main 
+  // as a special case.)  
+  if (gptr == 0xdeadbeef) {
+    function ();
+  }
   
 }
 
