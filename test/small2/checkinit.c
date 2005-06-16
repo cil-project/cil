@@ -4,11 +4,17 @@
 
 // NUMERRORS 6
 
-
+//Prevent inlinging of these functions.  We want to make sure their
+//stack frames overlap.
+#if __GNUC__ >= 3
+#define NOINLINE __attribute__((noinline))
+#else
+#define NOINLINE
+#endif
 
 
 // Fill the stack with values that are invalid as pointers
-void dirtyStack() {
+void dirtyStack() NOINLINE {
   int i, frame[1024];
   for(i=0;i<sizeof(frame)/ sizeof(int);i++) {
     frame[i] = i;
@@ -16,7 +22,7 @@ void dirtyStack() {
 }
 
 
-int foo() {
+int foo() NOINLINE {
   int *p;
   if(p == 0) E(1);//ERROR(1):Error 1
 
