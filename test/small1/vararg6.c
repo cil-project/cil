@@ -1,5 +1,5 @@
 // Original from c-torture
-#include <varargs.h>
+//modified for stdarg.h
 
 #include "testharness.h"
 
@@ -7,13 +7,25 @@ typedef double TYPE;
 
 #pragma ccuredvararg("vafunction", sizeof(union { TYPE d; }))
 
+#if __GNUC__ >= 3 || !defined __GNUC__
+//new version:
+#include <stdarg.h>
+void vafunction (TYPE dummy1, TYPE dummy2, ...)
+#else
+//old version:
+#include <varargs.h>
 void vafunction (dummy1, dummy2, va_alist)
   TYPE dummy1, dummy2;
   va_dcl
+#endif
 {
   va_list ap;
 
-  va_start(ap);
+#if __GNUC__ >= 3 || !defined __GNUC__
+  va_start (ap, dummy2);
+#else
+  va_start (ap); //varargs.h
+#endif
   if (dummy1 != 888.) exit(1);
   if (dummy2 != 999.) exit(2);
   if (va_arg (ap, TYPE) != 1.) exit(3);
