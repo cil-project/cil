@@ -76,7 +76,7 @@ int main() {
   //The dual of the above test: RTTI first, then the union.
   int * z3 = &global[0];
   void * __RTTI r = &z3;                        //KEEP ptrptr2: success
-  u.vp = r;
+  u.vp = r;                                     //KEEP ptrptr2
   int* __FSEQ z = global;                       //KEEP ptrptr2
   (*(u.ptrptr))++;                              //KEEP ptrptr2
   // u.ptrptr (and therefore z3) should be FSEQ!
