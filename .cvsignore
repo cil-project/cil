@@ -32,3 +32,4 @@ autom4te*.cache
 config.h
 cil.spec
 cvss.txt
+configure.lineno
