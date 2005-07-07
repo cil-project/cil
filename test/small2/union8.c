@@ -25,6 +25,7 @@ union {
   int i;
   void* vp;
   int* ip;
+  char* str;
   double d;
   Parent * __RTTI pp;
   Child *  cp;
@@ -46,7 +47,11 @@ int main() {
   x += *u.ip;
 
   u.i = x; //KEEP wrongfield: error = wrong union field
-  void* v = u.vp;
+  void* __RTTI v = u.vp;
+
+  u.str = "literal";  //KEEP str: success
+  v = u.vp;           //KEEP str
+  printf((char*)v);   //KEEP str
 
   u.cp = &carray[2];
   Parent * __RTTI p= u.pp;
