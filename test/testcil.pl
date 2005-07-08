@@ -338,6 +338,7 @@ if (!$egcs) {
 $TEST->add2Tests("test/vararg7", "_GNUCC=1");
 $TEST->addTests("testrun/vararg8", "", ['inferbox']);
 $TEST->addTests("testrun/vararg9", "", ['cil', 'inferbox']);
+$TEST->addTests("testrun/vararg10", "", ['inferbox']);
 $TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
 $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
 if (!$egcs) {
