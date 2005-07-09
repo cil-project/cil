@@ -43,6 +43,7 @@ val list_mapi: (int -> 'a -> 'b) -> 'a list -> 'b list
 (** Like fold_left but pass the index into the list as well *)
 val list_fold_lefti: ('acc -> int -> 'a -> 'acc) -> 'acc -> 'a list -> 'acc
 
+(** Generates the range of integers starting with a and ending with b *)
 val int_range_list : int -> int -> int list
 
 (* Create a list of length l *)
