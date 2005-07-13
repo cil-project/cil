@@ -2,7 +2,8 @@
 #include <string.h>
 #include "../small1/testharness.h"
 
-//Test for OO and varargs.
+//Test for OO and varargs.  These features are not supported,
+// so this is not in the regression suite.
 
 #ifndef CCURED
 #define __RTTI
