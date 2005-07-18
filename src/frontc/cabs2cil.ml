@@ -1905,12 +1905,14 @@ let afterConversion (c: chunk) : chunk =
                  TFun (rt, _, _, _) -> rt
                | _ -> E.s (E.bug "Function call to a non-function")
            in 
+           ignore (E.log "tcallres=%a, vi.vtype=%a\n" 
+                     d_plaintype tcallres d_plaintype vi.vtype);
            Util.equals (typeSig tcallres) (typeSig vi.vtype) &&
            Util.equals (typeSig newt) (typeSig (typeOfLval destlv))) && 
            IH.mem callTempVars vi.vid &&
            vi' == vi) 
       -> Some [Call(Some destlv, f, args, l)]
-    | _ -> None
+    | i1,i2 ->  None
   in
   (* First add in the postins *)
   let sl = pushPostIns c in

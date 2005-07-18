@@ -2993,13 +2993,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               self#pLval () lv ++ text " = " ++
                 (* Maybe we need to print a cast *)
                 (let destt = typeOfLval lv in
-                 let typeSigNoAttrs t = typeSigWithAttrs (fun al -> []) t in
+                 let typeSig t = typeSigWithAttrs (fun al -> al) t in
                  (* typeSigNoAttrs stands in for typeSig, which hasn't been 
                     defined yet. *)
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) 
-                      when not (Util.equals (typeSigNoAttrs rt)
-                                            (typeSigNoAttrs destt)) ->
+                      when not (Util.equals (typeSig rt)
+                                            (typeSig destt)) ->
                     text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
