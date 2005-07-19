@@ -2402,6 +2402,12 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
                         Int64.logand i1 Int64.one >= Int64.logand i2 Int64.one)
         else i1 >= i2
       in
+      let shiftInBounds i2 =
+        (* We only try to fold shifts if the second arg is positive and 
+           less than 64.  Otherwise, the semantics are processor-dependent,
+           so let the compiler sort it out. *)
+        i2 >= Int64.zero && i2 < (Int64.of_int 64)
+      in
       (* Assume that the necessary promotions have been done *)
       match bop, mkInt e1', mkInt e2' with
       | PlusA, Const(CInt64(z,_,_)), e2'' when z = Int64.zero -> e2''
@@ -2431,10 +2437,10 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logxor i1 i2)
 
-      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) -> 
+      | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
           kinteger64 tk (Int64.shift_left i1 (Int64.to_int i2))
 
-      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) -> 
+      | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
           if isunsigned ik1 then 
             kinteger64 tk (Int64.shift_right_logical i1 (Int64.to_int i2))
           else

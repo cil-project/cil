@@ -1905,8 +1905,6 @@ let afterConversion (c: chunk) : chunk =
                  TFun (rt, _, _, _) -> rt
                | _ -> E.s (E.bug "Function call to a non-function")
            in 
-           ignore (E.log "tcallres=%a, vi.vtype=%a\n" 
-                     d_plaintype tcallres d_plaintype vi.vtype);
            Util.equals (typeSig tcallres) (typeSig vi.vtype) &&
            Util.equals (typeSig newt) (typeSig (typeOfLval destlv))) && 
            IH.mem callTempVars vi.vid &&

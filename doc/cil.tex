@@ -2741,6 +2741,10 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf July 18, 2005}: Fixed bug in the constant folding of shifts
+  when the second argument was negative or too large.
+\item {\bf July 18, 2005}: Fixed bug where casts were not always
+  inserted in function calls.
 \item {\bf June 10, 2005}: Fixed bug in the code that makes implicit
   returns explicit.  We weren't handling switch blocks correctly.
 \item {\bf June 1, 2005}: {\bf Released version 1.3.3}
