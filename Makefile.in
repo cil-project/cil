@@ -386,7 +386,7 @@ DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
 
 DISTRIB_SMALL1=hello.c func.c init.c init1.c wchar1.c vararg1.c testharness.h 
 
-distrib-nocheck: doc $(DISTRIB_ROOT)
+distrib-nocheck: $(DISTRIB_ROOT) #doc
         # Create the distribution from scratch
 	rm -rf $(TEMP_DIR)
 	mkdir $(TEMP_DIR)
