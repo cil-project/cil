@@ -200,6 +200,7 @@ $TEST->add2Tests("testrun/asm1", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
 $TEST->addTests("test/asm2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
+$TEST->addTests("testobj/asm5", "_GNUCC=1", ['cil']);
 
 $TEST->add3Tests("testrun/offsetof");
 $TEST->add3Tests("testrun/offsetof1");

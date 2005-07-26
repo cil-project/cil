@@ -3042,7 +3042,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                         () tmpls)
                   ++
                   (if outs = [] && ins = [] && clobs = [] then
-                    nil
+                    chr ':'
                 else
                   (text ": "
                      ++ (docList ~sep:(chr ',' ++ break)

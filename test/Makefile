@@ -518,10 +518,13 @@ testnopatch/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CCURED)    --commPrintLn \
                $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 
+testobj/% : $(SMALL1)/%.c  
+	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
+	       $(CONLY) $(CFLAGS) $(OBJOUT)$*.o $*.c 
+
 testexe/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
-
 
 testrun/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
