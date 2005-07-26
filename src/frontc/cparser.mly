@@ -159,23 +159,23 @@ begin
   else ()
 end
 
+let int64_to_char value =
+  if (compare value (Int64.of_int 255) > 0) || (compare value Int64.zero < 0) then
+    begin
+      let msg = Printf.sprintf "cparser:intlist_to_string: character 0x%Lx too big" value in
+      parse_error msg;
+      raise Parsing.Parse_error
+    end
+  else
+    Char.chr (Int64.to_int value)
+
 (* takes a not-nul-terminated list, and converts it to a string. *)
 let rec intlist_to_string (str: int64 list):string =
   match str with
     [] -> ""  (* add nul-termination *)
   | value::rest ->
-      let this_char = 
-	if (compare value (Int64.of_int 255) > 0) 
-           || (compare value Int64.zero < 0)
-	then begin
-	  let msg = Printf.sprintf "cparser:intlist_to_string: character 0x%Lx too big" value in
-	  parse_error msg;
-	  raise Parsing.Parse_error
-	end 
-	else 
-	  String.make 1 (Char.chr (Int64.to_int value))
-      in
-      this_char ^ (intlist_to_string rest)
+      let this_char = int64_to_char value in
+      (String.make 1 this_char) ^ (intlist_to_string rest)
 
 let fst3 (result, _, _) = result
 let snd3 (_, result, _) = result
@@ -291,7 +291,7 @@ let trd3 (_, _, result) = result
 %type <Cabs.expression list * cabsloc> paren_comma_expression
 %type <Cabs.expression list> arguments
 %type <Cabs.expression list> bracket_comma_expression
-%type <int64 list * cabsloc> string_list 
+%type <int64 list Queue.t * cabsloc> string_list 
 %type <int64 list * cabsloc> wstring_list
 
 %type <Cabs.initwhat * Cabs.init_expression> initializer
@@ -623,15 +623,32 @@ constant:
 string_constant:
 /* Now that we know this constant isn't part of a wstring, convert it
    back to a string for easy viewing. */
-    string_list                         {intlist_to_string (fst $1), snd $1 }
+    string_list                         {
+     let queue, location = $1 in
+     let buffer = Buffer.create (Queue.length queue) in
+     Queue.iter
+       (List.iter
+	  (fun value ->
+	    let char = int64_to_char value in
+	    Buffer.add_char buffer char))
+       queue;
+     Buffer.contents buffer, location
+   }
 ;
 one_string_constant:
 /* Don't concat multiple strings.  For asm templates. */
     CST_STRING                          {intlist_to_string (fst $1) }
 ;
 string_list:
-    one_string                          { $1 }
-|   string_list one_string              { (fst $1) @ (fst $2), snd $1 }
+    one_string                          {
+      let queue = Queue.create () in
+      Queue.add (fst $1) queue;
+      queue, snd $1
+    }
+|   string_list one_string              {
+      Queue.add (fst $2) (fst $1);
+      $1
+    }
 ;
 
 wstring_list:
