@@ -1,4 +1,7 @@
 void code()
 {
-  asm("pxor %%mm6,%%mm6":);
+#if defined(__GNUC__) && defined(__i386__)
+  asm("pxor %%mm6, %%mm6":);
+  asm("pxor  %mm6,  %mm6" );
+#endif
 }

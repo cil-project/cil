@@ -191,6 +191,13 @@ and block =
       bstmts: statement list
     } 
 
+(* GCC asm directives have lots of extra information to guide the optimizer *)
+and asm_details =
+    { aoutputs: (string * expression) list; (* constraints and expressions for outputs *)
+      ainputs: (string * expression) list; (* constraints and expressions for inputs *)
+      aclobbers: string list (* clobbered registers *)
+    }
+
 and statement =
    NOP of cabsloc
  | COMPUTATION of expression * cabsloc
@@ -213,12 +220,9 @@ and statement =
  | DEFINITION of definition (*definition or declaration of a variable or type*)
 
  | ASM of attribute list * (* typically only volatile and const *)
-         string list * (* template *)
-       (string * expression) list * (* list of constraints and expressions for 
-                                   * outputs *)
-       (string * expression) list * (* same for inputs *)
-       string list * (* clobbered registers *)
-       cabsloc
+          string list * (* template *)
+          asm_details option * (* extra details to guide GCC's optimizer *)
+          cabsloc
 
    (** MS SEH *)
  | TRY_EXCEPT of block * expression * block * cabsloc
@@ -360,7 +364,7 @@ begin
   | GOTO(_,loc) -> loc
   | COMPGOTO (_, loc) -> loc
   | DEFINITION d -> get_definitionloc d
-  | ASM(_,_,_,_,_,loc) -> loc
+  | ASM(_,_,_,loc) -> loc
   | TRY_EXCEPT(_, _, _, loc) -> loc
   | TRY_FINALLY(_, _, loc) -> loc
 end

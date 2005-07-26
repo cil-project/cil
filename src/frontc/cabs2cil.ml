@@ -5663,37 +5663,52 @@ and doStatement (s : A.statement) : chunk =
 
 
 
-    | A.ASM (asmattr, tmpls, outs, ins, clobs, loc) -> 
+    | A.ASM (asmattr, tmpls, details, loc) -> 
         (* Make sure all the outs are variables *)
         let loc' = convLoc loc in
         let attr' = doAttributes asmattr in
         currentLoc := loc';
         let temps : (lval * varinfo) list ref = ref [] in
         let stmts : chunk ref = ref empty in
-        let outs' = 
-          List.map 
-            (fun (c, e) -> 
-              let (se, e', t) = doExp false e (AExp None) in
-              let lv = 
-                match e' with
-		| Lval lval
-		| StartOf lval -> lval
-                | _ -> E.s (error "Expected lval for ASM outputs")
+	let (tmpls', outs', ins', clobs') =
+	  match details with
+	  | None ->
+	      let tmpls' =
+		if !msvcMode then
+		  tmpls
+		else
+		  let pattern = Str.regexp "%" in
+		  let escape = Str.global_replace pattern "%%" in
+		  List.map escape tmpls
+	      in
+	      (tmpls', [], [], [])
+	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
+              let outs' =
+		List.map
+		  (fun (c, e) ->
+		    let (se, e', t) = doExp false e (AExp None) in
+		    let lv =
+                      match e' with
+		      | Lval lval
+		      | StartOf lval -> lval
+                      | _ -> E.s (error "Expected lval for ASM outputs")
+		    in
+		    stmts := !stmts @@ se;
+		    (c, lv)) outs
               in
-              stmts := !stmts @@ se;
-              (c, lv)) outs 
-        in
-      (* Get the side-effects out of expressions *)
-        let ins' = 
-          List.map 
-            (fun (c, e) -> 
-              let (se, e', et) = doExp false e (AExp None) in
-              stmts := !stmts @@ se;
-              (c, e'))
-            ins              
-        in
+	      (* Get the side-effects out of expressions *)
+              let ins' =
+		List.map
+		  (fun (c, e) ->
+		    let (se, e', et) = doExp false e (AExp None) in
+		    stmts := !stmts @@ se;
+		    (c, e'))
+		  ins
+              in
+	      (tmpls, outs', ins', clobs)
+	in
         !stmts @@
-        (i2c (Asm(attr', tmpls, outs', ins', clobs, loc')))
+        (i2c (Asm(attr', tmpls', outs', ins', clobs', loc')))
 
     | TRY_FINALLY (b, h, loc) -> 
         let loc' = convLoc loc in

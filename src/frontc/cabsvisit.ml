@@ -433,15 +433,23 @@ and childrenStatement vis s =
           let dl' = List.map (fun d' -> DEFINITION d') dl in
           BLOCK ({blabels = []; battrs = []; bstmts = dl' }, l)
     end
-  | ASM (sl, b, inl, outl, clobs, l) -> 
+  | ASM (sl, b, details, l) -> 
       let childrenStringExp ((s, e) as input) = 
         let e' = ve e in
         if e' != e then (s, e') else input
       in
-      let inl' = mapNoCopy childrenStringExp inl in
-      let outl' = mapNoCopy childrenStringExp outl in
-      if inl' != inl || outl' != outl then 
-        ASM (sl, b, inl', outl', clobs, l) else s
+      let details' = match details with
+      | None -> details
+      | Some { aoutputs = outl; ainputs = inl; aclobbers = clobs } ->
+	  let outl' = mapNoCopy childrenStringExp outl in
+	  let inl' = mapNoCopy childrenStringExp inl in
+	  if outl' == outl && inl' == inl then
+	    details
+	  else
+	    Some { aoutputs = outl'; ainputs = inl'; aclobbers = clobs }
+      in
+      if details' != details then 
+        ASM (sl, b, details', l) else s
   | TRY_FINALLY (b1, b2, l) -> 
       let b1' = visitCabsBlock vis b1 in
       let b2' = visitCabsBlock vis b2 in

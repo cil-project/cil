@@ -757,7 +757,7 @@ and print_statement stat =
       print ("goto *"); print_expression exp; print ";"; new_line ()
   | DEFINITION d ->
       print_def d
-  | ASM (attrs, tlist, outs, ins, clobs, loc) ->
+  | ASM (attrs, tlist, details, loc) ->
       setLoc(loc);
       let print_asm_operand (cnstr, e) =
         print_string cnstr; space (); print_expression_level 100 e
@@ -771,18 +771,21 @@ and print_statement stat =
         print_attributes attrs;
         print "(";
         print_list (fun () -> new_line()) print_string tlist; (* templates *)
-        if outs <> [] || ins <> [] || clobs <> [] then begin
-          print ":"; space ();
-          print_commas false print_asm_operand outs;
-          if ins <> [] || clobs <> [] then begin
-            print ":"; space ();
-            print_commas false print_asm_operand ins;
-            if clobs <> [] then begin
+	begin
+	  match details with
+	  | None -> ()
+	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
               print ":"; space ();
-              print_commas false print_string clobs
-            end;                          
-          end
-        end;      
+              print_commas false print_asm_operand outs;
+              if ins <> [] || clobs <> [] then begin
+		print ":"; space ();
+		print_commas false print_asm_operand ins;
+		if clobs <> [] then begin
+		  print ":"; space ();
+		  print_commas false print_string clobs
+		end;
+              end
+	end;
         print ");"
       end;
       new_line ()

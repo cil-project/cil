@@ -804,9 +804,8 @@ statement:
 |   GOTO STAR comma_expression SEMICOLON 
                                  { COMPGOTO (smooth_expression (fst $3), $1) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
-                        { let (outs,ins,clobs) = $5 in
-                          ASM ($2, $4, outs, ins, clobs, $1) }
-|   MSASM               { ASM ([], [fst $1], [], [], [], snd $1)}
+                        { ASM ($2, $4, $5, $1) }
+|   MSASM               { ASM ([], [fst $1], None, snd $1)}
 |   TRY block EXCEPT paren_comma_expression block
                         { let b, _, _ = $2 in
                           let h, _, _ = $5 in
@@ -1364,10 +1363,10 @@ asmtemplate:
 |   one_string_constant asmtemplate              { $1 :: $2 }
 ;
 asmoutputs: 
-  /* empty */           { ([], [], []) }
+  /* empty */           { None }
 | COLON asmoperands asminputs
                         { let (ins, clobs) = $3 in
-                          ($2, ins, clobs) }
+                          Some {aoutputs = $2; ainputs = ins; aclobbers = clobs} }
 ;
 asmoperands:
      /* empty */                        { [] }
