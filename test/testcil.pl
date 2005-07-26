@@ -165,6 +165,7 @@ $TEST->newTest(
 # Now add tests
 $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
+$TEST->addTests("test/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-empty", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);

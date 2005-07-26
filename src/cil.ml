@@ -1913,14 +1913,26 @@ and typeOfLval = function
       | _ -> E.s (bug "typeOfLval: Mem on a non-pointer")
   end
 
-and typeOffset basetyp = function
+and typeOffset basetyp =
+  let blendAttributes baseAttrs =
+    let (_, _, contageous) = partitionAttributes ~default:(AttrName false) baseAttrs in
+    typeAddAttributes contageous
+  in
+  function
     NoOffset -> basetyp
   | Index (_, o) -> begin
       match unrollType basetyp with
-        TArray (t, _, _) -> typeOffset t o
+        TArray (t, _, baseAttrs) ->
+	  let elementType = typeOffset t o in
+	  blendAttributes baseAttrs elementType
       | t -> E.s (E.bug "typeOffset: Index on a non-array")
   end 
-  | Field (fi, o) -> typeOffset fi.ftype o
+  | Field (fi, o) ->
+      match unrollType basetyp with
+        TComp (_, baseAttrs) ->
+	  let fieldType = typeOffset fi.ftype o in
+	  blendAttributes baseAttrs fieldType
+      | _ -> E.s (bug "typeOffset: Field on a non-compound")
 
 
 (**

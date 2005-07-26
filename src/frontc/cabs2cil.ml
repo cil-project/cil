@@ -2774,29 +2774,29 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
             (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
     end
   in
-  let rec findField (n: string) (fidlist: fieldinfo list) : offset * typ =
+  let rec findField (n: string) (fidlist: fieldinfo list) : offset =
     (* Depth first search for the field. This appears to be what GCC does. 
      * MSVC checks that there are no ambiguous field names, so it does not 
      * matter how we search *)
     let rec search = function
-        [] -> NoOffset, voidType (* Did not find *)
-      | fid :: rest when fid.fname = n -> Field(fid, NoOffset), fid.ftype
+        [] -> NoOffset (* Did not find *)
+      | fid :: rest when fid.fname = n -> Field(fid, NoOffset)
       | fid :: rest when prefix annonCompFieldName fid.fname -> begin
           match unrollType fid.ftype with 
             TComp (ci, _) -> 
-              let off, t = search ci.cfields in
+              let off = search ci.cfields in
               if off = NoOffset then 
                 search rest  (* Continue searching *)
               else
-                Field (fid, off), t
+                Field (fid, off)
           | _ -> E.s (bug "unnamed field type is not a struct/union")
       end
       | _ :: rest -> search rest
     in
-    let off, t = search fidlist in
+    let off = search fidlist in
     if off = NoOffset then 
       E.s (error "Cannot find field %s" n);
-    off, t
+    off
   in
   try
     match e with
@@ -2881,12 +2881,13 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
           | CastE(_, Lval x) -> x
           | _ -> E.s (error "Expected an lval in MEMBEROF (field %s)" str)
         in
-        let field_offset, field_type = 
+        let field_offset = 
           match unrollType t' with
             TComp (comp, _) -> findField str comp.cfields
           | _ -> E.s (error "expecting a struct with field %s" str)
         in
         let lv' = Lval(addOffsetLval field_offset lv) in
+	let field_type = typeOf lv' in
         finishExp se lv' field_type
           
        (* e->str = * (e + off(str)) *)
@@ -2900,7 +2901,7 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
           | TArray(t1,_,_) -> t1
           | _ -> E.s (error "expecting a pointer to a struct")
         in
-        let field_offset, field_type = 
+        let field_offset = 
           match unrollType pointedt with 
             TComp (comp, _) -> findField str comp.cfields
           | x -> 
@@ -2908,8 +2909,9 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                      "expecting a struct with field %s. Found %a. t1 is %a" 
                      str d_type x d_type t')
         in
-        finishExp se (Lval (mkMem e' field_offset)) field_type
-          
+	let lv' = Lval (mkMem e' field_offset) in
+	let field_type = typeOf lv' in
+        finishExp se lv' field_type
           
     | A.CONSTANT ct -> begin
         let hasSuffix str = 
@@ -3938,7 +3940,7 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
     (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc),
      integer 0, intType)
   end
-    
+
 (* bop is always the arithmetic version. Change it to the appropriate pointer 
  * version if necessary *)
 and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
