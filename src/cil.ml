@@ -2588,7 +2588,6 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
-  (* When we parse builtin_next_arg we drop the second argument *)
   H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
   H.add h "__builtin_clz" (intType, [ uintType ], false);
   H.add h "__builtin_clzl" (intType, [ ulongType ], false);
@@ -2617,6 +2616,7 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_nans" (doubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nansf" (floatType, [ charConstPtrType ], false);
   H.add h "__builtin_nansl" (longDoubleType, [ charConstPtrType ], false);
+  (* When we parse builtin_next_arg we drop the second argument *)
   H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
   H.add h "__builtin_parity" (intType, [ uintType ], false);
   H.add h "__builtin_parityl" (intType, [ ulongType ], false);
