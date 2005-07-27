@@ -2584,23 +2584,53 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   let h = H.create 17 in
   (* See if we have builtin_va_list *)
   let hasbva = M.gccHas__builtin_va_list in
+  let ulongLongType = TInt(IULongLong, []) in
+  let floatType = TFloat(FFloat, []) in
+  let longDoubleType = TFloat (FLongDouble, []) in
+  let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
   (* When we parse builtin_next_arg we drop the second argument *)
-  H.add h "__builtin_next_arg" 
-    ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
   H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_clz" (intType, [ uintType ], false);
+  H.add h "__builtin_clzl" (intType, [ ulongType ], false);
+  H.add h "__builtin_clzll" (intType, [ ulongLongType ], false);
   H.add h "__builtin_constant_p" (intType, [ intType ], false);
+  H.add h "__builtin_ctz" (intType, [ uintType ], false);
+  H.add h "__builtin_ctzl" (intType, [ ulongType ], false);
+  H.add h "__builtin_ctzll" (intType, [ ulongLongType ], false);
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_fabsl" (longDoubleType, [ longDoubleType ], false);
+  H.add h "__builtin_ffs" (intType, [ uintType ], false);
+  H.add h "__builtin_ffsl" (intType, [ ulongType ], false);
+  H.add h "__builtin_ffsll" (intType, [ ulongLongType ], false);
   H.add h "__builtin_frame_address" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_huge_val" (doubleType, [], false);
+  H.add h "__builtin_huge_valf" (floatType, [], false);
+  H.add h "__builtin_huge_vall" (longDoubleType, [], false);
+  H.add h "__builtin_inf" (doubleType, [], false);
+  H.add h "__builtin_inff" (floatType, [], false);
+  H.add h "__builtin_infl" (longDoubleType, [], false);
+  H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; uintType ], false);
+  H.add h "__builtin_nan" (doubleType, [ charConstPtrType ], false);
+  H.add h "__builtin_nanf" (floatType, [ charConstPtrType ], false);
+  H.add h "__builtin_nanl" (longDoubleType, [ charConstPtrType ], false);
+  H.add h "__builtin_nans" (doubleType, [ charConstPtrType ], false);
+  H.add h "__builtin_nansf" (floatType, [ charConstPtrType ], false);
+  H.add h "__builtin_nansl" (longDoubleType, [ charConstPtrType ], false);
+  H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
+  H.add h "__builtin_parity" (intType, [ uintType ], false);
+  H.add h "__builtin_parityl" (intType, [ ulongType ], false);
+  H.add h "__builtin_parityll" (intType, [ ulongLongType ], false);
+  H.add h "__builtin_popcount" (intType, [ uintType ], false);
+  H.add h "__builtin_popcountl" (intType, [ ulongType ], false);
+  H.add h "__builtin_popcountll" (intType, [ ulongLongType ], false);
+  H.add h "__builtin_powi" (doubleType, [ doubleType; intType ], false);
+  H.add h "__builtin_powif" (floatType, [ floatType; intType ], false);
+  H.add h "__builtin_powil" (longDoubleType, [ longDoubleType; intType ], false);
+  H.add h "__builtin_prefetch" (voidType, [ voidConstPtrType ], true);
   H.add h "__builtin_strchr" (charPtrType, [ charPtrType; charType ], false);
   H.add h "__builtin_strcspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; uintType ], false);
-  let longDouble = TFloat (FLongDouble, []) in
-  H.add h "__builtin_fabsl" (longDouble, [ longDouble ], false);
-  H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType;
-					     TPtr(TVoid [Attr ("const", [])], []);
-					     uintType ],
-			      false);
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
