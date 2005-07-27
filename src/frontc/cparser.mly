@@ -1105,7 +1105,7 @@ abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
             
 |   abs_direct_decl_opt LBRACKET comma_expression_opt RBRACKET
                                    { ARRAY($1, [], $3) }
-/*(* The next shoudl be abs_direct_decl_opt but we get conflicts *)*/
+/*(* The next should be abs_direct_decl_opt but we get conflicts *)*/
 |   abs_direct_decl  parameter_list_startscope rest_par_list RPAREN
                                    { let (params, isva) = $3 in
                                      !Lexerhack.pop_context ();

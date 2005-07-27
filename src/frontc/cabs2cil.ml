@@ -1156,6 +1156,26 @@ let rec castTo ?(fromsource=false)
     | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> 
         (nt, e)
           
+          (** If we try to pass a transparent union value to a function 
+           * expecting a transparent union argument, the argument type would 
+           * have been changed to the type of the first argument, and we'll 
+           * see a cast from a union to the type of the first argument. Turn 
+           * that into a field access *)
+    | TComp(tunion, a1), nt -> begin
+        match isTransparentUnion ot with 
+          None -> E.s (error "castTo %a -> %a@!" d_type ot d_type nt)
+        | Some fstfield -> begin
+            (* We do it now only if the expression is an lval *)
+            let e' = 
+              match e with 
+                Lval lv -> 
+                  Lval (addOffsetLval (Field(fstfield, NoOffset)) lv)
+              | _ -> E.s (unimp "castTo: transparent union expression is not an lval: %a\n" d_exp e)
+            in
+            (* Continue casting *)
+            castTo ~fromsource:fromsource fstfield.ftype nt e'
+        end
+    end
     | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
   end
 
@@ -3565,7 +3585,11 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
 
             | ((_, at, _) :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
-                let (sa, a', att) = doExp false a (AExp (Some at)) in
+                (* Do not cast as part of translating the argument. We let 
+                 * the castTo to do this work. This was necessary for 
+                 * test/small1/union5, in which a transparent union is passed 
+                 * as an argument *)
+                let (sa, a', att) = doExp false a (AExp None) in
                 let (at'', a'') = castTo att at a' in
                 (ss @@ sa, a'' :: args')
                   
@@ -5155,7 +5179,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                           makeTempVar !currentFunctionFDEC fstfield.ftype in
                         (* Now take it out of the locals and replace it with 
                         * the current formal. It is not worth optimizing this 
-                        * one  *)
+                        * one.  *)
                         !currentFunctionFDEC.slocals <-
                            f ::
                            (List.filter (fun x -> x.vid <> shadow.vid)
