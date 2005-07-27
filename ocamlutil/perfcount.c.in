@@ -50,7 +50,12 @@ inline static unsigned long long read_ppc() {
 inline static unsigned long sample_ppc_20()
 {
   unsigned long low, high;
+#if defined(__i386__)
   __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+#else  
+  printf("Reading performance counters is supported only on x86");
+  exit(1);
+#endif  
 
   return ((low >> 20) | (high << 12)) & 0x3FFFFFFF;
 }
@@ -60,7 +65,12 @@ inline static unsigned long sample_ppc_20()
 inline static unsigned long sample_ppc_10()
 {
   unsigned long low, high;
+#if defined(__i386__)
   __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+#else  
+  printf("Reading performance counters is supported only on x86");
+  exit(1);
+#endif  
 
   return ((low >> 10) | (high << 22)) & 0x3FFFFFFF;
 }

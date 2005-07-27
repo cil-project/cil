@@ -319,7 +319,7 @@ rm -f ./cycles.exe
 
 # If we are on Linux and we use performance counters try to get
 # the processor speed from /proc/cpuinfo
-if test "$CYCLES_PER_USEC"!="0" ;then
+if test "$CYCLES_PER_USEC" != "0" ;then
      case "$target" in
         # linux
         *86*linux*)

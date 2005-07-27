@@ -1688,7 +1688,7 @@ let rec collectInitializer
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
         
-        CompoundInit (thistype, collect [] endAt), newtype
+        CompoundInit (newtype, collect [] endAt), newtype
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function
