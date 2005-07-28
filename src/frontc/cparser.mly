@@ -181,6 +181,47 @@ let fst3 (result, _, _) = result
 let snd3 (_, result, _) = result
 let trd3 (_, _, result) = result
 
+
+(*
+   transform:  __builtin_offsetof(type, member)
+   into     :  (size_t) (&(type * ) 0)->member
+ *)
+
+let transformOffsetOf (speclist, dtype) member =
+  let rec addPointer = function
+    | JUSTBASE ->
+	PTR([], JUSTBASE)
+    | PARENTYPE (attrs1, dtype, attrs2) ->
+	PARENTYPE (attrs1, addPointer dtype, attrs2)
+    | ARRAY (dtype, attrs, expr) ->
+	ARRAY (addPointer dtype, attrs, expr)
+    | PTR (attrs, dtype) ->
+	PTR (attrs, addPointer dtype)
+    | PROTO (dtype, names, variadic) ->
+	PROTO (addPointer dtype, names, variadic)
+  in
+  let nullType = (speclist, addPointer dtype) in
+  let nullExpr = CONSTANT (CONST_INT "0") in
+  let castExpr = CAST (nullType, SINGLE_INIT nullExpr) in
+
+  let rec replaceBase = function
+    | VARIABLE field ->
+	MEMBEROFPTR (castExpr, field)
+    | MEMBEROF (base, field) ->
+	MEMBEROF (replaceBase base, field)
+    | INDEX (base, index) ->
+	INDEX (replaceBase base, index)
+    | _ ->
+	parse_error "malformed offset expression in __builtin_offsetof";
+        raise Parsing.Parse_error 
+  in
+  let memberExpr = replaceBase member in
+  let addrExpr = UNARY (ADDROF, memberExpr) in
+  (* slight cheat: hard-coded assumption that size_t == unsigned int *)
+  let sizeofType = [SpecType Tunsigned], JUSTBASE in
+  let resultExpr = CAST (sizeofType, SINGLE_INIT addrExpr) in
+  resultExpr
+
 %}
 
 %token <string * Cabs.cabsloc> IDENT
@@ -237,6 +278,7 @@ let trd3 (_, _, result) = result
 %token<Cabs.cabsloc> BUILTIN_VA_ARG ATTRIBUTE_USED
 %token BUILTIN_VA_LIST
 %token BLOCKATTRIBUTE 
+%token<Cabs.cabsloc> BUILTIN_OFFSETOF
 %token<Cabs.cabsloc> DECLSPEC
 %token<string * Cabs.cabsloc> MSASM MSATTR
 %token<Cabs.cabsloc> PRAGMA
@@ -430,6 +472,8 @@ postfix_expression:                     /*(* 6.5.2 *)*/
                         { let b, d = $5 in
                           CALL (VARIABLE "__builtin_va_arg", 
                                 [fst $3; TYPE_SIZEOF (b, d)]), $1 }
+|               BUILTIN_OFFSETOF LPAREN type_name COMMA offsetof_member_designator RPAREN
+                        { transformOffsetOf $3 (fst $5), $1 }
 |		postfix_expression DOT id_or_typename
 		        {MEMBEROF (fst $1, $3), snd $1}
 |		postfix_expression ARROW id_or_typename   
@@ -441,6 +485,15 @@ postfix_expression:                     /*(* 6.5.2 *)*/
 /* (* We handle GCC constructor expressions *) */
 |		LPAREN type_name RPAREN LBRACE initializer_list_opt RBRACE
 		        { CAST($2, COMPOUND_INIT $5), $1 }
+;
+
+offsetof_member_designator:	/* GCC extension for __builtin_offsetof */
+|		IDENT
+		        { VARIABLE (fst $1), snd $1 }
+|		offsetof_member_designator DOT IDENT
+			{ MEMBEROF (fst $1, fst $3), snd $1 }
+|		offsetof_member_designator bracket_comma_expression
+			{ INDEX (fst $1, smooth_expression $2), snd $1 }
 ;
 
 unary_expression:   /*(* 6.5.3 *)*/
