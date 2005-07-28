@@ -2588,6 +2588,25 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
+  let sizeType = uintType in
+
+  H.add h "__builtin___fprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType ], true) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
+  H.add h "__builtin___memcpy_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
+  H.add h "__builtin___memmove_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
+  H.add h "__builtin___mempcpy_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
+  H.add h "__builtin___memset_chk" (voidPtrType, [ voidPtrType; intType; sizeType; sizeType ], false);
+  H.add h "__builtin___printf_chk" (intType, [ intType; charConstPtrType ], true);
+  H.add h "__builtin___snprintf_chk" (intType, [ charPtrType; sizeType; intType; sizeType; charConstPtrType ], true);
+  H.add h "__builtin___sprintf_chk" (intType, [ charPtrType; intType; sizeType; charConstPtrType ], true);
+  H.add h "__builtin___stpcpy_chk" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin___strcat_chk" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin___strcpy_chk" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin___strncat_chk" (charPtrType, [ charPtrType; charConstPtrType; sizeType; sizeType ], false);
+  H.add h "__builtin___strncpy_chk" (charPtrType, [ charPtrType; charConstPtrType; sizeType; sizeType ], false);
+  H.add h "__builtin___vfprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType; TBuiltin_va_list [] ], false) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
+  H.add h "__builtin___vprintf_chk" (intType, [ intType; charConstPtrType; TBuiltin_va_list [] ], false);
+  H.add h "__builtin___vsnprintf_chk" (intType, [ charPtrType; sizeType; intType; sizeType; charConstPtrType; TBuiltin_va_list [] ], false);
+  H.add h "__builtin___vsprintf_chk" (intType, [ charPtrType; intType; sizeType; charConstPtrType; TBuiltin_va_list [] ], false);
   H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
   H.add h "__builtin_clz" (intType, [ uintType ], false);
   H.add h "__builtin_clzl" (intType, [ ulongType ], false);
@@ -2610,14 +2629,15 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_inff" (floatType, [], false);
   H.add h "__builtin_infl" (longDoubleType, [], false);
   H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; uintType ], false);
+  H.add h "__builtin_mempcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
   H.add h "__builtin_nan" (doubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nanf" (floatType, [ charConstPtrType ], false);
   H.add h "__builtin_nanl" (longDoubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nans" (doubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nansf" (floatType, [ charConstPtrType ], false);
   H.add h "__builtin_nansl" (longDoubleType, [ charConstPtrType ], false);
-  (* When we parse builtin_next_arg we drop the second argument *)
-  H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false);
+  H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false) (* When we parse builtin_next_arg we drop the second argument *);
+  H.add h "__builtin_object_size" (sizeType, [ voidPtrType; intType ], false);
   H.add h "__builtin_parity" (intType, [ uintType ], false);
   H.add h "__builtin_parityl" (intType, [ ulongType ], false);
   H.add h "__builtin_parityll" (intType, [ ulongLongType ], false);
@@ -2628,9 +2648,14 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_powif" (floatType, [ floatType; intType ], false);
   H.add h "__builtin_powil" (longDoubleType, [ longDoubleType; intType ], false);
   H.add h "__builtin_prefetch" (voidType, [ voidConstPtrType ], true);
+  H.add h "__builtin_stpcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
   H.add h "__builtin_strchr" (charPtrType, [ charPtrType; charType ], false);
+  H.add h "__builtin_strcmp" (intType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
   H.add h "__builtin_strcspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
-  H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; uintType ], false);
+  H.add h "__builtin_strncat" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
