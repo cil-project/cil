@@ -11,32 +11,32 @@ struct host {
   char tag2;  //If tag is 3, then 0 for int, 1 for int*
 
   union bar {
-    int anint     __SELECTEDWHEN("tag" == TAG_ZERO);
-    int * ptrint  __SELECTEDWHEN("tag" == 1);
+    int anint     __SELECTEDWHEN(tag == TAG_ZERO);
+    int * ptrint  __SELECTEDWHEN(tag == 1);
     struct str {
       int * * ptrptr;
     } ptrptr    
-        __SELECTEDWHEN("tag" == 5) // ERROR(0)
+        __SELECTEDWHEN(tag == 5) // ERROR(0)
          /* missing selected when */ // ERROR(1):Error 1
-        __SELECTEDWHEN("tag" == foo) // ERROR(2):Cannot compile the discriminator
-        __SELECTEDWHEN("tag_bad" == 5) // ERROR(3):Cannot compile the discriminator
-         __SELECTEDWHEN("tag" == 5) __SELECTEDWHEN("tag" == 6) // ERROR(4):more than one SELECTEDWHEN clause
-        __SELECTEDWHEN("somethingelse" == 5) // ERROR(5):does not have an integer type
+        __SELECTEDWHEN(tag == foo) // ERROR(2):Cannot compile the discriminator
+        __SELECTEDWHEN(tag_bad == 5) // ERROR(3):Cannot compile the discriminator
+         __SELECTEDWHEN(tag == 5) __SELECTEDWHEN(tag == 6) // ERROR(4):more than one SELECTEDWHEN clause
+        __SELECTEDWHEN(somethingelse == 5) // ERROR(5):does not have an integer type
 #if ERROR >= 6
-        __SELECTEDWHEN("tag" == 5)
+        __SELECTEDWHEN(tag == 5)
 #endif         
          ;
-     int *disj __SELECTEDWHEN("tag" == 10 || "tag" == 11);
-     int *conj __SELECTEDWHEN("tag" >= 15 && "tag" <= 17);
+     int *disj __SELECTEDWHEN(tag == 10 || tag == 11);
+     int *conj __SELECTEDWHEN(tag >= 15 && tag <= 17);
 
-     int int2       __SELECTEDWHEN("tag" == 3 && "tag2" == 0);
-     int * ptr2  __SELECTEDWHEN("tag" == 3 && "tag2" == 1);
+     int int2       __SELECTEDWHEN(tag == 3 && tag2 == 0);
+     int * ptr2  __SELECTEDWHEN(tag == 3 && tag2 == 1);
   } data;
 
   //A second union that uses the same tags.
   union foo {
-    int fooint       __SELECTEDWHEN("tag" == TAG_ZERO);
-    int * fooptrint  __SELECTEDWHEN("tag" == 1);
+    int fooint       __SELECTEDWHEN(tag == TAG_ZERO);
+    int * fooptrint  __SELECTEDWHEN(tag == 1);
   } data2;
 
   struct {
@@ -89,7 +89,7 @@ int main() {
 #if ERROR == 8
   {
     union {
-      int * ptr  __SELECTEDWHEN("tag");
+      int * ptr  __SELECTEDWHEN(tag);
     } a;
      // We should not be able to acces this one
     // ERROR(8):outside a host structure
