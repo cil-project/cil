@@ -430,7 +430,7 @@ distrib-nocheck: $(DISTRIB_ROOT) #doc
 	cp $(patsubst %,bin/%,$(DISTRIB_BIN)) $(TOP_DIR)/bin
 	cp $(patsubst %,test/small1/%,$(DISTRIB_SMALL1)) $(TOP_DIR)/test/small1
 
-	cp -r doc/html/cil/* $(TOP_DIR)/doc
+	#cp -r doc/html/cil/* $(TOP_DIR)/doc
 # Delete all CVS directories
 	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
             rm -rf `cat cvss.txt` ;fi
