@@ -2741,6 +2741,14 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 3, 2005}: When merging, it is now an error to
+  declare the same global variable twice with different initializers.
+\item {\bf July 27, 2005}: Fixed bug in transparent unions.
+\item {\bf July 27, 2005}: Fixed bug in collectInitializer.  Thanks to
+  Benjamin Monate for the patch.
+\item {\bf July 26, 2005}: Better support for extended inline assembly
+  in gcc.
+\item {\bf July 26, 2005}: Added many more gcc __builtin* functions to CIL.
 \item {\bf July 18, 2005}: Fixed bug in the constant folding of shifts
   when the second argument was negative or too large.
 \item {\bf July 18, 2005}: Fixed bug where casts were not always

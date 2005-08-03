@@ -4850,8 +4850,18 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       (* Do all the variables and concatenate the resulting statements *)
       let doOneDeclarator (acc: chunk) (n: init_name) = 
         if isglobal then begin
+          let spec_res' = 
+            (* If a global has both extern and an initializer, 
+             * then ignore the extern. *)
+            let (bt, sto, inline, attrs) = spec_res in
+            let _, inite = n in
+            if sto = Extern && inite <> NO_INIT then
+              (bt, NoStorage, inline, attrs)  (* change to NoStorage *)
+            else
+              spec_res
+          in
           (* For a global we ignore the varinfo that is created  *)
-          ignore (createGlobal spec_res n); 
+          ignore (createGlobal spec_res' n); 
           acc
         end else 
           acc @@ createLocal spec_res n

@@ -1358,21 +1358,23 @@ let oneFilePass2 (f: file) =
               let prevVar, prevInitOpt, prevLoc =
                 (H.find emittedVarDefn vi'.vname) in
               (* previously defined; same initializer? *)
-              if (equalInitOpts prevInitOpt init.init) then (
+              if (equalInitOpts prevInitOpt init.init)
+                || (init.init = None) then (
                 (trace "mergeGlob"
                   (P.dprintf "dropping global var %s at %a in favor of the one at %a\n"
                              vi'.vname  d_loc l  d_loc prevLoc));
                 false  (* do not emit *)
               )
-              else (
-                (ignore (warn "global var %s at %a has different initializer than %a\n"
-                              vi'.vname  d_loc l  d_loc prevLoc));
-                (* emit it so we get a compiler error.. I think it would be
-                 * better to give an error message and *not* emit, since doing
-                 * this explicitly violates the CIL invariant of only one GVar
-                 * per name, but the rest of this file is very permissive so
-                 * I'll be similarly permissive.. *)
+              else if prevInitOpt = None then (
+                (* We have an initializer, but the previous one didn't.
+                   We should really convert the previous global from GVar
+                   to GVarDecl, but that's not convenient to do here. *)
                 true
+              )
+              else ( 
+                (* Both GVars have initializers. *)
+                (E.s (error "global var %s at %a has different initializer than %a\n"
+                              vi'.vname  d_loc l  d_loc prevLoc));
               )
             with Not_found -> (
               (* no previous definition *)
