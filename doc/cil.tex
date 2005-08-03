@@ -61,15 +61,27 @@
 \def\code{\begingroup\codecolor\begin{verbatim}}
 \def\endcode{\endgroup}
 
+%use this for links to external pages.  It will open pages in the
+%top frame.
+\newcommand\ahreftop[2]{{\ahref{javascript:loadTop('#1')}{#2}}}
+
 %----------------------------------------------------------------------
 
-% Make sure that all documents show up in the main frame
+% Make sure that most documents show up in the main frame,
+% and define javascript:loadTop for those links that should fill the window.
 \makeatletter
 \let\oldmeta=\@meta
 \def\@meta{%
 \oldmeta
 \begin{rawhtml}
 <base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script>
 \end{rawhtml}}
 \makeatother
 
@@ -83,7 +95,7 @@
 \section{Introduction}
 
  New: CIL now has a Source Forge page: 
-      \ahref{http://sourceforge.net/projects/cil}
+   \ahreftop{http://sourceforge.net/projects/cil}
             {http://sourceforge.net/projects/cil}. 
 
  CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation
@@ -162,7 +174,7 @@ and cygwin and using the MS Visual C compiler. (See below for specific
 versions of these compilers that we have used CIL for.)
 
  The largest application we have used CIL for is
-\ahref{../ccured/index.html}{CCured}, a compiler that compiles C code into
+\ahreftop{../ccured/index.html}{CCured}, a compiler that compiles C code into
 type-safe code by analyzing your pointer usage and inserting runtime checks in
 the places that cannot be guaranteed statically to be type safe.  
 
@@ -763,7 +775,7 @@ $ ocamlopt -o main unix.cmxa str.cmxa \
 The first line compiles your analysis, the second line links it against CIL
 (as a library) and the Ocaml Unix library. For more information about
 compiling and linking Ocaml programs, see the Ocaml home page
-at \ahrefurl{http://caml.inria.fr/ocaml/}. 
+at \ahreftop{http://caml.inria.fr/ocaml/}. 
 
 In the next section we give an overview of the API that you can use
 to write your analysis and transformation. 
@@ -1929,7 +1941,7 @@ structure \t{bar}):
 \section{GCC Extensions}
 
  The CIL parser handles most of the \t{gcc}
-\ahref{http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc\_5.html#SEC67}{extensions}
+\ahreftop{http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc\_5.html#SEC67}{extensions}
 and compiles them to CIL. The following extensions are not handled (note that
 we are able to compile a large number of programs, including the Linux kernel,
 without encountering these):
@@ -2731,8 +2743,8 @@ POSSIBILITY OF SUCH DAMAGE.
  
  We are certain that there are still some remaining bugs in CIL. If you find
 one please file a bug report in our Source Forge space 
-\ahref{http://sourceforge.net/projects/cil}
-      {http://sourceforge.net/projects/cil}. 
+\ahreftop{http://sourceforge.net/projects/cil}
+         {http://sourceforge.net/projects/cil}. 
 
   You can find there the latest announcements, a source distribution,
 bug report submission instructions and a mailing list: cil-users[at
