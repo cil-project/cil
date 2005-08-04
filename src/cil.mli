@@ -502,11 +502,10 @@ and varinfo = {
 
 (** Storage-class information *)
 and storage = 
-    NoStorage |                         (** The default storage. Nothing is 
-                                         * printed  *)
-    Static |                           
-    Register |                          
-    Extern                              
+    NoStorage     (** The default storage. Nothing is printed  *)
+  | Static
+  | Register
+  | Extern                              
 
 
 (** {b Expressions.} The CIL expression language contains only the side-effect free expressions of
