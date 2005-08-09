@@ -918,7 +918,8 @@ sub applyCil {
         my $extraFile = "___extra_files";
         open(TOMERGE, ">$extraFile") || die $!;
         foreach my $fl (@srcs) {
-            print TOMERGE "$fl\n";
+            my $fname = $fl->filename;
+            print TOMERGE "$fname\n";
         }
         close(TOMERGE);
         push @cmd, '--extrafiles', $extraFile;
