@@ -679,7 +679,7 @@ Assuming that you have written \t{logwrites.ml}, here is how you use it:
 \begin{verbatim}
 let feature : featureDescr = 
   { fd_name = "logwrites";              
-    fd_enabled = Util.logWrites;
+    fd_enabled = ref false;
     fd_description = "generation of code to log memory writes";
     fd_extraopt = [];
     fd_doit = 
@@ -688,12 +688,11 @@ let feature : featureDescr =
       visitCilFileSameGlobals lwVisitor f)
   } 
 \end{verbatim}
-  The \t{fd\_name} field names the feature and its associated command-line
-  arguments. The \t{fd\_enabled} field is a \t{bool ref} in a module that
-  both \t{maincil.ml} and \t{logwrites.ml} can reference. \t{util.ml} is a
-  good enough choice. 
-  
-  \ 
+  The \t{fd\_name} field names the feature and its associated
+  command-line arguments. The \t{fd\_enabled} field is a \t{bool ref}.
+  ``\t{fd_doit}'' will be invoked if \t{!fd_enabled} is true after
+  argument parsing, so initialize the ref cell to true if you want
+  this feature to be enabled by default.
   
   When the user passes the \t{--dologwrites}
   command-line option to \t{cilly}, the variable associated with the
@@ -703,8 +702,9 @@ let feature : featureDescr =
 
  \item Put \t{logwrites.ml} in the \t{src} or \t{src/ext} directory. This
  will make sure that \t{make} can find it. If you want to put it in some
- other directory modify the \t{Makefile} and add to \t{SOURCEDIRS} your
- directory. 
+ other directory, modify \t{Makefile.cil.in} and add to \t{SOURCEDIRS} your
+ directory.  Alternately, you can create a symlink from \t{src} or
+ \t{src/ext} to your file.
 
  \item Modify the \t{Makefile} and add your module to the \t{MODULES}
  variable. The order of the modules matters. Add your modules somewhere after
@@ -715,16 +715,21 @@ let feature : featureDescr =
 \begin{verbatim}
 let features : C.featureDescr list = 
   [ Logcalls.feature;
-    Logwrites.feature;  (* add this line to include the logwrites feature! *)
     Oneret.feature;    
     Heapify.feature1;  
     Heapify.feature2;
     makeCFGFeature; 
     Partial.feature;
     Simplemem.feature;
+    Logwrites.feature;  (* add this line to include the logwrites feature! *)
   ] 
   @ Feature_config.features 
 \end{verbatim}
+
+ Features are processed in the order they appear on this list.  Put
+ your feature last on the list if you plan to run any of CIL's
+ built-in features (such as makeCFGfeature) before your own.
+
  Standard code in \t{cilly} takes care of adding command-line arguments,
  printing the description, and calling your function automatically. 
  Note: do not worry about introducing new bugs into CIL by adding a single
@@ -2753,6 +2758,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 9, 2005}: Fixed merging when there are more than 20
+  input files.
 \item {\bf August 3, 2005}: When merging, it is now an error to
   declare the same global variable twice with different initializers.
 \item {\bf July 27, 2005}: Fixed bug in transparent unions.
