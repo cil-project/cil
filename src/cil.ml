@@ -1122,9 +1122,10 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
 
 
 
-(* Represents an integer as for a given kind. Some truncation might be 
- * necessary *)
-let truncateInteger64 (k: ikind) (i: int64) = 
+(* Represents an integer as for a given kind. 
+   Returns a flag saying whether the value was changed
+   during truncation (because it was too large to fit in k). *)
+let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
   let nrBits, signed = 
     match k with 
     | IChar|ISChar -> 8, true
@@ -1137,20 +1138,31 @@ let truncateInteger64 (k: ikind) (i: int64) =
     | IULongLong -> 64, false
   in
   if nrBits = 64 then 
-    i
+    i, false
   else begin
     let i1 = Int64.shift_left i (64 - nrBits) in
     let i2 = 
       if signed then Int64.shift_right i1 (64 - nrBits) 
       else Int64.shift_right_logical i1 (64 - nrBits)
     in
-    i2
+    let truncated =
+      if i2 = i then false
+      else
+        (* Examine the bits that we chopped off.  If they are all zero, then
+         * any difference between i2 and i is due to a simple sign-extension.
+         *   e.g. casting the constant 0x80000000 to int makes it
+         *        0xffffffff80000000.
+         * Suppress the truncation warning in this case.      *)
+        let chopped = Int64.shift_right_logical i (64 - nrBits)
+        in chopped <> Int64.zero
+    in
+    i2, truncated
   end
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp = 
-  let i' = truncateInteger64 k i in
-  if i' <> i then 
+  let i', truncated = truncateInteger64 k i in
+  if truncated then 
     ignore (warnOpt "Truncating integer %s to %s\n" 
               (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
   Const (CInt64(i', k,  None))
@@ -2374,7 +2386,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       match constFold machdep e, unrollType t with 
         (* Might truncate silently *)
         Const(CInt64(i,k,_)), TInt(nk,_) -> 
-          let i' = truncateInteger64 nk i in
+          let i', _ = truncateInteger64 nk i in
           Const(CInt64(i', nk, None))
       | e', _ -> CastE (t, e')
   end
@@ -2391,7 +2403,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
         | CastE(TInt (ik, ta), e) -> begin
             match mkInt e with
               Const(CInt64(i, _, _)) -> 
-                let i' = truncateInteger64 ik i in
+                let i', _ = truncateInteger64 ik i in
                 Const(CInt64(i', ik, None))
 
             | e' -> CastE(TInt(ik, ta), e')
