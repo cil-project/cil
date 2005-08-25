@@ -37,6 +37,10 @@
 
 val convFile: Cabs.file -> Cil.file
 
+(** NDC added command line parameter **)
+(* Turn on tranformation that forces correct parameter evaluation order *)
+val forceRLArgEval: bool ref
+
 (* Set this integer to the index of the global to be left in CABS form. Use 
  * -1 to disable *)
 val nocil: int ref

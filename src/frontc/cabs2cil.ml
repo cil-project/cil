@@ -55,6 +55,10 @@ let mydebugfunction () =
 
 let debugGlobal = false
 
+(** NDC added command line parameter **)
+(* Turn on tranformation that forces correct parameter evaluation order *)
+let forceRLArgEval = ref false
+
 (* Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
 
@@ -3570,6 +3574,22 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
             | _ -> false
         in
           
+        (** If the "--forceRLArgEval" flag was used, make sure
+          we evaluate args right-to-left.
+          Added by Nathan Cooprider. **)
+        let force_right_to_left_evaluation (c, e, t) =
+	  (* constants don't need to be pulled out *)
+          if !forceRLArgEval && (not (isConstant e)) then 
+	    (* create a temporary *)
+	    let tmp = newTempVar t in
+	    (* create an instruction to give the e to the temporary *)
+	    let i = Set(var tmp, e, !currentLoc) in 
+	    (* add the instruction to the chunk *)
+	    (* change the expression to be the temporary *)
+	    (c +++ i, (Lval(var tmp)), t) 
+          else
+	    (c, e, t)
+        in
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : (string * typ * attributes) list * A.expression list 
@@ -3589,8 +3609,9 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                  * the castTo to do this work. This was necessary for 
                  * test/small1/union5, in which a transparent union is passed 
                  * as an argument *)
-                let (sa, a', att) = doExp false a (AExp None) in
-                let (at'', a'') = castTo att at a' in
+                let (sa, a', att) = force_right_to_left_evaluation
+                                      (doExp false a (AExp None)) in
+                let (_, a'') = castTo att at a' in
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
@@ -3601,7 +3622,8 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                     [] -> (empty, [])
                   | a :: args -> 
                       let (ss, args') = loop args in
-                      let (sa, a', at) = doExp false a (AExp None) in
+                      let (sa, a', at) = force_right_to_left_evaluation 
+                          (doExp false a (AExp None)) in
                       (ss @@ sa, a' :: args')
                 in
                 loop args

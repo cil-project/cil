@@ -523,6 +523,9 @@ and hash = parse
 | "pragma" blank "GCC"     { let here = currentLoc () in
                              PRAGMA_LINE ("GCC" ^ pragma lexbuf, here)
                            }
+| "pragma" blank "ident"     { let here = currentLoc () in
+                             PRAGMA_LINE ("ident" ^ pragma lexbuf, here)
+                           }
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 

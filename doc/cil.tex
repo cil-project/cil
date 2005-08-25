@@ -2758,6 +2758,13 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf August 24, 2005}: Added a command-line option
+  ``--forceRLArgEval'' that forces function arguments to be evaluated
+  right-to-left.  This is the default behavior in unoptimized gcc and
+  MSVC, but the order of evaluation is undefined when using
+  optimizations, unless you apply this CIL transformation.  This flag
+  does not affect the order of evaluation of e.g. binary operators,
+  which remains undefined.  Thanks to Nathan Cooprider for the patch.
 \item {\bf August 9, 2005}: Fixed merging when there are more than 20
   input files.
 \item {\bf August 3, 2005}: When merging, it is now an error to

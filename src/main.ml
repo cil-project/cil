@@ -254,6 +254,9 @@ let rec theMain () =
                "print some statistics";
     "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
+    "--forceRLArgEval", 
+          Arg.Unit (fun n -> Cabs2cil.forceRLArgEval := true),
+          "Forces right to left evaluation of function arguments";
     "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
                       "Do not compile to CIL the global with the given index";
     "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
