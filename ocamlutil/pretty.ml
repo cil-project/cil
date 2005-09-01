@@ -548,27 +548,35 @@ let emitDoc
 
 (* Print a document on a channel *)
 let fprint (chn: out_channel) ~(width: int) doc =
+  (* Save some parameters, to allow for nested calls of these routines. *)
   maxCol := width;
+  let old_breaks = !breaks in 
   breaks := [];
+  let old_alignDepth = !alignDepth in 
   alignDepth := 0;
+  let old_activeMarkups = !activeMarkups in 
   activeMarkups := [];
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
-  alignDepth := 0;
   ignore (emitDoc 
             (fun s nrcopies -> 
               for i = 1 to nrcopies do
                 output_string chn s
               done) doc);
-  activeMarkups := [];
-  breaks := [] (* We must do this especially if we don't do emit (which 
-                * consumes breaks) because otherwise we waste memory *)
+  activeMarkups := old_activeMarkups;
+  alignDepth := old_alignDepth;
+  breaks := old_breaks (* We must do this especially if we don't do emit 
+                        * (which consumes breaks) because otherwise we waste 
+                        * memory *)
 
 (* Print the document to a string *)
 let sprint ~(width : int)  doc : string = 
   maxCol := width;
+  let old_breaks = !breaks in 
   breaks := [];
+  let old_activeMarkups = !activeMarkups in 
   activeMarkups := [];
+  let old_alignDepth = !alignDepth in 
   alignDepth := 0;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
@@ -577,10 +585,10 @@ let sprint ~(width : int)  doc : string =
     if num <= 0 then ()
     else begin Buffer.add_string buf str; add_n_strings str (num - 1) end
   in
-  alignDepth := 0;
   emitDoc add_n_strings doc;
-  breaks  := [];
-  activeMarkups := [];
+  breaks  := old_breaks;
+  activeMarkups := old_activeMarkups;
+  alignDepth := old_alignDepth;
   Buffer.contents buf
 
 
