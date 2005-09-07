@@ -578,8 +578,6 @@ into conditionals:
   return f() ? : 4;
 \end{cilcode}
 
-\item GCC's 
-
 \item All forms of loops (\t{while}, \t{for} and \t{do}) are compiled
 internally as a single \t{while(1)} looping construct with explicit \t{break}
 statement for termination. For simple \t{while} loops the pretty printer is
@@ -638,7 +636,7 @@ header files:
 
 typedef int unused_type;
 
-inline char unused_inline (void) { return 0; }
+static char unused_static (void) { return 0; }
 
 int main() {
   int unused_local;
@@ -706,9 +704,9 @@ let feature : featureDescr =
  directory.  Alternately, you can create a symlink from \t{src} or
  \t{src/ext} to your file.
 
- \item Modify the \t{Makefile} and add your module to the \t{MODULES}
- variable. The order of the modules matters. Add your modules somewhere after
- \t{cil} and before \t{maincil}.
+ \item Modify the \t{Makefile} and add your module to the \t{MODULES} or
+ \t{CILLY\_LIBRARY\_MODULES} variables. The order of the modules matters. Add
+ your modules somewhere after \t{cil} and before \t{maincil}.
 
  \item Modify \t{maincil.ml} so that your new feature descriptor appears in
  the global list of CIL features. 
@@ -780,7 +778,7 @@ $ ocamlopt -o main unix.cmxa str.cmxa \
 The first line compiles your analysis, the second line links it against CIL
 (as a library) and the Ocaml Unix library. For more information about
 compiling and linking Ocaml programs, see the Ocaml home page
-at \ahreftop{http://caml.inria.fr/ocaml/}. 
+at \ahreftop{http://caml.inria.fr/ocaml/}{http://caml.inria.fr/ocaml/}. 
 
 In the next section we give an overview of the API that you can use
 to write your analysis and transformation. 
