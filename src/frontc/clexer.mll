@@ -523,9 +523,23 @@ and hash = parse
 | "pragma" blank "GCC"     { let here = currentLoc () in
                              PRAGMA_LINE ("GCC" ^ pragma lexbuf, here)
                            }
+(* Solaris-style pragmas:  *)
 | "pragma" blank "ident"     { let here = currentLoc () in
                              PRAGMA_LINE ("ident" ^ pragma lexbuf, here)
                            }
+| "pragma" blank "section"     { let here = currentLoc () in
+                                  PRAGMA_LINE ("section" ^ pragma lexbuf, here)
+                            }
+| "pragma" blank "option"     { let here = currentLoc () in
+                                  PRAGMA_LINE ("option" ^ pragma lexbuf, here)
+                            }
+| "pragma" blank "asm"     { let here = currentLoc () in
+                                  PRAGMA_LINE ("asm" ^ pragma lexbuf, here)
+                            }
+| "pragma" blank "use_section"     { let here = currentLoc () in
+                                  PRAGMA_LINE ("asm" ^ pragma lexbuf, here)
+                            }
+
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 
