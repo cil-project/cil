@@ -390,7 +390,7 @@ $TEST->add3Tests("testrun/poly1");
 $TEST->add3Tests("testrun/poly2");
 $TEST->add3Tests("testrun/poly3");
 $TEST->add3Tests("testrun/polypeek1");
-$TEST->add3Tests("testrun/polypeek2 RELEASE=");
+$TEST->add3Tests("testrun/polypeek2", "RELEASE=");
 $TEST->add3Tests("testrun/polypeek3");
 $TEST->add3Tests("testrun/polyapply1");
 $TEST->add3Tests("testrun/polyapply2");
