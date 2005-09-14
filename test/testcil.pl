@@ -167,7 +167,6 @@ $TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/warnings-empty", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test/warnings-cast", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
@@ -391,7 +390,7 @@ $TEST->add3Tests("testrun/poly1");
 $TEST->add3Tests("testrun/poly2");
 $TEST->add3Tests("testrun/poly3");
 $TEST->add3Tests("testrun/polypeek1");
-$TEST->add3Tests("testrun/polypeek2");
+$TEST->add3Tests("testrun/polypeek2 RELEASE=");
 $TEST->add3Tests("testrun/polypeek3");
 $TEST->add3Tests("testrun/polyapply1");
 $TEST->add3Tests("testrun/polyapply2");
@@ -988,7 +987,7 @@ altAddTest("scott/multiplestatics");
 altAddTest("scott/regbeforeassign $box");
 altAddTest("scott/partialbracket");
 altAddTest("scott/enuminit");
-altAddTest("scott/staticafternostorage $box");
+altAddTest("scott-nogcc/staticafternostorage $box");
 altAddTest("scott/voidfree $box");
 altAddTest("scott/recursetype $box");
 altAddTest("scott/rmunused $box $gcc");
@@ -1009,7 +1008,7 @@ $TEST->setField(altAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
 EOF
 
 altAddTest("scott/ptrmanip $wildbox");
-altAddTest("scott/bogus_redef");
+altAddTest("scott-nogcc/bogus_redef");
 altAddTest("scott/s59");
 altAddTest("scott/putc $gcc");
 altAddTest("scott/putc $wildbox $gcc");
@@ -1290,7 +1289,7 @@ altAddTest("test/voidstar");
 # end copied block of tests
 
 # more random stuff
-altAddTest("scott/funcname $gcc");
+altAddTest("scott-nogcc/funcname $gcc");
 altAddTest("scott/litstruct $gcc");
 altAddTest("scott/main $gcc");
 altAddTest("scott/globalprob $gcc");

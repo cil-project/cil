@@ -2,6 +2,8 @@ extern void exit(int);
 extern int strcmp(const char*, const char*);
 extern int printf(const char*, ...);
 
+//Note that the concatenation in the strcmp arguments doesn't work on gcc4.
+//Maybe __FUNCTION__ is no longer  considered a literal??
 
 int main(void) {
 

@@ -1,3 +1,4 @@
+#include <stdlib.h>
 
 /* We must strip all of the "const" qualifiers in structs that are used for 
  * locals */

@@ -1,5 +1,7 @@
 // provoke bogus "redefinition" message
 
+//This will not compile on gcc 4.0 or later, but CIL handles it.
+
 int foo()
 {
   // call before decl
