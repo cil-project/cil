@@ -878,7 +878,7 @@ test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 
 runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
-	COMMAND="$(CCURED) $(CFLAGS) $(WARNALL) __FILE__ \
+	COMMAND="$(CCURED) $(CFLAGS) --useStrings $(WARNALL) __FILE__ \
 	   $(EXEOUT)__BASENAME__.exe && ./__BASENAME__.exe" \
 	COMMENT="// " \
 	 perl ../../ocamlutil/runall.pl $*.c

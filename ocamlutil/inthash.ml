@@ -164,7 +164,8 @@ let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a =
     let it = f key in
     h.data.(i) <- Cons(key, it, h.data.(i));
     h.size <- succ h.size;
-    if h.size > Array.length h.data lsl 1 then resize h
+    if h.size > Array.length h.data lsl 1 then resize h;
+    it
   in
   find_in_bucket key h.data.(i)
                   
