@@ -424,6 +424,7 @@ $TEST->addTests("test-bad-ln/handler1",
     "CCURED_ERROR_HANDLERS=handler1.handlers FAILISVERBOSE=1", ['inferbox']);
 
 $TEST->addTests("runall/cilreturn", "", ['inferbox']);
+$TEST->addTests("runall/strings", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
@@ -670,8 +671,6 @@ $TEST->addTests("testrun/scanf3", "", ['inferbox']);
     $TEST->addBadComment("testrun/scanf3-inferbox", "ccured_fscanf_string is too consrevative");
 $TEST->addTests("testrun/scanf4", "", ['inferbox']);
 $TEST->add2Tests("testrun/stringsize");
-#fixed:    $TEST->addBadComment("testrun/stringsize-cil", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
-#fixed:    $TEST->addBadComment("testrun/stringsize-inferbox", "CIL doesn't handle sizeof( \"string literal\" ) correcly.");
 $TEST->addTests("testrun/argv2", "", ['inferbox']);
 
 
