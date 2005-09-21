@@ -876,8 +876,11 @@ test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
+#CCURED_NO_SIGABRT prevents cygwin from doing a memory dump on every failure
+# case.
 runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
+	CCURED_NO_SIGABRT=1 \
 	COMMAND="$(CCURED) $(CFLAGS) --useStrings $(WARNALL) __FILE__ \
 	   $(EXEOUT)__BASENAME__.exe && ./__BASENAME__.exe" \
 	COMMENT="// " \

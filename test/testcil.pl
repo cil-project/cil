@@ -425,6 +425,8 @@ $TEST->addTests("test-bad-ln/handler1",
 
 $TEST->addTests("runall/cilreturn", "", ['inferbox']);
 $TEST->addTests("runall/strings", "", ['inferbox']);
+$TEST->addTests("runall/strings-jeremy", "", ['inferbox']);
+$TEST->addTests("runall/strings-zach", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
