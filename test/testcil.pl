@@ -431,8 +431,6 @@ $TEST->addTests("runall/strings-jeremy2", "", ['inferbox']);
 $TEST->addTests("runall/strings-zach", "", ['inferbox']);
   $TEST->addBadComment("runall/strings-jeremy-inferbox", 
                        "Fails on Manju because Manju doesn't have strlcat");
-  $TEST->addBadComment("runall/strings-jeremy2-inferbox", 
-                       "Fails on Manju because Manju doesn't have strlcat");
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
