@@ -77,7 +77,7 @@ sub new {
       LINKARGS => [],  # Linker args
       NATIVECAML => 1, # this causes the native code boxer to be used
       RELEASELIB => 0, # if true, use the release runtime library (if any)
-      IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
+      # IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
       TRACE_COMMANDS => 1, # when true, echo commands being run
@@ -256,9 +256,9 @@ sub collectOneArgument {
     if($arg eq "--bytecode") {
         $self->{NATIVECAML} = 0; return 1;
     }
-    if($arg eq "--no-idashi") {
-        $self->{IDASHI} = 0; return 1;
-    }
+#     if($arg eq "--no-idashi") {
+#         $self->{IDASHI} = 0; return 1;
+#     }
     if($arg eq "--no-idashdot") {
         $self->{IDASHDOT} = 0; return 1;
     }
@@ -359,9 +359,9 @@ Options:
   --includedir=xxx   Adds a new include directory to replace existing ones
   --stages           Show the processing stages
   --bytecode         Invoke the bytecode (as opposed to native code) system
-  --no-idashi        Do not use '-I-' with the gcc preprocessor.
 
 EOF
+#   --no-idashi        Do not use '-I-' with the gcc preprocessor.
     $self->helpMessage();
 }
 
@@ -572,9 +572,10 @@ sub preprocess_before_cil {
             # for apache.. more investigation is needed
             # update: now when I try it, apache works without -I- also.. but
             # I'll make this into a switchable flag anyway
-            if ($self->{IDASHI}) {
-                unshift @args, "-I-";
-            }
+            # matth: this breaks other tests.  Let's try without.
+#             if ($self->{IDASHI}) {
+#                 unshift @args, "-I-";
+#             }
         }
     }
 
