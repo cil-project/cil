@@ -260,6 +260,10 @@ ifdef ALLOW_INLINE_ASSEMBLY
   CCURED+= --allowInlineAssembly
 endif
 
+ifdef NO_STRINGS
+  CCURED += --noStrings
+endif
+
 # sm: pass tracing directives on 'make' command line like TRACE=usedVars
 # I don't quote $(TRACE) because it actually appears inside another quoted
 # string already when passed as CC="perl ...."
@@ -881,7 +885,7 @@ test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
 	CCURED_NO_SIGABRT=1 \
-	COMMAND="$(CCURED) $(CFLAGS) --useStrings $(WARNALL) __FILE__ \
+	COMMAND="$(CCURED) $(CFLAGS) $(WARNALL) __FILE__ \
 	   $(EXEOUT)__BASENAME__.exe && ./__BASENAME__.exe" \
 	COMMENT="// " \
 	 perl ../../ocamlutil/runall.pl $*.c
