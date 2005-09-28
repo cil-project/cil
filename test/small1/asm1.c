@@ -16,12 +16,12 @@ __inline static char * __wes_memset_generic(char *s, char c, unsigned int count)
 int main() {
     char *res;
     int i;
-    for (i=9;i>0;i--)
+    for (i=8;i>0;i--)
     	a[i] = '!';	// force SEQ pointer
     res = __wes_memset_generic(a, 'g', 1); 
     res = __wes_memset_generic(a+1, 'o', 2); 
     res = __wes_memset_generic(a+3, 'd', 1); 
-    if (strncmp(a,"good!!!!!!",10)) {
+    if (strncmp(a,"good!!!!!",10)) {
 	E(1);
     }
     SUCCESS;

@@ -14,7 +14,8 @@ int main() {
   char * __RWSTRING p = empty;  // A pointer to an empty string
   char * __FSEQN pp;
   
-  // Overwrite the zero
+  // Overwrite the zero.  When handling strings specially,
+  // CCured will fail here.
   *p = '1';
 
   // Now convert it to a FSEQ. Will call strlen which will fail

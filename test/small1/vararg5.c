@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
   s = "hello";
   talking(out, "%d %3.1f %3.1f\n", x, f, d);
   fseek(out, 0, SEEK_SET);
-  fread(buff, 1, sizeof(buff), out);
+  fread(buff, 1, sizeof(buff)-1, out);
   fclose(out);
   buff[10] = '\0';
   printf("Should be 5 5.0 10.0: %s\n", buff);
