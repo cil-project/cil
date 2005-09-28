@@ -51,8 +51,7 @@ type annot =
 | AOne
 | ASafe
 | ANT of int
-| AIB of string
-| AIBX of string
+| ANTI of string * int
 | ACC of int
 | ACCB of string
 | ACCBI of string
@@ -92,8 +91,7 @@ let d_annot () (annot : annot) : doc =
   | AOne -> text "AOne"
   | ASafe -> text "ASafe"
   | ANT n -> dprintf "ANT %d" n
-  | AIB s -> dprintf "AIB %s" s
-  | AIBX s -> dprintf "AIBX %s" s
+  | ANTI (s, n) -> dprintf "ANTI %s %d" s n
   | ACC n -> dprintf "ACC %d" n
   | ACCB s -> dprintf "ACCB %s" s
   | ACCBI s -> dprintf "ACCBI %s" s
@@ -163,6 +161,37 @@ let globalVarType (name : string) : typ =
   match t with
   | Some t' -> t'
   | None -> E.s (E.bug "couldn't find global %s\n" name)
+
+let replaceName (name1 : string) (name2 : string)
+                (facts : FactSet.t) : FactSet.t =
+  FactSet.fold
+    (fun (aname1, annot1) rest ->
+       let aname2 = if aname1 = name1 then name2 else aname1 in
+       let annot2 =
+         match annot1 with
+         | ANTI (vname1, n) when vname1 = name1 -> ANTI (name2, n)
+         | AVC vname1 when vname1 = name1 -> AVC name2
+         | AVCB vname1 when vname1 = name1 -> AVCB name2
+         | AVCBI vname1 when vname1 = name1 -> AVCBI name2
+         | ACCB vname1 when vname1 = name1 -> ACCB name2
+         | ACCBI vname1 when vname1 = name1 -> ACCBI name2
+         | ANTI _
+         | AVC _
+         | AVCB _
+         | AVCBI _
+         | ACCB _
+         | ACCBI _
+         | AIgn
+         | AZero
+         | ANonZero
+         | AOne
+         | ASafe
+         | ANT _
+         | ACC _ -> annot1
+       in
+       FactSet.add (aname2, annot2) rest)
+    facts
+    FactSet.empty
 
 let closeFacts (facts : FactSet.t) : FactSet.t =
   (* Warning: This code may need to change for more complex closure rules. *)
@@ -425,8 +454,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
           FactSet.fold
             (fun fact rest ->
                match fact with
-               | name, ANT 0 -> (AIB name) :: rest
-               | name, ANT 1 -> (AIBX name) :: rest
+               | name, ANT n -> (ANTI (name, n)) :: rest
                | name, ACC n when n > i -> (ACCB name) :: rest
                | name, AVC _ -> (AVCBI name) :: rest
                | _ -> rest)
@@ -436,7 +464,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
           FactSet.fold
             (fun fact rest ->
                match fact with
-               | name, ANT 1 -> (AIB name) :: rest
+               | name, ANT n when n >= i -> (ANTI (name, n - i)) :: rest
                | name, ACC n when n > i -> (ACCB name) :: rest
                | name, AVC _ -> (AVCBI name) :: rest
                | _ -> rest)
@@ -485,11 +513,19 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
       FactSet.fold
         (fun fact rest ->
            match fact with
-           | vname', ANT 0 when vname = vname' ->
-               if FactSet.mem (oname, AIB vname) state.facts then
-                 FactSet.add ("*", ANT 0) rest
-               else if FactSet.mem (oname, AIBX vname) state.facts then
-                 FactSet.add ("*", ANT 1) rest
+           | vname', ANT _ when vname = vname' ->
+               let maxAnti =
+                 FactSet.fold
+                   (fun (oname', annot) cur ->
+                      match annot with
+                      | ANTI (vname'', n) when oname = oname' &&
+                                               vname = vname'' && n > cur -> n
+                      | _ -> cur)
+                   state.facts
+                   (-1)
+               in
+               if maxAnti >= 0 then
+                 FactSet.add ("*", ANT maxAnti) rest
                else
                  rest
            | vname', ACC _ when vname = vname' ->
@@ -508,21 +544,12 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
         FactSet.empty
   | SVarOffConst (vname, off) ->
       if off = 1 then begin
-        (*
-        if FactSet.mem (vname, ANTX) state.facts then
-          FactSet.singleton ("*", ANT)
-        else if FactSet.mem (vname, ANTXX) state.facts then
-          FactSet.singleton ("*", ANTX)
-        else
-          FactSet.empty
-        *)
         changeFacts
           (fun (vname', annot) ->
              if vname = vname' then
                match annot with
-               | ANT 2 -> [ ("*", ANT 1) ]
-               | ANT 1 -> [ ("*", ANT 0) ]
-               | AIBX s -> [ ("*", AIB s) ]
+               | ANT n when n >= off -> [ ("*", ANT (n - off)) ]
+               | ANTI (s, n) when n >= off -> [ ("*", ANTI (s, n - off)) ]
                | ACCB s -> [ ("*", ACCBI s) ]
                | AVCB s -> [ ("*", AVCBI s) ]
                | AZero  -> [ ("*", AOne) ]
@@ -587,7 +614,7 @@ let rec evaluateExp (e : exp) (state : state) : summary =
                      match annot with
                      | ANT 2 -> [ ANT 1 ]
                      | ANT 1 -> [ ANT 0 ]
-                     | AIBX s -> [ (AIB s) ]
+                     | ANTI (s, 1) -> [ (ANTI (s, 0)) ]
                      | ACCB s -> [ (ACCBI s) ]
                      | AVCB s -> [ (AVCBI s) ]
                      | AZero  -> [ AOne ]
@@ -635,7 +662,7 @@ let rec evaluateExp (e : exp) (state : state) : summary =
         end;
         SFacts tFacts
       end
-  | Const (CStr _) ->
+  | Const (CStr s) ->
       SFacts (FactSet.singleton ("*", ANT 0))
   | Const _ ->
       begin
@@ -685,12 +712,12 @@ let analyzeCond (cond : exp) (state : state) : unit =
          | _ -> [ (name, annot) ])
       state
   in
-  let upgradeAIB (vname : string) (sname : string) : unit =
+  let upgradeANTI (n : int) (vname : string) (sname : string) : unit =
     changeState
       (fun (name, annot) ->
          match annot with
-         | AIB name' when name = vname && name' = sname ->
-             [ (name, AIBX name') ]
+         | ANTI (name', m) when name = vname && name' = sname && n = m ->
+             [ (name, ANTI (name', n + 1)) ]
          | _ -> [ (name, annot) ])
       state
   in
@@ -703,7 +730,6 @@ let analyzeCond (cond : exp) (state : state) : unit =
          | _ -> [ (name, annot) ])
       state
   in
-  (* TODO *)
   let upgradeAVCBI (vname : string) (aname : string) : unit =
     changeState
       (fun (name, annot) ->
@@ -718,8 +744,8 @@ let analyzeCond (cond : exp) (state : state) : unit =
     | SDerefVar vname ->
         upgradeANT 0 vname
     | SDerefVarOff (bname, oname)
-          when FactSet.mem (oname, AIB bname) state.facts ->
-        upgradeAIB oname bname
+          when FactSet.mem (oname, ANTI (bname, 0)) state.facts ->
+        upgradeANTI 0 oname bname
     | SDerefVarOffConst (vname, 1) ->
         upgradeANT 1 vname
     | _ ->
@@ -812,35 +838,26 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
   | Instr instrs ->
       List.iter
         (fun instr ->
-           let doSetName (vname : string) (facts : FactSet.t) : unit =
-             let newFacts =
+           let doSetNames (vnames : string list) (facts : FactSet.t) : unit =
+             let removed =
                FactSet.fold
                  (fun (name, annot) rest ->
-                    if name = "*" then
-                      FactSet.add (vname, annot) rest
-                    else begin
-                      match annot with
-                      | AVC "*" -> FactSet.add (name, AVC vname) rest
-                      | _ -> rest
-                    end)
-                 facts
+                    match annot with
+                    | ANTI (vname', _)
+                    | AVC vname'
+                    | AVCB vname'
+                    | AVCBI vname'
+                    | ACCB vname'
+                    | ACCBI vname' when List.mem vname' vnames -> rest
+                    | _ when List.mem name vnames -> rest
+                    | _ -> FactSet.add (name, annot) rest)
+                 state.facts
                  FactSet.empty
              in
-             let newFacts2 =
-               FactSet.fold
-                 (fun (name, annot) rest ->
-                    if name = vname || annot = AIB vname ||
-                       annot = AIBX vname then
-                      rest
-                    else
-                      FactSet.add (name, annot) rest)
-                 state.facts
-                 newFacts
-             in
-             state.facts <- newFacts2
+             state.facts <- FactSet.union removed facts;
              (*
              ignore (E.log "%a: %s gets %a\n" d_loc !curLocation
-                           name d_annots annots)
+                           vname d_facts facts)
              *)
            in
            let doSet (lv : lval) (eType : typ) (facts : FactSet.t) : unit =
@@ -852,7 +869,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
              begin
                match lvSum with
                | SVar vname when varNameIsFS vname ->
-                   doSetName vname facts
+                   doSetNames [ vname ] (replaceName "*" vname facts)
                | _ ->
                    (* check base types equal *)
                    let lvFacts = summaryToFacts lvSum state in
@@ -872,6 +889,8 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                      E.s (E.bug "not enough function type info\n")
                  | TFun (rtype, Some argInfo, isVarArg, _) ->
                      let matches = Hashtbl.create 7 in
+                     let removeNames = ref [] in
+                     let addFacts = ref FactSet.empty in
                      let rec matchNames formals actuals : unit =
                        match formals, actuals with
                        | (fname, ftype, _) :: frest, aExp :: arest ->
@@ -946,6 +965,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                        | _ :: _, [] ->
                            E.s (E.bug "too many formals\n")
                      in
+                     (* TODO: verify out vars used properly *)
                      let rec checkReturns formals actuals : unit =
                        match formals, actuals with
                        | (fname, ftype, _) :: frest, aExp :: arest ->
@@ -977,7 +997,11 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                                  | true, SVar vname ->
                                      () (* TODO: check type! *)
                                  | false, SAddrVar vname ->
-                                     doSetName vname fFacts'
+                                     removeNames := vname :: !removeNames;
+                                     addFacts :=
+                                       FactSet.union
+                                         (replaceName "*" vname fFacts')
+                                         !addFacts;
                                  | false, SInt 0 -> ()
                                  | _ -> E.s (E.bug "expected addr of var\n")
                                end;
@@ -1006,6 +1030,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                      matchNames argInfo actuals;
                      checkArgs argInfo actuals;
                      checkReturns argInfo actuals;
+                     doSetNames !removeNames !addFacts;
                      begin
                        match ret with
                        | Some lv ->
