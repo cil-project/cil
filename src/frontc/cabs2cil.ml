@@ -1193,6 +1193,29 @@ let checkBool (ot : typ) (e : exp) : bool =
   | TFloat _ -> true
   |  _ -> E.s (error "castToBool %a" d_type ot)
 
+(* Given an expression that is being coerced to bool, 
+   is it a nonzero constant? *)
+let rec isConstTrue (e:exp): bool =
+  match e with
+  | Const(CInt64 (n,_,_)) -> n <> Int64.zero
+  | Const(CChr c) -> 0 <> Char.code c
+  | Const(CStr _ | CWStr _) -> true
+  | Const(CReal(f, _, _)) -> f <> 0.0;
+  | CastE(_, e) -> isConstTrue e
+  | _ -> false
+
+(* Given an expression that is being coerced to bool, is it zero? 
+   This is a more general version of Cil.isZero, which only handles integers.
+   On constant expressions, either isConstTrue or isConstFalse will hold. *)
+let rec isConstFalse (e:exp): bool =
+  match e with
+  | Const(CInt64 (n,_,_)) -> n = Int64.zero
+  | Const(CChr c) -> 0 = Char.code c
+  | Const(CReal(f, _, _)) -> f = 0.0;
+  | CastE(_, e) -> isConstFalse e
+  | _ -> false
+
+
 
 (* We have our own version of addAttributes that does not allow duplicates *)
 let cabsAddAttributes al0 (al: attributes) : attributes = 
@@ -3487,7 +3510,7 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
         (* We must normalize the result to 0 or 1 *)
         match ce with
           CEExp (se, ((Const _) as c)) -> 
-            finishExp se (if isZero c then zero else one) intType
+            finishExp se (if isConstTrue c then one else zero) intType
         | CEExp (se, e) ->
             let e' = 
               let te = typeOf e in
@@ -3831,11 +3854,10 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
         (* Compute the type of the result *)
         let tresult = conditionalConversion t2 t3 in
         match ce1 with
-          CEExp (se1, Const(CInt64(i, _, _))) 
-           when i = Int64.zero && canDrop se2 -> 
+          CEExp (se1, e1') when isConstFalse e1' && canDrop se2 -> 
              finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult
-        | CEExp (se1, (Const(CInt64(i, _, _)) as e1')) 
-           when i <> Int64.zero && canDrop se3 -> begin
+        | CEExp (se1, e1') when isConstTrue e1' && canDrop se3 -> 
+           begin
              match e2'o with
                None -> (* use e1' *)
                  finishExp (se1 @@ se2) (snd (castTo t2 tresult e1')) tresult
@@ -4095,8 +4117,8 @@ and doCondExp (tryconst: bool) (** Try to evaluate the conditional expression
       let ce1 = doCondExp tryconst e1 in
       let ce2 = doCondExp tryconst e2 in
       match ce1, ce2 with
-        CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
-          if not (isZero ci1) then 
+        CEExp (se1, ((Const _) as ci1)), _ -> 
+          if isConstTrue ci1 then 
             addChunkBeforeCE se1 ce2
           else 
             (* se2 might contain labels so we cannot always drop it *)
@@ -4117,7 +4139,7 @@ and doCondExp (tryconst: bool) (** Try to evaluate the conditional expression
       let ce2 = doCondExp tryconst e2 in
       match ce1, ce2 with
         CEExp (se1, (Const(CInt64 _) as ci1)), _ -> 
-          if isZero ci1 then 
+          if isConstFalse ci1 then 
             addChunkBeforeCE se1 ce2
           else 
             (* se2 might contain labels so we cannot drop it *)
@@ -4135,8 +4157,8 @@ and doCondExp (tryconst: bool) (** Try to evaluate the conditional expression
 
   | A.UNARY(A.NOT, e1) -> begin
       match doCondExp tryconst e1 with 
-        CEExp (se1, (Const(CInt64 _) as ci1)) -> 
-          if isZero ci1 then 
+        CEExp (se1, (Const _ as ci1)) -> 
+          if isConstFalse ci1 then 
             CEExp (se1, one) 
           else
             CEExp (se1, zero)
