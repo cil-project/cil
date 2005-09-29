@@ -418,6 +418,7 @@ $TEST->addTests("test-bad/asm1",
                 "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 
 $TEST->addTests("test-bad/size1", "", ['inferbox']);
+$TEST->addTests("test-bad/size2", "", ['inferbox']);
 $TEST->addTests("test/noreturn", "", ['cil']);
                 
 $TEST->addTests("test-bad-ln/handler1",
