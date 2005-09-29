@@ -49,7 +49,6 @@ type annot =
 | AZero
 | ANonZero
 | AOne
-| ASafe
 | ANT of int
 | ANTI of string * int
 | ACC of int
@@ -89,7 +88,6 @@ let d_annot () (annot : annot) : doc =
   | AZero -> text "AZero"
   | ANonZero -> text "ANonZero"
   | AOne -> text "AOne"
-  | ASafe -> text "ASafe"
   | ANT n -> dprintf "ANT %d" n
   | ANTI (s, n) -> dprintf "ANTI %s %d" s n
   | ACC n -> dprintf "ACC %d" n
@@ -185,7 +183,6 @@ let replaceName (name1 : string) (name2 : string)
          | AZero
          | ANonZero
          | AOne
-         | ASafe
          | ANT _
          | ACC _ -> annot1
        in
@@ -271,8 +268,8 @@ let closeFacts (facts : FactSet.t) : FactSet.t =
   let closeAnnot (annot : annot) : annot list =
     annot ::
     match annot with
-    | ANT _ -> [ ASafe ]
-    | AZero -> [ ASafe; ANT 0 ]
+    | ANT n -> [ ACC (n + 1) ]
+    | AZero -> [ ACC 1; ANT 0 ]
     | AOne -> [ ANonZero ]
     | ACCB s -> [ ACCBI s ]
     | AVCB s -> [ AVCBI s ]
@@ -291,7 +288,6 @@ let attrToFact (name : string) (attr : attribute) : fact option =
   match attr with
   | Attr ("ignore", []) -> Some (name, AIgn)
   | Attr ("nullterm", []) -> Some (name, ANT 0)
-  | Attr ("safe", []) -> Some (name, ASafe)
   | Attr ("constcount", [AInt n]) -> Some (name, ACC n)
   | Attr ("varcount", [ACons (s, [])]) -> Some (name, AVC s)
   | Attr ("varcountof", [ACons (s, [])]) -> Some (s, AVC name)
@@ -597,12 +593,12 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
                  rest
            | vname', ACC _ when vname = vname' ->
                if FactSet.mem (oname, ACCB vname) state.facts then
-                 FactSet.add ("*", ASafe) rest
+                 FactSet.add ("*", ACC 1) rest
                else
                  rest
            | vname', AVC _ when vname = vname' ->
                if FactSet.mem (oname, AVCB vname) state.facts then
-                 FactSet.add ("*", ASafe) rest
+                 FactSet.add ("*", ACC 1) rest
                else
                  rest
            | _ ->
@@ -637,12 +633,17 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
         | None -> FactSet.empty
       end
   | SAddrVar vname ->
-      FactSet.singleton ("*", ASafe)
+      FactSet.singleton ("*", ACC 1)
   | SFacts facts ->
       facts
 
 let safeDeref (facts : FactSet.t) : bool =
-  FactSet.exists (fun fact -> fact = ("*", ASafe)) (closeFacts facts)
+  FactSet.exists
+    (fun fact ->
+       match fact with
+       | "*", ACC n when n > 0 -> true
+       | _ -> false)
+    (closeFacts facts)
 
 let hasAnnot (a : annot) (facts : FactSet.t) : bool =
   FactSet.mem ("*", a) (closeFacts facts)
@@ -700,7 +701,7 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       begin
         match evaluateLval lv state with
         | SVar vname -> SAddrVar vname
-        | _ -> SFacts (FactSet.singleton ("*", ASafe))
+        | _ -> SFacts (FactSet.singleton ("*", ACC 1))
       end
   | Lval lv -> evaluateLval lv state
   | CastE (t, e') ->
