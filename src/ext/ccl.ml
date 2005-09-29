@@ -193,6 +193,79 @@ let replaceName (name1 : string) (name2 : string)
     facts
     FactSet.empty
 
+let getMaxFact (fn : fact -> int) (facts : FactSet.t) : int =
+  FactSet.fold
+    (fun fact cur -> max (fn fact) cur)
+    facts
+    (-1)
+
+let getMaxACC (name : string) (facts : FactSet.t) : int =
+  getMaxFact
+    (fun fact ->
+       match fact with
+       | name', ACC n when name = name' -> n
+       | _ -> -1)
+    facts
+
+let getMaxANT (name : string) (facts : FactSet.t) : int =
+  getMaxFact
+    (fun fact ->
+       match fact with
+       | name', ANT n when name = name' -> n
+       | _ -> -1)
+    facts
+
+let getMaxANTI (name1 : string) (name2 : string) (facts : FactSet.t) : int =
+  getMaxFact
+    (fun fact ->
+       match fact with
+       | name1', ANTI (name2', n) when name1 = name1' && name2 = name2' -> n
+       | _ -> -1)
+    facts
+
+let trimFacts (facts : FactSet.t) : FactSet.t =
+  FactSet.fold
+    (fun fact rest ->
+       match fact with
+       | name, ACC n when n < getMaxACC name facts -> rest
+       | name, ANT n when n < getMaxANT name facts -> rest
+       | name1, ANTI (name2, n) when n < getMaxANTI name1 name2 facts -> rest
+       | _ -> FactSet.add fact rest)
+    facts
+    FactSet.empty
+
+let joinFacts (facts1 : FactSet.t) (facts2 : FactSet.t) : FactSet.t =
+  let facts1' = trimFacts facts1 in
+  let facts2' = trimFacts facts2 in
+  let join = FactSet.inter facts1' facts2' in
+  FactSet.fold
+    (fun fact rest ->
+       let add fact' =
+         FactSet.add fact' rest
+       in
+       match fact with
+       | name, ACC n ->
+           let m = getMaxACC name facts2' in
+           if m >= 0 then
+             add (name, ACC (min n m))
+           else
+             rest
+       | name, ANT n ->
+           let m = getMaxANT name facts2' in
+           if m >= 0 then
+             add (name, ANT (min n m))
+           else
+             rest
+       | name1, ANTI (name2, n) ->
+           let m = getMaxANTI name1 name2 facts2' in
+           if m >= 0 then
+             add (name1, ANTI (name2, min n m))
+           else
+             rest
+       | _ -> rest)
+    facts1'
+    join
+
 let closeFacts (facts : FactSet.t) : FactSet.t =
   (* Warning: This code may need to change for more complex closure rules. *)
   let closeAnnot (annot : annot) : annot list =
@@ -287,7 +360,7 @@ let copyState (s : state) : state =
   { facts = s.facts; }
 
 let joinStates (s1 : state) (s2 : state) : state =
-  { facts = FactSet.inter (closeFacts s1.facts) (closeFacts s2.facts); }
+  { facts = joinFacts (closeFacts s1.facts) (closeFacts s2.facts); }
 
 let equalFacts (f1 : FactSet.t) (f2 : FactSet.t) : bool =
   FactSet.equal (closeFacts f1) (closeFacts f2)
@@ -296,7 +369,10 @@ let equalStates (s1 : state) (s2 : state) : bool =
   equalFacts s1.facts s2.facts
 
 let checkCast (toFacts : FactSet.t) (fromFacts : FactSet.t) : bool =
-  FactSet.subset (closeFacts toFacts) (closeFacts fromFacts)
+  let toClose = closeFacts toFacts in
+  let fromClose = closeFacts fromFacts in
+  let join = joinFacts toClose fromClose in
+  FactSet.subset toClose join
 
 let equalTypes (t1 : typ) (t2 : typ) : bool =
   let typeSigNC (t : typ) : typsig =
@@ -514,16 +590,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
         (fun fact rest ->
            match fact with
            | vname', ANT _ when vname = vname' ->
-               let maxAnti =
-                 FactSet.fold
-                   (fun (oname', annot) cur ->
-                      match annot with
-                      | ANTI (vname'', n) when oname = oname' &&
-                                               vname = vname'' && n > cur -> n
-                      | _ -> cur)
-                   state.facts
-                   (-1)
-               in
+               let maxAnti = getMaxANTI oname vname state.facts in
                if maxAnti >= 0 then
                  FactSet.add ("*", ANT maxAnti) rest
                else
