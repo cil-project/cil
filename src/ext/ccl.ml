@@ -658,43 +658,12 @@ let rec evaluateExp (e : exp) (state : state) : summary =
   match e with
   | UnOp (op, e', _) -> SNone
   | BinOp ((PlusA | PlusPI | IndexPI), e1, e2, _) ->
-      let s1 = evaluateExp e1 state in
-      let s2 = evaluateExp e2 state in
       begin
-        match s1, s2 with
-        | SVar v1, SVar v2 ->
-            SVarOff (v1, v2)
-        | SVar v1, _ ->
-            let f2 = summaryToFacts s2 state in
-            if hasAnnot AZero f2 then
-              SVar v1
-            else if hasAnnot AOne f2 then
-              SVarOffConst (v1, 1)
-            else
-              SNone
-        | _, _ ->
-            let f1 = summaryToFacts s1 state in
-            let f2 = summaryToFacts s2 state in
-            if hasAnnot AOne f2 then begin
-              let facts =
-                changeAnnots
-                  (fun annot ->
-                     match annot with
-                     | ANT 2 -> [ ANT 1 ]
-                     | ANT 1 -> [ ANT 0 ]
-                     | ANTI (s, 1) -> [ (ANTI (s, 0)) ]
-                     | ACCB s -> [ (ACCBI s) ]
-                     | AVCB s -> [ (AVCBI s) ]
-                     | AZero  -> [ AOne ]
-                     | _ -> [])
-                  f1
-              in
-              SFacts facts
-            end else if hasAnnot AZero f2 then begin
-              s1
-            end else begin
-              SNone
-            end
+        match evaluateExp e1 state, evaluateExp e2 state with
+        | SVar v1, SVar v2 -> SVarOff (v1, v2)
+        | SVar v1, SInt 0 -> SVar v1
+        | SVar v1, SInt n -> SVarOffConst (v1, n)
+        | _, _ -> SNone
       end
   | BinOp (op, e1, e2, _) -> SNone
   | AddrOf lv ->
