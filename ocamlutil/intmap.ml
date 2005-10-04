@@ -164,3 +164,8 @@ let equal cmp m1 m2 =
         equal_aux (cons_enum r1 e1) (cons_enum r2 e2)
 in equal_aux (cons_enum m1 End) (cons_enum m2 End)
 
+(** Some definitions for ML2Coq *)
+let _ = ignore "coq: 
+(* Some definitions for ML2Coq *)
+
+"
