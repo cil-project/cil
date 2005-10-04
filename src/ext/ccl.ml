@@ -385,11 +385,6 @@ let equalTypesNoAttrs (t1 : typ) (t2 : typ) : bool =
   in
   (typeSigNA t1) = (typeSigNA t2)
 
-let dropCast (t : typ) (e : exp) : exp =
-  match e with
-  | CastE (t', e') when equalTypesNoAttrs t t' -> e'
-  | _ -> e
-
 class normVisitor = object
   inherit nopCilVisitor
 
@@ -606,30 +601,34 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
         state.facts
         FactSet.empty
   | SVarOffConst (vname, off) ->
-      if off = 1 then begin
-        changeFacts
-          (fun (vname', annot) ->
-             if vname = vname' then
-               match annot with
-               | ANT n when n >= off -> [ ("*", ANT (n - off)) ]
-               | ANTI (s, n) when n >= off -> [ ("*", ANTI (s, n - off)) ]
-               | ACCB s -> [ ("*", ACCBI s) ]
-               | AVCB s -> [ ("*", AVCBI s) ]
-               | AZero  -> [ ("*", AOne) ]
-               | _ -> []
-             else
-               [])
-          state.facts
-      end else
-        FactSet.empty
+      changeFacts
+        (fun (vname', annot) ->
+           if vname = vname' then
+             match annot with
+             | ACC n when n >= off -> [ ("*", ACC (n - off)) ]
+             | ANT n when n >= off -> [ ("*", ANT (n - off)) ]
+             | ANTI (s, n) when n >= off -> [ ("*", ANTI (s, n - off)) ]
+             | ACCB s -> [ ("*", ACCBI s) ]
+             | AVCB s -> [ ("*", AVCBI s) ]
+             | AZero when off = 1 -> [ ("*", AOne) ]
+             | AZero when off <> 0 -> [ ("*", ANonZero) ]
+             | _ -> []
+           else
+             [])
+        state.facts
   | SDerefVar vname
   | SDerefVarOff (vname, _)
   | SDerefVarOffConst (vname, _) ->
       begin
         match varNameToInfo vname with
         | Some vi ->
-            typeToFacts "*"
-              (typeOfLval (Mem (Lval (Var vi, NoOffset)), NoOffset))
+            let e =
+              match vi.vtype with
+              | TPtr _ -> Lval (Var vi, NoOffset)
+              | TArray _ -> StartOf (Var vi, NoOffset)
+              | _ -> E.s (E.bug "expected ptr or array type\n")
+            in
+            typeToFacts "*" (typeOfLval (Mem e, NoOffset))
         | None -> FactSet.empty
       end
   | SAddrVar vname ->
@@ -870,7 +869,9 @@ let analyzeCond (cond : exp) (state : state) : unit =
   ignore (evaluateExp cond state);
   checkCond cond false
 
-let analyzeStmt (stmt : stmt) (state : state) : unit =
+let analyzeStmt (stmt : stmt) (state : state) : bool =
+  let return = ref true in
+  begin
   match stmt.skind with
   | Instr instrs ->
       List.iter
@@ -915,6 +916,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                                 d_facts lvFacts d_facts facts)
              end
            in
+           if !return then
            ignore (E.log "%a: instr %a\n%a\n" d_loc !curLocation
                          d_instr instr d_state state);
            match instr with
@@ -922,9 +924,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                curLocation := l;
                begin
                  match typeOf fn with
-                 | TFun (_, None, _, _) ->
-                     E.s (E.bug "not enough function type info\n")
-                 | TFun (rtype, Some argInfo, isVarArg, _) ->
+                 | TFun (rtype, argInfo, isVarArg, attrs) ->
                      let matches = Hashtbl.create 7 in
                      let removeNames = ref [] in
                      let addFacts = ref FactSet.empty in
@@ -932,9 +932,8 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                        match formals, actuals with
                        | (fname, ftype, _) :: frest, aExp :: arest ->
                            if fname <> "" then begin
-                             let aExp' = dropCast ftype aExp in
-                             let aType = typeOf aExp' in
-                             let aSum = evaluateExp aExp' state in
+                             let aType = typeOf aExp in
+                             let aSum = evaluateExp aExp state in
                              match isOutType ftype, isOutType aType, aSum with
                              | false, false, SInt i ->
                                  ignore (E.log "adding %s -> %d\n" fname i);
@@ -967,8 +966,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                            if not (isOutType ftype) then begin
                              let fFacts = normalizeType2 matches ftype in
                              let fFacts' = typeToFacts "*" fFacts in
-                             let aExp' = dropCast ftype aExp in
-                             let aSum = evaluateExp aExp' state in
+                             let aSum = evaluateExp aExp state in
                              if not (hasAnnot AIgn fFacts') then begin
                                if isPointerType ftype &&
                                   FactSet.is_empty fFacts' then begin
@@ -981,7 +979,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                                                d_loc l fname)
                                end;
                                let fType = ftype in
-                               let aType = typeOf aExp' in
+                               let aType = typeOf aExp in
                                let aFacts = summaryToFacts aSum state in
                                if not (checkBaseTypes fType aType) then
                                  E.s (E.bug "%a: bad arg: %a <- %a\n" d_loc l
@@ -1014,8 +1012,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                                | _ -> E.s (E.bug "expected ptr type\n")
                              in
                              let fFacts' = typeToFacts "*" ftype'' in
-                             let aExp' = dropCast ftype' aExp in
-                             let aSum = evaluateExp aExp' state in
+                             let aSum = evaluateExp aExp state in
                              if not (hasAnnot AIgn fFacts') then begin
                                if isPointerType ftype'' &&
                                   FactSet.is_empty fFacts' then begin
@@ -1028,7 +1025,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                                                d_loc l fname)
                                end;
                                let fType = ftype' in
-                               let aType = typeOf aExp' in
+                               let aType = typeOf aExp in
                                begin
                                  match isOutType aType, aSum with
                                  | true, SVar vname ->
@@ -1064,9 +1061,10 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                        | _ :: _, [] ->
                            E.s (E.bug "too many formals\n")
                      in
-                     matchNames argInfo actuals;
-                     checkArgs argInfo actuals;
-                     checkReturns argInfo actuals;
+                     let formals = argsToList argInfo in
+                     matchNames formals actuals;
+                     checkArgs formals actuals;
+                     checkReturns formals actuals;
                      doSetNames !removeNames !addFacts;
                      begin
                        match ret with
@@ -1076,7 +1074,15 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
                            in
                            doSet lv rtype facts
                        | None -> ()
-                     end
+                     end;
+                     let noReturn =
+                       match fn with
+                       | Lval (Var vi, NoOffset) ->
+                           hasAttribute "noreturn" vi.vattr
+                       | _ -> false
+                     in
+                     if noReturn then
+                       return := false
                  | _ ->
                      E.s (E.bug "function has non-function type\n")
                end
@@ -1093,7 +1099,7 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
             let fType =
               match !curFunction.svar.vtype with
               | TFun (rtype, _, _, _) -> rtype
-              | _ -> E.s (E.bug "expected function type\n")
+              | _ -> E.s (E.bug "expected function type 1\n")
             in
             let eType = typeOf e in
             if not (checkBaseTypes fType eType) then
@@ -1115,6 +1121,8 @@ let analyzeStmt (stmt : stmt) (state : state) : unit =
   | Continue _ -> E.s (E.bug "break, switch, or continue not removed")
   | TryFinally _
   | TryExcept _ -> E.s (E.unimp "exceptions")
+  end;
+  !return
 
 let analyzeFundec (fd : fundec) : unit =
   curFunction := fd;
@@ -1190,8 +1198,7 @@ let analyzeFundec (fd : fundec) : unit =
     | _ ->
         begin
           let newState = copyState state in
-          analyzeStmt stmt newState;
-          if List.length stmt.succs > 0 then
+          if analyzeStmt stmt newState then
             List.iter (recordState newState) stmt.succs
         end
   done
@@ -1238,29 +1245,62 @@ class ptrArithVisitor = object
     DoChildren
 end
 
-(*
-class dropAttrCastVisitor = object
+class preVisitor = object
   inherit nopCilVisitor
 
   method vinst (inst : instr) =
     begin
       match inst with
-      | Call (_, fn, args, _) ->
-          begin
+      | Call (ret, fn, args, attrs) ->
+          let newArgs =
             match typeOf fn with
-            | TFun (_, Some argInfo, isVarArg, _) ->
-            | _ -> E.s (E.bug "expected function type\n");
-          end
-      | _ -> ()
-    end;
-    DoChildren
+            | TFun (_, argInfo, _, _) ->
+                let dropCast (t : typ) (e : exp) : exp =
+                  match e with
+                  | CastE (t', e') when equalTypesNoAttrs t t' -> e'
+                  | _ -> e
+                in
+                let rec matchArgs formals actuals : exp list =
+                  match formals, actuals with
+                  | (_, fType, _) :: fRest, aExp :: aRest ->
+                      (dropCast fType aExp) :: (matchArgs fRest aRest)
+                  | [], aRest ->
+                      aRest
+                  | _, [] ->
+                      []
+                in
+                matchArgs (argsToList argInfo) args
+            | _ -> E.s (E.bug "expected function type 2\n");
+          in
+          ChangeDoChildrenPost ([Call (ret, fn, newArgs, attrs)], (fun x -> x))
+      | _ ->
+          DoChildren
+    end
+
+  method vlval ((host, offset) : lval) =
+    begin
+      let rec rewriteIndex (o : offset) (acc : lval) : lval =
+        match o with
+        | Index (e, o') ->
+            let start = StartOf acc in
+            ignore (E.log "%a : %a\n" d_lval acc d_type (typeOf start));
+            let index = BinOp (PlusPI, start, e, typeOf start) in
+            let acc' = Mem index, NoOffset in
+            rewriteIndex o' acc'
+        | Field (fld, o') ->
+            let acc' = addOffsetLval (Field (fld, NoOffset)) acc in
+            rewriteIndex o' acc'
+        | NoOffset -> acc
+      in
+      ChangeDoChildrenPost (rewriteIndex offset (host, NoOffset), (fun x -> x))
+    end
 end
-*)
 
 let analyzeFile (f : file) : unit =
   ignore (Partial.calls_end_basic_blocks f);
   ignore (Partial.globally_unique_vids f);
   globals := f.globals;
+  visitCilFile (new preVisitor) f;
   visitCilFile (new ptrArithVisitor) f
 
 let feature : featureDescr = 
