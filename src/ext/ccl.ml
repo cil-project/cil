@@ -775,7 +775,7 @@ let getTypeSize (t : typ) : int =
   | Some i -> Int64.to_int i
   | None -> E.s (E.bug "failed to compute size of type %a\n" d_type t)
 
-let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t =
+let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t * bool =
   ignore (E.log "monkey: %a\n" d_type t);
   let sz =
     match unrollType t with
@@ -783,19 +783,19 @@ let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t =
     | _ -> E.s (E.bug "expected ptr type\n")
   in
   let handleInt n =
-    FactSet.singleton ("*", ACC (n / sz))
+    FactSet.singleton ("*", ACC (n / sz)), (n mod sz) = 0
   in
   let handleVarMult v n =
     if n >= sz then
-      FactSet.singleton ("*", AVC v)
+      FactSet.singleton ("*", AVC v), (n mod sz) = 0
     else
-      FactSet.empty
+      FactSet.empty, false
   in
   match evaluateExp e state with
   | SInt n -> handleInt n
   | SVar v -> handleVarMult v 1
   | SVarMult (v, n) -> handleVarMult v n
-  | _ -> FactSet.empty
+  | _ -> FactSet.empty, false
 
 let analyzeCond (cond : exp) (state : state) : unit =
   let upgradeANT (n : int) (vname : string) : unit =
@@ -979,6 +979,20 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
            ignore (E.log "%a: instr %a\n%a\n" d_loc !curLocation
                          d_instr instr d_state state);
            match instr with
+           | Call (None, Lval (Var vi, NoOffset), [ptr; chr; size], l)
+                 when vi.vname = "memset" && isInteger chr = Some Int64.zero ->
+               curLocation := l;
+               let t = typeOf ptr in
+               let facts, exact = getAllocFact t size state in
+               if exact then begin
+                 (* TODO: check that all ptrs are nullable *)
+                 let ptrSum = evaluateExp ptr state in
+                 let ptrFacts = summaryToFacts ptrSum state in
+                 if not (checkCast facts ptrFacts) then
+                   E.s (E.bug "%a: bad arg: %a <- %a\n" d_loc l
+                              d_facts facts d_facts ptrFacts)
+               end else
+                 E.s (E.bug "%a: cannot verify size of memset\n" d_loc l)
            | Call (ret, fn, actuals, l) ->
                curLocation := l;
                begin
@@ -1133,7 +1147,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                              ignore (E.log "%d\n" i);
                              let sizeExp = List.nth actuals (i - 1) in
                              let lvType = typeOfLval lv in
-                             let facts = getAllocFact lvType sizeExp state in
+                             let facts, _ = getAllocFact lvType sizeExp state in
                              doSet lv lvType facts
                            end else begin
                              let facts =
