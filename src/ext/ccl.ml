@@ -776,7 +776,6 @@ let getTypeSize (t : typ) : int =
   | None -> E.s (E.bug "failed to compute size of type %a\n" d_type t)
 
 let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t * bool =
-  ignore (E.log "monkey: %a\n" d_type t);
   let sz =
     match unrollType t with
     | TPtr (bt, _) -> getTypeSize bt
@@ -1009,15 +1008,12 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                              let aSum = evaluateExp aExp state in
                              match isOutType ftype, isOutType aType, aSum with
                              | false, false, SInt i ->
-                                 ignore (E.log "adding %s -> %d\n" fname i);
                                  Hashtbl.add matches fname aSum
                              | true, false, SInt 0 ->
-                                 ignore (E.log "adding %s -> 0\n" fname);
                                  Hashtbl.add matches fname SNone
                              | false, false, SVar vname
                              | true, true, SVar vname
                              | true, false, SAddrVar vname ->
-                                 ignore (E.log "adding %s -> %s\n" fname vname);
                                  Hashtbl.add matches fname (SVar vname)
                              | _ ->
                                  ()
