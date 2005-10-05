@@ -76,6 +76,7 @@ type summary =
 | SVar of string
 | SVarOff of string * string
 | SVarOffConst of string * int
+| SVarMult of string * int
 | SDerefVar of string
 | SDerefVarOff of string * string
 | SDerefVarOffConst of string * int
@@ -116,6 +117,7 @@ let d_summary () (sum : summary) : doc =
   | SVar s -> dprintf "SVar %s" s
   | SVarOff (s1, s2) -> dprintf "SVarOff %s %s" s1 s2
   | SVarOffConst (s, i) -> dprintf "SVarOffConst %s %d" s i
+  | SVarMult (s, i) -> dprintf "SVarMult %s %d" s i
   | SDerefVar s -> dprintf "SDerefVar %s" s
   | SDerefVarOff (s1, s2) -> dprintf "SDerefVarOff %s %s" s1 s2
   | SDerefVarOffConst (s, i) -> dprintf "SDerefVarOffConst %s %d" s i
@@ -124,6 +126,20 @@ let d_summary () (sum : summary) : doc =
 
 let isOutType (t : typ) : bool =
   hasAttribute "out" (typeAttrs t)
+
+let isAllocator (t : typ) : bool =
+  hasAttribute "cclmalloc" (typeAttrs t)
+
+let getSizeIndex (t : typ) : int =
+  try
+    match List.hd (filterAttributes "cclmalloc" (typeAttrs t)) with
+    | Attr ("cclmalloc", [AInt n]) -> n
+    | a -> ignore (E.log "bad: %a\n" d_attr a); 0
+  with Failure "hd" ->
+    0
+
+let listToFactSet (facts : fact list) : FactSet.t =
+  List.fold_right (fun fact set -> FactSet.add fact set) facts FactSet.empty
 
 let varNameIsFS (name : string) : bool =
   try
@@ -372,7 +388,13 @@ let checkCast (toFacts : FactSet.t) (fromFacts : FactSet.t) : bool =
 
 let equalTypes (t1 : typ) (t2 : typ) : bool =
   let typeSigNC (t : typ) : typsig =
-    typeSigWithAttrs (List.filter (fun attr -> attr <> Attr ("const", []))) t
+    let attrFilter (attr : attribute) : bool =
+      match attr with
+      | Attr ("const", [])
+      | Attr ("always_inline", []) -> false
+      | _ -> true
+    in
+    typeSigWithAttrs (List.filter attrFilter) t
   in
   (typeSigNC t1) = (typeSigNC t2)
 
@@ -616,6 +638,8 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
            else
              [])
         state.facts
+  | SVarMult _ ->
+      FactSet.empty
   | SDerefVar vname
   | SDerefVarOff (vname, _)
   | SDerefVarOffConst (vname, _) ->
@@ -662,6 +686,14 @@ let rec evaluateExp (e : exp) (state : state) : summary =
         | SVar v1, SVar v2 -> SVarOff (v1, v2)
         | SVar v1, SInt 0 -> SVar v1
         | SVar v1, SInt n -> SVarOffConst (v1, n)
+        | _, _ -> SNone
+      end
+  | BinOp (Mult, e1, e2, _) ->
+      begin
+        match evaluateExp e1 state, evaluateExp e2 state with
+        | SInt n1, SInt n2 -> SInt (n1 * n2)
+        | SVar v1, SInt n2 -> SVarMult (v1, n2)
+        | SInt n1, SVar v2 -> SVarMult (v2, n1)
         | _, _ -> SNone
       end
   | BinOp (op, e1, e2, _) -> SNone
@@ -737,6 +769,33 @@ and evaluateLval (lv : lval) (state : state) : summary =
         | SVarOffConst (name, off), NoOffset -> SDerefVarOffConst (name, off)
         | _ -> SFacts (typeToFacts "*" (typeOfLval lv))
       end
+
+let getTypeSize (t : typ) : int =
+  match isInteger (constFold true (SizeOf t)) with
+  | Some i -> Int64.to_int i
+  | None -> E.s (E.bug "failed to compute size of type %a\n" d_type t)
+
+let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t =
+  ignore (E.log "monkey: %a\n" d_type t);
+  let sz =
+    match unrollType t with
+    | TPtr (bt, _) -> getTypeSize bt
+    | _ -> E.s (E.bug "expected ptr type\n")
+  in
+  let handleInt n =
+    FactSet.singleton ("*", ACC (n / sz))
+  in
+  let handleVarMult v n =
+    if n >= sz then
+      FactSet.singleton ("*", AVC v)
+    else
+      FactSet.empty
+  in
+  match evaluateExp e state with
+  | SInt n -> handleInt n
+  | SVar v -> handleVarMult v 1
+  | SVarMult (v, n) -> handleVarMult v n
+  | _ -> FactSet.empty
 
 let analyzeCond (cond : exp) (state : state) : unit =
   let upgradeANT (n : int) (vname : string) : unit =
@@ -1069,10 +1128,19 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      begin
                        match ret with
                        | Some lv ->
-                           let facts =
-                             typeToFacts "*" (normalizeType2 matches rtype)
-                           in
-                           doSet lv rtype facts
+                           if isAllocator rtype then begin
+                             let i = getSizeIndex rtype in
+                             ignore (E.log "%d\n" i);
+                             let sizeExp = List.nth actuals (i - 1) in
+                             let lvType = typeOfLval lv in
+                             let facts = getAllocFact lvType sizeExp state in
+                             doSet lv lvType facts
+                           end else begin
+                             let facts =
+                               typeToFacts "*" (normalizeType2 matches rtype)
+                             in
+                             doSet lv rtype facts
+                           end
                        | None -> ()
                      end;
                      let noReturn =
@@ -1089,7 +1157,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
            | Set (lv, e, l) ->
                curLocation := l;
                doSet lv (typeOf e) (summaryToFacts (evaluateExp e state) state)
-           | Asm _ -> E.s (E.unimp "asm"))
+           | Asm _ ->
+               ignore (E.log "%a: warning: ignoring asm\n" d_loc !curLocation))
         instrs
   | Return (eo, l) ->
       curLocation := l;
