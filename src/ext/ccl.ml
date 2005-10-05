@@ -304,9 +304,9 @@ let attrToFact (name : string) (attr : attribute) : fact option =
   match attr with
   | Attr ("ignore", []) -> Some (name, AIgn)
   | Attr ("nullterm", []) -> Some (name, ANT 0)
-  | Attr ("constcount", [AInt n]) -> Some (name, ACC n)
-  | Attr ("varcount", [ACons (s, [])]) -> Some (name, AVC s)
-  | Attr ("varcountof", [ACons (s, [])]) -> Some (s, AVC name)
+  | Attr ("count", [AInt n]) -> Some (name, ACC n)
+  | Attr ("count", [ACons (s, [])]) -> Some (name, AVC s)
+  | Attr ("countof", [ACons (s, [])]) -> Some (s, AVC name)
   | _ -> None
 
 let myAttr (attr : attribute) : bool =
@@ -433,11 +433,11 @@ class normVisitor = object
 
   method vattr (attr : attribute) : attribute list visitAction =
     match attr with
-    | Attr ("varcount", [ACons (s, [])]) ->
+    | Attr ("count", [ACons (s, [])]) ->
         begin
           try
             let newAttr =
-              Attr ("varcount", [ACons (Hashtbl.find !mapping s, [])])
+              Attr ("count", [ACons (Hashtbl.find !mapping s, [])])
             in
             ChangeTo [ newAttr ]
           with Not_found ->
@@ -463,15 +463,15 @@ class normVisitor2 subst = object
   method vattr (attr : attribute) : attribute list visitAction =
     match attr with
     | Attr (aname, [ACons (s, [])])
-          when aname = "varcount" || aname = "varcountof" ->
+          when aname = "count" || aname = "countof" ->
         begin
           try
             let newAttr =
               match Hashtbl.find subst s with
               | SVar s' ->
                   [ Attr (aname, [ACons (s', [])]) ]
-              | SInt i when aname = "varcount" ->
-                  [ Attr ("constcount", [AInt i]) ]
+              | SInt i when aname = "count" ->
+                  [ Attr ("count", [AInt i]) ]
               | SNone ->
                   []
               | _ ->
