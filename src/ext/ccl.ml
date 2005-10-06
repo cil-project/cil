@@ -38,11 +38,13 @@ open Pretty
 module E = Errormsg
 
 let debug : bool ref = ref false
+let verbose : bool ref = ref false
 
 let globals : global list ref = ref []
 
 let curLocation : location ref = ref locUnknown
 let curFunction : fundec ref = ref dummyFunDec
+let curStmtId : int ref = ref 0
 
 type annot =
 | AIgn
@@ -102,10 +104,10 @@ let d_annots () (annots : annot list) : doc =
   seq (text ", ") (d_annot ()) annots
 
 let d_fact () ((s, a) : fact) : doc =
-  dprintf "  %s : %a\n" s d_annot a
+  dprintf "(%s %a)" s d_annot a
 
 let d_facts () (facts : FactSet.t) : doc =
-  seq (text "") (d_fact ()) (FactSet.elements facts)
+  seq (text ", ") (d_fact ()) (FactSet.elements facts)
 
 let d_state () (state : state) : doc =
   d_facts () state.facts
@@ -124,6 +126,61 @@ let d_summary () (sum : summary) : doc =
   | SAddrVar s -> dprintf "SAddrVar %s" s
   | SFacts _ -> dprintf "SFacts"
 
+class cclPrinterClass = object
+  inherit defaultCilPrinterClass as super
+
+  method pAttr (attr : attribute) : doc * bool =
+    match attr with
+    | Attr ("out", []) -> text "OUT", false
+    | Attr ("ignore", []) -> text "IGN", false
+    | Attr ("nullterm", []) -> text "NT", false
+    | Attr ("count", [AInt n]) -> dprintf "CT(%d)" n, false
+    | Attr ("count", [ACons (s, [])]) -> dprintf "CT(%s)" s, false
+    | Attr ("countof", [ACons (s, [])]) -> dprintf "CTOF(%s)" s, false
+    | _ -> super#pAttr attr
+end
+
+let cclPrinter = new cclPrinterClass
+
+let dc_type () (t : typ) : doc =
+  let save = !print_CIL_Input in
+  print_CIL_Input := true;
+  let d = printType cclPrinter () t in
+  print_CIL_Input := save;
+  d
+
+let errorTable : (int, doc) Hashtbl.t = Hashtbl.create 13
+
+let error (fmt : ('a, unit, doc) format) : 'a =
+  let f d =
+    E.hadErrors := true;
+    Hashtbl.add errorTable !curStmtId d;
+    d
+  in
+  Pretty.gprintf f fmt
+
+let warning (fmt : ('a, unit, doc) format) : 'a =
+  let f d =
+    Hashtbl.add errorTable !curStmtId d;
+    d
+  in
+  Pretty.gprintf f fmt
+
+let showStmtErrors (stmt : stmt) : unit =
+  List.iter
+    (fun d ->
+       fprint !E.logChannel 1000000 d;
+       flush !E.logChannel)
+    (List.rev (Hashtbl.find_all errorTable stmt.sid))
+
+let clearStmtErrors (stmt : stmt) : unit =
+  while Hashtbl.mem errorTable stmt.sid do
+    Hashtbl.remove errorTable stmt.sid
+  done
+
+let clearErrors () : unit =
+  Hashtbl.clear errorTable
+
 let isOutType (t : typ) : bool =
   hasAttribute "out" (typeAttrs t)
 
@@ -134,7 +191,7 @@ let getSizeIndex (t : typ) : int =
   try
     match List.hd (filterAttributes "cclmalloc" (typeAttrs t)) with
     | Attr ("cclmalloc", [AInt n]) -> n
-    | a -> ignore (E.log "bad: %a\n" d_attr a); 0
+    | a -> 0
   with Failure "hd" ->
     0
 
@@ -478,9 +535,11 @@ class normVisitor2 subst = object
                   E.s (E.bug "unexpected summary\n")
             in
             ChangeTo newAttr
-          with Not_found ->
-            E.s (E.bug "%a: no substitution found for %s\n"
-                       d_loc !curLocation s)
+          with Not_found -> begin
+            ignore (error "%a: no substitution found for %s\n"
+                          d_loc !curLocation s);
+            DoChildren
+          end
         end
     | _ ->
         DoChildren
@@ -722,11 +781,11 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       else begin
         if not (hasAnnot AIgn tFacts) then begin
           if not (checkBaseTypes t eType) then
-            E.s (E.bug "%a: bad cast: %a <- %a\n" d_loc !curLocation
-                       d_type t d_type eType);
+            ignore (error "%a: cannot verify cast\n    to: %a\n  from: %a\n"
+                          d_loc !curLocation d_type t d_type eType);
           if not (checkCast tFacts eFacts) then
-            E.s (E.bug "%a: bad cast: %a <- %a\n" d_loc !curLocation
-                       d_facts tFacts d_facts eFacts)
+            ignore (error "%a: cannot verify cast\n    to: %a\n  from: %a\n"
+                          d_loc !curLocation d_facts tFacts d_facts eFacts)
         end;
         SFacts tFacts
       end
@@ -761,7 +820,8 @@ and evaluateLval (lv : lval) (state : state) : summary =
   | Mem e, off ->
       let s = evaluateExp e state in
       if not (safeDeref (summaryToFacts s state)) then
-        E.s (E.bug "%a: not safe to deref %a\n" d_loc !curLocation d_exp e);
+        ignore (error "%a: cannot verify dereference of %a\n"
+                      d_loc !curLocation d_exp e);
       begin
         match s, off with
         | SVar name, NoOffset -> SDerefVar name
@@ -843,7 +903,9 @@ let analyzeCond (cond : exp) (state : state) : unit =
     | SDerefVarOffConst (vname, 1) ->
         upgradeANT 1 vname
     | _ ->
-        ignore (E.log "unrecognized zero exp: %a == 0\n" d_exp e)
+        if !verbose then
+          ignore (E.log "unrecognized zero exp: %a == 0\n" d_exp e);
+        ()
   in
   let checkLessThan (e1 : exp) (e2 : exp) : unit =
     let s1 = evaluateExp e1 state in
@@ -920,11 +982,14 @@ let analyzeCond (cond : exp) (state : state) : unit =
         else
           checkDisequality cond zero
     | _ ->
-        ignore (E.log "unrecognized cond: %a\n" d_exp cond)
+        if !verbose then
+          ignore (E.log "unrecognized cond: %a\n" d_exp cond);
+        ()
   in
+  (*
   ignore (E.log "%a: cond %a\n%a\n" d_loc !curLocation
                 d_exp cond d_state state);
-  ignore (evaluateExp cond state);
+  *)
   checkCond cond false
 
 let analyzeStmt (stmt : stmt) (state : state) : bool =
@@ -960,8 +1025,9 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              let lvType = typeOfLval lv in
              let lvSum = evaluateLval lv state in
              if not (checkBaseTypes lvType eType) then
-               E.s (E.bug "%a: bad cast: %a <- %a\n" d_loc !curLocation
-                          d_type lvType d_type eType);
+               ignore (error ("%a: assignment has incompatible types\n" ^^
+                              "to: %a\n    from: %a\n")
+                             d_loc !curLocation d_type lvType d_type eType);
              begin
                match lvSum with
                | SVar vname when varNameIsFS vname ->
@@ -970,13 +1036,16 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                    (* check base types equal *)
                    let lvFacts = summaryToFacts lvSum state in
                    if not (checkCast lvFacts facts) then
-                     E.s (E.bug "%a: bad cast: %a <- %a\n" d_loc !curLocation
-                                d_facts lvFacts d_facts facts)
+                     ignore (error ("%a: assignment has incompatible facts" ^^
+                                    "\n    to: %a\n    from: %a\n")
+                                   d_loc !curLocation
+                                   d_facts lvFacts d_facts facts)
              end
            in
-           if !return then
-           ignore (E.log "%a: instr %a\n%a\n" d_loc !curLocation
-                         d_instr instr d_state state);
+           if !return then begin
+           if !verbose then
+             ignore (E.log "%a: instr %a\n%a\n" d_loc !curLocation
+                           d_instr instr d_state state);
            match instr with
            | Call (None, Lval (Var vi, NoOffset), [ptr; chr; size], l)
                  when vi.vname = "memset" && isInteger chr = Some Int64.zero ->
@@ -988,159 +1057,152 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                  let ptrSum = evaluateExp ptr state in
                  let ptrFacts = summaryToFacts ptrSum state in
                  if not (checkCast facts ptrFacts) then
-                   E.s (E.bug "%a: bad arg: %a <- %a\n" d_loc l
-                              d_facts facts d_facts ptrFacts)
+                   ignore (error ("%a: argument 1 to memset has " ^^
+                                  "incompatible facts\n" ^^
+                                  "to: %a\n  from: %a\n")
+                                 d_loc l d_facts facts d_facts ptrFacts)
                end else
-                 E.s (E.bug "%a: cannot verify size of memset\n" d_loc l)
+                 ignore (error "%a: cannot verify size of memset\n" d_loc l)
            | Call (ret, fn, actuals, l) ->
                curLocation := l;
+               let fnName =
+                 match fn with
+                 | Lval (Var vi, NoOffset) -> vi.vname
+                 | _ -> "function pointer"
+               in
                begin
                  match typeOf fn with
                  | TFun (rtype, argInfo, isVarArg, attrs) ->
+                     let formals = argsToList argInfo in
                      let matches = Hashtbl.create 7 in
                      let removeNames = ref [] in
                      let addFacts = ref FactSet.empty in
-                     let rec matchNames formals actuals : unit =
-                       match formals, actuals with
-                       | (fname, ftype, _) :: frest, aExp :: arest ->
-                           if fname <> "" then begin
-                             let aType = typeOf aExp in
-                             let aSum = evaluateExp aExp state in
-                             match isOutType ftype, isOutType aType, aSum with
-                             | false, false, SInt i ->
-                                 Hashtbl.add matches fname aSum
-                             | true, false, SInt 0 ->
-                                 Hashtbl.add matches fname SNone
-                             | false, false, SVar vname
-                             | true, true, SVar vname
-                             | true, false, SAddrVar vname ->
-                                 Hashtbl.add matches fname (SVar vname)
-                             | _ ->
-                                 ()
-                           end;
-                           matchNames frest arest
-                       | [], [] ->
-                           ()
-                       | [], _ :: _ ->
-                           if isVarArg then
-                             ignore (E.log "ignoring vararg args\n")
-                           else
-                             E.s (E.bug "too many actuals\n")
-                       | _ :: _, [] ->
-                           E.s (E.bug "too many formals\n")
+                     let rec argIter fn : unit =
+                       let rec argIterRec i formals actuals : unit =
+                         match formals, actuals with
+                         | fcur :: frest, acur :: arest ->
+                             fn i fcur acur;
+                             argIterRec (i + 1) frest arest
+                         | [], [] ->
+                             ()
+                         | [], _ :: _ ->
+                             if isVarArg then
+                               ignore (warning
+                                       "%a: warning: ignoring vararg args\n"
+                                       d_loc l)
+                             else
+                               ignore (error "%a: too many actuals\n" d_loc l)
+                         | _ :: _, [] ->
+                             ignore (error "%a: too many formals\n" d_loc l)
+                       in
+                       argIterRec 1 formals actuals
                      in
-                     let rec checkArgs formals actuals : unit =
-                       match formals, actuals with
-                       | (fname, ftype, _) :: frest, aExp :: arest ->
-                           if not (isOutType ftype) then begin
-                             let fFacts = normalizeType2 matches ftype in
-                             let fFacts' = typeToFacts "*" fFacts in
-                             let aSum = evaluateExp aExp state in
-                             if not (hasAnnot AIgn fFacts') then begin
-                               if isPointerType ftype &&
-                                  FactSet.is_empty fFacts' then begin
-                                 let fname =
-                                   match fn with
-                                   | Lval (Var vi, NoOffset) -> vi.vname
-                                   | _ -> "unknown"
-                                 in
-                                 ignore (E.log "%a: ptr formal has no annots (%s)\n"
-                                               d_loc l fname)
-                               end;
-                               let fType = ftype in
-                               let aType = typeOf aExp in
-                               let aFacts = summaryToFacts aSum state in
-                               if not (checkBaseTypes fType aType) then
-                                 E.s (E.bug "%a: bad arg: %a <- %a\n" d_loc l
-                                            d_type fType d_type aType);
-                               if not (checkCast fFacts' aFacts) then
-                                 E.s (E.bug "%a: bad arg: %a <- %a\n" d_loc l
-                                            d_facts fFacts' d_facts aFacts)
-                             end
+                     let rec matchNames _ (fname, ftype, _) aExp : unit =
+                       if fname <> "" then begin
+                         let aType = typeOf aExp in
+                         let aSum = evaluateExp aExp state in
+                         match isOutType ftype, isOutType aType, aSum with
+                         | false, false, SInt i ->
+                             Hashtbl.add matches fname aSum
+                         | true, false, SInt 0 ->
+                             Hashtbl.add matches fname SNone
+                         | false, false, SVar vname
+                         | true, true, SVar vname
+                         | true, false, SAddrVar vname ->
+                             Hashtbl.add matches fname (SVar vname)
+                         | _ ->
+                             ()
+                       end
+                     in
+                     let rec checkArgs i (fname, ftype, _) aExp : unit =
+                       if not (isOutType ftype) then begin
+                         let fFacts = normalizeType2 matches ftype in
+                         let fFacts' = typeToFacts "*" fFacts in
+                         let aSum = evaluateExp aExp state in
+                         if not (hasAnnot AIgn fFacts') then begin
+                           if isPointerType ftype &&
+                              FactSet.is_empty fFacts' then begin
+                             ignore (warning ("%a: warning: argument %d to " ^^
+                                              "%s has no annotations\n")
+                                              d_loc l i fnName)
                            end;
-                           checkArgs frest arest
-                       | [], [] ->
-                           ()
-                       | [], _ :: _ ->
-                           if isVarArg then
-                             ignore (E.log "ignoring vararg args\n")
-                           else
-                             E.s (E.bug "too many actuals\n")
-                       | _ :: _, [] ->
-                           E.s (E.bug "too many formals\n")
+                           let fType = ftype in
+                           let aType = typeOf aExp in
+                           let aFacts = summaryToFacts aSum state in
+                           if not (checkBaseTypes fType aType) then
+                             ignore (error ("%a: argument %d to %s has " ^^
+                                            "incompatible types\n" ^^
+                                            "    to: %a\n  from: %a\n")
+                                     d_loc l i fnName
+                                     d_type fType d_type aType);
+                           if not (checkCast fFacts' aFacts) then
+                             ignore (error ("%a: argument %d to %s has " ^^
+                                            "incompatible facts\n" ^^
+                                            "    to: %a\n  from: %a\n")
+                                     d_loc l i fnName
+                                     d_facts fFacts' d_facts aFacts)
+                         end
+                       end
                      in
                      (* TODO: verify out vars used properly *)
-                     let rec checkReturns formals actuals : unit =
-                       match formals, actuals with
-                       | (fname, ftype, _) :: frest, aExp :: arest ->
-                           if isOutType ftype then begin
-                             let ftype' = normalizeType2 matches ftype in
-                             let ftype'' =
-                               match ftype' with
-                               | TPtr (bt, _) -> bt
-                               | _ -> E.s (E.bug "expected ptr type\n")
-                             in
-                             let fFacts' = typeToFacts "*" ftype'' in
-                             let aSum = evaluateExp aExp state in
-                             if not (hasAnnot AIgn fFacts') then begin
-                               if isPointerType ftype'' &&
-                                  FactSet.is_empty fFacts' then begin
-                                 let fname =
-                                   match fn with
-                                   | Lval (Var vi, NoOffset) -> vi.vname
-                                   | _ -> "unknown"
-                                 in
-                                 ignore (E.log "%a: ptr formal has no annots (%s)\n"
-                                               d_loc l fname)
-                               end;
-                               let fType = ftype' in
-                               let aType = typeOf aExp in
-                               begin
-                                 match isOutType aType, aSum with
-                                 | true, SVar vname ->
-                                     () (* TODO: check type! *)
-                                 | false, SAddrVar vname ->
-                                     removeNames := vname :: !removeNames;
-                                     addFacts :=
-                                       FactSet.union
-                                         (replaceName "*" vname fFacts')
-                                         !addFacts;
-                                 | false, SInt 0 -> ()
-                                 | _ -> E.s (E.bug "expected addr of var\n")
-                               end;
-                               if not (checkBaseTypes aType fType) then
-                                 E.s (E.bug "%a: bad out: %a <- %a\n" d_loc l
-                                            d_type aType d_type fType);
-                               (* TODO: Cast check covered above? *)
-                               (*
-                               if not (checkCast aFacts' fFacts) then
-                                 E.s (E.bug "%a: bad out: %a <- %a\n" d_loc l
-                                            d_facts aFacts' d_facts fFacts)
-                               *)
-                             end
+                     let rec checkReturns i (fname, ftype, _) aExp : unit =
+                       if isOutType ftype then begin
+                         let ftype' = normalizeType2 matches ftype in
+                         let ftype'' =
+                           match ftype' with
+                           | TPtr (bt, _) -> bt
+                           | _ -> E.s (E.bug "expected ptr type\n")
+                         in
+                         let fFacts' = typeToFacts "*" ftype'' in
+                         let aSum = evaluateExp aExp state in
+                         if not (hasAnnot AIgn fFacts') then begin
+                           if isPointerType ftype'' &&
+                              FactSet.is_empty fFacts' then begin
+                             ignore (warning ("%a: warning: argument %d to " ^^
+                                              "%s has no annotations\n")
+                                           d_loc l i fnName)
                            end;
-                           checkReturns frest arest
-                       | [], [] ->
-                           ()
-                       | [], _ :: _ ->
-                           if isVarArg then
-                             ignore (E.log "ignoring vararg args\n")
-                           else
-                             E.s (E.bug "too many actuals\n")
-                       | _ :: _, [] ->
-                           E.s (E.bug "too many formals\n")
+                           let fType = ftype' in
+                           let aType = typeOf aExp in
+                           begin
+                             match isOutType aType, aSum with
+                             | true, SVar vname ->
+                                 () (* TODO: check type! *)
+                             | false, SAddrVar vname ->
+                                 removeNames := vname :: !removeNames;
+                                 addFacts :=
+                                   FactSet.union
+                                     (replaceName "*" vname fFacts')
+                                     !addFacts;
+                             | false, SInt 0 -> ()
+                             | _ ->
+                                 ignore (error "%a: expected addr of var\n"
+                                         d_loc l)
+                           end;
+                           if not (checkBaseTypes aType fType) then
+                             ignore (error ("%a: argument %d to %s " ^^
+                                            "has incompatible type\n" ^^
+                                            "    to: %a\n  from: %a\n")
+                                     d_loc l i fnName
+                                     dc_type aType dc_type fType)
+                           (* TODO: Cast check covered above? *)
+                           (*
+                           if not (checkCast aFacts' fFacts) then
+                             ignore (error "%a: bad out: %a <- %a\n"
+                                     d_loc l d_facts aFacts' d_facts fFacts)
+                           *)
+                         end
+                       end
                      in
-                     let formals = argsToList argInfo in
-                     matchNames formals actuals;
-                     checkArgs formals actuals;
-                     checkReturns formals actuals;
+                     argIter matchNames;
+                     argIter checkArgs;
+                     argIter checkReturns;
                      doSetNames !removeNames !addFacts;
                      begin
                        match ret with
                        | Some lv ->
                            if isAllocator rtype then begin
                              let i = getSizeIndex rtype in
-                             ignore (E.log "%d\n" i);
                              let sizeExp = List.nth actuals (i - 1) in
                              let lvType = typeOfLval lv in
                              let facts, _ = getAllocFact lvType sizeExp state in
@@ -1162,13 +1224,16 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      if noReturn then
                        return := false
                  | _ ->
-                     E.s (E.bug "function has non-function type\n")
+                     ignore (error "%a: function has non-function type\n"
+                                   d_loc l)
                end
            | Set (lv, e, l) ->
                curLocation := l;
                doSet lv (typeOf e) (summaryToFacts (evaluateExp e state) state)
-           | Asm _ ->
-               ignore (E.log "%a: warning: ignoring asm\n" d_loc !curLocation))
+           | Asm (_, _, _, _, _, l) ->
+               curLocation := l;
+               ignore (warning "%a: warning: ignoring asm\n" d_loc l)
+           end)
         instrs
   | Return (eo, l) ->
       curLocation := l;
@@ -1182,13 +1247,15 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
             in
             let eType = typeOf e in
             if not (checkBaseTypes fType eType) then
-              E.s (E.bug "%a: bad return: %a <- %a\n" d_loc l
-                         d_type fType d_type eType);
+              ignore (error ("%a: return has incompatible type\n" ^^
+                             "    to: %a\n  from: %a\n")
+                            d_loc l d_type fType d_type eType);
             let fFacts = typeToFacts "*" fType in
             let eFacts = summaryToFacts (evaluateExp e state) state in
             if not (checkCast fFacts eFacts) then
-              E.s (E.bug "%a: bad return: %a <- %a\n" d_loc l
-                         d_facts fFacts d_facts eFacts)
+              ignore (error ("%a: return has incompatible facts\n" ^^
+                             "    to: %a\n  from: %a\n")
+                            d_loc l d_facts fFacts d_facts eFacts)
         | None -> ()
       end
   | Loop _
@@ -1202,6 +1269,53 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
   | TryExcept _ -> E.s (E.unimp "exceptions")
   end;
   !return
+
+let stmtIter (fn : stmt -> unit) (fd : fundec) : unit =
+  let stmtline = Hashtbl.create 113 in
+  let setLine (stmt : stmt) (line : int) : unit =
+    let newLine =
+      let locLine = (get_stmtLoc stmt.skind).line in
+      if locLine > 0 then
+        locLine
+      else
+        try
+          min line (Hashtbl.find stmtline stmt.sid)
+        with Not_found ->
+          line
+    in
+    Hashtbl.replace stmtline stmt.sid newLine
+  in
+  let worklist = Stack.create () in
+  let firstStmt = List.hd fd.sbody.bstmts in
+  Stack.push firstStmt worklist;
+  setLine firstStmt 0;
+  while not (Stack.is_empty worklist) do
+    let stmt = Stack.pop worklist in
+    let line =
+      try
+        Hashtbl.find stmtline stmt.sid
+      with Not_found ->
+        E.s (E.bug "expected line number\n")
+    in
+    List.iter
+      (fun succ ->
+         if not (Hashtbl.mem stmtline succ.sid) then
+           Stack.push succ worklist;
+         setLine succ line)
+      stmt.succs
+  done;
+  let getLine stmt =
+    try
+      Hashtbl.find stmtline stmt.sid
+    with Not_found ->
+      0
+  in
+  let sortedStmts =
+    List.sort
+      (fun s1 s2 -> compare (getLine s1) (getLine s2))
+      fd.sallstmts
+  in
+  List.iter fn sortedStmts
 
 let analyzeFundec (fd : fundec) : unit =
   curFunction := fd;
@@ -1224,7 +1338,6 @@ let analyzeFundec (fd : fundec) : unit =
       try
         let succState = Hashtbl.find stmtState succ.sid in
         if not (equalStates newState succState) then begin
-          curLocation := get_stmtLoc succ.skind;
           Hashtbl.replace stmtState succ.sid
                           (joinStates newState succState);
           Stack.push succ worklist;
@@ -1235,6 +1348,7 @@ let analyzeFundec (fd : fundec) : unit =
           Stack.push succ worklist;
         end
     in
+    curStmtId := stmt.sid;
     match stmt.skind with
     | If (cond, thenBranch, elseBranch, l) ->
         curLocation := l;
@@ -1254,6 +1368,7 @@ let analyzeFundec (fd : fundec) : unit =
         in
         let handleStmt (cond : exp) (succ : stmt) : unit =
           let newState = copyState state in
+          clearStmtErrors stmt;
           analyzeCond cond newState;
           recordState newState succ;
         in
@@ -1277,10 +1392,13 @@ let analyzeFundec (fd : fundec) : unit =
     | _ ->
         begin
           let newState = copyState state in
+          clearStmtErrors stmt;
           if analyzeStmt stmt newState then
             List.iter (recordState newState) stmt.succs
         end
-  done
+  done;
+  stmtIter showStmtErrors fd;
+  clearErrors ()
   with E.Error ->
     begin
     (*
@@ -1362,7 +1480,6 @@ class preVisitor = object
         match o with
         | Index (e, o') ->
             let start = StartOf acc in
-            ignore (E.log "%a : %a\n" d_lval acc d_type (typeOf start));
             let index = BinOp (PlusPI, start, e, typeOf start) in
             let acc' = Mem index, NoOffset in
             rewriteIndex o' acc'
@@ -1380,13 +1497,17 @@ let analyzeFile (f : file) : unit =
   ignore (Partial.globally_unique_vids f);
   globals := f.globals;
   visitCilFile (new preVisitor) f;
-  visitCilFile (new ptrArithVisitor) f
+  visitCilFile (new ptrArithVisitor) f;
+  if !E.hadErrors then
+    E.s (E.error "Verification failed\n")
 
 let feature : featureDescr = 
   { fd_name = "Ptr";
     fd_enabled = ref false;
     fd_description = "find pointer arithmetic";
-    fd_extraopt = [];
+    fd_extraopt = [
+      "--cclverbose", Arg.Set verbose, "Enable verbose output for CCL"
+    ];
     fd_doit = analyzeFile;
     fd_post_check = true;
   } 
