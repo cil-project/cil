@@ -314,7 +314,7 @@ let joinFacts (facts1 : FactSet.t) (facts2 : FactSet.t) : FactSet.t =
          FactSet.add fact' rest
        in
        match fact with
-       | name, ACC n ->
+       | name, ACC n when name = "*" ->
            let m = getMaxACC name facts2' in
            if m >= 0 then
              add (name, ACC (min n m))
@@ -1026,7 +1026,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              let lvSum = evaluateLval lv state in
              if not (checkBaseTypes lvType eType) then
                ignore (error ("%a: assignment has incompatible types\n" ^^
-                              "to: %a\n    from: %a\n")
+                              "    to: %a\n    from: %a\n")
                              d_loc !curLocation d_type lvType d_type eType);
              begin
                match lvSum with
@@ -1036,8 +1036,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                    (* check base types equal *)
                    let lvFacts = summaryToFacts lvSum state in
                    if not (checkCast lvFacts facts) then
-                     ignore (error ("%a: assignment has incompatible facts" ^^
-                                    "\n    to: %a\n    from: %a\n")
+                     ignore (error ("%a: assignment has incompatible facts\n" ^^
+                                    "    to: %a\n    from: %a\n")
                                    d_loc !curLocation
                                    d_facts lvFacts d_facts facts)
              end
