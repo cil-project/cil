@@ -2656,14 +2656,18 @@ echo "$as_me: error:
         ;;
     darwin) # Mac OS X
         ;;
+    solaris)
+	;;
     *)
       { { echo "$as_me:$LINENO: error:
         Unsupported Perl port $perlport -- sorry.
-        cygwin, Win32 (ActivePerl) and linux are the supported ports.
+        cygwin, MSWin32 (ActivePerl), linux, freebsd, openbsd, darwin,
+        and solaris are the supported ports.
       " >&5
 echo "$as_me: error:
         Unsupported Perl port $perlport -- sorry.
-        cygwin, Win32 (ActivePerl) and linux are the supported ports.
+        cygwin, MSWin32 (ActivePerl), linux, freebsd, openbsd, darwin,
+        and solaris are the supported ports.
       " >&2;}
    { (exit 1); exit 1; }; }
   esac
@@ -4211,6 +4215,14 @@ echo "${ECHO_T}configuring for Cygwin on win32/x86" >&6
     CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
+    ;;
+
+  # Solaris
+  *sparc*solaris*)
+    echo "$as_me:$LINENO: result: configuring for SPARC/Solaris" >&5
+echo "${ECHO_T}configuring for SPARC/Solaris" >&6
+
+    ARCHOS=sparc_SOLARIS
     ;;
 
   *)
