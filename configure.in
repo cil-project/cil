@@ -230,10 +230,13 @@ AC_MSG_CHECKING([for Perl])
         ;;
     darwin) # Mac OS X
         ;;
+    solaris)
+	;;
     *)
       AC_MSG_ERROR([
         Unsupported Perl port $perlport -- sorry.
-        cygwin, Win32 (ActivePerl) and linux are the supported ports.
+        cygwin, MSWin32 (ActivePerl), linux, freebsd, openbsd, darwin,
+        and solaris are the supported ports.
       ])
   esac
 AC_MSG_RESULT([found version $perlver, port $perlport])
@@ -414,6 +417,13 @@ case "$target" in
     CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
+    ;;
+
+  # Solaris
+  *sparc*solaris*)
+    AC_MSG_RESULT(configuring for SPARC/Solaris)
+
+    ARCHOS=sparc_SOLARIS
     ;;
 
   *)

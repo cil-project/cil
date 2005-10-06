@@ -22,7 +22,7 @@ inline static unsigned long long read_ppc() {
 #if !defined(__i386__)
   printf ("Reading of performance counters is supported only on Intel x86\n");
   exit(1);
-#endif
+#else
 
   // RDTSC puts the result in EAX and EDX. We tell gcc to use those registers
   // for "low" and "high"
@@ -37,6 +37,7 @@ inline static unsigned long long read_ppc() {
     first_value = lowhigh;
   }
   return lowhigh - first_value;
+#endif
 }
 
 
