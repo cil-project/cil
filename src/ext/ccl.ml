@@ -910,40 +910,31 @@ let analyzeCond (cond : exp) (state : state) : unit =
   let checkLessThan (e1 : exp) (e2 : exp) : unit =
     let s1 = evaluateExp e1 state in
     let s2 = evaluateExp e2 state in
-    match s1 with
-    | SVar vname ->
-        begin
-          match isInteger e2 with
-          | Some i ->
-              let arrays =
-                FactSet.fold
-                  (fun (name, annot) rest ->
-                     if annot = ACC (Int64.to_int i) then
-                       name :: rest
-                     else
-                       rest)
-                  state.facts
-                  []
-              in
-              List.iter (fun aname -> upgradeACCBI vname aname) arrays
-          | None ->
-              begin
-                match s2 with
-                | SVar bname ->
-                    let arrays =
-                      FactSet.fold
-                        (fun (name, annot) rest ->
-                           if annot = AVC bname then
-                             name :: rest
-                           else
-                             rest)
-                        state.facts
-                        []
-                    in
-                    List.iter (fun aname -> upgradeAVCBI vname aname) arrays
-                | _ -> ()
-              end
-        end
+    match s1, s2 with
+    | SVar vname, SInt i ->
+        let arrays =
+          FactSet.fold
+            (fun (name, annot) rest ->
+               if annot = ACC i then
+                 name :: rest
+               else
+                 rest)
+            state.facts
+            []
+        in
+        List.iter (fun aname -> upgradeACCBI vname aname) arrays
+    | SVar vname, SVar bname ->
+        let arrays =
+          FactSet.fold
+            (fun (name, annot) rest ->
+               if annot = AVC bname then
+                 name :: rest
+               else
+                 rest)
+            state.facts
+            []
+        in
+        List.iter (fun aname -> upgradeAVCBI vname aname) arrays
     | _ -> ()
   in
   let checkEquality (e1 : exp) (e2 : exp) : unit =
