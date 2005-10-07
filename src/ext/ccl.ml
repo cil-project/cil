@@ -198,40 +198,29 @@ let getSizeIndex (t : typ) : int =
 let listToFactSet (facts : fact list) : FactSet.t =
   List.fold_right (fun fact set -> FactSet.add fact set) facts FactSet.empty
 
-let varNameIsFS (name : string) : bool =
-  try
-    let vi = List.find (fun vi -> vi.vname = name) !curFunction.slocals in
-    not vi.vaddrof
-  with Not_found ->
-    false
+let curVars : varinfo list ref = ref []
 
-let varNameToInfo (name : string) : varinfo option =
+let clearVars () : unit =
+  curVars := []
+
+let addVar (vi : varinfo) : unit =
+  if not (List.memq vi !curVars) then
+    curVars := vi :: !curVars
+
+let varNameToInfo (name : string) : varinfo =
   try
-    Some (List.find
-            (fun vi -> vi.vname = name)
-            (!curFunction.slocals @ !curFunction.sformals))
+    List.find (fun vi -> vi.vname = name) !curVars
   with Not_found ->
-    None
+    E.s (E.bug "var name not in list\n")
+
+let varNameIsFS (name : string) : bool =
+  not (varNameToInfo name).vaddrof
 
 let isLocalVar (name : string) : bool =
-  match varNameToInfo name with
-  | Some _ -> true
-  | None -> false
+  not (varNameToInfo name).vglob
 
-let globalVarType (name : string) : typ =
-  let t =
-    List.fold_right
-      (fun glob result ->
-         match glob, result with
-         | GVarDecl (vi, _), None
-         | GVar (vi, _, _), None when vi.vname = name -> Some vi.vtype
-         | _ -> result)
-      !globals
-      None
-  in
-  match t with
-  | Some t' -> t'
-  | None -> E.s (E.bug "couldn't find global %s\n" name)
+let varType (name : string) : typ =
+  (varNameToInfo name).vtype
 
 let replaceName (name1 : string) (name2 : string)
                 (facts : FactSet.t) : FactSet.t =
@@ -381,49 +370,31 @@ let attrsToFacts (name : string) (attrs : attributes) : FactSet.t =
     attrs
     FactSet.empty
 
-let typeToFacts (name : string) (t : typ) : FactSet.t =
+let typeToFactsEx (name : string) (t : typ) (extra : attributes) : FactSet.t =
   match unrollType t with
   | TArray (_, len, attrs) ->
-      (* TODO: eliminate makeState code duplication *)
       begin
         try
           FactSet.add
             (name, ACC (lenOfArray len))
-            (attrsToFacts name attrs)
+            (attrsToFacts name (attrs @ extra))
         with LenOfArray ->
           attrsToFacts name attrs
       end
   | _ -> attrsToFacts name (typeAttrs t)
 
+let typeToFacts (name : string) (t : typ) : FactSet.t =
+  typeToFactsEx name t []
+
 let makeState (fd : fundec) : state =
-  let annots = Hashtbl.create 113 in
-  let formalFacts =
-    List.fold_right
-      (fun vi rest -> FactSet.union (typeToFacts vi.vname vi.vtype) rest)
-      fd.sformals
-      FactSet.empty
-  in
-  let localFacts =
+  let facts =
     List.fold_right
       (fun vi rest ->
-         match unrollType vi.vtype with
-         | TArray (_, len, _) ->
-             begin
-               try
-                 FactSet.add (vi.vname, ACC (lenOfArray len))
-                   (FactSet.union (attrsToFacts vi.vname vi.vattr) rest)
-               with LenOfArray ->
-                 FactSet.union (attrsToFacts vi.vname vi.vattr) rest
-             end
-         | _ ->
-             if vi.vaddrof then
-               FactSet.union (typeToFacts vi.vname vi.vtype) rest
-             else
-               rest)
-      fd.slocals
+         FactSet.union (typeToFactsEx vi.vname vi.vtype vi.vattr) rest)
+      !curVars
       FactSet.empty
   in
-  { facts = FactSet.union formalFacts localFacts; }
+  { facts = facts; }
 
 let copyState (s : state) : state =
   { facts = s.facts; }
@@ -656,7 +627,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
           state.facts
           FactSet.empty
       else
-        typeToFacts "*" (globalVarType vname)
+        typeToFacts "*" (varType vname)
   | SVarOff (vname, oname) ->
       FactSet.fold
         (fun fact rest ->
@@ -702,18 +673,14 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
   | SDerefVar vname
   | SDerefVarOff (vname, _)
   | SDerefVarOffConst (vname, _) ->
-      begin
-        match varNameToInfo vname with
-        | Some vi ->
-            let e =
-              match vi.vtype with
-              | TPtr _ -> Lval (Var vi, NoOffset)
-              | TArray _ -> StartOf (Var vi, NoOffset)
-              | _ -> E.s (E.bug "expected ptr or array type\n")
-            in
-            typeToFacts "*" (typeOfLval (Mem e, NoOffset))
-        | None -> FactSet.empty
-      end
+      let vi = varNameToInfo vname in
+      let e =
+        match vi.vtype with
+        | TPtr _ -> Lval (Var vi, NoOffset)
+        | TArray _ -> StartOf (Var vi, NoOffset)
+        | _ -> E.s (E.bug "expected ptr or array type\n")
+      in
+      typeToFacts "*" (typeOfLval (Mem e, NoOffset))
   | SAddrVar vname ->
       FactSet.singleton ("*", ACC 1)
   | SFacts facts ->
@@ -1261,6 +1228,18 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
   end;
   !return
 
+class preFunctionVisitor = object
+  inherit nopCilVisitor
+
+  method vlval ((host, offset) : lval) =
+    begin
+      match host with
+      | Var vi -> addVar vi
+      | _ -> ()
+    end;
+    DoChildren
+end
+
 let stmtIter (fn : stmt -> unit) (fd : fundec) : unit =
   let stmtline = Hashtbl.create 113 in
   let setLine (stmt : stmt) (line : int) : unit =
@@ -1310,6 +1289,8 @@ let stmtIter (fn : stmt -> unit) (fd : fundec) : unit =
 
 let analyzeFundec (fd : fundec) : unit =
   curFunction := fd;
+  clearVars ();
+  ignore (visitCilFunction (new preFunctionVisitor) fd);
   let stmtState = Hashtbl.create 113 in
   let worklist = Stack.create () in
   let firstStmt = List.hd fd.sbody.bstmts in
@@ -1423,16 +1404,6 @@ let analyzeFundec (fd : fundec) : unit =
     raise E.Error
     end
 
-class ptrArithVisitor = object
-  inherit nopCilVisitor
-
-  method vfunc (fd : fundec) =
-    prepareCFG fd;
-    computeCFGInfo fd false;
-    analyzeFundec fd;
-    DoChildren
-end
-
 class preVisitor = object
   inherit nopCilVisitor
 
@@ -1467,20 +1438,33 @@ class preVisitor = object
 
   method vlval ((host, offset) : lval) =
     begin
-      let rec rewriteIndex (o : offset) (acc : lval) : lval =
-        match o with
-        | Index (e, o') ->
-            let start = StartOf acc in
-            let index = BinOp (PlusPI, start, e, typeOf start) in
-            let acc' = Mem index, NoOffset in
-            rewriteIndex o' acc'
-        | Field (fld, o') ->
-            let acc' = addOffsetLval (Field (fld, NoOffset)) acc in
-            rewriteIndex o' acc'
-        | NoOffset -> acc
-      in
-      ChangeDoChildrenPost (rewriteIndex offset (host, NoOffset), (fun x -> x))
-    end
+      match host with
+      | Var vi -> addVar vi
+      | _ -> ()
+    end;
+    let rec rewriteIndex (o : offset) (acc : lval) : lval =
+      match o with
+      | Index (e, o') ->
+          let start = StartOf acc in
+          let index = BinOp (PlusPI, start, e, typeOf start) in
+          let acc' = Mem index, NoOffset in
+          rewriteIndex o' acc'
+      | Field (fld, o') ->
+          let acc' = addOffsetLval (Field (fld, NoOffset)) acc in
+          rewriteIndex o' acc'
+      | NoOffset -> acc
+    in
+    ChangeDoChildrenPost (rewriteIndex offset (host, NoOffset), (fun x -> x))
+end
+
+class ptrArithVisitor = object
+  inherit nopCilVisitor
+
+  method vfunc (fd : fundec) =
+    prepareCFG fd;
+    computeCFGInfo fd false;
+    analyzeFundec fd;
+    DoChildren
 end
 
 let analyzeFile (f : file) : unit =
