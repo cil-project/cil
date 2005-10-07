@@ -158,14 +158,14 @@ let error (fmt : ('a, unit, doc) format) : 'a =
     Hashtbl.add errorTable !curStmtId d;
     d
   in
-  Pretty.gprintf f fmt
+  Pretty.gprintf f ("%a: error: " ^^ fmt) d_loc !curLocation
 
 let warning (fmt : ('a, unit, doc) format) : 'a =
   let f d =
     Hashtbl.add errorTable !curStmtId d;
     d
   in
-  Pretty.gprintf f fmt
+  Pretty.gprintf f ("%a: warning: " ^^ fmt) d_loc !curLocation
 
 let showStmtErrors (stmt : stmt) : unit =
   List.iter
@@ -508,8 +508,7 @@ class normVisitor2 subst = object
             in
             ChangeTo newAttr
           with Not_found -> begin
-            ignore (error "%a: no substitution found for %s\n"
-                          d_loc !curLocation s);
+            ignore (error "no substitution found for %s\n" s);
             DoChildren
           end
         end
@@ -533,9 +532,18 @@ let checkBaseTypes (toType : typ) (fromType : typ) : bool =
     | TInt _, TEnum _ -> true
     | TEnum _, TInt _ -> true
     | TInt _, TPtr _ -> true
-    | TPtr _, TInt _ -> true (* TODO: improve this check *)
-    | _, TVoid _ -> true (* TODO: improve this check *)
-    | TVoid _, _ -> true (* TODO: improve this check *)
+    | TVoid _, TVoid _ -> true
+    | TPtr _, TInt _ ->
+        ignore (warning ("unchecked integer to pointer cast\n" ^^
+                         "    to: %a\n  from: %a\n")
+                         d_type t1 d_type t2);
+        true (* TODO: improve this check *)
+    | _, TVoid _
+    | TVoid _, _ ->
+        ignore (warning ("unchecked void cast\n" ^^
+                         "    to: %a\n  from: %a\n")
+                         d_type t1 d_type t2);
+        true (* TODO: improve this check *)
     | _, _ -> equalTypes t1 t2
   in
   let res = check toType fromType true in
@@ -749,11 +757,11 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       else begin
         if not (hasAnnot AIgn tFacts) then begin
           if not (checkBaseTypes t eType) then
-            ignore (error "%a: cannot verify cast\n    to: %a\n  from: %a\n"
-                          d_loc !curLocation d_type t d_type eType);
+            ignore (error "cannot verify cast\n    to: %a\n  from: %a\n"
+                          d_type t d_type eType);
           if not (checkCast tFacts eFacts) then
-            ignore (error "%a: cannot verify cast\n    to: %a\n  from: %a\n"
-                          d_loc !curLocation d_facts tFacts d_facts eFacts)
+            ignore (error "cannot verify cast\n    to: %a\n  from: %a\n"
+                          d_facts tFacts d_facts eFacts)
         end;
         SFacts tFacts
       end
@@ -788,8 +796,7 @@ and evaluateLval (lv : lval) (state : state) : summary =
   | Mem e, off ->
       let s = evaluateExp e state in
       if not (safeDeref (summaryToFacts s state)) then
-        ignore (error "%a: cannot verify dereference of %a\n"
-                      d_loc !curLocation d_exp e);
+        ignore (error "cannot verify dereference of %a\n" d_exp e);
       begin
         match s, off with
         | SVar name, NoOffset -> SDerefVar name
@@ -984,9 +991,9 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              let lvType = typeOfLval lv in
              let lvSum = evaluateLval lv state in
              if not (checkBaseTypes lvType eType) then
-               ignore (error ("%a: assignment has incompatible types\n" ^^
+               ignore (error ("assignment has incompatible types\n" ^^
                               "    to: %a\n    from: %a\n")
-                             d_loc !curLocation d_type lvType d_type eType);
+                             d_type lvType d_type eType);
              begin
                match lvSum with
                | SVar vname when varNameIsFS vname ->
@@ -995,9 +1002,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                    (* check base types equal *)
                    let lvFacts = summaryToFacts lvSum state in
                    if not (checkCast lvFacts facts) then
-                     ignore (error ("%a: assignment has incompatible facts\n" ^^
+                     ignore (error ("assignment has incompatible facts\n" ^^
                                     "    to: %a\n    from: %a\n")
-                                   d_loc !curLocation
                                    d_facts lvFacts d_facts facts)
              end
            in
@@ -1016,12 +1022,12 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                  let ptrSum = evaluateExp ptr state in
                  let ptrFacts = summaryToFacts ptrSum state in
                  if not (checkCast facts ptrFacts) then
-                   ignore (error ("%a: argument 1 to memset has " ^^
-                                  "incompatible facts\n" ^^
-                                  "to: %a\n  from: %a\n")
-                                 d_loc l d_facts facts d_facts ptrFacts)
+                   ignore (error
+                           ("argument 1 to memset has incompatible facts\n" ^^
+                            "to: %a\n  from: %a\n")
+                           d_facts facts d_facts ptrFacts)
                end else
-                 ignore (error "%a: cannot verify size of memset\n" d_loc l)
+                 ignore (error "cannot verify size of memset\n")
            | Call (ret, fn, actuals, l) ->
                curLocation := l;
                let fnName =
@@ -1047,13 +1053,11 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          | [], _ :: _ ->
                              if isVarArg then begin
                                if not !suppress then
-                                 ignore (warning
-                                         "%a: warning: ignoring vararg args\n"
-                                         d_loc l)
+                                 ignore (warning "ignoring vararg args\n")
                              end else
-                               ignore (error "%a: too many actuals\n" d_loc l)
+                               ignore (error "too many actuals\n")
                          | _ :: _, [] ->
-                             ignore (error "%a: too many formals\n" d_loc l)
+                             ignore (error "too many formals\n")
                        in
                        argIterRec 1 formals actuals
                      in
@@ -1082,25 +1086,23 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          if not (hasAnnot AIgn fFacts') then begin
                            if isPointerType ftype &&
                               FactSet.is_empty fFacts' then begin
-                             ignore (warning ("%a: warning: argument %d to " ^^
-                                              "%s has no annotations\n")
-                                              d_loc l i fnName)
+                             ignore (warning
+                                     "argument %d to %s has no annotations\n"
+                                     i fnName)
                            end;
                            let fType = ftype in
                            let aType = typeOf aExp in
                            let aFacts = summaryToFacts aSum state in
                            if not (checkBaseTypes fType aType) then
-                             ignore (error ("%a: argument %d to %s has " ^^
+                             ignore (error ("argument %d to %s has " ^^
                                             "incompatible types\n" ^^
                                             "    to: %a\n  from: %a\n")
-                                     d_loc l i fnName
-                                     d_type fType d_type aType);
+                                     i fnName d_type fType d_type aType);
                            if not (checkCast fFacts' aFacts) then
-                             ignore (error ("%a: argument %d to %s has " ^^
+                             ignore (error ("argument %d to %s has " ^^
                                             "incompatible facts\n" ^^
                                             "    to: %a\n  from: %a\n")
-                                     d_loc l i fnName
-                                     d_facts fFacts' d_facts aFacts)
+                                     i fnName d_facts fFacts' d_facts aFacts)
                          end
                        end
                      in
@@ -1118,9 +1120,9 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          if not (hasAnnot AIgn fFacts') then begin
                            if isPointerType ftype'' &&
                               FactSet.is_empty fFacts' then begin
-                             ignore (warning ("%a: warning: argument %d to " ^^
-                                              "%s has no annotations\n")
-                                           d_loc l i fnName)
+                             ignore (warning
+                                     "argument %d to %s has no annotations\n"
+                                     i fnName)
                            end;
                            let fType = ftype' in
                            let aType = typeOf aExp in
@@ -1136,20 +1138,18 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                                      !addFacts;
                              | false, SInt 0 -> ()
                              | _ ->
-                                 ignore (error "%a: expected addr of var\n"
-                                         d_loc l)
+                                 ignore (error "expected addr of var\n")
                            end;
                            if not (checkBaseTypes aType fType) then
-                             ignore (error ("%a: argument %d to %s " ^^
+                             ignore (error ("argument %d to %s " ^^
                                             "has incompatible type\n" ^^
                                             "    to: %a\n  from: %a\n")
-                                     d_loc l i fnName
-                                     dc_type aType dc_type fType)
+                                     i fnName dc_type aType dc_type fType)
                            (* TODO: Cast check covered above? *)
                            (*
                            if not (checkCast aFacts' fFacts) then
-                             ignore (error "%a: bad out: %a <- %a\n"
-                                     d_loc l d_facts aFacts' d_facts fFacts)
+                             ignore (error "bad out: %a <- %a\n"
+                                     d_facts aFacts' d_facts fFacts)
                            *)
                          end
                        end
@@ -1184,8 +1184,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      if noReturn then
                        return := false
                  | _ ->
-                     ignore (error "%a: function has non-function type\n"
-                                   d_loc l)
+                     ignore (error "function has non-function type\n")
                end
            | Set (lv, e, l) ->
                curLocation := l;
@@ -1193,7 +1192,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
            | Asm (_, _, _, _, _, l) ->
                curLocation := l;
                if not !suppress then
-                 ignore (warning "%a: warning: ignoring asm\n" d_loc l)
+                 ignore (warning "ignoring asm\n")
            end)
         instrs
   | Return (eo, l) ->
@@ -1208,15 +1207,15 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
             in
             let eType = typeOf e in
             if not (checkBaseTypes fType eType) then
-              ignore (error ("%a: return has incompatible type\n" ^^
+              ignore (error ("return has incompatible type\n" ^^
                              "    to: %a\n  from: %a\n")
-                            d_loc l d_type fType d_type eType);
+                            d_type fType d_type eType);
             let fFacts = typeToFacts "*" fType in
             let eFacts = summaryToFacts (evaluateExp e state) state in
             if not (checkCast fFacts eFacts) then
-              ignore (error ("%a: return has incompatible facts\n" ^^
+              ignore (error ("return has incompatible facts\n" ^^
                              "    to: %a\n  from: %a\n")
-                            d_loc l d_facts fFacts d_facts eFacts)
+                            d_facts fFacts d_facts eFacts)
         | None -> ()
       end
   | Loop _
