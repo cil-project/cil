@@ -1813,6 +1813,7 @@ sub new {
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
 	    "-pipe\$" => { TYPE => 'ALLARGS' },
             "-[DIU]" => { ONEMORE => 1, TYPE => "PREPROC" },
+            "-isystem" => { ONEMORE => 1, TYPE => "PREPROC" },
             '-undef$' => { TYPE => 'PREPROC' },
             '-w$' => { TYPE => 'PREPROC' },
 	    '-M$' => { TYPE => 'SPECIAL' },

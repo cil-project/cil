@@ -105,6 +105,7 @@ let features : C.featureDescr list =
     Simplemem.feature;
     Simplify.feature;
     Dataslicing.feature;
+    Ccl.feature;
   ] 
   @ Feature_config.features 
 

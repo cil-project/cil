@@ -1479,9 +1479,9 @@ let analyzeFile (f : file) : unit =
     E.s (E.error "Verification failed\n")
 
 let feature : featureDescr = 
-  { fd_name = "Ptr";
+  { fd_name = "CCL";
     fd_enabled = ref false;
-    fd_description = "find pointer arithmetic";
+    fd_description = "CCured Lite";
     fd_extraopt = [
       "--cclverbose", Arg.Set verbose, "Enable verbose output for CCL";
       "--cclsuppress", Arg.Set suppress, "Suppress some CCL warnings";
