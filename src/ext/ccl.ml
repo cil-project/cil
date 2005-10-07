@@ -39,6 +39,7 @@ module E = Errormsg
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
+let suppress : bool ref = ref false
 
 let globals : global list ref = ref []
 
@@ -1044,11 +1045,12 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          | [], [] ->
                              ()
                          | [], _ :: _ ->
-                             if isVarArg then
-                               ignore (warning
-                                       "%a: warning: ignoring vararg args\n"
-                                       d_loc l)
-                             else
+                             if isVarArg then begin
+                               if not !suppress then
+                                 ignore (warning
+                                         "%a: warning: ignoring vararg args\n"
+                                         d_loc l)
+                             end else
                                ignore (error "%a: too many actuals\n" d_loc l)
                          | _ :: _, [] ->
                              ignore (error "%a: too many formals\n" d_loc l)
@@ -1190,7 +1192,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                doSet lv (typeOf e) (summaryToFacts (evaluateExp e state) state)
            | Asm (_, _, _, _, _, l) ->
                curLocation := l;
-               ignore (warning "%a: warning: ignoring asm\n" d_loc l)
+               if not !suppress then
+                 ignore (warning "%a: warning: ignoring asm\n" d_loc l)
            end)
         instrs
   | Return (eo, l) ->
@@ -1481,7 +1484,8 @@ let feature : featureDescr =
     fd_enabled = ref false;
     fd_description = "find pointer arithmetic";
     fd_extraopt = [
-      "--cclverbose", Arg.Set verbose, "Enable verbose output for CCL"
+      "--cclverbose", Arg.Set verbose, "Enable verbose output for CCL";
+      "--cclsuppress", Arg.Set suppress, "Suppress some CCL warnings";
     ];
     fd_doit = analyzeFile;
     fd_post_check = true;
