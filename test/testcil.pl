@@ -38,6 +38,7 @@ $main::globalTEST = $TEST;
 # am I on win32?
 my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
+my $solaris = $^O eq 'solaris';
 
 # am I using egcs?
 my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
@@ -45,6 +46,12 @@ my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
 # am I on manju?
 my $manju = $unix && system("hostname | grep manju >/dev/null")==0;
 
+my $make;
+if ($solaris) {
+    $make = "gmake";
+} else {
+    $make = "make";
+}
 
 # We watch the log and we remember in what stage we are (so that we can
 # interpret the error)
@@ -136,30 +143,30 @@ my $inferbox = "infer";	# weimer: "paper"
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "make setup",
+    Cmd => "$make setup",
     Group => ['ALWAYS']);
 $TEST->newTest(
     Name => "!inittests2",
     Dir => "..",
-    Cmd => "make setup _GNUCC=1",
+    Cmd => "$make setup _GNUCC=1",
     Group => ['ALWAYS']);
 
 $TEST->newTest(
     Name => "apache!1setup",
     Dir => ".",
     Group => ["apache", "slow"],
-    Cmd => "make apachesetup");
+    Cmd => "$make apachesetup");
 $TEST->newTest(
     Name => "apache!2setup",
     Dir => ".",
     Group => ["apache", "slow"],
-    Cmd => "make apachesetup _GNUCC=1");
+    Cmd => "$make apachesetup _GNUCC=1");
 
 # build the documentation
 $TEST->newTest(
     Name => "doc",
     Dir => "..",
-    Cmd => "make doc",
+    Cmd => "$make doc",
     Group => ["doc"]);
     
 # Now add tests
@@ -801,7 +808,7 @@ $TEST->add2Tests("perf/perfrtti");
 #$TEST->newTest(
 #    Name => "emacs",
 #    Dir => ".",
-#    Cmd => "make emacs",
+#    Cmd => "$make emacs",
 #    Group => ['vslow'],
 #    Patterns => []);
 #$TEST->addTests("perl", "", ['cil']);
@@ -823,7 +830,7 @@ $TEST->newTest(
     Name => "gimpall-world", # A CIL only test
     Dir => ".",
     Enabled => 1,
-    Cmd => "make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
+    Cmd => "$make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
@@ -834,7 +841,7 @@ $TEST->newTest(
     Name => "apache-cil", # A CIL only test
     Dir => ".",
     Enabled => 1,
-    Cmd => "make apache-cil",
+    Cmd => "$make apache-cil",
     Group => ['vslow'],
     Patterns => \%commonerrors);
 # Apache-CIL,  Modules-Cured
@@ -842,7 +849,7 @@ $TEST->newTest(
     Name => "apache-modules-cured", 
     Dir => ".",
     Enabled => 0,
-    Cmd => "make apache-modules-ccured",
+    Cmd => "$make apache-modules-ccured",
     Group => ['vslow'],
     Patterns => \%commonerrors);
 
@@ -852,14 +859,14 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "ping-cil",
     Dir => ".",
-    Cmd => "make ping " . $TEST->testCommandExtras(""),
+    Cmd => "$make ping " . $TEST->testCommandExtras(""),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
     Name => "ping-inferbox",
     Dir => ".",
-    Cmd => "make ping " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Cmd => "$make ping " . $TEST->testCommandExtras("INFERBOX=infer"),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -870,14 +877,14 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "ftpd-cil",
     Dir => ".",
-    Cmd => "make ftpd " . $TEST->testCommandExtras(""),
+    Cmd => "$make ftpd " . $TEST->testCommandExtras(""),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
     Name => "ftpd-inferbox",
     Dir => ".",
-    Cmd => "make ftpd " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Cmd => "$make ftpd " . $TEST->testCommandExtras("INFERBOX=infer"),
     Enabled => 1,      # sm: 9/09/02 05:02: it works!
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -889,7 +896,7 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "ace",
     Dir => "/home/necula/ex/ace.edg",
-    Cmd => "make regtest-clean regtest",
+    Cmd => "$make regtest-clean regtest",
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -900,14 +907,14 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "sendmail-cil",
     Dir => ".",
-    Cmd => "make sendmail " . $TEST->testCommandExtras(""),
+    Cmd => "$make sendmail " . $TEST->testCommandExtras(""),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
     Name => "sendmail-inferbox",
     Dir => ".",
-    Cmd => "make sendmail " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Cmd => "$make sendmail " . $TEST->testCommandExtras("INFERBOX=infer"),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -919,14 +926,14 @@ $TEST->newTest(
 $TEST->newTest(
     Name => "openssl-cil",
     Dir => ".",
-    Cmd => "make openssl-test-withclean " . $TEST->testCommandExtras(""),
+    Cmd => "$make openssl-test-withclean " . $TEST->testCommandExtras(""),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
 $TEST->newTest(
     Name => "openssl-inferbox",
     Dir => ".",
-    Cmd => "make openssl-test-withclean " . $TEST->testCommandExtras("INFERBOX=infer"),
+    Cmd => "$make openssl-test-withclean " . $TEST->testCommandExtras("INFERBOX=infer"),
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
@@ -954,7 +961,7 @@ sub altAddTest {
   my %patterns = %commonerrors;
   my $tst = $self->newTest(Name => $tname,
                            Dir => ".",
-                           Cmd => "make $command" . $self->testCommandExtras(""),
+                           Cmd => "$make $command" . $self->testCommandExtras(""),
                            Group => [ @groups ],
                            Patterns => \%patterns);
 
@@ -1232,8 +1239,8 @@ altAddTest("hashtest $box $iters MAXSPLIT=1", "slow");
 altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
-$TEST->setField(altAddTest("apache!1setup"), 'Cmd', "make apachesetup");
-$TEST->setField(altAddTest("apache!2setup"), 'Cmd', "make apachesetup");
+$TEST->setField(altAddTest("apache!1setup"), 'Cmd', "$make apachesetup");
+$TEST->setField(altAddTest("apache!2setup"), 'Cmd', "$make apachesetup");
 altAddTest("apache/gzip");
 
 # does not work: complains of many incompatible type redefinitions
@@ -1533,7 +1540,7 @@ sub addTests {
         my $tst =
             $self->newTest(Name => $name . "-" . $kind,
                            Dir => ".",
-                           Cmd => "make " . $name . $thisargs,
+                           Cmd => "$make " . $name . $thisargs,
                            Group => [$kind],
                            Patterns => \%patterns);
         # Add the extra fields

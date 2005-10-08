@@ -16,7 +16,9 @@ TESTDIR := .
 
 ifneq ($(ARCHOS), x86_WIN32)
 ifneq ($(ARCHOS), x86_LINUX) 
-   $(error You must set the ARCHOS variable to either x86_WIN32 or x86_LINUX)
+ifneq ($(ARCHOS), sparc_SOLARIS) 
+   $(error You must set the ARCHOS variable to x86_WIN32, x86_LINUX, or sparc_SOLARIS)
+endif
 endif
 endif
 
