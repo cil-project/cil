@@ -152,7 +152,9 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	echo "  const_string_literals: bool; (* Whether string literals have const chars *)">> $@
 	echo "  little_endian: bool; (* whether the machine is little endian *)">>$@
 	echo "}" >> $@ 	
-	if ! gcc -D_GNUCC $< -o $(OBJDIR)/machdep.exe ;then \
+	if gcc -D_GNUCC $< -o $(OBJDIR)/machdep.exe ;then \
+	    echo "machdep.exe created succesfull." \
+	;else \
             rm -f $@; exit 1 \
         ;fi 
 	echo "let gcc = {" >>$@
@@ -425,7 +427,7 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
 	echo "setup: setup" >>$(TOP_DIR)/Makefile
 	echo "%: " >>$(TOP_DIR)/Makefile
 # note that we have a TAB in the next line
-	echo '	if ! test -f Makefile.cil ;then echo Run configure first ;fi'>>$(TOP_DIR)/Makefile
+	echo '	if test ! -f Makefile.cil ;then echo Run configure first ;fi'>>$(TOP_DIR)/Makefile
 	echo '	$$(MAKE) -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src

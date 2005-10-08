@@ -260,14 +260,21 @@ another machine.)
 %version 2.96 because \ahref{http://gcc.gnu.org/gcc-2.96.html}{it was not a
 %formal gcc release}, just a (buggy) developement version. You should upgrade
 %your gcc to version 3.2 or to 2.95.3 (which actually appears to be much faster
-%than 3.2). We have tested CIL on the following compilers:
+%than 3.2). 
+
+We have tested CIL on the following compilers:
 
 \begin{itemize}
 \item On Windows, \t{cl} compiler version 12.00.8168 and 13.00.9466. 
 Run \t{cl} with no arguments to get the compiler version. 
-\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0 and 3.2.
-\item On Linux, using \t{gcc} version 2.95.3, 3.0 and 3.2.
+\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0,
+  3.2, 3.3, and 3.4.
+\item On Linux, using \t{gcc} version 2.95.3, 3.0, 3.2, 3.3, and 4.0.
 \end{itemize}
+
+Others have successfully used CIL with Mac OS X, Solaris, and *BSD.
+If you make any changes to the build system in order to run CIL on
+your platform, please send us a patch.
 
   \section{Testing CIL} 
   Once you have built CIL you can run 
@@ -2757,7 +2764,7 @@ as it will ensure your message is viewed by a broad audience.
 \section{Changes}\label{sec-changes}
 \begin{itemize}
 \item {\bf October 5, 2005}: CIL now builds on SPARC/Solaris.  Thanks
-  to Nick Petroni for the patch.
+  to Nick Petroni and Remco van Engelen for the patches.
 \item {\bf September 26, 2005}: CIL no longer uses the `\t{-I-}' flag
   by default when preprocessing with gcc.
 \item {\bf August 24, 2005}: Added a command-line option
@@ -3146,3 +3153,5 @@ end of an array initializer. Added the API function
 \end{document}
 
 
+
+% LocalWords:  CIL

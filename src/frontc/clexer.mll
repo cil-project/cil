@@ -539,6 +539,10 @@ and hash = parse
 | "pragma" blank "use_section"     { let here = currentLoc () in
                                   PRAGMA_LINE ("asm" ^ pragma lexbuf, here)
                             }
+| "pragma" blank "redefine_extname"  
+                { let here = currentLoc () in
+                  PRAGMA_LINE ("redefine_extname" ^ pragma lexbuf, here)
+                 }
 
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}

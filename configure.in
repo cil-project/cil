@@ -429,7 +429,10 @@ case "$target" in
   *)
     AC_MSG_ERROR([
       Unsupported platform $target -- sorry.
-      Linux/x86 and Win32/Cygwin/x86 are the supported platforms.
+      ./configure supports these platforms:
+         on x86:     Linux, Win32(with Cygwin), freeBSD, and openBSD
+         on PowerPC: Mac OS X 
+         on SPARC:   Solaris
     ])
     ;;
 esac
