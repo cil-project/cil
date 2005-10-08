@@ -2445,10 +2445,15 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           kinteger64 tk (Int64.sub i1 i2)
       | Mult, Const(CInt64(i1,ik1,_)), Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.mul i1 i2)
+      | Mult, Const(CInt64(0L,_,_)), _ -> zero
+      | Mult, Const(CInt64(1L,_,_)), e2'' -> e2''
+      | Mult, _,    Const(CInt64(0L,_,_)) -> zero
+      | Mult, e1'', Const(CInt64(1L,_,_)) -> e1''
       | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
           try kinteger64 tk (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
+      | Div, e1'', Const(CInt64(1L,_,_)) -> e1''
 
       | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
           try kinteger64 tk (Int64.rem i1 i2)
@@ -2456,6 +2461,8 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       end
       | BAnd, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logand i1 i2)
+      | BAnd, Const(CInt64(0L,_,_)), _ -> zero
+      | BAnd, _, Const(CInt64(0L,_,_)) -> zero
       | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logor i1 i2)
       | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
@@ -2463,12 +2470,16 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
 
       | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
           kinteger64 tk (Int64.shift_left i1 (Int64.to_int i2))
+      | Shiftlt, Const(CInt64(0L,_,_)), _ -> zero
+      | Shiftlt, e1'', Const(CInt64(0L,_,_)) -> e1''
 
       | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
           if isunsigned ik1 then 
             kinteger64 tk (Int64.shift_right_logical i1 (Int64.to_int i2))
           else
             kinteger64 tk (Int64.shift_right i1 (Int64.to_int i2))
+      | Shiftrt, Const(CInt64(0L,_,_)), _ -> zero
+      | Shiftrt, e1'', Const(CInt64(0L,_,_)) -> e1''
 
       | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           integer (if i1 = i2 then 1 else 0)
