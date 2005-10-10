@@ -160,7 +160,12 @@ val docOpt: (unit -> 'a -> doc) -> unit -> 'a option -> doc
 
 (** Format maps. *)
 module MakeMapPrinter :
-  functor (Map: Map.S) -> sig
+  functor (Map: sig
+                  type key
+                  type 'a t
+                  val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+                end) ->
+sig
     (** Format a map, analogous to docList. *)
     val docMap: ?sep:doc -> (Map.key -> 'a -> doc) -> unit -> 'a Map.t -> doc
 

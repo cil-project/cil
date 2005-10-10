@@ -163,7 +163,13 @@ let d_list (sep:string) (doit:unit -> 'a -> doc) () (elts:'a list) : doc =
   (docList ~sep:(text sep) internalDoit () elts)
 
 (** Format maps *)
-module MakeMapPrinter = functor (Map: Map.S) -> struct
+module MakeMapPrinter =
+  functor (Map: sig 
+                  type key
+                  type 'a t
+                  val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+                end) ->
+struct
   let docMap ?(sep=chr ',')
               (doit: Map.key -> 'a -> doc) () (maplets: 'a Map.t) : doc =
     Map.fold
