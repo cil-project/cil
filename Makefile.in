@@ -474,6 +474,7 @@ publish_distrib: publish_doc
            cp -rf doc/html/cil/* $(CILHTMLDEST); \
            cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
            ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; \
+           echo "Publish succeeded"; \
 	else \
 	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
         fi
