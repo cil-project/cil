@@ -1192,6 +1192,11 @@ bh:  mustbegcc
                make CC="$(COMBINECCURED) --leavealone=trusted_bh --allowInlineAssembly"
 	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
+bh-new:  mustbegcc
+	cd $(BHDIR); rm -f code.exe *.o; \
+               make CC="$(COMBINECCURED) --nomerge --leavealone=trusted_bh --allowInlineAssembly"
+	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
+
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
 	    $(CCURED) --leavealone=trusted_bh \

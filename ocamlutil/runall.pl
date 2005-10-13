@@ -5,7 +5,7 @@ use File::Basename;
 
 # usage runtests.pl filename
 #
-# The file is expected to contain the code for the test
+# The file is expected to contain the code for the test.
 # The test file is scanned for lines that match some keywords. In 
 # all cases the rest of the line following the keywords may be a test
 # specification, of the form:
