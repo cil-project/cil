@@ -82,16 +82,18 @@ my $outfile = "$dir$base-tmp$ext";
 
 my $action = 'COLLECT';
 
-my $count;
+my $countFreshName;
 
 my $hadErrors = 0;
 
-my $debug = 1;
+my $debug = 0;
 
 # Collect the test cases
 &scanTestFile("");
 
 $action = 'PROCESS';
+
+my $countTests = 0;
 
 if(defined $ENV{'RUNONLY'}) {
     if(! defined $testnames{$ENV{'RUNONLY'}}) {
@@ -111,7 +113,7 @@ if($hadErrors) {
     print "There were errors!\n";
     exit 1;
 } else {
-    print "All tests were successful!\n";
+    print "All $countTests tests were successful!\n";
     exit 0;
 }
 1;
@@ -141,7 +143,7 @@ sub parseTestDef {
         ($name) = ($1 =~ m|^\s*(\S.*)$|);
         ($name) = ($name =~ m|^(.*\S)\s*$|);
         if($name eq "") {
-            $name = $count ++;
+            $name = $countFreshName ++;
         }
         # See if this is success
         if($rest !~ m|^\s*(error\|success)(.*)$|) {
@@ -183,7 +185,7 @@ sub parseTestDef {
 sub scanTestFile {
     my($current) = @_;
 
-    $count = 0;
+    $countFreshName = 0;
     open(IN, "<$ARGV[0]") || die "Cannot open file $ARGV[1]";
 
     my @ifenv = ();  # The IF statements we are in: IFTEST:x or IFNTEST:x 
@@ -270,9 +272,11 @@ sub runOneTest {
     my($t) = @_;
     my $ti = $testnames{$t};
 
+    $countTests ++;
+
     print "\n********* Running test $t from line $ti->{LINE}\n";
     open(OUT, ">$outfile\n") 
-        || die "Cannot produce $outfile";
+        || die "Cannot write $outfile";
     &scanTestFile($t);
     close(OUT) || die "Cannot close file $outfile";
     # Now we run the command
@@ -306,9 +310,9 @@ sub runOneTest {
     unlink $msgfile;
     if(($code == 0) != $ti->{SUCCESS}) {
         if($code == 0) {
-            warn "Test case $t succeeds and it is supposed to fail";
+            warn "Test case $t (line $ti->{LINE}) succeeds and it is supposed to fail";
         } else {
-            warn "Test case $t fails and it is supposed to succeed";
+            warn "Test case $t (line $ti->{LINE}) fails and it is supposed to succeed";
         } 
         $hadErrors = 1;
         if(! defined($ENV{KEEPGOING})) {

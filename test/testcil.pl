@@ -425,7 +425,7 @@ $TEST->addTests("test-bad/asm1",
                 "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 
 $TEST->addTests("test-bad/size1", "", ['inferbox']);
-$TEST->addTests("test-bad/size2", "", ['inferbox']);
+$TEST->addTests("testall/size2", "", ['inferbox']);
 $TEST->addTests("runall/size3", "", ['inferbox']);
 $TEST->addTests("test/noreturn", "", ['cil']);
                 
@@ -440,6 +440,7 @@ $TEST->addTests("runall/strings-jeremy2", "", ['inferbox']);
 $TEST->addTests("runall/strings-zach", "", ['inferbox']);
   $TEST->addBadComment("runall/strings-jeremy-inferbox", 
                        "Fails on Manju because Manju doesn't have strlcat");
+$TEST->addTests("runall/nullterm", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
