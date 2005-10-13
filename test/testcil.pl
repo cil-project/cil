@@ -425,7 +425,7 @@ $TEST->addTests("test-bad/asm1",
                 "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
 
 $TEST->addTests("test-bad/size1", "", ['inferbox']);
-$TEST->addTests("testall/size2", "", ['inferbox']);
+$TEST->addTests("runall/size2", "", ['inferbox']);
 $TEST->addTests("runall/size3", "", ['inferbox']);
 $TEST->addTests("test/noreturn", "", ['cil']);
                 
@@ -441,6 +441,7 @@ $TEST->addTests("runall/strings-zach", "", ['inferbox']);
   $TEST->addBadComment("runall/strings-jeremy-inferbox", 
                        "Fails on Manju because Manju doesn't have strlcat");
 $TEST->addTests("runall/nullterm", "", ['inferbox']);
+$TEST->addTests("scott/nullterm2", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
@@ -654,7 +655,7 @@ $TEST->addTests("test-bad/polyfunptr", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/checkret", "_GNUCC=1 RELEASE=", [ 'inferbox' ]);
+$TEST->addTests("runall/checkret", "_GNUCC=1 RELEASE=", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkstore3", "RELEASE=", [ 'inferbox' ]);
 $TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
@@ -1168,7 +1169,7 @@ altAddTest("scott/models $box", "slow");
 altAddTest("scott/qsort $box");
 altAddTest("scott/strpbrk $box");
 altFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
-altAddTest("test-bad/sockets $box $gcc");
+altAddTest("runall/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
 altAddTest("scott/reply $box");

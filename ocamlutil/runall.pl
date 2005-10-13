@@ -327,7 +327,7 @@ sub runOneTest {
                 die "";
             }
         } else {
-            print "Test $t was successful\n";
+            print "Test $t (line $ti->{LINE}) was successful\n";
             unlink $msgfile;
         }
     }
