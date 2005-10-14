@@ -992,7 +992,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              let lvSum = evaluateLval lv state in
              if not (checkBaseTypes lvType eType) then
                ignore (error ("assignment has incompatible types\n" ^^
-                              "    to: %a\n    from: %a\n")
+                              "    to: %a\n  from: %a\n")
                              d_type lvType d_type eType);
              begin
                match lvSum with
@@ -1036,7 +1036,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                  | _ -> "function pointer"
                in
                begin
-                 match typeOf fn with
+                 match unrollType (typeOf fn) with
                  | TFun (rtype, argInfo, isVarArg, attrs) ->
                      let formals = argsToList argInfo in
                      let matches = Hashtbl.create 7 in
@@ -1203,7 +1203,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
             let fType =
               match !curFunction.svar.vtype with
               | TFun (rtype, _, _, _) -> rtype
-              | _ -> E.s (E.bug "expected function type 1\n")
+              | t -> E.s (E.bug "expected function type (1): %a\n%a\n"
+                                d_stmt stmt d_type t);
             in
             let eType = typeOf e in
             if not (checkBaseTypes fType eType) then
@@ -1414,7 +1415,7 @@ class preVisitor = object
       match inst with
       | Call (ret, fn, args, attrs) ->
           let newArgs =
-            match typeOf fn with
+            match unrollType (typeOf fn) with
             | TFun (_, argInfo, _, _) ->
                 let dropCast (t : typ) (e : exp) : exp =
                   match e with
@@ -1431,7 +1432,8 @@ class preVisitor = object
                       []
                 in
                 matchArgs (argsToList argInfo) args
-            | _ -> E.s (E.bug "expected function type 2\n");
+            | t -> E.s (E.bug "expected function type (2): %a\n%a\n"
+                              d_instr inst d_type t);
           in
           ChangeDoChildrenPost ([Call (ret, fn, newArgs, attrs)], (fun x -> x))
       | _ ->
