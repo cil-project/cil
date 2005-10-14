@@ -442,6 +442,7 @@ $TEST->addTests("runall/strings-zach", "", ['inferbox']);
                        "Fails on Manju because Manju doesn't have strlcat");
 $TEST->addTests("runall/nullterm", "", ['inferbox']);
 $TEST->addTests("scott/nullterm2", "", ['inferbox']);
+$TEST->addTests("scott/nullterm3", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
