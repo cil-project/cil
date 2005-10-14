@@ -730,6 +730,14 @@ scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
                  $(EXEOUT)$*.exe
 	bash -c "time $(TESTDIR)/small2/$*.exe"
 
+runone/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	rm -f $(TESTDIR)/small2/$*.exe
+	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
+                 $(CFLAGS) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+	bash -c "time $(TESTDIR)/small2/$*.exe"
+
 # There are a few tests that CIL supports but recent versions of gcc don't.
 # So don't try calling gcc on these.
 scott-nogcc/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)

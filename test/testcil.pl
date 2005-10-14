@@ -427,6 +427,7 @@ $TEST->addTests("test-bad/asm1",
 $TEST->addTests("test-bad/size1", "", ['inferbox']);
 $TEST->addTests("runall/size2", "", ['inferbox']);
 $TEST->addTests("runall/size3", "", ['inferbox']);
+$TEST->addTests("runone/size4", "", ['inferbox']);
 $TEST->addTests("test/noreturn", "", ['cil']);
                 
 $TEST->addTests("test-bad-ln/handler1",
