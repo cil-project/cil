@@ -349,11 +349,15 @@ let closeFacts (facts : FactSet.t) : FactSet.t =
 
 let attrToFact (name : string) (attr : attribute) : fact option =
   match attr with
+  (* My original annotations: *)
   | Attr ("ignore", []) -> Some (name, AIgn)
   | Attr ("nullterm", []) -> Some (name, ANT 0)
   | Attr ("count", [AInt n]) -> Some (name, ACC n)
   | Attr ("count", [ACons (s, [])]) -> Some (name, AVC s)
   | Attr ("countof", [ACons (s, [])]) -> Some (s, AVC name)
+  (* For compatibility with the original CCured: *)
+  | Attr ("safe", []) -> Some (name, ACC 1)
+  | Attr ("string", []) -> Some (name, ANT 0)
   | _ -> None
 
 let myAttr (attr : attribute) : bool =
@@ -380,9 +384,9 @@ let typeToFactsEx (name : string) (t : typ) (extra : attributes) : FactSet.t =
             (name, ACC (lenOfArray len))
             (attrsToFacts name (attrs @ extra))
         with LenOfArray ->
-          attrsToFacts name attrs
+          attrsToFacts name (attrs @ extra)
       end
-  | _ -> attrsToFacts name (typeAttrs t)
+  | _ -> attrsToFacts name ((typeAttrs t) @ extra)
 
 let typeToFacts (name : string) (t : typ) : FactSet.t =
   typeToFactsEx name t []
