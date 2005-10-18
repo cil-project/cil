@@ -312,7 +312,7 @@ let variableName (v: varinfo) (freshId: int) =
   (if freshId = 0 then 
     v.vname
   else
-    v.vname ^ "___" ^ string_of_int freshId) 
+    v.vname ^ "____" ^ string_of_int freshId) 
 (* ***************************************************** *)
   
 (* ***************************************************** *)
