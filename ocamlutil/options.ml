@@ -32,6 +32,11 @@ and optionKind =
   | OStringList of char * string list ref 
      (** A list of strings, with a separator. This means that the option can 
       * also appear multiple times *)
+  | OOutChannel of (out_channel * string) option ref
+      (** Takes a filename from the command line, opens a channel to that file,
+       *  and updates the ref with the channel and the filename.
+       *  The file is opened in text mode.
+       *  Uses stdout if the argument is "-" or "stdout". *)
 
 let splitStringList (sep: char) (str: string) : string list = 
   let len = String.length str in
@@ -47,6 +52,16 @@ let splitStringList (sep: char) (str: string) : string list =
     end
   in
   loop 0
+
+(* open an output channel *) 
+let outChannel (what:string) (fname: string) : out_channel * string= 
+    match fname with
+      "-" | "stdout" -> stdout, "(stdout)"
+    | _ -> 
+      try 
+        open_out fname, fname
+      with e -> 
+        raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fname))
 
 let optionToArgs (od : optionDescr) : (string * Arg.spec * string) list = 
   if od.optCommandLine <> "" then begin 
@@ -79,5 +94,12 @@ let optionToArgs (od : optionDescr) : (string * Arg.spec * string) list =
            od.optHelp ^ 
            " (initially " ^ 
            (String.concat (String.make 1 sep) !lref) ^ ")") ]
+
+    | OOutChannel (chref) ->
+        [ (od.optCommandLine,
+           Arg.String (fun s -> chref := Some (outChannel od.optCommandLine s);
+                         od.optExtra ()),
+           od.optHelp) ]
+
   end else
     []

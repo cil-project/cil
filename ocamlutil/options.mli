@@ -35,6 +35,11 @@ and optionKind =
   | OStringList of char * string list ref 
      (** A list of strings, with a separator. This means that the option can 
       * also appear multiple times *)
+  | OOutChannel of (out_channel * string) option ref
+      (** Takes a filename from the command line, opens a channel to that file,
+       *  and updates the ref with the channel and the filename.
+       *  The file is opened in text mode.
+       *  Uses stdout if the argument is "-" or "stdout". *)
 
 val optionToArgs: optionDescr -> (string * Arg.spec * string) list 
 
