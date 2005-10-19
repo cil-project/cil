@@ -355,3 +355,5 @@ ifndef CLEANING
 -include $(MODULES:%=$(DEPENDDIR)/%.di)
 endif
 
+listmodules: 
+	@echo $(MODULES)
