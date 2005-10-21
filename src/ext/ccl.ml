@@ -844,7 +844,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
       in
       let fullName = vname ^ "->" ^ fname in
       let facts = getCompFacts vname comp in
-      replaceName fullName "*" (selectFacts fullName facts) in
+      replaceName fullName "*" (selectFacts fullName facts)
   | SAddrVar vname ->
       FactSet.singleton ("*", ACC 1)
   | SFacts facts ->
