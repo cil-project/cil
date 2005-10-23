@@ -160,11 +160,10 @@ let dc_type () (t : typ) : doc =
 
 let errorTable : (int, doc) Hashtbl.t = Hashtbl.create 13
 
-let error (fmt : ('a, unit, doc) format) : 'a =
+let error (fmt : ('a, unit, doc, unit) format4) : 'a =
   let f d =
     E.hadErrors := true;
-    Hashtbl.add errorTable !curStmtId d;
-    d
+    Hashtbl.add errorTable !curStmtId d
   in
   if !verbose then begin
     E.hadErrors := true;
@@ -172,10 +171,9 @@ let error (fmt : ('a, unit, doc) format) : 'a =
   end else
     Pretty.gprintf f ("%a: error: " ^^ fmt) d_loc !curLocation
 
-let warning (fmt : ('a, unit, doc) format) : 'a =
+let warning (fmt : ('a, unit, doc, unit) format4) : 'a =
   let f d =
-    Hashtbl.add errorTable !curStmtId d;
-    d
+    Hashtbl.add errorTable !curStmtId d
   in
   if !verbose then
     E.log ("%a: warning: " ^^ fmt) d_loc !curLocation

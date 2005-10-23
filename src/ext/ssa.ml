@@ -687,7 +687,11 @@ let stronglyConnectedComponents (f: cfgInfo) (debug: bool): sccInfo =
 	   ) sccorder in
   if (debug) then begin 
     ignore (E.log "Computed Preorder for Nodes of each SCC\n");
-    List.iter (fun scc -> ignore (E.log "BackEdges = %a \n" (docList (fun (src,dest) -> E.log "(%d,%d)" src dest)) scc.backEdges);) scclist;
+    List.iter (fun scc -> 
+      ignore (E.log "BackEdges = %a \n" 
+                (docList (fun (src,dest) -> dprintf "(%d,%d)" src dest))
+                scc.backEdges);) 
+      scclist;
   end;
   scclist
 
