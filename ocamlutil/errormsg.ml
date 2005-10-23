@@ -44,7 +44,7 @@ let verboseFlag = ref false
 
 (**** Error reporting ****)  
 exception Error
-let s (d : doc) = raise Error
+let s (d : 'a) = raise Error
 
 let hadErrors = ref false
 
@@ -96,62 +96,48 @@ let warnFlag = ref false
 let logChannel : out_channel ref = ref stderr
 
 
-let bug (fmt : ('a,unit,doc) format) : 'a = 
+let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
   let f d =  
     hadErrors := true; contextMessage "Bug" d; 
-    flush !logChannel; 
-    nil 
+    flush !logChannel
   in
   Pretty.gprintf f fmt
 
-let error (fmt : ('a,unit,doc) format) : 'a = 
+let error (fmt : ('a,unit,doc,unit) format4) : 'a = 
   let f d = hadErrors := true; contextMessage "Error" d; 
-    flush !logChannel; 
-    nil 
+    flush !logChannel
   in
   Pretty.gprintf f fmt
 
-let unimp (fmt : ('a,unit,doc) format) : 'a = 
+let unimp (fmt : ('a,unit,doc,unit) format4) : 'a = 
   let f d = hadErrors := true; contextMessage "Unimplemented" d; 
-    flush !logChannel; 
-    nil 
+    flush !logChannel
   in
   Pretty.gprintf f fmt
 
-let warn (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = contextMessage "Warning" d; flush !logChannel; nil in
+let warn (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d = contextMessage "Warning" d; flush !logChannel in
   Pretty.gprintf f fmt
 
-let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
+let warnOpt (fmt : ('a,unit,doc,unit) format4) : 'a = 
     let f d = 
-      if !warnFlag then contextMessage "Warning" d; flush !logChannel;
-      nil in
+      if !warnFlag then contextMessage "Warning" d; 
+      flush !logChannel in
     Pretty.gprintf f fmt
 
 
-let log (fmt : ('a,unit,doc) format) : 'a = 
-  let f d = fprint !logChannel 80 d; flush !logChannel; d in
+let log (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d = fprint !logChannel 80 d; flush !logChannel in
   Pretty.gprintf f fmt
 
-let logg (fmt : ('a,unit,doc) format) : 'a =
-  let f d = fprint !logChannel 10000000 d; flush !logChannel; d in
+let logg (fmt : ('a,unit,doc,unit) format4) : 'a =
+  let f d = fprint !logChannel 10000000 d; flush !logChannel in
   Pretty.gprintf f fmt
 
-let null (fmt : ('a,unit,doc) format) : 'a =
-  let f d = Pretty.nil in
+let null (fmt : ('a,unit,doc,unit) format4) : 'a =
+  let f d = () in
   Pretty.gprintf f fmt
 
-let check (what: bool) (fmt : ('a,unit,doc) format) : 'a = 
-  if what then 
-     what
-  else begin
-    let f d = 
-      if not what then begin
-         hadErrors := true; contextMessage "Assert" d; 
-         flush !logChannel; raise Error 
-    end else nil in
-    Pretty.gprintf f fmt
-  end
 
 let theLexbuf = ref (Lexing.from_string "")
 

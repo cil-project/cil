@@ -111,6 +111,7 @@ let unmark        = Unmark
  * left side of a Concat is the non-tail recursive case. *)
 
 let (++) d1 d2 = Concat (d1, d2)
+let concat d1 d2 = Concat (d1, d2)
 
 (* Ben Liblit fix *)
 let indent n d = text (String.make n ' ') ++ (align ++ (d ++ unalign))
@@ -146,7 +147,7 @@ let docArray ?(sep=chr ',') (doit:int -> 'a -> doc) () (elements:'a array) =
 
 let docOpt delem () = function
     None -> text "None"
-  | Some e -> text "Some(" ++ (delem () e) ++ chr ')'
+  | Some e -> text "Some(" ++ (delem e) ++ chr ')'
 
 
 
@@ -604,8 +605,8 @@ external format_float: string -> float -> string = "caml_format_float"
 
 
     
-let gprintf (finish : doc -> doc)  
-    (format : ('a, unit, doc) format) : 'a =
+let gprintf (finish : doc -> 'b)  
+            (format : ('a, unit, doc, 'b) format4) : 'a =
   let format = (Obj.magic format : string) in
 
   (* Record the starting align depth *)
@@ -618,7 +619,7 @@ let gprintf (finish : doc -> doc)
     CText(acc, str)
   in
   (* Special finish function *)
-  let dfinish dc = 
+  let dfinish (dc: doc) : 'b = 
     if !alignDepth <> startAlignDepth then
       prerr_string ("Unmatched align/unalign in " ^ format ^ "\n");
     finish dc
