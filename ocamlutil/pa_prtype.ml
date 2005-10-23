@@ -71,6 +71,10 @@ let rec gen_print_type loc : ctyp -> expr =
           <:expr< Pretty.text >>
         else if s = "bool" then 
           <:expr< fun b -> if b then Pretty.text "true" else Pretty.text "false"      >>          
+        else if s = "int32" then 
+          <:expr< Pretty.d_int32 >>
+        else if s = "int64" then 
+          <:expr< Pretty.d_int64 >>
         else
           <:expr< $lid:p_fun_name s$ >>
 

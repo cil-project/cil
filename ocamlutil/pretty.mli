@@ -158,6 +158,14 @@ val docArray: ?sep:doc -> (int -> 'a -> doc) -> unit -> 'a array -> doc
 (** Prints an ['a option] with [None] or [Some] *)
 val docOpt: ('a -> doc) -> unit -> 'a option -> doc
 
+
+(** Print an int32 *)
+val d_int32: int32 -> doc
+val f_int32: unit -> int32 -> doc
+
+val d_int64: int64 -> doc
+val f_int64: unit -> int64 -> doc
+
 (** Format maps. *)
 module MakeMapPrinter :
   functor (Map: sig

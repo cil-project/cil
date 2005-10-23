@@ -105,6 +105,13 @@ let break         = Break
 let mark          = Mark
 let unmark        = Unmark
 
+let d_int32 (i: int32) = text (Int32.to_string i)
+let f_int32 () i = d_int32 i
+
+let d_int64 (i: int64) = text (Int64.to_string i)
+let f_int64 () i = d_int64 i
+
+
 (* Note that the ++ operator in Ocaml are left-associative. This means 
  * that if you have a long list of ++ then the whole thing is very unbalanced 
  * towards the left side. This is the worst possible case since scanning the 
