@@ -803,7 +803,8 @@ module Int32Op = struct
    let (/%) = Int32.div
    let (~-%) = Int32.neg
 
-   let (<<%) = fun i j -> Int32.shift_left i (to_int j)
+   (* We cannot use the <<% because it trips camlp4 *)
+   let sll = fun i j -> Int32.shift_left i (to_int j)
    let (>>%) = fun i j -> Int32.shift_right i (to_int j)
    let (>>>%) = fun i j -> Int32.shift_right_logical i (to_int j)
 end

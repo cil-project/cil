@@ -1,7 +1,98 @@
-(** Try to write Ocamlp4 code to generate printing methods for types *)
+(** camlp4 code for generating pretty printers for types, based on the Pretty 
+ * module. *)
+
+(*** USAGE ***)
+(* To use this module in your code you must add the following line 
+ * before the type declarations for which you want to auto generate printing
+   functions. 
+
+   let _ = Pretty.auto_printer "ALL"
+
+   If the Pretty module is open, then you can leave the [Pretty.] part out. 
+   But you should not do something like P.auto_printer. 
+
+   The scope of the above invocation extends to the end of the module.
+
+   Assume that "foo" and "bar" were declared in the same mutually recursive 
+   declaration (occurring after the above auto_printer invocation).
+   Then the following functions are generated: 
+
+   let rec d_foo_rec (d_foo: foo -> doc) (d_bar: bar -> doc) : foo -> doc = ...
+   and     d_bar_rec (d_foo: foo -> doc) (d_bar: bar -> doc) : bar -> doc = ...
+   
+   let rec d_foo x = d_foo_rec d_foo d_bar x
+   and     d_bar x = d_bar_rec d_foo d_bar x
+
+   let f_foo () = d_foo 
+   let f_bar () = d_bar 
+
+   The first set of functions you can use later to override partially the 
+   printing function: 
+
+   let rec new_foo = function 
+     | A 0 -> text "my special foo"
+     | x -> d_foo_rec new_foo new_bar x
+   and    new_bar = function 
+     | B 1 -> text "my special bar"
+     | x -> d_bar_rec new_foo new_bar x
+
+   The second set of functions you can use right away to print, and the f_ 
+   functions you can use in conjunction with format strings. 
+
+   An alternative usage mode is to add the following line AFTER each 
+   type declaration for which you want printing functions to be 
+   generated. 
+
+   let _ = Pretty.auto_printer "foo"
+
+   The above line must occur after the declaration of the type name "foo". 
+   Note that you must only mention one of the mutually recursive types when 
+   you invoke Pretty.auto_printer, and you get the printing functions for 
+   all the types. 
+
+
+ LIMITATIONS:
+   The auto-generated printing functions work for most types. For 
+   unrecognized types they will print something of the form <unimplemented>. 
+   
+   Note that for printing a value of named type "baz", the printer will assume
+   that the function d_baz is defined and of the right type. You will get 
+   strange messages if this is not the case. 
+*)
+
+(**** INSTALATION *******)
+(* To use this module you must first compile it and then you must use it 
+   as a preprocessor 
+
+   To compile this module add something like this to your Makefile
+
+$(OBJDIR)/pa_prtype.cmo: pa_prtype.ml
+	ocamlc -c -pp "camlp4o pa_extend.cmo q_MLast.cmo" \
+               -I +camlp4 -I $(OBJDIR) -c $< && \
+          mv -f $(<D)/pa_prtype.cmo $@
+
+pa_prtype: $(OBJDIR)/pretty.cmi $(OBJDIR)/pa_prtype.cmo
+
+   And add "pa_prtype" as a first dependency to your target. 
+
+   Note that the dependency generation should work even before you compile 
+   the preprocessor. 
+
+   To use this module as a preprocessor you add the following flags to the 
+   ocamlc command line:
+
+      -pp "camlp4o -I $(OBJDIR) pa_prtype.cmo"
+
+
+*******************************************************)
+
+
 open MLast
 
 open Pretty
+module H = Hashtbl
+
+let dogen = ref false
 
 (* The printing function name *)
 let p_fun_name (n: string) : string = "d_" ^ n
@@ -9,6 +100,11 @@ let p_fun_name (n: string) : string = "d_" ^ n
 let p_rec_fun_name (n: string) : string = "d_" ^ n ^ "_rec"
 
 let f_fun_name (n: string) : string = "f_" ^ n
+
+(** We remember the type declarations, in case we see a call to 
+ * "auto_printer". *)
+let knownTypes: (string, type_decl list) H.t = H.create 13
+
 
                                              (* Make a concatenation *)
 let rec concatenate (loc: loc) (el: expr list) : expr = 
@@ -88,7 +184,12 @@ let rec gen_print_type loc : ctyp -> expr =
               | _ -> raise Not_found
             in
             try
-              ExAcc(loc, getModules t1, ExLid (loc, p_fun_name t2n))
+              (* Look for some special cases *)
+              match getModules t1, t2n with 
+                ExUid (_, "Pretty"), "doc" -> 
+                  <:expr< Pretty.insert () >>
+              | _ -> 
+                  ExAcc(loc, getModules t1, ExLid (loc, p_fun_name t2n))
             with Not_found -> 
               unimpF loc "TyAcc: path is not TUid"
           end
@@ -282,20 +383,97 @@ let gen_print_funs (loc: loc) (tdl: type_decl list) : str_item list =
   rec_printers :: printers :: f_printers
 in
 
-
+ 
 (* Delete the old rule for parsing types *)
 DELETE_RULE
   Pcaml.str_item: "type"; LIST1 Pcaml.type_declaration SEP "and"
 END;
 
+
+DELETE_RULE
+  Pcaml.str_item: "let"; OPT "rec"; LIST1 Pcaml.let_binding SEP "and"
+END;
+
+
+
+DELETE_RULE
+  Pcaml.module_expr: "struct"; LIST0 [ Pcaml.str_item; OPT ";;" ] ; "end"
+END;
+
+
 (** Add our type parsing *) 
 EXTEND
   Pcaml.str_item:
     [ [ "type"; tdl = LIST1 Pcaml.type_declaration SEP "and" ->
-        (* The actual type declarations *)
-        let typedecls = <:str_item< type $list:tdl$ >> in
-        let printfuns = gen_print_funs loc tdl in
-        StDcl (loc, typedecls :: printfuns) ] ]
-      ;
+        (* The actual type declarations. Remember them *)
+        List.iter (fun ((_, n), _, _, _) -> H.add knownTypes n tdl) tdl;
+        if H.mem knownTypes "ALL" then begin 
+          (* We must generate the printer for all types *)
+          StDcl (loc, StTyp (loc, tdl) ::
+                      gen_print_funs loc tdl)
+        end else begin 
+          StTyp (loc, tdl)
+        end
+
+      | "let"; r = OPT "rec"; l = LIST1 Pcaml.let_binding SEP "and" -> 
+        (* See if this is ours *)
+        let isrec = if r = None then false else true in 
+        try 
+          match l with 
+            [ (PaAny _, e) ] when not isrec -> begin
+              match e with 
+                <:expr< Pretty.auto_printer $e$ >>
+              | <:expr< auto_printer $e$ >> -> begin
+                  (* see if we know about such a type *)
+                  let n: string = 
+                    match e with 
+                      ExStr (_, n) -> n
+                    | _ -> 
+                        Stdpp.raise_with_loc loc 
+                          (Failure "auto_printer must have a string literal representing a type name")
+                  in
+                  if n = "ALL" then begin 
+                    H.add knownTypes "ALL";
+                    StDcl (loc, [])
+                  end else begin
+                    try 
+                      let tdl = H.find knownTypes n in
+                      StDcl (loc, gen_print_funs loc tdl)
+                    with Not_found -> 
+                      Stdpp.raise_with_loc loc
+                        (Failure ("auto_printer invoked for unknown type " ^ n))
+                  end
+              end
+              | _ -> raise Not_found
+            end
+          | _ -> raise Not_found
+        with Not_found -> 
+          StVal (loc, isrec, l)
+      ]
+    ]
+  ;
+
+ Pcaml.module_expr: 
+   [ [ "struct"; st = LIST0 [ s = Pcaml.str_item; OPT ";" -> s ] ; "end" ->
+       (* Found a complete module expr. Now forget the types that are in st *)
+       List.iter (fun s -> 
+         match s with 
+           StTyp (_, td) -> 
+             List.iter (fun ((_, n), _, _, _) -> 
+               assert (H.mem knownTypes n);
+               H.remove knownTypes n)
+               td
+         | _ -> ())
+       st;
+       MeStr (loc, st )
+   ] ];
+
 END;
+
+(*
+let _ = Grammar.Entry.print Pcaml.str_item in
+()
+
+*)
+
 

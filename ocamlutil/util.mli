@@ -294,7 +294,7 @@ module Int32Op : sig
    val (/%) : int32 -> int32 -> int32
    val (~-%) : int32 -> int32
 
-   val (<<%) : int32 -> int32 -> int32
+   val sll : int32 -> int32 -> int32
    val (>>%) : int32 -> int32 -> int32
    val (>>>%) : int32 -> int32 -> int32
 

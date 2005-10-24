@@ -834,3 +834,6 @@ let getAboutString () : string =
   "(Pretty: ALGO=" ^ (getAlgoName algo) ^ ")"
 
 
+(************************************************)
+let auto_printer (typ: string) = 
+  failwith ("Pretty.auto_printer \"" ^ typ ^ "\" only works with you use -pp \"camlp4o pa_prtype.cmo\" when you compile")

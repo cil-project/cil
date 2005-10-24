@@ -289,3 +289,9 @@ val flushOften   : bool ref  (** If true the it flushes after every print *)
 (** Keep a running count of the taken newlines. You can read and write this 
   * from the client code if you want *)
 val countNewLines : int ref
+
+
+(** A function that when used at top-level in a module will direct 
+ * the pa_prtype module generate automatically the printing functions for a 
+ * type *)
+val auto_printer: string -> 'b

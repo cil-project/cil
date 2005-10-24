@@ -59,6 +59,7 @@
   # ASSEMBLY   - if set then it will keep assembly files
   # STATIC     - if set then it will compile and link statically
   #              (NATIVECAML mode only)
+  # PREPROC    - the preprocessor command
 
   # MODULES    - a list of all modules for all projects defined in the 
   #              Makefile. Give only the basenames (no directory, 
@@ -166,6 +167,10 @@ else
   ECHO        := @
 endif
 
+ifdef PREPROC
+  COMPILEFLAGS += -pp "$(PREPROC)$"
+  DEPFLAGS += -pp "$(PREPROC)"
+endif
 
 COMPILEMSG=
 LINKMSG=
@@ -334,13 +339,13 @@ FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]+[/\\]% %g; s%([-a-zA-Z0-9+-.:/\/_]+)%
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
 	@$(NARRATIVE) Generating dependency information for $<
-	@$(COMMAND) $(CAMLDEP) $(DEPINCLUDES) $<
-	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
+	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
+	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 $(DEPENDDIR)/%.di: %.mli
 	@$(NARRATIVE) Generating dependency information for $<
-	@$(COMMAND) $(CAMLDEP) $(DEPINCLUDES) $<
-	$(ECHO)$(CAMLDEP) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
+	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
+	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 # sm: it turns out there's a variable which lists all the goals
 # specified on the command line; I'll use this to set CLEANING
