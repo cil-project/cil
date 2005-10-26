@@ -52,9 +52,9 @@ let verifiedArgs : exp list ref = ref []
 
 type stats = {
   mutable numVisited : int;
-  mutable visited : exp list;
-  mutable failed : exp list;
-  mutable verified : exp list;
+  mutable visited : (exp * location) list;
+  mutable failed : (exp * location) list;
+  mutable verified : (exp * location) list;
 }
 
 let expStats : stats =
@@ -221,12 +221,12 @@ let clearErrors () : unit =
   Hashtbl.clear errorTable
 
 let addVisited (s : stats) (e : exp) : unit =
-  if not (List.memq e s.visited) then
-    s.visited <- e :: s.visited
+  if not (List.exists (fun (e', _) -> e' == e) s.visited) then
+    s.visited <- (e, !currentLoc) :: s.visited
 
 let addFailed (s : stats) (e : exp) : unit =
-  if not (List.memq e s.failed) then
-    s.failed <- e :: s.failed
+  if not (List.exists (fun (e', _) -> e' == e) s.failed) then
+    s.failed <- (e, !currentLoc) :: s.failed
 
 let resetStats (s : stats) : unit =
   s.visited <- [];
@@ -235,7 +235,7 @@ let resetStats (s : stats) : unit =
 let tallyStats (s : stats) : unit =
   let newVerified =
     List.filter
-      (fun e -> not (List.memq e s.failed))
+      (fun (e, _) -> not (List.exists (fun (e', _) -> e' == e) s.failed))
       s.visited
   in
   s.numVisited <- (List.length s.visited) + s.numVisited;
@@ -1068,6 +1068,8 @@ let analyzeCond (cond : exp) (state : state) : unit =
          match annot with
          | ACCBI name' when name = vname && name' = aname ->
              [ (name, ACCB name') ]
+         | AZero when name = vname ->
+             [ (name, ACCB aname) ]
          | _ -> [ (name, annot) ])
       state
   in
@@ -1324,12 +1326,14 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                        Hashtbl.add matches fname (SVar fakeName);
                        if isInOutType ftype then begin
                          let aSum = evaluateExp aExp state in
-                         let aFacts =
-                           match aSum with
-                           | SAddrVar vname -> getVarFacts vname state.facts
-                           | _ -> E.s (E.bug "expected addr of var\n")
-                         in
-                         doSetNames [fakeName] aFacts
+                         match aSum with
+                         | SAddrVar vname ->
+                             let aFacts = getVarFacts vname state.facts in
+                             doSetNames [fakeName] aFacts
+                         | _ ->
+                             ignore (error ("in/out parameter %d to %s " ^^
+                                            "could not be verified\n")
+                                     i fnName)
                        end else if not (isOutType ftype) then begin
                          let aSum = evaluateExp aExp state in
                          let aFacts =
@@ -1811,10 +1815,16 @@ let analyzeFile (f : file) : unit =
   visitCilFile (new preVisitor) f;
   visitCilFile (new outVisitor) f;
   visitCilFile (new ptrArithVisitor) f;
-  verifiedExps := expStats.verified;
-  verifiedArgs := argStats.verified;
+  verifiedExps := List.map fst expStats.verified;
+  verifiedArgs := List.map fst argStats.verified;
   ignore (E.log "\nCCL Results:\n  Derefs: %a\n    Args: %a\n\n"
                 d_stats expStats d_stats argStats);
+  (*
+  ignore (E.log "Verified derefs:\n");
+  List.iter
+    (fun (e, l) -> ignore (E.log "%a: %a\n" d_loc l d_exp e))
+    expStats.verified;
+  *)
   if !E.hadErrors then
     E.s (E.error "Verification failed\n")
 
