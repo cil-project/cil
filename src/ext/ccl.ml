@@ -47,6 +47,22 @@ let curLocation : location ref = ref locUnknown
 let curFunction : fundec ref = ref dummyFunDec
 let curStmtId : int ref = ref 0
 
+let verifiedExps : exp list ref = ref []
+let verifiedArgs : exp list ref = ref []
+
+type stats = {
+  mutable numVisited : int;
+  mutable visited : exp list;
+  mutable failed : exp list;
+  mutable verified : exp list;
+}
+
+let expStats : stats =
+  { numVisited = 0; visited = []; failed = []; verified = [] }
+
+let argStats : stats =
+  { numVisited = 0; visited = []; failed = []; verified = [] }
+
 type annot =
 | AIgn
 | AZero
@@ -158,6 +174,15 @@ let dc_type () (t : typ) : doc =
   print_CIL_Input := save;
   d
 
+let d_stats () (s : stats) : doc =
+  let numVisited = s.numVisited in
+  if numVisited > 0 then begin
+    let numVerified = List.length s.verified in
+    let percent = numVerified * 100 / numVisited in
+    dprintf "%d / %d (%d%%)" numVerified numVisited percent
+  end else
+    dprintf "0 / 0"
+
 let errorTable : (int, doc) Hashtbl.t = Hashtbl.create 13
 
 let error (fmt : ('a, unit, doc, unit) format4) : 'a =
@@ -194,6 +219,28 @@ let clearStmtErrors (stmt : stmt) : unit =
 
 let clearErrors () : unit =
   Hashtbl.clear errorTable
+
+let addVisited (s : stats) (e : exp) : unit =
+  if not (List.memq e s.visited) then
+    s.visited <- e :: s.visited
+
+let addFailed (s : stats) (e : exp) : unit =
+  if not (List.memq e s.failed) then
+    s.failed <- e :: s.failed
+
+let resetStats (s : stats) : unit =
+  s.visited <- [];
+  s.failed <- []
+
+let tallyStats (s : stats) : unit =
+  let newVerified =
+    List.filter
+      (fun e -> not (List.memq e s.failed))
+      s.visited
+  in
+  s.numVisited <- (List.length s.visited) + s.numVisited;
+  s.verified <- newVerified @ s.verified;
+  resetStats s
 
 let isIgnoreType (t : typ) : bool =
   hasAttribute "ignore" (typeAttrs t)
@@ -953,9 +1000,12 @@ and evaluateLval (lv : lval) (state : state) : summary =
   | Var _, _ ->
       SFacts (typeToFacts "*" (typeOfLval lv))
   | Mem e, off ->
+      addVisited expStats e;
       let s = evaluateExp e state in
-      if not (safeDeref (summaryToFacts s state)) then
+      if not (safeDeref (summaryToFacts s state)) then begin
         ignore (error "cannot verify dereference of %a\n" d_exp e);
+        addFailed expStats e;
+      end;
       begin
         match s, off with
         | SVar name, NoOffset -> SDerefVar name
@@ -1301,16 +1351,22 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          let aType = typeOf aExp in
                          let fFacts = getVarFacts fakeName inFacts in
                          let fType = ftype in
-                         if not (checkBaseTypes fType aType) then
+                         if isPointerType fType then
+                           addVisited argStats aExp;
+                         if not (checkBaseTypes fType aType) then begin
                            ignore (error ("argument %d to %s has " ^^
                                           "incompatible type\n" ^^
                                           "    to: %a\n  from: %a\n")
                                    i fnName d_type fType d_type aType);
-                         if not (checkCast fFacts aFacts) then
+                           addFailed argStats aExp;
+                         end;
+                         if not (checkCast fFacts aFacts) then begin
                            ignore (error ("argument %d to %s has " ^^
                                           "incompatible facts\n" ^^
                                           "    to: %a\n  from: %a\n")
                                    i fnName d_facts fFacts d_facts aFacts);
+                           addFailed argStats aExp;
+                         end;
                          match evaluateExp aExp state with
                          | SVar name when not (isInOutType ftype) ->
                              Hashtbl.replace inOutSubst fakeName name
@@ -1490,6 +1546,8 @@ let stmtIter (fn : stmt -> unit) (fd : fundec) : unit =
   List.iter fn sortedStmts
 
 let analyzeFundec (fd : fundec) : unit =
+  resetStats expStats;
+  resetStats argStats;
   curFunction := fd;
   clearVars ();
   ignore (visitCilFunction (new preFunctionVisitor) fd);
@@ -1572,7 +1630,9 @@ let analyzeFundec (fd : fundec) : unit =
         end
   done;
   stmtIter showStmtErrors fd;
-  clearErrors ()
+  clearErrors ();
+  tallyStats expStats;
+  tallyStats argStats;
   with E.Error ->
     begin
     (*
@@ -1751,6 +1811,10 @@ let analyzeFile (f : file) : unit =
   visitCilFile (new preVisitor) f;
   visitCilFile (new outVisitor) f;
   visitCilFile (new ptrArithVisitor) f;
+  verifiedExps := expStats.verified;
+  verifiedArgs := argStats.verified;
+  ignore (E.log "\nCCL Results:\n  Derefs: %a\n    Args: %a\n\n"
+                d_stats expStats d_stats argStats);
   if !E.hadErrors then
     E.s (E.error "Verification failed\n")
 
