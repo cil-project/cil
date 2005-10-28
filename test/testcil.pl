@@ -449,6 +449,7 @@ $TEST->addTests("runall/strings-zach", "", ['inferbox']);
 $TEST->addTests("runall/nullterm", "", ['inferbox']);
 $TEST->addTests("scott/nullterm2", "", ['inferbox']);
 $TEST->addTests("scott/nullterm3", "", ['inferbox']);
+$TEST->addTests("runall/sentinel", "", ['inferbox']);
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);

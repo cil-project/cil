@@ -149,14 +149,19 @@ sub parseTestDef {
         if($rest !~ m|^\s*(error\|success)(.*)$|) {
             die "After success or error there must be =\n";
         }
-        $success = $1 eq "success";
+        $success = ($1 eq "success") ? 1 : 0;
         $rest = $2;
 
         # See if there is a message. Must be at least two chars long
         if($rest =~ m|^\s*=\s*(\S.*\S)\s*$|) {
             $msg = $1;
         } else {
-            $msg = "";
+            if($rest =~ m|^\s*$|) {
+                $msg = "";
+            } else {
+                die ("After " . ($success ? "\"success\"" : "\"error\"") .
+                     " there must be nothing of = ...");
+            }
         }
             
 
@@ -275,6 +280,9 @@ sub runOneTest {
     $countTests ++;
 
     print "\n********* Running test $t from line $ti->{LINE}\n";
+    if($debug) {
+        print "Test $t:\n\tSUCCESS => $ti->{SUCCESS}\n\tLINE => $ti->{LINE}\n\tMSG => $ti->{MSG}\n";
+    }
     open(OUT, ">$outfile\n") 
         || die "Cannot write $outfile";
     &scanTestFile($t);
@@ -308,6 +316,11 @@ sub runOneTest {
     close(MSG) || die "Cannot close $msgfile";
     print @msgs;
     unlink $msgfile;
+    if($debug) { 
+        print "Test $t returned with code $code. Expected ", 
+        ($ti->{SUCCESS} ? "success" : "failure", "\n");
+    }
+            
     if(($code == 0) != $ti->{SUCCESS}) {
         if($code == 0) {
             warn "Test case $t (line $ti->{LINE}) succeeds and it is supposed to fail";
