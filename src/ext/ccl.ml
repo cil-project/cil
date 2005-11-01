@@ -43,7 +43,6 @@ let suppress : bool ref = ref false
 
 let globals : global list ref = ref []
 
-let curLocation : location ref = ref locUnknown
 let curFunction : fundec ref = ref dummyFunDec
 let curStmtId : int ref = ref 0
 
@@ -67,6 +66,7 @@ type annot =
 | AIgn
 | AZero
 | ANonZero
+| ANonNeg
 | AOne
 | ANT of int
 | ANTI of string * int
@@ -87,8 +87,15 @@ module OrderedFact = struct
 end
 module FactSet = Set.Make(OrderedFact)
 
+module OrderedString = struct
+  type t = string
+  let compare = compare
+end
+module StringSet = Set.Make(OrderedString)
+
 type state = {
   mutable facts : FactSet.t;
+  mutable openVars : StringSet.t;
 }
 
 type summary =
@@ -110,6 +117,7 @@ let d_annot () (annot : annot) : doc =
   | AIgn -> text "AIgn"
   | AZero -> text "AZero"
   | ANonZero -> text "ANonZero"
+  | ANonNeg -> text "ANonNeg"
   | AOne -> text "AOne"
   | ANT n -> dprintf "ANT %d" n
   | ANTI (s, n) -> dprintf "ANTI %s %d" s n
@@ -192,18 +200,18 @@ let error (fmt : ('a, unit, doc, unit) format4) : 'a =
   in
   if !verbose then begin
     E.hadErrors := true;
-    E.log ("%a: error: " ^^ fmt) d_loc !curLocation
+    E.log ("%a: error: " ^^ fmt) d_loc !currentLoc
   end else
-    Pretty.gprintf f ("%a: error: " ^^ fmt) d_loc !curLocation
+    Pretty.gprintf f ("%a: error: " ^^ fmt) d_loc !currentLoc
 
 let warning (fmt : ('a, unit, doc, unit) format4) : 'a =
   let f d =
     Hashtbl.add errorTable !curStmtId d
   in
   if !verbose then
-    E.log ("%a: warning: " ^^ fmt) d_loc !curLocation
+    E.log ("%a: warning: " ^^ fmt) d_loc !currentLoc
   else
-    Pretty.gprintf f ("%a: warning: " ^^ fmt) d_loc !curLocation
+    Pretty.gprintf f ("%a: warning: " ^^ fmt) d_loc !currentLoc
 
 let showStmtErrors (stmt : stmt) : unit =
   List.iter
@@ -242,6 +250,18 @@ let tallyStats (s : stats) : unit =
   s.verified <- newVerified @ s.verified;
   resetStats s
 
+let splitArrow (s : string) : string * string =
+  let idx = ref (-1) in
+  let len = String.length s in
+  for i = 0 to len - 2 do
+    if String.sub s i 2 = "->" then
+      idx := i
+  done;
+  if !idx >= 0 then
+    (String.sub s 0 !idx), (String.sub s (!idx + 2) (len - !idx - 2))
+  else
+    raise Not_found
+
 let isIgnoreType (t : typ) : bool =
   hasAttribute "ignore" (typeAttrs t)
 
@@ -274,20 +294,38 @@ let addVar (vi : varinfo) : unit =
   if not (List.memq vi !curVars) then
     curVars := vi :: !curVars
 
-let varNameToInfo (name : string) : varinfo =
+let varNameToInfo (name : string) : varinfo option =
   try
-    List.find (fun vi -> vi.vname = name) !curVars
+    Some (List.find (fun vi -> vi.vname = name) !curVars)
   with Not_found ->
-    E.s (E.bug "var name not in list\n")
+    None
+    (*E.s (E.bug "var name not in list\n")*)
 
 let varNameIsFS (name : string) : bool =
-  not (varNameToInfo name).vaddrof
+  match varNameToInfo name with
+  | Some vi -> not vi.vaddrof
+  | None -> true
+  (*not (varNameToInfo name).vaddrof*)
 
-let isLocalVar (name : string) : bool =
-  not (varNameToInfo name).vglob
-
-let varType (name : string) : typ =
-  (varNameToInfo name).vtype
+let rec varType (name : string) : typ =
+  match varNameToInfo name with
+  | Some vi -> vi.vtype
+  | None ->
+      begin
+        try
+          let vname, fname = splitArrow name in
+          match unrollType (varType vname) with
+          | TPtr (bt, _) ->
+              begin
+                match unrollType bt with
+                | TComp (ci, _) -> (getCompField ci fname).ftype
+                | t -> E.s (E.bug "expected comp type: %a\n" d_type t)
+              end
+          | t -> E.s (E.bug "expected ptr type: %a\n" d_type t)
+        with Not_found ->
+          E.s (E.bug "unrecognized var\n")
+      end
+  (*(varNameToInfo name).vtype*)
 
 let replaceName (name1 : string) (name2 : string)
                 (facts : FactSet.t) : FactSet.t =
@@ -315,6 +353,7 @@ let replaceName (name1 : string) (name2 : string)
          | AIgn
          | AZero
          | ANonZero
+         | ANonNeg
          | AOne
          | ANT _
          | ACC _ -> annot1
@@ -348,6 +387,7 @@ let addPrefix (prefix : string) (facts : FactSet.t) : FactSet.t =
          | AIgn
          | AZero
          | ANonZero
+         | ANonNeg
          | AOne
          | ANT _
          | ACC _ -> annot1
@@ -373,6 +413,7 @@ let selectFactsEx (fn : string -> bool) (facts : FactSet.t) : FactSet.t =
          | AIgn
          | AZero
          | ANonZero
+         | ANonNeg
          | AOne
          | ANT _
          | ACC _ -> false
@@ -466,10 +507,10 @@ let closeFacts (facts : FactSet.t) : FactSet.t =
     annot ::
     match annot with
     | ANT n -> [ ACC (n + 1) ]
-    | AZero -> [ ACC 1; ANT 0 ]
-    | AOne -> [ ANonZero ]
-    | ACCB s -> [ ACCBI s ]
-    | AVCB s -> [ AVCBI s ]
+    | AZero -> [ ACC 1; ANT 0; ANonNeg ]
+    | AOne -> [ ANonZero; ANonNeg ]
+    | ACCB s -> [ ANonZero; ACCBI s ]
+    | AVCB s -> [ ANonZero; AVCBI s ]
     | AE s -> [ AEI s ]
     | _ -> []
   in
@@ -533,7 +574,9 @@ let typeToFactsPre (prefix : string) (name : string) (t : typ) : FactSet.t =
 
 let getCompFacts (name : string) (ci : compinfo) : FactSet.t =
   List.fold_right
-    (fun fld rest -> addPrefix (name ^ "->") (typeToFacts fld.fname fld.ftype))
+    (fun fld rest ->
+       FactSet.union
+         (addPrefix (name ^ "->") (typeToFacts fld.fname fld.ftype)) rest)
     ci.cfields
     FactSet.empty
 
@@ -581,6 +624,50 @@ let getFunctionFacts (t : typ) : FactSet.t * FactSet.t =
 let getVarFacts (name : string) (facts : FactSet.t) : FactSet.t =
   replaceName name "*" (selectFacts name facts)
 
+let openVar (vname : string) (state : state) : unit =
+  if not (StringSet.mem vname state.openVars) then begin
+    let vi =
+      match varNameToInfo vname with
+      | Some vi -> vi
+      | None -> E.s (E.bug "can't open non-local var\n")
+    in
+    let e =
+      match unrollType vi.vtype with
+      | TPtr _ -> Lval (Var vi, NoOffset)
+      | TArray _ -> StartOf (Var vi, NoOffset)
+      | _ -> E.s (E.bug "expected ptr or array type\n")
+    in
+    let comp =
+      match unrollType (typeOfLval (Mem e, NoOffset)) with
+      | TComp (ci, _) -> ci
+      | t -> E.s (E.bug "expected comp type: %a\n" d_type t)
+    in
+    let facts = getCompFacts vname comp in
+    state.facts <- FactSet.union facts state.facts;
+    state.openVars <- StringSet.add vname state.openVars;
+  end
+
+let openVars (vnames : StringSet.t) (state : state) : unit =
+  StringSet.iter (fun vname -> openVar vname state) vnames
+
+let closeVar (vname : string) (state : state) : unit =
+  (* TODO: check! *)
+  if StringSet.mem vname state.openVars then begin
+    let prefix = vname ^ "->" in
+    let prefixLen = String.length prefix in
+    let prefixCheck v =
+      try
+        String.sub v 0 prefixLen <> prefix
+      with Invalid_argument _ ->
+        true
+    in
+    state.facts <- selectFactsEx prefixCheck state.facts;
+    state.openVars <- StringSet.remove vname state.openVars
+  end
+
+let closeAllVars (state : state) : unit =
+  StringSet.iter (fun vname -> closeVar vname state) state.openVars
+
 let makeState (fd : fundec) : state =
   let facts =
     List.fold_right
@@ -592,13 +679,19 @@ let makeState (fd : fundec) : state =
       !curVars
       FactSet.empty
   in
-  { facts = facts; }
+  { facts = facts; openVars = StringSet.empty; }
 
 let copyState (s : state) : state =
-  { facts = s.facts; }
+  { facts = s.facts; openVars = s.openVars; }
 
 let joinStates (s1 : state) (s2 : state) : state =
-  { facts = joinFacts (closeFacts s1.facts) (closeFacts s2.facts); }
+  let s1' = copyState s1 in
+  let s2' = copyState s2 in
+  let allVars = StringSet.union s1'.openVars s2'.openVars in
+  openVars allVars s1';
+  openVars allVars s2';
+  { facts = joinFacts (closeFacts s1'.facts) (closeFacts s2'.facts);
+    openVars = allVars; }
 
 let equalFacts (f1 : FactSet.t) (f2 : FactSet.t) : bool =
   FactSet.equal (closeFacts f1) (closeFacts f2)
@@ -804,6 +897,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
                | _ -> rest)
             state.facts
             [ ANonZero ]
+        (* TODO: add ANonZero *)
       in
       let extra =
           FactSet.fold
@@ -852,8 +946,9 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
              | ACC n when n >= off -> [ ("*", ACC (n - off)); (vname, AE "*") ]
              | ANT n when n >= off -> [ ("*", ANT (n - off)); (vname, AE "*") ]
              | ANTI (s, n) when n >= off -> [ ("*", ANTI (s, n - off)) ]
-             | ACCB s -> [ ("*", ACCBI s) ]
-             | AVCB s -> [ ("*", AVCBI s) ]
+             (* TODO: the following should be checked for overflow *)
+             | ACCB s -> [ ("*", ANonNeg); ("*", ACCBI s) ]
+             | AVCB s -> [ ("*", ANonNeg); ("*", AVCBI s) ]
              | AE s -> [ ("*", AEI s) ]
              | AZero when off = 1 -> [ ("*", AOne) ]
              | AZero when off <> 0 -> [ ("*", ANonZero) ]
@@ -866,30 +961,16 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
   | SDerefVar vname
   | SDerefVarOff (vname, _)
   | SDerefVarOffConst (vname, _) ->
-      let vi = varNameToInfo vname in
-      let e =
-        match unrollType vi.vtype with
-        | TPtr _ -> Lval (Var vi, NoOffset)
-        | TArray _ -> StartOf (Var vi, NoOffset)
+      let bt =
+        match unrollType (varType vname) with
+        | TPtr (bt, _)
+        | TArray (bt, _, _) -> bt
         | _ -> E.s (E.bug "expected ptr or array type\n")
       in
-      typeToFacts "*" (typeOfLval (Mem e, NoOffset))
+      typeToFacts "*" bt
   | SDerefVarFld (vname, fname) ->
-      let vi = varNameToInfo vname in
-      let e =
-        match unrollType vi.vtype with
-        | TPtr _ -> Lval (Var vi, NoOffset)
-        | TArray _ -> StartOf (Var vi, NoOffset)
-        | _ -> E.s (E.bug "expected ptr or array type\n")
-      in
-      let comp =
-        match unrollType (typeOfLval (Mem e, NoOffset)) with
-        | TComp (ci, _) -> ci
-        | t -> E.s (E.bug "expected comp type: %a\n" d_type t)
-      in
-      let fullName = vname ^ "->" ^ fname in
-      let facts = getCompFacts vname comp in
-      replaceName fullName "*" (selectFacts fullName facts)
+      openVar vname state;
+      getVarFacts (vname ^ "->" ^ fname) state.facts
   | SAddrVar vname ->
       FactSet.singleton ("*", ACC 1)
   | SFacts facts ->
@@ -1009,9 +1090,19 @@ and evaluateLval (lv : lval) (state : state) : summary =
       begin
         match s, off with
         | SVar name, NoOffset -> SDerefVar name
-        (*
-        | SVar name, Field (fld, NoOffset) -> SDerefVarFld (name, fld.fname)
-        *)
+        | SVar name, Field (fld, NoOffset) ->
+            (*SDerefVarFld (name, fld.fname)*)
+            let hasArrow =
+              try
+                name.[(String.index name '-') + 1] = '>'
+              with Not_found | Invalid_argument _ ->
+                false
+            in
+            if not hasArrow then begin
+              openVar name state;
+              SVar (name ^ "->" ^ fld.fname)
+            end else
+              SFacts (typeToFacts "*" (typeOfLval lv))
         | SVarOff (bname, oname), NoOffset -> SDerefVarOff (bname, oname)
         | SVarOffConst (name, off), NoOffset -> SDerefVarOffConst (name, off)
         | _ -> SFacts (typeToFacts "*" (typeOfLval lv))
@@ -1069,7 +1160,9 @@ let analyzeCond (cond : exp) (state : state) : unit =
          | ACCBI name' when name = vname && name' = aname ->
              [ (name, ACCB name') ]
          | AZero when name = vname ->
-             [ (name, ACCB aname) ]
+             [ (name, annot); (name, ACCB aname) ]
+         | ANonNeg when name = vname ->
+             [ (name, annot); (name, ACCB aname) ]
          | _ -> [ (name, annot) ])
       state
   in
@@ -1080,7 +1173,9 @@ let analyzeCond (cond : exp) (state : state) : unit =
          | AVCBI name' when name = vname && name' = aname ->
              [ (name, AVCB name') ]
          | AZero when name = vname ->
-             [ (name, AVCB aname) ]
+             [ (name, annot); (name, AVCB aname) ]
+         | ANonNeg when name = vname ->
+             [ (name, annot); (name, AVCB aname) ]
          | _ -> [ (name, annot) ])
       state
   in
@@ -1202,7 +1297,7 @@ let analyzeCond (cond : exp) (state : state) : unit =
         ()
   in
   if !verbose then
-    ignore (E.log "%a: cond %a\n%a\n" d_loc !curLocation
+    ignore (E.log "%a: cond %a\n%a\n" d_loc !currentLoc
                   dn_exp cond d_state state);
   checkCond cond false
 
@@ -1231,7 +1326,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              in
              state.facts <- FactSet.union removed facts;
              (*
-             ignore (E.log "%a: %s gets %a\n" d_loc !curLocation
+             ignore (E.log "%a: %s gets %a\n" d_loc !currentLoc
                            vname d_facts facts)
              *)
            in
@@ -1242,6 +1337,11 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                ignore (error ("assignment has incompatible types\n" ^^
                               "    to: %a\n  from: %a\n")
                              d_type lvType d_type eType);
+             begin
+               match lvSum with
+               | SVar vname -> closeVar vname state
+               | _ -> ()
+             end;
              begin
                match lvSum with
                | SVar vname when varNameIsFS vname ->
@@ -1256,8 +1356,9 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              end
            in
            if !return then begin
+           currentLoc := get_instrLoc instr;
            if !verbose then
-             ignore (E.log "%a: instr %a\n%a\n" d_loc !curLocation
+             ignore (E.log "%a: instr %a\n%a\n" d_loc !currentLoc
                            dn_instr instr d_state state);
            match instr with
            | Call (None, Lval (Var vi, NoOffset), [ptr; chr; size], l)
@@ -1409,6 +1510,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      argIter showWarnings;
                      argIter prepFakeVars;
                      argIter checkIn;
+                     closeAllVars state;
                      argIter checkOut;
                      let addFacts =
                        Hashtbl.fold replaceName inOutSubst outFacts
@@ -1454,7 +1556,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
         instrs
   | Return (eo, l) ->
       if !verbose then
-        ignore (E.log "%a: %a\n%a\n" d_loc !curLocation
+        ignore (E.log "%a: %a\n%a\n" d_loc !currentLoc
                       dn_stmt stmt d_state state);
       begin
         match eo with
@@ -1585,7 +1687,7 @@ let analyzeFundec (fd : fundec) : unit =
         end
     in
     curStmtId := stmt.sid;
-    curLocation := get_stmtLoc stmt.skind;
+    currentLoc := get_stmtLoc stmt.skind;
     match stmt.skind with
     | If (cond, thenBranch, elseBranch, l) ->
         let getBranchStmt (branch : block) : stmt =
