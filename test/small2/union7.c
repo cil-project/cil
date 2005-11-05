@@ -73,8 +73,9 @@ int main() {
   g.data.ptr2 = px;
   px = g.data.ptr2;
 
-  // This is allowed because we are not reading a poinetr
-  g.tag = 1; x = g.data.anint;
+  // This is allowed because we are not reading a pointer
+  // matth: this is no longer allowed. We enforce all discriminators
+  //g.tag = 1; x = g.data.anint;
 
 #endif
 
