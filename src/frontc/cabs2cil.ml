@@ -2491,7 +2491,15 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                     E.s (error "Length of array is too large\n")
            
 
-                | l -> E.s (error "Length of array is not a constant: %a\n"
+                | l -> 
+                    if isConstant l then 
+                      (* e.g., there may be a float constant involved. 
+                       * We'll leave it to the user to ensure the length is
+                       * non-negative, etc.*)
+                      ignore(warn "Unable to do constant-folding on array length %a.  Some CIL operations on this array may fail."
+                               d_exp l)
+                    else 
+                      E.s (error "Length of array is not a constant: %a\n"
                              d_exp l));
               Some len''
         in
