@@ -486,6 +486,10 @@ features="$features smalloc=no"
 # cqualann.ml is used by Matt Harren.  Please ignore.
 features="$features cqualann=no"
 
+# Deputy is part of the Ivy project.  Currently, this is just a prototype.
+#  --with-deputy also enables CCL.
+features="$features deputy=no"
+
 for f_val in $features
 do
    f=`echo $f_val | sed -e s%=.*$%%`

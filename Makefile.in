@@ -61,6 +61,9 @@ endif
 ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
+ifdef USE_DEPUTY
+  CILLY_FEATURES += ccl deputy
+endif
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
@@ -73,7 +76,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
               canonicalize heap oneret partial simplemem simplify \
-	      dataslicing ccl \
+	      dataslicing \
               testcil \
 	      $(CILLY_FEATURES) \
 	      feature_config
@@ -215,6 +218,10 @@ ifdef USE_SMALLOC
 endif
 ifdef USE_CQUALANN
 	echo "   Cqualann.feature;" >> $@  
+endif
+ifdef USE_DEPUTY
+	echo "   Ccl.feature;" >> $@  
+	echo "   Deputy.feature;" >> $@  
 endif
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made
