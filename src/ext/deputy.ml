@@ -126,17 +126,35 @@ let addChecksVisitor = object (self)
   inherit nopCilVisitor
 
   method vstmt s = 
-    let checks = GA.getg allChecks s.sid in
-    if checks <> [] then begin
-      let checks' = List.rev checks in (* put them back in the right order. *)
-      let checks'' : instr list = List.map checkToInstr checks' in
-      self#queueInstr checks''
-    end;
-    DoChildren
+    let postProcessStmt (s: stmt) : stmt =
+      let checks = GA.getg allChecks s.sid in
+      if checks <> [] then begin
+        let checks' = List.rev checks in (* put them back in the right order *)
+        let checks'' : instr list = List.map checkToInstr checks' in
+        self#queueInstr checks''
+      end;
+      s
+    in
+    ChangeDoChildrenPost (s, postProcessStmt)
 end
 
 
 (**************************************************************************)
+
+(* remember complicated bounds expressions *)
+let boundsTable : (int, exp) Hashtbl.t = Hashtbl.create 13
+let boundsTableCtr : int ref = ref 0
+
+let addBoundsExp (e: exp) : int =
+  incr boundsTableCtr;
+  Hashtbl.add boundsTable !boundsTableCtr e;
+  !boundsTableCtr
+
+let getBoundsExp (n: int) : exp =
+  try
+    Hashtbl.find boundsTable n
+  with Not_found ->
+    E.s (E.bug "couldn't look up expression in bounds table\n")
 
 (* mapping from field/formal names to expressions representing 
    the runtime value. *)
@@ -186,34 +204,62 @@ let compileAttribute (ctx: context) (a: attrparam)  : string list * exp =
 
 let rec boundsOfAttrs (ctx: context) (a:attributes) : exp*exp = 
   let checkrest rest =
-    if hasAttribute "bounds" rest then
+    if hasAttribute "bounds" rest ||
+       hasAttribute "fancybounds" rest then
       E.s (error "Type has duplicate bounds attributes")
   in
   match a with
-    Attr("bounds", [lo;hi])::rest ->
+  | Attr ("fancybounds", [AInt lo; AInt hi]) :: rest ->
+      checkrest rest;
+      getBoundsExp lo, getBoundsExp hi
+  | Attr ("fancybounds", _) :: rest ->
+      E.s (error "Illegal fancybounds annotations.")
+  | Attr ("bounds", [lo; hi]) :: rest ->
       checkrest rest;
       (* Compile lo, hi into expressions *)
       let lodeps, lo' = compileAttribute ctx lo in
       let hideps, hi' = compileAttribute ctx hi in
       lo', hi'
-  | Attr("bounds", _)::rest ->
+  | Attr ("bounds", _) :: rest ->
       E.s (error "Illegal bounds annotations.")
-  | (Attr _)::rest -> 
+  | Attr _ :: rest -> 
       boundsOfAttrs ctx rest
   | [] -> 
       E.s (error "Missing bounds annotations.")
-  
+
+let boundsOfType (ctx: context) (t: typ) : exp*exp =
+  match t with
+  | TPtr (_, a) -> boundsOfAttrs ctx a
+  | _ -> E.s (E.error "Expected pointer type.")
+
+let mkFancyBounds (lo: exp) (hi: exp) : attribute =
+  Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
+
+let mkBoundedType (t: typ) (lo: exp) (hi: exp) : typ =
+  match t with
+  | TPtr (bt, a) ->
+      let a' =
+        addAttribute (mkFancyBounds lo hi)
+          (dropAttribute "bounds" (dropAttribute "fancybounds" a))
+      in
+      TPtr (bt, a')
+  | _ -> E.s (E.error "Expected pointer type.")
 
 let emptyContext : context = []
 
 (* The context of local and formal variables. *)
 let localsContext (f:fundec) : context =
   List.fold_left
-    (fun acc v ->  (v.vname, Lval (var v)) :: acc)
+    (fun acc v -> (v.vname, Lval (var v)) :: acc)
     []
     (f.sformals @ f.slocals)
 
-(* I haven't implemented the context for structs ... *)
+let structContext (lv: lval) (ci: compinfo) : context =
+  List.fold_left
+    (fun acc fld ->
+       (fld.fname, Lval (addOffsetLval (Field (fld, NoOffset)) lv)) :: acc)
+    []
+    ci.cfields
 
 (**************************************************************************)
 
@@ -226,25 +272,50 @@ let checkTypes (t1 : typ) (t2 : typ) : unit =
 
 let rec checkExp (ctx: context) (e : exp) : typ =
   match e with
+  | UnOp (op, e', t) -> checkTypes t (checkExp ctx e'); t
+  | BinOp ((PlusPI | IndexPI | MinusPI), e1, e2, t) ->
+      let t1 = checkExp ctx e1 in
+      let t2 = checkExp ctx e2 in
+      checkTypes t1 t;
+      checkTypes t2 intType;
+      let lo, hi = boundsOfType ctx t1 in
+      addCheck (CNonNull e1);
+      addCheck (CBounds (lo, e1, e2, hi));
+      t
+  | BinOp (op, e1, e2, t) ->
+      let t1 = checkExp ctx e1 in
+      let t2 = checkExp ctx e2 in
+      checkTypes t1 t;
+      checkTypes t2 t;
+      t
   | Lval lv -> checkLval ctx lv
   | CastE (t, e') -> checkTypes t (checkExp ctx e'); t
+  | SizeOfE e'
+  | AlignOfE e' -> checkExp ctx e'; unrollType (typeOf e)
+  | AddrOf lv
+  | StartOf lv -> E.s (E.unimp "addr-of and start-of unsupported\n")
   | _ -> unrollType (typeOf e)
 
 and checkLval (ctx: context) (lv : lval) : typ =
-  (match lv with
-     Mem e, off -> begin
-       match checkExp ctx e with
-         TPtr(bt, a) ->
-           let lo,hi = boundsOfAttrs ctx a in
-           addCheck (CNonNull e);
-           addCheck (CNotEq(e,hi))
-       | _ -> 
-           E.s (error "Dereference of a non-pointer.")
-     end
-   | Var vi, off -> ()
-  );
-  typeOfLval lv
-  
+  begin
+    match lv with
+      Mem e, off -> begin
+        let lo, hi = boundsOfType ctx (checkExp ctx e) in
+        addCheck (CNonNull e);
+        addCheck (CNotEq(e,hi))
+      end
+    | Var vi, off -> ()
+  end;
+  let lv', off = removeOffsetLval lv in
+  (* TODO: call checkExp on index offsets inside lv' *)
+  match off with
+  | NoOffset -> typeOfLval lv
+  | Field (fld, NoOffset) ->
+      let ctx' = structContext lv' fld.fcomp in
+      let lo, hi = boundsOfType ctx' fld.ftype in
+      mkBoundedType fld.ftype lo hi
+  | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
+  | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
 let checkInstr (ctx: context) (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
