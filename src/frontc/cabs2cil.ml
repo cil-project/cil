@@ -563,8 +563,25 @@ let rec stripConstLocalType (t: typ) : typ =
   | TBuiltin_va_list a -> 
       let a' = dc a in if a != a' then TBuiltin_va_list a' else t
 
-            
-        
+
+let constFoldTypeVisitor = object (self)
+  inherit nopCilVisitor
+  method vtype t: typ visitAction =
+    match t with
+      TArray(bt, Some len, a) -> 
+        let len' = constFold true len in
+        ChangeDoChildrenPost (
+          TArray(bt, Some len', a),
+          (fun x -> x)
+        )
+    | _ -> DoChildren
+end
+
+(* Const-fold any expressions that appear as array lengths in this type *)
+let constFoldType (t:typ) : typ =
+  visitCilType constFoldTypeVisitor t
+
+
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
@@ -4789,6 +4806,7 @@ and createLocal ((_, sto, _, _) as specs)
       if debugGlobal then 
         ignore (E.log "createGlobal (local static): %s\n" n);
 
+
       (* Now alpha convert it to make sure that it does not conflict with 
        * existing globals or locals from this function. *)
       let newname, _  = newAlphaName true "" n in
@@ -4803,6 +4821,12 @@ and createLocal ((_, sto, _, _) as specs)
       (* Add it to the environment as a local so that the name goes out of 
        * scope properly *)
       addLocalToEnv n (EnvVar vi);
+
+      (* Maybe this is an array whose length depends on something with local 
+         scope, e.g. "static char device[ sizeof(local) ]".
+         Const-fold the type so to fix this. *)
+      vi.vtype <- constFoldType vi.vtype;
+
       let init : init option = 
         if inite = A.NO_INIT then 
           None

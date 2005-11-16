@@ -15,10 +15,21 @@ static int bar() {
 
 static int (*pbar)() = bar;
 
+//When moving device to global scope, const-fold the length so that we don't
+//have a dangling reference to u.
+struct s { int c; };
+void qux() {
+  struct s *u;
+  static char device[ sizeof(u->c) ];
+  device[0] = 0;
+}
+
 int main() {
   if(foo() != 56) E(1); // Foo invokes bar + f1
 
   if(pbar() != 55) E(2); // We have two copies of pbar
+  
+  qux();
 
   SUCCESS;
 }
