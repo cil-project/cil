@@ -62,7 +62,7 @@ ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
 ifdef USE_DEPUTY
-  CILLY_FEATURES += ccl deputy
+  CILLY_FEATURES += growArray ccl deputy
 endif
 
     # Now rules to make cilly
