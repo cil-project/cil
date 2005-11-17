@@ -248,14 +248,16 @@ let boundsOfType (ctx: context) (t: typ) : exp*exp =
   | TPtr (_, a) -> boundsOfAttrs ctx a
   | _ -> E.s (E.error "Expected pointer type.")
 
-let mkFancyBounds (lo: exp) (hi: exp) : attribute =
-  Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
-
-let mkBoundedType (t: typ) (lo: exp) (hi: exp) : typ =
+(* Replace the names in type t with the corresponding expressions in ctx *)
+let substType (ctx: context) (t: typ) : typ =
+  let lo, hi = boundsOfType ctx t in
   match t with
   | TPtr (bt, a) ->
+      let fancyAttr =
+        Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
+      in
       let a' =
-        addAttribute (mkFancyBounds lo hi)
+        addAttribute fancyAttr
           (dropAttribute "bounds" (dropAttribute "fancybounds" a))
       in
       TPtr (bt, a')
@@ -270,6 +272,10 @@ let addBinding (ctx:context) (name:string) (e:exp) : context =
 (* Add to the current context a binding for "__this" *)
 let addThisBinding (ctx:context) (e:exp) : context =
   (thisKeyword, e)::ctx
+
+(* Add to the current context a binding from name to e *)
+let addBinding (ctx:context) (name:string) (e:exp) : context =
+  (name, e)::ctx
 
 (* The context of local and formal variables. *)
 let localsContext (f:fundec) : context =
@@ -371,10 +377,50 @@ and checkLval (ctx: context) (lv : lval) : typ =
   | Field (fld, NoOffset) ->
       let ctx' = structContext lv' fld.fcomp in
       let ctx'' = addThisBinding ctx' (Lval lv) in
-      let lo, hi = boundsOfType ctx'' fld.ftype in
-      mkBoundedType fld.ftype lo hi
+      substType ctx'' fld.ftype
   | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
+
+let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
+  let lvType = checkLval ctx lv in
+  let eType = checkExp ctx e in
+  let off1, off2 = removeOffset (snd lv) in
+  begin
+    match off2 with
+    | NoOffset ->
+        begin
+          match fst lv with
+          | Var x ->
+              (* TODO: handle globals *)
+              coerceExp ctx e lvType;
+              List.iter
+                (fun y ->
+                   if x.vname <> y.vname then begin
+                     let yExp = Lval (var y) in
+                     let ctx' = addThisBinding ctx yExp in
+                     let ctx'' = addBinding ctx' x.vname e in
+                     coerceExp ctx' yExp (substType ctx'' y.vtype)
+                   end)
+                (!curFunc.slocals @ !curFunc.sformals)
+          | Mem e ->
+              coerceExp ctx e lvType
+        end
+    | Field (x, NoOffset) ->
+        coerceExp ctx e lvType;
+        List.iter
+          (fun y ->
+             if x.fname <> y.fname then begin
+               let yExp =
+                 Lval (addOffsetLval (Field (y, NoOffset)) (fst lv, off1))
+               in
+               let ctx' = addThisBinding ctx yExp in
+               let ctx'' = addBinding ctx' x.fname e in
+               coerceExp ctx' yExp (substType ctx'' y.ftype)
+             end)
+          x.fcomp.cfields
+    | Field _ -> E.s (E.bug "unexpected field offset\n")
+    | Index _ -> E.s (E.bug "index offsets not handled\n")
+  end
 
 let checkInstr (ctx: context) (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
@@ -406,8 +452,7 @@ let checkInstr (ctx: context) (instr : instr) : unit =
       coerceType ctx ~ctx_to:ctx'
         e' ~tfrom:(checkExp ctx e') ~tto:(checkLval ctx lv)
   | Set (lv, e, _) ->
-      (* TODO: Set for other kinds of lvals *)
-      coerceExp ctx e (checkLval ctx lv)
+      checkSet ctx lv e
   | Asm _ -> E.s (E.unimp "asm unsupported\n")
 
 let rec checkStmt (ctx: context) (s : stmt) : unit =
