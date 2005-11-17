@@ -244,15 +244,19 @@ let rec boundsOfAttrs (ctx: context) (a:attributes) : exp*exp =
       E.s (error "Missing bounds annotations.")
 
 let boundsOfType (ctx: context) (t: typ) : exp*exp =
+  if !verbose then
+    E.log "%a: boundsOfType %a\n" d_loc !currentLoc d_type t;
   match t with
   | TPtr (_, a) -> boundsOfAttrs ctx a
   | _ -> E.s (E.error "Expected pointer type.")
 
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
-  let lo, hi = boundsOfType ctx t in
+  if !verbose then
+    E.log "%a: substType %a\n" d_loc !currentLoc d_type t;
   match t with
   | TPtr (bt, a) ->
+      let lo, hi = boundsOfType ctx t in
       let fancyAttr =
         Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
       in
@@ -261,7 +265,8 @@ let substType (ctx: context) (t: typ) : typ =
           (dropAttribute "bounds" (dropAttribute "fancybounds" a))
       in
       TPtr (bt, a')
-  | _ -> E.s (E.error "Expected pointer type.")
+  | _ ->
+      t
 
 let emptyContext : context = []
 
@@ -330,8 +335,9 @@ let coerceType
 
 (* Calls checkExp e, then calls coerceType to make sure that
    e can be coerced to tto.*)
-let rec coerceExp (ctx:context) (e:exp) (tto : typ) : unit =
-  coerceType ctx e ~tfrom:(checkExp ctx e) ~tto
+let rec coerceExp (ctx_from:context) ?(ctx_to:context=ctx_from)
+                  (e:exp) (tto : typ) : unit =
+  coerceType ctx_from ~ctx_to:ctx_to e ~tfrom:(checkExp ctx_from e) ~tto
         
 
 and checkExp (ctx: context) (e : exp) : typ =
@@ -362,6 +368,8 @@ and checkExp (ctx: context) (e : exp) : typ =
   | _ -> unrollType (typeOf e)
 
 and checkLval (ctx: context) (lv : lval) : typ =
+  if !verbose then
+    E.log "%a: checking %a\n" d_loc !currentLoc d_lval lv;
   begin
     match lv with
       Mem e, off -> begin
@@ -385,7 +393,49 @@ and checkLval (ctx: context) (lv : lval) : typ =
   | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
+let checkCall (ctx: context) (lvo: lval option)
+              (fn: exp) (args: exp list) : unit =
+  match checkExp ctx fn with
+  | TFun (returnType, argInfo, varargs, _) ->
+      if varargs then
+        E.s (E.unimp "varargs unimplemented\n");
+      let lvType =
+        match lvo with
+        | Some lv -> checkLval ctx lv
+        | None -> voidType
+      in
+      checkSameType returnType lvType;
+      (* CIL's casts don't make sense with dependent types, so remove them. *)
+      let actuals = List.map stripCasts args in
+      let formals = argsToList argInfo in
+      begin
+        try
+          let ctxCall =
+            List.fold_left2
+              (fun ctxAcc (argName, argType, _) arg ->
+                 if argName <> "" then
+                   addBinding ctxAcc argName arg
+                 else
+                   ctxAcc)
+              emptyContext
+              formals
+              actuals
+          in
+          List.iter2
+            (fun (argName, argType, _) arg ->
+               let ctx' = addThisBinding ctx arg in
+               let ctxCall' = addThisBinding ctxCall arg in
+               coerceExp ctx' ~ctx_to:ctxCall' arg argType)
+            formals
+            actuals
+        with Invalid_argument _ ->
+          E.s (E.bug "different number of formal and actual args\n")
+      end
+  | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
+
 let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
+  if !verbose then
+    E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
   let lvType = checkLval ctx lv in
   let eType = checkExp ctx e in
   let off1, off2 = removeOffset (snd lv) in
@@ -431,22 +481,7 @@ let checkInstr (ctx: context) (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
   match instr with
   | Call (lvo, fn, args, _) ->
-      begin
-        match checkExp ctx fn with
-        | TFun (returnType, argInfo, varags, _) ->
-            let lvType =
-              match lvo with
-              | Some lv -> checkLval ctx lv
-              | None -> voidType
-            in
-            checkSameType returnType lvType;
-            List.iter2
-              (fun (argName, argType, _) arg ->
-                 coerceExp ctx arg argType)
-              (argsToList argInfo)
-              args
-        | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
-      end
+      checkCall ctx lvo fn args
   | Set (lv, e, _) ->
       (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
          self-dependencies. So just ignore casts. *)
