@@ -392,31 +392,28 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
           match fst lv with
           | Var x ->
               (* TODO: handle globals *)
-              coerceExp ctx e lvType;
               List.iter
                 (fun y ->
-                   if x.vname <> y.vname then begin
-                     let yExp = Lval (var y) in
-                     let ctx' = addThisBinding ctx yExp in
-                     let ctx'' = addBinding ctx' x.vname e in
-                     coerceExp ctx' yExp (substType ctx'' y.vtype)
-                   end)
+                   let yExp = if x.vname <> y.vname then Lval (var y) else e in
+                   let ctx' = addThisBinding ctx yExp in
+                   let ctx'' = addBinding ctx' x.vname e in
+                   coerceExp ctx' yExp (substType ctx'' y.vtype))
                 (!curFunc.slocals @ !curFunc.sformals)
           | Mem e ->
               coerceExp ctx e lvType
         end
     | Field (x, NoOffset) ->
-        coerceExp ctx e lvType;
         List.iter
           (fun y ->
-             if x.fname <> y.fname then begin
-               let yExp =
+             let yExp =
+               if x.fname <> y.fname then
                  Lval (addOffsetLval (Field (y, NoOffset)) (fst lv, off1))
-               in
-               let ctx' = addThisBinding ctx yExp in
-               let ctx'' = addBinding ctx' x.fname e in
-               coerceExp ctx' yExp (substType ctx'' y.ftype)
-             end)
+               else
+                 e
+             in
+             let ctx' = addThisBinding ctx yExp in
+             let ctx'' = addBinding ctx' x.fname e in
+             coerceExp ctx' yExp (substType ctx'' y.ftype))
           x.fcomp.cfields
     | Field _ -> E.s (E.bug "unexpected field offset\n")
     | Index _ -> E.s (E.bug "index offsets not handled\n")
