@@ -69,8 +69,7 @@ let fixStmt (s:stmt) : unit =
 (**************************************************************************)
 
 type check =
-    CNull of exp         (** e == 0 *)
-  | CNonNull of exp      (** e != 0 *)
+    CNonNull of exp      (** e != 0 *)
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CBounds of exp * exp * exp * exp 
                          (** e1 <= e2+e3 <= e4.  For ptr arith *)
@@ -107,7 +106,6 @@ let mkCheckFun (n: string) (numargs: int) : exp =
   fdec.svar.vtype <- TFun(TVoid [], Some args, false, []);
   fdec.svar.vstorage <- Static;
   Lval (var fdec.svar)
-let cnull = mkCheckFun "CNull" 1
 let cnonnull = mkCheckFun "CNonNull" 1
 let cnoteq = mkCheckFun "CNotEq" 2
 let cbounds = mkCheckFun "CBounds" 3
@@ -116,11 +114,10 @@ let ccoerce = mkCheckFun "CCoerce" 5
 let checkToInstr (c:check) =
   let call f args = Call(None, f, args, !currentLoc) in
   match c with
-    CNull (e) -> call cnull [e]
-  | CNonNull (e) -> call cnonnull [e]
+    CNonNull (e) -> call cnonnull [e]
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
-                           call cbounds [p';b;e]
+                           call cbounds [b;p';e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
 
 
@@ -269,10 +266,6 @@ let substType (ctx: context) (t: typ) : typ =
       t
 
 let emptyContext : context = []
-
-(* Add to the current context a binding for name *)
-let addBinding (ctx:context) (name:string) (e:exp) : context =
-  (name, e)::ctx
 
 (* Add to the current context a binding for "__this" *)
 let addThisBinding (ctx:context) (e:exp) : context =
@@ -544,6 +537,7 @@ let checkFile (f : file) : unit =
   (* Turn the check datastructure into explicit checks, so that they show up
      in the output. *)
   visitCilFileSameGlobals postPassVisitor f;
+  f.globals <- (GText "#include <deputychecks.h>\n\n")::f.globals;
  (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
   ()
