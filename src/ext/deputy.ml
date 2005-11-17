@@ -340,13 +340,15 @@ and checkExp (ctx: context) (e : exp) : typ =
   | BinOp ((PlusPI | IndexPI | MinusPI | MinusPP), e1, e2, t) ->
       let t1 = checkExp ctx e1 in
       let t2 = checkExp ctx e2 in
-      coerceType ctx e1 ~tfrom:t1 ~tto:t;
+      (* FIXME: __this can appear in t, so we ignore it for now.
+         At some point, we should check it! *)
+      (* coerceType ctx e1 ~tfrom:t1 ~tto:t; *)
       coerceType ctx e2 ~tfrom:t2 ~tto:intType;
       let ctx' = addThisBinding ctx e1 in
       let lo, hi = boundsOfType ctx' t1 in
       addCheck (CNonNull e1);
       addCheck (CBounds (lo, e1, e2, hi));
-      t
+      t1
   | BinOp (op, e1, e2, t) ->
       coerceExp ctx e1 t;
       coerceExp ctx e2 t;
@@ -373,7 +375,9 @@ and checkLval (ctx: context) (lv : lval) : typ =
   let lv', off = removeOffsetLval lv in
   (* TODO: call checkExp on index offsets inside lv' *)
   match off with
-  | NoOffset -> typeOfLval lv
+  | NoOffset ->
+      let ctx' = addThisBinding ctx (Lval lv) in
+      substType ctx' (typeOfLval lv)
   | Field (fld, NoOffset) ->
       let ctx' = structContext lv' fld.fcomp in
       let ctx'' = addThisBinding ctx' (Lval lv) in
@@ -390,14 +394,20 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
     | NoOffset ->
         begin
           match fst lv with
-          | Var x ->
+          | Var x when x.vglob ->
               (* TODO: handle globals *)
+              E.s (E.unimp "global vars unimplemented\n")
+          | Var x ->
+              assert (not x.vglob);
               List.iter
                 (fun y ->
-                   let yExp = if x.vname <> y.vname then Lval (var y) else e in
-                   let ctx' = addThisBinding ctx yExp in
-                   let ctx'' = addBinding ctx' x.vname e in
-                   coerceExp ctx' yExp (substType ctx'' y.vtype))
+                   let yExp = Lval (var y) in
+                   let ySubst = if x.vname <> y.vname then yExp else e in
+                   let ctxOld = addThisBinding ctx yExp in
+                   let ctxNew =
+                     addBinding (addThisBinding ctx ySubst) x.vname e
+                   in
+                   coerceExp ctxOld ySubst (substType ctxNew y.vtype))
                 (!curFunc.slocals @ !curFunc.sformals)
           | Mem e ->
               coerceExp ctx e lvType
@@ -406,14 +416,12 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
         List.iter
           (fun y ->
              let yExp =
-               if x.fname <> y.fname then
-                 Lval (addOffsetLval (Field (y, NoOffset)) (fst lv, off1))
-               else
-                 e
+               Lval (addOffsetLval (Field (y, NoOffset)) (fst lv, off1))
              in
-             let ctx' = addThisBinding ctx yExp in
-             let ctx'' = addBinding ctx' x.fname e in
-             coerceExp ctx' yExp (substType ctx'' y.ftype))
+             let ySubst = if x.fname <> y.fname then yExp else e in
+             let ctxOld = addThisBinding ctx yExp in
+             let ctxNew = addBinding (addThisBinding ctx ySubst) x.fname e in
+             coerceExp ctxOld yExp (substType ctxNew y.ftype))
           x.fcomp.cfields
     | Field _ -> E.s (E.bug "unexpected field offset\n")
     | Index _ -> E.s (E.bug "index offsets not handled\n")
@@ -439,17 +447,10 @@ let checkInstr (ctx: context) (instr : instr) : unit =
               args
         | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
       end
-  | Set ((Var vi, NoOffset) as lv, e, _) ->
-      (* TODO: check vars that depend on vi *)
+  | Set (lv, e, _) ->
       (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
          self-dependencies. So just ignore casts. *)
-      let e' = stripCasts e in
-      (* When checking the type of lv, use e as the value of vi in any bounds*)
-      let ctx' = addBinding ctx vi.vname e' in
-      coerceType ctx ~ctx_to:ctx'
-        e' ~tfrom:(checkExp ctx e') ~tto:(checkLval ctx lv)
-  | Set (lv, e, _) ->
-      checkSet ctx lv e
+      checkSet ctx lv (stripCasts e)
   | Asm _ -> E.s (E.unimp "asm unsupported\n")
 
 let rec checkStmt (ctx: context) (s : stmt) : unit =
