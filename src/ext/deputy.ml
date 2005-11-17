@@ -120,12 +120,15 @@ let checkToInstr (c:check) =
   | CNonNull (e) -> call cnonnull [e]
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
-                           call cbounds [p;b;e]
+                           call cbounds [p';b;e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
 
-let addChecksVisitor = object (self)
+
+let postPassVisitor = object (self)
   inherit nopCilVisitor
 
+  (* Turn the check datastructure into explicit checks, so that they show up
+     in the output. *)
   method vstmt s = 
     let postProcessStmt (s: stmt) : stmt =
       let checks = GA.getg allChecks s.sid in
@@ -137,6 +140,13 @@ let addChecksVisitor = object (self)
       s
     in
     ChangeDoChildrenPost (s, postProcessStmt)
+
+  (* Remove any "bounds" or "fancybounds" annotations. *)
+  method vattr a =
+    match a with
+      Attr(("bounds" | "fancybounds"), _) -> ChangeTo []
+    | _ -> DoChildren
+
 end
 
 
@@ -157,7 +167,7 @@ let getBoundsExp (n: int) : exp =
   with Not_found ->
     E.s (E.bug "couldn't look up expression in bounds table\n")
 
-(* mapping from field/formal names to expressions representing 
+(* mapping from variable/field names to expressions representing 
    the runtime value. *)
 type context = (string * exp) list
 
@@ -253,7 +263,11 @@ let mkBoundedType (t: typ) (lo: exp) (hi: exp) : typ =
 
 let emptyContext : context = []
 
-(* Add to the current context a binding for __this *)
+(* Add to the current context a binding for name *)
+let addBinding (ctx:context) (name:string) (e:exp) : context =
+  (name, e)::ctx
+
+(* Add to the current context a binding for "__this" *)
 let addThisBinding (ctx:context) (e:exp) : context =
   (thisKeyword, e)::ctx
 
@@ -286,12 +300,19 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         
 
 (* Add checks for a coercion of e from tfrom to tto. *)
-let coerceType (ctx:context) (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
+(* matth: this has an ugly interface.  We should clean it up. *)
+let coerceType 
+  (ctx_from:context)         (* Context in which tfrom should be evaluated. *)
+  ?(ctx_to:context=ctx_from) (* Context in which tto should be evaluated, 
+                                if different from ctx_from. *)
+  (e:exp)               (* Expression being coerced *)
+  ~(tfrom : typ)        (* Type of e *)
+  ~(tto : typ)          (* New type *)
+  : unit =
   match tfrom, tto with
     TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
-      let ctx' = addThisBinding ctx e in
-      let lo_from, hi_from = boundsOfType ctx' tfrom in
-      let lo_to, hi_to = boundsOfType ctx' tto in
+      let lo_from, hi_from = boundsOfType (addThisBinding ctx_from e) tfrom in
+      let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
       addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
   | _ -> 
@@ -375,7 +396,17 @@ let checkInstr (ctx: context) (instr : instr) : unit =
               args
         | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
       end
+  | Set ((Var vi, NoOffset) as lv, e, _) ->
+      (* TODO: check vars that depend on vi *)
+      (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
+         self-dependencies. So just ignore casts. *)
+      let e' = stripCasts e in
+      (* When checking the type of lv, use e as the value of vi in any bounds*)
+      let ctx' = addBinding ctx vi.vname e' in
+      coerceType ctx ~ctx_to:ctx'
+        e' ~tfrom:(checkExp ctx e') ~tto:(checkLval ctx lv)
   | Set (lv, e, _) ->
+      (* TODO: Set for other kinds of lvals *)
       coerceExp ctx e (checkLval ctx lv)
   | Asm _ -> E.s (E.unimp "asm unsupported\n")
 
@@ -434,7 +465,9 @@ let checkFile (f : file) : unit =
     f.globals;
   (* Turn the check datastructure into explicit checks, so that they show up
      in the output. *)
-  visitCilFileSameGlobals addChecksVisitor f;
+  visitCilFileSameGlobals postPassVisitor f;
+ (* Tell CIL to put comments around the bounds attributes. *)
+  print_CIL_Input := false;
   ()
 
 let feature : featureDescr = 

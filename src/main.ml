@@ -134,12 +134,6 @@ let rec processOneFile (cil: C.file) =
       features;
 
 
-    (* sm: enabling this by default, since I think usually we
-     * want 'cilly' transformations to preserve annotations; I
-     * can easily add a command-line flag if someone sometimes
-     * wants these suppressed *)
-    C.print_CIL_Input := true;
-
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" 
@@ -211,6 +205,12 @@ let rec theMain () =
   let setTraceDepth n =
     Pretty.printDepth := n
   in
+  (* sm: enabling this by default, since I think usually we
+   * want 'cilly' transformations to preserve annotations; I
+   * can easily add a command-line flag if someone sometimes
+   * wants these suppressed *)
+  C.print_CIL_Input := true;
+
   (*********** COMMAND LINE ARGUMENTS *****************)
   (* Construct the arguments for the features configured from the Makefile *)
   let blankLine = ("", Arg.Unit (fun _ -> ()), "") in
