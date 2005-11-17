@@ -73,9 +73,10 @@ type check =
   | CNonNull of exp      (** e != 0 *)
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CBounds of exp * exp * exp * exp 
-                         (** e3 <= e1+e2 <= e4.  For ptr arith *)
+                         (** e1 <= e2+e3 <= e4.  For ptr arith *)
   | CCoerce of exp * exp * exp * exp * exp
-                         (** e1 <= e2 <= e3 <= e4 <= e5 *)
+                         (** e3 == 0 ||
+                             e1 <= e2 <= e3 <= e4 <= e5 *)
 (* Other checks will be needed, such as nullterm checks and checks for when
    part of one of the above checks can be proved statically. *)
 
@@ -118,7 +119,7 @@ let checkToInstr (c:check) =
     CNull (e) -> call cnull [e]
   | CNonNull (e) -> call cnonnull [e]
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
-  | CBounds (p,off,b,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
+  | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
                            call cbounds [p;b;e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
 
@@ -163,18 +164,23 @@ type context = (string * exp) list
 let isPointer e: bool =
   isPointerType (typeOf e)
 
+(* Keyword in bounds attributes representing the current value *)
+let thisKeyword = "__this"
 
 (** The dependent types are expressed using attributes. We compile an 
  * attribute given a mapping from names to lvals.  Returns the names of
  * meta values that this annotation depends on, and the expression.
  *  
  * This is a helper for both fields and formals. *)
-let compileAttribute (ctx: context) (a: attrparam)  : string list * exp = 
+let compileAttribute 
+  (ctx: context) (* Should include a mapping for thisKeyword *)
+  (a: attrparam) 
+  : string list * exp = 
   let rec compile (a: attrparam) = 
     match a with 
       AInt k -> [], integer k
     | ASizeOf t -> [], SizeOf t
-    | ACons(name, []) -> begin (* This is a field access into the host *)
+    | ACons(name, []) -> begin
 (*         let name' = if name = "__this" then this else name in *)
         try 
           let e = List.assoc name ctx in 
@@ -247,6 +253,10 @@ let mkBoundedType (t: typ) (lo: exp) (hi: exp) : typ =
 
 let emptyContext : context = []
 
+(* Add to the current context a binding for __this *)
+let addThisBinding (ctx:context) (e:exp) : context =
+  (thisKeyword, e)::ctx
+
 (* The context of local and formal variables. *)
 let localsContext (f:fundec) : context =
   List.fold_left
@@ -266,32 +276,58 @@ let structContext (lv: lval) (ci: compinfo) : context =
 let compareTypes (t1 : typ) (t2 : typ) : bool =
   (typeSig t1) = (typeSig t2)
 
-let checkTypes (t1 : typ) (t2 : typ) : unit =
+(* Check that two types are the same.  
+   FIXME: this should probably be a runtime check that the bounds are equal.*)
+let checkSameType (t1 : typ) (t2 : typ) : unit =
   if not (compareTypes t1 t2) then
-    E.log "%a: type mismatch\n" d_loc !currentLoc
+    E.log "%a: type mismatch: %a and %a\n" 
+      d_loc !currentLoc
+      d_type t1 d_type t2
+        
 
-let rec checkExp (ctx: context) (e : exp) : typ =
+(* Add checks for a coercion of e from tfrom to tto. *)
+let coerceType (ctx:context) (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
+  match tfrom, tto with
+    TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
+      let ctx' = addThisBinding ctx e in
+      let lo_from, hi_from = boundsOfType ctx' tfrom in
+      let lo_to, hi_to = boundsOfType ctx' tto in
+      addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
+      ()
+  | _ -> 
+    if not (compareTypes tfrom tto) then
+      E.log "%a: type mismatch: coercion from %a to %a\n" 
+        d_loc !currentLoc
+        d_type tfrom d_type tto
+        
+
+(* Calls checkExp e, then calls coerceType to make sure that
+   e can be coerced to tto.*)
+let rec coerceExp (ctx:context) (e:exp) (tto : typ) : unit =
+  coerceType ctx e ~tfrom:(checkExp ctx e) ~tto
+        
+
+and checkExp (ctx: context) (e : exp) : typ =
   match e with
-  | UnOp (op, e', t) -> checkTypes t (checkExp ctx e'); t
-  | BinOp ((PlusPI | IndexPI | MinusPI), e1, e2, t) ->
+  | UnOp (op, e', t) -> coerceType ctx e' ~tfrom:(checkExp ctx e') ~tto:t; t
+  | BinOp ((PlusPI | IndexPI | MinusPI | MinusPP), e1, e2, t) ->
       let t1 = checkExp ctx e1 in
       let t2 = checkExp ctx e2 in
-      checkTypes t1 t;
-      checkTypes t2 intType;
-      let lo, hi = boundsOfType ctx t1 in
+      coerceType ctx e1 ~tfrom:t1 ~tto:t;
+      coerceType ctx e2 ~tfrom:t2 ~tto:intType;
+      let ctx' = addThisBinding ctx e1 in
+      let lo, hi = boundsOfType ctx' t1 in
       addCheck (CNonNull e1);
       addCheck (CBounds (lo, e1, e2, hi));
       t
   | BinOp (op, e1, e2, t) ->
-      let t1 = checkExp ctx e1 in
-      let t2 = checkExp ctx e2 in
-      checkTypes t1 t;
-      checkTypes t2 t;
+      coerceExp ctx e1 t;
+      coerceExp ctx e2 t;
       t
   | Lval lv -> checkLval ctx lv
-  | CastE (t, e') -> checkTypes t (checkExp ctx e'); t
+  | CastE (t, e') -> coerceExp ctx e' t; t
   | SizeOfE e'
-  | AlignOfE e' -> checkExp ctx e'; unrollType (typeOf e)
+  | AlignOfE e' -> ignore(checkExp ctx e'); unrollType (typeOf e)
   | AddrOf lv
   | StartOf lv -> E.s (E.unimp "addr-of and start-of unsupported\n")
   | _ -> unrollType (typeOf e)
@@ -300,7 +336,8 @@ and checkLval (ctx: context) (lv : lval) : typ =
   begin
     match lv with
       Mem e, off -> begin
-        let lo, hi = boundsOfType ctx (checkExp ctx e) in
+        let ctx' = addThisBinding ctx e in
+        let lo, hi = boundsOfType ctx' (checkExp ctx' e) in
         addCheck (CNonNull e);
         addCheck (CNotEq(e,hi))
       end
@@ -312,7 +349,8 @@ and checkLval (ctx: context) (lv : lval) : typ =
   | NoOffset -> typeOfLval lv
   | Field (fld, NoOffset) ->
       let ctx' = structContext lv' fld.fcomp in
-      let lo, hi = boundsOfType ctx' fld.ftype in
+      let ctx'' = addThisBinding ctx' (Lval lv) in
+      let lo, hi = boundsOfType ctx'' fld.ftype in
       mkBoundedType fld.ftype lo hi
   | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
@@ -329,16 +367,16 @@ let checkInstr (ctx: context) (instr : instr) : unit =
               | Some lv -> checkLval ctx lv
               | None -> voidType
             in
-            checkTypes returnType lvType;
+            checkSameType returnType lvType;
             List.iter2
               (fun (argName, argType, _) arg ->
-                 checkTypes argType (checkExp ctx arg))
+                 coerceExp ctx arg argType)
               (argsToList argInfo)
               args
         | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
       end
   | Set (lv, e, _) ->
-      checkTypes (checkLval ctx lv) (checkExp ctx e)
+      coerceExp ctx e (checkLval ctx lv)
   | Asm _ -> E.s (E.unimp "asm unsupported\n")
 
 let rec checkStmt (ctx: context) (s : stmt) : unit =
@@ -357,15 +395,15 @@ let rec checkStmt (ctx: context) (s : stmt) : unit =
               | TFun (returnType, _, _, _) -> returnType
               | _ -> E.s (E.bug "expected function type")
             in
-            checkTypes returnType (checkExp ctx e)
+            coerceExp ctx e returnType
         | None -> ()
       end
   | If (e, b1, b2, _) ->
-      checkTypes intType (checkExp ctx e);
+      coerceExp ctx e intType;
       checkBlock ctx b1;
       checkBlock ctx b2;
   | Switch (e, b, _, _) ->
-      checkTypes intType (checkExp ctx e);
+      coerceExp ctx e intType;
       checkBlock ctx b
   | Loop (b, _, _, _)
   | Block b -> checkBlock ctx b

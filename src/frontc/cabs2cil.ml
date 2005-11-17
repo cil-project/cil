@@ -4824,7 +4824,7 @@ and createLocal ((_, sto, _, _) as specs)
 
       (* Maybe this is an array whose length depends on something with local 
          scope, e.g. "static char device[ sizeof(local) ]".
-         Const-fold the type so to fix this. *)
+         Const-fold the type to fix this. *)
       vi.vtype <- constFoldType vi.vtype;
 
       let init : init option = 
