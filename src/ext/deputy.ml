@@ -312,9 +312,9 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
     match t1, t2 with
       TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
-          E.warn "%a: base type mismatch: %a and %a\n" 
-            d_loc !currentLoc
-            d_type t1 d_type t2;
+          E.s (error "%a: base type mismatch: %a and %a\n" 
+                 d_loc !currentLoc
+                 d_type t1 d_type t2);
         (* Make sure the bounds are the same.
            We can use the empty context, because these should only contain 
            fancybounds *)
@@ -326,9 +326,9 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         addCheck (CEq(hi1,hi2))
     | _ -> 
         if not (compareTypes t1 t2) then
-          E.warn "%a: type mismatch: %a and %a\n" 
-            d_loc !currentLoc
-            d_type t1 d_type t2
+          E.s (error "%a: type mismatch: %a and %a\n" 
+                 d_loc !currentLoc
+                 d_type t1 d_type t2)
             
 
 (* Add checks for a coercion of e from tfrom to tto. *)
@@ -347,14 +347,18 @@ let coerceType
       let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
       addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
+  | TInt _, TPtr _ when isZero e ->
+      (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
+         here? *)
+      ()
   | TInt _, TInt _ when (bitsSizeOf tfrom) = (bitsSizeOf tto) ->
-      (* ignore signed/unsigned.  FIXME: is this safe? *)
+      (* ignore signed/unsigned differences.  FIXME: is this safe? *)
       ()
   | _ -> 
     if not (compareTypes tfrom tto) then
-      E.warn "%a: type mismatch: coercion from %a to %a\n" 
-        d_loc !currentLoc
-        d_type tfrom d_type tto
+      E.s (error "%a: type mismatch: coercion from %a to %a\n" 
+             d_loc !currentLoc
+             d_type tfrom d_type tto)
         
 
 (* Calls checkExp e, then calls coerceType to make sure that
