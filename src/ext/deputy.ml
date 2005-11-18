@@ -338,7 +338,7 @@ let rec boundsOfAttrs (ctx: context) (a:attributes) : exp*exp =
 let boundsOfType (ctx: context) (t: typ) : exp*exp =
   if !verbose then
     E.log "%a: boundsOfType %a\n" d_loc !currentLoc d_type t;
-  match t with
+  match unrollType t with
   | TPtr (_, a) -> boundsOfAttrs ctx a
   | _ -> E.s (E.error "Expected pointer type.")
 
@@ -379,6 +379,10 @@ let addThisBinding (ctx:context) (e:exp) : context =
 (* Add to the current context a binding from name to e *)
 let addBinding (ctx:context) (name:string) (e:exp) : context =
   (name, e)::ctx
+
+(* Check whether a binding exists. *)
+let hasBinding (ctx:context) (name:string) : bool =
+  List.exists (fun (n, _) -> n = name) ctx
 
 (* The context of local and formal variables. *)
 let localsContext (f:fundec) : context =
@@ -425,7 +429,35 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
           E.s (error "%a: type mismatch: %a and %a\n" 
                  d_loc !currentLoc
                  d_type t1 d_type t2)
-            
+
+(* Determine whether a type is well-formed. *)
+let rec checkType (ctx: context) (t: typ) : bool =
+  let ctxThis = addThisBinding emptyContext zero in
+  match t with
+  | TPtr (bt, a) ->
+      (* TODO: check whether base types for bounds match? *)
+      checkType ctxThis bt &&
+      List.fold_left
+        (fun acc n -> acc && hasBinding ctx n)
+        true
+        (depsOfAttrs a)
+  | TArray (bt, _, _) ->
+      checkType ctxThis bt
+  | TFun (ret, argInfo, _, _) ->
+      checkType ctxThis ret &&
+      List.fold_left
+        (fun acc (_, t, _) -> acc && checkType ctxThis t)
+        true
+        (argsToList argInfo)
+  (* Structs and typedefs are checked when defined. *)
+  | TComp _
+  | TNamed _
+  (* The following types are always well-formed. *)
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TEnum _
+  | TBuiltin_va_list _ -> true
 
 (* Add checks for a coercion of e from tfrom to tto. *)
 (* matth: this has an ugly interface.  We should clean it up. *)
@@ -437,7 +469,11 @@ let coerceType
   ~(tfrom : typ)        (* Type of e *)
   ~(tto : typ)          (* New type *)
   : unit =
-  match tfrom, tto with
+  (*
+  if not (checkType ctx_to tto) then
+    E.s (E.error "%a: coercion to an ill-formed type\n" d_loc !currentLoc);
+    *)
+  match unrollType tfrom, unrollType tto with
     TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
         E.s (error "%a: cast to NULLTERM from an ordinary pointer."
@@ -458,7 +494,6 @@ let coerceType
       E.s (error "%a: type mismatch: coercion from %a to %a\n" 
              d_loc !currentLoc
              d_type tfrom d_type tto)
-        
 
 (* Calls checkExp e, then calls coerceType to make sure that
    e can be coerced to tto.*)
@@ -491,11 +526,16 @@ and checkExp (ctx: context) (e : exp) : typ =
   | SizeOfE e'
   | AlignOfE e' -> ignore(checkExp ctx e'); unrollType (typeOf e)
   | AddrOf lv ->
+      let ctx' = addThisBinding ctx (Lval lv) in
+      ignore (checkLval ctx' lv);
+      let ctxThis = addThisBinding emptyContext zero in
+      let bt = typeOfLval lv in
+      if not (checkType ctxThis bt) then
+        E.s (E.error ("%a: cannot take address of lval " ^^
+                      "that has dependencies\n") d_loc !currentLoc);
       if hasExternalDeps lv then
         E.s (E.error ("%a: cannot take address of lval " ^^
                       "with external dependencies\n") d_loc !currentLoc);
-      let ctx' = addThisBinding ctx (Lval lv) in
-      let bt = checkLval ctx' lv in
       let lo = AddrOf lv in
       let hi = BinOp (PlusPI, lo, one, typeOf lo) in
       makeFancyPtrType bt lo hi
@@ -713,11 +753,47 @@ let rec checkStmt (ctx: context) (s : stmt) : unit =
 and checkBlock (ctx: context) (b : block) : unit =
   List.iter (checkStmt ctx) b.bstmts
 
+let checkTypedef (ti: typeinfo) : unit =
+  let ctxThis = addThisBinding emptyContext zero in
+  if not (checkType ctxThis ti.ttype) then
+    E.s (E.error "%a: type of typedef %s is ill-formed\n"
+                 d_loc !currentLoc ti.tname)
+
+let checkComp (ci: compinfo) : unit =
+  let ctx =
+    List.fold_left
+      (fun acc fld -> addBinding acc fld.fname zero)
+      (addThisBinding emptyContext zero)
+      ci.cfields
+  in
+  List.iter
+    (fun fld ->
+       if not (checkType ctx fld.ftype) then
+         E.s (E.error "%a: field %s of structure/union %s is ill-formed\n"
+                      d_loc !currentLoc fld.fname ci.cname))
+    ci.cfields
+
+let checkVar (vi: varinfo) (init: initinfo) : unit =
+  (* TODO: allow globals to depend on one another *)
+  let ctxThis = addThisBinding emptyContext zero in
+  if not (checkType ctxThis vi.vtype) then
+    E.s (E.error "%a: type of global %s is ill-formed\n"
+                 d_loc !currentLoc vi.vname);
+  if init.init <> None then
+    E.s (E.unimp "global variable initializers unsupported\n")
+
 let checkFundec (fd : fundec) : unit =
   if !verbose then
     E.log "Doing function %s.\n" fd.svar.vname;
   curFunc := fd;
   let ctx = localsContext fd in
+  let ctxThis = addThisBinding ctx zero in
+  List.iter
+    (fun vi ->
+       if not (checkType ctxThis vi.vtype) then
+         E.s (E.error "%a: type of variable %s is ill-formed\n"
+                      d_loc !currentLoc vi.vname))
+    (fd.slocals @ fd.sformals);
   checkBlock ctx fd.sbody;
   curFunc := dummyFunDec;
   curStmt := -1
@@ -725,7 +801,11 @@ let checkFundec (fd : fundec) : unit =
 let checkFile (f : file) : unit =
   List.iter
     (fun global ->
+       currentLoc := get_globalLoc global;
        match global with
+       | GType (ti, _) -> checkTypedef ti
+       | GCompTag (ci, _) -> checkComp ci
+       | GVar (vi, init, _) -> checkVar vi init
        | GFun (fd, _) -> checkFundec fd
        | _ -> ())
     f.globals;
