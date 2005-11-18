@@ -70,7 +70,9 @@ let fixStmt (s:stmt) : unit =
 
 type check =
     CNonNull of exp      (** e != 0 *)
+  | CEq of exp * exp     (** e1 == e2 *)
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
+  | CPositive of exp     (** e > 0 *)
   | CBounds of exp * exp * exp * exp 
                          (** e1 <= e2+e3 <= e4.  For ptr arith *)
   | CCoerce of exp * exp * exp * exp * exp
@@ -107,7 +109,9 @@ let mkCheckFun (n: string) (numargs: int) : exp =
   fdec.svar.vstorage <- Static;
   Lval (var fdec.svar)
 let cnonnull = mkCheckFun "CNonNull" 1
+let ceq = mkCheckFun "CEq" 2
 let cnoteq = mkCheckFun "CNotEq" 2
+let cpositive = mkCheckFun "CPositive" 1
 let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
 
@@ -115,7 +119,9 @@ let checkToInstr (c:check) =
   let call f args = Call(None, f, args, !currentLoc) in
   match c with
     CNonNull (e) -> call cnonnull [e]
+  | CEq (e1,e2) -> call ceq [e1;e2]
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
+  | CPositive (e) -> call cpositive [e]
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
                            call cbounds [b;p';e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
@@ -155,6 +161,9 @@ let boundsTableCtr : int ref = ref 0
 
 let addBoundsExp (e: exp) : int =
   incr boundsTableCtr;
+  if !verbose then
+    E.log "%a:   fancybounds(%d) = %a.\n" d_loc !currentLoc
+      !boundsTableCtr d_exp e;
   Hashtbl.add boundsTable !boundsTableCtr e;
   !boundsTableCtr
 
@@ -294,14 +303,33 @@ let structContext (lv: lval) (ci: compinfo) : context =
 let compareTypes (t1 : typ) (t2 : typ) : bool =
   (typeSig t1) = (typeSig t2)
 
-(* Check that two types are the same.  
-   FIXME: this should probably be a runtime check that the bounds are equal.*)
+(* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
-  if not (compareTypes t1 t2) then
-    E.log "%a: type mismatch: %a and %a\n" 
+  if !verbose then
+    E.log "%a: checkSameType on %a and %a\n" 
       d_loc !currentLoc
-      d_type t1 d_type t2
-        
+      d_type t1 d_type t2;
+    match t1, t2 with
+      TPtr (bt1, a1), TPtr (bt2, a2) ->
+        if not (compareTypes bt1 bt2) then
+          E.warn "%a: base type mismatch: %a and %a\n" 
+            d_loc !currentLoc
+            d_type t1 d_type t2;
+        (* Make sure the bounds are the same.
+           We can use the empty context, because these should only contain 
+           fancybounds *)
+        let lo1, hi1 = boundsOfAttrs emptyContext a1 in
+        let lo2, hi2 = boundsOfAttrs emptyContext a2 in
+        (* Checking CIL expressions for equality statically is tricky.
+           Do it dynamically: *)
+        addCheck (CEq(lo1,lo2));
+        addCheck (CEq(hi1,hi2))
+    | _ -> 
+        if not (compareTypes t1 t2) then
+          E.warn "%a: type mismatch: %a and %a\n" 
+            d_loc !currentLoc
+            d_type t1 d_type t2
+            
 
 (* Add checks for a coercion of e from tfrom to tto. *)
 (* matth: this has an ugly interface.  We should clean it up. *)
@@ -319,9 +347,12 @@ let coerceType
       let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
       addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
+  | TInt _, TInt _ when (bitsSizeOf tfrom) = (bitsSizeOf tto) ->
+      (* ignore signed/unsigned.  FIXME: is this safe? *)
+      ()
   | _ -> 
     if not (compareTypes tfrom tto) then
-      E.log "%a: type mismatch: coercion from %a to %a\n" 
+      E.warn "%a: type mismatch: coercion from %a to %a\n" 
         d_loc !currentLoc
         d_type tfrom d_type tto
         
@@ -386,18 +417,26 @@ and checkLval (ctx: context) (lv : lval) : typ =
   | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
+
+
 let checkCall (ctx: context) (lvo: lval option)
               (fn: exp) (args: exp list) : unit =
   match checkExp ctx fn with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
         E.s (E.unimp "varargs unimplemented\n");
-      let lvType =
-        match lvo with
-        | Some lv -> checkLval ctx lv
-        | None -> voidType
-      in
-      checkSameType returnType lvType;
+      (match lvo with
+       | Some lv -> 
+           (* TODO: let the return type depend on formals *)
+           (* TODO: make sure no one depends on lv *)
+           let lvType = checkLval ctx lv in
+           (* replace __this in the return type with lv, and make sure the
+              result equals the type of lv: *)
+           let returnCtx = addThisBinding emptyContext (Lval lv) in
+           let returnType' = substType returnCtx returnType in
+           checkSameType returnType' lvType
+       | None -> ()
+      );
       (* CIL's casts don't make sense with dependent types, so remove them. *)
       let actuals = List.map stripCasts args in
       let formals = argsToList argInfo in
@@ -426,6 +465,22 @@ let checkCall (ctx: context) (lvo: lval option)
       end
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
+
+let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
+  (* TODO: make sure no one depends on lv *)
+  coerceExp ctx e intType;
+  addCheck (CPositive e);
+  let lo = Lval lv in
+  let hi = BinOp(PlusPI, lo, e, TPtr(bt, [])) in (* FIXME: overflow *)
+  let fancyAttr =
+    Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
+  in
+  let rt = TPtr (bt, [fancyAttr]) in
+  let lvType = checkLval ctx lv in
+  checkSameType rt lvType;
+  ()
+
+
 let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
@@ -452,7 +507,7 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
                    in
                    coerceExp ctxOld ySubst (substType ctxNew y.vtype))
                 (!curFunc.slocals @ !curFunc.sformals)
-          | Mem e ->
+          | Mem addr ->
               coerceExp ctx e lvType
         end
     | Field (x, NoOffset) ->
@@ -473,8 +528,16 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
 let checkInstr (ctx: context) (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
   match instr with
+  (* Allocation *)
+  | Call (Some lv, Lval (Var vi,NoOffset), [SizeOf t; e], _) 
+      when vi.vname = "calloc" ->
+      checkAlloc ctx lv t e
+  | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "calloc" ->
+      E.s (error "bad call to %s." vi.vname)
+  (* Function call *)
   | Call (lvo, fn, args, _) ->
       checkCall ctx lvo fn args
+  (* Assignment *)
   | Set (lv, e, _) ->
       (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
          self-dependencies. So just ignore casts. *)
