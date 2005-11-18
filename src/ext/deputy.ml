@@ -101,11 +101,21 @@ let addCheck (c:check) : unit =
   if not (List.mem c otherChecks) then
     GA.set allChecks id (c::otherChecks)
 
+(* These aren't real variables.  In the output, they'll show up as
+   __FILE__ and __LINE__, and gcc will see them as macros.  We use them
+   for calling runtime check functions. *)
+let fileToken : exp=
+  let vi = makeGlobalVar "__FILE__" charPtrType in
+  Lval (var vi)
+let lineToken : exp=
+  let vi = makeGlobalVar "__LINE__" intType in
+  Lval (var vi)
 
 let mkCheckFun (n: string) (numargs: int) : exp = 
   let fdec = emptyFunction n in
   let args = Util.list_init numargs (fun _ -> ("", voidPtrType, [])) in
-  fdec.svar.vtype <- TFun(TVoid [], Some args, false, []);
+  let args' = args @ [("file",charPtrType,[]); ("line",intType,[])] in
+  fdec.svar.vtype <- TFun(TVoid [], Some args', false, []);
   fdec.svar.vstorage <- Static;
   Lval (var fdec.svar)
 let cnonnull = mkCheckFun "CNonNull" 1
@@ -116,7 +126,11 @@ let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
 
 let checkToInstr (c:check) =
-  let call f args = Call(None, f, args, !currentLoc) in
+  let call f args = Call(None, f,
+                         (* Append the file and line to the end of the args *)
+                         args @ [fileToken; lineToken],
+                         !currentLoc) 
+  in
   match c with
     CNonNull (e) -> call cnonnull [e]
   | CEq (e1,e2) -> call ceq [e1;e2]
@@ -147,7 +161,7 @@ let postPassVisitor = object (self)
   (* Remove any "bounds" or "fancybounds" annotations. *)
   method vattr a =
     match a with
-      Attr(("bounds" | "fancybounds"), _) -> ChangeTo []
+      Attr(("bounds" | "fancybounds" | "nullterm"), _) -> ChangeTo []
     | _ -> DoChildren
 
 end
@@ -246,6 +260,11 @@ type context = (string * exp) list
 let isPointer e: bool =
   isPointerType (typeOf e)
 
+let isNullterm (t: typ) : bool =
+  match t with
+  | TPtr (_, a) -> hasAttribute "nullterm" a
+  | _ -> E.s (E.error "Expected pointer type.")
+
 (* Keyword in bounds attributes representing the current value *)
 let thisKeyword = "__this"
 
@@ -326,8 +345,15 @@ let boundsOfType (ctx: context) (t: typ) : exp*exp =
 let makeFancyAttr (lo: exp) (hi: exp) : attribute =
   Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
 
-let makeFancyPtrType (bt: typ) (lo: exp) (hi: exp) : typ =
-  TPtr (bt, [makeFancyAttr lo hi])
+let makeFancyPtrType ?(nullterm:bool=false) (bt: typ) (lo: exp) (hi: exp) 
+  : typ =
+  let bounds_attr = [makeFancyAttr lo hi] in
+  let attrs = if nullterm then 
+    addAttribute (Attr("nullterm",[])) bounds_attr
+  else
+    bounds_attr
+  in
+  TPtr (bt, attrs)
 
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
@@ -413,6 +439,9 @@ let coerceType
   : unit =
   match tfrom, tto with
     TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
+      if isNullterm tto && not (isNullterm tfrom) then
+        E.s (error "%a: cast to NULLTERM from an ordinary pointer."
+            d_loc !currentLoc);
       let lo_from, hi_from = boundsOfType (addThisBinding ctx_from e) tfrom in
       let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
       addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
@@ -481,6 +510,11 @@ and checkExp (ctx: context) (e : exp) : typ =
       let lo = StartOf lv in
       let hi = BinOp (PlusPI, lo, len, typeOf lo) in
       makeFancyPtrType bt lo hi
+  | Const (CStr s) -> (* String literal *)
+      let len = String.length s in
+      let lo = e in
+      let hi = BinOp (PlusPI, lo, integer len, typeOf lo) in
+      makeFancyPtrType ~nullterm:true charType lo hi
   | Const _
   | SizeOf _
   | SizeOfStr _
@@ -493,9 +527,11 @@ and checkLval (ctx: context) (lv : lval) : typ =
     match lv with
       Mem e, off -> begin
         let ctx' = addThisBinding ctx e in
-        let lo, hi = boundsOfType ctx' (checkExp ctx' e) in
+        let ptrTy = checkExp ctx' e in
+        let lo, hi = boundsOfType ctx' ptrTy in
         addCheck (CNonNull e);
-        addCheck (CNotEq(e,hi))
+        if not (isNullterm ptrTy) then
+          addCheck (CNotEq(e,hi))
       end
     | Var vi, off -> ()
   end;
@@ -707,7 +743,7 @@ let feature : featureDescr =
     fd_description = "Typecheck and instrument the program using Deputy.";
     fd_extraopt = [
       "--deputyverbose", Arg.Set verbose, "Enable verbose output for Deputy";
-      "--deputysuppress", Arg.Set suppress, "Suppress some Deputy warnings";
+(*    "--deputysuppress", Arg.Set suppress, "Suppress some Deputy warnings"; *)
     ];
     fd_doit = checkFile;
     fd_post_check = true;
