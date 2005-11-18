@@ -78,6 +78,11 @@ type check =
   | CCoerce of exp * exp * exp * exp * exp
                          (** e3 == 0 ||
                              e1 <= e2 <= e3 <= e4 <= e5 *)
+  | CCoerceN of exp * exp * exp * exp * exp
+                         (** e3 == 0 ||
+                             e1 <= e2 <= e3 <= e4 <= (e5 + strlen(e5)) *)
+  | CNTWrite of exp * exp * exp
+                         (** (e1 == e2) ==> (e3 = 0)   *)
 (* Other checks will be needed, such as nullterm checks and checks for when
    part of one of the above checks can be proved statically. *)
 
@@ -111,19 +116,25 @@ let lineToken : exp=
   let vi = makeGlobalVar "__LINE__" intType in
   Lval (var vi)
 
-let mkCheckFun (n: string) (numargs: int) : exp = 
-  let fdec = emptyFunction n in
-  let args = Util.list_init numargs (fun _ -> ("", voidPtrType, [])) in
-  let args' = args @ [("file",charPtrType,[]); ("line",intType,[])] in
-  fdec.svar.vtype <- TFun(TVoid [], Some args', false, []);
-  fdec.svar.vstorage <- Static;
+let mkFun (name: string) (rt:typ) (args: typ list) : exp = 
+  let fdec = emptyFunction name in
+  let args = List.map (fun t -> ("", t, [])) args in
+  fdec.svar.vtype <- TFun(rt, Some args, false, []);
   Lval (var fdec.svar)
+let mkCheckFun (name: string) (n: int) : exp = 
+ (* A check function takes n void* parameters, a file name, and a line number*)
+  let args = Util.list_init n (fun _ -> voidPtrType) in
+  let args' = args @ [charPtrType; intType] in
+  mkFun name voidType args'
 let cnonnull = mkCheckFun "CNonNull" 1
 let ceq = mkCheckFun "CEq" 2
 let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
 let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
+let ccoercen = mkCheckFun "CCoerceN" 5
+let cntwrite = mkCheckFun "CNTWrite" 5
+let memset = mkFun "memset" voidType [voidPtrType; intType; !upointType]
 
 let checkToInstr (c:check) =
   let call f args = Call(None, f,
@@ -139,6 +150,8 @@ let checkToInstr (c:check) =
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
                            call cbounds [b;p';e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
+  | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
+  | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
 
 
 let postPassVisitor = object (self)
@@ -480,7 +493,13 @@ let coerceType
             d_loc !currentLoc);
       let lo_from, hi_from = boundsOfType (addThisBinding ctx_from e) tfrom in
       let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
-      addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
+      if isNullterm tfrom then begin
+        if bitsSizeOf bt2 <> 8 then
+          E.s (unimp "nullterm buffer that's not a char*.\n");
+        addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
+      end
+      else
+        addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
   | TInt _, TPtr _ when isZero e ->
       (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
@@ -494,6 +513,15 @@ let coerceType
       E.s (error "%a: type mismatch: coercion from %a to %a\n" 
              d_loc !currentLoc
              d_type tfrom d_type tto)
+        
+type whyLval=
+    ForRead          (* Reading this lval. *)
+  | ForAddrOf        (* Taking the address of this lval *)
+  | ForWrite of exp  (* writing the specified value. Call checkExp on
+                        this exp before calling checkLval *)
+  | ForCall          (* Assigning the result of a call.
+                        We don't have an expression representing the new value,
+                        so we have to be more conservative *)
 
 (* Calls checkExp e, then calls coerceType to make sure that
    e can be coerced to tto.*)
@@ -521,13 +549,13 @@ and checkExp (ctx: context) (e : exp) : typ =
       coerceExp ctx e1 t;
       coerceExp ctx e2 t;
       t
-  | Lval lv -> checkLval ctx lv
+  | Lval lv -> checkLval ctx ForRead lv
   | CastE (t, e') -> coerceExp ctx e' t; t
   | SizeOfE e'
   | AlignOfE e' -> ignore(checkExp ctx e'); unrollType (typeOf e)
   | AddrOf lv ->
       let ctx' = addThisBinding ctx (Lval lv) in
-      ignore (checkLval ctx' lv);
+      ignore (checkLval ctx' ForAddrOf lv);
       let ctxThis = addThisBinding emptyContext zero in
       let bt = typeOfLval lv in
       if not (checkType ctxThis bt) then
@@ -542,7 +570,7 @@ and checkExp (ctx: context) (e : exp) : typ =
   | StartOf lv ->
       let ctx' = addThisBinding ctx (Lval lv) in
       let bt, len =
-        match unrollType (checkLval ctx' lv) with
+        match unrollType (checkLval ctx' ForAddrOf lv) with
         | TArray (bt, Some e, _) -> bt, e
         | TArray (_, None, _) -> E.s (E.error "array type has no length\n")
         | _ -> E.s (E.bug "expected array type\n")
@@ -560,7 +588,7 @@ and checkExp (ctx: context) (e : exp) : typ =
   | SizeOfStr _
   | AlignOf _ -> unrollType (typeOf e)
 
-and checkLval (ctx: context) (lv : lval) : typ =
+and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
   if !verbose then
     E.log "%a: checking %a\n" d_loc !currentLoc d_lval lv;
   begin
@@ -570,8 +598,23 @@ and checkLval (ctx: context) (lv : lval) : typ =
         let ptrTy = checkExp ctx' e in
         let lo, hi = boundsOfType ctx' ptrTy in
         addCheck (CNonNull e);
-        if not (isNullterm ptrTy) then
-          addCheck (CNotEq(e,hi))
+        match why with
+          ForRead ->
+            if not (isNullterm ptrTy) then
+              addCheck (CNotEq(e,hi))
+        | ForAddrOf ->
+            (* check e != hi even if this is nullterm, because
+               otherwise we could create a pointer with bounds hi,hi+1. *)
+            if not (isNullterm ptrTy) then
+            addCheck (CNotEq(e,hi))
+        | ForCall ->
+            (* Conservatively forbid assignment of a call result when e=hi. *)
+            addCheck (CNotEq(e,hi))
+        | ForWrite what ->
+            if isNullterm ptrTy then
+              addCheck (CNTWrite(e,hi,what))
+            else
+              addCheck (CNotEq(e,hi))
       end
     | Var vi, off -> ()
   end;
@@ -582,6 +625,7 @@ and checkLval (ctx: context) (lv : lval) : typ =
       let ctx' = addThisBinding ctx (Lval lv) in
       substType ctx' (typeOfLval lv)
   | Field (fld, NoOffset) ->
+      (* ignore(checkLval ctx ForRead lv');  (\* FIXME: Check the rest. *\) *)
       let ctx' = structContext lv' fld.fcomp in
       let ctx'' = addThisBinding ctx' (Lval lv) in
       substType ctx'' fld.ftype
@@ -602,7 +646,7 @@ let checkCall (ctx: context) (lvo: lval option)
            if hasExternalDeps lv then
              E.s (E.error "%a: return lval has external dependencies\n"
                           d_loc !currentLoc);
-           let lvType = checkLval ctx lv in
+           let lvType = checkLval ctx ForCall lv in
            (* replace __this in the return type with lv, and make sure the
               result equals the type of lv: *)
            let returnCtx = addThisBinding emptyContext (Lval lv) in
@@ -645,10 +689,17 @@ let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
                  d_loc !currentLoc);
   coerceExp ctx e intType;
   addCheck (CPositive e);
+  let lvType = checkLval ctx ForCall lv in
+  let nullterm = isNullterm lvType in
+  let len = 
+    if nullterm then 
+      BinOp(MinusPI, e, one, intType)
+    else 
+      e
+  in
   let lo = Lval lv in
-  let hi = BinOp(PlusPI, lo, e, TPtr(bt, [])) in (* FIXME: overflow *)
+  let hi = BinOp(PlusPI, lo, len, TPtr(bt, [])) in (* FIXME: overflow *)
   let rt = makeFancyPtrType bt lo hi in
-  let lvType = checkLval ctx lv in
   checkSameType rt lvType;
   ()
 
@@ -656,8 +707,8 @@ let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
 let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
-  let lvType = checkLval ctx lv in
   let eType = checkExp ctx e in
+  let lvType = checkLval ctx (ForWrite e) lv in
   let off1, off2 = removeOffset (snd lv) in
   begin
     match off2 with
@@ -782,7 +833,7 @@ let checkVar (vi: varinfo) (init: initinfo) : unit =
   if init.init <> None then
     E.s (E.unimp "global variable initializers unsupported\n")
 
-let checkFundec (fd : fundec) : unit =
+let checkFundec (fd : fundec) (loc:location) : unit =
   if !verbose then
     E.log "Doing function %s.\n" fd.svar.vname;
   curFunc := fd;
@@ -796,7 +847,32 @@ let checkFundec (fd : fundec) : unit =
     (fd.slocals @ fd.sformals);
   checkBlock ctx fd.sbody;
   curFunc := dummyFunDec;
-  curStmt := -1
+  curStmt := -1;
+  (* Initialize all locals to 0.  Do this after adding checks *)
+  let init: instr list =
+    List.map
+      (fun vi ->
+         let t = unrollType vi.vtype in
+         match t with
+           TInt _
+         | TEnum _
+         | TPtr _ ->
+             Set(var vi, zero, loc)
+         | TFloat _ -> 
+             Set(var vi, Const(CReal(0.0, FFloat, None)), loc)
+         | TComp _ 
+         | TArray _ ->
+             Call(None, memset,
+                  [mkAddrOf (var vi); zero; SizeOf t],
+                  loc)
+         | _ -> E.s(bug "Unexpected type %a for local var %s." 
+                      d_type t vi.vname))
+      fd.slocals
+  in
+  let init' = mkStmt(Instr init) in
+  assignID init';
+  fd.sbody.bstmts <- init'::fd.sbody.bstmts;
+  ()
 
 let checkFile (f : file) : unit =
   List.iter
@@ -806,7 +882,7 @@ let checkFile (f : file) : unit =
        | GType (ti, _) -> checkTypedef ti
        | GCompTag (ci, _) -> checkComp ci
        | GVar (vi, init, _) -> checkVar vi init
-       | GFun (fd, _) -> checkFundec fd
+       | GFun (fd, loc) -> checkFundec fd loc
        | _ -> ())
     f.globals;
   (* Turn the check datastructure into explicit checks, so that they show up
