@@ -173,6 +173,72 @@ let getBoundsExp (n: int) : exp =
   with Not_found ->
     E.s (E.bug "couldn't look up expression in bounds table\n")
 
+let rec getDeps (a: attrparam) : string list =
+  match a with 
+  | AInt k -> []
+  | ASizeOf t -> []
+  | ACons(name, []) -> [name]
+  | ABinOp (_, e1, e2) -> (getDeps e1) @ (getDeps e2)
+  | _ -> E.s (E.error "Cannot get dependencies for %a" d_attrparam a)
+
+let rec depsOfAttrs (a: attributes) : string list = 
+  let checkrest rest =
+    if hasAttribute "bounds" rest ||
+       hasAttribute "fancybounds" rest then
+      E.s (error "Type has duplicate bounds attributes")
+  in
+  match a with
+  | Attr ("bounds", [lo; hi]) :: rest ->
+      checkrest rest;
+      (getDeps lo) @ (getDeps hi)
+  | Attr ("bounds", _) :: rest ->
+      E.s (error "Illegal bounds annotations.")
+  | Attr ("fancybounds", _) :: rest ->
+      E.s (error "Can't get dependencies for fancybounds annotations.")
+  | Attr _ :: rest -> 
+      depsOfAttrs rest
+  | [] -> 
+      E.s (error "Missing bounds annotations.")
+
+let depsOfType (t: typ) : string list =
+  match t with
+  | TPtr (_, a) -> depsOfAttrs a
+  | _ -> []
+
+(* Determine whether other variables/fields depend on a given name. *)
+let hasExternalDeps (lv: lval) : bool =
+  let hasDeps (n: string) (vars: (string * typ) list) : bool =
+    List.fold_left
+      (fun acc (name, t) ->
+         acc || (name <> n && List.mem n (depsOfType t)))
+      false
+      vars
+  in
+  let lv', off = removeOffsetLval lv in
+  match off with
+  | NoOffset ->
+      begin
+        match fst lv with
+        | Var vi when vi.vglob ->
+            E.s (E.unimp "global variables unimplemented\n")
+        | Var vi ->
+            assert (not vi.vglob);
+            let vars =
+              List.map (fun vi -> vi.vname, vi.vtype)
+                       (!curFunc.slocals @ !curFunc.sformals)
+            in
+            hasDeps vi.vname vars
+        | Mem e ->
+            false
+      end
+  | Field (fld, NoOffset) ->
+      let vars =
+        List.map (fun fld -> fld.fname, fld.ftype) fld.fcomp.cfields
+      in
+      hasDeps fld.fname vars
+  | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
+  | _ -> E.s (E.bug "unexpected result from removeOffset\n")
+
 (* mapping from variable/field names to expressions representing 
    the runtime value. *)
 type context = (string * exp) list
@@ -203,7 +269,8 @@ let compileAttribute
           [name], e
         with Not_found -> 
           E.s (E.error 
-                 "Cannot compile the dependency %a: Cannot find %s in the context.\n  Choices are: %a."
+                 ("Cannot compile the dependency %a: " ^^
+                  "Cannot find %s in the context.\n  Choices are: %a.")
                  d_attrparam a
                  name
                  (docList (fun (s, _) -> text s)) ctx)
@@ -256,6 +323,12 @@ let boundsOfType (ctx: context) (t: typ) : exp*exp =
   | TPtr (_, a) -> boundsOfAttrs ctx a
   | _ -> E.s (E.error "Expected pointer type.")
 
+let makeFancyAttr (lo: exp) (hi: exp) : attribute =
+  Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
+
+let makeFancyPtrType (bt: typ) (lo: exp) (hi: exp) : typ =
+  TPtr (bt, [makeFancyAttr lo hi])
+
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
   if !verbose then
@@ -263,11 +336,8 @@ let substType (ctx: context) (t: typ) : typ =
   match t with
   | TPtr (bt, a) ->
       let lo, hi = boundsOfType ctx t in
-      let fancyAttr =
-        Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
-      in
       let a' =
-        addAttribute fancyAttr
+        addAttribute (makeFancyAttr lo hi)
           (dropAttribute "bounds" (dropAttribute "fancybounds" a))
       in
       TPtr (bt, a')
@@ -391,9 +461,30 @@ and checkExp (ctx: context) (e : exp) : typ =
   | CastE (t, e') -> coerceExp ctx e' t; t
   | SizeOfE e'
   | AlignOfE e' -> ignore(checkExp ctx e'); unrollType (typeOf e)
-  | AddrOf lv
-  | StartOf lv -> E.s (E.unimp "addr-of and start-of unsupported\n")
-  | _ -> unrollType (typeOf e)
+  | AddrOf lv ->
+      if hasExternalDeps lv then
+        E.s (E.error ("%a: cannot take address of lval " ^^
+                      "with external dependencies\n") d_loc !currentLoc);
+      let ctx' = addThisBinding ctx (Lval lv) in
+      let bt = checkLval ctx' lv in
+      let lo = AddrOf lv in
+      let hi = BinOp (PlusPI, lo, one, typeOf lo) in
+      makeFancyPtrType bt lo hi
+  | StartOf lv ->
+      let ctx' = addThisBinding ctx (Lval lv) in
+      let bt, len =
+        match unrollType (checkLval ctx' lv) with
+        | TArray (bt, Some e, _) -> bt, e
+        | TArray (_, None, _) -> E.s (E.error "array type has no length\n")
+        | _ -> E.s (E.bug "expected array type\n")
+      in
+      let lo = StartOf lv in
+      let hi = BinOp (PlusPI, lo, len, typeOf lo) in
+      makeFancyPtrType bt lo hi
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _ -> unrollType (typeOf e)
 
 and checkLval (ctx: context) (lv : lval) : typ =
   if !verbose then
@@ -432,7 +523,9 @@ let checkCall (ctx: context) (lvo: lval option)
       (match lvo with
        | Some lv -> 
            (* TODO: let the return type depend on formals *)
-           (* TODO: make sure no one depends on lv *)
+           if hasExternalDeps lv then
+             E.s (E.error "%a: return lval has external dependencies\n"
+                          d_loc !currentLoc);
            let lvType = checkLval ctx lv in
            (* replace __this in the return type with lv, and make sure the
               result equals the type of lv: *)
@@ -471,15 +564,14 @@ let checkCall (ctx: context) (lvo: lval option)
 
 
 let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
-  (* TODO: make sure no one depends on lv *)
+  if hasExternalDeps lv then
+    E.s (E.error "%a: return lval has external dependencies\n"
+                 d_loc !currentLoc);
   coerceExp ctx e intType;
   addCheck (CPositive e);
   let lo = Lval lv in
   let hi = BinOp(PlusPI, lo, e, TPtr(bt, [])) in (* FIXME: overflow *)
-  let fancyAttr =
-    Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
-  in
-  let rt = TPtr (bt, [fancyAttr]) in
+  let rt = makeFancyPtrType bt lo hi in
   let lvType = checkLval ctx lv in
   checkSameType rt lvType;
   ()
