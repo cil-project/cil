@@ -45,6 +45,8 @@ let suppress : bool ref = ref false
 let curFunc : fundec ref = ref dummyFunDec
 let curStmt : int ref = ref (-1)
 
+let staticGlobalVars : varinfo list ref = ref []
+
 (* Assign to each statement a unique ID. *)
 let nextStmtId : int ref = ref 0
 let assignID (s:stmt) : unit =
@@ -246,14 +248,16 @@ let hasExternalDeps (lv: lval) : bool =
   | NoOffset ->
       begin
         match fst lv with
-        | Var vi when vi.vglob ->
-            E.s (E.unimp "global variables unimplemented\n")
         | Var vi ->
-            assert (not vi.vglob);
-            let vars =
-              List.map (fun vi -> vi.vname, vi.vtype)
-                       (!curFunc.slocals @ !curFunc.sformals)
+            let env =
+              if not vi.vglob then
+                !curFunc.slocals @ !curFunc.sformals
+              else if vi.vglob && vi.vstorage = Static then
+                !staticGlobalVars
+              else
+                [vi]
             in
+            let vars = List.map (fun vi -> vi.vname, vi.vtype) env in
             hasDeps vi.vname vars
         | Mem e ->
             false
@@ -274,7 +278,7 @@ let isPointer e: bool =
   isPointerType (typeOf e)
 
 let isNullterm (t: typ) : bool =
-  match t with
+  match unrollType t with
   | TPtr (_, a) -> hasAttribute "nullterm" a
   | _ -> E.s (E.error "Expected pointer type.")
 
@@ -403,6 +407,12 @@ let localsContext (f:fundec) : context =
     (fun acc v -> (v.vname, Lval (var v)) :: acc)
     []
     (f.sformals @ f.slocals)
+
+let globalsContext () : context =
+  List.fold_left
+    (fun acc v -> (v.vname, Lval (var v)) :: acc)
+    []
+    !staticGlobalVars
 
 let structContext (lv: lval) (ci: compinfo) : context =
   List.fold_left
@@ -622,8 +632,19 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
   (* TODO: call checkExp on index offsets inside lv' *)
   match off with
   | NoOffset ->
-      let ctx' = addThisBinding ctx (Lval lv) in
-      substType ctx' (typeOfLval lv)
+      let ctx' =
+        match fst lv with
+        | Var vi ->
+            if not vi.vglob then
+              ctx
+            else if vi.vglob && vi.vstorage = Static then
+              globalsContext ()
+            else
+              addBinding emptyContext vi.vname (Lval (var vi))
+        | Mem e -> emptyContext
+      in
+      let ctx'' = addThisBinding ctx' (Lval lv) in
+      substType ctx'' (typeOfLval lv)
   | Field (fld, NoOffset) ->
       (* ignore(checkLval ctx ForRead lv');  (\* FIXME: Check the rest. *\) *)
       let ctx' = structContext lv' fld.fcomp in
@@ -715,21 +736,25 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
     | NoOffset ->
         begin
           match fst lv with
-          | Var x when x.vglob ->
-              (* TODO: handle globals *)
-              E.s (E.unimp "global vars unimplemented\n")
           | Var x ->
-              assert (not x.vglob);
+              let ctxVar, env =
+                if not x.vglob then
+                  ctx, !curFunc.slocals @ !curFunc.sformals
+                else if x.vglob && x.vstorage = Static then
+                  globalsContext (), !staticGlobalVars
+                else
+                  addBinding emptyContext x.vname (Lval (var x)), [x]
+              in
               List.iter
                 (fun y ->
                    let yExp = Lval (var y) in
                    let ySubst = if x.vname <> y.vname then yExp else e in
-                   let ctxOld = addThisBinding ctx yExp in
+                   let ctxOld = addThisBinding ctxVar yExp in
                    let ctxNew =
-                     addBinding (addThisBinding ctx ySubst) x.vname e
+                     addBinding (addThisBinding ctxVar ySubst) x.vname e
                    in
                    coerceExp ctxOld ySubst (substType ctxNew y.vtype))
-                (!curFunc.slocals @ !curFunc.sformals)
+                env
           | Mem addr ->
               coerceExp ctx e lvType
         end
@@ -825,8 +850,7 @@ let checkComp (ci: compinfo) : unit =
     ci.cfields
 
 let checkVar (vi: varinfo) (init: initinfo) : unit =
-  (* TODO: allow globals to depend on one another *)
-  let ctxThis = addThisBinding emptyContext zero in
+  let ctxThis = addThisBinding (globalsContext ()) zero in
   if not (checkType ctxThis vi.vtype) then
     E.s (E.error "%a: type of global %s is ill-formed\n"
                  d_loc !currentLoc vi.vname);
@@ -875,6 +899,14 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   ()
 
 let checkFile (f : file) : unit =
+  List.iter
+    (fun global ->
+       match global with
+       | GVar (vi, _, _) when vi.vstorage = Static ->
+           assert vi.vglob;
+           staticGlobalVars := vi :: !staticGlobalVars
+       | _ -> ())
+    f.globals;
   List.iter
     (fun global ->
        currentLoc := get_globalLoc global;
