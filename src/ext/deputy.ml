@@ -50,7 +50,6 @@ let staticGlobalVars : varinfo list ref = ref []
 (* Assign to each statement a unique ID. *)
 let nextStmtId : int ref = ref 0
 let assignID (s:stmt) : unit =
-(*   E.log "sid = %d.  s = %a.\n" s.sid d_stmt s; *)
   assert (s.sid = -1); (* Make sure that no one else has assigned ID numbers *)
   s.sid <- !nextStmtId;
   incr nextStmtId;
@@ -85,6 +84,8 @@ type check =
                              e1 <= e2 <= e3 <= e4 <= (e5 + strlen(e5)) *)
   | CNTWrite of exp * exp * exp
                          (** (e1 == e2) ==> (e3 = 0)   *)
+  | CUnsignedLess of exp * exp
+                         (** e1 < e2, unsigned *)
 (* Other checks will be needed, such as nullterm checks and checks for when
    part of one of the above checks can be proved statically. *)
 
@@ -136,6 +137,7 @@ let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
 let ccoercen = mkCheckFun "CCoerceN" 5
 let cntwrite = mkCheckFun "CNTWrite" 5
+let cunsignedless = mkCheckFun "CUnsignedLess" 2
 let memset = mkFun "memset" voidType [voidPtrType; intType; !upointType]
 
 let checkToInstr (c:check) =
@@ -154,6 +156,7 @@ let checkToInstr (c:check) =
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
   | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
   | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
+  | CUnsignedLess (e1,e2) -> call cunsignedless [e1;e2]
 
 
 let postPassVisitor = object (self)
@@ -267,7 +270,10 @@ let hasExternalDeps (lv: lval) : bool =
         List.map (fun fld -> fld.fname, fld.ftype) fld.fcomp.cfields
       in
       hasDeps fld.fname vars
-  | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
+  | Index (_, NoOffset) ->
+      (* No one depends on array elements.  
+         FIXME: what about arrays inside null-terminated arrays? *)
+      false
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
 (* mapping from variable/field names to expressions representing 
@@ -299,7 +305,6 @@ let compileAttribute
       AInt k -> [], integer k
     | ASizeOf t -> [], SizeOf t
     | ACons(name, []) -> begin
-(*         let name' = if name = "__this" then this else name in *)
         try 
           let e = List.assoc name ctx in 
           [name], e
@@ -600,7 +605,7 @@ and checkExp (ctx: context) (e : exp) : typ =
 
 and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
   if !verbose then
-    E.log "%a: checking %a\n" d_loc !currentLoc d_lval lv;
+    E.log "%a: checking lvalue %a\n" d_loc !currentLoc d_lval lv;
   begin
     match lv with
       Mem e, off -> begin
@@ -615,7 +620,6 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
         | ForAddrOf ->
             (* check e != hi even if this is nullterm, because
                otherwise we could create a pointer with bounds hi,hi+1. *)
-            if not (isNullterm ptrTy) then
             addCheck (CNotEq(e,hi))
         | ForCall ->
             (* Conservatively forbid assignment of a call result when e=hi. *)
@@ -629,7 +633,15 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
     | Var vi, off -> ()
   end;
   let lv', off = removeOffsetLval lv in
-  (* TODO: call checkExp on index offsets inside lv' *)
+  let checkRest ():typ = (* returns the type of lv' *)
+    let why' = match why with
+        ForRead -> ForRead
+      | _ ->  (* If we are going to e.g. write, forbid any access to the 
+               * terminating null. *) 
+          ForAddrOf (* conservative *)
+    in
+    unrollType (checkLval ctx why' lv')
+  in
   match off with
   | NoOffset ->
       let ctx' =
@@ -646,11 +658,24 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
       let ctx'' = addThisBinding ctx' (Lval lv) in
       substType ctx'' (typeOfLval lv)
   | Field (fld, NoOffset) ->
-      (* ignore(checkLval ctx ForRead lv');  (\* FIXME: Check the rest. *\) *)
+      (match (checkRest ()) with
+         TComp(ci,_) when ci == fld.fcomp -> ()
+       | t ->
+           E.s (error "bad field offset %s on type %a."
+                  fld.fname d_type t)
+      );
       let ctx' = structContext lv' fld.fcomp in
       let ctx'' = addThisBinding ctx' (Lval lv) in
       substType ctx'' fld.ftype
-  | Index (_, NoOffset) -> E.s (E.unimp "index offsets unsupported\n")
+  | Index (index, NoOffset) -> begin
+      coerceExp ctx index intType;
+      match (checkRest ()) with 
+        TArray(bt,Some len,a) ->
+          addCheck (CUnsignedLess(index, len));
+          bt
+      | t -> E.s (error "%a: expecting an array, got %a.\n"
+                    d_loc !currentLoc d_type t)
+    end
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
 
@@ -769,8 +794,11 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
              let ctxNew = addBinding (addThisBinding ctx ySubst) x.fname e in
              coerceExp ctxOld yExp (substType ctxNew y.ftype))
           x.fcomp.cfields
-    | Field _ -> E.s (E.bug "unexpected field offset\n")
-    | Index _ -> E.s (E.bug "index offsets not handled\n")
+    | Index (_, NoOffset) ->
+        (* No dependencies to array elements. 
+           FIXME: what about arrays inside null-terminated arrays?  *)
+        ()
+    | _ -> E.s (E.bug "removeOffset\n")
   end
 
 let checkInstr (ctx: context) (instr : instr) : unit =
