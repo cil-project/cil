@@ -2060,6 +2060,10 @@ local variables cannot have the \t{const} qualifier.
  The latter form is used internally in CIL. However, the CIL pretty printer
  will try to emit the original code. 
 
+ Similarly, \t{\_\_builtin\_types\_compatible\_p(t1, t2)}, which takes
+ types as arguments, is represented internally as
+ \t{\_\_builtin\_types\_compatible\_p(sizeof t1, sizeof t2)}, but the
+ sizeofs are removed when printing.
 
 \item The implementation of \t{bitsSizeOf} does not take into account the
 packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
@@ -2783,7 +2787,12 @@ as it will ensure your message is viewed by a broad audience.
   Benjamin Monate for the patch.
 \item {\bf July 26, 2005}: Better support for extended inline assembly
   in gcc.
-\item {\bf July 26, 2005}: Added many more gcc \_\_builtin* functions to CIL.
+\item {\bf July 26, 2005}: Added many more gcc \_\_builtin* functions
+  to CIL.  Most are treated as Call instructions, but a few are
+  translated into expressions so that they can be used in global
+  initializers.  For example, ``\t{\_\_builtin\_offset(t, o)}'' is
+  rewritten as ``\t{&((t*)0)->o}'', the traditional way of calculating
+  an offset.
 \item {\bf July 18, 2005}: Fixed bug in the constant folding of shifts
   when the second argument was negative or too large.
 \item {\bf July 18, 2005}: Fixed bug where casts were not always

@@ -1,5 +1,7 @@
 #include "testharness.h"
 
+typedef int my_int;
+
 int main (void)
 {
     int x = 0;
@@ -24,5 +26,12 @@ int main (void)
     }
     
     if(x != 1) E(1);
+
+    //__builtin_types_compat_p
+    // http://developer.apple.com/documentation/DeveloperTools/gcc-3.3/gcc/Other-Builtins.html
+    if(__builtin_types_compatible_p(char, char*)) E(10);
+    if(!__builtin_types_compatible_p(int, my_int)) E(11);
+
+
     SUCCESS;
  }

@@ -2679,6 +2679,11 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_strncat" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  (* When we parse builtin_types_compatible_p, we change its interface *)
+  H.add h "__builtin_types_compatible_p"
+                              (intType, [ uintType; (* Sizeof the type *)
+                                          uintType  (* Sizeof the type *) ],
+                               false);
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
@@ -3083,6 +3088,28 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
         end
 
+      (* In cparser we have turned the call to 
+       * __builtin_types_compatible_p(t1, t2) into 
+       * __builtin_types_compatible_p(sizeof t1, sizeof t2), so that we can
+       * represent the types as expressions. 
+       * Remove the sizeofs when printing. *)
+    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l) 
+        when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs -> 
+        self#pLineDirective l
+          (* Print the destination *)
+        ++ (match dest with
+              None -> nil
+            | Some lv -> 
+                let destt = typeOfLval lv in
+                self#pLval () lv ++ text " = ")
+          (* Now the call itself *)
+        ++ dprintf "%s(%a, %a)" vi.vname
+             (self#pType None) t1  (self#pType None) t2
+        ++ text printInstrTerminator
+    | Call(_, Lval(Var vi, NoOffset), _, l) 
+        when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs -> 
+        E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
+          
     | Call(dest,e,args,l) ->
         self#pLineDirective l
           ++ (match dest with
