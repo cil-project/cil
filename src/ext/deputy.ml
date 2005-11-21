@@ -332,36 +332,50 @@ let compileAttribute
   in
   compile a
 
-let rec boundsOfAttrs (ctx: context) (a:attributes) : exp*exp = 
+type bounds =
+| BSimple of attrparam * attrparam
+| BFancy of exp * exp
+
+let rec getBounds (a: attributes) : bounds =
   let checkrest rest =
     if hasAttribute "bounds" rest ||
        hasAttribute "fancybounds" rest then
       E.s (error "Type has duplicate bounds attributes")
   in
   match a with
-  | Attr ("fancybounds", [AInt lo; AInt hi]) :: rest ->
-      checkrest rest;
-      getBoundsExp lo, getBoundsExp hi
-  | Attr ("fancybounds", _) :: rest ->
-      E.s (error "Illegal fancybounds annotations.")
   | Attr ("bounds", [lo; hi]) :: rest ->
       checkrest rest;
+      BSimple (lo, hi)
+  | Attr ("fancybounds", [AInt lo; AInt hi]) :: rest ->
+      checkrest rest;
+      BFancy (getBoundsExp lo, getBoundsExp hi)
+  | Attr _ :: rest -> 
+      getBounds rest
+  | [] -> 
+      E.s (error "Missing bounds annotations.")
+
+let boundsOfAttrs (ctx: context) (a: attributes) : exp * exp = 
+  match getBounds a with
+  | BSimple (lo, hi) ->
       (* Compile lo, hi into expressions *)
       let lodeps, lo' = compileAttribute ctx lo in
       let hideps, hi' = compileAttribute ctx hi in
       lo', hi'
-  | Attr ("bounds", _) :: rest ->
-      E.s (error "Illegal bounds annotations.")
-  | Attr _ :: rest -> 
-      boundsOfAttrs ctx rest
-  | [] -> 
-      E.s (error "Missing bounds annotations.")
+  | BFancy _ ->
+      E.s (error "Found fancybounds instead of bounds annotations.")
 
-let boundsOfType (ctx: context) (t: typ) : exp*exp =
+let fancyBoundsOfAttrs (a: attributes) : exp * exp = 
+  match getBounds a with
+  | BSimple (lo, hi) ->
+      E.s (error "Found bounds instead of fancybounds annotations.")
+  | BFancy (lo, hi) ->
+      lo, hi
+
+let fancyBoundsOfType (t: typ) : exp * exp =
   if !verbose then
-    E.log "%a: boundsOfType %a\n" d_loc !currentLoc d_type t;
+    E.log "%a: fancyBoundsOfType %a\n" d_loc !currentLoc d_type t;
   match unrollType t with
-  | TPtr (_, a) -> boundsOfAttrs ctx a
+  | TPtr (_, a) -> fancyBoundsOfAttrs a
   | _ -> E.s (E.error "Expected pointer type.")
 
 let makeFancyAttr (lo: exp) (hi: exp) : attribute =
@@ -381,13 +395,10 @@ let makeFancyPtrType ?(nullterm:bool=false) (bt: typ) (lo: exp) (hi: exp)
 let substType (ctx: context) (t: typ) : typ =
   if !verbose then
     E.log "%a: substType %a\n" d_loc !currentLoc d_type t;
-  match t with
+  match unrollType t with
   | TPtr (bt, a) ->
-      let lo, hi = boundsOfType ctx t in
-      let a' =
-        addAttribute (makeFancyAttr lo hi)
-          (dropAttribute "bounds" (dropAttribute "fancybounds" a))
-      in
+      let lo, hi = boundsOfAttrs ctx a in
+      let a' = addAttribute (makeFancyAttr lo hi) (dropAttribute "bounds" a) in
       TPtr (bt, a')
   | _ ->
       t
@@ -446,8 +457,8 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         (* Make sure the bounds are the same.
            We can use the empty context, because these should only contain 
            fancybounds *)
-        let lo1, hi1 = boundsOfAttrs emptyContext a1 in
-        let lo2, hi2 = boundsOfAttrs emptyContext a2 in
+        let lo1, hi1 = fancyBoundsOfAttrs a1 in
+        let lo2, hi2 = fancyBoundsOfAttrs a2 in
         (* Checking CIL expressions for equality statically is tricky.
            Do it dynamically: *)
         addCheck (CEq(lo1,lo2));
@@ -487,27 +498,16 @@ let rec checkType (ctx: context) (t: typ) : bool =
   | TEnum _
   | TBuiltin_va_list _ -> true
 
-(* Add checks for a coercion of e from tfrom to tto. *)
-(* matth: this has an ugly interface.  We should clean it up. *)
-let coerceType 
-  (ctx_from:context)         (* Context in which tfrom should be evaluated. *)
-  ?(ctx_to:context=ctx_from) (* Context in which tto should be evaluated, 
-                                if different from ctx_from. *)
-  (e:exp)               (* Expression being coerced *)
-  ~(tfrom : typ)        (* Type of e *)
-  ~(tto : typ)          (* New type *)
-  : unit =
-  (*
-  if not (checkType ctx_to tto) then
-    E.s (E.error "%a: coercion to an ill-formed type\n" d_loc !currentLoc);
-    *)
+(* Add checks for a coercion of e from tfrom to tto.
+   Both tfrom and tto must have fancy bounds. *)
+let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   match unrollType tfrom, unrollType tto with
     TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
         E.s (error "%a: cast to NULLTERM from an ordinary pointer."
             d_loc !currentLoc);
-      let lo_from, hi_from = boundsOfType (addThisBinding ctx_from e) tfrom in
-      let lo_to, hi_to = boundsOfType (addThisBinding ctx_to e) tto in
+      let lo_from, hi_from = fancyBoundsOfType tfrom in
+      let lo_to, hi_to = fancyBoundsOfType tto in
       if isNullterm tfrom then begin
         if bitsSizeOf bt2 <> 8 then
           E.s (unimp "nullterm buffer that's not a char*.\n");
@@ -539,38 +539,34 @@ type whyLval=
                         so we have to be more conservative *)
 
 (* Calls checkExp e, then calls coerceType to make sure that
-   e can be coerced to tto.*)
-let rec coerceExp (ctx_from:context) ?(ctx_to:context=ctx_from)
-                  (e:exp) (tto : typ) : unit =
-  coerceType ctx_from ~ctx_to:ctx_to e ~tfrom:(checkExp ctx_from e) ~tto
+   e can be coerced to tto.  tto must have fancy bounds. *)
+let rec coerceExp (e:exp) (tto : typ) : unit =
+  coerceType e ~tfrom:(checkExp e) ~tto
         
 
-and checkExp (ctx: context) (e : exp) : typ =
+and checkExp (e : exp) : typ =
   match e with
-  | UnOp (op, e', t) -> coerceType ctx e' ~tfrom:(checkExp ctx e') ~tto:t; t
+  | UnOp (op, e', t) -> coerceExp e' t; t
   | BinOp ((PlusPI | IndexPI | MinusPI | MinusPP), e1, e2, t) ->
-      let t1 = checkExp ctx e1 in
-      let t2 = checkExp ctx e2 in
+      let t1 = checkExp e1 in
       (* FIXME: __this can appear in t, so we ignore it for now.
          At some point, we should check it! *)
-      (* coerceType ctx e1 ~tfrom:t1 ~tto:t; *)
-      coerceType ctx e2 ~tfrom:t2 ~tto:intType;
-      let ctx' = addThisBinding ctx e1 in
-      let lo, hi = boundsOfType ctx' t1 in
+      (* coerceExp e1 (substType ... t); *)
+      coerceExp e2 intType;
+      let lo, hi = fancyBoundsOfType t1 in
       addCheck (CNonNull e1);
       addCheck (CBounds (lo, e1, e2, hi));
       t1
   | BinOp (op, e1, e2, t) ->
-      coerceExp ctx e1 t;
-      coerceExp ctx e2 t;
+      coerceExp e1 t;
+      coerceExp e2 t;
       t
-  | Lval lv -> checkLval ctx ForRead lv
-  | CastE (t, e') -> coerceExp ctx e' t; t
+  | Lval lv -> checkLval ForRead lv
+  | CastE (t, e') -> coerceExp e' t; t
   | SizeOfE e'
-  | AlignOfE e' -> ignore(checkExp ctx e'); unrollType (typeOf e)
+  | AlignOfE e' -> ignore (checkExp e'); unrollType (typeOf e)
   | AddrOf lv ->
-      let ctx' = addThisBinding ctx (Lval lv) in
-      ignore (checkLval ctx' ForAddrOf lv);
+      ignore (checkLval ForAddrOf lv);
       let ctxThis = addThisBinding emptyContext zero in
       let bt = typeOfLval lv in
       if not (checkType ctxThis bt) then
@@ -583,9 +579,8 @@ and checkExp (ctx: context) (e : exp) : typ =
       let hi = BinOp (PlusPI, lo, one, typeOf lo) in
       makeFancyPtrType bt lo hi
   | StartOf lv ->
-      let ctx' = addThisBinding ctx (Lval lv) in
       let bt, len =
-        match unrollType (checkLval ctx' ForAddrOf lv) with
+        match unrollType (checkLval ForAddrOf lv) with
         | TArray (bt, Some e, _) -> bt, e
         | TArray (_, None, _) -> E.s (E.error "array type has no length\n")
         | _ -> E.s (E.bug "expected array type\n")
@@ -603,15 +598,14 @@ and checkExp (ctx: context) (e : exp) : typ =
   | SizeOfStr _
   | AlignOf _ -> unrollType (typeOf e)
 
-and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
+and checkLval (why:whyLval) (lv : lval) : typ =
   if !verbose then
     E.log "%a: checking lvalue %a\n" d_loc !currentLoc d_lval lv;
   begin
     match lv with
       Mem e, off -> begin
-        let ctx' = addThisBinding ctx e in
-        let ptrTy = checkExp ctx' e in
-        let lo, hi = boundsOfType ctx' ptrTy in
+        let ptrTy = checkExp e in
+        let lo, hi = fancyBoundsOfType ptrTy in
         addCheck (CNonNull e);
         match why with
           ForRead ->
@@ -640,23 +634,23 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
                * terminating null. *) 
           ForAddrOf (* conservative *)
     in
-    unrollType (checkLval ctx why' lv')
+    unrollType (checkLval why' lv')
   in
   match off with
   | NoOffset ->
-      let ctx' =
+      let ctx =
         match fst lv with
         | Var vi ->
             if not vi.vglob then
-              ctx
+              localsContext !curFunc
             else if vi.vglob && vi.vstorage = Static then
               globalsContext ()
             else
               addBinding emptyContext vi.vname (Lval (var vi))
         | Mem e -> emptyContext
       in
-      let ctx'' = addThisBinding ctx' (Lval lv) in
-      substType ctx'' (typeOfLval lv)
+      let ctx' = addThisBinding ctx (Lval lv) in
+      substType ctx' (typeOfLval lv)
   | Field (fld, NoOffset) ->
       (match (checkRest ()) with
          TComp(ci,_) when ci == fld.fcomp -> ()
@@ -664,11 +658,11 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
            E.s (error "bad field offset %s on type %a."
                   fld.fname d_type t)
       );
-      let ctx' = structContext lv' fld.fcomp in
-      let ctx'' = addThisBinding ctx' (Lval lv) in
-      substType ctx'' fld.ftype
+      let ctx = structContext lv' fld.fcomp in
+      let ctx' = addThisBinding ctx (Lval lv) in
+      substType ctx' fld.ftype
   | Index (index, NoOffset) -> begin
-      coerceExp ctx index intType;
+      coerceExp index intType;
       match (checkRest ()) with 
         TArray(bt,Some len,a) ->
           addCheck (CUnsignedLess(index, len));
@@ -680,9 +674,9 @@ and checkLval (ctx: context) (why:whyLval) (lv : lval) : typ =
 
 
 
-let checkCall (ctx: context) (lvo: lval option)
+let checkCall (lvo: lval option)
               (fn: exp) (args: exp list) : unit =
-  match checkExp ctx fn with
+  match checkExp fn with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
         E.s (E.unimp "varargs unimplemented\n");
@@ -692,7 +686,7 @@ let checkCall (ctx: context) (lvo: lval option)
            if hasExternalDeps lv then
              E.s (E.error "%a: return lval has external dependencies\n"
                           d_loc !currentLoc);
-           let lvType = checkLval ctx ForCall lv in
+           let lvType = checkLval ForCall lv in
            (* replace __this in the return type with lv, and make sure the
               result equals the type of lv: *)
            let returnCtx = addThisBinding emptyContext (Lval lv) in
@@ -707,7 +701,7 @@ let checkCall (ctx: context) (lvo: lval option)
         try
           let ctxCall =
             List.fold_left2
-              (fun ctxAcc (argName, argType, _) arg ->
+              (fun ctxAcc (argName, _, _) arg ->
                  if argName <> "" then
                    addBinding ctxAcc argName arg
                  else
@@ -718,9 +712,9 @@ let checkCall (ctx: context) (lvo: lval option)
           in
           List.iter2
             (fun (argName, argType, _) arg ->
-               let ctx' = addThisBinding ctx arg in
                let ctxCall' = addThisBinding ctxCall arg in
-               coerceExp ctx' ~ctx_to:ctxCall' arg argType)
+               let argType' = substType ctxCall' argType in
+               coerceExp arg argType')
             formals
             actuals
         with Invalid_argument _ ->
@@ -729,13 +723,13 @@ let checkCall (ctx: context) (lvo: lval option)
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
 
-let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
+let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
   if hasExternalDeps lv then
     E.s (E.error "%a: return lval has external dependencies\n"
                  d_loc !currentLoc);
-  coerceExp ctx e intType;
+  coerceExp e intType;
   addCheck (CPositive e);
-  let lvType = checkLval ctx ForCall lv in
+  let lvType = checkLval ForCall lv in
   let nullterm = isNullterm lvType in
   let len = 
     if nullterm then 
@@ -749,12 +743,21 @@ let checkAlloc (ctx: context) (lv: lval) (bt:typ) (e: exp) : unit =
   checkSameType rt lvType;
   ()
 
+let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
+                (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
+  List.iter
+    (fun y ->
+       let yExp = expOf y in
+       let ySubst = if (nameOf x) <> (nameOf y) then yExp else e in
+       let ctx' = addBinding (addThisBinding ctx ySubst) (nameOf x) e in
+       coerceExp ySubst (substType ctx' (typeOf y)))
+    env
 
-let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
+let checkSet (lv: lval) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
-  let eType = checkExp ctx e in
-  let lvType = checkLval ctx (ForWrite e) lv in
+  let eType = checkExp e in
+  let lvType = checkLval (ForWrite e) lv in
   let off1, off2 = removeOffset (snd lv) in
   begin
     match off2 with
@@ -762,38 +765,29 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
         begin
           match fst lv with
           | Var x ->
-              let ctxVar, env =
+              let ctx, env =
                 if not x.vglob then
-                  ctx, !curFunc.slocals @ !curFunc.sformals
+                  localsContext !curFunc, !curFunc.slocals @ !curFunc.sformals
                 else if x.vglob && x.vstorage = Static then
                   globalsContext (), !staticGlobalVars
                 else
                   addBinding emptyContext x.vname (Lval (var x)), [x]
               in
-              List.iter
-                (fun y ->
-                   let yExp = Lval (var y) in
-                   let ySubst = if x.vname <> y.vname then yExp else e in
-                   let ctxOld = addThisBinding ctxVar yExp in
-                   let ctxNew =
-                     addBinding (addThisBinding ctxVar ySubst) x.vname e
-                   in
-                   coerceExp ctxOld ySubst (substType ctxNew y.vtype))
-                env
+              checkSetEnv ctx x e env
+                       (fun vi -> Lval (var vi))
+                       (fun vi -> vi.vname)
+                       (fun vi -> vi.vtype)
           | Mem addr ->
-              coerceExp ctx e lvType
+              coerceExp e lvType
         end
     | Field (x, NoOffset) ->
-        List.iter
-          (fun y ->
-             let yExp =
-               Lval (addOffsetLval (Field (y, NoOffset)) (fst lv, off1))
-             in
-             let ySubst = if x.fname <> y.fname then yExp else e in
-             let ctxOld = addThisBinding ctx yExp in
-             let ctxNew = addBinding (addThisBinding ctx ySubst) x.fname e in
-             coerceExp ctxOld yExp (substType ctxNew y.ftype))
-          x.fcomp.cfields
+        let baseLval = fst lv, off1 in
+        let ctx = structContext baseLval x.fcomp in
+        let env = x.fcomp.cfields in
+        checkSetEnv ctx x e env
+                 (fun fi -> Lval (addOffsetLval (Field (fi, NoOffset)) baseLval))
+                 (fun fi -> fi.fname)
+                 (fun fi -> fi.ftype)
     | Index (_, NoOffset) ->
         (* No dependencies to array elements. 
            FIXME: what about arrays inside null-terminated arrays?  *)
@@ -801,61 +795,70 @@ let checkSet (ctx: context) (lv: lval) (e: exp) : unit =
     | _ -> E.s (E.bug "removeOffset\n")
   end
 
-let checkInstr (ctx: context) (instr : instr) : unit =
+let checkInstr (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
   match instr with
   (* Allocation *)
   | Call (Some lv, Lval (Var vi,NoOffset), [SizeOf t; e], _) 
       when vi.vname = "calloc" ->
-      checkAlloc ctx lv t e
+      checkAlloc lv t e
   | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "calloc" ->
       E.s (error "bad call to %s." vi.vname)
   (* Function call *)
   | Call (lvo, fn, args, _) ->
-      checkCall ctx lvo fn args
+      checkCall lvo fn args
   (* Assignment *)
   | Set (lv, e, _) ->
       (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
          self-dependencies. So just ignore casts. *)
-      checkSet ctx lv (stripCasts e)
+      checkSet lv (stripCasts e)
   | Asm _ -> E.s (E.unimp "asm unsupported\n")
 
-let rec checkStmt (ctx: context) (s : stmt) : unit =
+let checkReturn (eo : exp option) : unit =
+  let returnType =
+    match !curFunc.svar.vtype with
+    | TFun (returnType, _, _, _) -> returnType
+    | _ -> E.s (E.bug "expected function type")
+  in
+  match eo with
+  | Some e ->
+      if !verbose then
+        E.log "%a: checking return %a\n" d_loc !currentLoc d_exp e;
+      (* CIL's casts don't make sense with dependent types, so remove them. *)
+      let e' = stripCasts e in
+      let ctx = addThisBinding emptyContext e' in
+      coerceExp e' (substType ctx returnType)
+  | None ->
+      if !verbose then
+        E.log "%a: checking return\n" d_loc !currentLoc;
+      checkSameType returnType voidType
+
+let rec checkStmt (s : stmt) : unit =
   fixStmt s;
   curStmt := s.sid;
   currentLoc := get_stmtLoc s.skind;
   match s.skind with
   | Instr instrs ->
-      List.iter (checkInstr ctx) instrs
+      List.iter checkInstr instrs
   | Return (eo, _) ->
-      begin
-        match eo with
-        | Some e ->
-            let returnType =
-              match !curFunc.svar.vtype with
-              | TFun (returnType, _, _, _) -> returnType
-              | _ -> E.s (E.bug "expected function type")
-            in
-            coerceExp ctx e returnType
-        | None -> ()
-      end
+      checkReturn eo
   | If (e, b1, b2, _) ->
-      coerceExp ctx e intType;
-      checkBlock ctx b1;
-      checkBlock ctx b2;
+      coerceExp e intType;
+      checkBlock b1;
+      checkBlock b2;
   | Switch (e, b, _, _) ->
-      coerceExp ctx e intType;
-      checkBlock ctx b
+      coerceExp e intType;
+      checkBlock b
   | Loop (b, _, _, _)
-  | Block b -> checkBlock ctx b
+  | Block b -> checkBlock b
   | Goto _
   | Break _
   | Continue _ -> ()
   | TryFinally _
   | TryExcept _ -> E.s (E.unimp "exceptions not supported\n")
 
-and checkBlock (ctx: context) (b : block) : unit =
-  List.iter (checkStmt ctx) b.bstmts
+and checkBlock (b : block) : unit =
+  List.iter checkStmt b.bstmts
 
 let checkTypedef (ti: typeinfo) : unit =
   let ctxThis = addThisBinding emptyContext zero in
@@ -897,7 +900,7 @@ let checkFundec (fd : fundec) (loc:location) : unit =
          E.s (E.error "%a: type of variable %s is ill-formed\n"
                       d_loc !currentLoc vi.vname))
     (fd.slocals @ fd.sformals);
-  checkBlock ctx fd.sbody;
+  checkBlock fd.sbody;
   curFunc := dummyFunDec;
   curStmt := -1;
   (* Initialize all locals to 0.  Do this after adding checks *)
