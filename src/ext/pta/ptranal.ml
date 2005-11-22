@@ -112,21 +112,6 @@ let all_functions : fundec list ref = ref []
 (*                                                                     *)
 (***********************************************************************)
 
-let pointer_destroying_unop op : bool =
-  false
-
-let pointer_destroying_binop op : bool = 
-  match op with
-    | PlusA -> false                             
-    | PlusPI -> false                            
-    | IndexPI -> false                           
-    | MinusA -> false                             
-    | MinusPI -> false                             
-    | MinusPP -> false                              
-    | Mod -> false         
-    | BXor -> false     
-    | _ -> true
-
 let is_undefined_fun = function
   | Lval (lh,o) ->
 	if (isFunctionType (typeOfLval (lh,o))) 
@@ -265,24 +250,9 @@ and analyze_expr (e : exp ) : A.tau =
       | SizeOf _ -> A.bottom()
       | SizeOfStr _ -> A.bottom()
       | AlignOf _ -> A.bottom()
-      | UnOp (op,e,t) -> 
-	  begin
-	    if (pointer_destroying_unop op)
-	    then 
-	      A.bottom ()
-	    else
-	      analyze_expr e
-	  end
-      | BinOp (op,e,e',t) ->
-	  begin
-	    if (pointer_destroying_binop op)
-	    then
-	      A.bottom ()
-	    else
-	      A.join (analyze_expr e) (analyze_expr e')
-	  end
-      | CastE (t,e) ->
-	  analyze_expr(e)
+      | UnOp (op,e,t) -> analyze_expr e
+      | BinOp (op,e,e',t) -> A.join (analyze_expr e) (analyze_expr e')
+      | CastE (t,e) -> analyze_expr e
       | AddrOf l ->  
 	  if (!fun_ptrs_as_funs && isFunctionType (typeOfLval(l)) ) then
 	    A.rvalue (analyze_lval l)
