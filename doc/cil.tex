@@ -778,7 +778,7 @@ the single file \t{main.ml}.
 
 \begin{verbatim}
 $ ocamlopt -c -I $(CIL)/obj/x86_LINUX/ main.ml
-$ ocamlopt -o main unix.cmxa str.cmxa \ 
+$ ocamlopt -ccopt -L$(CIL)/obj/x86_LINUX/ -o main unix.cmxa str.cmxa \ 
         $(CIL)/obj/x86_LINUX/cil.cmxa main.cmx
 \end{verbatim}
 
@@ -2735,8 +2735,9 @@ stage are all written from scratch. The main author is
 \ahref{mailto:necula@cs.berkeley.edu}{George Necula}, with significant
 contributions from \ahref{mailto:smcpeak@cs.berkeley.edu}{Scott McPeak},
 \ahref{mailto:weimer@cs.berkeley.edu}{Westley Weimer},
-\ahref{mailto:liblit@cs.wisc.edu}{Ben Liblit}, Raymond To and Aman
-Bhargava.
+\ahref{mailto:liblit@cs.wisc.edu}{Ben Liblit},
+\ahreftop{http://www.cs.berkeley.edu/\~{}matth/}{Matt Harren}, 
+Raymond To and Aman Bhargava.
 
  This work is based upon work supported in part by the National Science
 Foundation under Grants No. 9875171, 0085949 and 0081588, and gifts from
@@ -2795,6 +2796,7 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf November 22, 2005}: {\bf Released version 1.3.4}
 \item {\bf November 21, 2005}: Performance and correctness fixes for
   the Points-to Analysis module.  Thanks to Christoph Spiel for the
   patches.
