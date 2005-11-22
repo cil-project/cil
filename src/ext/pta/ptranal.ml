@@ -241,7 +241,7 @@ let rec analyze_lval (lv : lval ) : A.lvalue =
 			end
 	  end
   in
-    H.add lvalues lv result;
+    H.replace lvalues lv result;
     result
 
 
@@ -530,23 +530,6 @@ let count_hash_elts h =
       !result
     end
 
-(** Make the most pessimistic assumptions about globals if an undefined
-  function is present. Such a function can write to every global variable *)
-let hose_globals () : unit = 
-  List.iter (fun vd -> A.assign_undefined (analyze_var_decl vd)) (!all_globals)
-  
-let show_progress_fn (counted : int ref) (total : int) : unit = 
-  begin
-    incr counted;
-    if (!show_progress) then
-      begin
-	Printf.printf "Computed flow for %d of %d sets" (!counted) total;
-	print_newline()
-      end
-    else ()
-  end
-
-
 let compute_may_aliases (b : bool) : unit = 
   let rec compute_may_aliases_aux (exps : exp list) =
     match (exps) with
@@ -559,60 +542,59 @@ let compute_may_aliases (b : bool) : unit =
 
 
 let compute_results (show_sets : bool) : unit = 
-  if (show_sets) then
-    begin
-      print_string "Computing points-to sets...";
-      print_newline();
-    end;
-  let 
-    total_pointed_to = ref 0 in
-  let
-    total_lvalues = count_hash_elts lvalue_hash in
-  let 
-    counted_lvalues = ref 0 in
-  let print_result (name,set) =
-      let rec print_set s = 
-	match s with
-	  | h :: [] -> print_string h
-	  | h :: t -> print_string (h ^ ", "); print_set t 
-	  | [] -> ()
-      in
-	total_pointed_to := !total_pointed_to + (List.length set);
-	if (show_sets) then
-	  begin
-	    let ptsize = List.length set in
-	      if (ptsize > 0) then
-		begin
-		  print_string 
-		    (name ^ "(" ^ (string_of_int ptsize) ^ ") -> ");
-		  print_set set;
-		  print_newline ()
-		end
-	  end
-	else ()
-  in
-  let lval_elts : (string * (string list)) list ref = ref [] 
-  in 
-    if (!conservative_undefineds & !found_undefined) then hose_globals ();
-    A.finished_constraints();
-    Hashtbl.iter (fun vinf -> fun lv -> 
-		    begin
-		      (show_progress_fn counted_lvalues total_lvalues);
-		      try
-			lval_elts := (vinf.vname, A.points_to_names lv) :: (!lval_elts)
-		      with
-			| A.UnknownLocation -> ()
-		    end
-		 ) lvalue_hash;
-    List.iter print_result (!lval_elts); 
-    if (show_sets) then
-      Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
-    ;
-    if (!debug_may_aliases) then
+  let total_pointed_to = ref 0
+  and total_lvalues = H.length lvalue_hash
+  and counted_lvalues = ref 0
+  and lval_elts : (string * (string list)) list ref = ref [] in
+  let print_result (name, set) =
+    let rec print_set s =
+      match s with
+	h :: [] -> print_string h
+      | h :: t ->
+          print_string (h ^ ", ");
+          print_set t
+      | [] -> ()
+    in
+    let ptsize = List.length set in
+    total_pointed_to := !total_pointed_to + ptsize;
+    if ptsize > 0 then
       begin
-	Printf.printf "Printing may alias relationships\n";
-	compute_may_aliases(true)
+	print_string (name ^ "(" ^ (string_of_int ptsize) ^ ") -> ");
+        
+	print_set set;
+	print_newline ()
       end
+  in
+  (* Make the most pessimistic assumptions about globals if an
+     undefined function is present. Such a function can write to every
+     global variable *)
+  let hose_globals () : unit =
+    List.iter
+      (fun vd -> A.assign_undefined (analyze_var_decl vd))
+      !all_globals
+  in
+  let show_progress_fn (counted : int ref) (total : int) : unit =
+    incr counted;
+    if !show_progress then
+      Printf.printf "Computed flow for %d of %d sets\n" !counted total
+  in 
+  if !conservative_undefineds && !found_undefined then hose_globals ();
+  A.finished_constraints ();
+  if show_sets then begin
+    print_endline "Computing points-to sets...";
+    Hashtbl.iter
+      (fun vinf -> fun lv ->
+	 show_progress_fn counted_lvalues total_lvalues;
+	 try lval_elts := (vinf.vname, A.points_to_names lv) :: !lval_elts
+	 with A.UnknownLocation -> ())
+      lvalue_hash;
+    List.iter print_result !lval_elts;
+    Printf.printf "Total number of things pointed to: %d\n" !total_pointed_to
+  end;
+  if !debug_may_aliases then begin
+    Printf.printf "Printing may alias relationships\n";
+    compute_may_aliases true
+  end
   
 let print_types () : unit =
   print_string "Printing inferred types of lvalues...";
