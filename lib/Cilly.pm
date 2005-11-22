@@ -225,6 +225,11 @@ sub collectOneArgument {
         $self->{TRUEOBJ} = 1;
         return 1;
     }
+    # zf: force curing when linking to a lib
+    if ($arg eq '--truelib') {
+	$self->{TRUELIB} = 1;
+	return 1;
+    }
     if($arg eq '--keepmerged') {
         $self->{KEEPMERGED} = 1;
         return 1;
@@ -353,7 +358,9 @@ Options:
   --keepmerged  Save the merged file. Only useful if --nomerge is not given.
   --trueobj          Do not write preprocessed sources in .obj/.o files but
                      create some other files (e.g. foo.o_saved.c).
- 
+  --truelib          When linking to a library (with -r or -i), output real
+                     object files instead of preprocessed sources. This only
+		     works for GCC right now.
   --leavealone=xxx   Leave alone files whose base name is xxx. This means
                      they are not merged and not processed with CIL.
   --includedir=xxx   Adds a new include directory to replace existing ones
@@ -884,6 +891,13 @@ sub link {
     unshift @{$trueobjs}, $mergedobj;
 
     # And finally link
+    # zf: hack for linking linux stuff
+    if ($self->{TRUELIB}) {
+	my @cmd = (@{$self->{LDLIB}}, ($dest),
+		   @{$ppargs}, @{$ccargs}, @{$trueobjs}, @{$ldargs});
+	return $self->runShell(@cmd);
+    }
+
     # sm: hack: made this conditional for dsw
     if (!defined($ENV{CILLY_DONT_LINK_AFTER_MERGE})) {
       $self->link_after_cil($trueobjs, $dest, $ppargs, $ccargs, $ldargs);
@@ -1056,11 +1070,27 @@ sub doit {
 
     # See if we must create a library only
     if($self->{OPERATION} eq "TOLIB") {
-        $out = $self->linkOutputFile(@tolink);
-        $self->linktolib(\@tolink,  $out, 
-                         $self->{PPARGS}, $self->{CCARGS}, 
-                         $self->{LINKARGS});
-        return;
+	if (!$self->{TRUELIB}) {
+	    # zf: Creating a library containing merged source
+	    $out = $self->linkOutputFile(@tolink);
+	    $self->linktolib(\@tolink,  $out, 
+			     $self->{PPARGS}, $self->{CCARGS}, 
+			     $self->{LINKARGS});
+	    return;
+	} else {
+	    # zf: Linking to a true library. Do real curing.
+	    # Only difference from TOEXE is that we use "partial linking" of the 
+	    # underlying linker
+	    if ($self->{VERBOSE}) {
+	        print STDERR "Linking to a true library!";
+	    }
+	    push @{$self->{CCARGS}}, "-r";
+	    $out = $self->linkOutputFile(@tolink);
+	    $self->link(\@tolink,  $out, 
+			$self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
+	    return;
+	}
+
     }
 
     # Now link all of the files into an executable
@@ -1070,6 +1100,7 @@ sub doit {
                     $self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
         return;
     }
+
     die "I don't understand OPERATION:$self->{OPERATION}\n";
 }
 
