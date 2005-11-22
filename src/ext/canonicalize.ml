@@ -43,8 +43,8 @@
  * This is incomplete -- certain fixes which are necessary 
  * for some programs are not yet implemented.
  * 
- * #1) C allows global variables to have multiple declarations and (I think)
- *     equivalent definitions. This transformation removes all but one
+ * #1) C allows global variables to have multiple declarations and multiple
+ *     (equivalent) definitions. This transformation removes all but one
  *     declaration and all but one definition.
  *
  * #2) Any variables that use C++ keywords as identifiers are renamed.

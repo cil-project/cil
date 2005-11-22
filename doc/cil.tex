@@ -653,7 +653,7 @@ int main() {
 
 \end{enumerate}
 
-\section{Using CIL}\label{sec-cil}
+\section{How to Use CIL}\label{sec-cil}
 
 There are two predominant ways to use CIL to write a program analysis or
 transformation. The first is to phrase your analysis as a module that is
@@ -1930,6 +1930,34 @@ transforms the following code:
   } 
 \end{cilcode}
 
+\subsection{Converting C to C++}
+
+The module canonicalize.ml performs several transformations to correct
+differences between C and C++, so that the output is (hopefully) valid
+C++ code.  This may be incomplete --- certain fixes which are necessary
+for some programs are not yet implemented.
+
+Using the \t{--doCanonicalize} option with CIL will perform the
+following changes to your program:
+
+\begin{enumerate}
+\item Any variables that use C++ keywords as identifiers are renamed.
+\item C allows global variables to have multiple declarations and
+      multiple (equivalent) definitions.  This transformation removes
+      all but one declaration and all but one definition.
+\item \t{\_\_inline} is \#defined to \t{inline}, and \t{\_\_restrict} 
+      is \#defined to nothing.
+\item C allows function pointers with no specified arguments to be used on
+      any argument list.  To make C++ accept this code, we insert a cast
+      from the function pointer to a type that matches the arguments.  Of
+      course, this does nothing to guarantee that the pointer actually has
+      that type.
+\item Makes casts from int to enum types explicit.  (CIL changes enum
+      constants to int constants, but doesn't use a cast.)
+\end{enumerate}
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Controlling CIL}
 
@@ -2767,6 +2795,9 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf November 21, 2005}: Performance and correctness fixes for
+  the Points-to Analysis module.  Thanks to Christoph Spiel for the
+  patches.
 \item {\bf October 5, 2005}: CIL now builds on SPARC/Solaris.  Thanks
   to Nick Petroni and Remco van Engelen for the patches.
 \item {\bf September 26, 2005}: CIL no longer uses the `\t{-I-}' flag
@@ -2790,8 +2821,8 @@ as it will ensure your message is viewed by a broad audience.
 \item {\bf July 26, 2005}: Added many more gcc \_\_builtin* functions
   to CIL.  Most are treated as Call instructions, but a few are
   translated into expressions so that they can be used in global
-  initializers.  For example, ``\t{\_\_builtin\_offset(t, o)}'' is
-  rewritten as ``\t{&((t*)0)->o}'', the traditional way of calculating
+  initializers.  For example, ``\t{\_\_builtin\_offset(t, field)}'' is
+  rewritten as ``\t{\&((t*)0)->field}'', the traditional way of calculating
   an offset.
 \item {\bf July 18, 2005}: Fixed bug in the constant folding of shifts
   when the second argument was negative or too large.
