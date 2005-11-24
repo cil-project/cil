@@ -3014,27 +3014,28 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* Be nice to some special cases *)
         match e with
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'), Const(CInt64(one,_,_)),_)
-            when lv == lv' && one = Int64.one && not !printCilAsIs ->
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
                 ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
                 Const(CInt64(one,_,_)), _) 
-            when lv == lv' && one = Int64.one && not !printCilAsIs ->
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text (" --" ^ printInstrTerminator) 
 
         | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when lv == lv' && mone = Int64.minus_one && not !printCilAsIs ->
+            when Util.equals lv lv' && mone = Int64.minus_one 
+                && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLval () lv
                 ++ text (" --" ^ printInstrTerminator)
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-                Lval(lv'),e,_) when lv == lv' ->
+                Lval(lv'),e,_) when Util.equals lv lv' ->
                   self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text " " ++ d_binop () bop

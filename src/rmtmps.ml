@@ -330,24 +330,21 @@ let isExportedRoot global =
       false, "static variable"
   | GVar _ ->
       true, "non-static variable"
-  | GFun ({svar = v}, _) ->
-      begin
-	match hasExportingAttribute v, v.vstorage, v.vinline with
-	| true, _, _ ->
-	    true, "constructor or destructor function"
-	| _, Extern, false ->
-	    true, "extern non-inline function"
-	| _, Extern, true ->
-	    false, "extern inline function"
-	| _, Static, _ ->
-            false, "static function"
-	| _ ->
-	    true, "other function"
-      end
+  | GFun ({svar = v}, _) -> begin 
+      if hasExportingAttribute v then 
+	true, "constructor or destructor function"
+      else if v.vstorage = Static then 
+        false, "static function"
+      else if v.vinline then 
+        false, "inline function"
+      else
+	true, "other function"
+  end
   | _ ->
       false, "neither function nor variable"
   in
-  trace (dprintf "isExportedRoot %a -> %b, %s@!" d_shortglobal global result reason);
+  trace (dprintf "isExportedRoot %a -> %b, %s@!" 
+           d_shortglobal global result reason);
   result
 
 
