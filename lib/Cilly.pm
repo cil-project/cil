@@ -234,7 +234,10 @@ sub collectOneArgument {
         $self->{KEEPMERGED} = 1;
         return 1;
     }
-
+    if($arg eq '--stdoutpp') {
+        $self->{STDOUTPP} = 1;
+        return 1;
+    }
     if($arg =~ m|--save-temps=(.+)$|) {
         if(! -d $1) {
             die "Cannot find directory $1";
@@ -1418,11 +1421,17 @@ sub msvc_preprocess {
     if($sext eq ".cpp") {
         push @cmd, "/Tc";
     }
-    @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @cmd);
-    $res = $self->runShell(@cmd, $srcname);
     # MSVC cannot be told where to put the output. But we know that it
     # puts it in the current directory
     my $msvcout = "./$sbase.i";
+    if($self->{STDOUTPP}) {
+        @cmd = ('cmd', '/c', 'cl', '/nologo', '/E', ">$msvcout", '/D_MSVC', 
+                @cmd);
+        
+    } else { 
+        @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @cmd);
+    }
+    $res = $self->runShell(@cmd, $srcname);
     # Check file equivalence by making sure that all elements of the stat
     # structure are the same, except for the access time.
     my @st1 = stat $msvcout; $st1[8] = 0;

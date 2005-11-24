@@ -5392,9 +5392,11 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                     ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" !currentFunctionFDEC.svar.vname);
                     None
               in
-              !currentFunctionFDEC.sbody.bstmts <- 
-                 !currentFunctionFDEC.sbody.bstmts 
-                 @ [mkStmt (Return(retval, endloc))]
+              if not (hasAttribute "noreturn" 
+                        !currentFunctionFDEC.svar.vattr) then 
+                !currentFunctionFDEC.sbody.bstmts <- 
+                  !currentFunctionFDEC.sbody.bstmts 
+                  @ [mkStmt (Return(retval, endloc))]
             end;
             
             (* ignore (E.log "The env after finishing the body of %s:\n%t\n"

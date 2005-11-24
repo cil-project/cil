@@ -386,7 +386,9 @@ let isCompleteProgramRoot global =
 
 
 (* This visitor recursively marks all reachable types and variables as used. *)
-class markReachableVisitor globalMap = object (self)
+class markReachableVisitor 
+    ((globalMap: (string, Cil.global) H.t),
+     (currentFunc: fundec option ref)) = object (self)
   inherit nopCilVisitor
 
   method vglob = function
@@ -408,6 +410,24 @@ class markReachableVisitor globalMap = object (self)
 	DoChildren
     | _ ->
 	SkipChildren
+
+  method vinst = function
+      Asm (_, tmpls, _, _, _, _) when !msvcMode -> 
+          (* If we have inline assembly on MSVC, we cannot tell which locals 
+           * are referenced. Keep thsem all *)
+        (match !currentFunc with 
+          Some fd -> 
+            List.iter (fun v -> 
+              let vre = Str.regexp_string (Str.quote v.vname) in 
+              if List.exists (fun tmp -> 
+                try ignore (Str.search_forward vre tmp 0); true
+                with Not_found -> false)
+                  tmpls 
+              then
+                v.vreferenced <- true) fd.slocals
+        | _ -> assert false);
+        DoChildren
+    | _ -> DoChildren
 
   method vvrbl v =
     if not v.vreferenced then
@@ -495,7 +515,8 @@ end
 
 
 let markReachable file isRoot =
-  (* build a mapping from global names back to their definitions & declarations *)
+  (* build a mapping from global names back to their definitions & 
+   * declarations *)
   let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
     match global with
@@ -508,12 +529,17 @@ let markReachable file isRoot =
   in
   iterGlobals file considerGlobal;
 
+  let currentFunc = ref None in 
+
   (* mark everything reachable from the global roots *)
-  let visitor = new markReachableVisitor globalMap in
+  let visitor = new markReachableVisitor (globalMap, currentFunc) in
   let visitIfRoot global =
     if isRoot global then
       begin
 	trace (dprintf "traversing root global: %a\n" d_shortglobal global);
+        (match global with 
+          GFun(fd, _) -> currentFunc := Some fd
+        | _ -> currentFunc := None);
 	ignore (visitCilGlobal visitor global)
       end
     else
