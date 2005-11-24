@@ -76,7 +76,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 	      callgraph epicenter heapify \
               setp uref steensgaard olf dummy ptranal \
               canonicalize heap oneret partial simplemem simplify \
-	      dataslicing \
+	      dataslicing sfi \
               testcil \
 	      $(CILLY_FEATURES) \
 	      feature_config
@@ -385,7 +385,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   dataflow.ml dominators.ml bitmap.ml ssa.ml \
 	          stackoverflow.mli stackoverflow.ml \
 	          canonicalize.ml canonicalize.mli \
-	          oneret.ml oneret.mli \
+	          oneret.ml oneret.mli sfi.ml \
 	          simplemem.ml simplify.ml \
 	          blockinggraph.ml blockinggraph.mli \
 		  dataslicing.ml dataslicing.mli

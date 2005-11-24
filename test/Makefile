@@ -546,7 +546,7 @@ testrunlm/% : $(SMALL1)/%.c
 	echo SUCCESS
 
 ARCHOS := @ARCHOS@
-OBJDIR := ../obj/$(ARCHOS)
+OBJDIR := @CILHOME@/obj/$(ARCHOS)
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
@@ -1262,9 +1262,21 @@ HEALTHDIR=$(TESTDIR)/olden/health
 ifdef _MSVC
   HEALTHARGS := _MSVC=1
 endif
-health: 
+ifdef DOSFI
+SFILIB=$(OBJDIR)/sfilib_$(COMPILERNAME).$(LIBEXT)
+$(SFILIB): ../lib/sfilib.c
+	@echo "Trying to build $(SFILIB)"
+	@true "CFLAGS is $(CFLAGS)"
+	$(CC) $(CFLAGS) $(OBJOUT)$(OBJDIR)/sfilib.$(OBJEXT) $(CONLY) $<
+	$(AR) $(LIBOUT)$(SFILIB) $(OBJDIR)/sfilib.$(OBJEXT) 
+endif
+
+ifdef DOSFI
+HEALTHLIB=$(SFILIB)
+endif
+health: $(HEALTHLIB)
 	cd $(HEALTHDIR); \
-               make PLAIN=1 clean defaulttarget \
+               make PLAIN=1 LIBS=$(HEALTHLIB) clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINECCURED) "
 	cd $(HEALTHDIR); sh ./testit ./health.exe
