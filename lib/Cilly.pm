@@ -695,7 +695,7 @@ sub makeOutArguments {
 sub straight_compile {
     my ($self, $src, $dest, $ppargs, $ccargs) = @_;
     if($self->{VERBOSE}) { 
-        print STDERR 'Compiling ', $src->filename, ' into ', 
+        print STDERR 'Compiling ', ref $src ? $src->filename : $src, ' into ', 
         $dest->filename, "\n"; 
     }
     my @dest = 
