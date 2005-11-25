@@ -725,7 +725,7 @@ let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
         ignore (E.log "Removing unused temporaries\n" );
 
       if Trace.traceActive "printCilTree" then
-	dumpFile defaultCilPrinter stdout file;
+	dumpFile defaultCilPrinter stdout "stdout" file;
 
       (* digest any pragmas that would create additional roots *)
       let keepers = categorizePragmas file in

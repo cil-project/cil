@@ -2149,7 +2149,7 @@ val dumpGlobal: cilPrinter -> out_channel -> global -> unit
 
 (** Pretty-print an entire file. Here you give the channel where the printout
  * should be sent. *)
-val dumpFile: cilPrinter -> out_channel -> file -> unit
+val dumpFile: cilPrinter -> out_channel -> string -> file -> unit
 
 
 (* the following error message producing functions also print a location in 

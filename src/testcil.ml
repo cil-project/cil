@@ -394,7 +394,7 @@ let createFile () =
   in
   (* Print the file *)
   let oc = open_out "testingcil.c" in
-  dumpFile defaultCilPrinter oc file;
+  dumpFile defaultCilPrinter oc "testingcil.c" file;
   close_out oc
 
   

@@ -49,8 +49,11 @@ open Pretty
 open Trace
 
 
-let outChannel : out_channel option ref = ref None
-let mergedChannel : out_channel option ref = ref None
+type outfile = 
+    { fname: string;
+      fchan: out_channel } 
+let outChannel : outfile option ref = ref None
+let mergedChannel : outfile option ref = ref None
 let dumpFCG = ref false
 let testcil = ref ""
 
@@ -138,7 +141,7 @@ let rec processOneFile (cil: C.file) =
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" 
-	(C.dumpFile (C.defaultCilPrinter) c) cil);
+	(C.dumpFile (C.defaultCilPrinter) c.fchan c.fname) cil);
 
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
@@ -190,10 +193,11 @@ let rec theMain () =
    |  End_of_file -> () 
   in
   (* Processign of output file arguments *)
-  let openFile (what: string) (takeit: out_channel -> unit) (fl: string) = 
+  let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
     if !E.verboseFlag then
       ignore (Printf.printf "Setting %s to %s\n" what fl);
-    (try takeit (open_out fl)
+    (try takeit { fname = fl;
+                  fchan = open_out fl }
     with _ ->
       raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fl)))
   in
@@ -262,7 +266,7 @@ let rec theMain () =
                       "Do not compile to CIL the global with the given index";
     "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
                       "Prevent small chunks of code from being duplicated";
-    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc)),
+    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
              "the name of the log file";
     "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
              "the name of the output CIL file";
@@ -339,7 +343,7 @@ let rec theMain () =
                 let oldpci = !C.print_CIL_Input in
                 C.print_CIL_Input := true;
                 Stats.time "printMerged"
-                  (C.dumpFile C.defaultCilPrinter mc) merged;
+                  (C.dumpFile C.defaultCilPrinter mc.fchan mc.fname) merged;
                 C.print_CIL_Input := oldpci
             end);
             merged
@@ -358,7 +362,7 @@ let cleanup () =
     Stats.print stderr "Timings:\n";
   if !E.logChannel != stderr then 
     close_out (! E.logChannel);  
-  (match ! outChannel with Some c -> close_out c | _ -> ())
+  (match ! outChannel with Some c -> close_out c.fchan | _ -> ())
 
 ;;
 

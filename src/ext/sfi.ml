@@ -306,7 +306,15 @@ let doit (f: file) =
       end
                 
 
-      | _ -> ())
+      | _ -> ());
+  (* Now add the prototypes for the instrumentation functions *)
+  f.globals <-
+    GVarDecl (logReads.svar, locUnknown) ::
+    GVarDecl (logWrites.svar, locUnknown) ::
+    GVarDecl (logStackFrame.svar, locUnknown) ::
+    GVarDecl (logAlloc.svar, locUnknown) :: 
+    GVarDecl (logFree.svar, locUnknown) :: f.globals
+
 
 let feature : featureDescr = 
   { fd_name = "sfi";
