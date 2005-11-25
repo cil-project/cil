@@ -128,7 +128,7 @@ let addr_of_lv (lh,lo) =
       bitsOffset enclosing_type (Field(bf,NoOffset)) in
     let bytes_offset = bits_offset / 8 in 
     (BinOp(PlusPI,(AddrOf (new_lv)),(integer bytes_offset) ,ulongType))
-  end else (AddrOf (lh,lo)) 
+  end else (mkAddrOf (lh,lo)) 
 
 
 let mustLogLval (forwrite: bool) (lv: lval) : bool = 
