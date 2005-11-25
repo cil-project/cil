@@ -816,6 +816,10 @@ let locUnknown = { line = -1; file = ""; byte = -1; }
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 
+(* A reference to the current global being visited *)
+let currentGlobal: global ref = ref (GText "dummy")
+
+
 let compareLoc (a: location) (b: location) : int =
   let namecmp = compare a.file b.file in
   if namecmp != 0 
@@ -4502,23 +4506,6 @@ and childrenInit (vis: cilVisitor) (i: init) : init =
       List.iter doOneInit initl;
       let initl' = if !hasChanged then List.rev !newinitl else initl in
       if t' != t || initl' != initl then CompoundInit (t', initl') else i
-(*
-  | ArrayInit (bt, len, initl) ->
-      let bt' = fTyp bt in
-      (* Collect the new initializer list, in reverse. We prefer two 
-       * traversals to ensure tail-recursion. *)
-      let newinitl : init list ref = ref [] in
-      (* Keep track whether the list has changed *)
-      let hasChanged = ref false in
-      List.iter (fun i -> let i' = fInit i in
-                          let i'' = 
-                            if i' != i then 
-                              begin hasChanged := true; i' end else i
-                          in
-                          newinitl := i'' :: !newinitl) initl;
-      let initl' = if !hasChanged then List.rev !newinitl else initl in
-      if bt' != bt || initl' != initl then ArrayInit(bt', len, initl') else i
-*)
   
 and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
   doVisit vis vis#vlval childrenLval lv
@@ -4844,6 +4831,7 @@ let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
   (*(trace "visit" (dprintf "visitCilGlobal\n"));*)
   let oldloc = !currentLoc in
   currentLoc := (get_globalLoc g) ;
+  currentGlobal := g;
   let res = doVisitList vis vis#vglob childrenGlobal g in
   currentLoc := oldloc;
   res

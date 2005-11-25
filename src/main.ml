@@ -98,7 +98,6 @@ let features : C.featureDescr list =
     Ptranal.feature;
     Canonicalize.feature;
     Callgraph.feature;
-    Logcalls.feature;
     Logwrites.feature;
     Heapify.feature1;
     Heapify.feature2;
@@ -109,6 +108,7 @@ let features : C.featureDescr list =
     Simplify.feature;
     Sfi.feature;
     Dataslicing.feature;
+    Logcalls.feature;
   ] 
   @ Feature_config.features 
 

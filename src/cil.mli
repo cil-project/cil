@@ -1875,6 +1875,10 @@ val printCilAsIs: bool ref
  * will print the location. *)
 val currentLoc: location ref
 
+(** A reference to the current global being visited *)
+val currentGlobal: global ref 
+
+
 (** CIL has a fairly easy to use mechanism for printing error messages. This 
  * mechanism is built on top of the pretty-printer mechanism (see 
  * {!Pretty.doc}) and the error-message modules (see {!Errormsg.error}). 
