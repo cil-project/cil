@@ -40,7 +40,7 @@ module GA = GrowArray
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
-let suppress : bool ref = ref false
+let inferFile : string ref = ref ""
 
 let curFunc : fundec ref = ref dummyFunDec
 let curStmt : int ref = ref (-1)
@@ -92,6 +92,7 @@ type check =
 
 (* A mapping from stmt ids to checks for that instruction. The list of checks 
    is stored in reverse order.  *)
+let allowChecks : bool ref = ref false
 let allChecks : check list GA.t = GA.make 200 (GA.Elem [])
 
 (* Add a check for the current statement.
@@ -102,12 +103,14 @@ let allChecks : check list GA.t = GA.make 200 (GA.Elem [])
  * before *e, which ensures that the *e check won't segfault. 
  *)
 let addCheck (c:check) : unit =
-  let id = !curStmt in
-  if id < 0 then 
-    E.s (bug "addCheck when sid = %d.\n" id);
-  let otherChecks = GA.getg allChecks id in
-  if not (List.mem c otherChecks) then
-    GA.set allChecks id (c::otherChecks)
+  if !allowChecks then begin
+    let id = !curStmt in
+    if id < 0 then 
+      E.s (bug "addCheck when sid = %d.\n" id);
+    let otherChecks = GA.getg allChecks id in
+    if not (List.mem c otherChecks) then
+      GA.set allChecks id (c::otherChecks)
+  end
 
 (* These aren't real variables.  In the output, they'll show up as
    __FILE__ and __LINE__, and gcc will see them as macros.  We use them
@@ -183,7 +186,6 @@ let postPassVisitor = object (self)
     | _ -> DoChildren
 
 end
-
 
 (**************************************************************************)
 
@@ -929,7 +931,86 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   fd.sbody.bstmts <- init'::fd.sbody.bstmts;
   ()
 
-let checkFile (f : file) : unit =
+(**************************************************************************)
+
+let inferVisitor = object (self)
+  inherit nopCilVisitor
+
+  val varBounds : (string, varinfo * varinfo) Hashtbl.t =
+    Hashtbl.create 7
+
+  method vinst i = 
+    let postProcessInstr (instrs: instr list) : instr list =
+      List.fold_right
+        (fun instr acc ->
+           match instr with
+           | Set ((Var vi, NoOffset), e, l)
+                 when Hashtbl.mem varBounds vi.vname ->
+               if !verbose then
+                 E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
+               let baseVar, endVar = Hashtbl.find varBounds vi.vname in
+               let t = checkExp (stripCasts e) in
+               let lo, hi =
+                 if isPointerType t then
+                   fancyBoundsOfType (checkExp (stripCasts e))
+                 else
+                   Lval (var vi), Lval (var vi)
+               in
+               Set (var baseVar, lo, l) :: Set (var endVar, hi, l) ::
+                 instr :: acc
+           | _ ->
+               instr :: acc)
+        instrs
+        []
+    in
+    ChangeDoChildrenPost ([i], postProcessInstr)
+
+  method vfunc fd =
+    Hashtbl.clear varBounds;
+    curFunc := fd;
+    List.iter
+      (fun vi ->
+         match vi.vtype with
+         | TPtr (bt, a) when not (hasAttribute "bounds" a) ->
+             let makeBoundVar (suffix: string) : varinfo =
+               let boundName = vi.vname ^ suffix in
+               let boundParam = ACons (boundName, []) in
+               let boundAttr = Attr ("bounds", [boundParam; boundParam]) in
+               let boundType = TPtr (bt, boundAttr :: a) in
+               makeLocalVar fd boundName boundType
+             in
+             let baseVar = makeBoundVar "__b" in
+             let endVar = makeBoundVar "__e" in
+             let boundAttr =
+               Attr ("bounds", [ACons (baseVar.vname, []);
+                                ACons (endVar.vname, [])])
+             in
+             vi.vtype <- TPtr (bt, boundAttr :: a);
+             Hashtbl.add varBounds vi.vname (baseVar, endVar)
+         | _ -> ())
+      fd.slocals;
+    let cleanup x =
+      Hashtbl.clear varBounds;
+      curFunc := dummyFunDec;
+      x
+    in
+    ChangeDoChildrenPost (fd, cleanup)
+
+end
+
+(**************************************************************************)
+
+let checkFile (f: file) : unit =
+  visitCilFileSameGlobals inferVisitor f;
+  if !inferFile <> "" then begin
+    try
+      let inferChannel = open_out !inferFile in
+      dumpFile defaultCilPrinter inferChannel !inferFile f;
+      close_out inferChannel
+    with Sys_error _ ->
+      E.s (E.error "Error dumping inference results to %s\n" !inferFile)
+  end;
+  allowChecks := true;
   List.iter
     (fun global ->
        match global with
@@ -952,7 +1033,7 @@ let checkFile (f : file) : unit =
      in the output. *)
   visitCilFileSameGlobals postPassVisitor f;
   f.globals <- (GText "#include <deputychecks.h>\n\n")::f.globals;
- (* Tell CIL to put comments around the bounds attributes. *)
+  (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
   ()
 
@@ -961,8 +1042,10 @@ let feature : featureDescr =
     fd_enabled = ref false;
     fd_description = "Typecheck and instrument the program using Deputy.";
     fd_extraopt = [
-      "--deputyverbose", Arg.Set verbose, "Enable verbose output for Deputy";
-(*    "--deputysuppress", Arg.Set suppress, "Suppress some Deputy warnings"; *)
+      "--deputyverbose", Arg.Set verbose,
+                         "Enable verbose output for Deputy";
+      "--deputyinferout", Arg.Set_string inferFile,
+                          "File in which to place Deputy inference results";
     ];
     fd_doit = checkFile;
     fd_post_check = true;
