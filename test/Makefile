@@ -1276,7 +1276,7 @@ HEALTHLIB=$(SFILIB)
 endif
 health: $(HEALTHLIB)
 	cd $(HEALTHDIR); \
-               make PLAIN=1 LIBS=$(HEALTHLIB) clean defaulttarget \
+               make PLAIN=1 EXTRALIBS=$(HEALTHLIB) clean defaulttarget \
                     $(HEALTHARGS) \
                     CC="$(COMBINECCURED) "
 	cd $(HEALTHDIR); sh ./testit ./health.exe

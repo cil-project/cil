@@ -797,7 +797,7 @@ the single file \t{main.ml}.
 $ ocamlopt -c -I $(CIL)/obj/x86_LINUX/ main.ml
 $ ocamlopt -ccopt -L$(CIL)/obj/x86_LINUX/ -o main unix.cmxa str.cmxa \ 
         $(CIL)/obj/x86_LINUX/cil.cmxa main.cmx
-\end{verbatim}
+\end{verbatim} % $
 
 The first line compiles your analysis, the second line links it against CIL
 (as a library) and the Ocaml Unix library. For more information about
@@ -2813,6 +2813,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf November 30, 2005}: Added support for many GCC \t{\_\_builtin}
+  functions. 
 \item {\bf November 23, 2005}: In MSVC mode do not remove any locals whose name
   appears as a substring in an inline assembly. 
 \item {\bf November 23, 2005}: Do not add a return to functions that have the

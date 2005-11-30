@@ -2634,7 +2634,38 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin___vprintf_chk" (intType, [ intType; charConstPtrType; TBuiltin_va_list [] ], false);
   H.add h "__builtin___vsnprintf_chk" (intType, [ charPtrType; sizeType; intType; sizeType; charConstPtrType; TBuiltin_va_list [] ], false);
   H.add h "__builtin___vsprintf_chk" (intType, [ charPtrType; intType; sizeType; charConstPtrType; TBuiltin_va_list [] ], false);
+
+  H.add h "__builtin_acos" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_acosf" (floatType, [ floatType ], false);
+  H.add h "__builtin_acosl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
+  
+  H.add h "__builtin_asin" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_asinf" (floatType, [ floatType ], false);
+  H.add h "__builtin_asinl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_atan" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_atanf" (floatType, [ floatType ], false);
+  H.add h "__builtin_atanl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_atan2" (doubleType, [ doubleType; doubleType ], false);
+  H.add h "__builtin_atan2f" (floatType, [ floatType; floatType ], false);
+  H.add h "__builtin_atan2l" (longDoubleType, [ longDoubleType; 
+                                                longDoubleType ], false);
+
+  H.add h "__builtin_ceil" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_ceilf" (floatType, [ floatType ], false);
+  H.add h "__builtin_ceill" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_cos" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_cosf" (floatType, [ floatType ], false);
+  H.add h "__builtin_cosl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_cosh" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_coshf" (floatType, [ floatType ], false);
+  H.add h "__builtin_coshl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_clz" (intType, [ uintType ], false);
   H.add h "__builtin_clzl" (intType, [ ulongType ], false);
   H.add h "__builtin_clzll" (intType, [ ulongLongType ], false);
@@ -2642,13 +2673,26 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_ctz" (intType, [ uintType ], false);
   H.add h "__builtin_ctzl" (intType, [ ulongType ], false);
   H.add h "__builtin_ctzll" (intType, [ ulongLongType ], false);
+
+  H.add h "__builtin_exp" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_expf" (floatType, [ floatType ], false);
+  H.add h "__builtin_expl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
+
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_fabsf" (floatType, [ floatType ], false);
   H.add h "__builtin_fabsl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_ffs" (intType, [ uintType ], false);
   H.add h "__builtin_ffsl" (intType, [ ulongType ], false);
   H.add h "__builtin_ffsll" (intType, [ ulongLongType ], false);
   H.add h "__builtin_frame_address" (voidPtrType, [ uintType ], false);
+
+  H.add h "__builtin_floor" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_floorf" (floatType, [ floatType ], false);
+  H.add h "__builtin_floorl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_huge_val" (doubleType, [], false);
   H.add h "__builtin_huge_valf" (floatType, [], false);
   H.add h "__builtin_huge_vall" (longDoubleType, [], false);
@@ -2657,6 +2701,35 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_infl" (longDoubleType, [], false);
   H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; uintType ], false);
   H.add h "__builtin_mempcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
+
+  H.add h "__builtin_fmod" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_fmodf" (floatType, [ floatType ], false);
+  H.add h "__builtin_fmodl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_frexp" (doubleType, [ doubleType; intPtrType ], false);
+  H.add h "__builtin_frexpf" (floatType, [ floatType; intPtrType  ], false);
+  H.add h "__builtin_frexpl" (longDoubleType, [ longDoubleType; 
+                                                intPtrType  ], false);
+
+  H.add h "__builtin_ldexp" (doubleType, [ doubleType; intType ], false);
+  H.add h "__builtin_ldexpf" (floatType, [ floatType; intType  ], false);
+  H.add h "__builtin_ldexpl" (longDoubleType, [ longDoubleType; 
+                                                intType  ], false);
+
+  H.add h "__builtin_log" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_logf" (floatType, [ floatType ], false);
+  H.add h "__builtin_logl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_log10" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_log10f" (floatType, [ floatType ], false);
+  H.add h "__builtin_log10l" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_modff" (floatType, [ floatType; 
+                                          TPtr(floatType,[]) ], false);
+  H.add h "__builtin_modfl" (longDoubleType, [ longDoubleType; 
+                                               TPtr(longDoubleType, []) ], 
+                             false);
+
   H.add h "__builtin_nan" (doubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nanf" (floatType, [ charConstPtrType ], false);
   H.add h "__builtin_nanl" (longDoubleType, [ charConstPtrType ], false);
@@ -2665,16 +2738,34 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_nansl" (longDoubleType, [ charConstPtrType ], false);
   H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false) (* When we parse builtin_next_arg we drop the second argument *);
   H.add h "__builtin_object_size" (sizeType, [ voidPtrType; intType ], false);
+
   H.add h "__builtin_parity" (intType, [ uintType ], false);
   H.add h "__builtin_parityl" (intType, [ ulongType ], false);
   H.add h "__builtin_parityll" (intType, [ ulongLongType ], false);
+
   H.add h "__builtin_popcount" (intType, [ uintType ], false);
   H.add h "__builtin_popcountl" (intType, [ ulongType ], false);
   H.add h "__builtin_popcountll" (intType, [ ulongLongType ], false);
+
   H.add h "__builtin_powi" (doubleType, [ doubleType; intType ], false);
   H.add h "__builtin_powif" (floatType, [ floatType; intType ], false);
   H.add h "__builtin_powil" (longDoubleType, [ longDoubleType; intType ], false);
   H.add h "__builtin_prefetch" (voidType, [ voidConstPtrType ], true);
+  H.add h "__builtin_return" (voidType, [ voidConstPtrType ], false);
+  H.add h "__builtin_return_address" (voidPtrType, [ uintType ], false);
+
+  H.add h "__builtin_sin" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_sinf" (floatType, [ floatType ], false);
+  H.add h "__builtin_sinl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_sinh" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_sinhf" (floatType, [ floatType ], false);
+  H.add h "__builtin_sinhl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_sqrt" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_sqrtf" (floatType, [ floatType ], false);
+  H.add h "__builtin_sqrtl" (longDoubleType, [ longDoubleType ], false);
+
   H.add h "__builtin_stpcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
   H.add h "__builtin_strchr" (charPtrType, [ charPtrType; charType ], false);
   H.add h "__builtin_strcmp" (intType, [ charConstPtrType; charConstPtrType ], false);
@@ -2688,6 +2779,15 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
                               (intType, [ uintType; (* Sizeof the type *)
                                           uintType  (* Sizeof the type *) ],
                                false);
+  H.add h "__builtin_tan" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_tanf" (floatType, [ floatType ], false);
+  H.add h "__builtin_tanl" (longDoubleType, [ longDoubleType ], false);
+
+  H.add h "__builtin_tanh" (doubleType, [ doubleType ], false);
+  H.add h "__builtin_tanhf" (floatType, [ floatType ], false);
+  H.add h "__builtin_tanhl" (longDoubleType, [ longDoubleType ], false);
+
+
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
