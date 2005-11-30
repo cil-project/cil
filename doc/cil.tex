@@ -729,6 +729,9 @@ let features : C.featureDescr list =
     Logwrites.feature;  (* add this line to include the logwrites feature! *)
   ] 
   @ Feature_config.features 
+
+ \item An alternative to the last two steps is to invoke the make command with
+ the argument \t{EXTRAFEATURES=logwrites}.
 \end{verbatim}
 
  Features are processed in the order they appear on this list.  Put
