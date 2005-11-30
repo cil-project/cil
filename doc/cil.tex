@@ -675,7 +675,8 @@ C-language interface to CIL so that you can write your analyses in C
 instead of Ocaml.) See \secref{Extension} for a survey of other example
 modules. 
 
-Assuming that you have written \t{logwrites.ml}, here is how you use it: 
+Assuming that you have written \t{/home/necula/logwrites.ml}, 
+here is how you use it: 
 
  \begin{enumerate}
 
@@ -705,6 +706,17 @@ let feature : featureDescr =
   on the \t{Cil.file} that represents the merger (see \secref{merger}) of
   all C files listed as arguments. 
 
+ \item Invoke \t{configure} with the arguments
+\begin{verbatim}
+configure EXTRASRCDIRS=/home/necula EXTRAFEATURES=logwrites
+\end{verbatim}
+
+ This step works if each feature is packaged into its own ML file, and the
+name of the entry point in the file is \t{feature}.
+
+ An alternative way to specify the new features, is to change the build files
+yourself, as explained below:
+\begin{enumerate}
  \item Put \t{logwrites.ml} in the \t{src} or \t{src/ext} directory. This
  will make sure that \t{make} can find it. If you want to put it in some
  other directory, modify \t{Makefile.cil.in} and add to \t{SOURCEDIRS} your
@@ -748,7 +760,9 @@ let features : C.featureDescr list =
  interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
  Remember to enable your analysis by passing the right argument (e.g.,
  \t{--dologwrites}).   
- \end{enumerate}
+\end{enumerate}
+
+\end{enumerate}
 
 \subsection{Using CIL as a library}
 

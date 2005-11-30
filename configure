@@ -309,7 +309,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER DEFAULT_CIL_MODE CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CCURED_VERSION_MAJOR CCURED_VERSION_MINOR CCURED_VERSION_REV CCURED_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD UNDERSCORE_NAME LTLIBOBJS'
+ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER DEFAULT_CIL_MODE CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CCURED_VERSION_MAJOR CCURED_VERSION_MINOR CCURED_VERSION_REV CCURED_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD UNDERSCORE_NAME EXTRAFEATURES EXTRASRCDIRS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -4347,9 +4347,15 @@ features="$features cqualann=no"
 #  --with-deputy also enables CCL.
 features="$features deputy=no"
 
+# Now add any features specified in the command-line
+
+features="$features $EXTRAFEATURES"
 
 for f_val in $features
 do
+   # If there is no =, then we default to yes
+   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
+   echo "Testing feature $f_val"
    f=`echo $f_val | sed -e s%=.*$%%`
    echo "$as_me:$LINENO: checking whether to use CIL feature $f" >&5
 echo $ECHO_N "checking whether to use CIL feature $f... $ECHO_C" >&6
@@ -4377,6 +4383,8 @@ done
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
+
+
 
 
 
@@ -5187,6 +5195,8 @@ s,@HAS_PERFCOUNT@,$HAS_PERFCOUNT,;t t
 s,@HAVE_BUILTIN_VA_LIST@,$HAVE_BUILTIN_VA_LIST,;t t
 s,@THREAD_IS_KEYWORD@,$THREAD_IS_KEYWORD,;t t
 s,@UNDERSCORE_NAME@,$UNDERSCORE_NAME,;t t
+s,@EXTRAFEATURES@,$EXTRAFEATURES,;t t
+s,@EXTRASRCDIRS@,$EXTRASRCDIRS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
 
@@ -5706,6 +5716,7 @@ CCured/CIL configuration:
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
+  Extra directories           EXTRASRCDIRS       $EXTRASRCDIRS
   Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
 

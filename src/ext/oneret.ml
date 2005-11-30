@@ -56,7 +56,7 @@ let oneret (f: Cil.fundec) : unit =
                   f.svar.vname)
   in
   (* Does it return anything ? *)
-  let hasRet = match retTyp with TVoid _ -> false | _ -> true in
+  let hasRet = match unrollType retTyp with TVoid _ -> false | _ -> true in
 
   (* Memoize the return result variable. Use only if hasRet *)
   let lastloc = ref locUnknown in 

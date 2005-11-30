@@ -5,10 +5,12 @@
 # author: George Necula
 
 #
-# If EXTRAFEATURES is set (e.g., to "foo bar baz"), then 
-# the modules "foo", "bar", and "baz" are linked it, and the features
-# "Foo.feature", "Bar.feature", and "Baz.feature" are added to the 
-# list of features. 
+# If you want to add extra CIL features, you do not always need to change 
+# this file. Just invoke 
+#        ./configure EXTRASRCDIRS=/home/foodir EXTRAFEATURES="foo bar"
+# This will add two features that must be defined in foo.ml and bar.ml
+# 
+
 # Debugging. Set ECHO= to debug this Makefile 
 .PHONY: setup quickbuild doc distrib machdep cilversion
 ECHO = @
@@ -69,9 +71,8 @@ endif
 ifdef USE_DEPUTY
   CILLY_FEATURES += growArray ccl deputy
 endif
-ifdef EXTRAFEATURES
-  CILLY_FEATURES += $(EXTRAFEATURES)
-endif
+# Add the EXTRAFEATURES
+CILLY_FEATURES += @EXTRAFEATURES@
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
@@ -95,7 +96,7 @@ CILLY_MODULES = $(CILLY_LIBRARY_MODULES) maincil
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
-SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil
+SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES) libmaincil
@@ -231,11 +232,9 @@ ifdef USE_DEPUTY
 	echo "   Ccl.feature;" >> $@  
 	echo "   Deputy.feature;" >> $@  
 endif
-# Now the features, with the first letter capitalized
-ifdef EXTRAFEATURES
-	$(foreach f,$(EXTRAFEATURES), \
+# Now the extra features, with the first letter capitalized
+	$(foreach f,@EXTRAFEATURES@, \
             echo `echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;" >> $@)
-endif
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made
 # before feature_config existed.

@@ -490,9 +490,15 @@ features="$features cqualann=no"
 #  --with-deputy also enables CCL.
 features="$features deputy=no"
 
+# Now add any features specified in the command-line
+
+features="$features $EXTRAFEATURES"
 
 for f_val in $features
 do
+   # If there is no =, then we default to yes
+   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
+   # echo "Testing feature $f_val"
    f=`echo $f_val | sed -e s%=.*$%%`
    AC_MSG_CHECKING(whether to use CIL feature $f)
    # default value from "features"
@@ -537,6 +543,8 @@ AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
+AC_SUBST(EXTRAFEATURES)
+AC_SUBST(EXTRASRCDIRS)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -592,6 +600,7 @@ CCured/CIL configuration:
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
+  Extra directories           EXTRASRCDIRS       $EXTRASRCDIRS
   Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
 
