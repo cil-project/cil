@@ -108,7 +108,8 @@ let rec is_bitfield lo = match lo with
  * For most lvalues, this is merely AddrOf(lv). However, for bitfields
  * we do some offset gymnastics. 
  *)
-let addr_of_lv (lh,lo) = 
+let addr_of_lv (lv: lval) = 
+  let lh, lo = lv in 
   if is_bitfield lo then begin
     (* we figure out what the address would be without the final bitfield
      * access, and then we add in the offset of the bitfield from the
@@ -128,7 +129,8 @@ let addr_of_lv (lh,lo) =
       bitsOffset enclosing_type (Field(bf,NoOffset)) in
     let bytes_offset = bits_offset / 8 in 
     (BinOp(PlusPI,(AddrOf (new_lv)),(integer bytes_offset) ,ulongType))
-  end else (mkAddrOf (lh,lo)) 
+  end else 
+    (mkAddrOf (lh,lo)) 
 
 
 let mustLogLval (forwrite: bool) (lv: lval) : bool = 
@@ -140,7 +142,11 @@ let mustLogLval (forwrite: bool) (lv: lval) : bool =
         false
       else if not forwrite && not !doSfiReads then 
         false
-      else
+
+      (* If this is an lval of function type, we do not log it *) 
+      else if isFunctionType (typeOfLval lv) then 
+        false
+      else 
         true
 
 (* Create prototypes for the logging functions *)

@@ -4227,7 +4227,7 @@ echo "${ECHO_T}configuring for Cygwin on win32/x86" >&6
     ARCHOS=x86_WIN32
 
     # override CCUREDHOME; even on cygwin we want forward slashes
-    # sm: Ifolded this into what I hope will be the only
+    # sm: I folded this into what I hope will be the only
     # case-analysis of machine type
     CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`

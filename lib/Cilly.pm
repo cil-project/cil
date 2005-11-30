@@ -423,7 +423,8 @@ sub linktolib {
     if($self->{VERBOSE}) { print STDERR "Linking into library $dest\n"; }
 
     # Now collect the files to be merged
-    my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
+    my ($tomerge, $trueobjs, $ccargs) = 
+        $self->separateTrueObjects($psrcs, $ccargs);
 
     if($self->{SEPARATE} || @{$tomerge} == 0) {
         # Not merging. Regular linking.
@@ -658,17 +659,13 @@ sub compile {
         $mtime = $mtime_1;
         $outfile = $dest->{filename} . $Cilly::savedSourceExt;
     }
-    # sm: made the following output unconditional following the principle
-    # that by default you should be able to see every file getting written
-    # during a build (otherwise you don't know who to ask to be --verbose)
-    # update: and then someone reverted it to conditional... why?
     if($self->{VERBOSE}) { 
         print STDERR "Saving source $src->{filename} into $outfile\n";
     }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $src->{filename}; $toprintsrc =~ s|\\|/|g;
-    print OUT "#pragma merger($mtime, \"$toprintsrc\", \"" . 
-        join(' ', @{$ccargs}), "\")\n";
+    print OUT "#pragma merger($mtime,\"$toprintsrc\",\"" . 
+              join(',', @{$ccargs}), "\")\n";
     open(IN, '<', $src->{filename}) || die "Cannot read $src->{filename}";
     while(<IN>) {
         print OUT $_;
@@ -780,12 +777,14 @@ sub expandLibraries {
 # actually sources to be merged, and the true object files
 #
 sub separateTrueObjects {
-    my ($self, $psrcs) = @_;
+    my ($self, $psrcs, $ccargs) = @_;
 
     my @sources = @{$psrcs};
 #    print "Sources are @sources\n";
     my @tomerge = ();
     my @othersources = ();
+
+    my @ccmerged = @{$ccargs};
     foreach my $src (@sources) {
         my ($combsrc, $combsrcname, $mtime);
 	my $srcname = ref $src ? $src->filename : $src;
@@ -809,8 +808,22 @@ sub separateTrueObjects {
         open(IN, "<$combsrcname") || die "Cannot read $combsrcname";
         my $fstline = <IN>;
         close(IN);
-        if($fstline =~ m|\#pragma merger\((\d+)| || $fstline =~ m|CIL|) {
-            if($1 == $mtime) { # It is ours
+        if($fstline =~ m|CIL|) {
+            goto ToMerge;
+        } 
+        if($fstline =~ m|^\#pragma merger\((\d+),\".*\",\"(.*)\"\)$|) {
+            my $mymtime = $1;
+            # Get the CC flags
+            my @thisccargs = split(/,/, $2);
+            foreach my $arg (@thisccargs) {
+                # print "Looking at $arg\n  ccmerged=@ccmerged\n";
+                if(! grep(/$arg/, @ccmerged)) {
+                    # print " adding it\n";
+                    push @ccmerged, $arg
+                }
+            }
+          ToMerge:
+            if($mymtime == $mtime) { # It is ours
                 # See if we have this already
                 if(! grep { $_ eq $srcname } @tomerge) { # It is ours
                     push @tomerge, $combsrc; 
@@ -831,7 +844,13 @@ sub separateTrueObjects {
         }
         push @othersources, $combsrc;
     }
-    return (\@tomerge, \@othersources);
+    # If we are merging, turn off "warnings are errors" flag
+    if(grep(/$self->{WARNISERROR}/, @ccmerged)) {
+        @ccmerged = grep(!/$self->{WARNISERROR}/, @ccmerged);
+        print STDERR "Turning off warn-is-error flag $self->{WARNISERROR}\n";
+    }
+
+    return (\@tomerge, \@othersources, \@ccmerged);
 }
 
 
@@ -860,13 +879,15 @@ sub link {
     
     # Now collect the files to be merged
 
-    my ($tomerge, $trueobjs) = $self->separateTrueObjects($psrcs);
+    my ($tomerge, $trueobjs, $ccargs) = 
+        $self->separateTrueObjects($psrcs, $ccargs);
 
     if($self->{VERBOSE}) {
         print STDERR "Will merge the following: ", 
                          join(' ', @{$tomerge}), "\n";
         print STDERR "Will just link the genuine object files: ", 
                          join(' ', @{$trueobjs}), "\n";
+        print STDERR "After merge compile flags: @{$ccargs}\n";
     }
     # Check the modification times and see if we can just use the combined
     # file instead of merging all over again
@@ -1031,8 +1052,9 @@ sub doit {
         # object file is a disguised source
         my $turnOffMerging = 0;
         if(@{$self->{OFILES}}) {
-            my ($tomerge, $trueobjs) = 
-                $self->separateTrueObjects($self->{OFILES});
+            my ($tomerge, $trueobjs, $mergedccargs) = 
+                $self->separateTrueObjects($self->{OFILES}, $self->{CCARGS});
+            $self->{CCARGS} = $mergedccargs;
             $turnOffMerging = (@{$tomerge} == 0);
         } else {
             $turnOffMerging = 1;
@@ -1335,6 +1357,7 @@ sub new {
       EXEEXT => ".exe",  # Executable extension (with the .)
       OUTOBJ => "/Fo",
       OUTEXE => "/Fe",
+      WARNISERROR => "/WX",
       FORCECSOURCE => ['/Tc'],
       LINEPATTERN => "^#line\\s+(\\d+)\\s+\"(.+)\"",
 
@@ -1579,6 +1602,7 @@ sub new {
       EXEEXT => ".exe",  # Executable extension (with the .)
       OUTOBJ => $msvc->{OUTOBJ},
       OUTEXE => "-out:", # Keep this form because build.exe looks for it
+      WARNISERROR => "/WX",
       LINEPATTERN => "", 
       FORCECSOURCE => $msvc->{FORCECSOURCE},
 
@@ -1841,6 +1865,7 @@ sub new {
       OUTOBJ => '-o',
       OUTEXE => '-o',
       OUTCPP => '-o',
+      WARNISERROR => "-Werror",
       FORCECSOURCE => [],
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       

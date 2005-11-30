@@ -15,8 +15,7 @@ let name = ref ""
 let printFunctionName = ref "printf"
 
 let printf: varinfo option ref = ref None
-let mkPrint (format: string) (args: exp list) : instr = 
-  let p: varinfo = 
+let makePrintfFunction () : varinfo = 
     match !printf with 
       Some v -> v
     | None -> begin 
@@ -26,7 +25,9 @@ let mkPrint (format: string) (args: exp list) : instr =
         printf := Some f.svar;
         f.svar
     end
-  in
+
+let mkPrint (format: string) (args: exp list) : instr = 
+  let p: varinfo = makePrintfFunction () in 
   Call(None, Lval(var p), (mkString format) :: args, !currentLoc)
   
 
@@ -106,6 +107,8 @@ class logCallsVisitorClass = object
 end
 
 let logCallsVisitor = new logCallsVisitorClass
+
+let addProto = ref false
 
 let logCalls (f: file) : unit =
 
@@ -198,15 +201,22 @@ let logCalls (f: file) : unit =
  *)
     | _ -> ()
   in
-  Stats.time "logCalls" (iterGlobals f) doGlobal
+  Stats.time "logCalls" (iterGlobals f) doGlobal;
+  if !addProto then begin
+     let p = makePrintfFunction () in 
+     f.globals <- GVarDecl (p, locUnknown) :: f.globals
+  end  
 
 let feature : featureDescr = 
   { fd_name = "logcalls";
     fd_enabled = Cilutil.logCalls;
     fd_description = "generation of code to log function calls";
-    fd_extraopt = 
-    [("--logcallprintf", Arg.String (fun s -> printFunctionName := s), 
-      "the name of the printf function to use")];
+    fd_extraopt = [
+      ("--logcallprintf", Arg.String (fun s -> printFunctionName := s), 
+       "the name of the printf function to use");
+      ("--logcalladdproto", Arg.Unit (fun s -> addProto := true), 
+       "whether to add the prototype for the printf function")
+    ];
     fd_doit = logCalls;
     fd_post_check = true
   } 
