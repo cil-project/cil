@@ -37,7 +37,7 @@
  **)
 (**
 ** 1.0	3.22.99	Hugues Cassé	First version.
-** 2.0  George Necula 12/12/00: Many extensions
+** 2.0  George Necula 12/12/00: Practically complete rewrite.
 *)
 */
 %{
@@ -902,9 +902,10 @@ for_clause:
 ;
 
 declaration:                                /* ISO 6.7.*/
-    decl_spec_list init_declarator_list SEMICOLON
+    decl_spec_list init_declarator_list pragma_opt SEMICOLON
                                        { doDeclaration (snd $1) (fst $1) $2 }
-|   decl_spec_list SEMICOLON	       { doDeclaration (snd $1) (fst $1) [] }
+|   decl_spec_list pragma_opt SEMICOLON	       
+                                       { doDeclaration (snd $1) (fst $1) [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -913,7 +914,7 @@ init_declarator_list:                       /* ISO 6.7 */
 ;
 init_declarator:                             /* ISO 6.7 */
     declarator                          { ($1, NO_INIT) }
-|   declarator EQ init_expression
+|   declarator EQ init_expression 
                                         { ($1, $3) }
 ;
 
@@ -1301,6 +1302,12 @@ pragma:
 | PRAGMA_LINE                           { PRAGMA (VARIABLE (fst $1), 
                                                   snd $1) }
 | UUPRAGMA LPAREN attr RPAREN           { PRAGMA ($3, $1) }
+;
+
+pragma_opt:
+  /*(* nothing*)*/                      { () }
+| pragma pragma_opt                     { () }
+;
 
 /* (* We want to allow certain strange things that occur in pragmas, so we 
     * cannot use directly the language of expressions *) */ 
