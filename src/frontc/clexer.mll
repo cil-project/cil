@@ -357,7 +357,9 @@ let letter = ['a'- 'z' 'A'-'Z']
 
 let usuffix = ['u' 'U']
 let lsuffix = "l"|"L"|"ll"|"LL"
-let intsuffix = lsuffix | usuffix | usuffix lsuffix | lsuffix usuffix
+let intsuffix = lsuffix | usuffix | usuffix lsuffix | lsuffix usuffix 
+              | usuffix ? "i64"
+                
 
 let hexprefix = '0' ['x' 'X']
 
@@ -482,7 +484,9 @@ rule initial =
 |               "__asm"                 { if !Cprint.msvcMode then 
                                              MSASM (msasm lexbuf, currentLoc ()) 
                                           else (ASM (currentLoc ())) }
-      
+
+|               "__pragma"              { UUPRAGMA (currentLoc ()) }      
+
 (* sm: tree transformation keywords *)
 |               "@transform"            {AT_TRANSFORM (currentLoc ())}
 |               "@transformExpr"        {AT_TRANSFORMEXPR (currentLoc ())}

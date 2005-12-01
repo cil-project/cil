@@ -1236,7 +1236,7 @@ let parseInt (str: string) : exp =
   * 6.4.4.1 *)
   let hasSuffix = hasSuffix str in
   let suffixlen, kinds = 
-    if hasSuffix "ULL" || hasSuffix "LLU" then
+    if hasSuffix "ULL" || hasSuffix "LLU" then 
       3, [IULongLong]
     else if hasSuffix "LL" then
       2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
@@ -1247,6 +1247,10 @@ let parseInt (str: string) : exp =
       else [ILong; ILongLong]
     else if hasSuffix "U" then
       1, [IUInt; IULong; IULongLong]
+    else if (!msvcMode && hasSuffix "UI64") then
+      4, [IULongLong]
+    else if (!msvcMode && hasSuffix "I64") then
+      3, [ILongLong]
     else
       0, if octalhex || true (* !!! This is against the ISO but it 
         * is what GCC and MSVC do !!! *)
@@ -1279,7 +1283,8 @@ let parseInt (str: string) : exp =
       else if  ch >= 'A' && ch <= 'F'  then
         doAcc (10 + Char.code ch - Char.code 'A')
       else
-        E.s (bug "Invalid integer constant: %s" str)
+        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)" 
+               str ch idx)
   in
   try
     let i = 

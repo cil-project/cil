@@ -4355,7 +4355,7 @@ for f_val in $features
 do
    # If there is no =, then we default to yes
    if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
-   echo "Testing feature $f_val"
+   # echo "Testing feature $f_val"
    f=`echo $f_val | sed -e s%=.*$%%`
    echo "$as_me:$LINENO: checking whether to use CIL feature $f" >&5
 echo $ECHO_N "checking whether to use CIL feature $f... $ECHO_C" >&6
