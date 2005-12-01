@@ -48,6 +48,8 @@ exception InternalError of string
 module E = Errormsg
 module H = Hashtbl
 
+let matchingParsOpen = ref 0
+
 let currentLoc () = 
   let l, f, c = E.getPosition () in
   { Cabs.lineno   = l;
@@ -485,7 +487,11 @@ rule initial =
                                              MSASM (msasm lexbuf, currentLoc ()) 
                                           else (ASM (currentLoc ())) }
 
-|               "__pragma"              { UUPRAGMA (currentLoc ()) }      
+(* If we see __pragma we eat it and the matching parentheses as well *)
+|               "__pragma"              { matchingParsOpen := 0;
+                                          let _ = matchingpars lexbuf in 
+                                          initial lexbuf 
+                                        }
 
 (* sm: tree transformation keywords *)
 |               "@transform"            {AT_TRANSFORM (currentLoc ())}
@@ -509,6 +515,25 @@ and comment =
       "*/"			        { () }
 |     '\n'                              { E.newline (); comment lexbuf }
 | 		_ 			{ comment lexbuf }
+
+
+and matchingpars = parse
+  '\n'          { E.newline (); matchingpars lexbuf }
+| blank         { matchingpars lexbuf }
+| '('           { incr matchingParsOpen; matchingpars lexbuf }
+| ')'           { decr matchingParsOpen;
+                  if !matchingParsOpen = 0 then 
+                     ()
+                  else 
+                     matchingpars lexbuf
+                }
+|  "/*"		{ let _ = comment lexbuf in 
+                  matchingpars lexbuf}
+|  '"'		{ (* '"' *)
+                  let _ = str lexbuf in 
+                  matchingpars lexbuf
+                 }
+| _              { matchingpars lexbuf }
 
 (* # <line number> <file name> ... *)
 and hash = parse

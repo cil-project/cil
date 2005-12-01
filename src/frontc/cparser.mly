@@ -281,8 +281,8 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> BUILTIN_TYPES_COMPAT BUILTIN_OFFSETOF
 %token<Cabs.cabsloc> DECLSPEC
 %token<string * Cabs.cabsloc> MSASM MSATTR
-%token<Cabs.cabsloc> PRAGMA UUPRAGMA
 %token<string * Cabs.cabsloc> PRAGMA_LINE
+%token<Cabs.cabsloc> PRAGMA
 %token PRAGMA_EOL
 
 /* sm: cabs tree transformation specification keywords */
@@ -902,9 +902,9 @@ for_clause:
 ;
 
 declaration:                                /* ISO 6.7.*/
-    decl_spec_list init_declarator_list pragma_opt SEMICOLON
+    decl_spec_list init_declarator_list SEMICOLON
                                        { doDeclaration (snd $1) (fst $1) $2 }
-|   decl_spec_list pragma_opt SEMICOLON	       
+|   decl_spec_list SEMICOLON	       
                                        { doDeclaration (snd $1) (fst $1) [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
@@ -1301,12 +1301,6 @@ pragma:
 | PRAGMA attr SEMICOLON PRAGMA_EOL	{ PRAGMA ($2, $1) }
 | PRAGMA_LINE                           { PRAGMA (VARIABLE (fst $1), 
                                                   snd $1) }
-| UUPRAGMA LPAREN attr RPAREN           { PRAGMA ($3, $1) }
-;
-
-pragma_opt:
-  /*(* nothing*)*/                      { () }
-| pragma pragma_opt                     { () }
 ;
 
 /* (* We want to allow certain strange things that occur in pragmas, so we 
