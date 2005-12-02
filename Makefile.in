@@ -78,7 +78,7 @@ CILLY_FEATURES += @EXTRAFEATURES@
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cilutil escape \
               cabs cabsvisit cprint lexerhack machdep cparser clexer  \
-              cilversion cil formatparse formatlex formatcil cabs2cil \
+              cilversion cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
               dataflow dominators bitmap ssa \
               usedef logcalls logwrites rmtmps \
@@ -88,7 +88,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 	      dataslicing sfi \
               testcil \
 	      $(CILLY_FEATURES) \
-	      feature_config
+	      ciloptions feature_config
 # ww: we don't want "maincil" in an external cil library (cil.cma),
 # otherwise every program that links against that library will get
 # maincil's argument checking and whatnot ...
@@ -310,7 +310,7 @@ odoc: $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
                     ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
 	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli \
-                    ocamlutil/alpha.mli
+                    ocamlutil/alpha.mli src/cillower.mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
 	-rm -rf doc/html/cil
@@ -376,8 +376,8 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
-	      libmaincil.ml \
-	      escape.ml escape.mli
+	      ciloptions.ml ciloptions.mli libmaincil.ml \
+	      escape.ml escape.mli cillower.mli cillower.ml
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \

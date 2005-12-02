@@ -152,46 +152,6 @@ let rec processOneFile (cil: C.file) =
 let rec theMain () =
   let doCombine = ref "" in 
   let usageMsg = "Usage: cilly [options] source-files" in
-  let fileNames : string list ref = ref [] in
-  let recordFile fname = 
-    fileNames := fname :: (!fileNames) 
-  in
-  (* Parsing of files with additional names *)
-  let parseExtraFile (s: string) = 
-    try
-      let sfile = open_in s in
-      while true do
-        let line = try input_line sfile with e -> (close_in sfile; raise e) in
-        let linelen = String.length line in
-        let rec scan (pos: int) (* next char to look at *)
-                     (start: int) : unit (* start of the word, 
-                                            or -1 if none *) =
-          if pos >= linelen then 
-            if start >= 0 then 
-              recordFile (String.sub line start (pos - start))
-            else 
-              () (* Just move on to the next line *)
-          else
-            let c = String.get line pos in
-            match c with 
-              ' ' | '\n' | '\r' | '\t' -> 
-                (* whitespace *)
-                if start >= 0 then begin
-                  recordFile (String.sub line start (pos - start));
-                end;
-                scan (pos + 1) (-1)
-
-            | _ -> (* non-whitespace *)
-                if start >= 0 then 
-                  scan (pos + 1) start 
-                else
-                  scan (pos + 1) pos
-        in
-        scan 0 (-1)
-      done
-    with Sys_error _ -> E.s (E.error "Cannot find extra file: %s\n" s)
-   |  End_of_file -> () 
-  in
   (* Processign of output file arguments *)
   let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
     if !E.verboseFlag then
@@ -242,21 +202,8 @@ let rec theMain () =
     ("", Arg.Unit (fun () -> ()), "\n\t\tCIL Features") :: featureArgs 
   in
     
-  let argDescr = [
-    "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
-                "turn on verbose mode";
-    "--debug", Arg.String (setDebugFlag true),
-                     "<xxx> turns on debugging flag xxx";
-    "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
-                     "Flush the output streams often (aids debugging)" ;
-    "--check", Arg.Unit (fun _ -> Cilutil.doCheck := true),
-                     "turns on consistency checking of CIL";
-    "--nocheck", Arg.Unit (fun _ -> Cilutil.doCheck := false),
-                     "turns off consistency checking of CIL";
-    "--nodebug", Arg.String (setDebugFlag false),
-                      "<xxx> turns off debugging flag xxx";
-    "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
-               "print some statistics";
+  let argDescr = Ciloptions.options @ 
+    [
     "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
     "--forceRLArgEval", 
@@ -266,21 +213,10 @@ let rec theMain () =
                       "Do not compile to CIL the global with the given index";
     "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
                       "Prevent small chunks of code from being duplicated";
-    "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
-             "the name of the log file";
     "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
              "the name of the output CIL file";
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
                  "Show all warnings";
-    "--MSVC", Arg.Unit (fun _ ->   C.msvcMode := true;
-                                   F.setMSVCMode ();
-                                   if not Machdep.hasMSVC then
-                                     ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
-                       ), "Produce MSVC output. Default is GNU";
-    "--stages", Arg.Unit (fun _ -> Cilutil.printStages := true),
-               "print the stages of the algorithm as they happen";
-    "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
-                "do not remove the unused variables and types";
 
     "--mergedout", Arg.String (openFile "merged output"
                                    (fun oc -> mergedChannel := Some oc)),
@@ -288,24 +224,10 @@ let rec theMain () =
     "--ignore-merge-conflicts", 
                  Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
                   "ignore merging conflicts";
-    "--noPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := None;
-                                     Cprint.printLn := false),
-               "don't output #line directives";
-    "--commPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineComment;
-                                       Cprint.printLnComment := true),
-               "output #line directives as comments";
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
                "do not try to simplify the CIL when printing";
     "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
-    (* sm: some more debugging options *)
-    "--tr",         Arg.String Trace.traceAddMulti,
-                     "<sys>: subsystem to show debug printfs for";
-    "--pdepth",     Arg.Int setTraceDepth,
-                      "<n>: set max print depth (default: 5)";
-
-    "--extrafiles", Arg.String parseExtraFile,
-    "<filename>: the name of a file that contains a list of additional files to process, separated by whitespace of newlines";
   ] @ F.args @ featureArgs in
   begin
     (* this point in the code is the program entry point *)
@@ -313,16 +235,16 @@ let rec theMain () =
     Stats.reset false; (* no performance counters *)
 
     (* parse the command-line arguments *)
-    Arg.parse argDescr recordFile usageMsg;
+    Arg.parse argDescr Ciloptions.recordFile usageMsg;
     Cil.initCIL ();
 
-    fileNames := List.rev !fileNames;
+    Ciloptions.fileNames := List.rev !Ciloptions.fileNames;
 
     if !testcil <> "" then begin
       Testcil.doit !testcil
     end else
       (* parse each of the files named on the command line, to CIL *)
-      let files = List.map parseOneFile !fileNames in
+      let files = List.map parseOneFile !Ciloptions.fileNames in
 
       (* if there's more than one source file, merge them together; *)
       (* now we have just one CIL "file" to deal with *)

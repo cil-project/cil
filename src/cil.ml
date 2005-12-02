@@ -71,6 +71,8 @@ let useLogicalOperators = ref false
 let theMachine : M.mach ref = ref M.gcc
 
 
+let lowerEnum = ref true
+
 let little_endian = ref true
 let char_is_unsigned = ref false
 let underscore_name = ref false
@@ -469,6 +471,11 @@ and constant =
                                                the fkind (see ISO 6.4.4.2) and
                                                also the textual representation,
                                                if available *)
+  | CEnum of exp * string * enuminfo
+     (** An enumeration constant with the given value, name, from the given 
+      * enuminfo. This is not used if {!Cil.lowerEnum} is false (default). 
+      * Use {!Cillower.lowerEnumVisitor} to replace these with integer 
+      * constants. *)
 
 (** Unary operators *)
 and unop =
@@ -1198,6 +1205,7 @@ let charConstToInt (c: char) : constant =
 let rec isInteger = function
   | Const(CInt64 (n,_,_)) -> Some n
   | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *) 
+  | Const(CEnum(v, s, ei)) -> isInteger v
   | CastE(_, e) -> isInteger e
   | _ -> None
         
@@ -1797,7 +1805,7 @@ let d_const () c =
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
   | CReal(f, _, None) -> text (string_of_float f)
-
+  | CEnum(_, s, ei) -> text s
 
 
 (* Parentheses level. An expression "a op b" is printed parenthesized if its 
@@ -1908,6 +1916,9 @@ let rec typeOf (e: exp) : typ =
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
+
+  | Const(CEnum(_, _, ei)) -> TEnum(ei, [])
+
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
@@ -2360,6 +2371,7 @@ and constFold (machdep: bool) (e: exp) : exp =
   end
         (* Characters are integers *)
   | Const(CChr c) -> Const(charConstToInt c)
+  | Const(CEnum (v, _, _)) -> constFold machdep v
   | SizeOf t when machdep -> begin
       try
         let bs = bitsSizeOf t in
@@ -2409,6 +2421,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
     let newe = 
       let rec mkInt = function
           Const(CChr c) -> Const(charConstToInt c)
+        | Const(CEnum (v, s, ei)) -> mkInt v
         | CastE(TInt (ik, ta), e) -> begin
             match mkInt e with
               Const(CInt64(i, _, _)) -> 
@@ -4207,6 +4220,7 @@ class plainCilPrinterClass =
               f
               d_fkind fk 
               (match so with Some s -> s | _ -> "None")
+        | CEnum(_, s, _) -> text s
       in
       text "Const(" ++ d_plainconst () c ++ text ")"
 
@@ -4548,7 +4562,11 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   let vTyp t = visitCilType vis t in
   let vLval lv = visitCilLval vis lv in
   match e with
-    Const _ -> e
+  | Const (CEnum(v, s, ei)) -> 
+      let v' = vExp v in 
+      if v' != v then Const (CEnum(v', s, ei)) else e
+
+  | Const _ -> e
   | SizeOf t -> 
       let t'= vTyp t in 
       if t' != t then SizeOf t' else e
@@ -6137,6 +6155,5 @@ let d_formatarg () = function
   | FS _ -> dprintf "FS"
 
   | FX _ -> dprintf "FX()"
-
 
 

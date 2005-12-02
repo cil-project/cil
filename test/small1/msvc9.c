@@ -14,10 +14,10 @@ typedef struct _UNICODE_STRING {
   char * Buffer;
 } UNICODE_STRING;
 
-int foo() {
+void foo() {
   int param;
   
-  char buffer_buffer[80]; __pragma(warning(disable:4221)) __pragma(warning(disable:4204))  UNICODE_STRING buffer = { 0, 80 * sizeof(char) , buffer_buffer }; __pragma(warning(default:4221)) __pragma(warning(default:4204));
+  char buffer_buffer[80]; __pragma(warning(disable:4221)) __pragma(warning(disable:4204)) UNICODE_STRING buffer = { 0, 80 * sizeof(char) , buffer_buffer } __pragma(warning(default:4221)) __pragma(warning(default:4204));
 
   (param);             
 }

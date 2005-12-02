@@ -616,6 +616,11 @@ and constant =
   | CReal of float * fkind * string option 
      (** Floating point constant. Give the fkind (see ISO 6.4.4.2) and also 
       * the textual representation, if available. *)
+  | CEnum of exp * string * enuminfo
+     (** An enumeration constant with the given value, name, from the given 
+      * enuminfo. This is not used if {!Cil.lowerEnum} is false (default). 
+      * Use {!Cillower.lowerEnumVisitor} to replace these with integer 
+      * constants. *)
 
 (** Unary operators *)
 and unop =
@@ -1047,6 +1052,11 @@ and typsig =
   | TSBase of typ
 
 
+
+(** {b Lowering Options} *)
+val lowerEnum: bool ref
+    (** Do lower enumeration constants into integers *)
+
 (** To be able to add/remove features easily, each feature should be package 
    * as an interface with the following interface. These features should be *)
 type featureDescr = {
@@ -1262,6 +1272,7 @@ val typeOfSizeOf: typ ref
 
 (** Returns true if and only if the given integer type is signed. *)
 val isSigned: ikind -> bool
+
 
 (** Creates a a (potentially recursive) composite type. The arguments are: 
  * (1) a boolean indicating whether it is a struct or a union, (2) the name 

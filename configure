@@ -3440,6 +3440,7 @@ rm -f conftest.err conftest.$ac_objext \
 echo "$as_me:$LINENO: result: $UNDERSCORE_NAME" >&5
 echo "${ECHO_T}$UNDERSCORE_NAME" >&6
 
+
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
 
@@ -4290,6 +4291,14 @@ echo "${ECHO_T}creating obj/$ARCHOS" >&6;
 fi
 
 
+echo "$as_me:$LINENO: checking delete the obj/$ARCHOS/feature_config.ml and obj/$ARCHOS/machdep.ml file" >&5
+echo $ECHO_N "checking delete the obj/$ARCHOS/feature_config.ml and obj/$ARCHOS/machdep.ml file... $ECHO_C" >&6
+rm -f obj/$ARCHOS/machdep.ml
+rm -f obj/.depend/machdep.d
+rm -f obj/$ARCHOS/feature_config.ml
+rm -f obj/.depend/feature_config.d
+echo "$as_me:$LINENO: result: done" >&5
+echo "${ECHO_T}done" >&6
 
 # We will use substitution variables whose definition contains newlines. The
 # problem is that when config.status runs, it wants to break the series of

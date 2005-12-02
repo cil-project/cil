@@ -453,6 +453,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       | Const(CStr s) -> charPtrType
       | Const(CWStr s) -> TPtr(!wcharType,[])
       | Const(CReal (_, fk, _)) -> TFloat(fk, [])
+      | Const(CEnum (_, _, ei)) -> TEnum(ei, [])
       | Lval(lv) -> 
           if isconst then
             ignore (warn "Lval in constant");

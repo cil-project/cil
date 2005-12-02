@@ -2179,7 +2179,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         enterScope ();
         
         (* as each name,value pair is determined, this is called *)
-        let rec processName kname i loc rest = begin
+        let rec processName kname (i: exp) loc rest = begin
           (* add the name to the environment, but with a faked 'typ' field; 
            * we don't know the full type yet (since that includes all of the 
            * tag values), but we won't need them in here  *)
@@ -2188,6 +2188,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           (* add this tag to the list so that it ends up in the real 
           * environment when we're finished  *)
           let newname, _  = newAlphaName true "" kname in
+          
           (kname, (newname, i, loc)) :: loop (increm i 1) rest
         end
             
@@ -2201,7 +2202,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
               (* constant-eval 'e' to determine tag value *)
               let i = match isIntConstExp e with
                   Some e' -> e'
-                | _ -> E.s (error "enum without const integer initializer")
+                | _ -> E.s (error "enum %s without const integer initializer"
+                              kname)
               in
               processName kname i (convLoc cloc) rest
         in
@@ -2762,7 +2764,9 @@ and preprocessCast (specs: A.specifier)
 and isIntConstExp (aexp) : exp option =
   match doExp true aexp (AExp None) with
     (* first, filter for those Const exps that are integers *)
-    | (c, (Const (CInt64 (i,_,_)) as p),_) when isEmpty c ->
+    | (c, (Const (CInt64 _) as p),_) when isEmpty c ->
+        Some p
+    | (c, (Const (CEnum _) as p),_) when isEmpty c ->
         Some p
     | (c, (Const (CChr i) as p),_) when isEmpty c ->
         Some (Const(charConstToInt i))
@@ -2888,7 +2892,17 @@ and doExp (tryconst: bool)   (* Try to convert the exp into a constant. This
                 E.s (error "variable appears in constant"); *)
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ), _ ->
-              finishExp empty tag typ
+              if !Cil.lowerEnum then 
+                finishExp empty tag typ
+              else begin
+                let ei = 
+                  match unrollType typ with 
+                    TEnum(ei, _) -> ei
+                  | _ -> assert false
+                in
+                finishExp empty (Const (CEnum(tag, n, ei))) typ
+              end
+
           | _ -> raise Not_found
         with Not_found -> begin
           if isOldStyleVarArgName n then 

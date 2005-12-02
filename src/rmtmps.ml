@@ -451,6 +451,12 @@ class markReachableVisitor
       end;
     SkipChildren
 
+  method vexpr (e: exp) = 
+    match e with 
+      Const (CEnum (_, _, ei)) -> ei.ereferenced <- true;
+                                  DoChildren
+    | _ -> DoChildren
+
   method vtype typ =
     let old : bool =
       let visitAttrs attrs =

@@ -370,6 +370,7 @@ AC_LINK_IFELSE([int main() { __asm__("jmp _main"); }],
                   UNDERSCORE_NAME=false)
 AC_MSG_RESULT($UNDERSCORE_NAME)
 
+
 # ----------- some stuff 'autoscan' put here --------------
 # (autoscan is part of the autoconf distribution)
 
@@ -442,6 +443,12 @@ CILHOME=$CCUREDHOME
 AC_CHECK_FILE(obj/$ARCHOS,, AC_MSG_RESULT(creating obj/$ARCHOS);
                             mkdir -p obj/$ARCHOS)
    
+AC_MSG_CHECKING([delete the obj/$ARCHOS/feature_config.ml and obj/$ARCHOS/machdep.ml file])
+rm -f obj/$ARCHOS/machdep.ml
+rm -f obj/.depend/machdep.d
+rm -f obj/$ARCHOS/feature_config.ml
+rm -f obj/.depend/feature_config.d
+AC_MSG_RESULT([done])
 
 # We will use substitution variables whose definition contains newlines. The
 # problem is that when config.status runs, it wants to break the series of
