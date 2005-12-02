@@ -889,7 +889,9 @@ and label =
           (** A real label. If the bool is "true", the label is from the 
            * input source program. If the bool is "false", the label was 
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement *)
+  | Case of exp * location              (** A case statement. This expression 
+                                         * is lowered into a constant, unless 
+                                         * {!Cil.lowerCase} is set to false. *)
   | Default of location                 (** A default statement *)
 
 
@@ -1054,8 +1056,12 @@ and typsig =
 
 
 (** {b Lowering Options} *)
+
 val lowerEnum: bool ref
-    (** Do lower enumeration constants into integers *)
+    (** Do lower enumeration constants into integers (default true) *)
+
+val lowerCase: bool ref
+    (** Do lower the case constants into integers (default true) *)
 
 (** To be able to add/remove features easily, each feature should be package 
    * as an interface with the following interface. These features should be *)

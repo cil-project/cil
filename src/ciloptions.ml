@@ -161,5 +161,7 @@ let options : (string * Arg.spec * string) list =
 
     "--noLowerEnum", Arg.Unit (fun _ -> Cil.lowerEnum := false), "do not lower enumeration constants";
 
+    "--noLowerCase", Arg.Unit (fun _ -> Cil.lowerCase := false), "do not lower case constants";
+
   ]
     

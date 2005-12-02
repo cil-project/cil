@@ -72,6 +72,7 @@ let theMachine : M.mach ref = ref M.gcc
 
 
 let lowerEnum = ref true
+let lowerCase = ref true
 
 let little_endian = ref true
 let char_is_unsigned = ref false
