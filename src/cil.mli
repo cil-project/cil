@@ -1063,6 +1063,9 @@ val lowerEnum: bool ref
 val lowerCase: bool ref
     (** Do lower the case constants into integers (default true) *)
 
+val lowerConstants: bool ref
+    (** Do lower constants (default true) *)
+
 (** To be able to add/remove features easily, each feature should be package 
    * as an interface with the following interface. These features should be *)
 type featureDescr = {

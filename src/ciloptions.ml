@@ -163,5 +163,7 @@ let options : (string * Arg.spec * string) list =
 
     "--noLowerCase", Arg.Unit (fun _ -> Cil.lowerCase := false), "do not lower case constants";
 
+    "--noLowerConstants", Arg.Unit (fun _ -> Cil.lowerConstants := false), 
+     "do not lower constant expressions";
   ]
     

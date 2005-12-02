@@ -33,3 +33,4 @@ config.h
 cil.spec
 cvss.txt
 configure.lineno
+confstat*
