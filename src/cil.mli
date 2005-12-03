@@ -1867,6 +1867,11 @@ val msvcMode: bool ref
  * their operands *)
 val useLogicalOperators: bool ref
 
+
+(** A visitor that does constant folding. Pass as argument whether you want 
+ * machine specific simplifications to be done, or not. *)
+val constFoldVisitor: bool -> cilVisitor
+
 (** Styles of printing line directives *)
 type lineDirectiveStyle =
   | LineComment
@@ -2375,3 +2380,5 @@ type formatArg =
 (** Pretty-prints a format arg *)
 val d_formatarg: unit -> formatArg -> Pretty.doc
 
+val lowerConstants: bool ref
+ (** Do lower constant expressions into constants (default true) *)

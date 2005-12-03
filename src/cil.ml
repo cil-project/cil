@@ -70,6 +70,7 @@ let useLogicalOperators = ref false
 (* Cil.initCil will set this to the current machine description *)
 let theMachine : M.mach ref = ref M.gcc
 
+let lowerConstants = ref false
 
 let lowerEnum = ref true
 let lowerCase = ref true
@@ -1950,7 +1951,8 @@ and typeOfLval = function
 
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
-    let (_, _, contageous) = partitionAttributes ~default:(AttrName false) baseAttrs in
+    let (_, _, contageous) = 
+      partitionAttributes ~default:(AttrName false) baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -2532,7 +2534,6 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
     newe
   end else
     BinOp(bop, e1', e2', tres)
-
 
 
 (* Compute a type signature *)
@@ -5009,6 +5010,18 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
   end
   | _ -> g
 
+
+(** A visitor that does constant folding. If "machdep" is true then we do 
+ * machine dependent simplification (e.g., sizeof) *)
+class constFoldVisitorClass (machdep: bool) : cilVisitor = object
+  inherit nopCilVisitor
+      
+  method vexpr (e: exp) = 
+    (* Do it bottom up *)
+    ChangeDoChildrenPost (e, constFold machdep)
+        
+end
+let constFoldVisitor (machdep: bool) = new constFoldVisitorClass machdep
 
 (* Iterate over all globals, including the global initializer *)
 let iterGlobals (fl: file)

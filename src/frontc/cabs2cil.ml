@@ -563,6 +563,21 @@ let rec stripConstLocalType (t: typ) : typ =
   | TBuiltin_va_list a -> 
       let a' = dc a in if a != a' then TBuiltin_va_list a' else t
 
+t' = stripConstLocalType f.ftype in
+          if t' != f.ftype then begin
+            ignore (warnOpt "Stripping \"const\" from field %s of %s\n" 
+                      f.fname (compFullName ci));
+            f.ftype <- t'
+          end)
+        ci.cfields;
+      let a' = dc a in if a != a' then TComp(ci, a') else t
+
+    (* We never assign functions either *)
+  | TFun(rt, args, va, a) -> t
+  | TVoid _ -> E.s (bug "cabs2cil: stripConstLocalType: void")
+  | TBuiltin_va_list a -> 
+      let a' = dc a in if a != a' then TBuiltin_va_list a' else t
+
 
 let constFoldTypeVisitor = object (self)
   inherit nopCilVisitor
@@ -1442,13 +1457,13 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) -> 
       let newbt = combineTypes CombineOther oldbt bt in
       let newsz = 
-        if Util.equals oldsz sz then sz else
         match oldsz, sz with
           None, Some _ -> sz
         | Some _, None -> oldsz
+        | None, None -> sz
         | Some oldsz', Some sz' -> 
-           (* They are not structurally equal. But perhaps they are equal if 
-            * we evaluate them. Check first machine independent comparison  *)
+            (* They are not structurally equal. But perhaps they are equal if 
+             * we evaluate them. Check first machine independent comparison  *)
            let checkEqualSize (machdep: bool) = 
               Util.equals (constFold machdep oldsz') 
                           (constFold machdep sz') 
@@ -1462,7 +1477,6 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
            end else
               raise (Failure "different array lengths")
            
-        | None, None -> assert false
       in
       TArray (newbt, newsz, cabsAddAttributes olda a)
         
@@ -1697,14 +1711,21 @@ let rec collectInitializer
     match unrollType thistype, this with 
     | _ , SinglePre e -> SingleInit e, thistype
     | TArray (bt, leno, at), CompoundPre (pMaxIdx, pArray) -> 
-        let (len, newtype) =
+        let (len: int), newtype =
           (* normal case: use array's declared length, newtype=thistype *)
-          try (lenOfArray leno, thistype)
+          match leno with 
+            Some len -> begin
+              match constFold true len with 
+                Const(CInt64(ni, _, _)) when ni >= 0L -> 
+                  (Int64.to_int ni), TArray(bt,leno,at)
 
-          (* unsized array case, length comes from initializers *)
-          with LenOfArray ->
-            (!pMaxIdx + 1,
-             TArray (bt, Some (integer (!pMaxIdx + 1)), at))
+              | _ -> E.s (error "Array length is not a constant expression %a"
+                            d_exp len)
+            end
+          | _ -> 
+              (* unsized array case, length comes from initializers *)
+              (!pMaxIdx + 1,
+               TArray (bt, Some (integer (!pMaxIdx + 1)), at))
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
@@ -1987,6 +2008,15 @@ let suggestAnonName (nl: A.name list) =
     [] -> ""
   | (n, _, _, _) :: _ -> n
 
+
+(** Optional constant folding of binary operations *)
+let optConstFoldBinOp (machdep: bool) (bop: binop) 
+                      (e1: exp) (e2:exp) (t: typ) = 
+  if !lowerConstants then 
+    constFoldBinOp machdep bop e1 e2 t
+  else
+    BinOp(bop, e1, e2, t)
+  
 (****** TYPE SPECIFIERS *******)
 let rec doSpecList (suggestedAnonName: string) (* This string will be part of 
                                                 * the names for anonymous 
@@ -2345,7 +2375,7 @@ and doAttr (a: A.attribute) : attribute list =
               match H.find env n' with 
                 EnvEnum (tag, _), _ -> begin
                   match isInteger (constFold true tag) with 
-                    Some i64 -> AInt (Int64.to_int i64)
+                    Some i64 when !lowerConstants -> AInt (Int64.to_int i64)
                   |  _ -> ACons(n', [])
                 end
               | _ -> ACons (n', [])
@@ -4049,27 +4079,29 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithmetic *)
     tres, 
-    constFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
+    optConstFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
   in
   let doArithmeticComp () = 
     let tres = arithmeticConversion t1 t2 in
     (* Keep the operator since it is arithemtic *)
     intType, 
-    constFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) intType
+    optConstFoldBinOp false bop 
+      (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) intType
   in
   let doIntegralArithmetic () = 
     let tres = unrollType (arithmeticConversion t1 t2) in
     match tres with
       TInt _ -> 
         tres,
-        constFoldBinOp false bop (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
+        optConstFoldBinOp false bop 
+          (mkCastT e1 t1 tres) (mkCastT e2 t2 tres) tres
     | _ -> E.s (error "%a operator on a non-integer type" d_binop bop)
   in
   let pointerComparison e1 t1 e2 t2 = 
     (* Cast both sides to an integer *)
     let commontype = !upointType in
     intType,
-    constFoldBinOp false bop (mkCastT e1 t1 commontype) 
+    optConstFoldBinOp false bop (mkCastT e1 t1 commontype) 
       (mkCastT e2 t2 commontype) intType
   in
 
@@ -4085,7 +4117,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         let t1' = integralPromotion t1 in
         let t2' = integralPromotion t2 in
         t1', 
-        constFoldBinOp false bop (mkCastT e1 t1 t1') (mkCastT e2 t2 t2') t1'
+        optConstFoldBinOp false bop (mkCastT e1 t1 t1') (mkCastT e2 t2 t2') t1'
 
   | (PlusA|MinusA) 
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -4094,18 +4126,21 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         doArithmeticComp ()
   | PlusA when isPointerType t1 && isIntegralType t2 -> 
       t1, 
-      constFoldBinOp false PlusPI e1 (mkCastT e2 t2 (integralPromotion t2)) t1
+      optConstFoldBinOp false PlusPI e1 
+        (mkCastT e2 t2 (integralPromotion t2)) t1
   | PlusA when isIntegralType t1 && isPointerType t2 -> 
       t2, 
-      constFoldBinOp false PlusPI e2 (mkCastT e1 t1 (integralPromotion t1)) t2
+      optConstFoldBinOp false PlusPI e2 
+        (mkCastT e1 t1 (integralPromotion t1)) t2
   | MinusA when isPointerType t1 && isIntegralType t2 -> 
       t1, 
-      constFoldBinOp false MinusPI e1 (mkCastT e2 t2 (integralPromotion t2)) t1
+      optConstFoldBinOp false MinusPI e1 
+        (mkCastT e2 t2 (integralPromotion t2)) t1
   | MinusA when isPointerType t1 && isPointerType t2 ->
       let commontype = t1 in
       intType,
-      constFoldBinOp false MinusPP (mkCastT e1 t1 commontype) 
-                                   (mkCastT e2 t2 commontype) intType
+      optConstFoldBinOp false MinusPP (mkCastT e1 t1 commontype) 
+                                      (mkCastT e2 t2 commontype) intType
   | (Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 
@@ -4207,7 +4242,7 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
   | _ -> 
       let (se, e, t) as rese = doExp asconst e (AExp None) in
       ignore (checkBool t e);
-      CEExp (se, constFold asconst e)
+      CEExp (se, if !lowerConstants then constFold asconst e else e)
 
 and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk = 
   match ce with 
@@ -5701,13 +5736,163 @@ and doStatement (s : A.statement) : chunk =
         let (se, e', et) = doExp true e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
-        let e'' = 
-          if !lowerCase then 
-            constFold false e'
-          else
-            e'
+        caseRangeChunk [if !lowerConstants then constFold false e' else e'] 
+          loc' (doStatement s)
+            
+    | A.CASERANGE (el, eh, s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let (sel, el', etl) = doExp false el (AExp None) in
+        let (seh, eh', etl) = doExp false eh (AExp None) in
+        if isNotEmpty sel || isNotEmpty seh then
+          E.s (error "Case statement with a non-constant");
+        let il, ih = 
+          match constFold true el', constFold true eh' with
+            Const(CInt64(il, _, _)), Const(CInt64(ih, _, _)) -> 
+              Int64.to_int il, Int64.to_int ih
+          | _ -> E.s (unimp "Cannot understand the constants in case range")
         in
-        caseRangeChunk [e''] loc' (doStatement s)
+        if il > ih then 
+          E.s (error "Empty case range");
+        let rec mkAll (i: int) = 
+          if i > ih then [] else integer i :: mkAll (i + 1)
+        in
+        caseRangeChunk (mkAll il) loc' (doStatement s)
+        
+
+    | A.DEFAULT (s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        defaultChunk loc' (doStatement s)
+                     
+    | A.LABEL (l, s, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Lookup the label because it might have been locally defined *)
+        consLabel (lookupLabel l) (doStatement s) loc' true
+                     
+    | A.GOTO (l, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Maybe we need to rename this label *)
+        gotoChunk (lookupLabel l) loc'
+
+    | A.COMPGOTO (e, loc) -> begin
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Do the expression *)
+        let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
+        match !gotoTargetData with
+          Some (switchv, switch) -> (* We have already generated this one  *)
+            se 
+            @@ i2c(Set (var switchv, mkCast e' uintType, loc'))
+            @@ s2c(mkStmt(Goto (ref switch, loc')))
+
+        | None -> begin
+            (* Make a temporary variable *)
+            let vchunk = createLocal 
+                (TInt(IUInt, []), NoStorage, false, [])
+                (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT) 
+            in
+            if not (isEmpty vchunk) then 
+              E.s (unimp "Non-empty chunk in creating temporary for goto *");
+            let switchv, _ = 
+              try lookupVar "__compgoto" 
+              with Not_found -> E.s (bug "Cannot find temporary for goto *");
+            in
+            (* Make a switch statement. We'll fill in the statements at the 
+            * end of the function *)
+            let switch = mkStmt (Switch (Lval(var switchv), 
+                                         mkBlock [], [], loc')) in
+            (* And make a label for it since we'll goto it *)
+            switch.labels <- [Label ("__docompgoto", loc', false)];
+            gotoTargetData := Some (switchv, switch);
+            se @@ i2c (Set(var switchv, mkCast e' uintType, loc')) @@
+            s2c switch
+        end
+      end
+
+    | A.DEFINITION d ->
+        let s = doDecl false d  in 
+(*
+        ignore (E.log "Def at %a: %a\n" d_loc !currentLoc d_chunk s);
+*)
+        s
+
+
+
+    | A.ASM (asmattr, tmpls, details, loc) -> 
+        (* Make sure all the outs are variables *)
+        let loc' = convLoc loc in
+        let attr' = doAttributes asmattr in
+        currentLoc := loc';
+        let temps : (lval * varinfo) list ref = ref [] in
+        let stmts : chunk ref = ref empty in
+	let (tmpls', outs', ins', clobs') =
+	  match details with
+	  | None ->
+	      let tmpls' =
+		if !msvcMode then
+		  tmpls
+		else
+		  let pattern = Str.regexp "%" in
+		  let escape = Str.global_replace pattern "%%" in
+		  List.map escape tmpls
+	      in
+	      (tmpls', [], [], [])
+	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
+              let outs' =
+		List.map
+		  (fun (c, e) ->
+		    let (se, e', t) = doExp false e (AExp None) in
+		    let lv =
+                      match e' with
+		      | Lval lval
+		      | StartOf lval -> lval
+                      | _ -> E.s (error "Expected lval for ASM outputs")
+		    in
+		    stmts := !stmts @@ se;
+		    (c, lv)) outs
+              in
+	      (* Get the side-effects out of expressions *)
+              let ins' =
+		List.map
+		  (fun (c, e) ->
+		    let (se, e', et) = doExp false e (AExp None) in
+		    stmts := !stmts @@ se;
+		    (c, e'))
+		  ins
+              in
+	      (tmpls, outs', ins', clobs)
+	in
+        !stmts @@
+        (i2c (Asm(attr', tmpls', outs', ins', clobs', loc')))
+
+    | TRY_FINALLY (b, h, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let b': chunk = doBody b in
+        let h': chunk = doBody h in
+        if b'.cases <> [] || h'.cases <> [] then 
+          E.s (error "Try statements cannot contain switch cases");
+        
+        s2c (mkStmt (TryFinally (c2block b', c2block h', loc')))
+        
+    | TRY_EXCEPT (b, e, h, loc) -> 
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        let b': chunk = doBody b in
+        (* Now do e *)
+        let ((se: chunk), e', t') = doExp false e (AExp None) in
+        let h': chunk = doBody h in
+        if b'.cases <> [] || h'.cases <> [] || se.cases <> [] then 
+          E.s (error "Try statements cannot contain switch cases");
+        (* Now take se and try to convert it to a list of instructions. This 
+         * might not be always possible *)
+        let il' = 
+          match compactStmts se.stmts with 
+            [] -> se.postins
+      
             
     | A.CASERANGE (el, eh, s, loc) -> 
         let loc' = convLoc loc in

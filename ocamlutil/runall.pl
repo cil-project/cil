@@ -6,11 +6,12 @@ use File::Basename;
 # usage runtests.pl filename
 #
 # The file is expected to contain the code for the test.
+#
 # The test file is scanned for lines that match some keywords. In 
 # all cases the rest of the line following the keywords may be a test
 # specification, of the form:
 #
-#  TestSpec ::= ["testname"] [: (error|success)[= "message"]]
+#  TestSpec ::= ["testname"] [: (error|success)[(=|~) "message"]]
 #
 # "testname" is the (optional) name of the test. If it is missing
 #   then a fresh new numeric name is made up. 
@@ -18,10 +19,14 @@ use File::Basename;
 # of the line may be empty. Otherwise there must be at least [: error] or [:
 # success], to say whether this test should fail or should succeed. 
 # Both for success and for failure you can define some text that must appear 
-# in the output of the test. 
+# in the output of the test (with the = specifier), or a Perl regexp that must
+# appear in the output (with the ~ specifier). 
 
 #
 # In a first pass, the file is scanned to collect a list of tests.
+# If there are no tests defined in the file, then we assume a default line
+#    TESTDEF "default" : success
+#
 #
 # Then for each test we process the file and we comment out some lines based
 # on the keywords that appear in the file:
@@ -86,7 +91,7 @@ my $countFreshName;
 
 my $hadErrors = 0;
 
-my $debug = 0;
+my $debug = 1;
 
 # Collect the test cases
 &scanTestFile("");
@@ -123,7 +128,7 @@ if($hadErrors) {
 
 sub parseTestDef {
     my ($text, $line) = @_;
-    my ($name, $success, $msg);
+    my ($name, $success, $msg, $msgpattern);
 
     # All the way to : is the name of the test
     if($text !~ m|^([^:]+):(.*)$|) {
@@ -153,11 +158,13 @@ sub parseTestDef {
         $rest = $2;
 
         # See if there is a message. Must be at least two chars long
-        if($rest =~ m|^\s*=\s*(\S.*\S)\s*$|) {
-            $msg = $1;
+        if($rest =~ m|^\s*(=\|~)\s*(\S.*\S)\s*$|) {
+            $msg = $2;
+            $msgpattern = ($1 eq "~");
         } else {
             if($rest =~ m|^\s*$|) {
                 $msg = "";
+                $msgpattern = 0;
             } else {
                 die ("After " . ($success ? "\"success\"" : "\"error\"") .
                      " there must be nothing of = ...");
@@ -179,7 +186,8 @@ sub parseTestDef {
                 print "Found test $name with msg:$msg\n";
                 $testnames{$name} = { SUCCESS => $success,
                                       LINE => $line,
-                                      MSG => $msg };
+                                      MSG => $msg,
+                                      MSGPATTERN => $msgpattern };
             }
         }
         return $name;
@@ -271,6 +279,12 @@ sub scanTestFile {
             }
         }
     }
+
+    if(0 == keys %testnames) {
+        print "There are no tests defined in the file. Assume a success test\n";
+        &parseTestDef("default : success", -1);
+        
+    }
 }
 
 sub runOneTest {
@@ -281,7 +295,7 @@ sub runOneTest {
 
     print "\n********* Running test $t from line $ti->{LINE}\n";
     if($debug) {
-        print "Test $t:\n\tSUCCESS => $ti->{SUCCESS}\n\tLINE => $ti->{LINE}\n\tMSG => $ti->{MSG}\n";
+        print "Test $t:\n\tSUCCESS => $ti->{SUCCESS}\n\tLINE => $ti->{LINE}\n\tMSG => $ti->{MSG},\n\tMSGPATTERN => $ti->{MSGPATTERN}\n";
     }
     open(OUT, ">$outfile\n") 
         || die "Cannot write $outfile";
@@ -333,11 +347,23 @@ sub runOneTest {
         } 
     } else {
         # Now we check the output for the message
-        if($ti->{MSG} ne "" &&
-           ! grep(/$ti->{MSG}/, @msgs)) {
-            warn "Cannot find $ti->{MSG} in output of test $t";
-            if(! defined($ENV{KEEPGOING})) {
-                die "";
+        if($ti->{MSG} ne "") {
+            # See if the message occurs
+            my $found = 0;
+            foreach my $l (@msgs) {
+                print "Checking: $l";
+                if($ti->{MSGPATTERN}) {
+                    $found = ($l =~ m%$ti->{MSG}%);
+                } else {
+                    $found = (0 <= index($l, $ti->{MSG}));
+                }
+                if($found) { last; }
+            }
+            if(! $found) {
+                warn "Cannot find \"$ti->{MSG}\" in output of test $t";
+                if(! defined($ENV{KEEPGOING})) {
+                    die "";
+                }
             }
         } else {
             print "Test $t (line $ti->{LINE}) was successful\n";

@@ -901,6 +901,16 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	COMMENT="// " \
 	 perl ../../ocamlutil/runall.pl $*.c
 
+
+runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	cd $(TESTDIR)/small2; \
+	CCURED_NO_SIGABRT=1 \
+	COMMAND="$(CCURED) --allowInlineAssembly \
+	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
+	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
+	COMMENT="// " \
+	 perl ../../ocamlutil/runall.pl $*.c
+
 # sm: trivial test of combiner
 MYSAFECC := $(CCURED) --save-temps=.
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
