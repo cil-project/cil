@@ -618,8 +618,8 @@ and constant =
       * the textual representation, if available. *)
   | CEnum of exp * string * enuminfo
      (** An enumeration constant with the given value, name, from the given 
-      * enuminfo. This is not used if {!Cil.lowerEnum} is false (default). 
-      * Use {!Cillower.lowerEnumVisitor} to replace these with integer 
+      * enuminfo. This is used only if {!Cil.lowerConstants} is true 
+      * (default). Use {!Cil.constFoldVisitor} to replace these with integer 
       * constants. *)
 
 (** Unary operators *)
@@ -890,8 +890,9 @@ and label =
            * input source program. If the bool is "false", the label was 
            * created by CIL or some other transformation *)
   | Case of exp * location              (** A case statement. This expression 
-                                         * is lowered into a constant, unless 
-                                         * {!Cil.lowerCase} is set to false. *)
+                                         * is lowered into a constant if 
+                                         * {!Cil.lowerConstants} is set to 
+                                         * true. *)
   | Default of location                 (** A default statement *)
 
 
@@ -1056,12 +1057,6 @@ and typsig =
 
 
 (** {b Lowering Options} *)
-
-val lowerEnum: bool ref
-    (** Do lower enumeration constants into integers (default true) *)
-
-val lowerCase: bool ref
-    (** Do lower the case constants into integers (default true) *)
 
 val lowerConstants: bool ref
     (** Do lower constants (default true) *)

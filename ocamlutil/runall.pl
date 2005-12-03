@@ -351,7 +351,7 @@ sub runOneTest {
             # See if the message occurs
             my $found = 0;
             foreach my $l (@msgs) {
-                print "Checking: $l";
+                # print "Checking: $l";
                 if($ti->{MSGPATTERN}) {
                     $found = ($l =~ m%$ti->{MSG}%);
                 } else {
@@ -360,7 +360,8 @@ sub runOneTest {
                 if($found) { last; }
             }
             if(! $found) {
-                warn "Cannot find \"$ti->{MSG}\" in output of test $t";
+                warn "Cannot " . ($ti->{MSGPATTERN} ? 'match' : 'find') . 
+                    " \"$ti->{MSG}\" in output of test $t";
                 if(! defined($ENV{KEEPGOING})) {
                     die "";
                 }

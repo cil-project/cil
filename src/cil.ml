@@ -70,10 +70,7 @@ let useLogicalOperators = ref false
 (* Cil.initCil will set this to the current machine description *)
 let theMachine : M.mach ref = ref M.gcc
 
-let lowerConstants = ref false
 
-let lowerEnum = ref true
-let lowerCase = ref true
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
 
