@@ -61,6 +61,9 @@ int main(){
     wchar_t c = L'\xabcd';
     unsigned short s = 0xABCD;
     if (s != c) E(10);
+    int c2 = L'ac'; //wide constants are 16 bits wide, so truncate this to 'c'.
+    if (c2 != L'c') E(11);
   }
-   return 0;
+
+   SUCCESS;
 }

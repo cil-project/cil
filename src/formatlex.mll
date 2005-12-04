@@ -292,11 +292,8 @@ rule initial =
 |		'%'			{PERCENT}
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
-|		_			{E.parse_error
-						"Formatlex: Invalid symbol"
-						(Lexing.lexeme_start lexbuf)
-						(Lexing.lexeme_end lexbuf);
-                                         raise Parsing.Parse_error
+|		_			{E.parse_error 
+                                           "Formatlex: Invalid symbol"
                                         }
 
 and comment =

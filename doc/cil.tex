@@ -1463,9 +1463,9 @@ bin/cilly -D HAPPY_MOOD -I myincludes hello.c -o hello
 \begin{itemize}
 \item preprocessing using the -D and -I arguments with the resulting file left in \t{hello.i}, 
 \item the invocation of the \t{cilly.asm} application which parses \t{hello.i}
-converts it to CIL and the pretty-prints it to \t{hellocil.c}
-\item another round of preprocessing with the result placed in \t{hellocil.i}
-\item the true compilation with the result in \t{hellocil.o}
+converts it to CIL and the pretty-prints it to \t{hello.cil.c}
+\item another round of preprocessing with the result placed in \t{hello.cil.i}
+\item the true compilation with the result in \t{hello.cil.o}
 \item a linking phase with the result in \t{hello}
 \end{itemize}
  
@@ -1498,7 +1498,7 @@ example,
 bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
 \end{verbatim}
 
- will produce a file \t{hellocil.c} that prints all the memory addresses
+ will produce a file \t{hello.cil.c} that prints all the memory addresses
 written by the application. 
 
  The most powerful feature of \t{cilly} is that it can collect all the
@@ -1527,9 +1527,9 @@ is turned on or not:
          \begin{enumerate}
             \item Preprocess the file with the given arguments to 
                   produce \t{file.i}
-            \item Invoke \t{cilly.asm} to produce a \t{filecil.c}
-            \item Preprocess to \t{filecil.i}
-            \item Invoke the underlying compiler to produce \t{filecil.o}
+            \item Invoke \t{cilly.asm} to produce a \t{file.cil.c}
+            \item Preprocess to \t{file.cil.i}
+            \item Invoke the underlying compiler to produce \t{file.cil.o}
          \end{enumerate}
     \item Link the resulting objects
   \end{enumerate}
@@ -1546,9 +1546,9 @@ is turned on or not:
           contains preprocessed source. Pass all those files to a 
           special merging application (described in
           \secref{merger}) to produce \t{hello.exe\_comb.c}
-    \item Invoke \t{cilly.asm} to produce a \t{hello.exe\_combcil.c}
-    \item Preprocess to \t{hello.exe\_combcil.i}
-    \item Invoke the underlying compiler to produce \t{hello.exe\_combcil.o}
+    \item Invoke \t{cilly.asm} to produce a \t{hello.exe\_comb.cil.c}
+    \item Preprocess to \t{hello.exe\_comb.cil.i}
+    \item Invoke the underlying compiler to produce \t{hello.exe\_comb.cil.o}
     \item Invoke the actual linker to produce \t{hello.exe}
   \end{enumerate}
 \end{itemize}

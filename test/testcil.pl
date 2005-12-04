@@ -967,7 +967,7 @@ sub altAddTest {
   my $tname = $self->uniqueName($name);
 
   if(scalar(@groups) == 0) { 
-      @groups = ( 'quick' );
+      @groups = ( 'alt' );
   } 
   my %patterns = %commonerrors;
   my $tst = $self->newTest(Name => $tname,

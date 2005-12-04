@@ -688,9 +688,7 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
   else begin
     (* Replace with the representative data *)
     let oldei = oldeinode.ndata in
-    let oldfidx = oldeinode.nfidx in
     let ei = einode.ndata in
-    let fidx = einode.nfidx in
     (* Try to match them. But if you cannot just make them both integers *)
     try
       (* We do not have a mapping. They better be defined in the same way *)
@@ -1345,7 +1343,7 @@ let oneFilePass2 (f: file) =
             mergePushGlobals (visitCilGlobal renameVisitor g)
           end
 
-      | GVar (vi, init, l) as g ->
+      | GVar (vi, init, l) ->
           currentLoc := l;
           incr currentDeclIdx;
           let vi' = processVarinfo vi l in
@@ -1434,7 +1432,6 @@ let oneFilePass2 (f: file) =
               (* If we must do alpha conversion then temporarily set the 
                * names of the local variables and formals in a standard way *)
               let nameId = ref 0 in 
-              let newName () = incr nameId;  in
               let oldNames : string list ref = ref [] in
               let renameOne (v: varinfo) = 
                 oldNames := v.vname :: !oldNames; 

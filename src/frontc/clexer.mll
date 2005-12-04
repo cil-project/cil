@@ -508,11 +508,7 @@ rule initial =
 |               "__extension__"         {initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
-|		_			{E.parse_error
-						"Invalid symbol"
-						(Lexing.lexeme_start lexbuf)
-						(Lexing.lexeme_end lexbuf);
-						initial lexbuf}
+|		_			{E.parse_error "Invalid symbol"}
 and comment =
     parse 	
       "*/"			        { () }

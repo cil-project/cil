@@ -169,10 +169,10 @@ let isOldStyleVarArgTypeName n =
  * values, turn it into a CIL constant.  Multi-character constants are
  * treated as multi-digit numbers with radix given by the bit width of
  * the specified type (either char or wchar_t). *)
-let reduce_multichar typ =
+let reduce_multichar typ : int64 list -> int64 =
   let radix = bitsSizeOf typ in
   List.fold_left
-    (fun acc -> Int64.add (Int64.shift_left acc 8))
+    (fun acc -> Int64.add (Int64.shift_left acc radix))
     Int64.zero
 
 let interpret_character_constant char_list =
@@ -585,11 +585,6 @@ let constFoldType (t:typ) : typ =
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
-  let stripConst t =
-    let a = typeAttrs t in
-    let a1 = dropAttribute "const" a in
-    setTypeAttrs t a1
-  in
   if !currentFunctionFDEC == dummyFunDec then 
     E.s (bug "newTempVar called outside a function");
 (*  ignore (E.log "stripConstLocalType(%a) for temporary\n" d_type typ); *)
@@ -679,7 +674,6 @@ let createEnumInfo (n: string) : enuminfo * bool =
 
    (* kind is either "struct" or "union" or "enum" and n is a name *)
 let findCompType (kind: string) (n: string) (a: attributes) = 
-  let key = kind ^ " " ^ n in
   let makeForward () = 
     (* This is a forward reference, either because we have not seen this 
      * struct already or because we want to create a version with different 
@@ -1588,9 +1582,6 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
   end 
 
 let conditionalConversion (t2: typ) (t3: typ) : typ =
-  let is_char k = match k with
-    IChar | ISChar | IUChar -> true
-  | _ -> false in 
   let tresult =  (* ISO 6.5.15 *)
     match unrollType t2, unrollType t3 with
       (TInt _ | TEnum _ | TFloat _), 
@@ -2589,7 +2580,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               (match unrollType a.vtype with
                 TArray(t,_,attr) -> a.vtype <- TPtr(t, attr)
               | TFun _ -> a.vtype <- TPtr(a.vtype, [])
-              | TComp (comp, _) as t -> begin
+              | TComp (comp, _) -> begin
                   match isTransparentUnion a.vtype with
                     None ->  ()
                   | Some fstfield -> 
@@ -2733,7 +2724,6 @@ and makeCompType (isstruct: bool)
 
 (*  ignore (E.log "makeComp: %s: %a\n" comp.cname d_attrlist a); *)
   comp.cattr <- a;
-  let toplevel_typedef = false in
   let res = TComp (comp, []) in
   (* This compinfo is defined, even if there are no fields *)
   comp.cdefined <- true;
@@ -3054,25 +3044,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               *)
 
         | A.CONST_WSTRING (ws: int64 list) -> 
-            (* takes a list of strings, and converts it to a WIDE string. *)
-            let intlist_to_wstring (str: int64 list) : string =
-              (* L"\xabcd" "e" must to go
-                 L"\xabcd\x65" and NOT L"\xabcde" *) 
-              let rec loop lst must_escape = match lst with
-                [] -> "" (* "\000" GN: nul-termination is implicit *) 
-              | hd :: tl -> 
-                let must_escape_now = must_escape || 
-                   (compare hd (Int64.of_int 255) > 0) || 
-                   (compare hd Int64.zero < 0) in
-                let this_piece = 
-                  if must_escape_now then 
-                    Printf.sprintf "\\x%Lx" hd
-                  else 
-                    String.make 1 (Char.chr (Int64.to_int hd))
-                in
-                this_piece ^ (loop tl must_escape_now)
-              in loop str false
-            in 
             let res = Const(CWStr ((* intlist_to_wstring *) ws)) in
             finishExp empty res (typeOf res)
 
@@ -3101,6 +3072,13 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             finishExp empty (Const a) b 
               
         | A.CONST_WCHAR char_list ->
+            (* matth: I can't see a reason for a list of more than one char
+             * here, since the kinteger64 below will take only the lower 16
+             * bits of value.  ('abc' makes sense, because CHAR constants have
+             * type int, and so more than one char may be needed to represent 
+             * the value.  But L'abc' has type wchar, and so is equivalent to 
+             * L'c').  But gcc allows L'abc', so I'll leave this here in case
+             * I'm missing some architecture dependent behavior. *)
 	    let value = reduce_multichar !wcharType char_list in
 	    let result = kinteger64 !wcharKind value in
             finishExp empty result (typeOf result)
@@ -4225,7 +4203,7 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
   end
 
   | _ -> 
-      let (se, e, t) as rese = doExp asconst e (AExp None) in
+      let (se, e, t) = doExp asconst e (AExp None) in
       ignore (checkBool t e);
       CEExp (se, if !lowerConstants then constFold asconst e else e)
 
@@ -4698,7 +4676,7 @@ and doInit
 (* Create and add to the file (if not already added) a global. Return the 
  * varinfo *)
 and createGlobal (specs : (typ * storage * bool * A.attribute list)) 
-                 (((n,ndt,a,cloc) as nm, inite) : A.init_name) : varinfo = 
+                 (((n,ndt,a,cloc), inite) : A.init_name) : varinfo = 
   try
     if debugGlobal then 
       ignore (E.log "createGlobal: %s\n" n);
@@ -5482,7 +5460,7 @@ and doTypedef ((specs, nl): A.name_group) =
         let namedTyp = TNamed(ti, []) in
         (* Register the type. register it as local because we might be in a
         * local context  *)
-        addLocalToEnv (kindPlusName "type" n) (EnvTyp (TNamed(ti, [])));
+        addLocalToEnv (kindPlusName "type" n) (EnvTyp namedTyp);
         cabsPushGlobal (GType (ti, !currentLoc))
       with e -> begin
         ignore (E.log "Error on A.TYPEDEF (%s)\n"
@@ -5811,7 +5789,6 @@ and doStatement (s : A.statement) : chunk =
         let loc' = convLoc loc in
         let attr' = doAttributes asmattr in
         currentLoc := loc';
-        let temps : (lval * varinfo) list ref = ref [] in
         let stmts : chunk ref = ref empty in
 	let (tmpls', outs', ins', clobs') =
 	  match details with

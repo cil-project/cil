@@ -1534,7 +1534,6 @@ let mkCompInfo
    comp.cname <- n;
    comp.ckey <- !nextCompinfoKey;
    incr nextCompinfoKey;
-   let self = ref voidType in
    let flds = 
        List.map (fun (fn, ft, fb, fa, fl) -> 
           { fcomp = comp;
@@ -2283,8 +2282,8 @@ and bitsSizeOf t =
   | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
       8 * !theMachine.M.sizeof_fun
 
-  | TArray (_, None, _) as t -> (* it seems that on GCC the size of such an 
-                                 * array is 0 *) 
+  | TArray (_, None, _) -> (* it seems that on GCC the size of such an 
+                            * array is 0 *) 
       0
 
   | TFun _ -> raise (SizeOfError ("function", t))
@@ -2362,7 +2361,7 @@ and constFold (machdep: bool) (e: exp) : exp =
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt64(i,ik,_)) as e1c -> begin
+          Const(CInt64(i,ik,_)) -> begin
             match unop with 
               Neg -> kinteger64 tk (Int64.neg i)
             | BNot -> kinteger64 tk (Int64.lognot i)
@@ -2935,8 +2934,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s\n" s);
-        zero
+        E.s (warn "Cannot find the last named argument when priting call to %s\n" s)
 
   (*** VARIABLES ***)
   (* variable use *)
@@ -3223,9 +3221,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           (* Print the destination *)
         ++ (match dest with
               None -> nil
-            | Some lv -> 
-                let destt = typeOfLval lv in
-                self#pLval () lv ++ text " = ")
+            | Some lv -> self#pLval () lv ++ text " = ")
           (* Now the call itself *)
         ++ dprintf "%s(%a, %a)" vi.vname
              (self#pType None) t1  (self#pType None) t2
@@ -3440,7 +3436,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 ++ text ") "
                 ++ self#pBlock () t)
           
-    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
                 battrs=[]},l)
      when !gref == next && not !printCilAsIs ->
        self#pLineDirective l
@@ -3460,7 +3456,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 ++ text ") "
                 ++ self#pBlock () e)
 
-    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
            battrs=[]},e,l)
       when !gref == next && not !printCilAsIs ->
         self#pLineDirective l
@@ -4195,15 +4191,6 @@ class plainCilPrinterClass =
   method pExp () = function
     Const(c) -> 
       let d_plainconst () c = 
-        let suffix ik = 
-          match ik with
-            IUInt -> "U"
-          | ILong -> "L"
-          | IULong -> "UL"
-          | ILongLong -> if !msvcMode then "L" else "LL"
-          | IULongLong -> if !msvcMode then "UL" else "ULL"
-          | _ -> ""
-        in
         match c with
           CInt64(i, ik, so) -> 
             dprintf "Int64(%s,%a,%s)" 
@@ -4636,7 +4623,6 @@ and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
 and childrenLval (vis: cilVisitor) (lv: lval) : lval =  
   (* and visit its subexpressions *)
   let vExp e = visitCilExpr vis e in
-  let vTyp t = visitCilType vis t in
   let vOff off = visitCilOffset vis off in
   match lv with
     Var v, off ->
@@ -4727,8 +4713,6 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   
 and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
   let fExp e = (visitCilExpr vis e) in
-  let fLval lv = (visitCilLval vis lv) in
-  let fOff o = (visitCilOffset vis o) in
   let fBlock b = visitCilBlock vis b in
   let fInst i = visitCilInstr vis i in
   (* Just change the statement kind *)
@@ -5106,12 +5090,11 @@ let getGlobInit ?(main_name="main") (fl: file) =
       fl.globinit <- Some f;
       (* Now try to add a call to the global initialized at the beginning of 
        * main *)
-      let mainname = "main" in
       let inserted = ref false in
       List.iter 
         (fun g ->
           match g with
-            GFun(m, lm) when m.svar.vname = "main" ->
+            GFun(m, lm) when m.svar.vname = main_name ->
               (* Prepend a prototype to the global initializer *)
               fl.globals <- GVarDecl (f.svar, lm) :: fl.globals;
               m.sbody.bstmts <- 
@@ -5469,7 +5452,7 @@ let rec makeZeroInit (t: typ) : init =
       in
       CompoundInit (t', inits)
 
-  | TComp (comp, _) as t' when not comp.cstruct -> 
+  | TComp (comp, _) when not comp.cstruct -> 
       let fstfield = 
         match comp.cfields with
           f :: _ -> f

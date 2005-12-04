@@ -186,7 +186,6 @@ let print str =
 let print_unescaped_string str = print str
 
 let setLoc (l : cabsloc) =
-  let tempcur = current in
   if !printLn then  
     if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
       begin

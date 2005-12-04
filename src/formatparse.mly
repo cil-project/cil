@@ -45,7 +45,6 @@ let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)
   E.hadErrors := true;
   E.parse_error
     msg
-    (Parsing.symbol_start ()) (Parsing.symbol_end ())
 
 
 let getArg (argname: string) (args: (string * formatArg) list) = 

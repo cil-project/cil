@@ -45,7 +45,6 @@ let withTimeout (secs: float) (* Seconds for timeout *)
 
 (** Print a hash table *)
 let docHash ?(sep=chr ',') (one: 'a -> 'b -> doc) () (h: ('a, 'b) H.t) = 
-  let theDoc = ref nil in
   (H.fold 
      (fun key data acc -> 
        if acc == align then acc ++ one key data

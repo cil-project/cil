@@ -150,7 +150,6 @@ let rec processOneFile (cil: C.file) =
         
 (***** MAIN *****)  
 let rec theMain () =
-  let doCombine = ref "" in 
   let usageMsg = "Usage: cilly [options] source-files" in
   (* Processign of output file arguments *)
   let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
@@ -162,14 +161,6 @@ let rec theMain () =
       raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fl)))
   in
   let outName = ref "" in
-  let setDebugFlag v name =
-    E.debugFlag := v;
-    if v then Pretty.flushOften := true
-  in
-  (* sm: for print depth *)
-  let setTraceDepth n =
-    Pretty.printDepth := n
-  in
   (* sm: enabling this by default, since I think usually we
    * want 'cilly' transformations to preserve annotations; I
    * can easily add a command-line flag if someone sometimes
@@ -288,13 +279,11 @@ let cleanup () =
 
 ;;
 
-try 
-  theMain (); 
-  cleanup ();
-  exit (if !failed then 1 else 0)
-with F.CabsOnly -> (* This is Ok *) fun () -> exit 0
-
+begin 
+  try 
+    theMain (); 
+  with F.CabsOnly -> (* this is OK *) ()
+end;
 cleanup ();
-
-;;
+exit (if !failed then 1 else 0)
 
