@@ -1,7 +1,6 @@
 (* bitvector.ml *)
 (* Unit tests and ML implementation for some of bitvector.mli. *)
 
-open Bitvector         (* module to test *)
 open Pretty            (* pretty printing *)
 
 
