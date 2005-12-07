@@ -663,10 +663,12 @@ sub compile {
         print STDERR "Saving source $src->{filename} into $outfile\n";
     }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
-    my $toprintsrc = $src->{filename}; $toprintsrc =~ s|\\|/|g;
+    my $srcname = ref $src ? $src->filename : $src; 
+    my $toprintsrc = $srcname; 
+    $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime,\"$toprintsrc\",\"" . 
               join(',', @{$ccargs}), "\")\n";
-    open(IN, '<', $src->{filename}) || die "Cannot read $src->{filename}";
+    open(IN, '<', $srcname) || die "Cannot read $srcname";
     while(<IN>) {
         print OUT $_;
     }

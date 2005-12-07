@@ -517,6 +517,7 @@ $TEST->addTests("combineinline3", "", ['cil']);
 $TEST->addTests("combineinline4", "", ['cil']);
 $TEST->addTests("combineinline6", "", ['cil']);
 $TEST->addTests("combinestruct1", "", ['cil']);
+$TEST->addTests("mixedcomb", "", ['cil']);
 $TEST->addTests("testrun/math1", "", ['cil']);
 $TEST->addTests("test/linuxcombine1_1", "", ['cil']);
 

@@ -1,17 +1,13 @@
-// com1.c
-// part 1 of a program expected to be combined
+// comb1.c
+// part 1/4 of a program expected to be combined
 
 #ifndef __HEAPIFY
   #define __HEAPIFY
 #endif
 
-int global_com1 = 5;
+int global_com4; //even without an extern decl, this should link to comb4's 
+                 //global var, which is initialized to 5.
 
-int foo_com1(int x)
-{
-  return x + global_com1 + sizeof(int*);
-}
-  
 int *globalPtr;
 
 void hpfy()
@@ -20,8 +16,8 @@ void hpfy()
   globalPtr = &local;
 }
 
-int foo2_com1(int x)
+int foo_com1(int x)
 {
-  return x + global_com1 + sizeof(int*);
+  return x + global_com4;
 }
-
+  

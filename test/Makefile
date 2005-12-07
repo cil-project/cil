@@ -918,7 +918,20 @@ comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 	cd $(TESTDIR)/small2; \
 	  $(MYSAFECC)  comb1.c $(CONLY) $(OBJOUT) comb1.o; \
 	  $(MYSAFECC)  comb2.c $(CONLY) $(OBJOUT) comb2.o; \
-          $(MYSAFECC)  comb1.o comb2.o $(EXEOUT)comb.exe
+	  $(MYSAFECC)  comb3.c $(CONLY) $(OBJOUT) comb3.o; \
+	  $(MYSAFECC)  comb4.c $(CONLY) $(OBJOUT) comb4.o; \
+          $(MYSAFECC)  comb1.o comb2.o comb3.o comb4.o $(EXEOUT)comb.exe
+	$(TESTDIR)/small2/comb.exe
+
+#call cilly on a .c file, a .i file, a .s file, and a .o file.
+#Of course, only the first two are merged.
+mixedcomb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
+	rm -f $(TESTDIR)/small2/comb.exe
+	cd $(TESTDIR)/small2; \
+	  gcc -E -o comb2.i comb2.c; \
+	  gcc -S -o comb3.s comb3.c; \
+	  gcc -c -o comb4.o comb4.c; \
+	  $(MYSAFECC)  comb1.c comb2.i comb3.s comb4.o $(EXEOUT)comb.exe
 	$(TESTDIR)/small2/comb.exe
 
 # sm: another merger test
