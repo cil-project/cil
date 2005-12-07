@@ -217,6 +217,8 @@ $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");
 $TEST->add3Tests("test/array2");
 $TEST->addTests("testrun/array3", "", ['inferbox']);
+$TEST->add2Tests("testrun/array_varsize");
+$TEST->addTests("testrun/formalscope", "", ['cil']);
 $TEST->add3Tests("test/matrix");
 $TEST->add3Tests("testrun/switch");
 $TEST->add3Tests("testrun/strloop");

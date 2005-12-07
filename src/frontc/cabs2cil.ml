@@ -1010,11 +1010,11 @@ let lookupLabel (l: string) =
 
 
 (** ALLOCA ***)
-let allocaFun = 
+let allocaFun () = 
   let fdec = emptyFunction "alloca" in
   fdec.svar.vtype <- 
      TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
-  fdec
+  fdec.svar
   
 (* Maps local variables that are variable sized arrays to the expression that 
  * denotes their length *)
@@ -2560,7 +2560,24 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Make the argument as for a formal *)
         let doOneArg (s, (n, ndt, a, cloc)) : varinfo = 
           let s' = doSpecList n s in
-          makeVarInfoCabs ~isformal:true ~isglobal:false (convLoc cloc) s' (n,ndt,a)
+          let ndt' =  match isVariableSizedArray ndt with
+              None -> ndt
+            | Some (ndt', se, len) -> 
+                (* If this is a variable-sized array, we replace the array
+                   type with a pointer type.  This is the defined behavior
+                   for array parameters, so we do not need to add this to
+                   varSizeArrays, fix sizeofs, etc. *)
+                if isNotEmpty se then
+                  E.s (error "array parameter: length not pure");
+                ndt'
+          in              
+          let vi = makeVarInfoCabs ~isformal:true ~isglobal:false 
+                     (convLoc cloc) s' (n,ndt',a) in
+          (* Add the formal to the environment, so it can be referenced by
+             other formals  (e.g. in an array type, although that will be
+             changed to a pointer later, or though typeof).  *) 
+          addLocalToEnv vi.vname (EnvVar vi);
+          vi
         in
         let targs : varinfo list option = 
           match List.map doOneArg args'  with
@@ -4893,7 +4910,7 @@ and createLocal ((_, sto, _, _) as specs)
             E.s (error "Variable-sized array cannot have initializer");
           se0 +++ (Set(var savelen, len, !currentLoc)) 
             (* Initialize the variable *)
-            +++ (Call(Some(var vi), Lval(var allocaFun.svar), 
+            +++ (Call(Some(var vi), Lval(var (allocaFun ())), 
                       [ sizeof  ], !currentLoc))
         end else empty
       in
