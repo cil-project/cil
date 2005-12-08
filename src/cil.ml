@@ -4392,6 +4392,26 @@ let setFunctionType (f: fundec) (t: typ) =
   | _ -> E.s (E.bug "setFunctionType: not a function type")
       
 
+   (* Set the types of arguments and results as given by the function type 
+    * passed as the second argument *)
+let setFunctionTypeMakeFormals (f: fundec) (t: typ) = 
+  match unrollType t with
+    TFun (rt, Some args, va, a) -> 
+      if f.sformals <> [] then 
+        E.s (E.warn "setFunctionTypMakeFormals called on function %s with some formals already"
+               f.svar.vname);
+      (* Change the function type. *)
+      f.svar.vtype <- t; 
+      f.sformals <- [];
+      
+      f.sformals <- List.map (fun (n,t,a) -> makeLocal f n t) args;
+
+      setFunctionType f t
+
+  | _ -> E.s (E.bug "setFunctionTypeMakeFormals: not a function type: %a"
+             d_type t)
+      
+
 let setMaxId (f: fundec) = 
   f.smaxid <- List.length f.sformals + List.length f.slocals
 

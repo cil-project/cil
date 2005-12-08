@@ -205,8 +205,9 @@ and typ =
            * indicates if it is a variable-argument function. If this is the 
            * type of a varinfo for which we have a function declaration then 
            * the information for the formals must match that in the 
-           * function's sformals. Use {!Cil.setFormals} or 
-           * {!Cil.setFunctionType} for this purpose. *)
+           * function's sformals. Use {!Cil.setFormals}, or 
+           * {!Cil.setFunctionType}, or {!Cil.makeFormalVar} for this 
+           * purpose. *)
 
   | TNamed of typeinfo * attributes 
           (* The use of a named type. Each such type name must be preceded 
@@ -800,7 +801,7 @@ local variables and separately a list of the formals. Both kind of variables
 can be referred to in the body of the function. The formals must also be shared
 with the formals that appear in the function type. For that reason, to
 manipulate formals you should use the provided functions
-{!Cil.makeFormalVar} and {!Cil.setFormals}. 
+{!Cil.makeFormalVar} and {!Cil.setFormals} and {!Cil.makeFormalVar}. 
 *)
 (** Function definitions. *)
 and fundec =
@@ -813,7 +814,8 @@ and fundec =
         (** Formals. These must be in the same order and with the same 
          * information as the formal information in the type of the function. 
          * Use {!Cil.setFormals} or 
-         * {!Cil.setFunctionType} to set these formals and ensure that they 
+         * {!Cil.setFunctionType} or {!Cil.makeFormalVar} 
+         * to set these formals and ensure that they 
          * are reflected in the function type. Do not make copies of these 
          * because the body refers to them. *)
       mutable slocals: varinfo list;    
@@ -1103,6 +1105,10 @@ val setFormals: fundec -> varinfo list -> unit
  * passed as the second argument. Will not copy the names from the function 
  * type to the formals *)
 val setFunctionType: fundec -> typ -> unit
+
+
+(** Set the type of the function and make formal arguments for them *)
+val setFunctionTypeMakeFormals: fundec -> typ -> unit
 
 (** Update the smaxid after you have populated with locals and formals 
  * (unless you constructed those using {!Cil.makeLocalVar} or 
