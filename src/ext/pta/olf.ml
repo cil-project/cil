@@ -975,11 +975,17 @@ let return (t : tau) (t' : tau) =
 (*                                                                     *)
 (***********************************************************************)
 
+module IntHash = Hashtbl.Make (struct
+                                 type t = int
+                                 let equal x y = x = y
+                                 let hash x = x
+                               end)
+
 (** todo : reached_top !! *)
 let collect_ptset_fast (l : c_absloc) : abslocset =
-  let onpath : (int, int) H.t = H.create 4 in
+  let onpath : unit IntHash.t = IntHash.create 101 in
   let path : c_absloc list ref = ref [] in
-  let compute_path (i :int) =
+  let compute_path (i : int) =
     keep_until (fun l -> i = get_c_absloc_stamp l) !path in
   let collapse_cycle (cycle : c_absloc list) =
     match cycle with
@@ -988,20 +994,21 @@ let collect_ptset_fast (l : c_absloc) : abslocset =
           C.empty
       | [] -> die "collapse cycle" in
   let rec flow_step (l : c_absloc) : abslocset =
-    if H.mem onpath (get_c_absloc_stamp l) then (* already seen *)
-      collapse_cycle (compute_path (get_c_absloc_stamp l))
-    else
-      let li = find l in
-        H.add onpath (get_c_absloc_stamp l) (get_c_absloc_stamp l);
-        path := l :: !path;
-        B.iter
-          (fun lb -> li.aliases <- C.union li.aliases (flow_step lb.info))
-          li.lbounds;
-        path := List.tl !path;
-        H.remove onpath (get_c_absloc_stamp l);
-        li.aliases
+    let stamp = get_c_absloc_stamp l in
+      if IntHash.mem onpath stamp then (* already seen *)
+        collapse_cycle (compute_path stamp)
+      else
+        let li = find l in
+          IntHash.add onpath stamp ();
+          path := l :: !path;
+          B.iter
+            (fun lb -> li.aliases <- C.union li.aliases (flow_step lb.info))
+            li.lbounds;
+          path := List.tl !path;
+          IntHash.remove onpath stamp;
+          li.aliases
   in
-    insist (can_query_graph ()) "flow_step can't query graph";
+    insist (can_query_graph ()) "collect_ptset_fast can't query graph";
     if get_flow_computed l then get_aliases l
     else
       begin
@@ -1012,20 +1019,19 @@ let collect_ptset_fast (l : c_absloc) : abslocset =
 (** this is a quadratic flow step. keep it for debugging the fast
     version above. *)
 let collect_ptset_slow (l : c_absloc) : abslocset =
-  let onpath : (int, int) H.t = H.create 4 in
+  let onpath : unit IntHash.t = IntHash.create 101 in
   let rec flow_step (l : c_absloc) : abslocset =
     if top_c_absloc l then raise ReachedTop
     else
-      begin
-        if H.mem onpath (get_c_absloc_stamp l) then C.empty
+      let stamp = get_c_absloc_stamp l in
+        if IntHash.mem onpath stamp then C.empty
         else
           let li = find l in
-            H.add onpath (get_c_absloc_stamp l) (get_c_absloc_stamp l);
+            IntHash.add onpath stamp ();
             B.iter
               (fun lb -> li.aliases <- C.union li.aliases (flow_step lb.info))
               li.lbounds;
             li.aliases
-      end
   in
     insist (can_query_graph ()) "collect_ptset_slow can't query graph";
     if get_flow_computed l then get_aliases l
