@@ -37,20 +37,32 @@ class zraCilPrinterClass : cilPrinter = object (self)
       (E.s (warn "variable %s not in pp environment\n" v.vname);
        v)
 
+  (* True when v agrees with the entry in the environment for the name of v.
+     False otherwise *)
   method private checkVi (v:varinfo) : bool =
     U.equals v (self#getEnvVi v)
 
   (* variable use *)
   method pVar (v:varinfo) =
+    (* warn about instances where a possibly unintentionally conflicting name is used *)
     ((if not (self#checkVi v) then
       let evi = self#getEnvVi v in
-      ignore (warnLoc v.vdecl "mentioned variable %s and its entry in the current environment have different varinfo.\n"
+      ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
 	     v.vname));
     text v.vname)
 
  (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    let _ = H.add lenvHtbl v.vname v in
+    (* See if the name is already in the environment with a different varinfo. If so, give a warning.
+       If not, add the name to the environment *)
+    let _ = if (H.mem lenvHtbl v.vname) && not(self#checkVi v) then
+      ignore( warn "name %s has already been declared locally with different varinfo\n" v.vname)
+    else if (H.mem genvHtbl v.vname) && not(self#checkVi v) then
+      ignore( warn "name %s has already been declared globally with different varinfo\n" v.vname)
+    else if not v.vglob then 
+      H.add lenvHtbl v.vname v 
+    else
+      H.add genvHtbl v.vname v in
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
@@ -729,7 +741,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
           text (compFullName comp) ++ text ";\n"
 
     | GVar (vi, io, l) ->
-	let _ = H.add genvHtbl vi.vname vi in
         self#pLineDirective ~forcefile:true l ++
           self#pVDecl () vi
           ++ chr ' '
@@ -749,7 +760,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
       
     (* print global variable 'extern' declarations, and function prototypes *)
     | GVarDecl (vi, l) ->
-	let _ = H.add genvHtbl vi.vname vi in
         self#pLineDirective l ++
           (self#pVDecl () vi)
           ++ text ";\n"
@@ -815,7 +825,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
          output_string out "\n"
 
      | GVar (vi, {init = Some i}, l) -> begin
-	 let _ = H.add genvHtbl vi.vname vi in
          fprint out 80 
            (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
@@ -844,7 +853,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
        | Some i -> text ": " ++ num i ++ text " ")
        ++ self#pAttrs () fi.fattr
        ++ text ";"
-       
+
   method private pFunDecl () f =
     ( H.add genvHtbl f.svar.vname f.svar; (* add function to global env *)
       H.clear lenvHtbl; (* new local environment *)
