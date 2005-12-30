@@ -109,6 +109,7 @@ let features : C.featureDescr list =
     Sfi.feature;
     Dataslicing.feature;
     Logcalls.feature;
+    Zrapp.feature;
   ] 
   @ Feature_config.features 
 

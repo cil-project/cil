@@ -1184,6 +1184,9 @@ val copyFunction: fundec -> string -> fundec
 val pushGlobal: global -> types: global list ref 
                        -> variables: global list ref -> unit
 
+(** An empty statement. Used in pretty printing *)
+val invalidStmt: stmt
+
 (** A list of the GCC built-in functions. Maps the name to the result and 
   * argument types, and whether it is vararg *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
@@ -1326,6 +1329,9 @@ val unrollType: typ -> typ
  * [TPtr], [TFun] or [TArray]. Does not unroll the types of fields in [TComp] 
  * types. Will collect all attributes *)
 val unrollTypeDeep: typ -> typ 
+
+(** Separate out the storage-modifier name attributes *)
+val separateStorageModifiers: attribute list -> attribute list * attribute list
 
 (** True if the argument is an integral type (i.e. integer or enum) *)
 val isIntegralType: typ -> bool
@@ -1665,6 +1671,10 @@ val addAttributes: attribute list -> attributes -> attributes
     sorted order.  *)
 val dropAttribute: string -> attributes -> attributes
 
+(** Remove all attributes with names appearing in the string list.
+ *  Maintains the attributes in sorted order *)
+val dropAttributes: string list -> attributes -> attributes
+
 (** Retains attributes with the given name *)
 val filterAttributes: string -> attributes -> attributes
 
@@ -1894,6 +1904,12 @@ val print_CIL_Input: bool ref
   * the __builtin_va_arg function will be printed in its internal form. *)
 val printCilAsIs: bool ref
 
+(** Return the string 's' if we're printing output for gcc, suppres
+ *  it if we're printing for CIL to parse back in.  the purpose is to
+ *  hide things from gcc that it complains about, but still be able
+ *  to do lossless transformations when CIL is the consumer *)
+val forgcc: string -> string
+
 (** {b Debugging support} *)
 
 (** A reference to the current location. If you are careful to set this to 
@@ -1945,6 +1961,22 @@ val d_storage: unit -> storage -> Pretty.doc
 (** Pretty-print a constant *)
 val d_const: unit -> constant -> Pretty.doc
 
+
+val derefStarLevel: int
+val indexLevel: int
+val arrowLevel: int
+val addrOfLevel: int
+val additiveLevel: int
+val comparativeLevel: int
+val bitwiseLevel: int
+
+(** Parentheses level. An expression "a op b" is printed parenthesized if its 
+ * parentheses level is >= that that of its context. Identifiers have the 
+ * lowest level and weakly binding operators (e.g. |) have the largest level. 
+ * The correctness criterion is that a smaller level MUST correspond to a 
+ * stronger precedence!
+ *)
+val getParenthLevel: exp -> int
 
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinterClass}. *)
