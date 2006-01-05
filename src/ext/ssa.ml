@@ -216,9 +216,6 @@ let dominance_frontier (flowgraph: cfgInfo) : dfInfo =
   let size  = flowgraph.size in
   let start  = flowgraph.start in
   let successors = flowgraph.successors in
-  let predecessors = flowgraph.predecessors in
-  
-  let nodeSet = B.init size (fun i -> true) in (* and a set with those elements *)
   
   let df = Array.create size [] in
                                         (* Compute the dominance frontier  *)
@@ -601,12 +598,6 @@ let strong_components (f: cfgInfo) (debug: bool) =
  
 let stronglyConnectedComponents (f: cfgInfo) (debug: bool): sccInfo = 
   let size = f.size in
-  let lowlink = Array.make size (-1) in
-  let dfn = Array.make size (-1) in  
-  let all_scc = ref([]) in
-  let stack = ref([]) in  
-  let nextdfn = ref(-1) in
-
   if (debug) then begin
     ignore (E.log "size = %d\n" size);
     for i = 0 to size - 1 do 
