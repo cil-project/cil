@@ -112,13 +112,6 @@ let addProto = ref false
 
 let logCalls (f: file) : unit =
 
-  (* debugging 'anagram', it's really nice to be able to see the strings *)
-  (* inside fat pointers, even if it's a bit of a hassle and a hack here *)
-  let isFatCharPtr (cinfo:compinfo) =
-    cinfo.cname="wildp_char" ||
-    cinfo.cname="fseqp_char" ||
-    cinfo.cname="seqp_char" in
-
   let doGlobal = function
       GFun (fdec, loc) ->
         currentFunc := fdec.svar.vname;
@@ -130,6 +123,13 @@ let logCalls (f: file) : unit =
           mkBlock [ mkStmtOneInstr pre;
                     mkStmt (Block fdec.sbody) ]
 (*
+	(* debugging 'anagram', it's really nice to be able to see the strings *)
+	(* inside fat pointers, even if it's a bit of a hassle and a hack here *)
+	let isFatCharPtr (cinfo:compinfo) =
+	  cinfo.cname="wildp_char" ||
+	  cinfo.cname="fseqp_char" ||
+	  cinfo.cname="seqp_char" in
+
         (* Collect expressions that denote the actual arguments *)
         let actargs =
           (* make lvals out of args which pass test below *)
