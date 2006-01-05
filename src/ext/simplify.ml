@@ -166,8 +166,7 @@ and simplifyLval
             start
           with SizeOfError (whystr, t') -> 
             E.s (E.bug "%a: Cannot compute sizeof: %s: %a"
-                   d_loc !currentLoc whystr d_type t');
-            1 (* Make sure it is not a multiple of 8 bits *)
+                   d_loc !currentLoc whystr d_type t')
         in
         if start land 7 <> 0 then begin
           (* We have a bitfield *)

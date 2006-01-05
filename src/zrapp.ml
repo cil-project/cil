@@ -18,8 +18,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s\n" s);
-        zero
+        E.s (warn "Cannot find the last named argument when priting call to %s\n" s)
 
   (*** VARIABLES ***)
 
@@ -34,8 +33,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
       then H.find lenvHtbl v.vname
       else H.find genvHtbl v.vname
     with Not_found ->
-      (E.s (warn "variable %s not in pp environment\n" v.vname);
-       v)
+      E.s (warn "variable %s not in pp environment\n" v.vname)
 
   (* True when v agrees with the entry in the environment for the name of v.
      False otherwise *)
@@ -46,7 +44,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
   method pVar (v:varinfo) =
     (* warn about instances where a possibly unintentionally conflicting name is used *)
     ((if not (self#checkVi v) then
-      let evi = self#getEnvVi v in
       ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
 	     v.vname));
     text v.vname)
@@ -342,7 +339,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
         ++ (match dest with
               None -> nil
             | Some lv -> 
-                let destt = typeOfLval lv in
                 self#pLval () lv ++ text " = ")
           (* Now the call itself *)
         ++ dprintf "%s(%a, %a)" vi.vname
@@ -558,7 +554,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
                 ++ text ") "
                 ++ self#pBlock () t)
           
-    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
                 battrs=[]},l)
      when !gref == next && not !printCilAsIs ->
        self#pLineDirective l
@@ -578,7 +574,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
                 ++ text ") "
                 ++ self#pBlock () e)
 
-    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]} as s];
+    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
            battrs=[]},e,l)
       when !gref == next && not !printCilAsIs ->
         self#pLineDirective l
