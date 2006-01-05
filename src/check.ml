@@ -68,7 +68,7 @@ let warnContext fmt =
 let checkAttributes (attrs: attribute list) : unit = 
   let rec loop lastname = function
       [] -> ()
-    | (Attr(an, _) as a) :: resta -> 
+    | Attr(an, _) :: resta -> 
         if an < lastname then
           ignore (warn "Attributes not sorted");
         loop an resta

@@ -195,7 +195,7 @@ let categorizePragmas file =
 	    | _ ->
 		badPragma location directive
 	  end
-      | GPragma (Attr("ccuredvararg" as directive, funcname :: (ASizeOf t) :: _), location) ->
+      | GPragma (Attr("ccuredvararg", funcname :: (ASizeOf t) :: _), location) ->
 	  begin
 	    match t with
 	    | TComp(c,_) when c.cstruct -> (* struct *)
@@ -263,18 +263,18 @@ let amputateFunctionBodies keptGlobals file =
 
 
 let isPragmaRoot keepers = function
-  | GType ({tname = name} as info, _) ->
+  | GType ({tname = name}, _) ->
       H.mem keepers.typedefs name
-  | GEnumTag ({ename = name} as info, _)
-  | GEnumTagDecl ({ename = name} as info, _) ->
+  | GEnumTag ({ename = name}, _)
+  | GEnumTagDecl ({ename = name}, _) ->
       H.mem keepers.enums name
-  | GCompTag ({cname = name; cstruct = structure} as info, _)
-  | GCompTagDecl ({cname = name; cstruct = structure} as info, _) ->
+  | GCompTag ({cname = name; cstruct = structure}, _)
+  | GCompTagDecl ({cname = name; cstruct = structure}, _) ->
       let collection = if structure then keepers.structs else keepers.unions in
       H.mem collection name
-  | GVar ({vname = name} as info, _, _)
-  | GVarDecl ({vname = name} as info, _)
-  | GFun ({svar = {vname = name} as info}, _) ->
+  | GVar ({vname = name}, _, _)
+  | GVarDecl ({vname = name}, _)
+  | GFun ({svar = {vname = name}}, _) ->
       H.mem keepers.defines name
   | _ ->
       false
@@ -363,7 +363,7 @@ let isExportedRoot global =
 
 let isCompleteProgramRoot global =
   let result = match global with
-  | GFun ({svar = {vname = "main"; vstorage = vstorage} as info}, _) ->
+  | GFun ({svar = {vname = "main"; vstorage = vstorage}}, _) ->
       vstorage <> Static
   | GFun (fundec, _)
     when hasExportingAttribute fundec.svar ->
