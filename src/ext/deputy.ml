@@ -47,6 +47,8 @@ let curStmt : int ref = ref (-1)
 
 let staticGlobalVars : varinfo list ref = ref []
 
+let exemptLocalVars : varinfo list ref = ref []
+
 (* Assign to each statement a unique ID. *)
 let nextStmtId : int ref = ref 0
 let assignID (s:stmt) : unit =
@@ -442,7 +444,16 @@ let structContext (lv: lval) (ci: compinfo) : context =
 (**************************************************************************)
 
 let compareTypes (t1 : typ) (t2 : typ) : bool =
-  (typeSig t1) = (typeSig t2)
+  let typeSigNC (t : typ) : typsig =
+    let attrFilter (attr : attribute) : bool =
+      match attr with
+      | Attr ("const", [])
+      | Attr ("always_inline", []) -> false
+      | _ -> true
+    in
+    typeSigWithAttrs (List.filter attrFilter) t
+  in
+  (typeSigNC t1) = (typeSigNC t2)
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
@@ -517,6 +528,9 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       end
       else
         addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
+      ()
+  | TPtr _, TInt _ ->
+      (* Coerce pointer to integer. *)
       ()
   | TInt _, TPtr _ when isZero e ->
       (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
@@ -681,7 +695,7 @@ let checkCall (lvo: lval option)
   match checkExp fn with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
-        E.s (E.unimp "varargs unimplemented\n");
+        E.warn "%a: varargs were not checked\n" d_loc !currentLoc;
       (match lvo with
        | Some lv -> 
            (* TODO: let the return type depend on formals *)
@@ -758,7 +772,6 @@ let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp
 let checkSet (lv: lval) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
-  let eType = checkExp e in
   let lvType = checkLval (ForWrite e) lv in
   let off1, off2 = removeOffset (snd lv) in
   begin
@@ -806,10 +819,22 @@ let checkInstr (instr : instr) : unit =
       checkAlloc lv t e
   | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "calloc" ->
       E.s (error "bad call to %s." vi.vname)
+  | Call (Some lv, Lval (Var vi, NoOffset), [e; _], _) 
+      when vi.vname = "__kmalloc" ->
+      let t =
+        match typeOfLval lv with
+        | TPtr (bt, _) -> bt
+        | _ -> E.s (E.bug "expected pointer type\n")
+      in
+      checkAlloc lv t (BinOp (Div, e, SizeOf t, intType))
+  | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "__kmalloc" ->
+      E.s (error "bad call to %s." vi.vname)
   (* Function call *)
   | Call (lvo, fn, args, _) ->
       checkCall lvo fn args
   (* Assignment *)
+  | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
+      ()
   | Set (lv, e, _) ->
       (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
          self-dependencies. So just ignore casts. *)
@@ -888,7 +913,8 @@ let checkVar (vi: varinfo) (init: initinfo) : unit =
     E.s (E.error "%a: type of global %s is ill-formed\n"
                  d_loc !currentLoc vi.vname);
   if init.init <> None then
-    E.s (E.unimp "global variable initializers unsupported\n")
+    E.warn "%a: global variable initializer was not checked\n"
+           d_loc !currentLoc
 
 let checkFundec (fd : fundec) (loc:location) : unit =
   if !verbose then
@@ -1000,7 +1026,37 @@ end
 
 (**************************************************************************)
 
+let preProcessVisitor = object (self)
+  inherit nopCilVisitor
+
+  method vexpr e =
+    match e with
+    | Const (CStr str) ->
+        let t =
+          TPtr (charType, [Attr ("nullterm", []);
+                           Attr ("bounds", [ACons ("__this", []);
+                                            ACons ("__this", [])])])
+        in
+        let tmp = makeTempVar !curFunc t in
+        exemptLocalVars := tmp :: !exemptLocalVars;
+        self#queueInstr [Set (var tmp, e, locUnknown)];
+        ChangeTo (Lval (var tmp))
+    | _ -> DoChildren
+
+  method vfunc fd =
+    curFunc := fd;
+    let cleanup x =
+      curFunc := dummyFunDec;
+      x
+    in
+    ChangeDoChildrenPost (fd, cleanup)
+
+end
+
+(**************************************************************************)
+
 let checkFile (f: file) : unit =
+  visitCilFileSameGlobals preProcessVisitor f;
   visitCilFileSameGlobals inferVisitor f;
   if !inferFile <> "" then begin
     try
