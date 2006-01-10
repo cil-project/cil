@@ -69,6 +69,12 @@ let fixStmt (s:stmt) : unit =
       ()      
   | _ -> ()
 
+(* Truncates a list. *)
+let rec truncate (l: 'a list) (n: int) : 'a list =
+  match l with
+  | elt :: rest when n > 0 -> elt :: (truncate rest (n - 1))
+  | _ -> []
+
 (**************************************************************************)
 
 type check =
@@ -184,12 +190,16 @@ let postPassVisitor = object (self)
   (* Remove any "bounds" or "fancybounds" annotations. *)
   method vattr a =
     match a with
-      Attr(("bounds" | "fancybounds" | "nullterm"), _) -> ChangeTo []
+    | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"), _) ->
+        ChangeTo []
     | _ -> DoChildren
 
 end
 
 (**************************************************************************)
+
+(* Keyword in bounds attributes representing the current value *)
+let thisKeyword = "__this"
 
 (* remember complicated bounds expressions *)
 let boundsTable : (int, exp) Hashtbl.t = Hashtbl.create 13
@@ -234,7 +244,8 @@ let rec depsOfAttrs (a: attributes) : string list =
   | Attr _ :: rest -> 
       depsOfAttrs rest
   | [] -> 
-      E.s (error "Missing bounds annotations.")
+      E.warn "%a: assuming safe pointer.\n" d_loc !currentLoc;
+      [thisKeyword]
 
 let depsOfType (t: typ) : string list =
   match t with
@@ -292,8 +303,8 @@ let isNullterm (t: typ) : bool =
   | TPtr (_, a) -> hasAttribute "nullterm" a
   | _ -> E.s (E.error "Expected pointer type.")
 
-(* Keyword in bounds attributes representing the current value *)
-let thisKeyword = "__this"
+let isTrusted (t: typ) : bool =
+  hasAttribute "trusted" (typeAttrs t)
 
 (** The dependent types are expressed using attributes. We compile an 
  * attribute given a mapping from names to lvals.  Returns the names of
@@ -356,7 +367,9 @@ let rec getBounds (a: attributes) : bounds =
   | Attr _ :: rest -> 
       getBounds rest
   | [] -> 
-      E.s (error "Missing bounds annotations.")
+      E.warn "%a: assuming safe pointer\n" d_loc !currentLoc;
+      BSimple (ACons (thisKeyword, []),
+               ABinOp (PlusPI, ACons (thisKeyword, []), AInt 1))
 
 let boundsOfAttrs (ctx: context) (a: attributes) : exp * exp = 
   match getBounds a with
@@ -462,7 +475,9 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
       d_loc !currentLoc
       d_type t1 d_type t2;
     match t1, t2 with
-      TPtr (bt1, a1), TPtr (bt2, a2) ->
+    | t1, t2 when isTrusted t1 || isTrusted t2 ->
+        ()
+    | TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
           E.s (error "%a: base type mismatch: %a and %a\n" 
                  d_loc !currentLoc
@@ -496,9 +511,15 @@ let rec checkType (ctx: context) (t: typ) : bool =
   | TArray (bt, _, _) ->
       checkType ctxThis bt
   | TFun (ret, argInfo, _, _) ->
+      let ctxFun =
+        List.fold_left
+          (fun acc (name, _, _) -> addBinding acc name zero)
+          ctxThis
+          (argsToList argInfo)
+      in
       checkType ctxThis ret &&
       List.fold_left
-        (fun acc (_, t, _) -> acc && checkType ctxThis t)
+        (fun acc (_, t, _) -> acc && checkType ctxFun t)
         true
         (argsToList argInfo)
   (* Structs and typedefs are checked when defined. *)
@@ -514,8 +535,13 @@ let rec checkType (ctx: context) (t: typ) : bool =
 (* Add checks for a coercion of e from tfrom to tto.
    Both tfrom and tto must have fancy bounds. *)
 let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
+  if !verbose then
+    E.log "%a: coercing exp %a from %a to %a\n"
+          d_loc !currentLoc d_exp e d_type tfrom d_type tto;
   match unrollType tfrom, unrollType tto with
-    TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
+  | t1, t2 when isTrusted t1 || isTrusted t2 ->
+      ()
+  | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
         E.s (error "%a: cast to NULLTERM from an ordinary pointer."
             d_loc !currentLoc);
@@ -539,6 +565,11 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   | TInt _, TInt _ when (bitsSizeOf tfrom) = (bitsSizeOf tto) ->
       (* ignore signed/unsigned differences.  FIXME: is this safe? *)
       ()
+  | TInt _, TInt _ ->
+      (* ignore signed/unsigned differences.  FIXME: is this safe? *)
+      E.warn "%a: allowing integer cast with different sizes\n"
+             d_loc !currentLoc;
+      ()
   | _ -> 
     if not (compareTypes tfrom tto) then
       E.s (error "%a: type mismatch: coercion from %a to %a\n" 
@@ -561,6 +592,8 @@ let rec coerceExp (e:exp) (tto : typ) : unit =
         
 
 and checkExp (e : exp) : typ =
+  if !verbose then
+    E.log "%a: checking exp %a\n" d_loc !currentLoc d_exp e;
   match e with
   | UnOp (op, e', t) -> coerceExp e' t; t
   | BinOp ((PlusPI | IndexPI | MinusPI | MinusPP), e1, e2, t) ->
@@ -578,7 +611,11 @@ and checkExp (e : exp) : typ =
       coerceExp e2 t;
       t
   | Lval lv -> checkLval ForRead lv
-  | CastE (t, e') -> coerceExp e' t; t
+  | CastE (t, e') ->
+      let ctxThis = addThisBinding emptyContext e' in
+      let t' = substType ctxThis t in
+      coerceExp e' t';
+      t'
   | SizeOfE e'
   | AlignOfE e' -> ignore (checkExp e'); unrollType (typeOf e)
   | AddrOf lv ->
@@ -692,6 +729,8 @@ and checkLval (why:whyLval) (lv : lval) : typ =
 
 let checkCall (lvo: lval option)
               (fn: exp) (args: exp list) : unit =
+  if !verbose then
+    E.log "%a: checking call to %a\n" d_loc !currentLoc d_exp fn;
   match checkExp fn with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
@@ -711,8 +750,8 @@ let checkCall (lvo: lval option)
        | None -> ()
       );
       (* CIL's casts don't make sense with dependent types, so remove them. *)
-      let actuals = List.map stripCasts args in
       let formals = argsToList argInfo in
+      let actuals = truncate (List.map stripCasts args) (List.length formals) in
       begin
         try
           let ctxCall =
@@ -740,6 +779,8 @@ let checkCall (lvo: lval option)
 
 
 let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
+  if !verbose then
+    E.log "%a: checking alloc of %a %a\n" d_loc !currentLoc d_exp e d_type bt;
   if hasExternalDeps lv then
     E.s (E.error "%a: return lval has external dependencies\n"
                  d_loc !currentLoc);
@@ -814,11 +855,12 @@ let checkInstr (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
   match instr with
   (* Allocation *)
-  | Call (Some lv, Lval (Var vi,NoOffset), [SizeOf t; e], _) 
+  | Call (Some lv, Lval (Var vi, NoOffset), [SizeOf t; e], _) 
       when vi.vname = "calloc" ->
       checkAlloc lv t e
-  | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "calloc" ->
+  | Call (_, Lval (Var vi, NoOffset), _, _) when vi.vname = "calloc" ->
       E.s (error "bad call to %s." vi.vname)
+  (* kmalloc *)
   | Call (Some lv, Lval (Var vi, NoOffset), [e; _], _) 
       when vi.vname = "__kmalloc" ->
       let t =
@@ -827,7 +869,7 @@ let checkInstr (instr : instr) : unit =
         | _ -> E.s (E.bug "expected pointer type\n")
       in
       checkAlloc lv t (BinOp (Div, e, SizeOf t, intType))
-  | Call (_, Lval (Var vi,NoOffset), _, _) when vi.vname = "__kmalloc" ->
+  | Call (_, Lval (Var vi, NoOffset), _, _) when vi.vname = "__kmalloc" ->
       E.s (error "bad call to %s." vi.vname)
   (* Function call *)
   | Call (lvo, fn, args, _) ->
