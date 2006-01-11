@@ -305,6 +305,7 @@ $TEST->add2Tests("testrun/init14", "_GNUCC=1");
 $TEST->add2Tests("testrun/init15", "_GNUCC=1");
 $TEST->add2Tests("testrun/init16", "");
 $TEST->addTests("testrun/init17", "", ['cil']);
+$TEST->addTests("testrun/init18", "", ['cil']);
 $TEST->addTests("test/array-size-trick", "", ['cil']);
 $TEST->add2Tests("testrun/logical", "");
 $TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
