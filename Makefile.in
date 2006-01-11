@@ -83,7 +83,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               dataflow dominators bitmap ssa \
               usedef logcalls logwrites rmtmps \
 	      callgraph epicenter heapify \
-              setp uref steensgaard olf dummy ptranal \
+              setp uref olf ptranal \
               canonicalize heap oneret partial simplemem simplify \
 	      dataslicing sfi \
               zrapp \
@@ -403,10 +403,9 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 	          blockinggraph.ml blockinggraph.mli \
 		  dataslicing.ml dataslicing.mli
 
-DISTRIB_SRC_EXT_PTA = setp.ml setp.mli dummy.ml golf.ml golf.mli \
+DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
 	              steensgaard.mli steensgaard.ml \
-                      termhash.ml termhash.mli \
                       uref.ml uref.mli olf.ml olf.mli
 
 DISTRIB_LIB = Cilly.pm KeptFile.pm OutputFile.pm TempFile.pm
@@ -501,7 +500,7 @@ publish_distrib: publish_doc
 
 publish_doc: doc
 	if test -d $(CILHTMLDEST); then \
-           cp -rf doc/html/cil/* $(CILHTMLDEST); echo "Done publishing doc" \
+           cp -rf doc/html/cil/* $(CILHTMLDEST); echo "Done publishing doc"; \
 	else \
 	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
         fi
