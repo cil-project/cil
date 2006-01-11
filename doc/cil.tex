@@ -1683,78 +1683,112 @@ module does the analysis.
 
 \subsection{Points-to Analysis}
 
-The module \t{ptranal.ml} contains a context-sensitive, interprocedural
-points-to analysis for CIL. The analysis has the following
-characteristics:
+The module \t{ptranal.ml} contains two interprocedural points-to
+analyses for CIL: \t{Olf} and \t{Golf}.  \t{Olf} is the default.
+(Switching from \t{olf.ml} to \t{golf.ml} requires a change in
+\t{Ptranal} and a recompiling \t{cilly}.)
 
-\begin{enumerate}
+The analyses have the following characteristics:
+\begin{itemize}
 \item Not based on C types (inferred pointer relationships are sound
-despite most kinds of C casts)
+  despite most kinds of C casts)
 \item One level of subtyping 
-\item One level of context sensitivity
+\item One level of context sensitivity (Golf only)
 \item Monomorphic type structures
 \item Field insensitive (fields of structs are conflated)
 \item Demand-driven (points-to queries are solved on demand)
-\item Handles function pointers 
-\end{enumerate}
+\item Handle function pointers
+\end{itemize}
 
-The analysis itself is factored into two components: \t{ptranal.ml},
-which walks over the CIL file and generates constraints, and
-\t{golf.ml}, which solves the constraints. The analysis is invoked
-with the function \t{Ptranal.analyze\_file: Cil.file -> unit}. This
-function builds the points-to graph for the CIL file and stores it
-internally. There is currently no facility for clearing internal
-state, so \t{Ptranal.analyze\_file} should only be called once.
+The analysis itself is factored into two components: \t{Ptranal},
+which walks over the CIL file and generates constraints, and \t{Olf}
+or \t{Golf}, which solve the constraints.  The analysis is invoked
+with the function \t{Ptranal.analyze\_file: Cil.file ->
+  unit}.  This function builds the points-to graph for the CIL file
+and stores it internally.  There is currently no facility for clearing
+internal state, so \t{Ptranal.analyze\_file} should only be called
+once.
 
-% Interface for querying the points-to graph...
+%%% Interface for querying the points-to graph...
 The constructed points-to graph supports several kinds of queries,
 including alias queries (may two expressions be aliased?) and
 points-to queries (to what set of locations may an expression point?).
 
-% Main Interface
+%%% Main Interface
 The main interface with the alias analysis is as follows:
-\begin{enumerate}
-\item \t{Ptranal.may\_alias : Cil.exp -> Cil.exp -> bool}. If \t{true}, the
-two expressions may have the same value. 
-\item \t{Ptranal.resolve\_funptr : Cil.exp -> (Cil.fundec list)}. Returns
-the list of functions to which the given expression may point. 
-\end{enumerate} 
+\begin{itemize}
+\item \t{Ptranal.may\_alias: Cil.exp -> Cil.exp -> bool}. If
+  \t{true}, the two expressions may have the same value.
+\item \t{Ptranal.resolve\_lval: Cil.lval -> (Cil.varinfo
+    list)}.  Returns the list of variables to which the given
+  left-hand value may point.
+\item \t{Ptranal.resolve\_exp: Cil.exp -> (Cil.varinfo list)}.
+  Returns the list of variables to which the given expression may
+  point.
+\item \t{Ptranal.resolve\_funptr: Cil.exp -> (Cil.fundec
+    list)}. Returns the list of functions to which the given
+  expression may point.
+\end{itemize}
 
-% Controlling the analysis
+%%% Controlling the analysis
 The precision of the analysis can be customized by changing the values
 of several flags:
 
-\begin{enumerate}
-\item \t{Ptranal.no\_sub : bool ref}. If \t{true}, subtyping is
-disabled.
-\item \t{Ptranal.analyze\_mono : bool ref}. If \t{true}, context
-sensitivity is disabled and the analysis is effectively monomorphic.
-\item \t{Ptranal.smart\_aliases : bool ref}. If \t{true}, ``smart''
-disambiguation of aliases is enabled. Otherwise, aliases are computed
-by intersecting points-to sets (this is an experimental feature).
-\end{enumerate}
+\begin{itemize}
+\item \t{Ptranal.no\_sub: bool ref}.
+  If \t{true}, subtyping is disabled.  Associated commandline option:
+  {\bf -{}-ptr\_unify}.
+\item \t{Ptranal.analyze\_mono: bool ref}.
+  (Golf only) If \t{true}, context sensitivity is disabled and the
+  analysis is effectively monomorphic.  Commandline option:
+  {\bf -{}-ptr\_mono}.
+\item \t{Ptranal.smart\_aliases: bool ref}.
+  (Golf only) If \t{true}, ``smart'' disambiguation of aliases is
+  enabled.  Otherwise, aliases are computed by intersecting points-to
+  sets.  This is an experimental feature.
+\item \t{Ptranal.model\_strings: bool ref}.
+  Make the alias analysis model string constants by treating them as
+  pointers to chars.  Commandline option: {\bf -{}-ptr\_model\_strings}
+\item \t{Ptranal.conservative\_undefineds: bool ref}.
+  Make the most pessimistic assumptions about globals if an undefined
+  function is present.  Such a function can write to every global
+  variable.  Commandline option: {\bf -{}-ptr\_conservative}
+\end{itemize}
 
 In practice, the best precision/efficiency tradeoff is achieved by
 setting \t{Ptranal.no\_sub} to \t{false}, \t{Ptranal.analyze\_mono} to
-\t{true}, and \t{Ptranal.smart\_aliases} to \t{false}. These are the
+\t{true}, and \t{Ptranal.smart\_aliases} to \t{false}.  These are the
 default values of the flags.
 
+%%% Debug output
 There are also a few flags that can be used to inspect or serialize
-the results of the analysis:
+the results of the analysis.
+\begin{itemize}
+%%\item \t{Ptranal.ptrResults}.
+%%  Commandline option: {\bf -{}-ptr\_results}.  A no-op!
+%%
+%%\item \t{Ptranal.ptrTypes}.
+%%  Commandline option: {\bf -{}-ptr\_types}.  A no-op!
+%%
+\item \t{Ptranal.debug\_may\_aliases}.
+  Print the may-alias relationship of each pair of expressions in the
+  program.  Commandline option: {\bf -{}-ptr\_may\_aliases}.
+\item \t{Ptranal.print\_constraints: bool ref}.
+  If \t{true}, the analysis will print each constraint as it is
+  generated.
+\item \t{Ptranal.print\_types: bool ref}.
+  If \t{true}, the analysis will print the inferred type of each
+  variable in the program.
 
-\begin{enumerate}
-\item \t{Ptranal.print\_constraints : bool ref}. If \t{true}, the
-analysis will print each constraint as it is generated.
-\item \t{Ptranal.print\_types : bool ref}. If \t{true}, the analysis
-will print the inferred type of each variable in the program. If
-\t{Ptranal.analyze\_mono} and \t{Ptranal.no\_sub} are both \t{true},
-this output is sufficient to reconstruct the points-to graph. One nice
-feature is that there is a pretty printer for recursive types, so the
-print routine doesn't loop.
-\item \t{Ptranal.compute\_results : bool ref}. If \t{true}, the
-analysis will print out the points-to set of each variable in the
-program. This will essentially serialize the points-to graph.
-\end{enumerate}
+  If \t{Ptranal.analyze\_mono} and \t{Ptranal.no\_sub} are both
+  \t{true}, this output is sufficient to reconstruct the points-to
+  graph.  One nice feature is that there is a pretty printer for
+  recursive types, so the print routine does not loop.
+\item \t{Ptranal.compute\_results: bool ref}.
+  If \t{true}, the analysis will print out the points-to set of each
+  variable in the program.  This will essentially serialize the
+  points-to graph.
+\end{itemize}
 
 \subsection{StackGuard}
 
@@ -2815,7 +2849,7 @@ as it will ensure your message is viewed by a broad audience.
 \begin{itemize}
 \item {\bf December 9, 2005}: Christoph Spiel fixed the Golf and
   Olf modules so that Golf can be used with the points-to analysis.
-  He also added performance fixes.
+  He also added performance fixes and cleaned up the documentation.
 \item {\bf December 1, 2005}: Major rewrite of the ext/callgraph module. 
 \item {\bf December 1, 2005}: Preserve enumeration constants in CIL. Default
 is the old behavior to replace them with integers.
@@ -2852,7 +2886,7 @@ is the old behavior to replace them with integers.
 \item {\bf July 26, 2005}: Added many more gcc \_\_builtin* functions
   to CIL.  Most are treated as Call instructions, but a few are
   translated into expressions so that they can be used in global
-  initializers.  For example, ``\t{\_\_builtin\_offset(t, field)}'' is
+  initializers.  For example, ``\t{\_\_builtin\_offsetof(t, field)}'' is
   rewritten as ``\t{\&((t*)0)->field}'', the traditional way of calculating
   an offset.
 \item {\bf July 18, 2005}: Fixed bug in the constant folding of shifts
