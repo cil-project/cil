@@ -395,6 +395,15 @@ let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit+
 let oct_escape = '\\' octdigit octdigit? octdigit? 
 
+(* Pragmas that are not parsed by CIL.  We lex them as PRAGMA_LINE tokens *)
+let no_parse_pragma =
+               "warning" | "GCC"
+             (* Solaris-style pragmas:  *)
+             | "ident" | "section" | "option" | "asm" | "use_section" | "weak"
+             | "redefine_extname"
+             | "TCS_align"
+
+
 rule initial =
 	parse 	"/*"			{ let _ = comment lexbuf in 
                                           initial lexbuf}
@@ -544,38 +553,12 @@ and hash = parse
                   (* A file name must follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
-                (* MSVC warning pragmas have very irregular syntax. We parse 
-                 * them as a whole line. *)
-| "pragma" blank "warning" { let here = currentLoc () in
-                             PRAGMA_LINE ("warning" ^ pragma lexbuf, here)
-                           }
-| "pragma" blank "GCC"     { let here = currentLoc () in
-                             PRAGMA_LINE ("GCC" ^ pragma lexbuf, here)
-                           }
-(* Solaris-style pragmas:  *)
-| "pragma" blank "ident"     { let here = currentLoc () in
-                             PRAGMA_LINE ("ident" ^ pragma lexbuf, here)
-                           }
-| "pragma" blank "section"     { let here = currentLoc () in
-                                  PRAGMA_LINE ("section" ^ pragma lexbuf, here)
-                            }
-| "pragma" blank "option"     { let here = currentLoc () in
-                                  PRAGMA_LINE ("option" ^ pragma lexbuf, here)
-                            }
-| "pragma" blank "asm"     { let here = currentLoc () in
-                                  PRAGMA_LINE ("asm" ^ pragma lexbuf, here)
-                            }
-| "pragma" blank "use_section"     { let here = currentLoc () in
-                                  PRAGMA_LINE ("use_section" ^ pragma lexbuf, here)
-                            }
-| "pragma" blank "weak"     { let here = currentLoc () in
-                                  PRAGMA_LINE ("weak" ^ pragma lexbuf, here)
-                            }
-| "pragma" blank "redefine_extname"  
+                (* For pragmas with irregular syntax, like #pragma warning, 
+                 * we parse them as a whole line. *)
+| "pragma" blank (no_parse_pragma as pragmaName)
                 { let here = currentLoc () in
-                  PRAGMA_LINE ("redefine_extname" ^ pragma lexbuf, here)
-                 }
-
+                  PRAGMA_LINE (pragmaName ^ pragma lexbuf, here)
+                }
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { endline lexbuf}
 
