@@ -9,6 +9,136 @@ module H = Hashtbl
 module IH = Inthash
 module M = Machdep
 module U = Util
+module RD = Reachingdefs
+module UD = Usedef
+
+let doElimTemps = ref false
+
+(* A hash from variable ids to Call instruction
+   options. If a variable id is in this table,
+   and it is mapped to Some(Call()), then the
+   function call cal be printed instead of the
+   variable *)
+let iioh = IH.create 16
+
+class tempElimClass (fd:fundec) : cilVisitor = object (self)
+  inherit nopCilVisitor
+      
+  (* which statement are we working on? *)
+  val mutable sid = -1
+
+  (* if a list of instructions is being
+     processed, then this is the corresponding
+     list of reaching defs *)
+  val mutable ivihl = []
+
+  (* these are the reaching defs for the
+     current instruction if there is one *)
+  val mutable inst_iviho = None
+
+  method vstmt stm =
+    sid <- stm.sid;
+    let (ivih,s) = RD.getRDs sid in
+    match stm.skind with
+      Instr il ->
+	ivihl <- RD.instrRDs il (ivih,s);
+	DoChildren
+    | _ -> DoChildren
+
+  method vinst i =
+    inst_iviho <- Some(List.hd ivihl);
+    ivihl <- List.tl ivihl;
+    DoChildren
+
+  method vexpr e =
+    match e with
+      Lval (Var vi,off) ->
+	(if String.length vi.vname >= 3 &&
+	  compare (String.sub vi.vname 0 3) "tmp" == 0 then
+	  (* only allowed to replace a tmp with a function call once *)
+	  if IH.mem iioh vi.vid
+	  then (IH.replace iioh vi.vid None; DoChildren)
+	  else
+	    (match inst_iviho with
+	      Some(ivih,s) ->
+		let ido = RD.ih_reverse_lookup ivih vi in
+		(match ido with
+		  Some id ->
+		    let riviho = RD.getDefRhs id in
+		    (match riviho with
+		      Some(RD.RDExp(e) as r, defivih) ->
+			if RD.ok_to_replace ivih defivih fd r
+			then ChangeTo(e)
+			else DoChildren
+		    | Some(RD.RDCall(i) as r, defivih) ->
+			if RD.ok_to_replace ivih defivih fd r
+			then (IH.add iioh vi.vid (Some(i));
+			      DoChildren)
+			else DoChildren
+		    | _ -> DoChildren)
+		| _ -> DoChildren)
+	    | _ -> DoChildren)
+	else DoChildren)
+    | _ -> DoChildren
+
+end
+
+(* Remove temp variables that are set but not used *)
+class unusedRemoverClass : cilVisitor = object(self)
+    inherit nopCilVisitor
+
+  val mutable unused_set = UD.VS.empty
+
+  (* figure out which locals aren't used *)
+  method vfunc f =	
+
+    (* the set of used variables *)
+    let used = List.fold_left (fun u s ->
+      let u', _ = UD.computeUseDefStmtKind s.skind in
+      UD.VS.union u u') UD.VS.empty f.sbody.bstmts in
+
+    (* the set of unused locals *)
+    let unused = List.fold_left (fun un vi ->
+      if UD.VS.mem vi used
+      then un
+      else UD.VS.add vi un) UD.VS.empty f.slocals in
+    
+    (* a filter function for picking out
+       the local variables that need to be kept *)
+    let good_var vi =
+      not(UD.VS.mem vi unused_set) &&
+      not(IH.mem iioh vi.vid)
+    in
+    let good_locals = List.filter good_var f.slocals in
+    f.slocals <- good_locals;
+    unused_set <- unused;
+    DoChildren
+
+  (* remove instructions that set variables
+     that aren't used. Also remove instructions
+     that set variables mentioned in iioh *)
+  method vstmt stm =
+
+    (* a filter function for picking out
+       the instructions that we want to keep *)
+    (* instr -> bool *)
+    let good_instr i =
+      match i with
+	Set((Var(vi),_),_,_) ->
+	  not (UD.VS.mem vi unused_set)
+      | Call (Some(Var(vi),_),_,_,_) ->
+	  not (IH.mem iioh vi.vid)
+      | _ -> true
+    in
+
+    match stm.skind with
+      Instr il ->
+	let newil = List.filter good_instr il in
+	stm.skind <- Instr(newil);
+	SkipChildren
+    | _ -> DoChildren
+
+end
 
 class zraCilPrinterClass : cilPrinter = object (self)
   val mutable currentFormals : varinfo list = []
@@ -40,17 +170,29 @@ class zraCilPrinterClass : cilPrinter = object (self)
   method private checkVi (v:varinfo) : bool =
     U.equals v (self#getEnvVi v)
 
+  method private checkViAndWarn (v:varinfo) =
+    if not (self#checkVi v) then
+      ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
+		v.vname)
+
   (* variable use *)
   method pVar (v:varinfo) =
-    (* warn about instances where a possibly unintentionally conflicting name is used *)
-    ((if not (self#checkVi v) then
-      ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
-	     v.vname));
-    text v.vname)
+    (* warn about instances where a possibly unintentionally 
+       conflicting name is used *)
+     if IH.mem iioh v.vid then
+       let rhso = IH.find iioh v.vid in
+       match rhso with
+	 Some(Call(_,e,el,l)) ->
+	   self#pInstr () (Call(None,e,el,l))
+       | _ -> (self#checkViAndWarn v;
+	       text v.vname)
+     else (self#checkViAndWarn v;
+	   text v.vname)
 
  (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    (* See if the name is already in the environment with a different varinfo. If so, give a warning.
+    (* See if the name is already in the environment with a 
+       different varinfo. If so, give a warning.
        If not, add the name to the environment *)
     let _ = if (H.mem lenvHtbl v.vname) && not(self#checkVi v) then
       ignore( warn "name %s has already been declared locally with different varinfo\n" v.vname)
@@ -851,25 +993,33 @@ class zraCilPrinterClass : cilPrinter = object (self)
        ++ text ";"
 
   method private pFunDecl () f =
-    ( H.add genvHtbl f.svar.vname f.svar; (* add function to global env *)
-      H.clear lenvHtbl; (* new local environment *)
-      (* add the arguments to the local environment *)
-      List.iter (fun vi -> H.add lenvHtbl vi.vname vi) f.sformals;
-      self#pVDecl () f.svar
+    H.add genvHtbl f.svar.vname f.svar;(* add function to global env *)
+    H.clear lenvHtbl; (* new local environment *)
+    (* add the arguments to the local environment *)
+    List.iter (fun vi -> H.add lenvHtbl vi.vname vi) f.sformals;
+    RD.computeRDs f;
+    let nf = 
+      if !doElimTemps
+      then
+	let _ = IH.clear iioh in
+	let f' = visitCilFunction (new tempElimClass f) f in
+	visitCilFunction (new unusedRemoverClass) f'
+      else f in
+    self#pVDecl () nf.svar
       ++  line
       ++ text "{ "
       ++ (align
-            (* locals. *)
-            ++ (docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";") 
-                  () f.slocals)
-            ++ line ++ line
-            (* the body *)
-            ++ ((* remember the declaration *) currentFormals <- f.sformals; 
-                let body = self#pBlock () f.sbody in
-                currentFormals <- [];
-                body))
+	    (* locals. *)
+	    ++ (docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";") 
+                  () nf.slocals)
+	    ++ line ++ line
+	    (* the body *)
+	    ++ ((* remember the declaration *) currentFormals <- nf.sformals; 
+          let body = self#pBlock () nf.sbody in
+          currentFormals <- [];
+          body))
       ++ line
-      ++ text "}")
+      ++ text "}"
 
   (***** PRINTING DECLARATIONS and TYPES ****)
     
@@ -1161,12 +1311,19 @@ let feature : featureDescr =
     fd_extraopt = ["--zrapp_out",
 		   Arg.String (openFile "zrapp output" 
 				 (fun oc -> outChannel := Some oc)),
-		   "name of output file for pretty printing with checks for name conflicts";];
+		   "name of output file for pretty printing with checks for name conflicts";
+		   "--zrapp_elim_temps",
+		   Arg.Unit (fun n -> doElimTemps := true),
+		   "Try to eliminate temporary variables during pretty printing";];
     fd_doit = 
     (function (f: file) ->
       match !outChannel with
 	None -> ()
-      | Some oc -> dumpFile zraCilPrinter oc.fchan oc.fname f);
+      | Some oc -> 
+	  let olds = !lineDirectiveStyle in
+	  lineDirectiveStyle := None;
+	  dumpFile zraCilPrinter oc.fchan oc.fname f;
+	  lineDirectiveStyle := olds);
     fd_post_check = false
   }
 
