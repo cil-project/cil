@@ -511,6 +511,7 @@ $TEST->addTests("combine18", "", ['cil']);
 $TEST->addTests("combine20", "", ['cil']);
 $TEST->addTests("combine21", "", ['cil']);
 $TEST->addTests("combine22", "", ['cil']);
+$TEST->addTests("combinealias", "", ['cil']);
 $TEST->addTests("combinelibrik", "", ['cil']);
 $TEST->addTests("combineenum1", "", ['cil']);
 $TEST->addTests("combineenum2", "", ['cil']);
