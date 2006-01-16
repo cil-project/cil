@@ -170,7 +170,7 @@ let checkToInstr (c:check) =
   | CUnsignedLess (e1,e2) -> call cunsignedless [e1;e2]
 
 
-let postPassVisitor = object (self)
+let postPassVisitor1 = object (self)
   inherit nopCilVisitor
 
   (* Turn the check datastructure into explicit checks, so that they show up
@@ -186,6 +186,10 @@ let postPassVisitor = object (self)
       s
     in
     ChangeDoChildrenPost (s, postProcessStmt)
+end
+
+let postPassVisitor2 = object (self)
+  inherit nopCilVisitor
 
   (* Remove any "bounds" or "fancybounds" annotations. *)
   method vattr a =
@@ -461,6 +465,7 @@ let compareTypes (t1 : typ) (t2 : typ) : bool =
     let attrFilter (attr : attribute) : bool =
       match attr with
       | Attr ("const", [])
+      | Attr ("volatile", [])
       | Attr ("always_inline", []) -> false
       | _ -> true
     in
@@ -474,7 +479,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
     E.log "%a: checkSameType on %a and %a\n" 
       d_loc !currentLoc
       d_type t1 d_type t2;
-    match t1, t2 with
+    match unrollType t1, unrollType t2 with
     | t1, t2 when isTrusted t1 || isTrusted t2 ->
         ()
     | TPtr (bt1, a1), TPtr (bt2, a2) ->
@@ -491,6 +496,9 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
            Do it dynamically: *)
         addCheck (CEq(lo1,lo2));
         addCheck (CEq(hi1,hi2))
+    | TInt _, TInt _ when (bitsSizeOf t1) = (bitsSizeOf t2) ->
+        (* ignore signed/unsigned differences.  FIXME: is this safe? *)
+        ()
     | _ -> 
         if not (compareTypes t1 t2) then
           E.s (error "%a: type mismatch: %a and %a\n" 
@@ -558,7 +566,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   | TPtr _, TInt _ ->
       (* Coerce pointer to integer. *)
       ()
-  | TInt _, TPtr _ when isZero e ->
+  | (TInt _ | TPtr _), TPtr _ when isZero e ->
       (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
          here? *)
       ()
@@ -596,24 +604,39 @@ and checkExp (e : exp) : typ =
     E.log "%a: checking exp %a\n" d_loc !currentLoc d_exp e;
   match e with
   | UnOp (op, e', t) -> coerceExp e' t; t
-  | BinOp ((PlusPI | IndexPI | MinusPI | MinusPP), e1, e2, t) ->
+  | BinOp ((PlusPI | IndexPI | MinusPI) as op, e1, e2, t) ->
       let t1 = checkExp e1 in
       (* FIXME: __this can appear in t, so we ignore it for now.
          At some point, we should check it! *)
       (* coerceExp e1 (substType ... t); *)
       coerceExp e2 intType;
-      let lo, hi = fancyBoundsOfType t1 in
-      addCheck (CNonNull e1);
-      addCheck (CBounds (lo, e1, e2, hi));
+      if not (isTrusted t1) then begin
+        let lo, hi = fancyBoundsOfType t1 in
+        let e2' =
+          match op with
+          | MinusPI -> UnOp (Neg, e2, typeOf e2)
+          | PlusPI | IndexPI -> e2
+          | _ -> E.s (E.bug "unexpected operation\n")
+        in
+        addCheck (CNonNull e1);
+        addCheck (CBounds (lo, e1, e2', hi))
+      end;
       t1
+  | BinOp (MinusPP, e1, e2, t) ->
+      ignore (checkExp e1);
+      ignore (checkExp e2);
+      t
   | BinOp (op, e1, e2, t) ->
       coerceExp e1 t;
       coerceExp e2 t;
       t
   | Lval lv -> checkLval ForRead lv
+  | CastE (t1, AddrOf (Mem (CastE (t2, z)), Field (f, NoOffset)))
+        when isIntegralType t1 && isZero z ->
+      t1
   | CastE (t, e') ->
-      let ctxThis = addThisBinding emptyContext e' in
-      let t' = substType ctxThis t in
+      let ctx = addThisBinding (localsContext !curFunc) e in
+      let t' = substType ctx t in
       coerceExp e' t';
       t'
   | SizeOfE e'
@@ -878,10 +901,9 @@ let checkInstr (instr : instr) : unit =
   | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
       ()
   | Set (lv, e, _) ->
-      (* CIL inserts a cast to vi.vtype.  This is wrong if vi.vtype has
-         self-dependencies. So just ignore casts. *)
-      checkSet lv (stripCasts e)
-  | Asm _ -> E.s (E.unimp "asm unsupported\n")
+      checkSet lv e
+  | Asm _ ->
+      E.warn "%a: ignoring asm\n" d_loc !currentLoc
 
 let checkReturn (eo : exp option) : unit =
   let returnType =
@@ -1017,10 +1039,10 @@ let inferVisitor = object (self)
                if !verbose then
                  E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
                let baseVar, endVar = Hashtbl.find varBounds vi.vname in
-               let t = checkExp (stripCasts e) in
+               let t = checkExp e in
                let lo, hi =
                  if isPointerType t then
-                   fancyBoundsOfType (checkExp (stripCasts e))
+                   fancyBoundsOfType t
                  else
                    Lval (var vi), Lval (var vi)
                in
@@ -1073,7 +1095,7 @@ let preProcessVisitor = object (self)
 
   method vexpr e =
     match e with
-    | Const (CStr str) ->
+    | Const (CStr str) when !curFunc != dummyFunDec ->
         let t =
           TPtr (charType, [Attr ("nullterm", []);
                            Attr ("bounds", [ACons ("__this", []);
@@ -1085,6 +1107,61 @@ let preProcessVisitor = object (self)
         ChangeTo (Lval (var tmp))
     | _ -> DoChildren
 
+  method vinst i = 
+    let postProcessInstr (instrs: instr list) : instr list =
+      List.fold_right
+        (fun instr acc ->
+           match instr with
+           | Call (Some (Var vi, NoOffset), fn, args, l)
+                 when not (hasAttribute "bounds" (typeAttrs vi.vtype)) ->
+               if !verbose then
+                 E.log "%a: transforming call %a\n" d_loc l dn_instr instr;
+               let isAlloc =
+                 match fn with
+                 | Lval (Var vi', NoOffset) when vi'.vname = "__kmalloc" -> true
+                 | _ -> false
+               in
+               if isAlloc then instr :: acc else
+               begin
+                 match typeOf fn with
+                 | TFun (rt, _, _, _) ->
+                     if isPointerType rt then
+                       let rt' =
+                         if hasAttribute "bounds" (typeAttrs rt) then
+                           rt
+                         else
+                           typeAddAttributes
+                             [Attr ("bounds",
+                                    [ACons (thisKeyword, []);
+                                     ABinOp (PlusPI, ACons (thisKeyword, []),
+                                             AInt 1)])]
+                             rt
+                       in
+                       let tmp = makeTempVar !curFunc rt' in
+                       Call (Some (var tmp), fn, args, l) ::
+                         Set (var vi, Lval (var tmp), l) ::
+                         acc
+                     else
+                       instr :: acc
+                 | _ ->
+                     E.s (E.bug "expected function type\n")
+               end
+           | Set (lv, CastE (t, e), l) ->
+               let lvType = typeOfLval lv in
+               if compareTypes lvType t &&
+                  (compareTypes (typeRemoveAttributes ["bounds"] t)
+                                (typeRemoveAttributes ["bounds"] (typeOf e)) || 
+                   (isPointerType t && isZero e)) then
+                 Set (lv, e, l) :: acc
+               else
+                 instr :: acc
+           | _ ->
+               instr :: acc)
+        instrs
+        []
+    in
+    ChangeDoChildrenPost ([i], postProcessInstr)
+
   method vfunc fd =
     curFunc := fd;
     let cleanup x =
@@ -1094,6 +1171,58 @@ let preProcessVisitor = object (self)
     ChangeDoChildrenPost (fd, cleanup)
 
 end
+
+(**************************************************************************)
+
+let proveLe (e1: exp) (e2: exp) : bool =
+  match e1, e2 with
+  | _, _ when e1 == e2 ->
+      true
+  | Lval lv1, Lval lv2 when lv1 == lv2 ->
+      true
+  | Lval lv1, BinOp (PlusPI, Lval lv2, off2, _) when lv1 == lv2 ->
+      begin
+        match isInteger off2 with
+        | Some n when n >= Int64.zero -> true
+        | _ -> false
+      end
+  | BinOp (PlusPI, Lval lv1, off1, _), BinOp (PlusPI, Lval lv2, off2, _)
+        when lv1 == lv2 ->
+      begin
+        match isInteger off1, isInteger off2 with
+        | Some n1, Some n2 when n1 <= n2 -> true
+        | _ -> false
+      end
+  | _ -> false
+
+let optimizeCheck (c: check) : check list =
+  match c with
+  | CCoerce (e1, e2, e3, e4, e5) ->
+      if proveLe e1 e2 && proveLe e2 e3 &&
+         proveLe e3 e4 && proveLe e4 e5 then
+        []
+      else
+        [c]
+  | _ -> [c]
+
+let optimizeVisitor = object (self)
+  inherit nopCilVisitor
+
+  method vstmt s =
+    let checks = GA.getg allChecks s.sid in
+    GA.setg allChecks s.sid (List.flatten (List.map optimizeCheck checks));
+    DoChildren
+
+  method vfunc fd =
+    curFunc := fd;
+    let cleanup x =
+      curFunc := dummyFunDec;
+      x
+    in
+    ChangeDoChildrenPost (fd, cleanup)
+
+end
+
 
 (**************************************************************************)
 
@@ -1127,9 +1256,12 @@ let checkFile (f: file) : unit =
        | GFun (fd, loc) -> checkFundec fd loc
        | _ -> ())
     f.globals;
+  (* Run the optimizer. *)
+  visitCilFileSameGlobals optimizeVisitor f;
   (* Turn the check datastructure into explicit checks, so that they show up
      in the output. *)
-  visitCilFileSameGlobals postPassVisitor f;
+  visitCilFileSameGlobals postPassVisitor1 f;
+  visitCilFileSameGlobals postPassVisitor2 f;
   f.globals <- (GText "#include <deputychecks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
