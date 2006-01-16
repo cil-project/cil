@@ -113,5 +113,40 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
   in
   !varUsed, !varDefs
 
-
-
+(* Compute the use/def information for a statement kind.
+   DO descend into nested blocks *)
+let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
+                                  ?(acc_defs=VS.empty) 
+                                   (sk: stmtkind) : VS.t * VS.t =
+  let handle_block b =
+    List.fold_left (fun (u,d) s ->
+      let u',d' = computeDeepUseDefStmtKind s.skind in
+      (VS.union u u', VS.union d d')) (VS.empty, VS.empty)
+      b.bstmts
+  in
+  varUsed := acc_used;
+  varDefs := acc_defs;
+  let ve e = ignore (visitCilExpr useDefVisitor e) in  
+  match sk with 
+    Return (None, _) -> !varUsed, !varDefs
+  | Return (Some e, _) -> 
+      let _ = ve e in
+      !varUsed, !varDefs
+  | If (e, tb, fb, _) ->
+      let _ = ve e in
+      let u, d = !varUsed, !varDefs in
+      let u', d' = handle_block tb in
+      let u'', d'' = handle_block fb in
+      (VS.union (VS.union u u') u'', VS.union (VS.union d d') d'')
+  | Break _ | Goto _ | Continue _ -> !varUsed, !varDefs
+  | Loop (b, _, _, _) -> handle_block b
+  | Switch (e, b, _, _) -> 
+      let _ = ve e in
+      let u, d = !varUsed, !varDefs in
+      let u', d' = handle_block b in
+      (VS.union u u', VS.union d d')
+  | Instr il -> 
+      List.iter (fun i -> ignore (visitCilInstr useDefVisitor i)) il;
+      !varUsed, !varDefs
+  | TryExcept _ | TryFinally _ -> !varUsed, !varDefs
+  | Block b -> handle_block b

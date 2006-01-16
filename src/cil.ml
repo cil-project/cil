@@ -4293,6 +4293,10 @@ let d_plaintype () t = plainCilPrinter#pType None () t
 let d_plaininit () i = plainCilPrinter#pInit () i
 let d_plainlval () l = plainCilPrinter#pLval () l
 
+(* zra: this allows pretty printers not in cil.ml to
+   be exposed to cilmain.ml *)
+let printerForMaincil = ref defaultCilPrinter
+
 let rec d_typsig () = function
     TSArray (ts, eo, al) -> 
       dprintf "TSArray(@[%a,@?%a,@?%a@])" 

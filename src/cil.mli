@@ -2081,6 +2081,9 @@ val defaultCilPrinter: cilPrinter
 class plainCilPrinterClass: cilPrinter
 val plainCilPrinter: cilPrinter
 
+(* zra: This is the pretty printer that Maincil will use.
+   by default it is set to defaultCilPrinter *)
+val printerForMaincil: cilPrinter ref
 
 (* Top-level printing functions *)
 (** Print a type given a pretty printer *)

@@ -142,7 +142,7 @@ let rec processOneFile (cil: C.file) =
     (match !outChannel with
       None -> ()
     | Some c -> Stats.time "printCIL" 
-	(C.dumpFile (C.defaultCilPrinter) c.fchan c.fname) cil);
+	(C.dumpFile (!C.printerForMaincil) c.fchan c.fname) cil);
 
     if !E.hadErrors then
       E.s (E.error "Cabs2cil has some errors");
@@ -257,7 +257,7 @@ let rec theMain () =
                 let oldpci = !C.print_CIL_Input in
                 C.print_CIL_Input := true;
                 Stats.time "printMerged"
-                  (C.dumpFile C.defaultCilPrinter mc.fchan mc.fname) merged;
+                  (C.dumpFile !C.printerForMaincil mc.fchan mc.fname) merged;
                 C.print_CIL_Input := oldpci
             end);
             merged

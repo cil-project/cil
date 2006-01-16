@@ -13,11 +13,12 @@ module RD = Reachingdefs
 module UD = Usedef
 
 let doElimTemps = ref false
+let debug = ref false
 
 (* A hash from variable ids to Call instruction
    options. If a variable id is in this table,
    and it is mapped to Some(Call()), then the
-   function call cal be printed instead of the
+   function call can be printed instead of the
    variable *)
 let iioh = IH.create 16
 
@@ -38,12 +39,14 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 
   method vstmt stm =
     sid <- stm.sid;
-    let (ivih,s) = RD.getRDs sid in
-    match stm.skind with
-      Instr il ->
-	ivihl <- RD.instrRDs il (ivih,s);
-	DoChildren
-    | _ -> DoChildren
+    match RD.getRDs sid with
+      None -> DoChildren
+    | Some(ivih,s ) ->
+	match stm.skind with
+	  Instr il ->
+	    ivihl <- RD.instrRDs il (ivih,s) false;
+	    DoChildren
+	| _ -> DoChildren
 
   method vinst i =
     inst_iviho <- Some(List.hd ivihl);
@@ -67,14 +70,22 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 		    let riviho = RD.getDefRhs id in
 		    (match riviho with
 		      Some(RD.RDExp(e) as r, defivih) ->
+			if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
 			if RD.ok_to_replace ivih defivih fd r
-			then ChangeTo(e)
-			else DoChildren
+			then 
+			  (if !debug then ignore(E.log "Yes.\n");
+			   ChangeTo(e))
+			else 
+			  (if !debug then ignore(E.log "No.\n");
+			   DoChildren)
 		    | Some(RD.RDCall(i) as r, defivih) ->
+			if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
 			if RD.ok_to_replace ivih defivih fd r
-			then (IH.add iioh vi.vid (Some(i));
+			then (if !debug then ignore(E.log "Yes.\n");
+			      IH.add iioh vi.vid (Some(i));
 			      DoChildren)
-			else DoChildren
+			else (if !debug then ignore(E.log "No.\n");
+			      DoChildren)
 		    | _ -> DoChildren)
 		| _ -> DoChildren)
 	    | _ -> DoChildren)
@@ -94,14 +105,15 @@ class unusedRemoverClass : cilVisitor = object(self)
 
     (* the set of used variables *)
     let used = List.fold_left (fun u s ->
-      let u', _ = UD.computeUseDefStmtKind s.skind in
+      let u', _ = UD.computeDeepUseDefStmtKind s.skind in
       UD.VS.union u u') UD.VS.empty f.sbody.bstmts in
 
     (* the set of unused locals *)
     let unused = List.fold_left (fun un vi ->
       if UD.VS.mem vi used
       then un
-      else UD.VS.add vi un) UD.VS.empty f.slocals in
+      else (if !debug then ignore (E.log "unusedRemoverClass: %s is unused\n" vi.vname);
+	    UD.VS.add vi un)) UD.VS.empty f.slocals in
     
     (* a filter function for picking out
        the local variables that need to be kept *)
@@ -175,6 +187,10 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
 		v.vname)
 
+  (** What terminator to print after an instruction. sometimes we want to 
+   * print sequences of instructions separated by comma *)
+  val mutable printInstrTerminator = ";"
+
   (* variable use *)
   method pVar (v:varinfo) =
     (* warn about instances where a possibly unintentionally 
@@ -183,7 +199,12 @@ class zraCilPrinterClass : cilPrinter = object (self)
        let rhso = IH.find iioh v.vid in
        match rhso with
 	 Some(Call(_,e,el,l)) ->
-	   self#pInstr () (Call(None,e,el,l))
+	   (* print a call instead of a temp variable *)
+	   let oldpit = printInstrTerminator in
+	   let _ = printInstrTerminator <- "" in
+	   let d = self#pInstr () (Call(None,e,el,l)) in
+	   let _ = printInstrTerminator <- oldpit in
+	   d
        | _ -> (self#checkViAndWarn v;
 	       text v.vname)
      else (self#checkViAndWarn v;
@@ -384,10 +405,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
     end
 *)
         
-  (** What terminator to print after an instruction. sometimes we want to 
-   * print sequences of instructions separated by comma *)
-  val mutable printInstrTerminator = ";"
-
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
@@ -1307,23 +1324,18 @@ let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
 let feature : featureDescr = 
   { fd_name = "zrapp";              
     fd_enabled = ref false;
-    fd_description = "pretty printing with checks for name conflicts";
-    fd_extraopt = ["--zrapp_out",
-		   Arg.String (openFile "zrapp output" 
-				 (fun oc -> outChannel := Some oc)),
-		   "name of output file for pretty printing with checks for name conflicts";
-		   "--zrapp_elim_temps",
-		   Arg.Unit (fun n -> doElimTemps := true),
-		   "Try to eliminate temporary variables during pretty printing";];
+    fd_description = "pretty printing with checks for name conflicts and temp variable elimination";
+    fd_extraopt = [
+    "--zrapp_elim_temps",
+    Arg.Unit (fun n -> doElimTemps := true),
+    "Try to eliminate temporary variables during pretty printing";
+    "--zrapp_debug",
+    Arg.Unit (fun n -> debug := true; RD.debug := true),
+    "Lots of debugging info for pretty printing and reaching definitions";];
     fd_doit = 
-    (function (f: file) ->
-      match !outChannel with
-	None -> ()
-      | Some oc -> 
-	  let olds = !lineDirectiveStyle in
-	  lineDirectiveStyle := None;
-	  dumpFile zraCilPrinter oc.fchan oc.fname f;
-	  lineDirectiveStyle := olds);
+    (function (f: file) -> 
+      lineDirectiveStyle := None;
+      printerForMaincil := zraCilPrinter); 
     fd_post_check = false
   }
 
