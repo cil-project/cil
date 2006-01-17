@@ -205,6 +205,10 @@ end
 (* Keyword in bounds attributes representing the current value *)
 let thisKeyword = "__this"
 
+let safeAttr =
+  Attr ("bounds", [ACons (thisKeyword, []);
+                   ABinOp (PlusPI, ACons (thisKeyword, []), AInt 1)])
+
 (* remember complicated bounds expressions *)
 let boundsTable : (int, exp) Hashtbl.t = Hashtbl.create 13
 let boundsTableCtr : int ref = ref 0
@@ -248,8 +252,7 @@ let rec depsOfAttrs (a: attributes) : string list =
   | Attr _ :: rest -> 
       depsOfAttrs rest
   | [] -> 
-      E.warn "%a: assuming safe pointer.\n" d_loc !currentLoc;
-      [thisKeyword]
+      E.s (E.bug "%a: missing bounds information\n" d_loc !currentLoc)
 
 let depsOfType (t: typ) : string list =
   match t with
@@ -371,9 +374,7 @@ let rec getBounds (a: attributes) : bounds =
   | Attr _ :: rest -> 
       getBounds rest
   | [] -> 
-      E.warn "%a: assuming safe pointer\n" d_loc !currentLoc;
-      BSimple (ACons (thisKeyword, []),
-               ABinOp (PlusPI, ACons (thisKeyword, []), AInt 1))
+      E.s (E.bug "%a: missing bounds information\n" d_loc !currentLoc)
 
 let boundsOfAttrs (ctx: context) (a: attributes) : exp * exp = 
   match getBounds a with
@@ -1029,6 +1030,15 @@ let inferVisitor = object (self)
   val varBounds : (string, varinfo * varinfo) Hashtbl.t =
     Hashtbl.create 7
 
+  method vtype t =
+    let postProcessType (t: typ) =
+      if isPointerType t && not (hasAttribute "bounds" (typeAttrs t)) then
+        typeAddAttributes [safeAttr] t
+      else
+        t
+    in
+    ChangeDoChildrenPost (t, postProcessType)
+
   method vinst i = 
     let postProcessInstr (instrs: instr list) : instr list =
       List.fold_right
@@ -1130,12 +1140,7 @@ let preProcessVisitor = object (self)
                          if hasAttribute "bounds" (typeAttrs rt) then
                            rt
                          else
-                           typeAddAttributes
-                             [Attr ("bounds",
-                                    [ACons (thisKeyword, []);
-                                     ABinOp (PlusPI, ACons (thisKeyword, []),
-                                             AInt 1)])]
-                             rt
+                           typeAddAttributes [safeAttr] rt
                        in
                        let tmp = makeTempVar !curFunc rt' in
                        Call (Some (var tmp), fn, args, l) ::
