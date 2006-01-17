@@ -22,6 +22,17 @@ let debug = ref false
    variable *)
 let iioh = IH.create 16
 
+(* A hash from variable ids to information that
+   can be used to print a post increment/decrement
+   that can replace the variable *)
+let incdecHash = IH.create 16
+
+(* A hash from variable ids to a statement id.
+   Because a post-inc/dec will be printed elsewhere,
+   the assignment of the variable in this statement
+   doesn't need to be printed *)
+let idDefHash = IH.create 16
+
 class tempElimClass (fd:fundec) : cilVisitor = object (self)
   inherit nopCilVisitor
       
@@ -46,7 +57,9 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 	  Instr il ->
 	    ivihl <- RD.instrRDs il (ivih,s) false;
 	    DoChildren
-	| _ -> DoChildren
+	| _ -> (ivihl <- [];
+		inst_iviho <- None;
+		DoChildren)
 
   method vinst i =
     inst_iviho <- Some(List.hd ivihl);
@@ -54,6 +67,41 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
     DoChildren
 
   method vexpr e =
+
+    let do_change ivih vi =
+      let ido = RD.ih_reverse_lookup ivih vi in
+      (match ido with
+	Some id ->
+	  let riviho = RD.getDefRhs id in
+	  (match riviho with
+	    Some(RD.RDExp(e) as r, defivih) ->
+	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
+	      if RD.ok_to_replace ivih defivih fd r
+	      then 
+		(if !debug then ignore(E.log "Yes.\n");
+		 ChangeTo(e))
+	      else
+		(match RD.ok_to_replace_with_incdec ivih defivih fd id vi r with
+		  Some(curdef_stmt_id,redefid, rhsvi, b) ->
+		    (if !debug then ignore(E.log "No, but I can replace it with a post-inc/dec\n");
+		     IH.add incdecHash vi.vid (redefid, rhsvi, b);
+		     IH.add idDefHash rhsvi.vid (curdef_stmt_id, redefid);
+		     DoChildren)
+		| None ->
+		    (if !debug then ignore(E.log "No.\n");
+		     DoChildren))
+	  | Some(RD.RDCall(i) as r, defivih) ->
+	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
+	      if RD.ok_to_replace ivih defivih fd r
+	      then (if !debug then ignore(E.log "Yes.\n");
+		    IH.add iioh vi.vid (Some(i));
+		    DoChildren)
+	      else (if !debug then ignore(E.log "No.\n");
+		    DoChildren)
+	  | _ -> DoChildren)
+      | _ -> DoChildren)
+    in
+
     match e with
       Lval (Var vi,off) ->
 	(if String.length vi.vname >= 3 &&
@@ -63,32 +111,15 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 	  then (IH.replace iioh vi.vid None; DoChildren)
 	  else
 	    (match inst_iviho with
-	      Some(ivih,s) ->
-		let ido = RD.ih_reverse_lookup ivih vi in
-		(match ido with
-		  Some id ->
-		    let riviho = RD.getDefRhs id in
-		    (match riviho with
-		      Some(RD.RDExp(e) as r, defivih) ->
-			if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
-			if RD.ok_to_replace ivih defivih fd r
-			then 
-			  (if !debug then ignore(E.log "Yes.\n");
-			   ChangeTo(e))
-			else 
-			  (if !debug then ignore(E.log "No.\n");
-			   DoChildren)
-		    | Some(RD.RDCall(i) as r, defivih) ->
-			if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
-			if RD.ok_to_replace ivih defivih fd r
-			then (if !debug then ignore(E.log "Yes.\n");
-			      IH.add iioh vi.vid (Some(i));
-			      DoChildren)
-			else (if !debug then ignore(E.log "No.\n");
-			      DoChildren)
-		    | _ -> DoChildren)
-		| _ -> DoChildren)
-	    | _ -> DoChildren)
+	      Some(ivih,s) -> do_change ivih vi
+	    | None -> let iviho = RD.getRDs sid in
+	      match iviho with
+		Some(ivih,s) -> 
+		  (if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
+		   do_change ivih vi)
+	      | None -> 
+		  (if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
+		   DoChildren))
 	else DoChildren)
     | _ -> DoChildren
 
@@ -119,7 +150,8 @@ class unusedRemoverClass : cilVisitor = object(self)
        the local variables that need to be kept *)
     let good_var vi =
       not(UD.VS.mem vi unused_set) &&
-      not(IH.mem iioh vi.vid)
+      not(IH.mem iioh vi.vid) &&
+      not(IH.mem incdecHash vi.vid)
     in
     let good_locals = List.filter good_var f.slocals in
     f.slocals <- good_locals;
@@ -131,13 +163,42 @@ class unusedRemoverClass : cilVisitor = object(self)
      that set variables mentioned in iioh *)
   method vstmt stm =
 
+    (* Return true if the assignment of this
+       variable in this statement is going to be
+       replaced by a post-inc/dec *)
+    let check_incdec vi e =
+      if IH.mem idDefHash vi.vid then
+	let sid, redefid = IH.find idDefHash vi.vid in
+	if sid = stm.sid then
+	  let rhso = RD.getDefRhs redefid in
+	  match rhso with
+	    None -> (if !debug then ignore (E.log "check_incdec: couldn't find rhs for def %d\n" redefid);
+		     false)
+	  | Some(rhs, indefs) ->
+	      (match rhs with
+		RD.RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
+				false)
+	      | RD.RDExp e' -> 
+		  if Util.equals e e' then true
+		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
+					      redefid d_plainexp e' d_plainexp e);
+			false))
+	else (if !debug then ignore (E.log "check_incdec: current statement: %d needed statement: %d. %s = %a\n"
+				       stm.sid sid vi.vname d_exp e);
+	      false)
+      else (if !debug then ignore (E.log "check_incdec: %s not in idDefHash\n" vi.vname);
+	    false)
+    in
+
     (* a filter function for picking out
        the instructions that we want to keep *)
     (* instr -> bool *)
     let good_instr i =
       match i with
-	Set((Var(vi),_),_,_) ->
-	  not (UD.VS.mem vi unused_set)
+	Set((Var(vi),_),e,_) ->
+	  not (UD.VS.mem vi unused_set) &&
+	  not (IH.mem incdecHash vi.vid) &&
+	  not (check_incdec vi e)
       | Call (Some(Var(vi),_),_,_,_) ->
 	  not (IH.mem iioh vi.vid)
       | _ -> true
@@ -207,6 +268,13 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	   d
        | _ -> (self#checkViAndWarn v;
 	       text v.vname)
+     else if IH.mem incdecHash v.vid then
+       let redefid, rhsvi, b = IH.find incdecHash v.vid in
+       match b with
+	 PlusA | PlusPI | IndexPI ->
+	   text rhsvi.vname ++ text "++"
+       | MinusA | MinusPI ->
+	   text rhsvi.vname ++ text "--"
      else (self#checkViAndWarn v;
 	   text v.vname)
 
@@ -1019,6 +1087,8 @@ class zraCilPrinterClass : cilPrinter = object (self)
       if !doElimTemps
       then
 	let _ = IH.clear iioh in
+	let _ = IH.clear incdecHash in
+	let _ = IH.clear idDefHash in
 	let f' = visitCilFunction (new tempElimClass f) f in
 	visitCilFunction (new unusedRemoverClass) f'
       else f in

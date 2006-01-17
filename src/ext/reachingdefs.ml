@@ -275,14 +275,15 @@ let getDefRhs defId =
     with Not_found -> E.s (E.error "getDefRhs: sid %d not found \n" stm.sid) in
   match stm.skind with
     Instr il ->
-      let ivihl = instrRDs il (ivih,s) true in
-      let iihl = List.combine il ivihl in
-      let iihl' = List.filter (fun (_,(ih,_)) ->
+      let ivihl = instrRDs il (ivih,s) true in (* defs that reach out of each instr *)
+      let ivihl_in = instrRDs il (ivih,s) false in (* defs that reach into each instr *)
+      let iihl = List.combine (List.combine il ivihl) ivihl_in in
+      let iihl' = List.filter (fun ((_,(ih,_)),_) ->
 	if IH.mem ih defId 
 	then true 
 	else false) iihl in
       (try 
-	let (i,(divih,_)) = List.hd iihl' in
+	let ((i,(divih,_)),(divih_in,_)) = List.hd iihl' in
 	let vi = 
 	  try IH.find divih defId
 	  with Not_found -> E.s (E.error "getDefRhs: defId %d doesn't reach first instr?!\n" defId) in
@@ -291,10 +292,10 @@ let getDefRhs defId =
 	    (match lh with
 	      Var(vi') ->
 		if Util.equals vi vi'
-		then Some(RDExp(e), divih)
+		then Some(RDExp(e), divih_in)
 		else E.s (E.error "Reaching Defs: getDefRhs: right vi not first\n")
 	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
-	| Call(lvo,e,el,_) -> Some(RDCall(i), divih)
+	| Call(lvo,e,el,_) -> Some(RDCall(i), divih_in)
 	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
       with Failure _ ->
 	E.s (E.error "Reaching Defs: getDefRhs: No instruction defines %d\n" defId))
@@ -346,3 +347,128 @@ let ok_to_replace curivih defivih f r =
 	  (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions\n" vi.vname);
 	  false)) 
     uses true
+
+let useList = ref []
+(* Visitor for making a list of statements that use a definition *)
+class useListerClass (defid:int) (vi:varinfo) : cilVisitor = object(self)
+    inherit nopCilVisitor
+
+  (* which statement are we working on  *)
+  val mutable sid = -1
+
+  (* if a list of instructions is being
+     processed, then this is the corresponding
+     list of reaching defs *)
+  val mutable ivihl = []
+
+  (* these are the reaching defs for the
+     current instruction if there is one *)
+  val mutable inst_iviho = None
+
+  method vstmt stm =
+    sid <- stm.sid;
+    match getRDs sid with
+      None -> DoChildren
+    | Some(ivih,s) ->
+	match stm.skind with
+	  Instr il ->
+	    ivihl <- instrRDs il (ivih,s) false;
+	    DoChildren
+	| _ -> DoChildren
+
+  method vinst i =
+    inst_iviho <- Some(List.hd ivihl);
+    ivihl <- List.tl ivihl;
+    DoChildren
+
+  method vexpr e =
+    match e with
+      Lval(Var vi', off) ->
+	(match inst_iviho with
+	  Some(inst_ivih,_) ->
+	    if Util.equals vi vi' &&
+	      IH.mem inst_ivih defid
+	    then (useList := sid::(!useList);
+		  DoChildren)
+	    else DoChildren
+	| None -> let iviho = getRDs sid in
+	  (match iviho with
+	    Some (ivih,_) ->
+	      if Util.equals vi vi' &&
+		IH.mem ivih defid
+	      then (useList := sid::(!useList);
+		    DoChildren)
+	      else DoChildren
+	  | None -> E.s (E.error "useLister: no ivih for statement\n")))
+    | _ -> DoChildren
+
+end
+
+(* ok_to_replace_with_incdec *)
+(* Find out if it is alright to replace the use of a variable
+   with a post-incrememnt/decrement of the variable it is assigned to be *)
+(* Takes the definitions reaching the variable use, the definitions
+   reaching the place where the variable was defined, the fundec,
+   the varinfo for the variable being considered and the right
+   hand side of its definition. *)
+let ok_to_replace_with_incdec curivih defivih f id vi r =
+
+  (* number of uses of vi where definition id reaches *)
+  let num_uses () = 
+    let _ = useList := [] in
+    let _ = visitCilFunction (new useListerClass id vi) f in
+    List.length (!useList)
+  in
+
+  match r with
+    RDExp(Lval(Var rhsvi, NoOffset)) ->
+      let curido = ih_reverse_lookup curivih rhsvi in
+      let defido = ih_reverse_lookup defivih rhsvi in
+      (match  curido, defido with
+	Some(curid), Some(defid) ->
+	  if curid = defid then None (* Should have been replaced already *)
+	  else let drhso = getDefRhs curid in
+	  (match drhso with
+	    None -> (if !debug then ignore (E.log "ok_to_replace: couldn't get rhs for def: %d\n" defid);
+		     None)
+	  | Some(drhs, redefivih) ->
+	      let redefido = ih_reverse_lookup redefivih rhsvi in
+	      (* The same definition of rhsvi must reach both the definition of
+		 vi and the redefinition of rhsvi *)
+	      (match redefido with
+		None -> (if !debug then ignore (E.log "ok_to_replace: a def of %s doesn't reach redefinition\n" rhsvi.vname);
+			 None)
+	      | Some redefid ->
+		  let curdef_stmt = try IH.find ReachingDef.defIdStmtHash curid
+		  with Not_found -> E.s (E.error "ok_to_replace: couldn't find statement defining %d\n" redefid) in
+		  if not(defid = redefid) 
+		  then (if !debug then ignore (E.log "ok_to_replace: different definitions of %s reach the definition of %s and %s's redefinition: %d and %d\n"
+					      rhsvi.vname vi.vname rhsvi.vname defid redefid);
+			None)
+		  else
+		    (match drhs with
+		      RDExp(BinOp(PlusA as b, Lval(Var rhsvi',NoOffset),one,_))
+		    | RDExp(BinOp(PlusPI as b, Lval(Var rhsvi', NoOffset),one,_))
+		    | RDExp(BinOp(IndexPI as b, Lval(Var rhsvi', NoOffset),one,_))
+		    | RDExp(BinOp(PlusA as b, one, Lval(Var rhsvi', NoOffset),_))
+		    | RDExp(BinOp(PlusPI as b, one, Lval(Var rhsvi', NoOffset),_))
+		    | RDExp(BinOp(IndexPI as b, one, Lval(Var rhsvi', NoOffset),_))
+		    | RDExp(BinOp(MinusA as b, Lval(Var rhsvi', NoOffset),one,_))
+		    | RDExp(BinOp(MinusPI as b, Lval(Var rhsvi', NoOffset),one,_)) ->
+			if Util.equals rhsvi' rhsvi &&
+			  Util.equals one (integer 1)
+			then 
+			  if num_uses () = 1 then 
+			    Some(curdef_stmt.sid, curid, rhsvi, b)
+			  else (if !debug then ignore (E.log "ok_to_replace: tmp used more than once\n");
+				None)
+			else (if !debug then ignore (E.log "ok_to_replace: redef isn't adding or subtracting one from itself\n");
+			      None)
+		    | RDExp(e) -> (if !debug then ignore (E.log "ok_to_replace: redef not of correct form: %a\n" d_plainexp e);
+				   None)
+		    | _ -> (if !debug then ignore (E.log "ok_to_replace: redef a call\n");
+			    None))))
+      | _ -> (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions\n" rhsvi.vname);
+	      None)) (* XXX: maybe only id has to reach the redefinition? prove it.*)
+  | _ -> (if !debug then ignore (E.log "ok_to_replace: rhs not of correct form\n");
+	  None)
