@@ -199,7 +199,7 @@ sub scanTestFile {
     my($current) = @_;
 
     $countFreshName = 0;
-    open(IN, "<$ARGV[0]") || die "Cannot open file $ARGV[1]";
+    open(IN, "<$ARGV[0]") || die "Cannot open file $ARGV[0]";
 
     my @ifenv = ();  # The IF statements we are in: IFTEST:x or IFNTEST:x 
 
