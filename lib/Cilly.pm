@@ -659,11 +659,11 @@ sub compile {
         $mtime = $mtime_1;
         $outfile = $dest->{filename} . $Cilly::savedSourceExt;
     }
+    my $srcname = ref $src ? $src->filename : $src; 
     if($self->{VERBOSE}) { 
-        print STDERR "Saving source $src->{filename} into $outfile\n";
+        print STDERR "Saving source $srcname into $outfile\n";
     }
     open(OUT, ">$outfile") || die "Cannot create $outfile";
-    my $srcname = ref $src ? $src->filename : $src; 
     my $toprintsrc = $srcname; 
     $toprintsrc =~ s|\\|/|g;
     print OUT "#pragma merger($mtime,\"$toprintsrc\",\"" . 
