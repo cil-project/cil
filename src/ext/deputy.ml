@@ -1040,31 +1040,57 @@ let inferVisitor = object (self)
     in
     ChangeDoChildrenPost (t, postProcessType)
 
-  method vinst i = 
-    let postProcessInstr (instrs: instr list) : instr list =
-      List.fold_right
-        (fun instr acc ->
-           match instr with
-           | Set ((Var vi, NoOffset), e, l)
-                 when Hashtbl.mem varBounds vi.vname ->
-               if !verbose then
-                 E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
-               let baseVar, endVar = Hashtbl.find varBounds vi.vname in
-               let t = checkExp e in
-               let lo, hi =
-                 if isPointerType t then
-                   fancyBoundsOfType t
-                 else
-                   Lval (var vi), Lval (var vi)
-               in
-               Set (var baseVar, lo, l) :: Set (var endVar, hi, l) ::
-                 instr :: acc
-           | _ ->
-               instr :: acc)
-        instrs
-        []
+  method vstmt s =
+    (* Make sure each statement contains one instruction only. *)
+    begin
+      match s.skind with
+      | Instr [] -> ()
+      | Instr [_] -> ()
+      | Instr instrs ->
+          s.skind <- Block (mkBlock (List.map mkStmtOneInstr instrs))
+      | _ -> ()
+    end;
+    (* Process individual instructions.  We do this at the statement level
+     * because conditionals need to be introduced. *)
+    let postProcessStmt (s: stmt) : stmt =
+      match s.skind with
+      | Instr [] -> s
+      | Instr [instr] ->
+          begin
+            match instr with
+            | Set ((Var vi, NoOffset), e, l)
+                  when Hashtbl.mem varBounds vi.vname ->
+                if !verbose then
+                  E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
+                let baseVar, endVar = Hashtbl.find varBounds vi.vname in
+                let t = checkExp e in
+                let lo, hi =
+                  if isPointerType t then
+                    fancyBoundsOfType t
+                  else
+                    Lval (var vi), Lval (var vi)
+                in
+                let zeroBlock =
+                  mkBlock [mkStmt (Instr [Set (var vi, zero, l);
+                                          Set (var baseVar, zero, l);
+                                          Set (var endVar, zero, l)])]
+                in
+                let nonZeroBlock =
+                  mkBlock [mkStmt (Instr [Set (var vi, zero, l);
+                                          Set (var baseVar, lo, l);
+                                          Set (var endVar, hi, l);
+                                          instr])]
+                in
+                mkStmt (If (e, nonZeroBlock, zeroBlock, l))
+            | _ ->
+                s
+          end
+      | Instr _ ->
+          E.s (E.bug "expected one-instruction statements only\n")
+      | _ -> s
     in
-    ChangeDoChildrenPost ([i], postProcessInstr)
+    ChangeDoChildrenPost (s, postProcessStmt)
+          
 
   method vfunc fd =
     Hashtbl.clear varBounds;
@@ -1101,6 +1127,50 @@ end
 
 (**************************************************************************)
 
+let isAllocator (fn: exp) : bool =
+  match fn with
+  | Lval (Var vi, NoOffset)
+      when vi.vname = "__kmalloc" || vi.vname = "calloc" -> true
+  | _ -> false
+
+let stripSomeCasts (t: typ) (e: exp) : exp =
+  match e with
+  | CastE (t', e') ->
+      if compareTypes t t' &&
+         (compareTypes (typeRemoveAttributes ["bounds"] t')
+                       (typeRemoveAttributes ["bounds"] (typeOf e)) || 
+          (isPointerType t' && isZero e)) then
+        e'
+      else
+        e
+  | _ -> e
+
+let rec expRefersToVar (name: string) (e: exp) : bool =
+  match e with
+  | Lval lv -> lvalRefersToVar name lv
+  | AddrOf lv -> lvalRefersToVar name lv
+  | StartOf lv -> lvalRefersToVar name lv
+  | SizeOfE e' -> expRefersToVar name e'
+  | AlignOfE e' -> expRefersToVar name e'
+  | UnOp (_, e', _) -> expRefersToVar name e'
+  | BinOp (_, e1, e2, _) -> expRefersToVar name e1 || expRefersToVar name e2
+  | CastE (_, e') -> expRefersToVar name e'
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _ -> false
+
+and lvalRefersToVar (name: string) ((host, offset): lval) : bool =
+  let rec offsetRefersToVar (offset: offset) =
+    match offset with
+    | Field (fld, offset') -> offsetRefersToVar offset'
+    | Index (e, offset') -> expRefersToVar name e || offsetRefersToVar offset'
+    | NoOffset -> false
+  in
+  match host with
+  | Var vi -> vi.vname = name || offsetRefersToVar offset
+  | Mem e -> expRefersToVar name e || offsetRefersToVar offset
+
 let preProcessVisitor = object (self)
   inherit nopCilVisitor
 
@@ -1124,43 +1194,31 @@ let preProcessVisitor = object (self)
         (fun instr acc ->
            match instr with
            | Call (Some (Var vi, NoOffset), fn, args, l)
-                 when not (hasAttribute "bounds" (typeAttrs vi.vtype)) ->
-               if !verbose then
-                 E.log "%a: transforming call %a\n" d_loc l dn_instr instr;
-               let isAlloc =
-                 match fn with
-                 | Lval (Var vi', NoOffset) when vi'.vname = "__kmalloc" -> true
-                 | _ -> false
-               in
-               if isAlloc then instr :: acc else
-               begin
+                 when not (isAllocator fn) ->
+               let rt =
                  match typeOf fn with
                  | TFun (rt, _, _, _) ->
-                     if isPointerType rt then
-                       let rt' =
-                         if hasAttribute "bounds" (typeAttrs rt) then
-                           rt
-                         else
-                           typeAddAttributes [safeAttr] rt
-                       in
-                       let tmp = makeTempVar !curFunc rt' in
-                       Call (Some (var tmp), fn, args, l) ::
-                         Set (var vi, Lval (var tmp), l) ::
-                         acc
+                     if isPointerType rt &&
+                        not (hasAttribute "bounds" (typeAttrs rt)) then
+                       typeAddAttributes [safeAttr] rt
                      else
-                       instr :: acc
+                       rt
                  | _ ->
                      E.s (E.bug "expected function type\n")
-               end
-           | Set (lv, CastE (t, e), l) ->
-               let lvType = typeOfLval lv in
-               if compareTypes lvType t &&
-                  (compareTypes (typeRemoveAttributes ["bounds"] t)
-                                (typeRemoveAttributes ["bounds"] (typeOf e)) || 
-                   (isPointerType t && isZero e)) then
-                 Set (lv, e, l) :: acc
-               else
-                 instr :: acc
+               in
+               let tmp = makeTempVar !curFunc rt in
+               Call (Some (var tmp), fn, args, l) ::
+                 Set (var vi, Lval (var tmp), l) ::
+                 acc
+           | Set ((Var vi, NoOffset), e, l) when expRefersToVar vi.vname e ->
+               let e' = stripSomeCasts vi.vtype e in
+               let t = typeOf e' in
+               let tmp = makeTempVar !curFunc t in
+               Set (var tmp, e', l) ::
+                 Set (var vi, Lval (var tmp), l) ::
+                 acc
+           | Set (lv, e, l) ->
+               Set (lv, stripSomeCasts (typeOfLval lv) e, l) :: acc
            | _ ->
                instr :: acc)
         instrs
