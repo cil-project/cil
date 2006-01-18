@@ -743,7 +743,8 @@ and checkLval (why:whyLval) (lv : lval) : typ =
       match (checkRest ()) with 
         TArray(bt,Some len,a) ->
           addCheck (CUnsignedLess(index, len));
-          bt
+          let ctx = addThisBinding emptyContext (Lval lv) in
+          substType ctx bt
       | t -> E.s (error "%a: expecting an array, got %a.\n"
                     d_loc !currentLoc d_type t)
     end
