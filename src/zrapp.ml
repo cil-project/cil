@@ -27,11 +27,21 @@ let iioh = IH.create 16
    that can replace the variable *)
 let incdecHash = IH.create 16
 
-(* A hash from variable ids to a statement id.
+(* A hash from variable ids to a list of statement ids.
    Because a post-inc/dec will be printed elsewhere,
-   the assignment of the variable in this statement
-   doesn't need to be printed *)
+   the assignments of the variable in these statements
+   don't need to be printed *)
 let idDefHash = IH.create 16
+
+(* Add a pair to the list for vid and create a list if one
+   doesn't exist *)
+let id_dh_add vid p =
+  if IH.mem idDefHash vid then
+    let oldlist = IH.find idDefHash vid in
+    let newlist = p::oldlist in
+    IH.replace idDefHash vid newlist
+  else
+    IH.add idDefHash vid [p]
 
 class tempElimClass (fd:fundec) : cilVisitor = object (self)
   inherit nopCilVisitor
@@ -52,10 +62,10 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
     sid <- stm.sid;
     match RD.getRDs sid with
       None -> DoChildren
-    | Some(ivih,s ) ->
+    | Some(ivih, s, iosh) ->
 	match stm.skind with
 	  Instr il ->
-	    ivihl <- RD.instrRDs il (ivih,s) false;
+	    ivihl <- RD.instrRDs il (ivih, s, iosh) false;
 	    DoChildren
 	| _ -> (ivihl <- [];
 		inst_iviho <- None;
@@ -68,31 +78,33 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 
   method vexpr e =
 
-    let do_change ivih vi =
-      let ido = RD.ih_reverse_lookup ivih vi in
+    let do_change (ivih, iosh) vi =
+      let ido = RD.iosh_singleton_lookup iosh vi in
       (match ido with
 	Some id ->
 	  let riviho = RD.getDefRhs id in
 	  (match riviho with
-	    Some(RD.RDExp(e) as r, defivih) ->
+	    Some(RD.RDExp(e) as r, defivih, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
-	      if RD.ok_to_replace ivih defivih fd r
+	      if RD.ok_to_replace (ivih,iosh) (defivih,defiosh) fd r
 	      then 
 		(if !debug then ignore(E.log "Yes.\n");
 		 ChangeTo(e))
 	      else
-		(match RD.ok_to_replace_with_incdec ivih defivih fd id vi r with
+		(match RD.ok_to_replace_with_incdec (ivih,iosh) (defivih,defiosh) fd id vi r with
 		  Some(curdef_stmt_id,redefid, rhsvi, b) ->
 		    (if !debug then ignore(E.log "No, but I can replace it with a post-inc/dec\n");
+		     if !debug then ignore(E.log "cdsi: %d redefid: %d name: %s\n"
+					     curdef_stmt_id redefid rhsvi.vname);
 		     IH.add incdecHash vi.vid (redefid, rhsvi, b);
-		     IH.add idDefHash rhsvi.vid (curdef_stmt_id, redefid);
+		     id_dh_add rhsvi.vid (curdef_stmt_id, redefid);
 		     DoChildren)
 		| None ->
 		    (if !debug then ignore(E.log "No.\n");
 		     DoChildren))
-	  | Some(RD.RDCall(i) as r, defivih) ->
+	  | Some(RD.RDCall(i) as r, defivih, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
-	      if RD.ok_to_replace ivih defivih fd r
+	      if RD.ok_to_replace (ivih,iosh) (defivih,defiosh) fd r
 	      then (if !debug then ignore(E.log "Yes.\n");
 		    IH.add iioh vi.vid (Some(i));
 		    DoChildren)
@@ -111,12 +123,12 @@ class tempElimClass (fd:fundec) : cilVisitor = object (self)
 	  then (IH.replace iioh vi.vid None; DoChildren)
 	  else
 	    (match inst_iviho with
-	      Some(ivih,s) -> do_change ivih vi
+	      Some(ivih,s,iosh) -> do_change (ivih, iosh) vi
 	    | None -> let iviho = RD.getRDs sid in
 	      match iviho with
-		Some(ivih,s) -> 
+		Some(ivih,s,iosh) -> 
 		  (if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
-		   do_change ivih vi)
+		   do_change (ivih, iosh) vi)
 	      | None -> 
 		  (if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
 		   DoChildren))
@@ -163,18 +175,25 @@ class unusedRemoverClass : cilVisitor = object(self)
      that set variables mentioned in iioh *)
   method vstmt stm =
 
+    (* return the list of pairs with fst = f *)
+    let findf_in_pl f pl =
+      List.filter (fun (fst,snd) ->
+	if fst = f then true else false)
+	pl
+    in
+
     (* Return true if the assignment of this
        variable in this statement is going to be
        replaced by a post-inc/dec *)
     let check_incdec vi e =
       if IH.mem idDefHash vi.vid then
-	let sid, redefid = IH.find idDefHash vi.vid in
-	if sid = stm.sid then
+	let pl = IH.find idDefHash vi.vid in
+	match findf_in_pl stm.sid pl with (sid,redefid)::l ->
 	  let rhso = RD.getDefRhs redefid in
-	  match rhso with
+	  (match rhso with
 	    None -> (if !debug then ignore (E.log "check_incdec: couldn't find rhs for def %d\n" redefid);
 		     false)
-	  | Some(rhs, indefs) ->
+	  | Some(rhs, indefs, indiosh) ->
 	      (match rhs with
 		RD.RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
 				false)
@@ -182,10 +201,10 @@ class unusedRemoverClass : cilVisitor = object(self)
 		  if Util.equals e e' then true
 		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
 					      redefid d_plainexp e' d_plainexp e);
-			false))
-	else (if !debug then ignore (E.log "check_incdec: current statement: %d needed statement: %d. %s = %a\n"
-				       stm.sid sid vi.vname d_exp e);
-	      false)
+			false)))
+	| [] -> (if !debug then ignore (E.log "check_incdec: current statement not in list: %d. %s = %a\n"
+					    stm.sid vi.vname d_exp e);
+		   false)
       else (if !debug then ignore (E.log "check_incdec: %s not in idDefHash\n" vi.vname);
 	    false)
     in
@@ -214,6 +233,8 @@ class unusedRemoverClass : cilVisitor = object(self)
 end
 
 class zraCilPrinterClass : cilPrinter = object (self)
+  inherit defaultCilPrinterClass
+
   val mutable currentFormals : varinfo list = []
   val genvHtbl : (string, varinfo) H.t = H.create 128
   val lenvHtbl : (string, varinfo) H.t = H.create 128
@@ -269,6 +290,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
        | _ -> (self#checkViAndWarn v;
 	       text v.vname)
      else if IH.mem incdecHash v.vid then
+       (* print an post-inc/dec instead of a temp variable *)
        let redefid, rhsvi, b = IH.find incdecHash v.vid in
        match b with
 	 PlusA | PlusPI | IndexPI ->
@@ -300,180 +322,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ++ text " "
       ++ self#pAttrs () rest
 
-  (*** L-VALUES ***)
-  method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
-    match lv with
-      Var vi, o -> self#pOffset (self#pVar vi) o
-    | Mem e, Field(fi, o) ->
-        self#pOffset
-          ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
-    | Mem e, o ->
-        self#pOffset
-          (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
-
-  (** Offsets **)
-  method pOffset (base: doc) = function
-    | NoOffset -> base
-    | Field (fi, o) -> 
-        self#pOffset (base ++ text "." ++ text fi.fname) o
-    | Index (e, o) ->
-        self#pOffset (base ++ text "[" ++ self#pExp () e ++ text "]") o
-
-  method private pLvalPrec (contextprec: int) () lv = 
-    if getParenthLevel (Lval(lv)) >= contextprec then
-      text "(" ++ self#pLval () lv ++ text ")"
-    else
-      self#pLval () lv
-
-  (*** EXPRESSIONS ***)
-  method pExp () (e: exp) : doc = 
-    let level = getParenthLevel e in
-    match e with
-      Const(c) -> d_const () c
-    | Lval(l) -> self#pLval () l
-    | UnOp(u,e1,_) -> 
-        (d_unop () u) ++ chr ' ' ++ (self#pExpPrec level () e1)
-          
-    | BinOp(b,e1,e2,_) -> 
-        align 
-          ++ (self#pExpPrec level () e1)
-          ++ chr ' ' 
-          ++ (d_binop () b)
-          ++ break 
-          ++ (self#pExpPrec level () e2)
-          ++ unalign
-
-    | CastE(t,e) -> 
-        text "(" 
-          ++ self#pType None () t
-          ++ text ")"
-          ++ self#pExpPrec level () e
-
-    | SizeOf (t) -> 
-        text "sizeof(" ++ self#pType None () t ++ chr ')'
-    | SizeOfE (e) ->  
-        text "sizeof(" ++ self#pExp () e ++ chr ')'
-
-    | SizeOfStr s -> 
-        text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
-
-    | AlignOf (t) -> 
-        text "__alignof__(" ++ self#pType None () t ++ chr ')'
-    | AlignOfE (e) -> 
-        text "__alignof__(" ++ self#pExp () e ++ chr ')'
-    | AddrOf(lv) -> 
-        text "& " ++ (self#pLvalPrec addrOfLevel () lv)
-          
-    | StartOf(lv) -> self#pLval () lv
-
-  method private pExpPrec (contextprec: int) () (e: exp) = 
-    let thisLevel = getParenthLevel e in
-    let needParens =
-      if thisLevel >= contextprec then
-	true
-      else if contextprec == bitwiseLevel then
-        (* quiet down some GCC warnings *)
-	thisLevel == additiveLevel || thisLevel == comparativeLevel
-      else
-	false
-    in
-    if needParens then
-      chr '(' ++ self#pExp () e ++ chr ')'
-    else
-      self#pExp () e
-
-  method pInit () = function 
-      SingleInit e -> self#pExp () e
-    | CompoundInit (t, initl) -> 
-      (* We do not print the type of the Compound *)
-(*
-      let dinit e = d_init () e in
-      dprintf "{@[%a@]}"
-        (docList ~sep:(chr ',' ++ break) dinit) initl
-*)
-        let printDesignator = 
-          if not !msvcMode then begin
-            (* Print only for union when we do not initialize the first field *)
-            match unrollType t, initl with
-              TComp(ci, _), [(Field(f, NoOffset), _)] -> 
-                if not (ci.cstruct) && ci.cfields != [] && 
-                  (List.hd ci.cfields).fname = f.fname then
-                  true
-                else
-                  false
-            | _ -> false
-          end else 
-            false 
-        in
-        let d_oneInit = function
-            Field(f, NoOffset), i -> 
-              (if printDesignator then 
-                text ("." ^ f.fname ^ " = ") 
-              else nil) ++ self#pInit () i
-          | Index(e, NoOffset), i -> 
-              (if printDesignator then 
-                text "[" ++ self#pExp () e ++ text "] = " else nil) ++ 
-                self#pInit () i
-          | _ -> E.s (unimp "Trying to print malformed initializer")
-        in
-        chr '{' ++ (align 
-                      ++ ((docList ~sep:(chr ',' ++ break) d_oneInit) () initl) 
-                      ++ unalign)
-          ++ chr '}'
-(*
-    | ArrayInit (_, _, il) -> 
-        chr '{' ++ (align 
-                      ++ ((docList (chr ',' ++ break) (self#pInit ())) () il) 
-                      ++ unalign)
-          ++ chr '}'
-*)
-  (* dump initializers to a file. *)
-  method dInit (out: out_channel) (ind: int) (i: init) = 
-    (* Dump an array *)
-    let dumpArray (bt: typ) (il: 'a list) (getelem: 'a -> init) = 
-      let onALine = (* How many elements on a line *)
-        match unrollType bt with TComp _ | TArray _ -> 1 | _ -> 4
-      in
-      let rec outputElements (isfirst: bool) (room_on_line: int) = function
-          [] -> output_string out "}"
-        | (i: 'a) :: rest -> 
-            if not isfirst then output_string out ", ";
-            let new_room_on_line = 
-              if room_on_line == 0 then begin 
-                output_string out "\n"; output_string out (String.make ind ' ');
-                onALine - 1
-              end else 
-                room_on_line - 1
-            in
-            self#dInit out (ind + 2) (getelem i);
-            outputElements false new_room_on_line rest
-      in
-      output_string out "{ ";
-      outputElements true onALine il
-    in
-    match i with 
-      SingleInit e -> 
-        fprint out 80 (indent ind (self#pExp () e))
-    | CompoundInit (t, initl) -> begin 
-        match unrollType t with 
-          TArray(bt, _, _) -> 
-            dumpArray bt initl (fun (_, i) -> i)
-        | _ -> 
-            (* Now a structure or a union *)
-            fprint out 80 (indent ind (self#pInit () i))
-    end
-(*
-    | ArrayInit (bt, len, initl) -> begin
-        (* If the base type does not contain structs then use the pInit 
-        match unrollType bt with 
-          TComp _ | TArray _ -> 
-            dumpArray bt initl (fun x -> x)
-        | _ -> *)
-            fprint out 80 (indent ind (self#pInit () i))
-    end
-*)
-        
-  (*** INSTRUCTIONS ****)
+    (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
     | Set(lv,e,l) -> begin
@@ -654,253 +503,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
             ++ text (")" ^ printInstrTerminator)
             
 
-  (**** STATEMENTS ****)
-  method pStmt () (s:stmt) =        (* control-flow statement *)
-    self#pStmtNext invalidStmt () s
-
-  method dStmt (out: out_channel) (ind: int) (s:stmt) : unit = 
-    fprint out 80 (indent ind (self#pStmt () s))
-
-  method dBlock (out: out_channel) (ind: int) (b:block) : unit = 
-    fprint out 80 (indent ind (align ++ self#pBlock () b))
-
-  method private pStmtNext (next: stmt) () (s: stmt) =
-    (* print the labels *)
-    ((docList ~sep:line (fun l -> self#pLabel () l)) () s.labels)
-      (* print the statement itself. If the labels are non-empty and the
-      * statement is empty, print a semicolon  *)
-      ++ 
-      (if s.skind = Instr [] && s.labels <> [] then
-        text ";"
-      else
-        (if s.labels <> [] then line else nil) 
-          ++ self#pStmtKind next () s.skind)
-
-  method private pLabel () = function
-      Label (s, _, true) -> text (s ^ ": ")
-    | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
-    | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
-    | Default _ -> text "default: "
-
-  (* The pBlock will put the unalign itself *)
-  method pBlock () (blk: block) = 
-    let rec dofirst () = function
-        [] -> nil
-      | [x] -> self#pStmtNext invalidStmt () x
-      | x :: rest -> dorest nil x rest
-    and dorest acc prev = function
-        [] -> acc ++ (self#pStmtNext invalidStmt () prev)
-      | x :: rest -> 
-          dorest (acc ++ (self#pStmtNext x () prev) ++ line)
-            x rest
-    in
-    (* Let the host of the block decide on the alignment. The d_block will 
-     * pop the alignment as well  *)
-    text "{" 
-      ++ 
-      (if blk.battrs <> [] then 
-        self#pAttrsGen true blk.battrs
-      else nil)
-      ++ line
-      ++ (dofirst () blk.bstmts)
-      ++ unalign ++ line ++ text "}"
-
-  
-  (* Store here the name of the last file printed in a line number. This is 
-   * private to the object *)
-  val mutable lastFileName = ""
-  (* Make sure that you only call self#pLineDirective on an empty line *)
-  method pLineDirective ?(forcefile=false) l = 
-    currentLoc := l;
-    match !lineDirectiveStyle with
-    | Some style when l.line > 0 ->
-	let directive =
-	  match style with
-	  | LineComment -> text "//#line "
-	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
-	  | _ -> text "#line"
-	in
-	let filename =
-          if forcefile || l.file <> lastFileName then
-	    begin
-	      lastFileName <- l.file;
-	      text " \"" ++ text l.file ++ text "\""
-            end
-	  else
-	    nil
-	in
-	leftflush ++ directive ++ chr ' ' ++ num l.line ++ filename ++ line
-    | _ ->
-	nil
-
-
-  method private pStmtKind (next: stmt) () = function
-      Return(None, l) ->
-        self#pLineDirective l
-          ++ text "return;"
-
-    | Return(Some e, l) ->
-        self#pLineDirective l
-          ++ text "return ("
-          ++ self#pExp () e
-          ++ text ");"
-          
-    | Goto (sref, l) -> begin
-        (* Grab one of the labels *)
-        let rec pickLabel = function
-            [] -> None
-          | Label (l, _, _) :: _ -> Some l
-          | _ :: rest -> pickLabel rest
-        in
-        match pickLabel !sref.labels with
-          Some l -> text ("goto " ^ l ^ ";")
-        | None -> 
-            ignore (error "Cannot find label for target of goto\n");
-            text "goto __invalid_label;"
-    end
-
-    | Break l ->
-        self#pLineDirective l
-          ++ text "break;"
-
-    | Continue l -> 
-        self#pLineDirective l
-          ++ text "continue;"
-
-    | Instr il ->
-        align
-          ++ (docList ~sep:line (fun i -> self#pInstr () i) () il)
-          ++ unalign
-
-    | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () be
-                ++ text ") "
-                ++ self#pBlock () t)
-          
-    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
-                battrs=[]},l)
-     when !gref == next && not !printCilAsIs ->
-       self#pLineDirective l
-         ++ text "if"
-         ++ (align
-               ++ text " ("
-               ++ self#pExp () be
-               ++ text ") "
-               ++ self#pBlock () t)
-
-    | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () (UnOp(LNot,be,intType))
-                ++ text ") "
-                ++ self#pBlock () e)
-
-    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
-           battrs=[]},e,l)
-      when !gref == next && not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () (UnOp(LNot,be,intType))
-                ++ text ") "
-                ++ self#pBlock () e)
-          
-    | If(be,t,e,l) ->
-        self#pLineDirective l
-          ++ (align
-                ++ text "if"
-                ++ (align
-                      ++ text " ("
-                      ++ self#pExp () be
-                      ++ text ") "
-                      ++ self#pBlock () t)
-                ++ text " "   (* sm: indent next code 2 spaces (was 4) *)
-                ++ (align
-                      ++ text "else "
-                      ++ self#pBlock () e)
-          ++ unalign)
-          
-    | Switch(e,b,_,l) ->
-        self#pLineDirective l
-          ++ (align
-                ++ text "switch ("
-                ++ self#pExp () e
-                ++ text ") "
-                ++ self#pBlock () b)
-    | Loop(b, l, _, _) -> begin
-        (* Maybe the first thing is a conditional. Turn it into a WHILE *)
-        try
-          let term, bodystmts =
-            let rec skipEmpty = function
-                [] -> []
-              | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
-              | x -> x
-            in
-            (* Bill McCloskey: Do not remove the If if it has labels *)
-            match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]} :: rest 
-                                              when not !printCilAsIs -> begin
-                match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
-                  [], {skind=Break _; labels=[]} :: _  -> e, rest
-                | {skind=Break _; labels=[]} :: _, [] 
-                                     -> UnOp(LNot, e, intType), rest
-                | _ -> raise Not_found
-              end
-            | _ -> raise Not_found
-          in
-          self#pLineDirective l
-            ++ text "wh"
-            ++ (align
-                  ++ text "ile ("
-                  ++ self#pExp () term
-                  ++ text ") "
-                  ++ self#pBlock () {bstmts=bodystmts; battrs=b.battrs})
-
-        with Not_found ->
-          self#pLineDirective l
-            ++ text "wh"
-            ++ (align
-                  ++ text "ile (1) "
-                  ++ self#pBlock () b)
-    end
-    | Block b -> align ++ self#pBlock () b
-      
-    | TryFinally (b, h, l) -> 
-        self#pLineDirective l 
-          ++ text "__try "
-          ++ align 
-          ++ self#pBlock () b
-          ++ text " __fin" ++ align ++ text "ally "
-          ++ self#pBlock () h
-
-    | TryExcept (b, (il, e), h, l) -> 
-        self#pLineDirective l 
-          ++ text "__try "
-          ++ align 
-          ++ self#pBlock () b
-          ++ text " __e" ++ align ++ text "xcept(" ++ line
-          ++ align
-          (* Print the instructions but with a comma at the end, instead of 
-           * semicolon *)
-          ++ (printInstrTerminator <- ","; 
-              let res = 
-                (docList ~sep:line (self#pInstr ())
-                   () il) 
-              in
-              printInstrTerminator <- ";";
-              res)
-          ++ self#pExp () e
-          ++ text ") " ++ unalign
-          ++ self#pBlock () h
-
-
   (*** GLOBALS ***)
   method pGlobal () (g:global) : doc =       (* global (vars, types, etc.) *)
     match g with 
@@ -1066,17 +668,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
      | g -> fprint out 80 (self#pGlobal () g)
 
-   method pFieldDecl () fi = 
-     (self#pType
-        (Some (text (if fi.fname = missingFieldName then "" else fi.fname)))
-        () 
-        fi.ftype)
-       ++ text " "
-       ++ (match fi.fbitfield with None -> nil 
-       | Some i -> text ": " ++ num i ++ text " ")
-       ++ self#pAttrs () fi.fattr
-       ++ text ";"
-
   method private pFunDecl () f =
     H.add genvHtbl f.svar.vname f.svar;(* add function to global env *)
     H.clear lenvHtbl; (* new local environment *)
@@ -1107,272 +698,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
           body))
       ++ line
       ++ text "}"
-
-  (***** PRINTING DECLARATIONS and TYPES ****)
-    
-  method pType (nameOpt: doc option) (* Whether we are declaring a name or 
-                                      * we are just printing a type *)
-               () (t:typ) =       (* use of some type *)
-    let name = match nameOpt with None -> nil | Some d -> d in
-    let printAttributes (a: attributes) = 
-      let pa = self#pAttrs () a in
-      match nameOpt with 
-      | None when not !print_CIL_Input && not !msvcMode -> 
-          (* Cannot print the attributes in this case because gcc does not 
-           * like them here, except if we are printing for CIL, or for MSVC. 
-           * In fact, for MSVC we MUST print attributes such as __stdcall *)
-          if pa = nil then nil else 
-          text "/*" ++ pa ++ text "*/"
-      | _ -> pa
-    in
-    match t with 
-      TVoid a ->
-        text "void"
-          ++ self#pAttrs () a 
-          ++ text " " 
-          ++ name
-
-    | TInt (ikind,a) -> 
-        d_ikind () ikind 
-          ++ self#pAttrs () a 
-          ++ text " "
-          ++ name
-
-    | TFloat(fkind, a) -> 
-        d_fkind () fkind 
-          ++ self#pAttrs () a 
-          ++ text " " 
-          ++ name
-
-    | TComp (comp, a) -> (* A reference to a struct *)
-        let su = if comp.cstruct then "struct" else "union" in
-        text (su ^ " " ^ comp.cname ^ " ") 
-          ++ self#pAttrs () a 
-          ++ name
-          
-    | TEnum (enum, a) -> 
-        text ("enum " ^ enum.ename ^ " ")
-          ++ self#pAttrs () a 
-          ++ name
-    | TPtr (bt, a)  -> 
-        (* Parenthesize the ( * attr name) if a pointer to a function or an 
-         * array. However, on MSVC the __stdcall modifier must appear right 
-         * before the pointer constructor "(__stdcall *f)". We push them into 
-         * the parenthesis. *)
-        let (paren: doc option), (bt': typ) = 
-          match bt with 
-            TFun(rt, args, isva, fa) when !msvcMode -> 
-              let an, af', at = partitionAttributes ~default:AttrType fa in
-              (* We take the af' and we put them into the parentheses *)
-              Some (text "(" ++ printAttributes af'), 
-              TFun(rt, args, isva, addAttributes an at)
-
-          | TFun _ | TArray _ -> Some (text "("), bt
-
-          | _ -> None, bt
-        in
-        let name' = text "*" ++ printAttributes a ++ name in
-        let name'' = (* Put the parenthesis *)
-          match paren with 
-            Some p -> p ++ name' ++ text ")" 
-          | _ -> name' 
-        in
-        self#pType 
-          (Some name'')
-          () 
-          bt'
-
-    | TArray (elemt, lo, a) -> 
-        (* ignore the const attribute for arrays *)
-        let a' = dropAttributes [ "const" ] a in 
-        let name' = 
-          if a' == [] then name else
-          if nameOpt == None then printAttributes a' else 
-          text "(" ++ printAttributes a' ++ name ++ text ")" 
-        in
-        self#pType 
-          (Some (name'
-                   ++ text "[" 
-                   ++ (match lo with None -> nil | Some e -> self#pExp () e)
-                   ++ text "]"))
-          ()
-          elemt
-          
-    | TFun (restyp, args, isvararg, a) -> 
-        let name' = 
-          if a == [] then name else 
-          if nameOpt == None then printAttributes a else
-          text "(" ++ printAttributes a ++ name ++ text ")" 
-        in
-        self#pType 
-          (Some
-             (name'
-                ++ text "("
-                ++ (align 
-                      ++ 
-                      (if args = Some [] && isvararg then 
-                        text "..."
-                      else
-                        (if args = None then nil 
-                        else if args = Some [] then text "void"
-                        else 
-                          let pArg (aname, atype, aattr) = 
-                            let stom, rest = separateStorageModifiers aattr in
-                            (* First the storage modifiers *)
-                            (self#pAttrs () stom)
-                              ++ (self#pType (Some (text aname)) () atype)
-                              ++ text " "
-                              ++ self#pAttrs () rest
-                          in
-                          (docList ~sep:(chr ',' ++ break) pArg) () 
-                            (argsToList args))
-                          ++ (if isvararg then break ++ text ", ..." else nil))
-                      ++ unalign)
-                ++ text ")"))
-          ()
-          restyp
-
-  | TNamed (t, a) ->
-      text t.tname ++ self#pAttrs () a ++ text " " ++ name
-
-  | TBuiltin_va_list a -> 
-      text "__builtin_va_list"
-       ++ self#pAttrs () a 
-        ++ text " " 
-        ++ name
-
-
-  (**** PRINTING ATTRIBUTES *********)
-  method pAttrs () (a: attributes) = 
-    self#pAttrsGen false a
-
-
-  (* Print one attribute. Return also an indication whether this attribute 
-   * should be printed inside the __attribute__ list *)
-  method pAttr (Attr(an, args): attribute) : doc * bool =
-    (* Recognize and take care of some known cases *)
-    match an, args with 
-      "const", [] -> text "const", false
-          (* Put the aconst inside the attribute list *)
-    | "aconst", [] when not !msvcMode -> text "__const__", true
-    | "thread", [] when not !msvcMode -> text "__thread", false
-(*
-    | "used", [] when not !msvcMode -> text "__attribute_used__", false 
-*)
-    | "volatile", [] -> text "volatile", false
-    | "restrict", [] -> text "__restrict", false
-    | "missingproto", [] -> text "/* missing proto */", false
-    | "cdecl", [] when !msvcMode -> text "__cdecl", false
-    | "stdcall", [] when !msvcMode -> text "__stdcall", false
-    | "fastcall", [] when !msvcMode -> text "__fastcall", false
-    | "declspec", args when !msvcMode -> 
-        text "__declspec(" 
-          ++ docList (self#pAttrParam ()) () args
-          ++ text ")", false
-    | "w64", [] when !msvcMode -> text "__w64", false
-    | "asm", args -> 
-        text "__asm__(" 
-          ++ docList (self#pAttrParam ()) () args
-          ++ text ")", false
-    (* we suppress printing mode(__si__) because it triggers an *)
-    (* internal compiler error in all current gcc versions *)
-    (* sm: I've now encountered a problem with mode(__hi__)... *)
-    (* I don't know what's going on, but let's try disabling all "mode"..*)
-    | "mode", [ACons(tag,[])] -> 
-        text "/* mode(" ++ text tag ++ text ") */", false
-
-    (* sm: also suppress "format" because we seem to print it in *)
-    (* a way gcc does not like *)
-    | "format", _ -> text "/* format attribute */", false
-
-    (* sm: here's another one I don't want to see gcc warnings about.. *)
-    | "mayPointToStack", _ when not !print_CIL_Input 
-    (* [matth: may be inside another comment.]
-      -> text "/*mayPointToStack*/", false 
-    *)
-      -> text "", false
-
-    | _ -> (* This is the dafault case *)
-        (* Add underscores to the name *)
-        let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
-        if args = [] then 
-          text an', true
-        else
-          text (an' ^ "(") 
-            ++ (docList (self#pAttrParam ()) () args)
-            ++ text ")", 
-          true
-
-  method pAttrParam () = function 
-    | AInt n -> num n
-    | AStr s -> text ("\"" ^ escape_string s ^ "\"")
-    | ACons(s, []) -> text s
-    | ACons(s,al) ->
-        text (s ^ "(")
-          ++ (docList (self#pAttrParam ()) () al)
-          ++ text ")"
-    | ASizeOfE a -> text "sizeof(" ++ self#pAttrParam () a ++ text ")"
-    | ASizeOf t -> text "sizeof(" ++ self#pType None () t ++ text ")"
-    | ASizeOfS ts -> text "sizeof(<typsig>)"
-    | AAlignOfE a -> text "__alignof__(" ++ self#pAttrParam () a ++ text ")"
-    | AAlignOf t -> text "__alignof__(" ++ self#pType None () t ++ text ")"
-    | AAlignOfS ts -> text "__alignof__(<typsig>)"
-    | AUnOp(u,a1) -> 
-        let d_unop () u =
-          match u with
-            Neg -> text "-"
-          | BNot -> text "~"
-          | LNot -> text "!"
-        in
-        (d_unop () u) ++ text " (" ++ (self#pAttrParam () a1) ++ text ")"
-
-    | ABinOp(b,a1,a2) -> 
-        align 
-          ++ text "(" 
-          ++ (self#pAttrParam () a1)
-          ++ text ") "
-          ++ (d_binop () b)
-          ++ break 
-          ++ text " (" ++ (self#pAttrParam () a2) ++ text ") "
-          ++ unalign
-    | ADot (ap, s) -> (self#pAttrParam () ap) ++ text ("." ^ s)
-          
-  (* A general way of printing lists of attributes *)
-  method private pAttrsGen (block: bool) (a: attributes) = 
-    (* Scan all the attributes and separate those that must be printed inside 
-     * the __attribute__ list *)
-    let rec loop (in__attr__: doc list) = function
-        [] -> begin 
-          match in__attr__ with
-            [] -> nil
-          | _ :: _->
-              (* sm: added 'forgcc' calls to not comment things out
-               * if CIL is the consumer; this is to address a case
-               * Daniel ran into where blockattribute(nobox) was being
-               * dropped by the merger
-               *)
-              (if block then 
-                text (" " ^ (forgcc "/*") ^ " __blockattribute__(")
-               else
-                 text "__attribute__((")
-
-                ++ (docList ~sep:(chr ',' ++ break)
-                      (fun a -> a)) () in__attr__
-                ++ text ")"
-                ++ (if block then text (forgcc "*/") else text ")")
-        end
-      | x :: rest -> 
-          let dx, ina = self#pAttr x in
-          if ina then 
-            loop (dx :: in__attr__) rest
-          else
-            dx ++ text " " ++ loop in__attr__ rest
-    in
-    let res = loop [] a in
-    if res = nil then
-      res
-    else
-      text " " ++ res ++ text " "
 
 end (* class zraCilPrinterClass *)
 
