@@ -1138,7 +1138,7 @@ let stripSomeCasts (t: typ) (e: exp) : exp =
   | CastE (t', e') ->
       if compareTypes t t' &&
          (compareTypes (typeRemoveAttributes ["bounds"] t')
-                       (typeRemoveAttributes ["bounds"] (typeOf e)) || 
+                       (typeRemoveAttributes ["bounds"] (typeOf e')) || 
           (isPointerType t' && isZero e)) then
         e'
       else
