@@ -1349,6 +1349,14 @@ end
 (**************************************************************************)
 
 let checkFile (f: file) : unit =
+  List.iter
+    (fun global ->
+       match global with
+       | GVar (vi, _, _) when vi.vstorage = Static ->
+           assert vi.vglob;
+           staticGlobalVars := vi :: !staticGlobalVars
+       | _ -> ())
+    f.globals;
   visitCilFileSameGlobals preProcessVisitor f;
   visitCilFileSameGlobals inferVisitor f;
   if !inferFile <> "" then begin
@@ -1360,14 +1368,6 @@ let checkFile (f: file) : unit =
       E.s (E.error "Error dumping inference results to %s\n" !inferFile)
   end;
   allowChecks := true;
-  List.iter
-    (fun global ->
-       match global with
-       | GVar (vi, _, _) when vi.vstorage = Static ->
-           assert vi.vglob;
-           staticGlobalVars := vi :: !staticGlobalVars
-       | _ -> ())
-    f.globals;
   List.iter
     (fun global ->
        currentLoc := get_globalLoc global;
