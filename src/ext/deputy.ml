@@ -205,9 +205,11 @@ end
 (* Keyword in bounds attributes representing the current value *)
 let thisKeyword = "__this"
 
-let safeAttr =
+let countAttr (a: attrparam) : attribute =
   Attr ("bounds", [ACons (thisKeyword, []);
-                   ABinOp (PlusPI, ACons (thisKeyword, []), AInt 1)])
+                   ABinOp (PlusPI, ACons (thisKeyword, []), a)])
+
+let safeAttr : attribute = countAttr (AInt 1)
 
 (* remember complicated bounds expressions *)
 let boundsTable : (int, exp) Hashtbl.t = Hashtbl.create 13
@@ -473,6 +475,63 @@ let compareTypes (t1 : typ) (t2 : typ) : bool =
     typeSigWithAttrs (List.filter attrFilter) t
   in
   (typeSigNC t1) = (typeSigNC t2)
+
+let isAllocator (fn: exp) : bool =
+  match fn with
+  | Lval (Var vi, NoOffset)
+      when vi.vname = "__kmalloc" || vi.vname = "calloc" -> true
+  | _ -> false
+
+let rec expToAttr (e: exp) : attrparam option =
+  match e with
+  | Lval (Var vi, NoOffset) -> Some (ACons (vi.vname, []))
+  | CastE (t, e') -> expToAttr e' (* TODO: check type? *)
+  | Const _ ->
+      begin
+        match isInteger e with
+        | Some i -> Some (AInt (Int64.to_int i))
+        | None -> None
+      end
+  | BinOp ((MinusA | PlusA) as op, e1, e2, _) ->
+      begin
+        match expToAttr e1, expToAttr e2 with
+        | Some a1, Some a2 -> Some (ABinOp (op, a1, a2))
+        | _ -> None
+      end
+  | _ -> None
+
+let getAllocationType (t: typ) (fn: exp) (args: exp list) : typ =
+  let numElts, baseType =
+    match fn, args with
+    | Lval (Var vi, NoOffset), [SizeOf t'; e] when vi.vname = "calloc" ->
+        e, t'
+    | Lval (Var vi, NoOffset), [e; _] when vi.vname = "__kmalloc" ->
+        begin
+          match e with
+          | BinOp (Mult, e', SizeOf t, _)
+          | BinOp (Mult, SizeOf t, e', _) -> e', t
+          | BinOp (Mult, e', SizeOfE et, _)
+          | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
+          | SizeOf t -> integer 1, t
+          | SizeOfE et -> integer 1, typeOf et
+          | _ -> e, charType
+        end
+    | _ ->
+        E.s (E.error "Unrecognized allocation function: %a" d_exp fn)
+  in
+  let retBaseType =
+    match unrollType t with
+    | TPtr (bt, _) -> bt
+    | _ -> E.s (E.error "Return type of allocation is not a pointer\n")
+  in
+  if not (compareTypes baseType retBaseType) then
+    E.s (E.error "%a: type mismatch: alloc type and return type differ\n"
+                 d_loc !currentLoc);
+  match expToAttr numElts with
+  | Some a -> typeAddAttributes [countAttr a]
+                (typeRemoveAttributes ["bounds"] t)
+  | None -> E.s (E.error "cannot convert alloc expression to type: %a\n"
+                 d_exp numElts)
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
@@ -802,7 +861,7 @@ let checkCall (lvo: lval option)
       end
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
-
+(*
 let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking alloc of %a %a\n" d_loc !currentLoc d_exp e d_type bt;
@@ -823,6 +882,11 @@ let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
   let hi = BinOp(PlusPI, lo, len, TPtr(bt, [])) in (* FIXME: overflow *)
   let rt = makeFancyPtrType bt lo hi in
   checkSameType rt lvType;
+  ()
+*)
+
+let checkAlloc () : unit =
+  (* TODO: check all args *)
   ()
 
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
@@ -880,22 +944,8 @@ let checkInstr (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
   match instr with
   (* Allocation *)
-  | Call (Some lv, Lval (Var vi, NoOffset), [SizeOf t; e], _) 
-      when vi.vname = "calloc" ->
-      checkAlloc lv t e
-  | Call (_, Lval (Var vi, NoOffset), _, _) when vi.vname = "calloc" ->
-      E.s (error "bad call to %s." vi.vname)
-  (* kmalloc *)
-  | Call (Some lv, Lval (Var vi, NoOffset), [e; _], _) 
-      when vi.vname = "__kmalloc" ->
-      let t =
-        match typeOfLval lv with
-        | TPtr (bt, _) -> bt
-        | _ -> E.s (E.bug "expected pointer type\n")
-      in
-      checkAlloc lv t (BinOp (Div, e, SizeOf t, intType))
-  | Call (_, Lval (Var vi, NoOffset), _, _) when vi.vname = "__kmalloc" ->
-      E.s (error "bad call to %s." vi.vname)
+  | Call (_, fn, _, _) when isAllocator fn ->
+      checkAlloc ()
   (* Function call *)
   | Call (lvo, fn, args, _) ->
       checkCall lvo fn args
@@ -1127,12 +1177,6 @@ end
 
 (**************************************************************************)
 
-let isAllocator (fn: exp) : bool =
-  match fn with
-  | Lval (Var vi, NoOffset)
-      when vi.vname = "__kmalloc" || vi.vname = "calloc" -> true
-  | _ -> false
-
 let stripSomeCasts (t: typ) (e: exp) : exp =
   match e with
   | CastE (t', e') ->
@@ -1193,8 +1237,20 @@ let preProcessVisitor = object (self)
       List.fold_right
         (fun instr acc ->
            match instr with
-           | Call (Some (Var vi, NoOffset), fn, args, l)
-                 when not (isAllocator fn) ->
+           | Call (ret, fn, args, l) when isAllocator fn ->
+               let lv =
+                 match ret with
+                 | Some lv -> lv
+                 | None -> E.s (E.error "%a: Allocation has no return\n"
+                                        d_loc !currentLoc)
+               in
+               let t = getAllocationType (typeOfLval lv) fn args in
+               let tmp = makeTempVar !curFunc t in
+               Call (Some (var tmp), fn, args, l) ::
+                 Set (lv, Lval (var tmp), l) ::
+                 Set (var tmp, zero, l) ::
+                 acc
+           | Call (Some (Var vi, NoOffset), fn, args, l) ->
                let rt =
                  match typeOf fn with
                  | TFun (rt, _, _, _) ->
@@ -1209,6 +1265,7 @@ let preProcessVisitor = object (self)
                let tmp = makeTempVar !curFunc rt in
                Call (Some (var tmp), fn, args, l) ::
                  Set (var vi, Lval (var tmp), l) ::
+                 Set (var tmp, zero, l) ::
                  acc
            | Set ((Var vi, NoOffset), e, l) when expRefersToVar vi.vname e ->
                let e' = stripSomeCasts vi.vtype e in
@@ -1216,6 +1273,7 @@ let preProcessVisitor = object (self)
                let tmp = makeTempVar !curFunc t in
                Set (var tmp, e', l) ::
                  Set (var vi, Lval (var tmp), l) ::
+                 Set (var tmp, zero, l) ::
                  acc
            | Set (lv, e, l) ->
                Set (lv, stripSomeCasts (typeOfLval lv) e, l) :: acc
