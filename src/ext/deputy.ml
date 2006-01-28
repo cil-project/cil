@@ -82,6 +82,7 @@ type check =
   | CEq of exp * exp     (** e1 == e2 *)
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CPositive of exp     (** e > 0 *)
+  | CMult of exp * exp   (** e1 * k == e2 for some int k *)
   | CBounds of exp * exp * exp * exp 
                          (** e1 <= e2+e3 <= e4.  For ptr arith *)
   | CCoerce of exp * exp * exp * exp * exp
@@ -144,6 +145,7 @@ let cnonnull = mkCheckFun "CNonNull" 1
 let ceq = mkCheckFun "CEq" 2
 let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
+let cmult = mkCheckFun "CMult" 2
 let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
 let ccoercen = mkCheckFun "CCoerceN" 5
@@ -162,6 +164,7 @@ let checkToInstr (c:check) =
   | CEq (e1,e2) -> call ceq [e1;e2]
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CPositive (e) -> call cpositive [e]
+  | CMult (e1,e2) -> call cmult [e1;e2]
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
                            call cbounds [b;p';e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
@@ -482,6 +485,11 @@ let isAllocator (fn: exp) : bool =
       when vi.vname = "__kmalloc" || vi.vname = "calloc" -> true
   | _ -> false
 
+let isMemset (fn: exp) : bool =
+  match fn with
+  | Lval (Var vi, NoOffset) when vi.vname = "memset" -> true
+  | _ -> false
+
 let rec expToAttr (e: exp) : attrparam option =
   match e with
   | Lval (Var vi, NoOffset) -> Some (ACons (vi.vname, []))
@@ -532,6 +540,21 @@ let getAllocationType (t: typ) (fn: exp) (args: exp list) : typ =
                 (typeRemoveAttributes ["bounds"] t)
   | None -> E.s (E.error "cannot convert alloc expression to type: %a\n"
                  d_exp numElts)
+
+let rec typeContainsPointers (t: typ) : bool =
+  match t with
+  | TPtr _
+  | TFun _
+  | TBuiltin_va_list _ -> true
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TEnum _ -> false
+  | TArray (bt, _, _) -> typeContainsPointers bt
+  | TNamed (ti, _) -> typeContainsPointers ti.ttype
+  | TComp (ci, _) ->
+     List.exists typeContainsPointers
+      (List.map (fun fld -> fld.ftype) ci.cfields)
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
@@ -889,6 +912,30 @@ let checkAlloc () : unit =
   (* TODO: check all args *)
   ()
 
+let checkMemset (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
+  if !verbose then
+    E.log "%a: checking memset\n" d_loc !currentLoc;
+  coerceExp e2 intType;
+  coerceExp e3 intType;
+  let e1Type = checkExp e1 in
+  let e1BaseType =
+    match unrollType e1Type with
+    | TPtr (bt, _) -> bt
+    | _ -> E.s (E.error "first arg to memset is not a pointer\n")
+  in
+  let lo, hi = fancyBoundsOfType e1Type in
+  addCheck (CNonNull e1);
+  addCheck (CBounds (lo, CastE (charPtrType, e1), e3, hi));
+  if typeContainsPointers e1BaseType then begin
+    addCheck (CEq (e2, zero));
+    addCheck (CMult (SizeOf e1BaseType, e3))
+  end;
+  begin
+    match lvo with
+    | Some lv -> checkSameType (checkLval (ForWrite e1) lv) e1Type
+    | None -> ()
+  end
+
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
   List.iter
@@ -945,8 +992,12 @@ let checkInstr (instr : instr) : unit =
   match instr with
   (* Allocation *)
   | Call (_, fn, _, _) when isAllocator fn ->
+      (* TODO: check fn & args *)
       checkAlloc ()
   (* Function call *)
+  | Call (lvo, fn, [e1; e2; e3], _) when isMemset fn ->
+      (* TODO: check fn *)
+      checkMemset lvo (stripCasts e1) e2 e3
   | Call (lvo, fn, args, _) ->
       checkCall lvo fn args
   (* Assignment *)
