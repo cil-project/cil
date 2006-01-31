@@ -34,15 +34,26 @@ int foo(int x, int y) {
   return x + y;
 }
 
+//braces aren't required.
+// (the two cases and the return are in the same statement.)
+int bar(int i) {
+   switch (i)
+     case 0:
+     case 1:
+     return i;
+   return 0;
+}
 
 int main() {
+  int one = bar(1) + bar(2);
   int res =
+    one +
     foo(1, 2) +
     17 * foo(9, 5) +
     126 * foo(7, 2) +
     3037 * foo(15, 9);
   printf("Result is: %d\n", res);
-  if(res != 171821)
+  if(res != 171822)
     exit(1);
   return 0;
 }

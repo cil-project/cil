@@ -861,10 +861,10 @@ statement:
 	                         {FOR ($3, $4, $6, $8, $1)}
 |   IDENT COLON statement
 		                 {LABEL (fst $1, $3, snd $1)}
-|   CASE expression COLON
-	                         {CASE (fst $2, NOP $1, $1)}
-|   CASE expression ELLIPSIS expression COLON
-	                         {CASERANGE (fst $2, fst $4, NOP $1, $1)}
+|   CASE expression COLON statement
+	                         {CASE (fst $2, $4, $1)}
+|   CASE expression ELLIPSIS expression COLON statement
+	                         {CASERANGE (fst $2, fst $4, $6, $1)}
 |   DEFAULT COLON
 	                         {DEFAULT (NOP $1, $1)}
 |   RETURN SEMICOLON		 {RETURN (NOTHING, $1)}
