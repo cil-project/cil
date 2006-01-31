@@ -490,6 +490,11 @@ let isMemset (fn: exp) : bool =
   | Lval (Var vi, NoOffset) when vi.vname = "memset" -> true
   | _ -> false
 
+let isMemcpy (fn: exp) : bool =
+  match fn with
+  | Lval (Var vi, NoOffset) when vi.vname = "memcpy" -> true
+  | _ -> false
+
 let rec expToAttr (e: exp) : attrparam option =
   match e with
   | Lval (Var vi, NoOffset) -> Some (ACons (vi.vname, []))
@@ -936,6 +941,38 @@ let checkMemset (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
     | None -> ()
   end
 
+let checkMemcpy (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
+  if !verbose then
+    E.log "%a: checking memcpy\n" d_loc !currentLoc;
+  coerceExp e3 intType;
+  let e1Type = checkExp e1 in
+  let e2Type = checkExp e2 in
+  let e1BaseType =
+    match unrollType e1Type with
+    | TPtr (bt, _) -> bt
+    | _ -> E.s (E.error "first arg to memcpy is not a pointer\n")
+  in
+  let e2BaseType =
+    match unrollType e2Type with
+    | TPtr (bt, _) -> bt
+    | _ -> E.s (E.error "second arg to memcpy is not a pointer\n")
+  in
+  let lo1, hi1 = fancyBoundsOfType e1Type in
+  addCheck (CNonNull e1);
+  addCheck (CBounds (lo1, CastE (charPtrType, e1), e3, hi1));
+  let lo2, hi2 = fancyBoundsOfType e2Type in
+  addCheck (CNonNull e2);
+  addCheck (CBounds (lo2, CastE (charPtrType, e2), e3, hi2));
+  if typeContainsPointers e1BaseType then begin
+    checkSameType e1BaseType e2BaseType;
+    addCheck (CMult (SizeOf e1BaseType, e3))
+  end;
+  begin
+    match lvo with
+    | Some lv -> checkSameType (checkLval (ForWrite e1) lv) e1Type
+    | None -> ()
+  end
+
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
   List.iter
@@ -998,6 +1035,9 @@ let checkInstr (instr : instr) : unit =
   | Call (lvo, fn, [e1; e2; e3], _) when isMemset fn ->
       (* TODO: check fn *)
       checkMemset lvo (stripCasts e1) e2 e3
+  | Call (lvo, fn, [e1; e2; e3], _) when isMemcpy fn ->
+      (* TODO: check fn *)
+      checkMemcpy lvo (stripCasts e1) (stripCasts e2) e3
   | Call (lvo, fn, args, _) ->
       checkCall lvo fn args
   (* Assignment *)
