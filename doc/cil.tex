@@ -741,14 +741,15 @@ let features : C.featureDescr list =
     Logwrites.feature;  (* add this line to include the logwrites feature! *)
   ] 
   @ Feature_config.features 
+\end{verbatim}
 
  \item An alternative to the last two steps is to invoke the make command with
  the argument \t{EXTRAFEATURES=logwrites}.
-\end{verbatim}
 
  Features are processed in the order they appear on this list.  Put
  your feature last on the list if you plan to run any of CIL's
  built-in features (such as makeCFGfeature) before your own.
+\end{enumerate}
 
  Standard code in \t{cilly} takes care of adding command-line arguments,
  printing the description, and calling your function automatically. 
@@ -760,7 +761,6 @@ let features : C.featureDescr list =
  interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
  Remember to enable your analysis by passing the right argument (e.g.,
  \t{--dologwrites}).   
-\end{enumerate}
 
 \end{enumerate}
 
@@ -2741,6 +2741,19 @@ int __attribute__ ((__mode__ (  __SI__ ))) i32;
 int __attribute__ ((__mode__ (  __DI__ ))) i64;
 \end{cilcode}
 
+\item The ``alias'' attribute on a function declaration tells the
+  linker to treat this declaration as another name for the specified
+  function.  CIL will replace the declaration with a trampoline
+  function pointing to the specified target.
+\begin{cilcode}[global]
+    static int bar(int x, char y) {
+      return x + y;
+    }
+
+    //foo is considered another name for bar.
+    int foo(int x, char y) __attribute__((alias("bar")));
+\end{cilcode}
+
 \end{enumerate}
 
  \subsection{Microsoft VC ugliness}
@@ -2847,6 +2860,9 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf January 30, 2006}: Allow `\$' to appear in identifiers.
+\item {\bf January 13, 2006}: Added support for gcc's alias attribute
+  on functions.  See \secref{ugly-gcc}, item 8.  
 \item {\bf December 9, 2005}: Christoph Spiel fixed the Golf and
   Olf modules so that Golf can be used with the points-to analysis.
   He also added performance fixes and cleaned up the documentation.
@@ -2855,6 +2871,8 @@ as it will ensure your message is viewed by a broad audience.
 is the old behavior to replace them with integers.
 \item {\bf November 30, 2005}: Added support for many GCC \t{\_\_builtin}
   functions. 
+\item {\bf November 30, 2005}: Added the EXTRAFEATURES configure
+  option, making it easier to add Features to the build process.
 \item {\bf November 23, 2005}: In MSVC mode do not remove any locals whose name
   appears as a substring in an inline assembly. 
 \item {\bf November 23, 2005}: Do not add a return to functions that have the

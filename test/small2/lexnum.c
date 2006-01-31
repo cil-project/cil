@@ -3,7 +3,8 @@
 #include <stdio.h>    // printf
 #include <stdlib.h>   // exit
 
-void printInt(char *label, int i, int shouldBe)
+//Make sure that $ is allowed in identifiers:
+void print$Int(char *label, int i, int shouldBe)
 {
   printf("%s: decimal %d, octal 0%o, hex 0x%X, shouldBe %d (decimal)\n",
          label, i, i, i, shouldBe);
@@ -13,7 +14,7 @@ void printInt(char *label, int i, int shouldBe)
   }
 }
 
-#define PVAL(val, should) printInt(#val, val, should)
+#define PVAL(val, should) print$Int(#val, val, should)
 
 int main()
 {

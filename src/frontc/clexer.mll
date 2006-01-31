@@ -227,12 +227,8 @@ let scan_ident id =
 ** Buffer processor
 *)
  
-let attribDepth = ref 0 (* Remembers the nesting level when parsing 
-                         * attributes *)
-
 
 let init ~(filename: string) : Lexing.lexbuf =
-  attribDepth := 0;
   init_lexicon ();
   (* Inititialize the pointer in Errormsg *)
   Lexerhack.add_type := add_type;
@@ -388,8 +384,7 @@ let hexfloat = hexprefix hexfraction binexponent
 let floatsuffix = ['f' 'F' 'l' 'L']
 let floatnum = (decfloat | hexfloat) floatsuffix?
 
-let ident = (letter|'_')(letter|decdigit|'_')* 
-let attribident = (letter|'_')(letter|decdigit|'_'|':')
+let ident = (letter|'_')(letter|decdigit|'_'|'$')* 
 let blank = [' ' '\t' '\012' '\r']+
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit+
@@ -618,28 +613,6 @@ and msasmnobrace = parse
 |  _                    { let cur = Lexing.lexeme lexbuf in 
 
                           cur ^ (msasmnobrace lexbuf) }
-
-and attribute = parse
-   '\n'                 { E.newline (); attribute lexbuf }
-|  blank                { attribute lexbuf }
-|  '('                  { incr attribDepth; LPAREN (currentLoc ()) }
-|  ')'                  { decr attribDepth;
-                          if !attribDepth = 0 then
-                            initial lexbuf (* Skip the last closed paren *)
-                          else
-                            RPAREN }
-|  attribident          { IDENT (Lexing.lexeme lexbuf, currentLoc ()) }
-
-|  '\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
-|  '"'			{ (* '"' *)
-                                          try CST_STRING (str lexbuf, currentLoc ())
-                                          with e -> 
-                                             raise (InternalError "str")}
-|  floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
-|  hexnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
-|  octnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
-|  intnum		{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
-
 
 {
 
