@@ -479,21 +479,15 @@ let compareTypes (t1 : typ) (t2 : typ) : bool =
   in
   (typeSigNC t1) = (typeSigNC t2)
 
-let isAllocator (fn: exp) : bool =
-  match fn with
-  | Lval (Var vi, NoOffset)
-      when vi.vname = "__kmalloc" || vi.vname = "calloc" -> true
-  | _ -> false
+let isAllocator (t: typ) : bool =
+  let attrs = typeAttrs t in
+  hasAttribute "dmalloc" attrs || hasAttribute "dcalloc" attrs
 
-let isMemset (fn: exp) : bool =
-  match fn with
-  | Lval (Var vi, NoOffset) when vi.vname = "memset" -> true
-  | _ -> false
+let isMemset (t: typ) : bool =
+  hasAttribute "dmemset" (typeAttrs t)
 
-let isMemcpy (fn: exp) : bool =
-  match fn with
-  | Lval (Var vi, NoOffset) when vi.vname = "memcpy" -> true
-  | _ -> false
+let isMemcpy (t: typ) : bool =
+  hasAttribute "dmemcpy" (typeAttrs t)
 
 let rec expToAttr (e: exp) : attrparam option =
   match e with
@@ -513,36 +507,43 @@ let rec expToAttr (e: exp) : attrparam option =
       end
   | _ -> None
 
-let getAllocationType (t: typ) (fn: exp) (args: exp list) : typ =
+let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
+  let fnAttrs = typeAttrs fnType in
   let numElts, baseType =
-    match fn, args with
-    | Lval (Var vi, NoOffset), [SizeOf t'; e] when vi.vname = "calloc" ->
-        e, t'
-    | Lval (Var vi, NoOffset), [e; _] when vi.vname = "__kmalloc" ->
+    if hasAttribute "dcalloc" fnAttrs then
+      match args with
+      | [SizeOf t'; e] -> e, t'
+      | _ -> E.s (E.error "Unrecognized allocation function")
+    else if hasAttribute "dmalloc" fnAttrs then
+      match args with
+      | e :: _ ->
         begin
-          match e with
+          match stripCasts e with
           | BinOp (Mult, e', SizeOf t, _)
           | BinOp (Mult, SizeOf t, e', _) -> e', t
           | BinOp (Mult, e', SizeOfE et, _)
           | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
           | SizeOf t -> integer 1, t
           | SizeOfE et -> integer 1, typeOf et
-          | _ -> e, charType
+          | _ ->
+              (E.log "monkey: %a\n" d_exp e;
+              e, charType)
         end
-    | _ ->
-        E.s (E.error "Unrecognized allocation function: %a" d_exp fn)
+      | _ -> E.s (E.error "Unrecognized allocation function")
+    else
+      E.s (E.error "Unrecognized allocation function")
   in
   let retBaseType =
-    match unrollType t with
+    match unrollType retType with
     | TPtr (bt, _) -> bt
     | _ -> E.s (E.error "Return type of allocation is not a pointer\n")
   in
   if not (compareTypes baseType retBaseType) then
-    E.s (E.error "%a: type mismatch: alloc type and return type differ\n"
-                 d_loc !currentLoc);
+    E.s (E.error "%a: type mismatch: alloc type %a and return type %a differ\n"
+                 d_loc !currentLoc d_type baseType d_type retBaseType);
   match expToAttr numElts with
   | Some a -> typeAddAttributes [countAttr a]
-                (typeRemoveAttributes ["bounds"] t)
+                (typeRemoveAttributes ["bounds"] retType)
   | None -> E.s (E.error "cannot convert alloc expression to type: %a\n"
                  d_exp numElts)
 
@@ -838,12 +839,10 @@ and checkLval (why:whyLval) (lv : lval) : typ =
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
 
-
-let checkCall (lvo: lval option)
-              (fn: exp) (args: exp list) : unit =
+let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   if !verbose then
-    E.log "%a: checking call to %a\n" d_loc !currentLoc d_exp fn;
-  match checkExp fn with
+    E.log "%a: checking call\n" d_loc !currentLoc;
+  match fnType with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
         E.warn "%a: varargs were not checked\n" d_loc !currentLoc;
@@ -966,12 +965,12 @@ let checkMemcpy (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
   if typeContainsPointers e1BaseType then begin
     checkSameType e1BaseType e2BaseType;
     addCheck (CMult (SizeOf e1BaseType, e3))
-  end;
+  end(*;
   begin
     match lvo with
     | Some lv -> checkSameType (checkLval (ForWrite e1) lv) e1Type
     | None -> ()
-  end
+  end*)
 
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
@@ -984,8 +983,6 @@ let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp
     env
 
 let checkSet (lv: lval) (e: exp) : unit =
-  if !verbose then
-    E.log "%a: checking %a = %a\n" d_loc !currentLoc d_lval lv d_exp e;
   let lvType = checkLval (ForWrite e) lv in
   let off1, off2 = removeOffset (snd lv) in
   begin
@@ -1026,21 +1023,25 @@ let checkSet (lv: lval) (e: exp) : unit =
 
 let checkInstr (instr : instr) : unit =
   currentLoc := get_instrLoc instr;
+  if !verbose then
+    E.log "%a: checking instr %a\n" d_loc !currentLoc d_instr instr;
   match instr with
-  (* Allocation *)
-  | Call (_, fn, _, _) when isAllocator fn ->
-      (* TODO: check fn & args *)
-      checkAlloc ()
-  (* Function call *)
-  | Call (lvo, fn, [e1; e2; e3], _) when isMemset fn ->
-      (* TODO: check fn *)
-      checkMemset lvo (stripCasts e1) e2 e3
-  | Call (lvo, fn, [e1; e2; e3], _) when isMemcpy fn ->
-      (* TODO: check fn *)
-      checkMemcpy lvo (stripCasts e1) (stripCasts e2) e3
   | Call (lvo, fn, args, _) ->
-      checkCall lvo fn args
-  (* Assignment *)
+      let fnType = checkExp fn in
+      let fnAttrs = typeAttrs fnType in
+      (* TODO: check remaining args for memset, memcpy, alloc *)
+      if isAllocator fnType then
+        checkAlloc ()
+      else if isMemset fnType then
+        match args with
+        | [e1; e2; e3] -> checkMemset lvo (stripCasts e1) e2 e3
+        | _ -> E.s (E.error "expected three args to memset\n")
+      else if isMemcpy fnType then
+        match args with
+        | [e1; e2; e3] -> checkMemcpy lvo (stripCasts e1) (stripCasts e2) e3
+        | _ -> E.s (E.error "expected three args to memcpy\n")
+      else
+        checkCall lvo fnType args
   | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
       ()
   | Set (lv, e, _) ->
@@ -1328,14 +1329,14 @@ let preProcessVisitor = object (self)
       List.fold_right
         (fun instr acc ->
            match instr with
-           | Call (ret, fn, args, l) when isAllocator fn ->
+           | Call (ret, fn, args, l) when isAllocator (typeOf fn) ->
                let lv =
                  match ret with
                  | Some lv -> lv
                  | None -> E.s (E.error "%a: Allocation has no return\n"
                                         d_loc !currentLoc)
                in
-               let t = getAllocationType (typeOfLval lv) fn args in
+               let t = getAllocationType (typeOfLval lv) (typeOf fn) args in
                let tmp = makeTempVar !curFunc t in
                Call (Some (var tmp), fn, args, l) ::
                  Set (lv, Lval (var tmp), l) ::
