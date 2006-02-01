@@ -37,6 +37,7 @@ open Cil
 open Pretty
 module E = Errormsg
 module GA = GrowArray
+module IH = Inthash
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
@@ -95,6 +96,7 @@ type check =
                          (** (e1 == e2) ==> (e3 = 0)   *)
   | CUnsignedLess of exp * exp
                          (** e1 < e2, unsigned *)
+  | CNullUnion of lval   (** e = \vec{0} *)
 (* Other checks will be needed, such as nullterm checks and checks for when
    part of one of the above checks can be proved statically. *)
 
@@ -151,6 +153,7 @@ let ccoerce = mkCheckFun "CCoerce" 5
 let ccoercen = mkCheckFun "CCoerceN" 5
 let cntwrite = mkCheckFun "CNTWrite" 5
 let cunsignedless = mkCheckFun "CUnsignedLess" 2
+let cnullunion = mkCheckFun "CNullUnion" 2
 let memset = mkFun "memset" voidType [voidPtrType; intType; !upointType]
 
 let checkToInstr (c:check) =
@@ -171,6 +174,9 @@ let checkToInstr (c:check) =
   | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
   | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
   | CUnsignedLess (e1,e2) -> call cunsignedless [e1;e2]
+  | CNullUnion (lv) -> 
+      let sz = sizeOf (typeOfLval lv) in
+      call cnullunion [mkAddrOf lv; sz]
 
 
 let postPassVisitor1 = object (self)
@@ -197,7 +203,8 @@ let postPassVisitor2 = object (self)
   (* Remove any "bounds" or "fancybounds" annotations. *)
   method vattr a =
     match a with
-    | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"), _) ->
+    | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"
+            | "when" | "fancywhen"), _) ->
         ChangeTo []
     | _ -> DoChildren
 
@@ -215,7 +222,7 @@ let countAttr (a: attrparam) : attribute =
 let safeAttr : attribute = countAttr (AInt 1)
 
 (* remember complicated bounds expressions *)
-let boundsTable : (int, exp) Hashtbl.t = Hashtbl.create 13
+let boundsTable : exp Inthash.t = IH.create 13
 let boundsTableCtr : int ref = ref 0
 
 let addBoundsExp (e: exp) : int =
@@ -223,14 +230,38 @@ let addBoundsExp (e: exp) : int =
   if !verbose then
     E.log "%a:   fancybounds(%d) = %a.\n" d_loc !currentLoc
       !boundsTableCtr d_exp e;
-  Hashtbl.add boundsTable !boundsTableCtr e;
+  IH.add boundsTable !boundsTableCtr e;
   !boundsTableCtr
 
 let getBoundsExp (n: int) : exp =
   try
-    Hashtbl.find boundsTable n
+    IH.find boundsTable n
   with Not_found ->
     E.s (E.bug "couldn't look up expression in bounds table\n")
+
+(* remember complicated WHEN expressions. For each union in each context,
+   we have a whenMap, which maps fields to the expanded when condition for that
+   field in the context.  *)
+type whenMap = (fieldinfo * exp) list
+let whenTable : whenMap Inthash.t = IH.create 13
+let whenTableCtr : int ref = ref 0
+let d_whenMap: unit -> whenMap -> doc =
+  docList ~sep:(text ";  ") 
+    (fun (f,e) -> text f.fname ++ text ": " ++ d_exp () e)
+
+let addWhenMap (wm:whenMap) : int =
+  incr whenTableCtr;
+  if !verbose then
+    E.log "%a:   fancywhen(%d) = [%a].\n" d_loc !currentLoc
+      !whenTableCtr d_whenMap wm;
+  IH.add whenTable !whenTableCtr wm;
+  !whenTableCtr
+
+let getWhenMap (n: int) : whenMap =
+  try
+    IH.find whenTable n
+  with Not_found ->
+    E.s (E.bug "couldn't look up %d in when table\n" n)
 
 let rec getDeps (a: attrparam) : string list =
   match a with 
@@ -263,6 +294,22 @@ let depsOfType (t: typ) : string list =
   match t with
   | TPtr (_, a) -> depsOfAttrs a
   | _ -> []
+
+let rec depsOfWhenAttrs (a: attributes) : string list = 
+  let checkrest rest =
+    if hasAttribute "when" rest then
+      E.s (error "Type has duplicate WHEN attributes")
+  in
+  match a with
+  | Attr ("when", [e]) :: rest ->
+      checkrest rest;
+      (getDeps e)
+  | Attr ("when", _) :: rest ->
+      E.s (error "Illegal when annotations.")
+  | Attr _ :: rest -> 
+      depsOfWhenAttrs rest
+  | [] -> 
+      raise Not_found
 
 (* Determine whether other variables/fields depend on a given name. *)
 let hasExternalDeps (lv: lval) : bool =
@@ -405,18 +452,21 @@ let fancyBoundsOfType (t: typ) : exp * exp =
   | TPtr (_, a) -> fancyBoundsOfAttrs a
   | _ -> E.s (E.error "Expected pointer type.")
 
-let makeFancyAttr (lo: exp) (hi: exp) : attribute =
+let makeFancyBoundsAttr (lo: exp) (hi: exp) : attribute =
   Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
 
 let makeFancyPtrType ?(nullterm:bool=false) (bt: typ) (lo: exp) (hi: exp) 
   : typ =
-  let bounds_attr = [makeFancyAttr lo hi] in
+  let bounds_attr = [makeFancyBoundsAttr lo hi] in
   let attrs = if nullterm then 
     addAttribute (Attr("nullterm",[])) bounds_attr
   else
     bounds_attr
   in
   TPtr (bt, attrs)
+
+let makeFancyWhenAttr (wm: whenMap) : attribute =
+  Attr ("fancywhen", [AInt (addWhenMap wm)])
 
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
@@ -425,8 +475,14 @@ let substType (ctx: context) (t: typ) : typ =
   match unrollType t with
   | TPtr (bt, a) ->
       let lo, hi = boundsOfAttrs ctx a in
-      let a' = addAttribute (makeFancyAttr lo hi) (dropAttribute "bounds" a) in
+      let a' = addAttribute (makeFancyBoundsAttr lo hi) 
+                 (dropAttribute "bounds" a) in
       TPtr (bt, a')
+  | TComp (ci, a) when not ci.cstruct ->
+      (* a union. Create a fancywhen attr for the when clauses of each field.*)
+      let wm = [] in (* TODO *)
+      let a' = addAttribute (makeFancyWhenAttr wm) a in
+      TComp(ci, a')
   | _ ->
       t
 
@@ -443,6 +499,8 @@ let addBinding (ctx:context) (name:string) (e:exp) : context =
 (* Check whether a binding exists. *)
 let hasBinding (ctx:context) (name:string) : bool =
   List.exists (fun (n, _) -> n = name) ctx
+let hasBindings (ctx:context) (names : string list) : bool =
+  List.for_all (hasBinding ctx) names
 
 (* The context of local and formal variables. *)
 let localsContext (f:fundec) : context =
@@ -592,6 +650,19 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
                  d_loc !currentLoc
                  d_type t1 d_type t2)
 
+let checkUnionWhen (ctx:context) (fld:fieldinfo) : bool =
+  try 
+    let deps = depsOfWhenAttrs fld.fattr in (* may raise Not_found *)
+    hasBindings ctx deps
+  with Not_found ->
+    if typeContainsPointers fld.ftype then begin
+      E.log "Missing WHEN annotation on field %s in union %s.\n"
+        fld.fname fld.fcomp.cname;
+      false
+    end else
+      (* Allow missing WHEN clauses for scalars. *)
+      true
+
 (* Determine whether a type is well-formed. *)
 let rec checkType (ctx: context) (t: typ) : bool =
   let ctxThis = addThisBinding emptyContext zero in
@@ -599,10 +670,7 @@ let rec checkType (ctx: context) (t: typ) : bool =
   | TPtr (bt, a) ->
       (* TODO: check whether base types for bounds match? *)
       checkType ctxThis bt &&
-      List.fold_left
-        (fun acc n -> acc && hasBinding ctx n)
-        true
-        (depsOfAttrs a)
+      (hasBindings ctx (depsOfAttrs a))
   | TArray (bt, _, _) ->
       checkType ctxThis bt
   | TFun (ret, argInfo, _, _) ->
@@ -617,6 +685,21 @@ let rec checkType (ctx: context) (t: typ) : bool =
         (fun acc (_, t, _) -> acc && checkType ctxFun t)
         true
         (argsToList argInfo)
+  | TComp (ci, _) when not ci.cstruct ->   (* union *)
+      List.fold_left
+        (fun acc fld -> 
+           (* Check union fields in the context ["__this"; fieldname].
+              These are redundant ... I'm only including the field
+              name because that's how we did it in the paper. *)
+           let ctxField = addBinding ctxThis fld.fname zero in
+           if not (checkType ctxField fld.ftype) then
+             E.s (E.error "%a: field %s of union %s is ill-formed\n"
+                    d_loc !currentLoc fld.fname ci.cname);
+           (* now check the when clause *)
+           acc && (checkUnionWhen ctx fld) )
+      true
+      ci.cfields
+      
   (* Structs and typedefs are checked when defined. *)
   | TComp _
   | TNamed _
@@ -668,6 +751,14 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       E.warn "%a: allowing integer cast with different sizes\n"
              d_loc !currentLoc;
       ()
+  | TComp (ci, _), TComp (ci', _) when ci == ci' && not ci.cstruct ->
+      (* Make sure unions have been zeroed. *)
+      (* FIXME: only do this if the maps are different (i.e. the union
+         depends on the value being changed. *)
+      let lv = match e with Lval lv -> lv 
+        | _ -> E.s (bug "union expression must be an lval.")
+      in
+      addCheck (CNullUnion lv)
   | _ -> 
     if not (compareTypes tfrom tto) then
       E.s (error "%a: type mismatch: coercion from %a to %a\n" 
@@ -818,15 +909,26 @@ and checkLval (why:whyLval) (lv : lval) : typ =
       let ctx' = addThisBinding ctx (Lval lv) in
       substType ctx' (typeOfLval lv)
   | Field (fld, NoOffset) ->
-      (match (checkRest ()) with
+      let compType = checkRest () in
+      (match compType with
          TComp(ci,_) when ci == fld.fcomp -> ()
        | t ->
            E.s (error "bad field offset %s on type %a."
                   fld.fname d_type t)
       );
-      let ctx = structContext lv' fld.fcomp in
-      let ctx' = addThisBinding ctx (Lval lv) in
-      substType ctx' fld.ftype
+      if fld.fcomp.cstruct then begin
+        let ctx = structContext lv' fld.fcomp in
+        let ctx' = addThisBinding ctx (Lval lv) in
+        substType ctx' fld.ftype
+      end else begin (* Union *)
+        (* check the field access *)
+        checkUnionAccess compType fld;
+        (* now do the type of the field itself *)
+        let value = Lval lv in
+        let ctx  = addBinding emptyContext fld.fname value in
+        let ctx' = addThisBinding ctx value in
+        substType ctx' fld.ftype
+      end
   | Index (index, NoOffset) -> begin
       coerceExp index intType;
       match (checkRest ()) with 
@@ -839,6 +941,9 @@ and checkLval (why:whyLval) (lv : lval) : typ =
     end
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
+and checkUnionAccess (compType: typ) (fld:fieldinfo): unit =
+  (* TODO: get the fancywhen attr from compType, and check it *)
+  ()
 
 let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   if !verbose then
@@ -1029,7 +1134,6 @@ let checkInstr (instr : instr) : unit =
   match instr with
   | Call (lvo, fn, args, _) ->
       let fnType = checkExp fn in
-      let fnAttrs = typeAttrs fnType in
       (* TODO: check remaining args for memset, memcpy, alloc *)
       if isAllocator fnType then
         checkAlloc ()
@@ -1102,7 +1206,7 @@ let checkTypedef (ti: typeinfo) : unit =
     E.s (E.error "%a: type of typedef %s is ill-formed\n"
                  d_loc !currentLoc ti.tname)
 
-let checkComp (ci: compinfo) : unit =
+let checkStruct (ci: compinfo) : unit =
   let ctx =
     List.fold_left
       (fun acc fld -> addBinding acc fld.fname zero)
@@ -1112,7 +1216,7 @@ let checkComp (ci: compinfo) : unit =
   List.iter
     (fun fld ->
        if not (checkType ctx fld.ftype) then
-         E.s (E.error "%a: field %s of structure/union %s is ill-formed\n"
+         E.s (E.error "%a: field %s of struct %s is ill-formed\n"
                       d_loc !currentLoc fld.fname ci.cname))
     ci.cfields
 
@@ -1469,7 +1573,7 @@ let checkFile (f: file) : unit =
        currentLoc := get_globalLoc global;
        match global with
        | GType (ti, _) -> checkTypedef ti
-       | GCompTag (ci, _) -> checkComp ci
+       | GCompTag (ci, _) when ci.cstruct -> checkStruct ci
        | GVar (vi, init, _) -> checkVar vi init
        | GFun (fd, loc) -> checkFundec fd loc
        | _ -> ())
