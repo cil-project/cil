@@ -525,9 +525,7 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
           | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
           | SizeOf t -> integer 1, t
           | SizeOfE et -> integer 1, typeOf et
-          | _ ->
-              (E.log "monkey: %a\n" d_exp e;
-              e, charType)
+          | _ -> e, charType
         end
       | _ -> E.s (E.error "Unrecognized allocation function")
     else
