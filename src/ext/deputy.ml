@@ -650,8 +650,11 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       else
         addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
-  | TPtr _, TInt _ ->
-      (* Coerce pointer to integer. *)
+  | (TEnum _ | TPtr _), TInt _ ->
+      (* Coerce pointer/enum to integer. *)
+      ()
+  | TInt _, TEnum _ ->
+      (* Coerce integer to enum. *)
       ()
   | (TInt _ | TPtr _), TPtr _ when isZero e ->
       (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
@@ -1221,7 +1224,10 @@ let inferVisitor = object (self)
                                           Set (var endVar, hi, l);
                                           instr])]
                 in
-                mkStmt (If (e, nonZeroBlock, zeroBlock, l))
+                if isZero e then
+                  mkStmt (Block zeroBlock)
+                else
+                  mkStmt (If (e, nonZeroBlock, zeroBlock, l))
             | _ ->
                 s
           end
