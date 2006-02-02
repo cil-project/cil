@@ -76,6 +76,21 @@ let rec truncate (l: 'a list) (n: int) : 'a list =
   | elt :: rest when n > 0 -> elt :: (truncate rest (n - 1))
   | _ -> []
 
+let rec typeContainsPointers (t: typ) : bool =
+  match t with
+  | TPtr _
+  | TFun _
+  | TBuiltin_va_list _ -> true
+  | TVoid _
+  | TInt _
+  | TFloat _
+  | TEnum _ -> false
+  | TArray (bt, _, _) -> typeContainsPointers bt
+  | TNamed (ti, _) -> typeContainsPointers ti.ttype
+  | TComp (ci, _) ->
+     List.exists typeContainsPointers
+      (List.map (fun fld -> fld.ftype) ci.cfields)
+
 (**************************************************************************)
 
 type check =
@@ -97,6 +112,10 @@ type check =
   | CUnsignedLess of exp * exp
                          (** e1 < e2, unsigned *)
   | CNullUnion of lval   (** e = \vec{0} *)
+  (* These two are redundant with CNonNull and CEq, but having separate
+     checks for unions gives better error messages: *)
+  | CSelected of exp     (** e != 0 *)
+  | CNotSelected of exp  (** e == 0 *)
 (* Other checks will be needed, such as nullterm checks and checks for when
    part of one of the above checks can be proved statically. *)
 
@@ -154,6 +173,8 @@ let ccoercen = mkCheckFun "CCoerceN" 5
 let cntwrite = mkCheckFun "CNTWrite" 5
 let cunsignedless = mkCheckFun "CUnsignedLess" 2
 let cnullunion = mkCheckFun "CNullUnion" 2
+let cselected = mkCheckFun "CSelected" 1
+let cnotselected = mkCheckFun "CNotSelected" 1
 let memset = mkFun "memset" voidType [voidPtrType; intType; !upointType]
 
 let checkToInstr (c:check) =
@@ -177,6 +198,8 @@ let checkToInstr (c:check) =
   | CNullUnion (lv) -> 
       let sz = sizeOf (typeOfLval lv) in
       call cnullunion [mkAddrOf lv; sz]
+  | CSelected (e) -> call cselected [e]
+  | CNotSelected (e) -> call cnotselected [e]
 
 
 let postPassVisitor1 = object (self)
@@ -295,21 +318,25 @@ let depsOfType (t: typ) : string list =
   | TPtr (_, a) -> depsOfAttrs a
   | _ -> []
 
-let rec depsOfWhenAttrs (a: attributes) : string list = 
+let rec getWhen (a: attributes) : attrparam =
   let checkrest rest =
     if hasAttribute "when" rest then
-      E.s (error "Type has duplicate WHEN attributes")
+      E.s (error "Type has duplicate when attributes")
   in
   match a with
   | Attr ("when", [e]) :: rest ->
       checkrest rest;
-      (getDeps e)
+      e
   | Attr ("when", _) :: rest ->
       E.s (error "Illegal when annotations.")
   | Attr _ :: rest -> 
-      depsOfWhenAttrs rest
+      getWhen rest
   | [] -> 
       raise Not_found
+
+let depsOfWhenAttrs (a: attributes) : string list = 
+  let w = getWhen a in
+  getDeps w
 
 (* Determine whether other variables/fields depend on a given name. *)
 let hasExternalDeps (lv: lval) : bool =
@@ -465,8 +492,22 @@ let makeFancyPtrType ?(nullterm:bool=false) (bt: typ) (lo: exp) (hi: exp)
   in
   TPtr (bt, attrs)
 
+let whenOfAttrs (ctx: context) (a: attributes) : exp =
+  let w = getWhen a in
+  let deps, e = compileAttribute ctx w in
+  e
+
 let makeFancyWhenAttr (wm: whenMap) : attribute =
   Attr ("fancywhen", [AInt (addWhenMap wm)])
+
+let fancyWhenOfType (t: typ) : whenMap =
+  match unrollType t with
+  | TComp (_, a) -> begin
+      match filterAttributes "fancywhen" a with
+        [Attr("fancywhen", [AInt i])] -> getWhenMap i
+      | _ -> E.s (bug "missing (or malformed) fancywhen: %a" d_attrlist a)
+    end
+  | _ -> E.s (E.bug "Expected union type.")
 
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
@@ -480,7 +521,18 @@ let substType (ctx: context) (t: typ) : typ =
       TPtr (bt, a')
   | TComp (ci, a) when not ci.cstruct ->
       (* a union. Create a fancywhen attr for the when clauses of each field.*)
-      let wm = [] in (* TODO *)
+      let doField (acc:whenMap) (fld:fieldinfo) : whenMap =
+        try 
+          let e : exp = whenOfAttrs ctx fld.fattr in (* may raise Not_found *)
+          (fld, e) :: acc
+        with Not_found ->
+          if typeContainsPointers fld.ftype then begin
+            E.s (bug "Missing WHEN annotation on field %s.\n" fld.fname)
+          end else
+            (* Allow missing WHEN clauses for scalars. *)
+            acc
+      in
+      let wm = List.fold_left doField [] ci.cfields in
       let a' = addAttribute (makeFancyWhenAttr wm) a in
       TComp(ci, a')
   | _ ->
@@ -602,21 +654,6 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
                 (typeRemoveAttributes ["bounds"] retType)
   | None -> E.s (E.error "cannot convert alloc expression to type: %a\n"
                  d_exp numElts)
-
-let rec typeContainsPointers (t: typ) : bool =
-  match t with
-  | TPtr _
-  | TFun _
-  | TBuiltin_va_list _ -> true
-  | TVoid _
-  | TInt _
-  | TFloat _
-  | TEnum _ -> false
-  | TArray (bt, _, _) -> typeContainsPointers bt
-  | TNamed (ti, _) -> typeContainsPointers ti.ttype
-  | TComp (ci, _) ->
-     List.exists typeContainsPointers
-      (List.map (fun fld -> fld.ftype) ci.cfields)
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
@@ -922,7 +959,7 @@ and checkLval (why:whyLval) (lv : lval) : typ =
         substType ctx' fld.ftype
       end else begin (* Union *)
         (* check the field access *)
-        checkUnionAccess compType fld;
+        checkUnionAccess why compType fld;
         (* now do the type of the field itself *)
         let value = Lval lv in
         let ctx  = addBinding emptyContext fld.fname value in
@@ -941,8 +978,26 @@ and checkLval (why:whyLval) (lv : lval) : typ =
     end
   | _ -> E.s (E.bug "unexpected result from removeOffset\n")
 
-and checkUnionAccess (compType: typ) (fld:fieldinfo): unit =
-  (* TODO: get the fancywhen attr from compType, and check it *)
+and checkUnionAccess (why:whyLval) (compType: typ) (fld:fieldinfo): unit =
+  if (why = ForAddrOf) then
+    E.s (error "Can't take the address of a union field.");
+  let wm = fancyWhenOfType compType in
+  if !verbose then
+    E.log "%a:  Read from %s.  Using fancywhen [%a]\n" 
+      d_loc !currentLoc fld.fname d_whenMap wm;
+  (* Check the selector for the current field. *)
+  (try
+     let s = List.assq fld wm in
+     addCheck (CSelected s)
+   with Not_found -> () (* a scalar field without a WHEN *)
+  );
+  if why <> ForRead then begin
+    (* Check that the other selectors are 0 *)
+    List.iter
+      (fun (f,s) -> if f != fld then
+         addCheck (CNotSelected s))
+      wm
+  end;  
   ()
 
 let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
@@ -1112,7 +1167,7 @@ let checkSet (lv: lval) (e: exp) : unit =
           | Mem addr ->
               coerceExp e lvType
         end
-    | Field (x, NoOffset) ->
+    | Field (x, NoOffset) when x.fcomp.cstruct -> (* struct *)
         let baseLval = fst lv, off1 in
         let ctx = structContext baseLval x.fcomp in
         let env = x.fcomp.cfields in
@@ -1120,6 +1175,9 @@ let checkSet (lv: lval) (e: exp) : unit =
                  (fun fi -> Lval (addOffsetLval (Field (fi, NoOffset)) baseLval))
                  (fun fi -> fi.fname)
                  (fun fi -> fi.ftype)
+    | Field (x, NoOffset) ->   (* Union *)
+        (* union fields don't depend on each other. *)
+        ()
     | Index (_, NoOffset) ->
         (* No dependencies to array elements. 
            FIXME: what about arrays inside null-terminated arrays?  *)
