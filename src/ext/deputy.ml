@@ -1600,30 +1600,52 @@ end
 
 (**************************************************************************)
 
-let proveLe (e1: exp) (e2: exp) : bool =
+let rec getBaseOffset (e: exp) : exp * int =
+  match e with
+  | BinOp ((PlusPI | IndexPI | MinusPI) as op, e', off, _) ->
+      begin
+        match getBaseOffset e', isInteger off, op with
+        | (b, n1), Some n2, (PlusPI | IndexPI) -> b, n1 + (Int64.to_int n2)
+        | (b, n1), Some n2, MinusPI -> b, n1 - (Int64.to_int n2)
+        | (b, n), _, _ -> e, 0
+      end
+  | _ -> e, 0
+
+let rec compareExp (e1: exp) (e2: exp) : bool =
+  e1 == e2 ||
   match e1, e2 with
-  | _, _ when e1 == e2 ->
-      true
-  | Lval lv1, Lval lv2 when lv1 == lv2 ->
-      true
-  | Lval lv1, BinOp (PlusPI, Lval lv2, off2, _) when lv1 == lv2 ->
-      begin
-        match isInteger off2 with
-        | Some n when n >= Int64.zero -> true
-        | _ -> false
-      end
-  | BinOp (PlusPI, Lval lv1, off1, _), BinOp (PlusPI, Lval lv2, off2, _)
-        when lv1 == lv2 ->
-      begin
-        match isInteger off1, isInteger off2 with
-        | Some n1, Some n2 when n1 <= n2 -> true
-        | _ -> false
-      end
+  | Lval lv1, Lval lv2
+  | StartOf lv1, StartOf lv2
+  | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
   | _ -> false
+
+and compareLval (lv1: lval) (lv2: lval) : bool =
+  let rec compareOffset (off1: offset) (off2: offset) : bool =
+    match off1, off2 with
+    | Field (fld1, off1'), Field (fld2, off2') ->
+        fld1 == fld2 && compareOffset off1' off2'
+    | Index (e1, off1'), Index (e2, off2') ->
+        compareExp e1 e2 && compareOffset off1' off2'
+    | NoOffset, NoOffset -> true
+    | _ -> false
+  in
+  lv1 == lv2 ||
+  match lv1, lv2 with
+  | (Var vi1, off1), (Var vi2, off2) ->
+      vi1 == vi2 && compareOffset off1 off2
+  | (Mem e1, off1), (Mem e2, off2) ->
+      compareExp e1 e2 && compareOffset off1 off2
+  | _ -> false
+
+let proveLe (e1: exp) (e2: exp) : bool =
+  let b1, off1 = getBaseOffset e1 in
+  let b2, off2 = getBaseOffset e2 in
+  compareExp b1 b2 && off1 <= off2
 
 let optimizeCheck (c: check) : check list =
   match c with
-  | CCoerce (e1, e2, e3, e4, e5) ->
+  | CCoerce (e1, e2, e3, e4, e5)
+  | CCoerceN (e1, e2, e3, e4, e5) ->
       if proveLe e1 e2 && proveLe e2 e3 &&
          proveLe e3 e4 && proveLe e4 e5 then
         []
@@ -1679,11 +1701,11 @@ let checkFile (f: file) : unit =
        | GType (ti, _) -> checkTypedef ti
        | GCompTag (ci, _) when ci.cstruct -> checkStruct ci
        | GVar (vi, init, _) -> checkVar vi init
-       | GFun (fd, loc) -> checkFundec fd loc
+       | GFun (fd, loc) ->
+           checkFundec fd loc;
+           ignore (visitCilFunction optimizeVisitor fd)
        | _ -> ())
     f.globals;
-  (* Run the optimizer. *)
-  visitCilFileSameGlobals optimizeVisitor f;
   (* Turn the check datastructure into explicit checks, so that they show up
      in the output. *)
   visitCilFileSameGlobals postPassVisitor1 f;
