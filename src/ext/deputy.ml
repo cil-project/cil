@@ -305,7 +305,7 @@ let getBoundsExp (n: int) : exp =
     E.s (bug "Couldn't look up expression in bounds table")
 
 let clearBoundsTable () : unit =
-  Hashtbl.clear boundsTable;
+  Inthash.clear boundsTable;
   boundsTableCtr := 0
 
 (* remember complicated WHEN expressions. For each union in each context,
@@ -1007,7 +1007,7 @@ and checkLval (why: whyLval) (lv: lval) : typ =
         let ctx' = addThisBinding ctx value in
         substType ctx' fld.ftype
       end
-  | Index (index, NoOffset) -> begin
+  | Index (index, NoOffset) ->
       coerceExp index intType;
       begin
         match checkRest () with 
@@ -1324,7 +1324,7 @@ let checkStruct (ci: compinfo) : unit =
   List.iter
     (fun fld ->
        if not (checkType ctx fld.ftype) then
-         E.s (error "Field %s of struct %s is ill-formed" fld.fname ci.cname)
+         E.s (error "Field %s of struct %s is ill-formed" fld.fname ci.cname))
     ci.cfields
 
 let checkVar (vi: varinfo) (init: initinfo) : unit =
