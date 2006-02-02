@@ -93,6 +93,48 @@ let rec typeContainsPointers (t: typ) : bool =
 
 (**************************************************************************)
 
+let d_thisloc () : doc = d_loc () !currentLoc
+
+let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =  
+    E.hadErrors := true;
+    ignore (eprintf "%t: Bug: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let error (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    E.hadErrors := true;
+    ignore (eprintf "%t: Error: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let unimp (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    E.hadErrors := true;
+    ignore (eprintf "%t: Unimplemented: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let warn (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    ignore (eprintf "%t: Warning: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let log (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    ignore (eprintf "%t: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+(**************************************************************************)
+
 type check =
     CNonNull of exp      (** e != 0 *)
   | CEq of exp * exp     (** e1 == e2 *)
@@ -260,7 +302,11 @@ let getBoundsExp (n: int) : exp =
   try
     IH.find boundsTable n
   with Not_found ->
-    E.s (E.bug "couldn't look up expression in bounds table\n")
+    E.s (bug "Couldn't look up expression in bounds table")
+
+let clearBoundsTable () : unit =
+  Hashtbl.clear boundsTable;
+  boundsTableCtr := 0
 
 (* remember complicated WHEN expressions. For each union in each context,
    we have a whenMap, which maps fields to the expanded when condition for that
@@ -292,7 +338,7 @@ let rec getDeps (a: attrparam) : string list =
   | ASizeOf t -> []
   | ACons(name, []) -> [name]
   | ABinOp (_, e1, e2) -> (getDeps e1) @ (getDeps e2)
-  | _ -> E.s (E.error "Cannot get dependencies for %a" d_attrparam a)
+  | _ -> E.s (error "Cannot get dependencies for %a" d_attrparam a)
 
 let rec depsOfAttrs (a: attributes) : string list = 
   let checkrest rest =
@@ -311,7 +357,7 @@ let rec depsOfAttrs (a: attributes) : string list =
   | Attr _ :: rest -> 
       depsOfAttrs rest
   | [] -> 
-      E.s (E.bug "%a: missing bounds information\n" d_loc !currentLoc)
+      E.s (bug "Missing bounds information")
 
 let depsOfType (t: typ) : string list =
   match t with
@@ -375,7 +421,7 @@ let hasExternalDeps (lv: lval) : bool =
       (* No one depends on array elements.  
          FIXME: what about arrays inside null-terminated arrays? *)
       false
-  | _ -> E.s (E.bug "unexpected result from removeOffset\n")
+  | _ -> E.s (bug "Unexpected result from removeOffset")
 
 (* mapping from variable/field names to expressions representing 
    the runtime value. *)
@@ -387,7 +433,7 @@ let isPointer e: bool =
 let isNullterm (t: typ) : bool =
   match unrollType t with
   | TPtr (_, a) -> hasAttribute "nullterm" a
-  | _ -> E.s (E.error "Expected pointer type.")
+  | _ -> E.s (error "Expected pointer type")
 
 let isTrusted (t: typ) : bool =
   hasAttribute "trusted" (typeAttrs t)
@@ -410,12 +456,12 @@ let compileAttribute
           let e = List.assoc name ctx in 
           [name], e
         with Not_found -> 
-          E.s (E.error 
-                 ("Cannot compile the dependency %a: " ^^
-                  "Cannot find %s in the context.\n  Choices are: %a.")
-                 d_attrparam a
-                 name
-                 (docList (fun (s, _) -> text s)) ctx)
+          E.s (error 
+               ("Cannot compile the dependency %a: " ^^
+                "Cannot find %s in the context.\n  Choices are: %a.")
+               d_attrparam a
+               name
+               (docList (fun (s, _) -> text s)) ctx)
     end
     | ABinOp (bop, e1, e2) -> 
         let lv1', e1' = compile e1 in
@@ -429,7 +475,7 @@ let compileAttribute
           | _ -> bop
         in
         lv1' @ lv2', BinOp(bop', e1', e2', intType)
-    | _ -> E.s (E.error "Cannot compile the dependency %a" d_attrparam a)
+    | _ -> E.s (error "Cannot compile the dependency %a" d_attrparam a)
   in
   compile a
 
@@ -453,7 +499,7 @@ let rec getBounds (a: attributes) : bounds =
   | Attr _ :: rest -> 
       getBounds rest
   | [] -> 
-      E.s (E.bug "%a: missing bounds information\n" d_loc !currentLoc)
+      E.s (bug "Missing bounds information")
 
 let boundsOfAttrs (ctx: context) (a: attributes) : exp * exp = 
   match getBounds a with
@@ -463,12 +509,12 @@ let boundsOfAttrs (ctx: context) (a: attributes) : exp * exp =
       let hideps, hi' = compileAttribute ctx hi in
       lo', hi'
   | BFancy _ ->
-      E.s (error "Found fancybounds instead of bounds annotations.")
+      E.s (error "Found fancybounds instead of bounds annotations")
 
 let fancyBoundsOfAttrs (a: attributes) : exp * exp = 
   match getBounds a with
   | BSimple (lo, hi) ->
-      E.s (error "Found bounds instead of fancybounds annotations.")
+      E.s (error "Found bounds instead of fancybounds annotations")
   | BFancy (lo, hi) ->
       lo, hi
 
@@ -477,7 +523,7 @@ let fancyBoundsOfType (t: typ) : exp * exp =
     E.log "%a: fancyBoundsOfType %a\n" d_loc !currentLoc d_type t;
   match unrollType t with
   | TPtr (_, a) -> fancyBoundsOfAttrs a
-  | _ -> E.s (E.error "Expected pointer type.")
+  | _ -> E.s (error "Expected pointer type")
 
 let makeFancyBoundsAttr (lo: exp) (hi: exp) : attribute =
   Attr ("fancybounds", [AInt (addBoundsExp lo); AInt (addBoundsExp hi)])
@@ -623,7 +669,7 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     if hasAttribute "dcalloc" fnAttrs then
       match args with
       | [SizeOf t'; e] -> e, t'
-      | _ -> E.s (E.error "Unrecognized allocation function")
+      | _ -> E.s (error "Unrecognized allocation function")
     else if hasAttribute "dmalloc" fnAttrs then
       match args with
       | e :: _ ->
@@ -637,22 +683,22 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
           | SizeOfE et -> integer 1, typeOf et
           | _ -> e, charType
         end
-      | _ -> E.s (E.error "Unrecognized allocation function")
+      | _ -> E.s (error "Unrecognized allocation function")
     else
-      E.s (E.error "Unrecognized allocation function")
+      E.s (error "Unrecognized allocation function")
   in
   let retBaseType =
     match unrollType retType with
     | TPtr (bt, _) -> bt
-    | _ -> E.s (E.error "Return type of allocation is not a pointer\n")
+    | _ -> E.s (error "Return type of allocation is not a pointer")
   in
   if not (compareTypes baseType retBaseType) then
-    E.s (E.error "%a: type mismatch: alloc type %a and return type %a differ\n"
-                 d_loc !currentLoc d_type baseType d_type retBaseType);
+    E.s (error "Type mismatch: alloc type %a and return type %a differ"
+               d_type baseType d_type retBaseType);
   match expToAttr numElts with
   | Some a -> typeAddAttributes [countAttr a]
                 (typeRemoveAttributes ["bounds"] retType)
-  | None -> E.s (E.error "cannot convert alloc expression to type: %a\n"
+  | None -> E.s (error "Cannot convert alloc expression to type: %a"
                  d_exp numElts)
 
 (* Check that two types are the same. *)
@@ -666,9 +712,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         ()
     | TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
-          E.s (error "%a: base type mismatch: %a and %a\n" 
-                 d_loc !currentLoc
-                 d_type t1 d_type t2);
+          E.s (error "Base type mismatch: %a and %a" d_type t1 d_type t2);
         (* Make sure the bounds are the same.
            We can use the empty context, because these should only contain 
            fancybounds *)
@@ -683,9 +727,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         ()
     | _ -> 
         if not (compareTypes t1 t2) then
-          E.s (error "%a: type mismatch: %a and %a\n" 
-                 d_loc !currentLoc
-                 d_type t1 d_type t2)
+          E.s (error "Type mismatch: %a and %a" d_type t1 d_type t2)
 
 let checkUnionWhen (ctx:context) (fld:fieldinfo) : bool =
   try 
@@ -758,8 +800,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       ()
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
-        E.s (error "%a: cast to NULLTERM from an ordinary pointer."
-            d_loc !currentLoc);
+        E.s (error "Cast to NULLTERM from an ordinary pointer");
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
       if isNullterm tfrom then begin
@@ -785,8 +826,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       ()
   | TInt _, TInt _ ->
       (* ignore signed/unsigned differences.  FIXME: is this safe? *)
-      E.warn "%a: allowing integer cast with different sizes\n"
-             d_loc !currentLoc;
+      warn "Allowing integer cast with different sizes";
       ()
   | TComp (ci, _), TComp (ci', _) when ci == ci' && not ci.cstruct ->
       (* Make sure unions have been zeroed. *)
@@ -798,9 +838,8 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       addCheck (CNullUnion lv)
   | _ -> 
     if not (compareTypes tfrom tto) then
-      E.s (error "%a: type mismatch: coercion from %a to %a\n" 
-             d_loc !currentLoc
-             d_type tfrom d_type tto)
+      E.s (error "Type mismatch: coercion from %a to %a"
+                 d_type tfrom d_type tto)
         
 type whyLval=
     ForRead          (* Reading this lval. *)
@@ -834,7 +873,7 @@ and checkExp (e : exp) : typ =
           match op with
           | MinusPI -> UnOp (Neg, e2, typeOf e2)
           | PlusPI | IndexPI -> e2
-          | _ -> E.s (E.bug "unexpected operation\n")
+          | _ -> E.s (bug "Unexpected operation")
         in
         addCheck (CNonNull e1);
         addCheck (CBounds (lo, e1, e2', hi))
@@ -864,24 +903,26 @@ and checkExp (e : exp) : typ =
       let ctxThis = addThisBinding emptyContext zero in
       let bt = typeOfLval lv in
       if not (checkType ctxThis bt) then
-        E.s (E.error ("%a: cannot take address of lval " ^^
-                      "that has dependencies\n") d_loc !currentLoc);
+        E.s (error "Cannot take address of lval that has dependencies");
       if hasExternalDeps lv then
-        E.s (E.error ("%a: cannot take address of lval " ^^
-                      "with external dependencies\n") d_loc !currentLoc);
+        E.s (error "Cannot take address of lval with external dependencies");
       let lo = AddrOf lv in
       let hi = BinOp (PlusPI, lo, one, typeOf lo) in
       makeFancyPtrType bt lo hi
   | StartOf lv ->
-      let bt, len =
+      let bt, len, attrs =
         match unrollType (checkLval ForAddrOf lv) with
-        | TArray (bt, Some e, _) -> bt, e
-        | TArray (_, None, _) -> E.s (E.error "array type has no length\n")
-        | _ -> E.s (E.bug "expected array type\n")
+        | TArray (bt, Some e, attrs) ->
+            let nt = hasAttribute "nullterm" attrs in
+            let e' = if nt then BinOp (MinusA, e, one, typeOf e) else e in
+            bt, e', attrs
+        | TArray (_, None, _) -> E.s (error "Array type has no length")
+        | _ -> E.s (bug "Expected array type")
       in
       let lo = StartOf lv in
       let hi = BinOp (PlusPI, lo, len, typeOf lo) in
-      makeFancyPtrType bt lo hi
+      typeAddAttributes (filterAttributes "nullterm" attrs)
+                        (makeFancyPtrType bt lo hi)
   | Const (CStr s) -> (* String literal *)
       let len = String.length s in
       let lo = e in
@@ -892,7 +933,7 @@ and checkExp (e : exp) : typ =
   | SizeOfStr _
   | AlignOf _ -> unrollType (typeOf e)
 
-and checkLval (why:whyLval) (lv : lval) : typ =
+and checkLval (why: whyLval) (lv: lval) : typ =
   if !verbose then
     E.log "%a: checking lvalue %a\n" d_loc !currentLoc d_lval lv;
   begin
@@ -947,12 +988,12 @@ and checkLval (why:whyLval) (lv : lval) : typ =
       substType ctx' (typeOfLval lv)
   | Field (fld, NoOffset) ->
       let compType = checkRest () in
-      (match compType with
-         TComp(ci,_) when ci == fld.fcomp -> ()
-       | t ->
-           E.s (error "bad field offset %s on type %a."
-                  fld.fname d_type t)
-      );
+      begin
+        match compType with
+        | TComp (ci, _) when ci == fld.fcomp -> ()
+        | t ->
+            E.s (error "Bad field offset %s on type %a" fld.fname d_type t)
+      end;
       if fld.fcomp.cstruct then begin
         let ctx = structContext lv' fld.fcomp in
         let ctx' = addThisBinding ctx (Lval lv) in
@@ -968,15 +1009,27 @@ and checkLval (why:whyLval) (lv : lval) : typ =
       end
   | Index (index, NoOffset) -> begin
       coerceExp index intType;
-      match (checkRest ()) with 
-        TArray(bt,Some len,a) ->
-          addCheck (CUnsignedLess(index, len));
-          let ctx = addThisBinding emptyContext (Lval lv) in
-          substType ctx bt
-      | t -> E.s (error "%a: expecting an array, got %a.\n"
-                    d_loc !currentLoc d_type t)
-    end
-  | _ -> E.s (E.bug "unexpected result from removeOffset\n")
+      begin
+        match checkRest () with 
+        | TArray (bt, Some len, a) ->
+            addCheck (CUnsignedLess (index, len));
+            if hasAttribute "nullterm" a then begin
+              match why with
+              | ForWrite what ->
+                  let base = StartOf lv' in
+                  let t = typeOf base in
+                  let e = BinOp (PlusPI, base, index, t) in
+                  let hi =
+                    BinOp (MinusPI, BinOp (PlusPI, base, len, t), one, t)
+                  in
+                  addCheck (CNTWrite (e, hi, what))
+              | _ -> ()
+            end;
+            let ctx = addThisBinding emptyContext (Lval lv) in
+            substType ctx bt
+        | t -> E.s (error "Expecting an array, got %a" d_type t)
+      end
+  | _ -> E.s (bug "Unexpected result from removeOffset")
 
 and checkUnionAccess (why:whyLval) (compType: typ) (fld:fieldinfo): unit =
   if (why = ForAddrOf) then
@@ -1006,13 +1059,12 @@ let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   match fnType with
   | TFun (returnType, argInfo, varargs, _) ->
       if varargs then
-        E.warn "%a: varargs were not checked\n" d_loc !currentLoc;
+        warn "Varargs were not checked";
       (match lvo with
        | Some lv -> 
            (* TODO: let the return type depend on formals *)
            if hasExternalDeps lv then
-             E.s (E.error "%a: return lval has external dependencies\n"
-                          d_loc !currentLoc);
+             E.s (error "Return lval has external dependencies");
            let lvType = checkLval ForCall lv in
            (* replace __this in the return type with lv, and make sure the
               result equals the type of lv: *)
@@ -1045,7 +1097,7 @@ let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
             formals
             actuals
         with Invalid_argument _ ->
-          E.s (E.bug "different number of formal and actual args\n")
+          E.s (bug "Different number of formal and actual args")
       end
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
@@ -1054,8 +1106,7 @@ let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
   if !verbose then
     E.log "%a: checking alloc of %a %a\n" d_loc !currentLoc d_exp e d_type bt;
   if hasExternalDeps lv then
-    E.s (E.error "%a: return lval has external dependencies\n"
-                 d_loc !currentLoc);
+    E.s (error "Return lval has external dependencies");
   coerceExp e intType;
   addCheck (CPositive e);
   let lvType = checkLval ForCall lv in
@@ -1086,7 +1137,7 @@ let checkMemset (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
   let e1BaseType =
     match unrollType e1Type with
     | TPtr (bt, _) -> bt
-    | _ -> E.s (E.error "first arg to memset is not a pointer\n")
+    | _ -> E.s (error "First arg to memset is not a pointer")
   in
   let lo, hi = fancyBoundsOfType e1Type in
   addCheck (CNonNull e1);
@@ -1110,12 +1161,12 @@ let checkMemcpy (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
   let e1BaseType =
     match unrollType e1Type with
     | TPtr (bt, _) -> bt
-    | _ -> E.s (E.error "first arg to memcpy is not a pointer\n")
+    | _ -> E.s (error "First arg to memcpy is not a pointer")
   in
   let e2BaseType =
     match unrollType e2Type with
     | TPtr (bt, _) -> bt
-    | _ -> E.s (E.error "second arg to memcpy is not a pointer\n")
+    | _ -> E.s (error "Second arg to memcpy is not a pointer")
   in
   let lo1, hi1 = fancyBoundsOfType e1Type in
   addCheck (CNonNull e1);
@@ -1182,7 +1233,7 @@ let checkSet (lv: lval) (e: exp) : unit =
         (* No dependencies to array elements. 
            FIXME: what about arrays inside null-terminated arrays?  *)
         ()
-    | _ -> E.s (E.bug "removeOffset\n")
+    | _ -> E.s (bug "Unexpected result from removeOffset")
   end
 
 let checkInstr (instr : instr) : unit =
@@ -1198,11 +1249,11 @@ let checkInstr (instr : instr) : unit =
       else if isMemset fnType then
         match args with
         | [e1; e2; e3] -> checkMemset lvo (stripCasts e1) e2 e3
-        | _ -> E.s (E.error "expected three args to memset\n")
+        | _ -> E.s (error "Expected three args to memset")
       else if isMemcpy fnType then
         match args with
         | [e1; e2; e3] -> checkMemcpy lvo (stripCasts e1) (stripCasts e2) e3
-        | _ -> E.s (E.error "expected three args to memcpy\n")
+        | _ -> E.s (error "Expected three args to memcpy")
       else
         checkCall lvo fnType args
   | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
@@ -1210,13 +1261,13 @@ let checkInstr (instr : instr) : unit =
   | Set (lv, e, _) ->
       checkSet lv e
   | Asm _ ->
-      E.warn "%a: ignoring asm\n" d_loc !currentLoc
+      warn "Ignoring asm"
 
 let checkReturn (eo : exp option) : unit =
   let returnType =
     match !curFunc.svar.vtype with
     | TFun (returnType, _, _, _) -> returnType
-    | _ -> E.s (E.bug "expected function type")
+    | _ -> E.s (bug "Expected function type")
   in
   match eo with
   | Some e ->
@@ -1261,8 +1312,7 @@ and checkBlock (b : block) : unit =
 let checkTypedef (ti: typeinfo) : unit =
   let ctxThis = addThisBinding emptyContext zero in
   if not (checkType ctxThis ti.ttype) then
-    E.s (E.error "%a: type of typedef %s is ill-formed\n"
-                 d_loc !currentLoc ti.tname)
+    E.s (error "Type of typedef %s is ill-formed" ti.tname)
 
 let checkStruct (ci: compinfo) : unit =
   let ctx =
@@ -1274,30 +1324,27 @@ let checkStruct (ci: compinfo) : unit =
   List.iter
     (fun fld ->
        if not (checkType ctx fld.ftype) then
-         E.s (E.error "%a: field %s of struct %s is ill-formed\n"
-                      d_loc !currentLoc fld.fname ci.cname))
+         E.s (error "Field %s of struct %s is ill-formed" fld.fname ci.cname)
     ci.cfields
 
 let checkVar (vi: varinfo) (init: initinfo) : unit =
   let ctxThis = addThisBinding (globalsContext ()) zero in
   if not (checkType ctxThis vi.vtype) then
-    E.s (E.error "%a: type of global %s is ill-formed\n"
-                 d_loc !currentLoc vi.vname);
+    E.s (error "Type of global %s is ill-formed" vi.vname);
   if init.init <> None then
-    E.warn "%a: global variable initializer was not checked\n"
-           d_loc !currentLoc
+    warn "Global variable initializer was not checked"
 
 let checkFundec (fd : fundec) (loc:location) : unit =
   if !verbose then
     E.log "Doing function %s.\n" fd.svar.vname;
   curFunc := fd;
+  clearBoundsTable ();
   let ctx = localsContext fd in
   let ctxThis = addThisBinding ctx zero in
   List.iter
     (fun vi ->
        if not (checkType ctxThis vi.vtype) then
-         E.s (E.error "%a: type of variable %s is ill-formed\n"
-                      d_loc !currentLoc vi.vname))
+         E.s (error "Type of variable %s is ill-formed" vi.vname))
     (fd.slocals @ fd.sformals);
   checkBlock fd.sbody;
   curFunc := dummyFunDec;
@@ -1394,7 +1441,7 @@ let inferVisitor = object (self)
                 s
           end
       | Instr _ ->
-          E.s (E.bug "expected one-instruction statements only\n")
+          E.s (bug "Expected one-instruction statements only")
       | _ -> s
     in
     ChangeDoChildrenPost (s, postProcessStmt)
@@ -1499,8 +1546,7 @@ let preProcessVisitor = object (self)
                let lv =
                  match ret with
                  | Some lv -> lv
-                 | None -> E.s (E.error "%a: Allocation has no return\n"
-                                        d_loc !currentLoc)
+                 | None -> E.s (error "Allocation has no return")
                in
                let t = getAllocationType (typeOfLval lv) (typeOf fn) args in
                let tmp = makeTempVar !curFunc t in
@@ -1518,7 +1564,7 @@ let preProcessVisitor = object (self)
                      else
                        rt
                  | _ ->
-                     E.s (E.bug "expected function type\n")
+                     E.s (bug "Expected function type")
                in
                let tmp = makeTempVar !curFunc rt in
                Call (Some (var tmp), fn, args, l) ::
