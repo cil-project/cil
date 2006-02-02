@@ -95,7 +95,8 @@
   #                      the names mentioned here are also mentioned in 
   #                      MODULES.
   # PROJECT_CMODULES   - same as modules but for the C modules. These
-  #                      do not need to be mentioned in MODULES
+  #                      do not need to be mentioned in MODULES. There must be
+  #                      no name clashes with MODULES
   # PROJECT_LIBS       - the base names of the libraries that you 
   #                      want to link in the executable.
   #
@@ -175,6 +176,16 @@ endif
 COMPILEMSG=
 LINKMSG=
 
+ifdef WIN32
+OBJ             = obj
+else
+OBJ             = o
+endif
+EXE		= $(EXEEXT).exe
+
+
+export EXE
+
 ifdef NATIVECAML
  ifdef PROFILE
    COMPILEFLAGS   += -p
@@ -193,7 +204,7 @@ ifdef NATIVECAML
  CAMLC          = $(CAMLDIR)ocamlopt $(COMPILEFLAGS)
  CAMLLINK       = $(CAMLDIR)ocamlopt $(LINKFLAGS)
  CMO            = cmx
- CMC            = opt.o  # compiled (and optimized) C
+ CMC            = opt.$(OBJ)  # compiled (and optimized) C
  CMXA           = cmxa
  EXEEXT         = .asm
  MOVEAFTERCAMLC = cmi cmx $(OBJ)
@@ -202,13 +213,15 @@ ifdef NATIVECAML
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = $(CAMLDIR)ocamldep -native
+ ifndef WIN32
  CAMLFLAGS      += -ccopt -O3
+ endif
 else 
  CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
  CAMLLINK       = $(CAMLDIR)ocamlc -custom -g $(LINKFLAGS)
  CMO            = cmo
  CMXA           = cma
- CMC            = o
+ CMC            = $(OBJ)
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
@@ -219,11 +232,6 @@ ifdef UNSAFE
  CAMLC          := $(CAMLC) -unsafe -noassert
 endif
 
-OBJ             = o
-EXE		= $(EXEEXT).exe
-
-
-export EXE
 
 
 
@@ -312,7 +320,7 @@ cleancaml:
 		-name '*.cma' -o \
 		-name '*.cmxa' -o \
 		-name '*.exe' -o \
-		-name '*.o' -o \
+		-name "*.$(OBJ)" -o \
 		-name '*.a' -o \
 		-name '*.ml' -o \
 		-name '*.mli' -o \
