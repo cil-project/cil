@@ -79,6 +79,9 @@
   # CAML_CFLAGS   - flags used only for the compilation of C files.
   #                 e.g. '-ccopt <gcc flag>'
   #
+  # LINKFLAGS         - if defined, then it is passed as argument to ocamlc
+  #                     when linking
+  #
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
   #
@@ -202,7 +205,7 @@ ifdef NATIVECAML
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
  CAMLC          = $(CAMLDIR)ocamlopt $(COMPILEFLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlopt $(LINKFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlopt
  CMO            = cmx
  CMC            = opt.$(OBJ)  # compiled (and optimized) C
  CMXA           = cmxa
@@ -218,7 +221,7 @@ ifdef NATIVECAML
  endif
 else 
  CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlc -custom -g $(LINKFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlc -custom -g
  CMO            = cmo
  CMXA           = cma
  CMC            = $(OBJ)
