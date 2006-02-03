@@ -442,6 +442,9 @@ let isNullterm (t: typ) : bool =
 let isTrusted (t: typ) : bool =
   hasAttribute "trusted" (typeAttrs t)
 
+let isTrustedComp (ci: compinfo) : bool =
+  hasAttribute "trusted" ci.cattr
+
 (** The dependent types are expressed using attributes. We compile an 
  * attribute given a mapping from names to lvals.  Returns the names of
  * meta values that this annotation depends on, and the expression.
@@ -569,7 +572,7 @@ let substType (ctx: context) (t: typ) : typ =
       let a' = addAttribute (makeFancyBoundsAttr lo hi) 
                  (dropAttribute "bounds" a) in
       TPtr (bt, a')
-  | TComp (ci, a) when not ci.cstruct ->
+  | TComp (ci, a) when not ci.cstruct && not (isTrustedComp ci) ->
       (* a union. Create a fancywhen attr for the when clauses of each field.*)
       let doField (acc:whenMap) (fld:fieldinfo) : whenMap =
         try 
@@ -584,7 +587,7 @@ let substType (ctx: context) (t: typ) : typ =
       in
       let wm = List.fold_left doField [] ci.cfields in
       let a' = addAttribute (makeFancyWhenAttr wm) a in
-      TComp(ci, a')
+      TComp (ci, a')
   | _ ->
       t
 
@@ -734,6 +737,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
           E.s (error "Type mismatch: %a and %a" d_type t1 d_type t2)
 
 let checkUnionWhen (ctx:context) (fld:fieldinfo) : bool =
+  isTrustedComp fld.fcomp ||
   try 
     let deps = depsOfWhenAttrs fld.fattr in (* may raise Not_found *)
     hasBindings ctx deps
@@ -1005,7 +1009,8 @@ and checkLval (why: whyLval) (lv: lval) : typ =
         substType ctx' fld.ftype
       end else begin (* Union *)
         (* check the field access *)
-        checkUnionAccess why compType fld;
+        if not (isTrustedComp fld.fcomp) then
+          checkUnionAccess why compType fld;
         (* now do the type of the field itself *)
         let value = Lval lv in
         let ctx  = addBinding emptyContext fld.fname value in
