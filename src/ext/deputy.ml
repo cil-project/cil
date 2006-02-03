@@ -141,6 +141,8 @@ type check =
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CPositive of exp     (** e > 0 *)
   | CMult of exp * exp   (** e1 * k == e2 for some int k *)
+  | COverflow of exp * exp
+                         (** e1 + e2 does not overflow (e2 is signed) *)
   | CBounds of exp * exp * exp * exp 
                          (** e1 <= e2+e3 <= e4.  For ptr arith *)
   | CCoerce of exp * exp * exp * exp * exp
@@ -209,6 +211,7 @@ let ceq = mkCheckFun "CEq" 2
 let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
 let cmult = mkCheckFun "CMult" 2
+let coverflow = mkCheckFun "COverflow" 3
 let cbounds = mkCheckFun "CBounds" 3
 let ccoerce = mkCheckFun "CCoerce" 5
 let ccoercen = mkCheckFun "CCoerceN" 5
@@ -231,6 +234,7 @@ let checkToInstr (c:check) =
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CPositive (e) -> call cpositive [e]
   | CMult (e1,e2) -> call cmult [e1;e2]
+  | COverflow (e1,e2) -> call coverflow [e1;e2]
   | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
                            call cbounds [b;p';e]
   | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
@@ -876,6 +880,7 @@ and checkExp (e : exp) : typ =
           | _ -> E.s (bug "Unexpected operation")
         in
         addCheck (CNonNull e1);
+        addCheck (COverflow (e1, e2'));
         addCheck (CBounds (lo, e1, e2', hi))
       end;
       t1
@@ -1140,8 +1145,10 @@ let checkMemset (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
     | _ -> E.s (error "First arg to memset is not a pointer")
   in
   let lo, hi = fancyBoundsOfType e1Type in
+  let e1' = CastE (charPtrType, e1) in
   addCheck (CNonNull e1);
-  addCheck (CBounds (lo, CastE (charPtrType, e1), e3, hi));
+  addCheck (COverflow (e1', e3));
+  addCheck (CBounds (lo, e1', e3, hi));
   if typeContainsPointers e1BaseType then begin
     addCheck (CEq (e2, zero));
     addCheck (CMult (SizeOf e1BaseType, e3))
@@ -1169,11 +1176,15 @@ let checkMemcpy (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
     | _ -> E.s (error "Second arg to memcpy is not a pointer")
   in
   let lo1, hi1 = fancyBoundsOfType e1Type in
+  let e1' = CastE (charPtrType, e1) in
   addCheck (CNonNull e1);
-  addCheck (CBounds (lo1, CastE (charPtrType, e1), e3, hi1));
+  addCheck (COverflow (e1', e3));
+  addCheck (CBounds (lo1, e1', e3, hi1));
   let lo2, hi2 = fancyBoundsOfType e2Type in
+  let e2' = CastE (charPtrType, e2) in
   addCheck (CNonNull e2);
-  addCheck (CBounds (lo2, CastE (charPtrType, e2), e3, hi2));
+  addCheck (COverflow (e2', e3));
+  addCheck (CBounds (lo2, e2', e3, hi2));
   if typeContainsPointers e1BaseType then begin
     checkSameType e1BaseType e2BaseType;
     addCheck (CMult (SizeOf e1BaseType, e3))
@@ -1637,10 +1648,28 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
       compareExp e1 e2 && compareOffset off1 off2
   | _ -> false
 
+let proveLeWithBounds (e1: exp) (e2: exp) : bool =
+  let getVarBounds (vi: varinfo) : string option * string option =
+    let getBoundString (a: attrparam) : string option =
+      match a with
+      | ACons (s, []) -> Some s
+      | _ -> None
+    in
+    match getBounds (typeAttrs vi.vtype) with
+    | BSimple (lo, hi) -> getBoundString lo, getBoundString hi
+    | _ -> None, None
+  in
+  match e1, e2 with
+  | Lval (Var vi1, NoOffset), Lval (Var vi2, NoOffset) ->
+      (snd (getVarBounds vi1) = Some vi2.vname) ||
+      (fst (getVarBounds vi2) = Some vi1.vname)
+  | _ -> false
+
 let proveLe (e1: exp) (e2: exp) : bool =
   let b1, off1 = getBaseOffset e1 in
   let b2, off2 = getBaseOffset e2 in
-  compareExp b1 b2 && off1 <= off2
+  (compareExp b1 b2 && off1 <= off2) ||
+  (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
 
 let optimizeCheck (c: check) : check list =
   match c with
@@ -1648,6 +1677,12 @@ let optimizeCheck (c: check) : check list =
   | CCoerceN (e1, e2, e3, e4, e5) ->
       if proveLe e1 e2 && proveLe e2 e3 &&
          proveLe e3 e4 && proveLe e4 e5 then
+        []
+      else
+        [c]
+  | CBounds (e1, e2, e3, e4) ->
+      let e = BinOp (PlusPI, e2, e3, typeOf e2) in
+      if proveLe e1 e && proveLe e e4 then
         []
       else
         [c]
