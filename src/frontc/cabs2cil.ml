@@ -3630,12 +3630,15 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let resType' = resType in 
         (* Before we do the arguments we try to intercept a few builtins. For 
          * these we have defined then with a different type, so we do not 
-         * want to give warnings. *)
-        let isVarArgBuiltin = 
+         * want to give warnings. We'll just leave the arguments of these
+         * functions alone*)
+        let isSpecialBuiltin =  
           match f'' with 
             Lval (Var fv, NoOffset) ->
               fv.vname = "__builtin_stdarg_start" ||
               fv.vname = "__builtin_va_arg" ||
+              fv.vname = "__builtin_va_start" ||
+              fv.vname = "__builtin_expect" ||
               fv.vname = "__builtin_next_arg"
             | _ -> false
         in
@@ -3644,8 +3647,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           we evaluate args right-to-left.
           Added by Nathan Cooprider. **)
         let force_right_to_left_evaluation (c, e, t) =
+	  (* If chunk is empty then it is not already evaluated *)
 	  (* constants don't need to be pulled out *)
-          if !forceRLArgEval && (not (isConstant e)) then 
+          if (!forceRLArgEval && (not (isConstant e)) && 
+	      (not isSpecialBuiltin)) then 
 	    (* create a temporary *)
 	    let tmp = newTempVar t in
 	    (* create an instruction to give the e to the temporary *)
@@ -3663,7 +3668,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             | ([], []) -> (empty, [])
 
             | args, [] -> 
-                if not isVarArgBuiltin then 
+                if not isSpecialBuiltin then 
                   ignore (warnOpt 
                             "Too few arguments in call to %a."
                             d_exp f');
@@ -3681,7 +3686,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 (ss @@ sa, a'' :: args')
                   
             | ([], args) -> (* No more types *)
-                if not isvar && argTypes != None && not isVarArgBuiltin then 
+                if not isvar && argTypes != None && not isSpecialBuiltin then 
                   (* Do not give a warning for functions without a prototype*)
                   ignore (warnOpt "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
