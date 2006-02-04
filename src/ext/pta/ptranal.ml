@@ -547,6 +547,8 @@ let absloc_e_transitive_points_to (e : Cil.exp) : absloc list =
 
 let absloc_eq a b = A.absloc_eq (a, b)
 
+let d_absloc: unit -> absloc -> Pretty.doc = A.d_absloc
+
 
 let ptrAnalysis = ref false
 let ptrResults = ref false

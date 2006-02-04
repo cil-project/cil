@@ -124,6 +124,9 @@ val absloc_e_transitive_points_to : Cil.exp -> absloc list
 
 val absloc_lval_aliases : Cil.lval -> absloc list
 
+(** Print a string representing an absloc, for debugging. *)
+val d_absloc : unit -> absloc -> Pretty.doc
+
 
 (***********************************************************************)
 (*                                                                     *)
