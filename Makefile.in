@@ -235,8 +235,9 @@ ifdef USE_DEPUTY
 	echo "   Deputy.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
-	$(foreach f,@EXTRAFEATURES@, \
-            echo `echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;" >> $@)
+	echo -ne \
+          $(foreach f,@EXTRAFEATURES@, \
+             `echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;\n") >> $@
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made
 # before feature_config existed.
