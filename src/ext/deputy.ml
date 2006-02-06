@@ -1620,7 +1620,7 @@ let rec getBaseOffset (e: exp) : exp * int =
   match e with
   | BinOp ((PlusPI | IndexPI | MinusPI) as op, e', off, _) ->
       begin
-        match getBaseOffset e', isInteger off, op with
+        match getBaseOffset e', isInteger (constFold false off), op with
         | (b, n1), Some n2, (PlusPI | IndexPI) -> b, n1 + (Int64.to_int n2)
         | (b, n1), Some n2, MinusPI -> b, n1 - (Int64.to_int n2)
         | (b, n), _, _ -> e, 0
