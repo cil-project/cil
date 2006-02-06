@@ -1750,7 +1750,7 @@ let checkFile (f: file) : unit =
      in the output. *)
   visitCilFileSameGlobals postPassVisitor1 f;
   visitCilFileSameGlobals postPassVisitor2 f;
-  f.globals <- (GText "#include <deputychecks.h>\n\n")::f.globals;
+  f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
   ()
