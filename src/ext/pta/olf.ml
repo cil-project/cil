@@ -90,8 +90,7 @@ type abslocset = C.t
 
 let d_absloc () (a: absloc) : Pretty.doc =
   let i,s,_ = a in
-(*   Pretty.dprintf "<%d, %s>" i s *)
-  Pretty.text s
+  Pretty.dprintf "<%d, %s>" i s
 
 type c_abslocinfo = {
   mutable l_name: string;   (** name of the location *)
