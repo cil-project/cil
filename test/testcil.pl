@@ -541,6 +541,7 @@ $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/return1", "", ['cil']);
 $TEST->addTests("testrun/for1", "", ['cil']);
 $TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
+$TEST->addTests("test/voidtypedef", "", ['cil']);
 $TEST->addTests("testrun/wrongnumargs", "", ['cil']);
    $TEST->addBadComment("testrun/wrongnumargs-cil", 
                         "Should fail since we don't pad argument lists");

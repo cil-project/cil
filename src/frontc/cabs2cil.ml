@@ -2582,7 +2582,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         let targs : varinfo list option = 
           match List.map doOneArg args'  with
           | [] -> None (* No argument list *)
-          | [t] when (match t.vtype with TVoid _ -> true | _ -> false) -> 
+          | [t] when isVoidType t.vtype -> 
               Some []
           | l -> Some l
         in
@@ -5714,27 +5714,24 @@ and doStatement (s : A.statement) : chunk =
     | A.RETURN (A.NOTHING, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
-        (match !currentReturnType with 
-           TVoid _ -> ()
-          | _ -> 
-            ignore (warn "Return statement without a value in function returning %a\n" d_type !currentReturnType));
+        if not (isVoidType !currentReturnType) then
+          ignore (warn "Return statement without a value in function returning %a\n" d_type !currentReturnType);
         returnChunk None loc'
 
-    | A.RETURN (e, loc) -> begin
+    | A.RETURN (e, loc) ->
         let loc' = convLoc loc in
         currentLoc := loc';
         (* Sometimes we return the result of a void function call *)
-        match !currentReturnType with
-          TVoid _ -> 
-            ignore (warn "Return statement with a value in function returning void");
-            let (se, _, _) = doExp false e ADrop in
-            se @@ returnChunk None loc'
-        | _ ->  
-            let (se, e', et) = 
-              doExp false e (AExp (Some !currentReturnType)) in
-            let (et'', e'') = castTo et (!currentReturnType) e' in
-            se @@ (returnChunk (Some e'') loc')
-    end
+        if isVoidType !currentReturnType then begin
+          ignore (warn "Return statement with a value in function returning void");
+          let (se, _, _) = doExp false e ADrop in
+          se @@ returnChunk None loc'
+        end else begin
+          let (se, e', et) = 
+            doExp false e (AExp (Some !currentReturnType)) in
+          let (et'', e'') = castTo et (!currentReturnType) e' in
+          se @@ (returnChunk (Some e'') loc')
+        end
                
     | A.SWITCH (e, s, loc) -> 
         let loc' = convLoc loc in
