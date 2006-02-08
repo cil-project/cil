@@ -80,7 +80,9 @@
   #                 e.g. '-ccopt <gcc flag>'
   #
   # LINKFLAGS         - if defined, then it is passed as argument to ocamlc
-  #                     when linking
+  #                     when linking (at the end of command line)
+  # LINKFLAGS_FIRST   - if defined, then it is passed as argument to ocamlc
+  #                     when linking (at the start of command line)
   #
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
