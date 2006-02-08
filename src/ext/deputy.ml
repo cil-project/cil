@@ -905,8 +905,10 @@ and checkExp (e : exp) : typ =
       let t' = substType ctx t in
       coerceExp e' t';
       t'
-  | SizeOfE e'
-  | AlignOfE e' -> ignore (checkExp e'); unrollType (typeOf e)
+  | SizeOfE _
+  | AlignOfE _ ->
+      (* We don't check the inner expr because it doesn't get executed. *)
+      unrollType (typeOf e)
   | AddrOf lv ->
       ignore (checkLval ForAddrOf lv);
       let ctxThis = addThisBinding emptyContext zero in
