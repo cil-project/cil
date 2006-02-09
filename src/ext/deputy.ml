@@ -76,6 +76,16 @@ let rec truncate (l: 'a list) (n: int) : 'a list =
   | elt :: rest when n > 0 -> elt :: (truncate rest (n - 1))
   | _ -> []
 
+(* Like iter2, but passes an int indicating the current index in the lists. *)
+let iter2index (fn: 'a -> 'b -> int -> unit) (a: 'a list) (b: 'b list) : unit =
+  let rec helper a b n =
+    match a, b with
+    | [], [] -> ()
+    | a1 :: arest, b1 :: brest -> fn a1 b1 n; helper arest brest (n + 1)
+    | _ -> raise (Invalid_argument "iter2index")
+  in
+  helper a b 1
+
 let rec typeContainsPointers (t: typ) : bool =
   match t with
   | TPtr _
@@ -652,6 +662,24 @@ let isMemset (t: typ) : bool =
 let isMemcpy (t: typ) : bool =
   hasAttribute "dmemcpy" (typeAttrs t)
 
+let getMallocArg (attrs: attributes) : int =
+  if hasAttribute "dcalloc" attrs then
+    E.s (error "Function has too many allocator annotations");
+  match filterAttributes "dmalloc" attrs with
+  | [Attr (_, [AInt i])] -> i - 1
+  | [Attr (_, _)] -> E.s (error "Invalid malloc annotation")
+  | _ :: _ -> E.s (error "Function has too many allocator annotations")
+  | [] -> E.s (bug "No dmalloc attribute found")
+
+let getCallocArgs (attrs: attributes) : int * int =
+  if hasAttribute "dmalloc" attrs then
+    E.s (error "Function has too many allocator annotations");
+  match filterAttributes "dcalloc" attrs with
+  | [Attr (_, [AInt i1; AInt i2])] -> i1 - 1, i2 - 1
+  | [Attr (_, _)] -> E.s (error "Invalid calloc annotation")
+  | _ :: _ -> E.s (error "Function has too many allocator annotations")
+  | [] -> E.s (bug "No dcalloc attribute found")
+
 let rec expToAttr (e: exp) : attrparam option =
   match e with
   | Lval (Var vi, NoOffset) -> Some (ACons (vi.vname, []))
@@ -674,23 +702,27 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
   let fnAttrs = typeAttrs fnType in
   let numElts, baseType =
     if hasAttribute "dcalloc" fnAttrs then
-      match args with
-      | [SizeOf t'; e] -> e, t'
-      | _ -> E.s (error "Unrecognized allocation function")
+      let i1, i2 = getCallocArgs fnAttrs in
+      try
+        match stripCasts (List.nth args i1), List.nth args i2 with
+        | SizeOf t', e -> e, t'
+        | SizeOfE et, e -> e, typeOf et
+        | _ -> E.s (error "Unrecognized calloc arguments")
+      with Failure "nth" ->
+        E.s (error "Invalid indices in calloc annotation")
     else if hasAttribute "dmalloc" fnAttrs then
-      match args with
-      | e :: _ ->
-        begin
-          match stripCasts e with
-          | BinOp (Mult, e', SizeOf t, _)
-          | BinOp (Mult, SizeOf t, e', _) -> e', t
-          | BinOp (Mult, e', SizeOfE et, _)
-          | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
-          | SizeOf t -> integer 1, t
-          | SizeOfE et -> integer 1, typeOf et
-          | _ -> e, charType
-        end
-      | _ -> E.s (error "Unrecognized allocation function")
+      let i = getMallocArg fnAttrs in
+      try
+        match stripCasts (List.nth args i) with
+        | BinOp (Mult, e', SizeOf t, _)
+        | BinOp (Mult, SizeOf t, e', _) -> e', t
+        | BinOp (Mult, e', SizeOfE et, _)
+        | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
+        | SizeOf t -> integer 1, t
+        | SizeOfE et -> integer 1, typeOf et
+        | e -> e, charType
+      with Failure "nth" ->
+        E.s (error "Invalid index in malloc annotation")
     else
       E.s (error "Unrecognized allocation function")
   in
@@ -1065,7 +1097,8 @@ and checkUnionAccess (why:whyLval) (compType: typ) (fld:fieldinfo): unit =
   end;  
   ()
 
-let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
+let checkCall (lvo: lval option) (fnType: typ)
+              (args: exp list) (exempt: int list) : unit =
   if !verbose then
     E.log "%a: checking call\n" d_loc !currentLoc;
   match fnType with
@@ -1073,16 +1106,20 @@ let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       if varargs then
         warn "Varargs were not checked";
       (match lvo with
-       | Some lv -> 
-           (* TODO: let the return type depend on formals *)
-           if hasExternalDeps lv then
-             E.s (error "Return lval has external dependencies");
-           let lvType = checkLval ForCall lv in
-           (* replace __this in the return type with lv, and make sure the
-              result equals the type of lv: *)
-           let returnCtx = addThisBinding emptyContext (Lval lv) in
-           let returnType' = substType returnCtx returnType in
-           checkSameType returnType' lvType
+       | Some lv ->
+           if not (List.mem 0 exempt) then begin
+             (* TODO: let the return type depend on formals *)
+             if hasExternalDeps lv then
+               E.s (error "Return lval has external dependencies");
+             let lvType = checkLval ForCall lv in
+             (* replace __this in the return type with lv, and make sure the
+                result equals the type of lv: *)
+             let returnCtx = addThisBinding emptyContext (Lval lv) in
+             let returnType' = substType returnCtx returnType in
+             (* TODO: the runtime checks emitted here may not be correct,
+              * since we insert them before the call *)
+             checkSameType returnType' lvType
+           end
        | None -> ()
       );
       (* CIL's casts don't make sense with dependent types, so remove them. *)
@@ -1101,11 +1138,12 @@ let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
               formals
               actuals
           in
-          List.iter2
-            (fun (argName, argType, _) arg ->
-               let ctxCall' = addThisBinding ctxCall arg in
-               let argType' = substType ctxCall' argType in
-               coerceExp arg argType')
+          iter2index
+            (fun (argName, argType, _) arg i ->
+               if not (List.mem i exempt) then
+                 let ctxCall' = addThisBinding ctxCall arg in
+                 let argType' = substType ctxCall' argType in
+                 coerceExp arg argType')
             formals
             actuals
         with Invalid_argument _ ->
@@ -1113,94 +1151,71 @@ let checkCall (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       end
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
-(*
-let checkAlloc (lv: lval) (bt:typ) (e: exp) : unit =
-  if !verbose then
-    E.log "%a: checking alloc of %a %a\n" d_loc !currentLoc d_exp e d_type bt;
-  if hasExternalDeps lv then
-    E.s (error "Return lval has external dependencies");
-  coerceExp e intType;
-  addCheck (CPositive e);
-  let lvType = checkLval ForCall lv in
-  let nullterm = isNullterm lvType in
-  let len = 
-    if nullterm then 
-      BinOp(MinusPI, e, one, intType)
-    else 
-      e
-  in
-  let lo = Lval lv in
-  let hi = BinOp(PlusPI, lo, len, TPtr(bt, [])) in (* FIXME: overflow *)
-  let rt = makeFancyPtrType bt lo hi in
-  checkSameType rt lvType;
-  ()
-*)
+let checkAlloc (lvo: lval option) (fnType: typ) (args: exp list) : unit =
+  (* Check all args, but don't check return value. Preprocessing has
+   * ensured that the return value has the appropriate type. *)
+  (* TODO: check anyway? *)
+  checkCall lvo fnType args [0]
 
-let checkAlloc () : unit =
-  (* TODO: check all args *)
-  ()
-
-let checkMemset (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
+let checkMemset (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   if !verbose then
     E.log "%a: checking memset\n" d_loc !currentLoc;
-  coerceExp e2 intType;
-  coerceExp e3 intType;
-  let e1Type = checkExp e1 in
-  let e1BaseType =
-    match unrollType e1Type with
-    | TPtr (bt, _) -> bt
-    | _ -> E.s (error "First arg to memset is not a pointer")
-  in
-  let lo, hi = fancyBoundsOfType e1Type in
-  let e1' = CastE (charPtrType, e1) in
-  addCheck (CNonNull e1);
-  addCheck (COverflow (e1', e3));
-  addCheck (CBounds (lo, e1', e3, hi));
-  if typeContainsPointers e1BaseType then begin
-    addCheck (CEq (e2, zero));
-    addCheck (CMult (SizeOf e1BaseType, e3))
-  end;
-  begin
-    match lvo with
-    | Some lv -> checkSameType (checkLval (ForWrite e1) lv) e1Type
-    | None -> ()
-  end
+  match args with
+  | [e1; e2; e3] ->
+      let e1 = stripCasts e1 in
+      let e1Type = checkExp e1 in
+      let e1BaseType =
+        match unrollType e1Type with
+        | TPtr (bt, _) -> bt
+        | _ -> E.s (error "First arg to memset is not a pointer")
+      in
+      let lo, hi = fancyBoundsOfType e1Type in
+      let e1' = CastE (charPtrType, e1) in
+      addCheck (CNonNull e1);
+      addCheck (COverflow (e1', e3));
+      addCheck (CBounds (lo, e1', e3, hi));
+      if typeContainsPointers e1BaseType then begin
+        addCheck (CEq (e2, zero));
+        addCheck (CMult (SizeOf e1BaseType, e3))
+      end;
+      checkCall lvo fnType [e1; e2; e3] [1]
+  | _ -> E.s (error "Expected three args to memset")
 
-let checkMemcpy (lvo: lval option) (e1: exp) (e2: exp) (e3: exp) : unit =
+let checkMemcpy (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   if !verbose then
     E.log "%a: checking memcpy\n" d_loc !currentLoc;
-  coerceExp e3 intType;
-  let e1Type = checkExp e1 in
-  let e2Type = checkExp e2 in
-  let e1BaseType =
-    match unrollType e1Type with
-    | TPtr (bt, _) -> bt
-    | _ -> E.s (error "First arg to memcpy is not a pointer")
-  in
-  let e2BaseType =
-    match unrollType e2Type with
-    | TPtr (bt, _) -> bt
-    | _ -> E.s (error "Second arg to memcpy is not a pointer")
-  in
-  let lo1, hi1 = fancyBoundsOfType e1Type in
-  let e1' = CastE (charPtrType, e1) in
-  addCheck (CNonNull e1);
-  addCheck (COverflow (e1', e3));
-  addCheck (CBounds (lo1, e1', e3, hi1));
-  let lo2, hi2 = fancyBoundsOfType e2Type in
-  let e2' = CastE (charPtrType, e2) in
-  addCheck (CNonNull e2);
-  addCheck (COverflow (e2', e3));
-  addCheck (CBounds (lo2, e2', e3, hi2));
-  if typeContainsPointers e1BaseType then begin
-    checkSameType e1BaseType e2BaseType;
-    addCheck (CMult (SizeOf e1BaseType, e3))
-  end(*;
-  begin
-    match lvo with
-    | Some lv -> checkSameType (checkLval (ForWrite e1) lv) e1Type
-    | None -> ()
-  end*)
+  match args with
+  | [e1; e2; e3] ->
+      let e1 = stripCasts e1 in
+      let e2 = stripCasts e2 in
+      let e1Type = checkExp e1 in
+      let e2Type = checkExp e2 in
+      let e1BaseType =
+        match unrollType e1Type with
+        | TPtr (bt, _) -> bt
+        | _ -> E.s (error "First arg to memcpy is not a pointer")
+      in
+      let e2BaseType =
+        match unrollType e2Type with
+        | TPtr (bt, _) -> bt
+        | _ -> E.s (error "Second arg to memcpy is not a pointer")
+      in
+      let lo1, hi1 = fancyBoundsOfType e1Type in
+      let e1' = CastE (charPtrType, e1) in
+      addCheck (CNonNull e1);
+      addCheck (COverflow (e1', e3));
+      addCheck (CBounds (lo1, e1', e3, hi1));
+      let lo2, hi2 = fancyBoundsOfType e2Type in
+      let e2' = CastE (charPtrType, e2) in
+      addCheck (CNonNull e2);
+      addCheck (COverflow (e2', e3));
+      addCheck (CBounds (lo2, e2', e3, hi2));
+      if typeContainsPointers e1BaseType then begin
+        checkSameType e1BaseType e2BaseType;
+        addCheck (CMult (SizeOf e1BaseType, e3))
+      end;
+      checkCall lvo fnType [e1; e2; e3] [1; 2]
+  | _ -> E.s (error "Expected three args to memcpy")
 
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
@@ -1261,19 +1276,18 @@ let checkInstr (instr : instr) : unit =
   match instr with
   | Call (lvo, fn, args, _) ->
       let fnType = checkExp fn in
-      (* TODO: check remaining args for memset, memcpy, alloc *)
       if isAllocator fnType then
-        checkAlloc ()
+        checkAlloc lvo fnType args
       else if isMemset fnType then
         match args with
-        | [e1; e2; e3] -> checkMemset lvo (stripCasts e1) e2 e3
+        | [e1; e2; e3] -> checkMemset lvo fnType args
         | _ -> E.s (error "Expected three args to memset")
       else if isMemcpy fnType then
         match args with
-        | [e1; e2; e3] -> checkMemcpy lvo (stripCasts e1) (stripCasts e2) e3
+        | [e1; e2; e3] -> checkMemcpy lvo fnType args
         | _ -> E.s (error "Expected three args to memcpy")
       else
-        checkCall lvo fnType args
+        checkCall lvo fnType args []
   | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
       ()
   | Set (lv, e, _) ->
