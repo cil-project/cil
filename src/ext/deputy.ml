@@ -70,11 +70,23 @@ let fixStmt (s:stmt) : unit =
       ()      
   | _ -> ()
 
-(* Truncates a list. *)
-let rec truncate (l: 'a list) (n: int) : 'a list =
+(* Splits a list into two lists consisting of the first n elements
+ * and the remainder. *)
+let rec split (l: 'a list) (n: int) : 'a list * 'a list =
   match l with
-  | elt :: rest when n > 0 -> elt :: (truncate rest (n - 1))
-  | _ -> []
+  | elt :: rest when n > 0 ->
+      let x, y = split rest (n - 1) in
+      elt :: x, y
+  | _ -> [], l
+
+(* Like iter, but passes an int indicating the current index in the list. *)
+let iterindex (fn: 'a -> int -> unit) (a: 'a list) : unit =
+  let rec helper a n =
+    match a with
+    | [] -> ()
+    | a1 :: arest -> fn a1 n; helper arest (n + 1)
+  in
+  helper a 1
 
 (* Like iter2, but passes an int indicating the current index in the lists. *)
 let iter2index (fn: 'a -> 'b -> int -> unit) (a: 'a list) (b: 'b list) : unit =
@@ -257,38 +269,6 @@ let checkToInstr (c:check) =
   | CSelected (e) -> call cselected [e]
   | CNotSelected (e) -> call cnotselected [e]
 
-
-let postPassVisitor1 = object (self)
-  inherit nopCilVisitor
-
-  (* Turn the check datastructure into explicit checks, so that they show up
-     in the output. *)
-  method vstmt s = 
-    let postProcessStmt (s: stmt) : stmt =
-      let checks = GA.getg allChecks s.sid in
-      if checks <> [] then begin
-        let checks' = List.rev checks in (* put them back in the right order *)
-        let checks'' : instr list = List.map checkToInstr checks' in
-        self#queueInstr checks''
-      end;
-      s
-    in
-    ChangeDoChildrenPost (s, postProcessStmt)
-end
-
-let postPassVisitor2 = object (self)
-  inherit nopCilVisitor
-
-  (* Remove any "bounds" or "fancybounds" annotations. *)
-  method vattr a =
-    match a with
-    | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"
-            | "when" | "fancywhen"), _) ->
-        ChangeTo []
-    | _ -> DoChildren
-
-end
-
 (**************************************************************************)
 
 (* Keyword in bounds attributes representing the current value *)
@@ -449,11 +429,14 @@ let isNullterm (t: typ) : bool =
   | TPtr (_, a) -> hasAttribute "nullterm" a
   | _ -> E.s (error "Expected pointer type")
 
-let isTrusted (t: typ) : bool =
-  hasAttribute "trusted" (typeAttrs t)
+let isTrustedAttr (attr: attributes) : bool =
+  hasAttribute "trusted" attr
+
+let isTrustedType (t: typ) : bool =
+  isTrustedAttr (typeAttrs t)
 
 let isTrustedComp (ci: compinfo) : bool =
-  hasAttribute "trusted" ci.cattr
+  isTrustedAttr ci.cattr
 
 (** The dependent types are expressed using attributes. We compile an 
  * attribute given a mapping from names to lvals.  Returns the names of
@@ -747,7 +730,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
       d_loc !currentLoc
       d_type t1 d_type t2;
     match unrollType t1, unrollType t2 with
-    | t1, t2 when isTrusted t1 || isTrusted t2 ->
+    | t1, t2 when isTrustedType t1 || isTrustedType t2 ->
         ()
     | TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
@@ -836,7 +819,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
     E.log "%a: coercing exp %a from %a to %a\n"
           d_loc !currentLoc d_exp e d_type tfrom d_type tto;
   match unrollType tfrom, unrollType tto with
-  | t1, t2 when isTrusted t1 || isTrusted t2 ->
+  | t1, t2 when isTrustedType t1 || isTrustedType t2 ->
       ()
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
@@ -907,7 +890,7 @@ and checkExp (e : exp) : typ =
          At some point, we should check it! *)
       (* coerceExp e1 (substType ... t); *)
       coerceExp e2 intType;
-      if not (isTrusted t1) then begin
+      if not (isTrustedType t1) then begin
         let lo, hi = fancyBoundsOfType t1 in
         let e2' =
           match op with
@@ -1122,9 +1105,9 @@ let checkCall (lvo: lval option) (fnType: typ)
            end
        | None -> ()
       );
-      (* CIL's casts don't make sense with dependent types, so remove them. *)
       let formals = argsToList argInfo in
-      let actuals = truncate (List.map stripCasts args) (List.length formals) in
+      let numFormals = List.length formals in
+      let actuals1, actuals2 = split args numFormals in
       begin
         try
           let ctxCall =
@@ -1136,7 +1119,7 @@ let checkCall (lvo: lval option) (fnType: typ)
                    ctxAcc)
               emptyContext
               formals
-              actuals
+              actuals1
           in
           iter2index
             (fun (argName, argType, _) arg i ->
@@ -1145,10 +1128,15 @@ let checkCall (lvo: lval option) (fnType: typ)
                  let argType' = substType ctxCall' argType in
                  coerceExp arg argType')
             formals
-            actuals
+            actuals1
         with Invalid_argument _ ->
           E.s (bug "Different number of formal and actual args")
-      end
+      end;
+      iterindex
+        (fun arg i ->
+           if not (List.mem (i + numFormals) exempt) then
+             ignore (checkExp arg))
+        actuals2
   | _ -> E.log "%a: calling non-function type\n" d_loc !currentLoc
 
 let checkAlloc (lvo: lval option) (fnType: typ) (args: exp list) : unit =
@@ -1305,10 +1293,8 @@ let checkReturn (eo : exp option) : unit =
   | Some e ->
       if !verbose then
         E.log "%a: checking return %a\n" d_loc !currentLoc d_exp e;
-      (* CIL's casts don't make sense with dependent types, so remove them. *)
-      let e' = stripCasts e in
-      let ctx = addThisBinding emptyContext e' in
-      coerceExp e' (substType ctx returnType)
+      let ctx = addThisBinding emptyContext e in
+      coerceExp e (substType ctx returnType)
   | None ->
       if !verbose then
         E.log "%a: checking return\n" d_loc !currentLoc;
@@ -1517,9 +1503,9 @@ end
 let stripSomeCasts (t: typ) (e: exp) : exp =
   match e with
   | CastE (t', e') ->
+      let normalize = typeRemoveAttributes ["bounds"; "trusted"] in
       if compareTypes t t' &&
-         (compareTypes (typeRemoveAttributes ["bounds"] t')
-                       (typeRemoveAttributes ["bounds"] (typeOf e')) || 
+         (compareTypes (normalize t') (normalize (typeOf e')) || 
           (isPointerType t' && isZero e)) then
         e'
       else
@@ -1573,8 +1559,21 @@ let preProcessVisitor = object (self)
     let postProcessInstr (instrs: instr list) : instr list =
       List.fold_right
         (fun instr acc ->
+           let stripArgCasts argInfo args =
+             let formals = List.map (fun (_, t, _) -> t) (argsToList argInfo) in
+             let actuals1, actuals2 = split args (List.length formals) in
+             try
+               (List.map2 stripSomeCasts formals actuals1) @ actuals2
+             with Invalid_argument "List.map2" ->
+               E.s (bug "Expected lists of equal length")
+           in
            match instr with
            | Call (ret, fn, args, l) when isAllocator (typeOf fn) ->
+               let argInfo =
+                 match typeOf fn with
+                 | TFun (_, argInfo, _, _) -> argInfo
+                 | _ -> E.s (bug "Expected function type")
+               in
                let lv =
                  match ret with
                  | Some lv -> lv
@@ -1582,27 +1581,34 @@ let preProcessVisitor = object (self)
                in
                let t = getAllocationType (typeOfLval lv) (typeOf fn) args in
                let tmp = makeTempVar !curFunc t in
-               Call (Some (var tmp), fn, args, l) ::
+               Call (Some (var tmp), fn, stripArgCasts argInfo args, l) ::
                  Set (lv, Lval (var tmp), l) ::
                  Set (var tmp, zero, l) ::
                  acc
            | Call (Some (Var vi, NoOffset), fn, args, l) ->
-               let rt =
+               let rt, argInfo =
                  match typeOf fn with
-                 | TFun (rt, _, _, _) ->
+                 | TFun (rt, argInfo, _, _) ->
                      if isPointerType rt &&
                         not (hasAttribute "bounds" (typeAttrs rt)) then
-                       typeAddAttributes [safeAttr] rt
+                       typeAddAttributes [safeAttr] rt, argInfo
                      else
-                       rt
+                       rt, argInfo
                  | _ ->
                      E.s (bug "Expected function type")
                in
                let tmp = makeTempVar !curFunc rt in
-               Call (Some (var tmp), fn, args, l) ::
+               Call (Some (var tmp), fn, stripArgCasts argInfo args, l) ::
                  Set (var vi, Lval (var tmp), l) ::
                  Set (var tmp, zero, l) ::
                  acc
+           | Call (lvo, fn, args, l) ->
+               let argInfo =
+                 match typeOf fn with
+                 | TFun (_, argInfo, _, _) -> argInfo
+                 | _ -> E.s (bug "Expected function type")
+               in
+               Call (lvo, fn, stripArgCasts argInfo args, l) :: acc
            | Set ((Var vi, NoOffset), e, l) when expRefersToVar vi.vname e ->
                let e' = stripSomeCasts vi.vtype e in
                let t = typeOf e' in
@@ -1727,6 +1733,44 @@ let optimizeVisitor = object (self)
 
 end
 
+(**************************************************************************)
+
+let postPassVisitor1 = object (self)
+  inherit nopCilVisitor
+
+  (* Turn the check datastructure into explicit checks, so that they show up
+     in the output. *)
+  method vstmt s = 
+    let postProcessStmt (s: stmt) : stmt =
+      let checks = GA.getg allChecks s.sid in
+      if checks <> [] then begin
+        let checks' = List.rev checks in (* put them back in the right order *)
+        let checks'' : instr list = List.map checkToInstr checks' in
+        self#queueInstr checks''
+      end;
+      s
+    in
+    ChangeDoChildrenPost (s, postProcessStmt)
+
+  method vfunc fd =
+    if isTrustedAttr fd.svar.vattr then
+      SkipChildren
+    else
+      DoChildren
+end
+
+let postPassVisitor2 = object (self)
+  inherit nopCilVisitor
+
+  (* Remove any "bounds" or "fancybounds" annotations. *)
+  method vattr a =
+    match a with
+    | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"
+            | "when" | "fancywhen"), _) ->
+        ChangeTo []
+    | _ -> DoChildren
+
+end
 
 (**************************************************************************)
 
@@ -1758,8 +1802,10 @@ let checkFile (f: file) : unit =
        | GCompTag (ci, _) when ci.cstruct -> checkStruct ci
        | GVar (vi, init, _) -> checkVar vi init
        | GFun (fd, loc) ->
-           checkFundec fd loc;
-           ignore (visitCilFunction optimizeVisitor fd)
+           if not (isTrustedAttr fd.svar.vattr) then begin
+             checkFundec fd loc;
+             ignore (visitCilFunction optimizeVisitor fd)
+           end
        | _ -> ())
     f.globals;
   (* Turn the check datastructure into explicit checks, so that they show up
