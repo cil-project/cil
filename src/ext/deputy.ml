@@ -308,9 +308,12 @@ let clearBoundsTable () : unit =
 type whenMap = (fieldinfo * exp) list
 let whenTable : whenMap Inthash.t = IH.create 13
 let whenTableCtr : int ref = ref 0
-let d_whenMap: unit -> whenMap -> doc =
-  docList ~sep:(text ";  ") 
+let d_whenMap () (wm:whenMap) :  doc =
+  Pretty.align ++
+  docList ~sep:line 
     (fun (f,e) -> text f.fname ++ text ": " ++ d_exp () e)
+    () wm
+  ++ Pretty.unalign
 
 let addWhenMap (wm:whenMap) : int =
   incr whenTableCtr;
@@ -361,7 +364,7 @@ let depsOfType (t: typ) : string list =
 let rec getWhen (a: attributes) : attrparam =
   let checkrest rest =
     if hasAttribute "when" rest then
-      E.s (error "Type has duplicate when attributes")
+      E.s (error "Field has more than one WHEN attribute")
   in
   match a with
   | Attr ("when", [e]) :: rest ->
@@ -852,13 +855,17 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       warn "Allowing integer cast with different sizes";
       ()
   | TComp (ci, _), TComp (ci', _) when ci == ci' && not ci.cstruct ->
-      (* Make sure unions have been zeroed. *)
-      (* FIXME: only do this if the maps are different (i.e. the union
-         depends on the value being changed. *)
-      let lv = match e with Lval lv -> lv 
-        | _ -> E.s (bug "union expression must be an lval.")
-      in
-      addCheck (CNullUnion lv)
+      (* If the when maps differ, it's because a WHEN clause depends on
+         something in the context that has changed, so we should ensurer the
+         union has been zeroed.
+         FIXME: using Ocaml's equality comparison may be too conservative. *)
+      if not (Util.equals (fancyWhenOfType tfrom) (fancyWhenOfType tto)) then 
+        begin
+          let lv = match e with Lval lv -> lv 
+            | _ -> E.s (bug "union expression must be an lval.")
+          in
+          addCheck (CNullUnion lv)
+        end
   | _ -> 
     if not (compareTypes tfrom tto) then
       E.s (error "Type mismatch: coercion from %a to %a"
@@ -990,10 +997,11 @@ and checkLval (why: whyLval) (lv: lval) : typ =
   let lv', off = removeOffsetLval lv in
   let checkRest ():typ = (* returns the type of lv' *)
     let why' = match why with
-        ForRead -> ForRead
-      | _ ->  (* If we are going to e.g. write, forbid any access to the 
-               * terminating null. *) 
-          ForAddrOf (* conservative *)
+        (* If why = ForWrite, then we are writing to a field or element of
+           lv'. It doesn't make sense to say that we are writing "e" to the
+           entire lval, so use the more conservative ForCall instead. *)
+        ForWrite e -> ForCall
+      | _ -> why
     in
     unrollType (checkLval why' lv')
   in
@@ -1148,9 +1156,29 @@ let checkAlloc (lvo: lval option) (fnType: typ) (args: exp list) : unit =
 let checkMemset (lvo: lval option) (fnType: typ) (args: exp list) : unit =
   if !verbose then
     E.log "%a: checking memset\n" d_loc !currentLoc;
-  match args with
+  let isCorrectSize (size: exp) (lv: lval) =
+    (* return true if size is an expression for the size of lv. *)
+    let actualSize : int = (bitsSizeOf (typeOfLval lv)) / 8 in
+    let size' : int64 option = isInteger (constFold true size) in
+    size' = Some (Int64.of_int actualSize)
+  in
+  match List.map stripCasts args with
+  | [AddrOf lv1; e2; e3] 
+    when (isZero e2) && (isCorrectSize e3 lv1) ->
+      (* Special case: if we're overwriting a complete lval with 0, we
+         don't need to check for dependencies within lv1.  We still
+         check to make sure nothing outside of lv1 depends on lv1.
+         
+         We need this when lv1 is a union.  It's okay to zero a union, but it's
+         not normally okay to take the address of a union, since it
+         depends on its context.
+      *)
+      ignore (checkLval ForAddrOf lv1);
+      if hasExternalDeps lv1 then
+        E.s (error
+            "Memset: cannot take address of lval with external dependencies");
+      checkCall lvo fnType [AddrOf lv1; e2; e3] [1]
   | [e1; e2; e3] ->
-      let e1 = stripCasts e1 in
       let e1Type = checkExp e1 in
       let e1BaseType =
         match unrollType e1Type with
