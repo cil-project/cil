@@ -40,11 +40,9 @@ $(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) \
                         $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(CMC))
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
 	$(AT)$(CAMLLINK) -verbose -o $@ \
-	            $(LINKFLAGS_FIRST) \
                     $(PROJECT_LIBS:%=%.$(CMXA)) \
                     $(PROJECT_LIBS:%=-cclib -l%) \
-                    $^ \
-                    $(LINKFLAGS)
+                    $^
 
 
 

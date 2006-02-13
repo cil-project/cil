@@ -76,13 +76,13 @@
   #
   # COMPILEFLAGS      - if defined, then it is passed as argument to ocamlc
   #                     and ocamlopt
+  # LINKFLAGS         - if defined, then it is passed as argument to 
+  #                     ocamlc and ocamlopt, when linking (at start of 
+  #                     command line)
+  #
   # CAML_CFLAGS   - flags used only for the compilation of C files.
   #                 e.g. '-ccopt <gcc flag>'
   #
-  # LINKFLAGS         - if defined, then it is passed as argument to ocamlc
-  #                     when linking (at the end of command line)
-  # LINKFLAGS_FIRST   - if defined, then it is passed as argument to ocamlc
-  #                     when linking (at the start of command line)
   #
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
@@ -139,7 +139,7 @@ CAMLLEX = ocamllex
 CAMLYACC= ocamlyacc -v
 CAMLDEP = ocamldep
 
-CAMLFLAGS    =$(OPT_FLAGS) -I $(OBJDIR)
+COMPILEFLAGS += -I $(OBJDIR)
 
 # sm: two styles for echoing compilation progress:
 #   style 1, by George:
@@ -206,8 +206,13 @@ ifdef NATIVECAML
    LINKFLAGS      += -ccopt -static
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = $(CAMLDIR)ocamlopt $(COMPILEFLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlopt
+ ifdef WIN32
+   COMPILEFLAGS    += -ccopt /Ox
+ else
+   COMPILEFLAGS    += -ccopt -O3
+ endif
+ CAMLC          = $(CAMLDIR)ocamlopt  $(COMPILEFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlopt  $(LINKFLAGS)
  CMO            = cmx
  CMC            = opt.$(OBJ)  # compiled (and optimized) C
  CMXA           = cmxa
@@ -218,14 +223,7 @@ ifdef NATIVECAML
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = $(CAMLDIR)ocamldep -native
- ifdef WIN32
-   CAMLFLAGS    += -ccopt /Ox
- else
-   CAMLFLAGS    += -ccopt -O3
- endif
 else 
- CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlc -custom -g
  CMO            = cmo
  CMXA           = cma
  CMC            = $(OBJ)
@@ -233,12 +231,14 @@ else
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
  ifdef WIN32
-   CAMLFLAGS    += -ccopt /Zi -ccopt /Od
+   COMPILEFLAGS += -ccopt /Zi -ccopt /Od
    LINKFLAGS    += -ccopt /Zi -ccopt /Od
  else
-   CAMLFLAGS    += -ccopt -g
+   COMPILEFLAGS += -ccopt -g
    LINKFLAGS    += -ccopt -g
  endif
+ CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINKFLAGS)
 endif
 
 
@@ -284,7 +284,7 @@ $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
          # Compile an MLI file. After compilation move the result to OBJDIR
 $(OBJDIR)/%.cmi: %.mli
 	@$(NARRATIVE) Compiling interface $<
-	$(AT)$(CAMLC) $(CAMLFLAGS) -c $<
+	$(AT)$(CAMLC) $(COMPILEFLAGS) -c $<
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
                    $(COMMAND) mv -f $(basename $<).cmi $(OBJDIR); \
                    mv -f $(basename $<).cmi $(OBJDIR) \
@@ -298,8 +298,8 @@ $(OBJDIR)/%.$(CMO): %.ml
 #           $(COMMAND) mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
 #           mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
 #        fi
-	@$(COMMAND) $(CAMLC) $(CAMLFLAGS) -c $<
-	$(ECHO)$(CAMLC) $(CAMLFLAGS) -c $< ; res=$$?; \
+	@$(COMMAND) $(CAMLC) $(COMPILEFLAGS) -c $<
+	$(ECHO)$(CAMLC) $(COMPILEFLAGS) -c $< ; res=$$?; \
 	   if test $(OBJDIR) != $(<D) ;then \
               for ext in $(MOVEAFTERCAMLC); do \
                 if test -f $(basename $<).$$ext ;then \
@@ -313,14 +313,14 @@ $(OBJDIR)/%.$(CMO): %.ml
              # They appear to be left in the current directory as .o files
 $(OBJDIR)/%.$(CMC): %.c
 	@$(NARRATIVE) "Compiling C file $< $(COMPILEMSG)"
-	$(AT)$(CAMLC) $(CAMLFLAGS) $(CAML_CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC) $(COMPILEFLAGS) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
               # Special rule for profile.c
 CAMLC_NOPROF=$(subst -p,,$(CAMLC))
 $(OBJDIR)/profile.$(CMC): profile.c
 	@$(NARRATIVE) "Compiling C file $<"
-	$(AT)$(CAMLC_NOPROF) $(CAMLFLAGS) $(CAML_CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC_NOPROF) $(COMPILEFLAGS) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
 
