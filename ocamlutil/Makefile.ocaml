@@ -218,8 +218,10 @@ ifdef NATIVECAML
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = $(CAMLDIR)ocamldep -native
- ifndef WIN32
- CAMLFLAGS      += -ccopt -O3
+ ifdef WIN32
+   CAMLFLAGS    += -ccopt /Ox
+ else
+   CAMLFLAGS    += -ccopt -O3
  endif
 else 
  CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
@@ -230,6 +232,13 @@ else
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
+ ifdef WIN32
+   CAMLFLAGS    += -ccopt /Zi -ccopt /Od
+   LINKFLAGS    += -ccopt /Zi -ccopt /Od
+ else
+   CAMLFLAGS    += -ccopt -g
+   LINKFLAGS    += -ccopt -g
+ endif
 endif
 
 
@@ -325,7 +334,9 @@ cleancaml:
 		-name '*.cma' -o \
 		-name '*.cmxa' -o \
 		-name '*.exe' -o \
-		-name "*.$(OBJ)" -o \
+		-name '*.obj' -o \
+		-name '*.o' -o \
+		-name '*.lib' -o \
 		-name '*.a' -o \
 		-name '*.ml' -o \
 		-name '*.mli' -o \
