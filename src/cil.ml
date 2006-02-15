@@ -2532,68 +2532,6 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
     BinOp(bop, e1', e2', tres)
 
 
-(* Compute a type signature *)
-let rec typeSigWithAttrs doattr t = 
-  let typeSig = typeSigWithAttrs doattr in
-  match t with 
-  | TInt (ik, al) -> TSBase (TInt (ik, doattr al))
-  | TFloat (fk, al) -> TSBase (TFloat (fk, doattr al))
-  | TVoid al -> TSBase (TVoid (doattr al))
-  | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
-  | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
-  | TArray (t,l,a) -> (* We do not want fancy expressions in array lengths. 
-                       * So constant fold the lengths *)
-      let l' = 
-        match l with 
-          Some l -> begin 
-            match constFold true l with 
-              Const(CInt64(i, _, _)) -> Some i
-            | e -> E.s (E.bug "Invalid length in array type: %a\n" 
-                          (!pd_exp) e)
-          end 
-        | None -> None
-      in 
-      TSArray(typeSig t, l', doattr a)
-
-  | TComp (comp, a) -> 
-      TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
-  | TFun(rt,args,isva,a) -> 
-      TSFun(typeSig rt, 
-            List.map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
-            isva, doattr a)
-  | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
-  | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
-and typeSigAddAttrs a0 t = 
-  if a0 == [] then t else
-  match t with 
-    TSBase t -> TSBase (typeAddAttributes a0 t)
-  | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
-  | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
-  | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
-  | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
-  | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
-
-
-
-(* Remove the attribute from the top-level of the type signature *)
-let setTypeSigAttrs (a: attribute list) = function
-    TSBase t -> TSBase (setTypeAttrs t a)
-  | TSPtr (ts, _) -> TSPtr (ts, a)
-  | TSArray (ts, l, _) -> TSArray(ts, l, a)
-  | TSComp (iss, n, _) -> TSComp (iss, n, a)
-  | TSEnum (n, _) -> TSEnum (n, a)
-  | TSFun (ts, tsargs, isva, _) -> TSFun (ts, tsargs, isva, a)
-
-
-let typeSigAttrs = function
-    TSBase t -> typeAttrs t
-  | TSPtr (ts, a) -> a
-  | TSArray (ts, l, a) -> a
-  | TSComp (iss, n, a) -> a
-  | TSEnum (n, a) -> a
-  | TSFun (ts, tsargs, isva, a) -> a
-  
-
 
 let d_unop () u =
   match u with
@@ -2832,6 +2770,11 @@ let msvcBuiltins : (string, typ * typ list * bool) H.t =
   (** Take a number of wide string literals *)
   H.add h "__annotation" (voidType, [ ], true);
   h
+
+
+
+let pTypeSig : (typ -> typsig) ref =
+  ref (fun _ -> E.s (E.bug "pTypeSig not initialized"))
 
 
 (** A printer interface for CIL trees. Create instantiations of 
@@ -3238,13 +3181,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               self#pLval () lv ++ text " = " ++
                 (* Maybe we need to print a cast *)
                 (let destt = typeOfLval lv in
-                 let typeSig t = typeSigWithAttrs (fun al -> al) t in
-                 (* typeSigNoAttrs stands in for typeSig, which hasn't been 
-                    defined yet. *)
                 match unrollType (typeOf e) with
                   TFun (rt, _, _, _) 
-                      when not (Util.equals (typeSig rt)
-                                            (typeSig destt)) ->
+                      when not (Util.equals (!pTypeSig rt)
+                                            (!pTypeSig destt)) ->
                     text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
           (* Now the function name *)
@@ -5268,12 +5208,72 @@ class typeSigVisitor(typeSigConverter: typ->typsig) = object
       | _ -> DoChildren
 end
 
-(* We need to remove any types that might appear in attributes, since CIL.typs
-   are cyclic and hard to compare.  So search for types and replace them with
-   type signatures. *)
-let rec typeSig t = 
-  let attrVisitor = new typeSigVisitor(typeSig) in
-  typeSigWithAttrs (visitCilAttributes attrVisitor) t
+let typeSigAddAttrs a0 t = 
+  if a0 == [] then t else
+  match t with 
+    TSBase t -> TSBase (typeAddAttributes a0 t)
+  | TSPtr (ts, a) -> TSPtr (ts, addAttributes a0 a)
+  | TSArray (ts, l, a) -> TSArray(ts, l, addAttributes a0 a)
+  | TSComp (iss, n, a) -> TSComp (iss, n, addAttributes a0 a)
+  | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
+  | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
+
+(* Compute a type signature *)
+let rec typeSigWithAttrs doattr t = 
+  let typeSig = typeSigWithAttrs doattr in
+  let attrVisitor = new typeSigVisitor typeSig in
+  let doattr al = visitCilAttributes attrVisitor (doattr al) in
+  match t with 
+  | TInt (ik, al) -> TSBase (TInt (ik, doattr al))
+  | TFloat (fk, al) -> TSBase (TFloat (fk, doattr al))
+  | TVoid al -> TSBase (TVoid (doattr al))
+  | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
+  | TPtr (t, a) -> TSPtr (typeSig t, doattr a)
+  | TArray (t,l,a) -> (* We do not want fancy expressions in array lengths. 
+                       * So constant fold the lengths *)
+      let l' = 
+        match l with 
+          Some l -> begin 
+            match constFold true l with 
+              Const(CInt64(i, _, _)) -> Some i
+            | e -> E.s (E.bug "Invalid length in array type: %a\n" 
+                          (!pd_exp) e)
+          end 
+        | None -> None
+      in 
+      TSArray(typeSig t, l', doattr a)
+
+  | TComp (comp, a) -> 
+      TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
+  | TFun(rt,args,isva,a) -> 
+      TSFun(typeSig rt, 
+            List.map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
+            isva, doattr a)
+  | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
+  | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
+
+let typeSig t = 
+  typeSigWithAttrs (fun al -> al) t
+
+let _ = pTypeSig := typeSig
+
+(* Remove the attribute from the top-level of the type signature *)
+let setTypeSigAttrs (a: attribute list) = function
+    TSBase t -> TSBase (setTypeAttrs t a)
+  | TSPtr (ts, _) -> TSPtr (ts, a)
+  | TSArray (ts, l, _) -> TSArray(ts, l, a)
+  | TSComp (iss, n, _) -> TSComp (iss, n, a)
+  | TSEnum (n, _) -> TSEnum (n, a)
+  | TSFun (ts, tsargs, isva, _) -> TSFun (ts, tsargs, isva, a)
+
+
+let typeSigAttrs = function
+    TSBase t -> typeAttrs t
+  | TSPtr (ts, a) -> a
+  | TSArray (ts, l, a) -> a
+  | TSComp (iss, n, a) -> a
+  | TSEnum (n, a) -> a
+  | TSFun (ts, tsargs, isva, a) -> a
 
 
 
