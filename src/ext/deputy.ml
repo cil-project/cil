@@ -648,6 +648,9 @@ let isMemset (t: typ) : bool =
 let isMemcpy (t: typ) : bool =
   hasAttribute "dmemcpy" (typeAttrs t)
 
+let isMemcmp (t: typ) : bool =
+  hasAttribute "dmemcmp" (typeAttrs t)
+
 let getMallocArg (attrs: attributes) : int =
   if hasAttribute "dcalloc" attrs then
     E.s (error "Function has too many allocator annotations");
@@ -1233,6 +1236,28 @@ let checkMemcpy (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       checkCall lvo fnType [e1; e2; e3] [1; 2]
   | _ -> E.s (error "Expected three args to memcpy")
 
+let checkMemcmp (lvo: lval option) (fnType: typ) (args: exp list) : unit =
+  if !verbose then
+    E.log "%a: checking memcmp\n" d_loc !currentLoc;
+  match args with
+  | [e1; e2; e3] ->
+      let e1 = stripCasts e1 in
+      let e2 = stripCasts e2 in
+      let e1Type = checkExp e1 in
+      let e2Type = checkExp e2 in
+      let lo1, hi1 = fancyBoundsOfType e1Type in
+      let e1' = CastE (charPtrType, e1) in
+      addCheck (CNonNull e1);
+      addCheck (COverflow (e1', e3));
+      addCheck (CBounds (lo1, e1', e3, hi1));
+      let lo2, hi2 = fancyBoundsOfType e2Type in
+      let e2' = CastE (charPtrType, e2) in
+      addCheck (CNonNull e2);
+      addCheck (COverflow (e2', e3));
+      addCheck (CBounds (lo2, e2', e3, hi2));
+      checkCall lvo fnType [e1; e2; e3] [1; 2]
+  | _ -> E.s (error "Expected three args to memcmp")
+
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
   List.iter
@@ -1295,13 +1320,11 @@ let checkInstr (instr : instr) : unit =
       if isAllocator fnType then
         checkAlloc lvo fnType args
       else if isMemset fnType then
-        match args with
-        | [e1; e2; e3] -> checkMemset lvo fnType args
-        | _ -> E.s (error "Expected three args to memset")
+        checkMemset lvo fnType args
       else if isMemcpy fnType then
-        match args with
-        | [e1; e2; e3] -> checkMemcpy lvo fnType args
-        | _ -> E.s (error "Expected three args to memcpy")
+        checkMemcpy lvo fnType args
+      else if isMemcmp fnType then
+        checkMemcmp lvo fnType args
       else
         checkCall lvo fnType args []
   | Set ((Var vi, NoOffset), _, _) when List.memq vi !exemptLocalVars ->
