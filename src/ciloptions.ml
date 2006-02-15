@@ -129,6 +129,8 @@ let options : (string * Arg.spec * string) list =
                "output #line directives in comments";
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
                "do not try to simplify the CIL when printing";
+    "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
+               "do not wrap long lines when printing";
     "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
                "print some statistics";
 

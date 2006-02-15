@@ -88,6 +88,8 @@ let lineDirectiveStyle = ref (Some LinePreprocessorInput)
 let print_CIL_Input = ref false
            
 let printCilAsIs = ref false
+
+let lineLength = ref 80
                       
 (* sm: return the string 's' if we're printing output for gcc, suppres
  * it if we're printing for CIL to parse back in.  the purpose is to
@@ -1756,7 +1758,7 @@ let d_const () c =
       let prefix : string = 
         if suffix <> "" then "" 
         else if ik = IInt then ""
-        else "(" ^ (sprint 80 (d_ikind () ik)) ^ ")"
+        else "(" ^ (sprint !lineLength (d_ikind () ik)) ^ ")"
       in
       (* Watch out here for negative integers that we should be printing as 
        * large positive ones *)
@@ -3047,14 +3049,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     in
     match i with 
       SingleInit e -> 
-        fprint out 80 (indent ind (self#pExp () e))
+        fprint out !lineLength (indent ind (self#pExp () e))
     | CompoundInit (t, initl) -> begin 
         match unrollType t with 
           TArray(bt, _, _) -> 
             dumpArray bt initl (fun (_, i) -> i)
         | _ -> 
             (* Now a structure or a union *)
-            fprint out 80 (indent ind (self#pInit () i))
+            fprint out !lineLength (indent ind (self#pInit () i))
     end
 (*
     | ArrayInit (bt, len, initl) -> begin
@@ -3063,7 +3065,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           TComp _ | TArray _ -> 
             dumpArray bt initl (fun x -> x)
         | _ -> *)
-            fprint out 80 (indent ind (self#pInit () i))
+            fprint out !lineLength (indent ind (self#pInit () i))
     end
 *)
         
@@ -3254,10 +3256,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     self#pStmtNext invalidStmt () s
 
   method dStmt (out: out_channel) (ind: int) (s:stmt) : unit = 
-    fprint out 80 (indent ind (self#pStmt () s))
+    fprint out !lineLength (indent ind (self#pStmt () s))
 
   method dBlock (out: out_channel) (ind: int) (b:block) : unit = 
-    fprint out 80 (indent ind (align ++ self#pBlock () b))
+    fprint out !lineLength (indent ind (align ++ self#pBlock () b))
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
@@ -3635,15 +3637,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
              (self#pLineDirective l) ++ (self#pVDecl () fdec.svar) 
                ++ chr ';' ++ line
            else nil in
-         fprint out 80 (proto ++ (self#pLineDirective ~forcefile:true l));
+         fprint out !lineLength
+           (proto ++ (self#pLineDirective ~forcefile:true l));
          (* Temporarily remove the function attributes *)
          fdec.svar.vattr <- [];
-         fprint out 80 (self#pFunDecl () fdec);               
+         fprint out !lineLength (self#pFunDecl () fdec);               
          fdec.svar.vattr <- oldattr;
          output_string out "\n"
 
      | GVar (vi, {init = Some i}, l) -> begin
-         fprint out 80 
+         fprint out !lineLength 
            (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
               ++ text " = " 
@@ -3659,7 +3662,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          output_string out ";\n"
      end
 
-     | g -> fprint out 80 (self#pGlobal () g)
+     | g -> fprint out !lineLength (self#pGlobal () g)
 
    method pFieldDecl () fi = 
      (self#pType
@@ -5278,13 +5281,13 @@ let typeSigAttrs = function
 
 
 let dExp: doc -> exp = 
-  fun d -> Const(CStr(sprint 80 d))
+  fun d -> Const(CStr(sprint !lineLength d))
 
 let dInstr: doc -> location -> instr = 
-  fun d l -> Asm([], [sprint 80 d], [], [], [], l)
+  fun d l -> Asm([], [sprint !lineLength d], [], [], [], l)
 
 let dGlobal: doc -> location -> global = 
-  fun d l -> GAsm(sprint 80 d, l)
+  fun d l -> GAsm(sprint !lineLength d, l)
 
 let rec addOffset (toadd: offset) (off: offset) : offset =
   match off with
@@ -5860,7 +5863,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
 	    incr switch_label;
 	    "exp_" ^ string_of_int !switch_label
       in
-      let str = Pretty.sprint 80 
+      let str = Pretty.sprint !lineLength 
 	  (Pretty.dprintf "switch_%d_%s" label_index suffix) in 
       (Label(str,l,false))
   | Default(l) -> (Label(Printf.sprintf 

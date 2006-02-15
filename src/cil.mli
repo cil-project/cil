@@ -1904,6 +1904,12 @@ val print_CIL_Input: bool ref
   * the __builtin_va_arg function will be printed in its internal form. *)
 val printCilAsIs: bool ref
 
+(** The length used when wrapping output lines.  Setting this variable to
+  * a large integer will prevent wrapping and make #line directives more
+  * accurate.
+  *)
+val lineLength: int ref
+
 (** Return the string 's' if we're printing output for gcc, suppres
  *  it if we're printing for CIL to parse back in.  the purpose is to
  *  hide things from gcc that it complains about, but still be able
