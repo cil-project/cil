@@ -1684,9 +1684,8 @@ module does the analysis.
 \subsection{Points-to Analysis}
 
 The module \t{ptranal.ml} contains two interprocedural points-to
-analyses for CIL: \t{Olf} and \t{Golf}.  \t{Olf} is the default.
-(Switching from \t{olf.ml} to \t{golf.ml} requires a change in
-\t{Ptranal} and a recompiling \t{cilly}.)
+analyses for CIL: \t{Olf} and \t{Golf}.  As of CIL v1.3.5, \t{Golf} is
+the default.  See \secref{olf} for information on using \t{Olf} instead.
 
 The analyses have the following characteristics:
 \begin{itemize}
@@ -1701,8 +1700,8 @@ The analyses have the following characteristics:
 \end{itemize}
 
 The analysis itself is factored into two components: \t{Ptranal},
-which walks over the CIL file and generates constraints, and \t{Olf}
-or \t{Golf}, which solve the constraints.  The analysis is invoked
+which walks over the CIL file and generates constraints, and \t{Golf}
+or \t{Olf}, which solve the constraints.  The analysis is invoked
 with the function \t{Ptranal.analyze\_file: Cil.file ->
   unit}.  This function builds the points-to graph for the CIL file
 and stores it internally.  There is currently no facility for clearing
@@ -1789,6 +1788,22 @@ the results of the analysis.
   variable in the program.  This will essentially serialize the
   points-to graph.
 \end{itemize}
+
+\subsubsection{Olf: An alternate points-to analysis engine}
+\label{sec-olf}
+
+In version 1.3.5, CIL switched the default analysis engine from
+ \t{olf.ml} to \t{golf.ml}, because Golf is parametric and more
+ efficient.  If you'd rather use the old engine, follow these steps:
+
+\begin{enumerate}
+\item In Makefile.cil.in, find the definition of
+  \t{CILLY\_LIBRARY\_MODULES} and add ``\t{olf}'' to the list between
+  \t{golf} and \t{ptranal}.
+\item In \t{src/ext/pta/ptranal.ml}, change the line ``\t{module A =
+    Golf}'' to ``\t{module A = Olf}''.
+\item Recompile CIL.
+\end{enumerate}
 
 \subsection{StackGuard}
 
@@ -2860,6 +2875,10 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf February 6, 2006}: {\em For users of the points-to
+  analysis}: The default points-to analysis engine has changed from
+  \t{olf.ml} to \t{golf.ml}, which is polymorphic and more efficient.
+  If you'd rather stick with the old engine, see \secref{olf}.
 \item {\bf January 30, 2006}: Fix parsing of \t{switch} without braces.
 \item {\bf January 30, 2006}: Allow `\$' to appear in identifiers.
 \item {\bf January 13, 2006}: Added support for gcc's alias attribute

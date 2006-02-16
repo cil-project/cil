@@ -60,7 +60,9 @@ let setg (ga: 'a t) (r: int) (what: 'a) : unit =
 
 let get (ga: 'a t) (r: int) : 'a = Array.get ga.gaData r
 
-let set (ga: 'a t) (r: int) (what: 'a) : unit = Array.set ga.gaData r what
+let set (ga: 'a t) (r: int) (what: 'a) : unit = 
+  if r > max_init_index ga then ga.gaMaxInitIndex <- r;
+  Array.set ga.gaData r what
 
 let make (initsz: int) (fill: 'a fill) : 'a t = 
   { gaFill = fill;

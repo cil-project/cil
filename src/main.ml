@@ -95,7 +95,7 @@ let makeCFGFeature : C.featureDescr =
 
 let features : C.featureDescr list = 
   [ Epicenter.feature;
-    Ptranal.feature;
+    Simplify.feature;
     Canonicalize.feature;
     Callgraph.feature;
     Logwrites.feature;
@@ -105,10 +105,10 @@ let features : C.featureDescr list =
     makeCFGFeature; (* ww: make CFG *must* come before Partial *) 
     Partial.feature;
     Simplemem.feature;
-    Simplify.feature;
     Sfi.feature;
     Dataslicing.feature;
     Logcalls.feature;
+    Ptranal.feature;
     Zrapp.feature;
   ] 
   @ Feature_config.features 

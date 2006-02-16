@@ -760,7 +760,8 @@ and add_constraint_int (c : tconstraint) (toplev : bool) =
     end
   else
     if !debug_constraints then print_constraint c else ();
-  insist (can_add_constraints ()) "can't add constraints";
+  insist (can_add_constraints ()) 
+    "can't add constraints after compute_results is called";
   begin
     match c with
         Unification _ -> Q.add c eq_worklist
