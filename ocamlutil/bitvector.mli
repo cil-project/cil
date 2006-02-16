@@ -25,9 +25,6 @@ external copyBits: bitvector (*dest*) -> bitvector (*src*) -> unit = "bitvector_
 (* Set all the bits to 0. *)
 external clearAll: bitvector (*v*) -> unit = "bitvector_clearAll"
 
-(* Set all the bits to 1. *)
-external setAll: bitvector (*v*) -> unit = "bitvector_setAll"
-
 
 (* Test bit 'n' of vector 'v'. *)
 external test: bitvector (*v*) -> int (*n*) -> bool = "bitvector_test"
