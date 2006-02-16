@@ -1011,7 +1011,13 @@ let lookupLabel (l: string) =
 
 (** ALLOCA ***)
 let allocaFun () = 
-  let fdec = emptyFunction "alloca" in
+  let name = 
+    if !msvcMode then "alloca"
+      (* Use __builtin_alloca where possible, because this can be used
+         even when gcc is invoked with -fno-builtin *)
+    else "__builtin_alloca"
+  in
+  let fdec = emptyFunction name in
   fdec.svar.vtype <- 
      TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
   fdec.svar
