@@ -95,6 +95,14 @@ void bitvector_clearAll(value vec)
   memset(bits, 0, words * sizeof(unsigned long));
 }
 
+void bitvector_setAll(value vec)
+{
+  long words = getNumWords(vec);
+  unsigned long *bits = getBits(vec);
+
+  memset(bits, 0xFF, words * sizeof(unsigned long));
+}
+
 
 /* given vector 'vec' and bit 'n', set 'bits' to point at the
  * word containing the bit, and 'n' to the bit number */
