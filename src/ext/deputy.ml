@@ -274,9 +274,11 @@ let checkToInstr (c:check) =
 (* Keyword in bounds attributes representing the current value *)
 let thisKeyword = "__this"
 
+(* Note that we use PlusA here instead of PlusPI in order to match actual
+ * annotations as parsed by CIL. *)
 let countAttr (a: attrparam) : attribute =
   Attr ("bounds", [ACons (thisKeyword, []);
-                   ABinOp (PlusPI, ACons (thisKeyword, []), a)])
+                   ABinOp (PlusA, ACons (thisKeyword, []), a)])
 
 let safeAttr : attribute = countAttr (AInt 1)
 
@@ -1269,7 +1271,7 @@ let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp
     env
 
 let checkSet (lv: lval) (e: exp) : unit =
-  let lvType = checkLval (ForWrite e) lv in
+  ignore (checkLval (ForWrite e) lv);
   let off1, off2 = removeOffset (snd lv) in
   begin
     match off2 with
@@ -1290,7 +1292,8 @@ let checkSet (lv: lval) (e: exp) : unit =
                        (fun vi -> vi.vname)
                        (fun vi -> vi.vtype)
           | Mem addr ->
-              coerceExp e lvType
+              let ctx = addThisBinding emptyContext e in
+              coerceExp e (substType ctx (typeOfLval lv))
         end
     | Field (x, NoOffset) when x.fcomp.cstruct -> (* struct *)
         let baseLval = fst lv, off1 in
