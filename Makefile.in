@@ -408,7 +408,8 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
-                    inthash.ml alpha.ml alpha.mli clist.ml clist.mli \
+                    inthash.ml inthash.mli alpha.ml alpha.mli \
+		    intmap.ml intmap.mli clist.ml clist.mli \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 
