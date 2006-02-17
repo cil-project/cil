@@ -403,7 +403,8 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
-	      escape.ml escape.mli cillower.mli cillower.ml
+	      escape.ml escape.mli cillower.mli cillower.ml \
+	      zrapp.ml zrapp.mli
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
@@ -420,13 +421,17 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml simplemem.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
                   epicenter.ml usedef.ml \
-                  dataflow.ml dominators.ml bitmap.ml ssa.ml \
+                  dataflow.ml dataflow.mli \
+		  dominators.ml dominators.mli \
+		  bitmap.ml bitmap.mli \
+		  ssa.ml ssa.mli \
 	          stackoverflow.mli stackoverflow.ml \
 	          canonicalize.ml canonicalize.mli \
 	          oneret.ml oneret.mli sfi.ml \
 	          simplemem.ml simplify.ml \
 	          blockinggraph.ml blockinggraph.mli \
-		  dataslicing.ml dataslicing.mli
+		  dataslicing.ml dataslicing.mli \
+		  reachingdefs.ml
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
