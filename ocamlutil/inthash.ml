@@ -27,6 +27,8 @@ let copy_into src dest =
   dest.size <- src.size;
   dest.data <- Array.copy src.data
 
+let length h = h.size
+
 let resize tbl =
   let odata = tbl.data in
   let osize = Array.length odata in

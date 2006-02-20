@@ -5,6 +5,7 @@ type 'a t
 
 val create: int -> 'a t
 val clear: 'a t -> unit
+val length : 'a t -> int
 
 val copy: 'a t -> 'a t
 val copy_into: 'a t -> 'a t -> unit
