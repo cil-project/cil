@@ -1886,6 +1886,7 @@ sub new {
 	    '-M$' => { TYPE => 'SPECIAL' },
 	    '-MM$' => { TYPE => 'SPECIAL' },
 	    '-MF$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-C$' =>  { TYPE => 'EARLY_PREPROC'}, # zra
 	    '-MG$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },

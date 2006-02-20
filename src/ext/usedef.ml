@@ -26,6 +26,12 @@ let considerVariableDef: (varinfo -> bool) ref =
 let considerVariableAddrOfAsUse: (varinfo -> bool) ref = 
   ref (fun _ -> true)
 
+(* When this is true, only definitions of a variable without
+   an offset are counted as definitions. So:
+   a = 5; would be a definition, but
+   a[1] = 5; would not *)
+let onlyNoOffsetsAreDefs: bool ref = ref false
+
 let varUsed: VS.t ref = ref VS.empty
 let varDefs: VS.t ref = ref VS.empty
 
@@ -35,9 +41,23 @@ class useDefVisitorClass : cilVisitor = object (self)
   (** this will be invoked on variable definitions only because we intercept 
    * all uses of variables in expressions ! *)
   method vvrbl (v: varinfo) = 
-    if (!considerVariableDef) v then 
+    if (!considerVariableDef) v &&
+      not(!onlyNoOffsetsAreDefs) then 
       varDefs := VS.add v !varDefs;
     SkipChildren
+
+  (** If onlyNoOffsetsAreDefs is true, then we need to see the
+   *  varinfo in an lval along with the offset. Otherwise just
+   *  DoChildren *)
+  method vlval (l: lval) =
+    if !onlyNoOffsetsAreDefs then
+      match l with
+	(Var vi, NoOffset) ->
+	  if (!considerVariableDef) vi then
+	    varDefs := VS.add vi !varDefs;
+	  SkipChildren
+      | _ -> DoChildren
+    else DoChildren
 
   method vexpr = function
       Lval (Var v, off) -> 

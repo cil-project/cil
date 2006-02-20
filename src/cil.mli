@@ -99,6 +99,8 @@ type file =
     } 
 (** Top-level representation of a C source file *)
 
+and comment = location * string
+
 (** {b Globals}. The main type for representing global declarations and 
  * definitions. A list of these form a CIL file. The order of globals in the 
  * file is generally important. *)
@@ -1152,6 +1154,8 @@ val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
 (** Map over all globals, including the global initializer and change things 
     in place *)
 val mapGlobals: file -> (global -> global) -> unit
+
+val new_sid : unit -> int
 
 (** Prepare a function for CFG information computation by
   * {!Cil.computeCFGInfo}. This function converts all [Break], [Switch],

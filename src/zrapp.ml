@@ -11,226 +11,61 @@ module M = Machdep
 module U = Util
 module RD = Reachingdefs
 module UD = Usedef
+module A = Cabs
+module GA = GrowArray
+module RCT = Rmciltmps
 
 let doElimTemps = ref false
 let debug = ref false
+let printComments = ref false
 
-(* A hash from variable ids to Call instruction
-   options. If a variable id is in this table,
-   and it is mapped to Some(Call()), then the
-   function call can be printed instead of the
-   variable *)
-let iioh = IH.create 16
+(* Some(-1) => l1 < l2
+   Some(0)  => l1 = l2
+   Some(1)  => l1 > l2
+   None => different files *)
+let loc_comp l1 l2 =
+  if String.compare l1.A.filename l2.A.filename != 0
+  then None
+  else if l1.A.lineno > l2.A.lineno
+  then Some(1)
+  else if l2.A.lineno > l1.A.lineno
+  then Some(-1)
+  else if l1.A.byteno > l2.A.byteno
+  then Some(1)
+  else if l2.A.byteno > l1.A.byteno
+  then Some(-1)
+  else Some(0)
 
-(* A hash from variable ids to information that
-   can be used to print a post increment/decrement
-   that can replace the variable *)
-let incdecHash = IH.create 16
+let simpleGaSearch l =
+  let hi = GA.max_init_index A.commentsGA in
+  let rec loop i =
+    if i < 0 then -1 else
+    let (l',_,_) = GA.get A.commentsGA i in
+    match loc_comp l l' with
+      None -> loop (i-1)
+    | Some(0) -> i
+    | Some(-1) -> loop (i-1)
+    | Some(1) -> i
+  in
+  loop hi
 
-(* A hash from variable ids to a list of statement ids.
-   Because a post-inc/dec will be printed elsewhere,
-   the assignments of the variable in these statements
-   don't need to be printed *)
-let idDefHash = IH.create 16
+(* location -> string list *)
+let get_comments l =
+  let cabsl = {A.lineno = l.line; 
+	       A.filename = l.file;
+	       A.byteno = l.byte;} in
+  let s = simpleGaSearch cabsl in
 
-(* Add a pair to the list for vid and create a list if one
-   doesn't exist *)
-let id_dh_add vid p =
-  if IH.mem idDefHash vid then
-    let oldlist = IH.find idDefHash vid in
-    let newlist = p::oldlist in
-    IH.replace idDefHash vid newlist
-  else
-    IH.add idDefHash vid [p]
-
-class tempElimClass (fd:fundec) : cilVisitor = object (self)
-  inherit nopCilVisitor
-      
-  (* which statement are we working on? *)
-  val mutable sid = -1
-
-  (* if a list of instructions is being
-     processed, then this is the corresponding
-     list of reaching defs *)
-  val mutable ivihl = []
-
-  (* these are the reaching defs for the
-     current instruction if there is one *)
-  val mutable inst_iviho = None
-
-  method vstmt stm =
-    sid <- stm.sid;
-    match RD.getRDs sid with
-      None -> DoChildren
-    | Some(ivih, s, iosh) ->
-	match stm.skind with
-	  Instr il ->
-	    ivihl <- RD.instrRDs il (ivih, s, iosh) false;
-	    DoChildren
-	| _ -> (ivihl <- [];
-		inst_iviho <- None;
-		DoChildren)
-
-  method vinst i =
-    inst_iviho <- Some(List.hd ivihl);
-    ivihl <- List.tl ivihl;
-    DoChildren
-
-  method vexpr e =
-
-    let do_change (ivih, iosh) vi =
-      let ido = RD.iosh_singleton_lookup iosh vi in
-      (match ido with
-	Some id ->
-	  let riviho = RD.getDefRhs id in
-	  (match riviho with
-	    Some(RD.RDExp(e) as r, defivih, defiosh) ->
-	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
-	      if RD.ok_to_replace (ivih,iosh) (defivih,defiosh) fd r
-	      then 
-		(if !debug then ignore(E.log "Yes.\n");
-		 ChangeTo(e))
-	      else
-		(match RD.ok_to_replace_with_incdec (ivih,iosh) (defivih,defiosh) fd id vi r with
-		  Some(curdef_stmt_id,redefid, rhsvi, b) ->
-		    (if !debug then ignore(E.log "No, but I can replace it with a post-inc/dec\n");
-		     if !debug then ignore(E.log "cdsi: %d redefid: %d name: %s\n"
-					     curdef_stmt_id redefid rhsvi.vname);
-		     IH.add incdecHash vi.vid (redefid, rhsvi, b);
-		     id_dh_add rhsvi.vid (curdef_stmt_id, redefid);
-		     DoChildren)
-		| None ->
-		    (if !debug then ignore(E.log "No.\n");
-		     DoChildren))
-	  | Some(RD.RDCall(i) as r, defivih, defiosh) ->
-	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
-	      if RD.ok_to_replace (ivih,iosh) (defivih,defiosh) fd r
-	      then (if !debug then ignore(E.log "Yes.\n");
-		    IH.add iioh vi.vid (Some(i));
-		    DoChildren)
-	      else (if !debug then ignore(E.log "No.\n");
-		    DoChildren)
-	  | _ -> DoChildren)
-      | _ -> DoChildren)
-    in
-
-    match e with
-      Lval (Var vi,off) ->
-	(if String.length vi.vname >= 3 &&
-	  compare (String.sub vi.vname 0 3) "tmp" == 0 then
-	  (* only allowed to replace a tmp with a function call once *)
-	  if IH.mem iioh vi.vid
-	  then (IH.replace iioh vi.vid None; DoChildren)
-	  else
-	    (match inst_iviho with
-	      Some(ivih,s,iosh) -> do_change (ivih, iosh) vi
-	    | None -> let iviho = RD.getRDs sid in
-	      match iviho with
-		Some(ivih,s,iosh) -> 
-		  (if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
-		   do_change (ivih, iosh) vi)
-	      | None -> 
-		  (if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
-		   DoChildren))
-	else DoChildren)
-    | _ -> DoChildren
-
-end
-
-(* Remove temp variables that are set but not used *)
-class unusedRemoverClass : cilVisitor = object(self)
-    inherit nopCilVisitor
-
-  val mutable unused_set = UD.VS.empty
-
-  (* figure out which locals aren't used *)
-  method vfunc f =	
-
-    (* the set of used variables *)
-    let used = List.fold_left (fun u s ->
-      let u', _ = UD.computeDeepUseDefStmtKind s.skind in
-      UD.VS.union u u') UD.VS.empty f.sbody.bstmts in
-
-    (* the set of unused locals *)
-    let unused = List.fold_left (fun un vi ->
-      if UD.VS.mem vi used
-      then un
-      else (if !debug then ignore (E.log "unusedRemoverClass: %s is unused\n" vi.vname);
-	    UD.VS.add vi un)) UD.VS.empty f.slocals in
-    
-    (* a filter function for picking out
-       the local variables that need to be kept *)
-    let good_var vi =
-      not(UD.VS.mem vi unused_set) &&
-      not(IH.mem iioh vi.vid) &&
-      not(IH.mem incdecHash vi.vid)
-    in
-    let good_locals = List.filter good_var f.slocals in
-    f.slocals <- good_locals;
-    unused_set <- unused;
-    DoChildren
-
-  (* remove instructions that set variables
-     that aren't used. Also remove instructions
-     that set variables mentioned in iioh *)
-  method vstmt stm =
-
-    (* return the list of pairs with fst = f *)
-    let findf_in_pl f pl =
-      List.filter (fun (fst,snd) ->
-	if fst = f then true else false)
-	pl
-    in
-
-    (* Return true if the assignment of this
-       variable in this statement is going to be
-       replaced by a post-inc/dec *)
-    let check_incdec vi e =
-      if IH.mem idDefHash vi.vid then
-	let pl = IH.find idDefHash vi.vid in
-	match findf_in_pl stm.sid pl with (sid,redefid)::l ->
-	  let rhso = RD.getDefRhs redefid in
-	  (match rhso with
-	    None -> (if !debug then ignore (E.log "check_incdec: couldn't find rhs for def %d\n" redefid);
-		     false)
-	  | Some(rhs, indefs, indiosh) ->
-	      (match rhs with
-		RD.RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
-				false)
-	      | RD.RDExp e' -> 
-		  if Util.equals e e' then true
-		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
-					      redefid d_plainexp e' d_plainexp e);
-			false)))
-	| [] -> (if !debug then ignore (E.log "check_incdec: current statement not in list: %d. %s = %a\n"
-					    stm.sid vi.vname d_exp e);
-		   false)
-      else (if !debug then ignore (E.log "check_incdec: %s not in idDefHash\n" vi.vname);
-	    false)
-    in
-
-    (* a filter function for picking out
-       the instructions that we want to keep *)
-    (* instr -> bool *)
-    let good_instr i =
-      match i with
-	Set((Var(vi),_),e,_) ->
-	  not (UD.VS.mem vi unused_set) &&
-	  not (IH.mem incdecHash vi.vid) &&
-	  not (check_incdec vi e)
-      | Call (Some(Var(vi),_),_,_,_) ->
-	  not (IH.mem iioh vi.vid)
-      | _ -> true
-    in
-
-    match stm.skind with
-      Instr il ->
-	let newil = List.filter good_instr il in
-	stm.skind <- Instr(newil);
-	SkipChildren
-    | _ -> DoChildren
-
-end
+  let rec loop i cl =
+    if i < 0 then cl else
+    let (l',c,b) = GA.get A.commentsGA i in
+    if String.compare cabsl.A.filename l'.A.filename != 0
+    then loop (i - 1) cl
+    else if b then cl
+    else let _ = GA.set A.commentsGA i (l',c,true) in
+    loop (i - 1) (c::cl)
+  in
+  List.rev (loop s [])
 
 class zraCilPrinterClass : cilPrinter = object (self)
   inherit defaultCilPrinterClass
@@ -248,16 +83,17 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
   (* give the varinfo for the variable to be printed,
    * returns the varinfo for the varinfo with that name
-   * in the current environment. Raises Not_found and 
-   * returns argument if the variable isn't in the 
-   * environment *)
+   * in the current environment.
+   * Returns argument and prints a warning if the variable 
+   * isn't in the environment *)
   method private getEnvVi (v:varinfo) : varinfo =
     try
       if H.mem lenvHtbl v.vname
       then H.find lenvHtbl v.vname
       else H.find genvHtbl v.vname
     with Not_found ->
-      E.s (warn "variable %s not in pp environment\n" v.vname)
+      ignore (warn "variable %s not in pp environment\n" v.vname);
+      v
 
   (* True when v agrees with the entry in the environment for the name of v.
      False otherwise *)
@@ -273,25 +109,41 @@ class zraCilPrinterClass : cilPrinter = object (self)
    * print sequences of instructions separated by comma *)
   val mutable printInstrTerminator = ";"
 
+  (** Get the comment out of a location if there is one *)
+  method pLineDirective ?(forcefile=false) l =
+      if !printComments then
+	let c = String.concat "\n" (get_comments l) in
+	match c with
+	  "" -> nil
+	| _ -> line ++ text "/*" ++ text c ++ text "*/" ++ line
+      else nil
+
   (* variable use *)
   method pVar (v:varinfo) =
     (* warn about instances where a possibly unintentionally 
        conflicting name is used *)
-     if IH.mem iioh v.vid then
-       let rhso = IH.find iioh v.vid in
+     if IH.mem RCT.iioh v.vid then
+       let rhso = IH.find RCT.iioh v.vid in
        match rhso with
 	 Some(Call(_,e,el,l)) ->
 	   (* print a call instead of a temp variable *)
 	   let oldpit = printInstrTerminator in
 	   let _ = printInstrTerminator <- "" in
+	   let opc = !printComments in
+	   let _ = printComments := false in
+	   let c = match unrollType (typeOf e) with
+	     TFun(rt,_,_,_) when not (Util.equals (typeSig rt) (typeSig v.vtype)) ->
+	       text "(" ++ self#pType None () v.vtype ++ text ")"
+	   | _ -> nil in
 	   let d = self#pInstr () (Call(None,e,el,l)) in
 	   let _ = printInstrTerminator <- oldpit in
-	   d
+	   let _ = printComments := opc in
+	   c ++ d
        | _ -> (self#checkViAndWarn v;
 	       text v.vname)
-     else if IH.mem incdecHash v.vid then
+     else if IH.mem RCT.incdecHash v.vid then
        (* print an post-inc/dec instead of a temp variable *)
-       let redefid, rhsvi, b = IH.find incdecHash v.vid in
+       let redefid, rhsvi, b = IH.find RCT.incdecHash v.vid in
        match b with
 	 PlusA | PlusPI | IndexPI ->
 	   text rhsvi.vname ++ text "++"
@@ -315,6 +167,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
       H.add genvHtbl v.vname v in
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
+    self#pLineDirective v.vdecl ++
     text (if v.vinline then "__inline " else "")
       ++ d_storage () v.vstorage
       ++ (self#pAttrs () stom)
@@ -668,20 +521,26 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
      | g -> fprint out 80 (self#pGlobal () g)
 
+  method pFieldDecl () fi = 
+    self#pLineDirective fi.floc ++
+    (self#pType
+       (Some (text (if fi.fname = missingFieldName then "" else fi.fname)))
+       () 
+       fi.ftype)
+      ++ text " "
+      ++ (match fi.fbitfield with None -> nil 
+      | Some i -> text ": " ++ num i ++ text " ")
+      ++ self#pAttrs () fi.fattr
+      ++ text ";"
+
   method private pFunDecl () f =
     H.add genvHtbl f.svar.vname f.svar;(* add function to global env *)
     H.clear lenvHtbl; (* new local environment *)
     (* add the arguments to the local environment *)
     List.iter (fun vi -> H.add lenvHtbl vi.vname vi) f.sformals;
-    RD.computeRDs f;
     let nf = 
       if !doElimTemps
-      then
-	let _ = IH.clear iioh in
-	let _ = IH.clear incdecHash in
-	let _ = IH.clear idDefHash in
-	let f' = visitCilFunction (new tempElimClass f) f in
-	visitCilFunction (new unusedRemoverClass) f'
+      then RCT.eliminate_temps f
       else f in
     self#pVDecl () nf.svar
       ++  line
@@ -725,12 +584,15 @@ let feature : featureDescr =
     Arg.Unit (fun n -> doElimTemps := true),
     "Try to eliminate temporary variables during pretty printing";
     "--zrapp_debug",
-    Arg.Unit (fun n -> debug := true; RD.debug := true),
-    "Lots of debugging info for pretty printing and reaching definitions";];
+    Arg.Unit (fun n -> debug := true; RD.debug := true; RCT.debug := true),
+    "Lots of debugging info for pretty printing and reaching definitions";
+    "--zrapp_comments",
+    Arg.Unit (fun _ -> printComments := true),
+    "Print comments from source file in output";];
     fd_doit = 
     (function (f: file) -> 
       lineDirectiveStyle := None;
-      printerForMaincil := zraCilPrinter); 
+      printerForMaincil := zraCilPrinter);
     fd_post_check = false
   }
 

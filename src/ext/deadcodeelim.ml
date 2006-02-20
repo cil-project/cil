@@ -1,0 +1,131 @@
+(* Eliminate assignment instructions whose results are not
+   used *)
+
+open Cil
+open Pretty
+
+module E = Errormsg
+module RD = Reachingdefs
+module UD = Usedef
+module IH = Inthash
+
+module IS = Set.Make(
+  struct
+    type t = int
+    let compare = compare
+  end)
+
+let debug = ref false
+
+
+let usedDefsSet = ref IS.empty
+(* put used def ids into usedDefsSet *)
+(* assumes reaching definitions have already been computed *)
+class usedDefsCollectorClass = object(self)
+    inherit RD.rdVisitorClass
+
+  method vexpr e =
+    let u = UD.computeUseExp e in
+    let add_defids iosh =
+      UD.VS.iter (fun vi ->
+	if IH.mem iosh vi.vid
+	then let ios = IH.find iosh vi.vid in
+	if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
+				vi.vname sid (RD.IOS.cardinal ios));
+	RD.IOS.iter (function
+	    Some(i) -> 
+	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
+	      usedDefsSet := IS.add i (!usedDefsSet)
+	  | None -> ()) ios
+	else if !debug then ignore(E.log "DCE: vid %d not in iosh at %a\n"
+				     vi.vid d_plainexp e)) u
+    in
+    match cur_rd_dat with
+      Some(_,_,iosh) -> add_defids iosh; DoChildren
+    | None -> match RD.getRDs sid with
+	None -> 
+	  if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
+	  DoChildren
+      | Some(_,_,iosh) -> add_defids iosh; DoChildren
+
+end
+      
+
+let removedCount = ref 0
+(* Filter out instructions whose definition ids are not
+   in usedDefsSet *)
+class uselessInstrElim : cilVisitor = object(self)
+  inherit nopCilVisitor
+
+  method vstmt stm =
+    let test (i,(_,s,iosh)) =
+      match i with 
+	Call _ -> true 
+      | Set((Var vi,NoOffset),_,_) ->
+	  if vi.vglob then true else
+	  let _, defd = UD.computeUseDefInstr i in
+	  let rec loop n =
+	    if n < 0 then false else
+	    if IS.mem (n+s) (!usedDefsSet)
+	    then true
+	    else loop (n-1)
+	  in
+	  if loop (UD.VS.cardinal defd - 1)
+	  then true
+	  else (incr removedCount; false)
+      | _ -> true
+    in
+
+    let filter il stmdat =
+      let rd_dat_lst = RD.instrRDs il stmdat false in
+      let ildatlst = List.combine il rd_dat_lst in
+      let ildatlst' = List.filter test ildatlst in
+      let (newil,_) = List.split ildatlst' in
+      newil
+    in
+
+    match RD.getRDs stm.sid with
+      None -> DoChildren
+    | Some(_,s,iosh) ->
+	match stm.skind with
+	  Instr il ->
+	    stm.skind <- Instr(filter il ((),s,iosh));
+	    SkipChildren
+	| _ -> DoChildren
+	    
+end
+
+(* until fixed point is reached *)
+let elim_dead_code_fp (fd : fundec) :  fundec =
+  (* fundec -> fundec *)
+  let rec loop fd =
+    usedDefsSet := IS.empty;
+    removedCount := 0;
+    RD.computeRDs fd;
+    ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+    let fd' = visitCilFunction (new uselessInstrElim) fd in
+    if !removedCount = 0 then fd' else loop fd'
+  in
+  loop fd
+
+(* just once *)
+let elim_dead_code (fd : fundec) :  fundec =
+  (* fundec -> fundec *)
+  usedDefsSet := IS.empty;
+  removedCount := 0;
+  RD.computeRDs fd;
+  ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+  let fd' = visitCilFunction (new uselessInstrElim) fd in
+  fd'
+
+class deadCodeElimClass : cilVisitor = object(self)
+    inherit nopCilVisitor
+
+  method vfunc fd =
+    let fd' = elim_dead_code fd in
+    ChangeTo(fd')
+
+end
+
+let dce f =
+  visitCilFile (new deadCodeElimClass) f

@@ -1750,7 +1750,7 @@ let merge (files: file list) (newname: string) : file =
     { fileName = newname;
       globals  = revonto (revonto [] !theFile) !theFileTypes;
       globinit = None;
-      globinitcalled = false } in
+      globinitcalled = false;} in
   init (); (* Make the GC happy *)
   (* We have made many renaming changes and sometimes we have just guessed a 
    * name wrong. Make sure now that the local names are unique. *)

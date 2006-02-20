@@ -67,7 +67,9 @@ let allowDuplication: bool ref = ref true
 
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
-let cabslu = {lineno = -10; filename = "cabs lu"; byteno = -10;}
+let cabslu = {lineno = -10; 
+	      filename = "cabs lu"; 
+	      byteno = -10;}
 
 
 (** Interface to the Cprint printer *)
@@ -135,7 +137,7 @@ let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then 
     ignore (E.log "convLoc at %s: line %d, btye %d\n" l.filename l.lineno l.byteno);
-  {line = l.lineno; file = l.filename; byte = l.byteno}
+  {line = l.lineno; file = l.filename; byte = l.byteno;}
 
 
 let isOldStyleVarArgName n = 

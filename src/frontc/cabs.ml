@@ -50,10 +50,14 @@ type cabsloc = {
  lineno : int;
  filename: string;
  byteno: int;
+}
 
-}                                                                     
+let cabslu = {lineno = -10; 
+	      filename = "cabs loc unknown"; 
+	      byteno = -10;}
 
-let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
+(* clexer puts comments here *)
+let commentsGA = GrowArray.make 100 (GrowArray.Elem(cabslu,"",false))
 
 type typeSpecifier = (* Merge all specifiers into one type *)
     Tvoid                             (* Type specifier ISO 6.7.2 *)

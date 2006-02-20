@@ -389,7 +389,7 @@ let createFile () =
     { fileName = "testingcil.c";
       globals  = getGlobals ();
       globinit = None;
-      globinitcalled = false
+      globinitcalled = false;
     } 
   in
   (* Print the file *)

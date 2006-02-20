@@ -49,12 +49,33 @@ let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
 
 let print = print_string
 
+(* unit -> string option *)
+(*
+let getComments () =
+  match !comments with
+    [] -> None
+  | _ -> 
+      let r = Some(String.concat "\n" (List.rev !comments)) in
+      comments := [];
+      r
+*)
 
 let currentLoc () = 
   let l, f, c = E.getPosition () in
-  { lineno   = l; filename = f; byteno   = c; }
+  { lineno   = l; 
+    filename = f; 
+    byteno   = c;}
 
-let cabslu = {lineno = -10; filename = "cabs loc unknown"; byteno = -10;}
+let cabslu = {lineno = -10; 
+	      filename = "cabs loc unknown"; 
+	      byteno = -10;}
+
+(* cabsloc -> cabsloc *)
+(*
+let handleLoc l =
+  l.clcomment <- getComments();
+  l
+*)
 
 (*
 ** Expression building
@@ -393,11 +414,11 @@ global:
 | function_def                          { $1 } 
 /*(* Some C header files ar shared with the C++ compiler and have linkage 
    * specification *)*/
-| EXTERN string_constant declaration    { LINKAGE (fst $2, snd $2, [ $3 ]) }
+| EXTERN string_constant declaration    { LINKAGE (fst $2, (*handleLoc*) (snd $2), [ $3 ]) }
 | EXTERN string_constant LBRACE globals RBRACE 
-                                        { LINKAGE (fst $2, snd $2, $4)  }
+                                        { LINKAGE (fst $2, (*handleLoc*) (snd $2), $4)  }
 | ASM LPAREN string_constant RPAREN SEMICOLON
-                                        { GLOBASM (fst $3, $1) }
+                                        { GLOBASM (fst $3, (*handleLoc*) $1) }
 | pragma                                { $1 }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
@@ -406,14 +427,14 @@ global:
                            { (* Convert pardecl to new style *)
                              let pardecl, isva = doOldParDecl $3 $5 in 
                              (* Make the function declarator *)
-                             doDeclaration (snd $1) []
+                             doDeclaration ((*handleLoc*) (snd $1)) []
                                [((fst $1, PROTO(JUSTBASE, pardecl,isva), [], cabslu),
                                  NO_INIT)]
                             }
 /* (* Old style function prototype, but without any arguments *) */
 | IDENT LPAREN RPAREN  SEMICOLON
                            { (* Make the function declarator *)
-                             doDeclaration (snd $1) []
+                             doDeclaration ((*handleLoc*)(snd $1)) []
                                [((fst $1, PROTO(JUSTBASE,[],false), [], cabslu),
                                  NO_INIT)]
                             }
@@ -842,55 +863,55 @@ local_label_names:
 
 
 statement:
-    SEMICOLON		{NOP $1 }
+    SEMICOLON		{NOP ((*handleLoc*) $1) }
 |   comma_expression SEMICOLON
-	        	{COMPUTATION (smooth_expression (fst $1), snd $1)}
-|   block               {BLOCK (fst3 $1, snd3 $1)}
+	        	{COMPUTATION (smooth_expression (fst $1), (*handleLoc*)(snd $1))}
+|   block               {BLOCK (fst3 $1, (*handleLoc*)(snd3 $1))}
 |   IF paren_comma_expression statement                    %prec IF
                 	{IF (smooth_expression (fst $2), $3, NOP $1, $1)}
 |   IF paren_comma_expression statement ELSE statement
-	                {IF (smooth_expression (fst $2), $3, $5, $1)}
+	                {IF (smooth_expression (fst $2), $3, $5, (*handleLoc*) $1)}
 |   SWITCH paren_comma_expression statement
-                        {SWITCH (smooth_expression (fst $2), $3, $1)}
+                        {SWITCH (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
 |   WHILE paren_comma_expression statement
-	        	{WHILE (smooth_expression (fst $2), $3, $1)}
+	        	{WHILE (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
-	        	         {DOWHILE (smooth_expression (fst $4), $2, $1)}
+	        	         {DOWHILE (smooth_expression (fst $4), $2, (*handleLoc*) $1)}
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement
-	                         {FOR ($3, $4, $6, $8, $1)}
+	                         {FOR ($3, $4, $6, $8, (*handleLoc*) $1)}
 |   IDENT COLON statement
-		                 {LABEL (fst $1, $3, snd $1)}
+		                 {LABEL (fst $1, $3, (*handleLoc*) (snd $1))}
 |   CASE expression COLON statement
-	                         {CASE (fst $2, $4, $1)}
+	                         {CASE (fst $2, $4, (*handleLoc*) $1)}
 |   CASE expression ELLIPSIS expression COLON statement
-	                         {CASERANGE (fst $2, fst $4, $6, $1)}
+	                         {CASERANGE (fst $2, fst $4, $6, (*handleLoc*) $1)}
 |   DEFAULT COLON
-	                         {DEFAULT (NOP $1, $1)}
-|   RETURN SEMICOLON		 {RETURN (NOTHING, $1)}
+	                         {DEFAULT (NOP $1, (*handleLoc*) $1)}
+|   RETURN SEMICOLON		 {RETURN (NOTHING, (*handleLoc*) $1)}
 |   RETURN comma_expression SEMICOLON
-	                         {RETURN (smooth_expression (fst $2), $1)}
-|   BREAK SEMICOLON     {BREAK $1}
-|   CONTINUE SEMICOLON	 {CONTINUE $1}
+	                         {RETURN (smooth_expression (fst $2), (*handleLoc*) $1)}
+|   BREAK SEMICOLON     {BREAK ((*handleLoc*) $1)}
+|   CONTINUE SEMICOLON	 {CONTINUE ((*handleLoc*) $1)}
 |   GOTO IDENT SEMICOLON
-		                 {GOTO (fst $2, $1)}
+		                 {GOTO (fst $2, (*handleLoc*) $1)}
 |   GOTO STAR comma_expression SEMICOLON 
-                                 { COMPGOTO (smooth_expression (fst $3), $1) }
+                                 { COMPGOTO (smooth_expression (fst $3), (*handleLoc*) $1) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
-                        { ASM ($2, $4, $5, $1) }
-|   MSASM               { ASM ([], [fst $1], None, snd $1)}
+                        { ASM ($2, $4, $5, (*handleLoc*) $1) }
+|   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
 |   TRY block EXCEPT paren_comma_expression block
                         { let b, _, _ = $2 in
                           let h, _, _ = $5 in
                           if not !Cprint.msvcMode then 
                             parse_error "try/except in GCC code";
-                          TRY_EXCEPT (b, COMMA (fst $4), h, $1) }
+                          TRY_EXCEPT (b, COMMA (fst $4), h, (*handleLoc*) $1) }
 |   TRY block FINALLY block 
                         { let b, _, _ = $2 in
                           let h, _, _ = $4 in
                           if not !Cprint.msvcMode then 
                             parse_error "try/finally in GCC code";
-                          TRY_FINALLY (b, h, $1) }
+                          TRY_FINALLY (b, h, (*handleLoc*) $1) }
 
 |   error location   SEMICOLON   { (NOP $2)}
 ;
@@ -903,9 +924,9 @@ for_clause:
 
 declaration:                                /* ISO 6.7.*/
     decl_spec_list init_declarator_list SEMICOLON
-                                       { doDeclaration (snd $1) (fst $1) $2 }
+                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) $2 }
 |   decl_spec_list SEMICOLON	       
-                                       { doDeclaration (snd $1) (fst $1) [] }
+                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -1037,7 +1058,7 @@ enumerator:
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
    pointer_opt direct_decl attributes_with_asm
                                          { let (n, decl) = $2 in
-                                           (n, applyPointer (fst $1) decl, $3, snd $1) }
+                                           (n, applyPointer (fst $1) decl, $3, (*(*handleLoc*)*)(snd $1)) }
 ;
 
 
@@ -1133,7 +1154,8 @@ pointer: /* (* ISO 6.7.5 *) */
    STAR attributes pointer_opt  { $2 :: fst $3, $1 }
 ;
 pointer_opt:
-   /**/                          { [], currentLoc () }
+   /**/                          { let l = currentLoc () in
+                                   ([], l) }
 |  pointer                       { $1 }
 ;
 
@@ -1182,7 +1204,7 @@ function_def:  /* (* ISO 6.9.1 *) */
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
             !Lexerhack.pop_context (); (* The context pushed by 
                                     * announceFunctionName *)
-            doFunctionDef loc (trd3 $2) specs decl (fst3 $2)
+            doFunctionDef ((*handleLoc*) loc) (trd3 $2) specs decl (fst3 $2)
           } 
 
 

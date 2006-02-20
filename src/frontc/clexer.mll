@@ -54,7 +54,31 @@ let currentLoc () =
   let l, f, c = E.getPosition () in
   { Cabs.lineno   = l;
     Cabs.filename = f;
-    Cabs.byteno   = c; }
+    Cabs.byteno   = c;}
+
+(* string -> unit *)
+let addComment c =
+  let l = currentLoc() in
+  let i = GrowArray.max_init_index Cabs.commentsGA in
+  GrowArray.setg Cabs.commentsGA (i+1) (l,c,false)
+
+let int64_to_char value =
+  if (compare value (Int64.of_int 255) > 0) || (compare value Int64.zero < 0) then
+    begin
+      let msg = Printf.sprintf "clexer:intlist_to_string: character 0x%Lx too big" value in
+      (*parse_error msg;*)
+      raise Parsing.Parse_error
+    end
+  else
+    Char.chr (Int64.to_int value)
+
+(* takes a not-nul-terminated list, and converts it to a string. *)
+let rec intlist_to_string (str: int64 list):string =
+  match str with
+    [] -> ""  (* add nul-termination *)
+  | value::rest ->
+      let this_char = int64_to_char value in
+      (String.make 1 this_char) ^ (intlist_to_string rest)
 
 (* Some debugging support for line numbers *)
 let dbgToken (t: token) = 
@@ -72,8 +96,6 @@ let dbgToken (t: token) =
   end else
     t
 
-
-(* Store here the comments **)
 
 (*
 ** Keyword hashtable
@@ -308,6 +330,12 @@ let lex_unescaped remainder lexbuf =
   let prefix = Int64.of_int (Char.code (Lexing.lexeme_char lexbuf 0)) in
   prefix :: remainder lexbuf
 
+let lex_comment remainder lexbuf =
+  let ch = Lexing.lexeme_char lexbuf 0 in
+  let prefix = Int64.of_int (Char.code ch) in
+  if ch = '\n' then E.newline();
+  prefix :: remainder lexbuf
+
 let make_char (i:int64):char =
   let min_val = Int64.zero in
   let max_val = Int64.of_int 255 in
@@ -400,9 +428,16 @@ let no_parse_pragma =
 
 
 rule initial =
-	parse 	"/*"			{ let _ = comment lexbuf in 
+	parse 	"/*"			{ let il = comment lexbuf in
+	                                  let sl = intlist_to_string il in
+					  addComment sl;
                                           initial lexbuf}
-|               "//"                    { endline lexbuf }
+|               "//"                    { let il = onelinecomment lexbuf in
+                                          let sl = intlist_to_string il in
+                                          addComment sl;
+                                          E.newline();
+                                          initial lexbuf
+                                           }
 |		blank			{initial lexbuf}
 |               '\n'                    { E.newline ();
                                           if !pragmaLine then
@@ -515,10 +550,14 @@ rule initial =
 |		_			{E.parse_error "Invalid symbol"}
 and comment =
     parse 	
-      "*/"			        { () }
-|     '\n'                              { E.newline (); comment lexbuf }
-| 		_ 			{ comment lexbuf }
+      "*/"			        { [] }
+(*|     '\n'                              { E.newline (); lex_unescaped comment lexbuf }*)
+| 		_ 			{ lex_comment comment lexbuf }
 
+
+and onelinecomment = parse
+    '\n'        {[]}
+|   _           { lex_comment onelinecomment lexbuf }
 
 and matchingpars = parse
   '\n'          { E.newline (); matchingpars lexbuf }
@@ -530,7 +569,9 @@ and matchingpars = parse
                   else 
                      matchingpars lexbuf
                 }
-|  "/*"		{ let _ = comment lexbuf in 
+|  "/*"		{ let il = comment lexbuf in
+                  let sl = intlist_to_string il in
+		  addComment sl;
                   matchingpars lexbuf}
 |  '"'		{ (* '"' *)
                   let _ = str lexbuf in 

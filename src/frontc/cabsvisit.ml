@@ -92,7 +92,9 @@ class type cabsVisitor = object
   method vExitScope: unit -> unit
 end
     
-let visitorLocation = ref { filename = ""; lineno = -1; byteno = -1; }
+let visitorLocation = ref { filename = ""; 
+			    lineno = -1; 
+			    byteno = -1;}
     
         (* a default visitor which does nothing to the tree *)
 class nopCabsVisitor : cabsVisitor = object

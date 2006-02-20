@@ -123,6 +123,7 @@ type file =
           main to call it. *)
     } 
 
+and comment = location * string
 
 (** The main type for representing global declarations and definitions. A list 
     of these form a CIL file. The order of globals in the file is generally 
@@ -822,7 +823,10 @@ type featureDescr = {
      * checking is enabled (--check is passed to cilly) *)
 }
 
-let locUnknown = { line = -1; file = ""; byte = -1; }
+let locUnknown = { line = -1; 
+		   file = ""; 
+		   byte = -1;}
+
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
 
@@ -4416,7 +4420,7 @@ let dummyFile =
   { globals = [];
     fileName = "<dummy>";
     globinit = None;
-    globinitcalled = false}
+    globinitcalled = false;}
 
 let saveBinaryFile (cil_file : file) (filename : string) =
   let outchan = open_out_bin filename in
@@ -5753,7 +5757,13 @@ let copyFunction (f: fundec) (newname: string) : fundec =
   visitCilFunction (new copyFunctionVisitor(newname)) f
   
 (********* Compute the CFG ********)
-let sid_counter = ref 0 
+let sid_counter = ref 0
+
+let new_sid () =
+  let id = !sid_counter in
+  incr sid_counter;
+  id
+
 let statements : stmt list ref = ref [] 
 (* Clear all info about the CFG in statements *)  
 class clear : cilVisitor = object

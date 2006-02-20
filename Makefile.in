@@ -69,14 +69,14 @@ ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
 ifdef USE_DEPUTY
-  CILLY_FEATURES += growArray ccl deputy
+  CILLY_FEATURES += ccl deputy
 endif
 # Add the EXTRAFEATURES
 CILLY_FEATURES += @EXTRAFEATURES@
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
-              cilutil escape \
+              cilutil escape growArray\
               cabs cabsvisit cprint lexerhack machdep cparser clexer  \
               cilversion cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
@@ -86,7 +86,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               setp uref olf ptranal \
               canonicalize heap oneret partial simplemem simplify \
 	      dataslicing sfi \
-              reachingdefs \
+              cfg reachingdefs rmciltmps deadcodeelim\
               zrapp \
               testcil \
 	      $(CILLY_FEATURES) \

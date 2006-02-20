@@ -38,9 +38,12 @@ open Pretty
 module E = Errormsg
 module GA = GrowArray
 module IH = Inthash
+module RD = Reachingdefs
+module RCT = Rmciltmps
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
+let doOpt : bool ref = ref false
 let inferFile : string ref = ref ""
 
 let curFunc : fundec ref = ref dummyFunDec
@@ -53,6 +56,7 @@ let exemptLocalVars : varinfo list ref = ref []
 (* Assign to each statement a unique ID. *)
 let nextStmtId : int ref = ref 0
 let assignID (s:stmt) : unit =
+  if !doOpt then s.sid <- -1 else (* zra *)
   assert (s.sid = -1); (* Make sure that no one else has assigned ID numbers *)
   s.sid <- !nextStmtId;
   incr nextStmtId;
@@ -60,15 +64,37 @@ let assignID (s:stmt) : unit =
 
 (* Convert instruction lists into individual statements, and give each
   stmt a unique id. *)
-let fixStmt (s:stmt) : unit =
+let rec fixStmt (s:stmt) : unit =
   assignID s;
   match s.skind with 
     Instr [] -> ()
   | Instr [i] -> ()
   | Instr il -> (* Two or more instructions *)
-      s.skind <- Block (mkBlock (List.map mkStmtOneInstr il));
-      ()      
+      let sl = List.map mkStmtOneInstr il in
+      List.iter fixStmt sl;
+      s.skind <- Block (mkBlock sl);
+      ()
+  | If(_,b1,b2,_) ->
+      fixBlock b1;
+      fixBlock b2
+  | Switch(_,b,sl,_) ->
+      fixBlock b;
+      List.iter fixStmt sl
+  | Loop(b,_,s1o,s2o) ->
+      fixBlock b;
+      (match s1o with None -> () | Some s1 -> fixStmt s1);
+      (match s2o with None -> () | Some s2 -> fixStmt s2)
+  | Block b -> fixBlock b
+  | TryFinally(b1,b2,_) ->
+      fixBlock b1;
+      fixBlock b2
+  | TryExcept(b1,_,b2,_) ->
+      fixBlock b1;
+      fixBlock b2
   | _ -> ()
+
+and fixBlock (b : block) : unit =
+  List.iter fixStmt b.bstmts
 
 (* Splits a list into two lists consisting of the first n elements
  * and the remainder. *)
@@ -1355,7 +1381,6 @@ let checkReturn (eo : exp option) : unit =
       checkSameType returnType voidType
 
 let rec checkStmt (s : stmt) : unit =
-  fixStmt s;
   curStmt := s.sid;
   currentLoc := get_stmtLoc s.skind;
   match s.skind with
@@ -1406,6 +1431,11 @@ let checkVar (vi: varinfo) (init: initinfo) : unit =
   if init.init <> None then
     warn "Global variable initializer was not checked"
 
+let last_sid = ref 0
+let makeCFG (fd : fundec) : unit =
+  last_sid := Cfg.cfgFun fd ~startid:(!last_sid + 1)
+
+
 let checkFundec (fd : fundec) (loc:location) : unit =
   if !verbose then
     E.log "Doing function %s.\n" fd.svar.vname;
@@ -1418,6 +1448,9 @@ let checkFundec (fd : fundec) (loc:location) : unit =
        if not (checkType ctxThis vi.vtype) then
          E.s (error "Type of variable %s is ill-formed" vi.vname))
     (fd.slocals @ fd.sformals);
+  (* fix block, see if cfg should be used, check block *)
+  fixBlock fd.sbody;
+  if !doOpt then makeCFG fd;
   checkBlock fd.sbody;
   curFunc := dummyFunDec;
   curStmt := -1;
@@ -1444,6 +1477,10 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   in
   let init' = mkStmt(Instr init) in
   assignID init';
+  (* zra - need CFG info for stmts added after makeCFG *)
+  if !doOpt then (init'.sid <- !last_sid + 1; incr last_sid);
+  if !doOpt then init'.succs <- [List.hd fd.sbody.bstmts];
+  (* zra *)
   fd.sbody.bstmts <- init'::fd.sbody.bstmts;
   ()
 
@@ -1787,6 +1824,106 @@ let optimizeVisitor = object (self)
 
 end
 
+(* zra - Try to remove tmp variables in exps
+ * through forward substitution.
+ *
+ * This also does forward subst. of everything
+ * into checks, but this should probably be replaced
+ * by an accurate constant propagation.
+ *
+ * Run after optimizeVisitor.
+ * Only run if !doOpt is true *)
+let forwardTmpSub (fd : fundec) = object(self)
+    inherit RD.rdVisitorClass
+
+  method private rmtmps' b e =
+    match self#get_cur_iosh() with
+      None -> e
+    | Some iosh ->
+	RCT.rm_tmps_from_exp iosh e fd b
+
+  method private rmtmps e =
+    self#rmtmps' true e
+
+  method private fix_check c = 
+    match c with
+      CNonNull e -> 
+	let e' = self#rmtmps e in
+	CNonNull e'
+    | CEq(e1,e2) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	CEq(e1',e2')
+    | CNotEq(e1,e2) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	CNotEq(e1',e2')
+    | CPositive e ->
+	let e' = self#rmtmps e in
+	CPositive(e')
+    | CMult(e1,e2) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	CMult(e1',e2')
+    | COverflow(e1,e2) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	COverflow(e1',e2')
+    | CBounds(e1,e2,e3,e4) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	let e3' = self#rmtmps e3 in
+	let e4' = self#rmtmps e4 in
+	CBounds(e1',e2',e3',e4')
+    | CCoerce(e1,e2,e3,e4,e5) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	let e3' = self#rmtmps e3 in
+	let e4' = self#rmtmps e4 in
+	let e5' = self#rmtmps e5 in
+	CCoerce(e1',e2',e3',e4',e5')
+    | CCoerceN(e1,e2,e3,e4,e5) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	let e3' = self#rmtmps e3 in
+	let e4' = self#rmtmps e4 in
+	let e5' = self#rmtmps e5 in
+	CCoerceN(e1',e2',e3',e4',e5')
+    | CNTWrite(e1,e2,e3) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+	let e3' = self#rmtmps e3 in
+	CNTWrite(e1',e2',e3')
+    | CUnsignedLess(e1,e2) ->
+	let e1' = self#rmtmps e1 in
+	let e2' = self#rmtmps e2 in
+      CUnsignedLess(e1',e2')
+    | CSelected e ->
+	let e' = self#rmtmps e in
+	CSelected e'
+    | _ -> c
+
+  method private fix_checks cl =
+    List.map self#fix_check cl
+
+  val mutable check_sid = -1
+
+  method private handle_checks () =
+    if sid = check_sid then () else
+    let checks = GA.getg allChecks sid in
+    GA.set allChecks sid (self#fix_checks checks);
+    check_sid <- sid
+
+  method vexpr e = 
+    self#handle_checks();
+    ChangeTo(self#rmtmps' false e)
+
+  method vfunc fd =
+    RD.computeRDs fd;
+    DoChildren
+
+end
+
 (**************************************************************************)
 
 let postPassVisitor1 = object (self)
@@ -1858,7 +1995,11 @@ let checkFile (f: file) : unit =
        | GFun (fd, loc) ->
            if not (isTrustedAttr fd.svar.vattr) then begin
              checkFundec fd loc;
-             ignore (visitCilFunction optimizeVisitor fd)
+             ignore (visitCilFunction optimizeVisitor fd);
+	     if !doOpt then
+	       let fts = forwardTmpSub fd in
+	       (ignore(visitCilFunction (fts :> cilVisitor) fd);
+		ignore(visitCilFunction optimizeVisitor fd))
            end
        | _ -> ())
     f.globals;
@@ -1866,6 +2007,8 @@ let checkFile (f: file) : unit =
      in the output. *)
   visitCilFileSameGlobals postPassVisitor1 f;
   visitCilFileSameGlobals postPassVisitor2 f;
+  if !doOpt then (Cfg.clearFileCFG f; Cfg.computeFileCFG f);
+  if !doOpt then Deadcodeelim.dce f;
   f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
@@ -1876,10 +2019,12 @@ let feature : featureDescr =
     fd_enabled = ref false;
     fd_description = "Typecheck and instrument the program using Deputy.";
     fd_extraopt = [
-      "--deputyverbose", Arg.Set verbose,
-                         "Enable verbose output for Deputy";
-      "--deputyinferout", Arg.Set_string inferFile,
-                          "File in which to place Deputy inference results";
+    "--deputyverbose", Arg.Set verbose,
+    "Enable verbose output for Deputy";
+    "--deputyinferout", Arg.Set_string inferFile,
+    "File in which to place Deputy inference results";
+    "--deputyopt", Arg.Set doOpt,
+    "Use CIL's cfg construction";
     ];
     fd_doit = checkFile;
     fd_post_check = true;

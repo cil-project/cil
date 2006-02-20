@@ -83,9 +83,9 @@ let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: 
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
   filled in *)
-let rec cfgFun (fd : fundec) : int = 
+let rec cfgFun (fd : fundec) ?(startid=0): int = 
   begin
-    numNodes := 0;
+    numNodes := startid;
     nodeList := [];
 
     cfgBlock fd.sbody None None None;
@@ -241,7 +241,6 @@ let d_cfgnode () (s : stmt) =
     d_cfgnodelabel s
     (d_list "\n\t" (d_cfgedge s)) s.succs
 
-
 (**********************************************************************)
 (* entry points *)
 
@@ -265,4 +264,24 @@ let printCfgFilename (filename : string) (fd : fundec) =
 
 ;;
 
+(**********************************************************************)
 
+let clearCFGinfo (fd : fundec) =
+  let clear s =
+    s.sid <- -1;
+    s.succs <- [];
+    s.preds <- [];
+  in
+  forallStmts clear fd
+
+let clearFileCFG (f : file) =
+  iterGlobals f (fun g ->
+    match g with GFun(fd,_) ->
+      clearCFGinfo fd
+    | _ -> ())
+
+let computeFileCFG (f : file) =
+  iterGlobals f (fun g ->
+    match g with GFun(fd,_) ->
+      numNodes := cfgFun fd ~startid:(!numNodes + 1)
+    | _ -> ())

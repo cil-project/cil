@@ -218,7 +218,7 @@ let rec theMain () =
                   "ignore merging conflicts";
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
                "do not try to simplify the CIL when printing";
-    "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
+     "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
                "output is the slice of #pragma cilnoremove(sym) symbols";
   ] @ F.args @ featureArgs in
   begin
