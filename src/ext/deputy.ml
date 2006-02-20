@@ -1431,9 +1431,9 @@ let checkVar (vi: varinfo) (init: initinfo) : unit =
   if init.init <> None then
     warn "Global variable initializer was not checked"
 
-let last_sid = ref 0
 let makeCFG (fd : fundec) : unit =
-  last_sid := Cfg.cfgFun fd ~startid:(!last_sid + 1)
+  let cnt = Cfg.cfgFun fd in
+  Cfg.start_id := cnt + !Cfg.start_id
 
 
 let checkFundec (fd : fundec) (loc:location) : unit =
@@ -1478,7 +1478,7 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   let init' = mkStmt(Instr init) in
   assignID init';
   (* zra - need CFG info for stmts added after makeCFG *)
-  if !doOpt then (init'.sid <- !last_sid + 1; incr last_sid);
+  if !doOpt then (init'.sid <- !Cfg.start_id + 1; incr Cfg.start_id);
   if !doOpt then init'.succs <- [List.hd fd.sbody.bstmts];
   (* zra *)
   fd.sbody.bstmts <- init'::fd.sbody.bstmts;

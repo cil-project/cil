@@ -77,19 +77,19 @@ module E=Errormsg
 let sCount = ref 0   (* to generate consecutive sid's *)
 let numNodes = ref 0 (* number of nodes in the CFG *)
 let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: Added to change dfs from quadratic to linear *)
-
+let start_id = ref 0 (* for unique ids across many functions *)
 
 (* entry point *)
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
   filled in *)
-let rec cfgFun (fd : fundec) ?(startid=0): int = 
+let rec cfgFun (fd : fundec): int = 
   begin
-    numNodes := startid;
+    numNodes := !start_id;
     nodeList := [];
 
     cfgBlock fd.sbody None None None;
-    !numNodes
+    !numNodes - !start_id
   end
 
 
@@ -283,5 +283,6 @@ let clearFileCFG (f : file) =
 let computeFileCFG (f : file) =
   iterGlobals f (fun g ->
     match g with GFun(fd,_) ->
-      numNodes := cfgFun fd ~startid:(!numNodes + 1)
+      numNodes := cfgFun fd;
+      start_id := !start_id + !numNodes
     | _ -> ())
