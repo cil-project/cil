@@ -358,8 +358,16 @@ cleancaml:
 # Dependencies for .mli files reside in corresponding .di files.
 #
 
-FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]+[/\\]% %g; s%([-a-zA-Z0-9+-.:/\/_]+)%\$$(OBJDIR)/$$1%g; print $$_;}'
+# Replace the directories in the dependency rules with $(OBJDIR)/, since 
+# we'll move .cmo/.cmx files there.
+# 1. Strip any text followed by / or \.  The / case even strips slashes that
+#    are preceded by whitespace, to account for unix absolute paths.
+#    The \ case does not strip slashes that come immediately after whitespace,
+#    to preserve the trailing \ at the end of Makefile rules.
+# 2. Replace these directory names by '$(OBJDIR)/'
+FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]*/% %g; s%[^/\\ :]+\\% %g; s%([-a-zA-Z0-9+-.:/\/_]+)%\$$(OBJDIR)/$$1%g; print $$_;}'
 # FIXDEPEND:=cat
+
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
 	@$(NARRATIVE) Generating dependency information for $<
