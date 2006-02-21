@@ -112,18 +112,18 @@ class heapifyAnalyzeVisitor f alloc free = object
         let ci = mkCompInfo true name (* make a big structure *)
 	    (fun _ -> List.rev_map (* reverse the list to fix the order *)
                 (* each local var becomes a field *)
-		(fun (vi,i) -> vi.vname,vi.vtype,None,[],locUnknown) !varlist) [] in
+		(fun (vi,i) -> vi.vname,vi.vtype,None,[],vi.vdecl) !varlist) [] in
         let vi = makeLocalVar fundec name (TPtr(TComp(ci,[]),[])) in
         let modify = new heapifyModifyVisitor (Var(vi)) ci.cfields
 	    !varlist free fundec in (* rewrite accesses to local vars *)
         fundec.sbody <- visitCilBlock modify fundec.sbody ;
         let alloc_stmt = mkStmt (* allocate the big struct on the heap *)
             (Instr [Call(Some(Var(vi),NoOffset), alloc, 
-			 [SizeOf(TComp(ci,[]))],locUnknown)]) in
+			 [SizeOf(TComp(ci,[]))],funloc)]) in
         fundec.sbody.bstmts <- alloc_stmt :: fundec.sbody.bstmts ; 
 	fundec.slocals <- List.filter (fun vi -> (* remove local vars *)
 	  not (List.mem_assoc vi !varlist)) fundec.slocals ; 
-	let typedec = (GCompTag(ci,locUnknown)) in (* declare the big struct *)
+	let typedec = (GCompTag(ci,funloc)) in (* declare the big struct *)
         ChangeTo([typedec ; GFun(fundec,funloc)])  (* done! *)
       end else
 	DoChildren	(* ignore everything else *)
