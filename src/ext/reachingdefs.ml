@@ -69,6 +69,12 @@ let iosh_singleton_lookup iosh vi =
     else IOS.choose ios
   else None
 
+(* IOS.t IH.t -> varinfo -> IOS.t *)
+let iosh_lookup iosh vi =
+  if IH.mem iosh vi.vid
+  then Some(IH.find iosh vi.vid)
+  else None
+
 (* return Some(vid) if iosh contains defId.
    return None otherwise *)
 (* IOS.t IH.t -> int -> int *)

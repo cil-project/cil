@@ -1824,84 +1824,82 @@ let optimizeVisitor = object (self)
 
 end
 
-(* zra - Try to remove tmp variables in exps
- * through forward substitution.
- *
- * This also does forward subst. of everything
- * into checks, but this should probably be replaced
- * by an accurate constant propagation.
- *
- * Run after optimizeVisitor.
- * Only run if !doOpt is true *)
-let forwardTmpSub (fd : fundec) = object(self)
-    inherit RD.rdVisitorClass
-
-  method private rmtmps' b e =
-    match self#get_cur_iosh() with
-      None -> e
-    | Some iosh ->
-	RCT.rm_tmps_from_exp iosh e fd b
-
-  method private rmtmps e =
-    self#rmtmps' true e
-
-  method private fix_check c = 
+(* map f to all the expressions in a check *)
+(* (exp -> exp) -> check -> check *)
+let map_to_check f c =
     match c with
       CNonNull e -> 
-	let e' = self#rmtmps e in
+	let e' = f e in
 	CNonNull e'
     | CEq(e1,e2) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
+	let e1' = f e1 in
+	let e2' = f e2 in
 	CEq(e1',e2')
     | CNotEq(e1,e2) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
+	let e1' = f e1 in
+	let e2' = f e2 in
 	CNotEq(e1',e2')
     | CPositive e ->
-	let e' = self#rmtmps e in
+	let e' = f e in
 	CPositive(e')
     | CMult(e1,e2) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
+	let e1' = f e1 in
+	let e2' = f e2 in
 	CMult(e1',e2')
     | COverflow(e1,e2) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
+	let e1' = f e1 in
+	let e2' = f e2 in
 	COverflow(e1',e2')
     | CBounds(e1,e2,e3,e4) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
-	let e3' = self#rmtmps e3 in
-	let e4' = self#rmtmps e4 in
+	let e1' = f e1 in
+	let e2' = f e2 in
+	let e3' = f e3 in
+	let e4' = f e4 in
 	CBounds(e1',e2',e3',e4')
     | CCoerce(e1,e2,e3,e4,e5) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
-	let e3' = self#rmtmps e3 in
-	let e4' = self#rmtmps e4 in
-	let e5' = self#rmtmps e5 in
+	let e1' = f e1 in
+	let e2' = f e2 in
+	let e3' = f e3 in
+	let e4' = f e4 in
+	let e5' = f e5 in
 	CCoerce(e1',e2',e3',e4',e5')
     | CCoerceN(e1,e2,e3,e4,e5) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
-	let e3' = self#rmtmps e3 in
-	let e4' = self#rmtmps e4 in
-	let e5' = self#rmtmps e5 in
+	let e1' = f e1 in
+	let e2' = f e2 in
+	let e3' = f e3 in
+	let e4' = f e4 in
+	let e5' = f e5 in
 	CCoerceN(e1',e2',e3',e4',e5')
     | CNTWrite(e1,e2,e3) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
-	let e3' = self#rmtmps e3 in
+	let e1' = f e1 in
+	let e2' = f e2 in
+	let e3' = f e3 in
 	CNTWrite(e1',e2',e3')
     | CUnsignedLess(e1,e2) ->
-	let e1' = self#rmtmps e1 in
-	let e2' = self#rmtmps e2 in
+	let e1' = f e1 in
+	let e2' = f e2 in
       CUnsignedLess(e1',e2')
     | CSelected e ->
-	let e' = self#rmtmps e in
+	let e' = f e in
 	CSelected e'
     | _ -> c
+
+(* Applies action to all expressions in a function.
+ * action takes reaching definition data, an expression
+ * the fundec that the expression is in, and a boolean.
+ * If the boolean is true then all variables are considered.
+ * If the boolean is false then only temps are considered. *)
+(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp *)
+let checkVisit action (fd : fundec) = object(self)
+    inherit RD.rdVisitorClass
+
+  method private do_action b e =
+    match self#get_cur_iosh() with
+      None -> e
+    | Some iosh -> action iosh e fd b
+
+  method private fix_check =
+    map_to_check (self#do_action true)
 
   method private fix_checks cl =
     List.map self#fix_check cl
@@ -1916,13 +1914,28 @@ let forwardTmpSub (fd : fundec) = object(self)
 
   method vexpr e = 
     self#handle_checks();
-    ChangeTo(self#rmtmps' false e)
+    ChangeTo(self#do_action false e)
 
   method vfunc fd =
     RD.computeRDs fd;
     DoChildren
 
 end
+
+(* zra - Try to remove tmp variables in exps
+ * through forward substitution.
+ *
+ * This also does forward subst. of everything
+ * into checks, but this should probably be replaced
+ * by an accurate constant propagation.
+ *
+ * Run after optimizeVisitor.
+ * Only run if !doOpt is true *)
+let forwardTmpSub = checkVisit RCT.fwd_subst
+
+
+(* Constant propagation into checks *)
+let constProp = checkVisit RCT.const_prop
 
 (**************************************************************************)
 
@@ -1998,7 +2011,11 @@ let checkFile (f: file) : unit =
              ignore (visitCilFunction optimizeVisitor fd);
 	     if !doOpt then
 	       let fts = forwardTmpSub fd in
+	       let cp = constProp fd in
+	       let cf = constFoldVisitor false in
 	       (ignore(visitCilFunction (fts :> cilVisitor) fd);
+		ignore(visitCilFunction (cp :> cilVisitor) fd);
+		ignore(visitCilFunction cf fd);
 		ignore(visitCilFunction optimizeVisitor fd))
            end
        | _ -> ())

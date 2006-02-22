@@ -305,8 +305,34 @@ let forms = [Exact "tmp";
 	     Suffix "__e";
 	     Suffix "__b";]
 
+(* action: RD.IOS.t IH.t -> varinfo -> fundec -> bool -> exp option
+ * iosh: RD.IOS.t IH.t
+ * fd: fundec
+ * nofrm: bool
+ *
+ * Replace Lval(Var vi, NoOffset) with
+ * e where action iosh vi fd nofrm returns Some(e) *)
+let varXformClass action iosh fd nofrm = object(self)
+    inherit nopCilVisitor
+
+  method vexpr e = match e with
+    Lval(Var vi, NoOffset) as lv->
+      (match action iosh vi fd nofrm with
+	None -> DoChildren
+      | Some e' -> ChangeTo e')
+  | Lval(Mem e', off) ->
+      (* don't substitute constants in memory lvals *)
+      let post e = match e with
+	Lval(Mem(Const _),off') -> Lval(Mem e', off')
+      | _ -> e
+      in
+      ChangeDoChildrenPost(Lval(Mem e', off), post)
+  | _ -> DoChildren
+
+end
+
 (* if the temp with varinfo vi can be
-   replaced by an expression then returns
+   replaced by an expression then return
    Some of that expression. o/w None.
    If b is true, then don't check the form *)
 (* IOS.t IH.t -> varinfo -> fundec -> bool -> exp option *)
@@ -333,43 +359,38 @@ let tmp_to_exp iosh vi fd nofrm =
 	None
   else None
 
-(* Where it is possible, replace temps
-   with expressions in e *)
-(* IOS.t IH.t -> exp -> fundec -> bool -> exp *)
-let rec rm_tmps_from_exp iosh e fd nofrm =
-  if !debug then ignore(E.log "rm_tmps_from_exp: looking at: %a\n" d_plainexp e);
-  match e with
-    Lval(Var vi, NoOffset) as lv->
-      (match tmp_to_exp iosh vi fd nofrm with
-	None -> lv
-      | Some e' -> e')
-  | Lval(Var vi, off) ->
-      let off' = rm_tmps_from_off iosh off fd nofrm in
-      Lval(Var vi, off')
-  | Lval(Mem e', off) ->
-      let e'' = rm_tmps_from_exp iosh e' fd nofrm in
-      let off' = rm_tmps_from_off iosh off fd nofrm in
-      (* don't substitute constants in memory lvals *)
-      (match e'' with Const _ -> Lval(Mem e',off')
-      | _ -> Lval(Mem e'', off'))
-  | SizeOfE e' -> SizeOfE(rm_tmps_from_exp iosh e' fd nofrm)
-  | AlignOfE e' -> AlignOfE(rm_tmps_from_exp iosh e' fd nofrm)
-  | UnOp(u,e',t) -> UnOp(u, rm_tmps_from_exp iosh e' fd nofrm, t)
-  | BinOp(b,e1,e2,t) ->
-      let e1' = rm_tmps_from_exp iosh e1 fd nofrm in
-      let e2' = rm_tmps_from_exp iosh e2 fd nofrm in
-      BinOp(b,e1',e2',t)
-  | CastE(t, e') -> CastE(t, rm_tmps_from_exp iosh e' fd nofrm)
-  | _ -> e
+let fwd_subst iosh e fd nofrm =
+  visitCilExpr (varXformClass tmp_to_exp iosh fd nofrm) e
 
-and rm_tmps_from_off iosh off fd nofrm=
-  match off with
-    NoOffset -> NoOffset
-  | Field(fi, off') -> Field(fi, rm_tmps_from_off iosh off' fd nofrm)
-  | Index(e,off') ->
-      let e' = rm_tmps_from_exp iosh e fd nofrm in
-      let off'' = rm_tmps_from_off iosh off' fd nofrm in
-      Index(e',off'')
+(* See if vi can be replaced by a constant
+   by checking all of the definitions reaching
+   this use of vi *)
+let tmp_to_const iosh vi fd nofrm =
+  if nofrm || check_forms vi.vname forms then
+    match RD.iosh_lookup iosh vi with
+      None -> None
+    | Some(ios) ->
+        let defido = 
+	  try RD.IOS.choose ios
+	  with Not_found -> None in
+	match defido with None -> None | Some defid ->
+	  match getDefRhs defid with
+	    None -> None
+	  | Some(RDExp(Const c) as r, _, defiosh) ->
+	      let same = RD.IOS.for_all (fun defido ->
+		match defido with None -> false | Some defid ->
+		  match getDefRhs defid with
+		    None -> false
+		  | Some(RDExp(Const c'),_,_) ->
+		      Util.equals c c'
+		  | _ -> false) ios
+	      in
+	      if same then Some(Const c) else None
+	  | _ -> None
+  else None
+
+let const_prop iosh e fd nofrm =
+  visitCilExpr (varXformClass tmp_to_const iosh fd nofrm) e
 
 class expTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
