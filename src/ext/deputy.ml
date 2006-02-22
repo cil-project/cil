@@ -77,13 +77,10 @@ let rec fixStmt (s:stmt) : unit =
   | If(_,b1,b2,_) ->
       fixBlock b1;
       fixBlock b2
-  | Switch(_,b,sl,_) ->
-      fixBlock b;
-      List.iter fixStmt sl
-  | Loop(b,_,s1o,s2o) ->
-      fixBlock b;
-      (match s1o with None -> () | Some s1 -> fixStmt s1);
-      (match s2o with None -> () | Some s2 -> fixStmt s2)
+  | Switch(_,b,_,_) ->
+      fixBlock b
+  | Loop(b,_,_,_) ->
+      fixBlock b
   | Block b -> fixBlock b
   | TryFinally(b1,b2,_) ->
       fixBlock b1;
