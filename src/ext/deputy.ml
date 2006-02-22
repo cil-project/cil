@@ -852,6 +852,10 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   match unrollType tfrom, unrollType tto with
   | t1, t2 when isTrustedType t1 || isTrustedType t2 ->
       ()
+  | (TInt _ | TPtr _), TPtr _ when isZero e ->
+      (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
+         here? *)
+      ()
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
         E.s (error "Cast to NULLTERM from an ordinary pointer");
@@ -865,15 +869,24 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       else
         addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
       ()
+  | TPtr (bt1, _), TPtr (bt2, _) when not (typeContainsPointers bt1) &&
+                                      not (typeContainsPointers bt2) ->
+      if isNullterm tto || isNullterm tfrom then
+        E.s (unimp "Nullterm cast with different base types");
+      let lo_from, hi_from = fancyBoundsOfType tfrom in
+      let lo_to, hi_to = fancyBoundsOfType tto in
+      let getDiff e1 e2 =
+        BinOp (MinusPP, CastE (charPtrType, e1),
+                        CastE (charPtrType, e2), intType)
+      in
+      addCheck (CMult (SizeOf bt1, getDiff e lo_to));
+      addCheck (CMult (SizeOf bt1, getDiff hi_to e));
+      addCheck (CCoerce (lo_from, lo_to, e, hi_to, hi_from))
   | (TEnum _ | TPtr _), TInt _ ->
       (* Coerce pointer/enum to integer. *)
       ()
   | TInt _, TEnum _ ->
       (* Coerce integer to enum. *)
-      ()
-  | (TInt _ | TPtr _), TPtr _ when isZero e ->
-      (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
-         here? *)
       ()
   | TInt _, TInt _ when (bitsSizeOf tfrom) = (bitsSizeOf tto) ->
       (* ignore signed/unsigned differences.  FIXME: is this safe? *)
@@ -1726,16 +1739,31 @@ end
 
 (**************************************************************************)
 
-let rec getBaseOffset (e: exp) : exp * int =
+let rec getBaseOffset (e: exp) : exp * int * typ =
   match e with
-  | BinOp ((PlusPI | IndexPI | MinusPI) as op, e', off, _) ->
+  | BinOp ((PlusPI | IndexPI | MinusPI) as op, e', off, t) ->
+      let intFold e = isInteger (constFold true e) in
+      let bt =
+        match unrollType (typeOf e') with
+        | TPtr (bt, _) -> bt
+        | t -> E.s (bug "Expected pointer type, got %a" d_type t)
+      in
       begin
-        match getBaseOffset e', isInteger (constFold false off), op with
-        | (b, n1), Some n2, (PlusPI | IndexPI) -> b, n1 + (Int64.to_int n2)
-        | (b, n1), Some n2, MinusPI -> b, n1 - (Int64.to_int n2)
-        | (b, n), _, _ -> e, 0
+        match getBaseOffset e', intFold off, op with
+        | (b, n1, _), Some n2, (PlusPI | IndexPI) ->
+            b, n1 + (Int64.to_int n2), bt
+        | (b, n1, _), Some n2, MinusPI ->
+            b, n1 - (Int64.to_int n2), bt
+        | _, _, _ ->
+            e, 0, bt
       end
-  | _ -> e, 0
+  | _ ->
+      let bt =
+        match unrollType (typeOf e) with
+        | TPtr (bt, _) -> bt
+        | t -> charType
+      in
+      e, 0, bt
 
 let rec compareExp (e1: exp) (e2: exp) : bool =
   e1 == e2 ||
@@ -1780,21 +1808,43 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
       (fst (getVarBounds vi2) = Some vi1.vname)
   | _ -> false
 
-let proveLe (e1: exp) (e2: exp) : bool =
-  let b1, off1 = getBaseOffset e1 in
-  let b2, off2 = getBaseOffset e2 in
-  (compareExp b1 b2 && off1 <= off2) ||
-  (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
+let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
+  let b1, off1, t1 = getBaseOffset e1 in
+  let b2, off2, t2 = getBaseOffset e2 in
+  if compareExp (stripCasts b1) (stripCasts b2) then begin
+    let typeSize t =
+      match isInteger (constFold true (SizeOf t)) with
+      | Some n -> Some (Int64.to_int n)
+      | None -> None
+    in
+    let doCompare n1 n2 =
+      if n1 > n2 then begin
+        if not allowGt then
+          error "Bounds check will always fail";
+        false
+      end else
+        true
+    in
+    match typeSize t1, typeSize t2 with
+    | Some n1, Some n2 -> doCompare (off1 * n1) (off2 * n2)
+    | _ when compareTypes t1 t2 -> doCompare off1 off2
+    | _ -> false
+  end else
+    (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
 
 let optimizeCheck (c: check) : check list =
+  let checkCoerce e1 e2 e3 e4 e5 nt =
+    if proveLe e1 e2 && proveLe e2 e3 &&
+       proveLe e3 e4 && proveLe e4 e5 ~allowGt:nt then
+      []
+    else
+      [c]
+  in
   match c with
-  | CCoerce (e1, e2, e3, e4, e5)
+  | CCoerce (e1, e2, e3, e4, e5) ->
+      checkCoerce e1 e2 e3 e4 e5 false
   | CCoerceN (e1, e2, e3, e4, e5) ->
-      if proveLe e1 e2 && proveLe e2 e3 &&
-         proveLe e3 e4 && proveLe e4 e5 then
-        []
-      else
-        [c]
+      checkCoerce e1 e2 e3 e4 e5 true
   | CBounds (e1, e2, e3, e4) ->
       let e = BinOp (PlusPI, e2, e3, typeOf e2) in
       if proveLe e1 e && proveLe e e4 then
