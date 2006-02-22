@@ -1113,8 +1113,12 @@ parameter_decl: /* (* ISO 6.7.5 *) */
 /* (* Old style prototypes. Like a declarator *) */
 old_proto_decl:
   pointer_opt direct_old_proto_decl   { let (n, decl, a) = $2 in
-					  (n, applyPointer (fst $1) decl, a, snd $1) }
+					  (n, applyPointer (fst $1) decl, 
+                                           a, snd $1) 
+                                      }
+
 ;
+
 direct_old_proto_decl:
   direct_decl LPAREN old_parameter_list_ne RPAREN old_pardef_list
                                    { let par_decl, isva = doOldParDecl $3 $5 in
@@ -1125,6 +1129,15 @@ direct_old_proto_decl:
                                    { let n, decl = $1 in
                                      (n, PROTO(decl, [], false), [])
                                    }
+
+/* (* appears sometimesm but generates a shift-reduce conflict. *)
+| LPAREN STAR direct_decl LPAREN old_parameter_list_ne RPAREN RPAREN LPAREN RPAREN old_pardef_list
+                                   { let par_decl, isva 
+                                             = doOldParDecl $5 $10 in
+                                     let n, decl = $3 in
+                                     (n, PROTO(decl, par_decl, isva), [])
+                                   }
+*/
 ;
 
 old_parameter_list_ne:

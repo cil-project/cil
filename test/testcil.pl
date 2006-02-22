@@ -282,6 +282,9 @@ $TEST->add3Tests("testrun/func6");
 $TEST->addTests("testrun/func7", "", ['inferbox']);
 $TEST->addTests("testrun/func8", "", ['inferbox']);
 $TEST->add2Tests("testrun/func9");
+$TEST->addTests("test/func10", "", ['cil']);
+$TEST->addBadComment("test/func10-cil", 
+                     "Cil bug: Cannot parse some strange K&R function definition");
 $TEST->add3Tests("test/globals");
 $TEST->addTests("test/globals2", "", ['cil']);
 $TEST->addBadComment("test/globals2-cil", "CIL bug: we print array size expressions that refer to variables that haven't been defined yet.");
