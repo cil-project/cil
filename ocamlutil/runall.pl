@@ -293,7 +293,7 @@ sub runOneTest {
 
     $countTests ++;
 
-    print "\n********* Running test $t from line $ti->{LINE}\n";
+    print "\n********* $base: Running test $t from line $ti->{LINE}\n";
     if($debug) {
         print "Test $t:\n\tSUCCESS => $ti->{SUCCESS}\n\tLINE => $ti->{LINE}\n\tMSG => $ti->{MSG},\n\tMSGPATTERN => $ti->{MSGPATTERN}\n";
     }
