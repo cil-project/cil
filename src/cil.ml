@@ -3906,12 +3906,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | AAlignOf t -> text "__alignof__(" ++ self#pType None () t ++ text ")"
     | AAlignOfS ts -> text "__alignof__(<typsig>)"
     | AUnOp(u,a1) -> 
-        let d_unop () u =
-          match u with
-            Neg -> text "-"
-          | BNot -> text "~"
-          | LNot -> text "!"
-        in
         (d_unop () u) ++ text " (" ++ (self#pAttrParam () a1) ++ text ")"
 
     | ABinOp(b,a1,a2) -> 
@@ -4170,17 +4164,21 @@ class plainCilPrinterClass =
   | CastE(t,e) -> dprintf "CastE(@[%a,@?%a@])" self#pOnlyType t self#pExp e
 
   | UnOp(u,e1,_) -> 
-      let d_unop () u =
-        match u with
-          Neg -> text "-"
-        | BNot -> text "~"
-        | LNot -> text "!"
-      in
       dprintf "UnOp(@[%a,@?%a@])"
         d_unop u self#pExp e1
           
   | BinOp(b,e1,e2,_) -> 
-      dprintf "%a(@[%a,@?%a@])" d_binop b
+      let d_plainbinop () b =
+        match b with
+          PlusA -> text "PlusA"
+        | PlusPI -> text "PlusPI"
+        | IndexPI -> text "IndexPI"
+        | MinusA -> text "MinusA"
+        | MinusPP -> text "MinusPP"
+        | MinusPI -> text "MinusPI"
+        | _ -> d_binop () b
+      in
+      dprintf "%a(@[%a,@?%a@])" d_plainbinop b
         self#pExp e1 self#pExp e2
 
   | SizeOf (t) -> 

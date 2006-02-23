@@ -6,6 +6,12 @@ type 't action =
   | Post of ('t -> 't) (* The default action, followed by the given 
                         * transformer *)
 
+(* For if statements *)
+type 't guardaction = 
+    GDefault      (* The default state *) 
+  | GUse of 't    (* Use this data for the branch *)
+  | GUnreachable  (* The branch will never be taken. *)
+
 
 (******************************************************************
  **********
@@ -53,6 +59,15 @@ module type ForwardsTransfer = sig
    * is set before calling this. The default action is to continue with the 
    * successors of this block, but only for the ... statements. For other 
    * kinds of branches you must handle it, and return {!Jvmflow.Done}. *)
+
+  val doGuard: Cil.exp -> t -> t guardaction
+  (** Generate the successor to an If statement assuming the given expression
+    * is nonzero.  Analyses that don't need guard information can return 
+    * GDefault; this is equivalent to returning GUse of the input.
+    * A return value of GUnreachable indicates that this half of the branch
+    * will not be taken and should not be explored.  This will be called
+    * twice per If, once for "then" and once for "else".  
+    *)
 
   val filterStmt: Cil.stmt -> bool
   (** Whether to put this statement in the worklist. This is called when a 

@@ -74,7 +74,6 @@ module E=Errormsg
    - length(nodeList) = numNodes
 *)
 
-let sCount = ref 0   (* to generate consecutive sid's *)
 let numNodes = ref 0 (* number of nodes in the CFG *)
 let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: Added to change dfs from quadratic to linear *)
 let start_id = ref 0 (* for unique ids across many functions *)

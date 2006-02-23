@@ -250,6 +250,8 @@ module ReachingDef =
       if !debug then ignore(E.log "RD: looking at %a\n" d_stmt stm);
       DF.Default
 
+    let doGuard condition _ = DF.GDefault
+
     let filterStmt stm = true
 
 end

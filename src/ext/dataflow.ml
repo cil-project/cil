@@ -13,6 +13,11 @@ type 't action =
   | Post of ('t -> 't) (* The default action, followed by the given 
                         * transformer *)
 
+(* For if statements *)
+type 't guardaction = 
+    GDefault      (* The default state *)
+  | GUse of 't    (* Use this data for the branch *)
+  | GUnreachable  (* The branch will never be taken. *)
 
 (******************************************************************
  **********
@@ -60,6 +65,15 @@ module type ForwardsTransfer = sig
    * is set before calling this. The default action is to continue with the 
    * successors of this block, but only for the ... statements. For other 
    * kinds of branches you must handle it, and return {!Jvmflow.Done}. *)
+
+  val doGuard: Cil.exp -> t -> t guardaction
+  (** Generate the successor to an If statement assuming the given expression
+    * is nonzero.  Analyses that don't need guard information can return 
+    * GDefault; this is equivalent to returning GUse of the input.
+    * A return value of GUnreachable indicates that this half of the branch
+    * will not be taken and should not be explored.  This will be called
+    * twice per If, once for "then" and once for "else".  
+    *)
 
   val filterStmt: Cil.stmt -> bool
   (** Whether to put this statement in the worklist. This is called when a 
@@ -117,6 +131,41 @@ module ForwardsDataFlow =
                             worklist) then 
             Queue.add s worklist
 
+
+    (** Get the two successors of an If statement *)
+    let ifSuccs (s:stmt) : stmt * stmt = 
+      let fstStmt blk = match blk.bstmts with
+          [] -> Cil.dummyStmt
+        | fst::_ -> fst
+      in
+      match s.skind with
+        If(e, b1, b2, _) ->
+          let thenSucc = fstStmt b1 in
+          let elseSucc = fstStmt b2 in
+          let oneFallthrough () = 
+            let fallthrough = 
+              List.filter 
+                (fun s' -> thenSucc != s' && elseSucc != s')
+                s.succs
+            in
+            match fallthrough with
+              [] -> E.s (bug "Bad CFG: missing fallthrough for If.")
+            | [s'] -> s'
+            | _ ->  E.s (bug "Bad CFG: multiple fallthrough for If.")
+          in
+          (* If thenSucc or elseSucc is Cil.dummyStmt, it's an empty block.
+             So the successor is the statement after the if *)
+          let stmtOrFallthrough s' =
+            if s' == Cil.dummyStmt then
+              oneFallthrough ()
+            else 
+              s'
+          in
+          (stmtOrFallthrough thenSucc,
+           stmtOrFallthrough elseSucc)
+            
+      | _-> E.s (bug "ifSuccs on a non-If Statement.")
+
     (** Process a statement *)
     let processStmt (s: stmt) : unit = 
       if !T.debug then 
@@ -161,9 +210,37 @@ module ForwardsDataFlow =
           in
           currentLoc := get_stmtLoc s.skind;
                 
-          (* Reach the successors *)
-          List.iter (fun s' -> reachedStatement s' after) s.succs;
+          (* Handle If guards *)
+          let succsToReach = match s.skind with
+              If (e, _, _, _) -> begin
+                let not_e = UnOp(LNot, e, intType) in
+                let thenGuard = T.doGuard e after in
+                let elseGuard = T.doGuard not_e after in
+                if thenGuard = GDefault && elseGuard = GDefault then
+                  (* this is the common case *)
+                  s.succs
+                else begin
+                  let doBranch succ guard =
+                    match guard with
+                      GDefault -> reachedStatement succ after
+                    | GUse d ->  reachedStatement succ d
+                    | GUnreachable -> 
+                        if !T.debug then 
+                          ignore (E.log "FF(%s): Not exploring branch to %d\n" 
+                                    T.name succ.sid);
 
+                        ()
+                  in
+                  let thenSucc, elseSucc = ifSuccs s  in
+                  doBranch thenSucc thenGuard;
+                  doBranch elseSucc elseGuard;
+                  []
+                end
+              end
+            | _ -> s.succs
+          in
+          (* Reach the successors *)
+          List.iter (fun s' -> reachedStatement s' after) succsToReach;
 
           match act with 
             Post f -> f ()

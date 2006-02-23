@@ -40,11 +40,59 @@ module GA = GrowArray
 module IH = Inthash
 module RD = Reachingdefs
 module RCT = Rmciltmps
+module DF = Dataflow
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
-let doOpt : bool ref = ref false
+let optLevel : int ref = ref 1
+(** 0: no optimization
+    1: flow-insensitive optimization
+    2: all optimization *)
 let inferFile : string ref = ref ""
+
+(**************************************************************************)
+
+let d_thisloc () : doc = d_loc () !currentLoc
+
+let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =  
+    E.hadErrors := true;
+    ignore (eprintf "%t: Bug: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let error (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    E.hadErrors := true;
+    ignore (eprintf "%t: Error: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let unimp (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    E.hadErrors := true;
+    ignore (eprintf "%t: Unimplemented: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let warn (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    ignore (eprintf "%t: Warning: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let log (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    ignore (eprintf "%t: %a@!" d_thisloc insert d);
+    flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+(**************************************************************************)
 
 let curFunc : fundec ref = ref dummyFunDec
 let curStmt : int ref = ref (-1)
@@ -56,8 +104,9 @@ let exemptLocalVars : varinfo list ref = ref []
 (* Assign to each statement a unique ID. *)
 let nextStmtId : int ref = ref 0
 let assignID (s:stmt) : unit =
-  if !doOpt then s.sid <- -1 else (* zra *)
-  assert (s.sid = -1); (* Make sure that no one else has assigned ID numbers *)
+ (* Make sure that no one else has assigned ID numbers *)
+  if !optLevel < 2 && s.sid <> -1 then
+    E.s (bug "Stmt already has an sid: %a\n" d_stmt s);
   s.sid <- !nextStmtId;
   incr nextStmtId;
   ()
@@ -136,47 +185,37 @@ let rec typeContainsPointers (t: typ) : bool =
      List.exists typeContainsPointers
       (List.map (fun fld -> fld.ftype) ci.cfields)
 
-(**************************************************************************)
+let rec compareExp (e1: exp) (e2: exp) : bool =
+  e1 == e2 ||
+  match e1, e2 with
+  | Lval lv1, Lval lv2
+  | StartOf lv1, StartOf lv2
+  | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
+  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) -> 
+      bop1 = bop2 && compareExp l1 l2 && compareExp r1 r2
+  | _ -> begin
+      match isInteger (constFold true e1), isInteger (constFold true e2) with
+        Some i1, Some i2 -> i1 = i2
+      | _ -> false
+    end
 
-let d_thisloc () : doc = d_loc () !currentLoc
-
-let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d =  
-    E.hadErrors := true;
-    ignore (eprintf "%t: Bug: %a@!" d_thisloc insert d);
-    flush !E.logChannel
+and compareLval (lv1: lval) (lv2: lval) : bool =
+  let rec compareOffset (off1: offset) (off2: offset) : bool =
+    match off1, off2 with
+    | Field (fld1, off1'), Field (fld2, off2') ->
+        fld1 == fld2 && compareOffset off1' off2'
+    | Index (e1, off1'), Index (e2, off2') ->
+        compareExp e1 e2 && compareOffset off1' off2'
+    | NoOffset, NoOffset -> true
+    | _ -> false
   in
-  Pretty.gprintf f fmt
-
-let error (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d =
-    E.hadErrors := true;
-    ignore (eprintf "%t: Error: %a@!" d_thisloc insert d);
-    flush !E.logChannel
-  in
-  Pretty.gprintf f fmt
-
-let unimp (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d =
-    E.hadErrors := true;
-    ignore (eprintf "%t: Unimplemented: %a@!" d_thisloc insert d);
-    flush !E.logChannel
-  in
-  Pretty.gprintf f fmt
-
-let warn (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d =
-    ignore (eprintf "%t: Warning: %a@!" d_thisloc insert d);
-    flush !E.logChannel
-  in
-  Pretty.gprintf f fmt
-
-let log (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d =
-    ignore (eprintf "%t: %a@!" d_thisloc insert d);
-    flush !E.logChannel
-  in
-  Pretty.gprintf f fmt
+  lv1 == lv2 ||
+  match lv1, lv2 with
+  | (Var vi1, off1), (Var vi2, off2) ->
+      vi1 == vi2 && compareOffset off1 off2
+  | (Mem e1, off1), (Mem e2, off2) ->
+      compareExp e1 e2 && compareOffset off1 off2
+  | _ -> false
 
 (**************************************************************************)
 
@@ -188,18 +227,20 @@ type check =
   | CMult of exp * exp   (** e1 * k == e2 for some int k *)
   | COverflow of exp * exp
                          (** e1 + e2 does not overflow (e2 is signed) *)
-  | CBounds of exp * exp * exp * exp 
-                         (** e1 <= e2+e3 <= e4.  For ptr arith *)
-  | CCoerce of exp * exp * exp * exp * exp
-                         (** e3 == 0 ||
-                             e1 <= e2 <= e3 <= e4 <= e5 *)
+  | CUnsignedLess of exp * exp * string
+                         (** e1 < e2, unsigned.
+                           * Also remember why this check was added. *)
+  | CUnsignedLE of exp * exp * string
+                         (** e1 <= e2, unsigned.
+                           * Also remember why this check was added. *)
+  | CNullOrLE of exp * exp * exp * string
+                         (** e3 == 0 || e2 <= e3.
+                           * Also remember why this check was added. *)
   | CCoerceN of exp * exp * exp * exp * exp
                          (** e3 == 0 ||
                              e1 <= e2 <= e3 <= e4 <= (e5 + strlen(e5)) *)
   | CNTWrite of exp * exp * exp
                          (** (e1 == e2) ==> (e3 = 0)   *)
-  | CUnsignedLess of exp * exp
-                         (** e1 < e2, unsigned *)
   | CNullUnion of lval   (** e = \vec{0} *)
   (* These two are redundant with CNonNull and CEq, but having separate
      checks for unions gives better error messages: *)
@@ -257,11 +298,11 @@ let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
 let cmult = mkCheckFun "CMult" 2
 let coverflow = mkCheckFun "COverflow" 3
-let cbounds = mkCheckFun "CBounds" 3
-let ccoerce = mkCheckFun "CCoerce" 5
+let cunsignedless = mkCheckFun "CUnsignedLess" 3
+let cunsignedle = mkCheckFun "CUnsignedLE" 3
+let cnullorle = mkCheckFun "CNullOrLE" 4
 let ccoercen = mkCheckFun "CCoerceN" 5
 let cntwrite = mkCheckFun "CNTWrite" 5
-let cunsignedless = mkCheckFun "CUnsignedLess" 2
 let cnullunion = mkCheckFun "CNullUnion" 2
 let cselected = mkCheckFun "CSelected" 1
 let cnotselected = mkCheckFun "CNotSelected" 1
@@ -280,17 +321,49 @@ let checkToInstr (c:check) =
   | CPositive (e) -> call cpositive [e]
   | CMult (e1,e2) -> call cmult [e1;e2]
   | COverflow (e1,e2) -> call coverflow [e1;e2]
-  | CBounds (b,p,off,e) -> let p' = BinOp(PlusPI, p, off, typeOf p) in
-                           call cbounds [b;p';e]
-  | CCoerce (e1,e2,e3,e4,e5) -> call ccoerce [e1;e2;e3;e4;e5]
+  | CUnsignedLess (e1,e2,why) -> call cunsignedless [e1;e2; mkString why]
+  | CUnsignedLE (e1,e2,why) -> call cunsignedle [e1;e2; mkString why]
+  | CNullOrLE (e1,e2,e3,why) -> call cnullorle [e1;e2;e3; mkString why]
   | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
   | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
-  | CUnsignedLess (e1,e2) -> call cunsignedless [e1;e2]
   | CNullUnion (lv) -> 
       let sz = sizeOf (typeOfLval lv) in
       call cnullunion [mkAddrOf lv; sz]
   | CSelected (e) -> call cselected [e]
   | CNotSelected (e) -> call cnotselected [e]
+
+let addBoundsCheck lo e hi: unit =
+  let why = "Bounds" in
+  addCheck (CUnsignedLE(lo, e, why));
+  addCheck (CUnsignedLE(e, hi, why));
+  ()
+
+(* Checks that ptr != 0,
+   lo <= (ptr+off) <= hi,
+   and ptr+off does not overflow *)
+let addArithChecks lo ptr off hi: unit =
+  addCheck (CNonNull ptr);
+  addCheck (COverflow (ptr, off));
+  let e = BinOp (PlusPI, ptr, off, typeOf ptr) in
+  addBoundsCheck lo e hi
+
+
+let addCoercionCheck lo_from lo_to e hi_to hi_from =
+  (* If the lower bound has changed, do an lbound check. 
+   * (we already know that lo_from <= e, so if lo_from=lo_to,
+   *  we don't have to check that lo_to <= e)
+  *)
+  let why = "Coerce" in
+  if !optLevel = 0 || not (compareExp lo_from lo_to) then begin
+    addCheck (CNullOrLE(e, lo_from, lo_to, why));
+    addCheck (CNullOrLE(e, lo_to, e, why));
+  end;
+  if !optLevel = 0 || not (compareExp hi_from hi_to) then begin
+    addCheck (CNullOrLE(e, e, hi_to, why));
+    addCheck (CNullOrLE(e, hi_to, hi_from, why));
+  end;
+  ()
+
 
 (**************************************************************************)
 
@@ -773,6 +846,10 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         let lo2, hi2 = fancyBoundsOfAttrs a2 in
         (* Checking CIL expressions for equality statically is tricky.
            Do it dynamically: *)
+        (* FIXME: this may be broken when used for calls, because the return
+           value isn't known yet.  
+           Or maybe this is okay if all we need to check is the relative
+           locations of the bounds?    -- Matt *)
         addCheck (CEq(lo1,lo2));
         addCheck (CEq(hi1,hi2))
     | TInt _, TInt _ when (bitsSizeOf t1) = (bitsSizeOf t2) ->
@@ -867,7 +944,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
       end
       else
-        addCheck (CCoerce(lo_from, lo_to, e, hi_to, hi_from));
+        addCoercionCheck lo_from lo_to e hi_to hi_from;
       ()
   | TPtr (bt1, _), TPtr (bt2, _) when not (typeContainsPointers bt1) &&
                                       not (typeContainsPointers bt2) ->
@@ -881,7 +958,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       in
       addCheck (CMult (SizeOf bt1, getDiff e lo_to));
       addCheck (CMult (SizeOf bt1, getDiff hi_to e));
-      addCheck (CCoerce (lo_from, lo_to, e, hi_to, hi_from))
+      addCoercionCheck lo_from lo_to e hi_to hi_from
   | (TEnum _ | TPtr _), TInt _ ->
       (* Coerce pointer/enum to integer. *)
       ()
@@ -946,9 +1023,7 @@ and checkExp (e : exp) : typ =
           | PlusPI | IndexPI -> e2
           | _ -> E.s (bug "Unexpected operation")
         in
-        addCheck (CNonNull e1);
-        addCheck (COverflow (e1, e2'));
-        addCheck (CBounds (lo, e1, e2', hi))
+        addArithChecks lo e1 e2' hi
       end;
       t1
   | BinOp (MinusPP, e1, e2, t) ->
@@ -1088,7 +1163,7 @@ and checkLval (why: whyLval) (lv: lval) : typ =
       begin
         match checkRest () with 
         | TArray (bt, Some len, a) ->
-            addCheck (CUnsignedLess (index, len));
+            addCheck (CUnsignedLess (index, len, "Array access"));
             if hasAttribute "nullterm" a then begin
               match why with
               | ForWrite what ->
@@ -1228,9 +1303,7 @@ let checkMemset (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       in
       let lo, hi = fancyBoundsOfType e1Type in
       let e1' = CastE (charPtrType, e1) in
-      addCheck (CNonNull e1);
-      addCheck (COverflow (e1', e3));
-      addCheck (CBounds (lo, e1', e3, hi));
+      addArithChecks lo e1' e3 hi;
       if typeContainsPointers e1BaseType then begin
         addCheck (CEq (e2, zero));
         addCheck (CMult (SizeOf e1BaseType, e3))
@@ -1259,14 +1332,10 @@ let checkMemcpy (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       in
       let lo1, hi1 = fancyBoundsOfType e1Type in
       let e1' = CastE (charPtrType, e1) in
-      addCheck (CNonNull e1);
-      addCheck (COverflow (e1', e3));
-      addCheck (CBounds (lo1, e1', e3, hi1));
+      addArithChecks lo1 e1' e3 hi1;
       let lo2, hi2 = fancyBoundsOfType e2Type in
       let e2' = CastE (charPtrType, e2) in
-      addCheck (CNonNull e2);
-      addCheck (COverflow (e2', e3));
-      addCheck (CBounds (lo2, e2', e3, hi2));
+      addArithChecks lo2 e2' e3 hi2;
       if typeContainsPointers e1BaseType then begin
         checkSameType e1BaseType e2BaseType;
         addCheck (CMult (SizeOf e1BaseType, e3))
@@ -1285,14 +1354,10 @@ let checkMemcmp (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       let e2Type = checkExp e2 in
       let lo1, hi1 = fancyBoundsOfType e1Type in
       let e1' = CastE (charPtrType, e1) in
-      addCheck (CNonNull e1);
-      addCheck (COverflow (e1', e3));
-      addCheck (CBounds (lo1, e1', e3, hi1));
+      addArithChecks lo1 e1' e3 hi1;
       let lo2, hi2 = fancyBoundsOfType e2Type in
       let e2' = CastE (charPtrType, e2) in
-      addCheck (CNonNull e2);
-      addCheck (COverflow (e2', e3));
-      addCheck (CBounds (lo2, e2', e3, hi2));
+      addArithChecks lo2 e2' e3 hi2;
       checkCall lvo fnType [e1; e2; e3] [1; 2]
   | _ -> E.s (error "Expected three args to memcmp")
 
@@ -1460,7 +1525,7 @@ let checkFundec (fd : fundec) (loc:location) : unit =
     (fd.slocals @ fd.sformals);
   (* fix block, see if cfg should be used, check block *)
   fixBlock fd.sbody;
-  if !doOpt then makeCFG fd;
+  if !optLevel >= 2 then makeCFG fd;
   checkBlock fd.sbody;
   curFunc := dummyFunDec;
   curStmt := -1;
@@ -1488,9 +1553,10 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   let init' = mkStmt(Instr init) in
   assignID init';
   (* zra - need CFG info for stmts added after makeCFG *)
-  if !doOpt then (init'.sid <- !Cfg.start_id + 1; incr Cfg.start_id);
-  if !doOpt then init'.succs <- [List.hd fd.sbody.bstmts];
-  (* zra *)
+  if !optLevel >= 2 then begin
+    (init'.sid <- !Cfg.start_id + 1; incr Cfg.start_id);
+    init'.succs <- [List.hd fd.sbody.bstmts];
+  end;
   fd.sbody.bstmts <- init'::fd.sbody.bstmts;
   ()
 
@@ -1556,6 +1622,10 @@ let inferVisitor = object (self)
                   mkStmt (Block zeroBlock)
                 else
                   mkStmt (If (e, nonZeroBlock, zeroBlock, l))
+(*                   mkStmt (Instr [Set (var vi, zero, l); *)
+(*                                  Set (var baseVar, lo, l); *)
+(*                                  Set (var endVar, hi, l); *)
+(*                                  instr]) *)
             | _ ->
                 s
           end
@@ -1739,57 +1809,42 @@ end
 
 (**************************************************************************)
 
-let rec getBaseOffset (e: exp) : exp * int * typ =
+(* Returns the size of a pointer's base type in bytes, if known *)
+let sizeOfBaseType ptrt: int option =
+  match unrollType ptrt with
+  | TPtr (bt, _) -> begin
+      match isInteger (constFold true (SizeOf bt)) with
+      | Some n -> Some (Int64.to_int n)
+      | None -> None
+    end
+  | _ -> (* maybe the expression is NULL *)
+      None
+
+
+(* Do we need an alignment check for p + x?  Well, that depends on the size of
+ *  *p.  If the size is a power of two, p + x will be aligned even if it
+ *  overflows, so we can skip the check. *)
+let needsAlignCheck ptrt: bool =
+  match sizeOfBaseType ptrt with (* Look for common multiples of 2 *)
+    Some (1|2|4|8|16|32|64|128|256|512|1024|2048|4096) -> false
+  | _ -> true
+
+let rec getBaseOffset (e: exp) : exp * int =
   match e with
   | BinOp ((PlusPI | IndexPI | MinusPI) as op, e', off, t) ->
       let intFold e = isInteger (constFold true e) in
-      let bt =
-        match unrollType (typeOf e') with
-        | TPtr (bt, _) -> bt
-        | t -> E.s (bug "Expected pointer type, got %a" d_type t)
-      in
       begin
         match getBaseOffset e', intFold off, op with
-        | (b, n1, _), Some n2, (PlusPI | IndexPI) ->
-            b, n1 + (Int64.to_int n2), bt
-        | (b, n1, _), Some n2, MinusPI ->
-            b, n1 - (Int64.to_int n2), bt
+        | (b, n1), Some n2, (PlusPI | IndexPI) ->
+            b, n1 + (Int64.to_int n2)
+        | (b, n1), Some n2, MinusPI ->
+            b, n1 - (Int64.to_int n2)
         | _, _, _ ->
-            e, 0, bt
+            e, 0
       end
   | _ ->
-      let bt =
-        match unrollType (typeOf e) with
-        | TPtr (bt, _) -> bt
-        | t -> charType
-      in
-      e, 0, bt
+      e, 0
 
-let rec compareExp (e1: exp) (e2: exp) : bool =
-  e1 == e2 ||
-  match e1, e2 with
-  | Lval lv1, Lval lv2
-  | StartOf lv1, StartOf lv2
-  | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
-  | _ -> false
-
-and compareLval (lv1: lval) (lv2: lval) : bool =
-  let rec compareOffset (off1: offset) (off2: offset) : bool =
-    match off1, off2 with
-    | Field (fld1, off1'), Field (fld2, off2') ->
-        fld1 == fld2 && compareOffset off1' off2'
-    | Index (e1, off1'), Index (e2, off2') ->
-        compareExp e1 e2 && compareOffset off1' off2'
-    | NoOffset, NoOffset -> true
-    | _ -> false
-  in
-  lv1 == lv2 ||
-  match lv1, lv2 with
-  | (Var vi1, off1), (Var vi2, off2) ->
-      vi1 == vi2 && compareOffset off1 off2
-  | (Mem e1, off1), (Mem e2, off2) ->
-      compareExp e1 e2 && compareOffset off1 off2
-  | _ -> false
 
 let proveLeWithBounds (e1: exp) (e2: exp) : bool =
   let getVarBounds (vi: varinfo) : string option * string option =
@@ -1809,28 +1864,31 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
   | _ -> false
 
 let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
-  let b1, off1, t1 = getBaseOffset e1 in
-  let b2, off2, t2 = getBaseOffset e2 in
+  let b1, off1 = getBaseOffset e1 in
+  let b2, off2 = getBaseOffset e2 in
+(*   log "   %a = (%a) + %d.\n" d_exp e1 d_plainexp b1 off1; *)
+(*   log "   %a = (%a) + %d.\n" d_exp e2 d_plainexp b2 off2; *)
   if compareExp (stripCasts b1) (stripCasts b2) then begin
-    let typeSize t =
-      match isInteger (constFold true (SizeOf t)) with
-      | Some n -> Some (Int64.to_int n)
-      | None -> None
-    in
     let doCompare n1 n2 =
       if n1 > n2 then begin
         if not allowGt then
-          error "Bounds check will always fail";
+          error "Bounds check (%a <= %a) will always fail" d_exp e1 d_exp e2;
         false
       end else
         true
     in
-    match typeSize t1, typeSize t2 with
+    let t1 = typeOf b1 in
+    let t2 = typeOf b2 in
+    match sizeOfBaseType t1, sizeOfBaseType t2 with
     | Some n1, Some n2 -> doCompare (off1 * n1) (off2 * n2)
     | _ when compareTypes t1 t2 -> doCompare off1 off2
     | _ -> false
   end else
     (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
+(*    (\* matth:  a hack that assumes the top page of memory is unmapped.   *)
+(*       Therefore, if e1 is in bounds, we can assume e1 <= e1+off when *)
+(*       off<4096.  *\) *)
+(*    off2 >= 0 && off2 < (4096/(sizeOfBaseType (typeOf b2)))) *)
 
 let optimizeCheck (c: check) : check list =
   let checkCoerce e1 e2 e3 e4 e5 nt =
@@ -1841,16 +1899,35 @@ let optimizeCheck (c: check) : check list =
       [c]
   in
   match c with
-  | CCoerce (e1, e2, e3, e4, e5) ->
-      checkCoerce e1 e2 e3 e4 e5 false
   | CCoerceN (e1, e2, e3, e4, e5) ->
+      (* FIXME: turn this into CNullOrLE checks*)
       checkCoerce e1 e2 e3 e4 e5 true
-  | CBounds (e1, e2, e3, e4) ->
-      let e = BinOp (PlusPI, e2, e3, typeOf e2) in
-      if proveLe e1 e && proveLe e e4 then
+  | CNullOrLE (e, e1, e2, _) ->
+      (* If e1 is statically larger than e2, this test could still pass
+         if e == 0.  But Report an error, since it's probably a coding
+         bug anyways. *)
+      if proveLe e1 e2 then
         []
       else
         [c]
+  | CUnsignedLE (e1, e2, _) ->
+      if proveLe e1 e2 then
+        []
+      else
+        [c]
+  | CNotEq(e1, e2) ->
+      let b1, off1 = getBaseOffset e1 in
+      let b2, off2 = getBaseOffset e2 in
+      if compareExp b1 b2 && off1 <> off2 then []
+      else [c]
+(* FIXME: do COverflow checks *)
+  | CEq(e1, e2) -> 
+      if compareExp e1 e2 then []
+      else begin
+        warn "CEq: Couldn't prove %a  ==  %a. Inserting a runtime check.\n"
+          d_plainexp e1 d_plainexp e2;
+        [c]
+      end
   | _ -> [c]
 
 let optimizeVisitor = object (self)
@@ -1897,19 +1974,19 @@ let map_to_check f c =
 	let e1' = f e1 in
 	let e2' = f e2 in
 	COverflow(e1',e2')
-    | CBounds(e1,e2,e3,e4) ->
+    | CUnsignedLess(e1,e2,why) ->
+	let e1' = f e1 in
+	let e2' = f e2 in
+	CUnsignedLess(e1',e2',why)
+    | CUnsignedLE(e1,e2,why) ->
+	let e1' = f e1 in
+	let e2' = f e2 in
+	CUnsignedLE(e1',e2',why)
+    | CNullOrLE(e1,e2,e3,why) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
 	let e3' = f e3 in
-	let e4' = f e4 in
-	CBounds(e1',e2',e3',e4')
-    | CCoerce(e1,e2,e3,e4,e5) ->
-	let e1' = f e1 in
-	let e2' = f e2 in
-	let e3' = f e3 in
-	let e4' = f e4 in
-	let e5' = f e5 in
-	CCoerce(e1',e2',e3',e4',e5')
+	CNullOrLE(e1',e2',e3',why)
     | CCoerceN(e1,e2,e3,e4,e5) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
@@ -1922,14 +1999,13 @@ let map_to_check f c =
 	let e2' = f e2 in
 	let e3' = f e3 in
 	CNTWrite(e1',e2',e3')
-    | CUnsignedLess(e1,e2) ->
-	let e1' = f e1 in
-	let e2' = f e2 in
-      CUnsignedLess(e1',e2')
     | CSelected e ->
 	let e' = f e in
 	CSelected e'
-    | _ -> c
+    | CNotSelected e ->
+	let e' = f e in
+	CNotSelected e'
+    | CNullUnion _ -> c
 
 (* Applies action to all expressions in a function.
  * action takes reaching definition data, an expression
@@ -1977,13 +2053,188 @@ end
  * by an accurate constant propagation.
  *
  * Run after optimizeVisitor.
- * Only run if !doOpt is true *)
+ * Only run if optLevel = 2 *)
 let forwardTmpSub = checkVisit RCT.fwd_subst
 
 
 (* Constant propagation into checks *)
 let constProp = checkVisit RCT.const_prop
 
+(**************************************************************************)
+(**************************************************************************)
+(* new, flow-sensitive optimizer *)
+
+type absState = {
+  nonNullVars: varinfo list;
+}
+let top = { nonNullVars = []; }
+let d_state () a: doc =
+  dprintf "Nonnull vars:@[%a@]"
+    (docList (fun vi -> text vi.vname)) a.nonNullVars
+
+let addNonNull (a:absState) (vi: varinfo) : absState = 
+  if List.memq vi a.nonNullVars then a
+  else begin
+(*     log "%s is nonnull.\n" vi.vname; *)
+    { nonNullVars = vi::a.nonNullVars }
+  end
+
+let scrambleVar (a:absState) (v: varinfo) : absState =
+  let a =
+    if List.memq v a.nonNullVars then
+      {(*  a with  *)nonNullVars = List.filter ((!=) v) a.nonNullVars }
+    else
+      a
+  in
+  a  
+  
+let stateMap : absState IH.t = IH.create 50
+
+let isNonNull state e: bool = 
+(*   log "isNonNull? on %a.\n" d_plainexp e; *)
+  match stripCasts e with
+    Lval(Var vi, NoOffset) -> 
+      List.memq vi state.nonNullVars 
+  | BinOp((PlusPI|IndexPI|MinusPI), e1, e2, _) when isPointer e1 ->
+      (* We've disallowed ptr arith if e1 is null. *)
+      true
+  | AddrOf lv
+  | StartOf lv -> true
+  | _ -> false
+
+let isFalse state e =
+  match e with
+    UnOp(LNot, e', _) -> isNonNull state e'
+  | _ -> isZero e
+
+
+(* Update a state to reflect a branch *)
+let doBranch (a:absState) (e:exp) : absState = 
+(*   log "Guard %a.\n" d_exp e; *)
+  let e = match stripCasts e with
+      UnOp(LNot, UnOp(LNot, e, _), _) -> e
+    | e -> e
+  in
+  match e with
+    Lval(Var vi, NoOffset) when isPointerType vi.vtype -> 
+      addNonNull a vi
+  | _ -> 
+      a
+
+(* Update a state to reflect a check *)
+let processCheck a (c:check) : absState =
+  match c with
+    CNonNull e -> doBranch a e 
+  | _ -> a
+
+module Flow = struct
+  let name = "DeputyOpt"
+  let debug = ref false
+  type t = absState
+  let copy x = x
+  let stmtStartData = stateMap
+  let pretty = d_state
+  let computeFirstPredecessor s a = a
+  let combinePredecessors s ~(old:t) newa = 
+    let nnv = List.filter 
+                (fun vi -> List.memq vi newa.nonNullVars) 
+                old.nonNullVars
+    in
+    if List.length nnv <> List.length old.nonNullVars then
+      Some {nonNullVars = nnv}
+    else
+      None (* at fixed point *)
+
+  let doInstr i a = 
+(*     log "Visiting %a  State is %a.\n" dn_instr i d_state a; *)
+    let checks = GA.getg allChecks !curStmt in
+    let a = List.fold_left processCheck a checks in
+    let a = match i with
+        Set((Var vi, NoOffset), e, _) when isPointerType vi.vtype -> 
+          if isNonNull a e then
+            addNonNull a vi
+          else
+            scrambleVar a vi
+      | Call(Some (Var vi, NoOffset), _, _, _) when isPointerType vi.vtype ->
+          scrambleVar a vi
+      | _ -> a
+    in
+    DF.Done a
+
+  let doStmt s a = 
+    curStmt := s.sid;
+    DF.Default
+
+  let doGuard e a = 
+    if isFalse a e then DF.GUnreachable
+    else DF.GUse (doBranch a e)
+
+  let filterStmt s = true
+end
+
+module FlowEngine = DF.ForwardsDataFlow (Flow)
+
+let flowOptimizeCheck (c: check) ((inState, acc):(absState * check list))
+  : (absState * check list) =
+  let isNonNull = isNonNull inState in
+  let state = processCheck inState c in
+  match c with
+  | CNonNull (e1) when isNonNull e1 ->
+      state, acc
+  | CNullOrLE (e1, e2, e3, why) when isZero e1 ->
+      state, acc
+  | CNullOrLE (e1, e2, e3, why) when isNonNull e1 ->
+      state, CUnsignedLE(e2, e3, why)::acc
+  | _ -> state, c::acc
+
+let flowOptimizeVisitor = object (self)
+  inherit nopCilVisitor
+
+  method vstmt s =
+    let state = 
+      try IH.find stateMap s.sid 
+      with Not_found -> E.s (bug "Stmt not in stateMap.\n")
+    in
+    (*     log "Optimizing.  State is %a\n" d_state state; *)
+    let checks = GA.getg allChecks s.sid in
+    (* Process the checks.  Use fold_right to start from the end of the
+       list, because the list is in reverse order. *)
+    let _, checks' = List.fold_right flowOptimizeCheck checks (state, []) in
+    GA.set allChecks s.sid checks';
+    (* Optimize branches *)
+    begin
+      match s.skind with
+        If(e, blk1, blk2, l) when isNonNull state e -> 
+(*           s.skind <- If(Cil.one, blk1, blk2, l) *)
+          s.skind <- Block blk1
+      | If(e, blk1, blk2, l) when isFalse state e -> 
+(*           s.skind <- If(Cil.zero, blk1, blk2, l) *)
+          s.skind <- Block blk2
+      | _ -> ()
+    end;
+    DoChildren
+
+  method vfunc fd =
+    curFunc := fd;
+    let cleanup x = 
+      curFunc := dummyFunDec; 
+      x
+    in
+    ChangeDoChildrenPost (fd, cleanup)
+
+end
+
+let doFlowAnalysis (fd:fundec): unit =
+  IH.clear stateMap;
+  let fst = List.hd fd.sbody.bstmts in
+  IH.add stateMap fst.sid top;
+  FlowEngine.compute [fst];
+  ignore (visitCilFunction flowOptimizeVisitor fd);
+  IH.clear stateMap;
+  curStmt := -1; 
+  ()
+
+(**************************************************************************)
 (**************************************************************************)
 
 let postPassVisitor1 = object (self)
@@ -2026,6 +2277,7 @@ end
 (**************************************************************************)
 
 let checkFile (f: file) : unit =
+  if !verbose then E.log "Using optimization level %d.\n" !optLevel;
   List.iter
     (fun global ->
        match global with
@@ -2055,24 +2307,31 @@ let checkFile (f: file) : unit =
        | GFun (fd, loc) ->
            if not (isTrustedAttr fd.svar.vattr) then begin
              checkFundec fd loc;
-             ignore (visitCilFunction optimizeVisitor fd);
-	     if !doOpt then
+             if !optLevel = 1 then 
+               ignore (visitCilFunction optimizeVisitor fd)
+             else if !optLevel = 2 then begin
+               ignore (visitCilFunction optimizeVisitor fd);
 	       let fts = forwardTmpSub fd in
 	       let cp = constProp fd in
 	       let cf = constFoldVisitor false in
-	       (ignore(visitCilFunction (fts :> cilVisitor) fd);
-		ignore(visitCilFunction (cp :> cilVisitor) fd);
-		ignore(visitCilFunction cf fd);
-		ignore(visitCilFunction optimizeVisitor fd))
-           end
+               ignore(visitCilFunction (fts :> cilVisitor) fd);
+	       ignore(visitCilFunction (cp :> cilVisitor) fd);
+	       ignore(visitCilFunction cf fd);
+               doFlowAnalysis fd;
+	       ignore(visitCilFunction optimizeVisitor fd);
+             end
+          end
        | _ -> ())
     f.globals;
   (* Turn the check datastructure into explicit checks, so that they show up
      in the output. *)
   visitCilFileSameGlobals postPassVisitor1 f;
   visitCilFileSameGlobals postPassVisitor2 f;
-  if !doOpt then (Cfg.clearFileCFG f; Cfg.computeFileCFG f);
-  if !doOpt then Deadcodeelim.dce f;
+  if !optLevel >= 2 then begin
+    Cfg.clearFileCFG f; 
+    Cfg.computeFileCFG f;
+    Deadcodeelim.dce f;
+  end;
   f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
@@ -2084,11 +2343,14 @@ let feature : featureDescr =
     fd_description = "Typecheck and instrument the program using Deputy.";
     fd_extraopt = [
     "--deputyverbose", Arg.Set verbose,
-    "Enable verbose output for Deputy";
+         "Enable verbose output for Deputy";
     "--deputyinferout", Arg.Set_string inferFile,
-    "File in which to place Deputy inference results";
-    "--deputyopt", Arg.Set doOpt,
-    "Use CIL's cfg construction";
+          "File in which to place Deputy inference results";
+    "--deputyopt", Arg.Set_int optLevel,
+         ("Control deputy optimizations:\n\t\t" ^
+          "0: no optimization\n\t\t" ^
+          "1: flow-insensitive optimization  (Default)\n\t\t" ^
+          "2: all optimization");
     ];
     fd_doit = checkFile;
     fd_post_check = true;

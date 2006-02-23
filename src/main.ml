@@ -145,7 +145,7 @@ let rec processOneFile (cil: C.file) =
 	(C.dumpFile (!C.printerForMaincil) c.fchan c.fname) cil);
 
     if !E.hadErrors then
-      E.s (E.error "Cabs2cil has some errors");
+      E.s (E.error "Error while processing file");
 
   end with Done_Processing -> ()
         
@@ -262,6 +262,9 @@ let rec theMain () =
             end);
             merged
       in
+
+      if !E.hadErrors then
+        E.s (E.error "Cabs2cil had some errors");
 
       (* process the CIL file (merged if necessary) *)
       processOneFile one
