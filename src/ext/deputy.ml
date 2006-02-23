@@ -44,6 +44,7 @@ module DF = Dataflow
 
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
+let trustAll : bool ref = ref false
 let optLevel : int ref = ref 1
 (** 0: no optimization
     1: flow-insensitive optimization
@@ -89,6 +90,15 @@ let log (fmt : ('a,unit,doc,unit) format4) : 'a =
   let f d =
     ignore (eprintf "%t: %a@!" d_thisloc insert d);
     flush !E.logChannel
+  in
+  Pretty.gprintf f fmt
+
+let errorwarn (fmt : ('a,unit,doc,unit) format4) : 'a = 
+  let f d =
+    if !trustAll then
+      warn "%a" insert d
+    else
+      E.s (error "%a" insert d)
   in
   Pretty.gprintf f fmt
 
@@ -819,8 +829,8 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     | _ -> E.s (error "Return type of allocation is not a pointer")
   in
   if not (compareTypes baseType retBaseType) then
-    E.s (error "Type mismatch: alloc type %a and return type %a differ"
-               d_type baseType d_type retBaseType);
+    errorwarn "Type mismatch: alloc type %a and return type %a differ"
+              d_type baseType d_type retBaseType;
   match expToAttr numElts with
   | Some a -> typeAddAttributes [countAttr a]
                 (typeRemoveAttributes ["bounds"] retType)
@@ -838,7 +848,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         ()
     | TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
-          E.s (error "Base type mismatch: %a and %a" d_type t1 d_type t2);
+          errorwarn "Base type mismatch: %a and %a" d_type t1 d_type t2;
         (* Make sure the bounds are the same.
            We can use the empty context, because these should only contain 
            fancybounds *)
@@ -857,7 +867,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         ()
     | _ -> 
         if not (compareTypes t1 t2) then
-          E.s (error "Type mismatch: %a and %a" d_type t1 d_type t2)
+          errorwarn "Type mismatch: %a and %a" d_type t1 d_type t2
 
 let checkUnionWhen (ctx:context) (fld:fieldinfo) : bool =
   isTrustedComp fld.fcomp ||
@@ -903,8 +913,8 @@ let rec checkType (ctx: context) (t: typ) : bool =
               name because that's how we did it in the paper. *)
            let ctxField = addBinding ctxThis fld.fname zero in
            if not (checkType ctxField fld.ftype) then
-             E.s (E.error "%a: field %s of union %s is ill-formed\n"
-                    d_loc !currentLoc fld.fname ci.cname);
+             E.s (error "Field %s of union %s is ill-formed"
+                        fld.fname ci.cname);
            (* now check the when clause *)
            acc && (checkUnionWhen ctx fld) )
       true
@@ -935,12 +945,12 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       ()
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
-        E.s (error "Cast to NULLTERM from an ordinary pointer");
+        errorwarn "Cast to NULLTERM from an ordinary pointer";
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
       if isNullterm tfrom then begin
         if bitsSizeOf bt2 <> 8 then
-          E.s (unimp "nullterm buffer that's not a char*.\n");
+          E.s (unimp "nullterm buffer that's not a char*");
         addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
       end
       else
@@ -986,8 +996,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         end
   | _ -> 
     if not (compareTypes tfrom tto) then
-      E.s (error "Type mismatch: coercion from %a to %a"
-                 d_type tfrom d_type tto)
+      errorwarn "Type mismatch: coercion from %a to %a" d_type tfrom d_type tto
         
 type whyLval=
     ForRead          (* Reading this lval. *)
@@ -1184,7 +1193,7 @@ and checkLval (why: whyLval) (lv: lval) : typ =
 
 and checkUnionAccess (why:whyLval) (compType: typ) (fld:fieldinfo): unit =
   if (why = ForAddrOf) then
-    E.s (error "Can't take the address of a union field.");
+    E.s (error "Can't take the address of a union field");
   let wm = fancyWhenOfType compType in
   if !verbose then
     E.log "%a:  Read from %s.  Using fancywhen [%a]\n" 
@@ -2351,6 +2360,8 @@ let feature : featureDescr =
           "0: no optimization\n\t\t" ^
           "1: flow-insensitive optimization  (Default)\n\t\t" ^
           "2: all optimization");
+    "--deputytrust", Arg.Set trustAll,
+          "Trust all bad casts by default";
     ];
     fd_doit = checkFile;
     fd_post_check = true;
