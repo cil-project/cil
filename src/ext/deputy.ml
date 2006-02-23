@@ -2008,7 +2008,7 @@ let map_to_check f c =
     | CNullUnion _ -> c
 
 (* Applies action to all expressions in a function.
- * action takes reaching definition data, an expression
+ * action takes reaching definition data, an expression,
  * the fundec that the expression is in, and a boolean.
  * If the boolean is true then all variables are considered.
  * If the boolean is false then only temps are considered. *)
