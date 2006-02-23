@@ -19,3 +19,13 @@ char *deputy_strcpy(char *dest, const char *src) {
     }
     return tmp;
 }
+
+char *deputy_strncpy(char *dest, const char *src, size_t count) {
+    char *tmp = dest;
+    while (count >= 0) {
+        if ((*tmp = *src) != 0) src++;
+        tmp++;
+        count--;
+    }
+    return dest;
+}
