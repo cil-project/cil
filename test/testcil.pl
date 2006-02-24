@@ -1252,8 +1252,8 @@ altAddTest("hashtest $iters", "slow");
 altAddTest("hashtest $box $iters", "slow");
 altAddTest("hashtest $wildbox $iters", "slow");
 
-altAddTest("wes-hashtest $iters");
-altAddTest("wes-hashtest $box $iters");
+altAddTest("wes-hashtest $iters", "slow");
+altAddTest("wes-hashtest $box $iters", "slow");
 
 altAddTest("hashtest $box $iters MAXSPLIT=1", "slow");
 
@@ -1263,66 +1263,18 @@ altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 # apache modules; set is needed for next one
 $TEST->setField(altAddTest("apache!1setup"), 'Cmd', "$make apachesetup");
 $TEST->setField(altAddTest("apache!2setup"), 'Cmd', "$make apachesetup");
-altAddTest("apache/gzip");
 
 # does not work: complains of many incompatible type redefinitions
 #runTest $make apache/rewrite
 
-# The following block of tests was transferred from testsafec.pl to
-# the regrtest script, and now has been transferred back.
-# I keep it here because for each test I just run one mode
-# (whichever mode has shown itself to be possibly an issue in
-# the past, or CIL-only when I have no data), so it's faster
-# than the add3Tests above.
-altAddTest("test/list");
-altAddTest("test/alloc");
-altAddTest("test/array1");
-
-if ($egcs) {
-  # these fail because I'm using egcs instead of gcc 2.95
-  altFailTest("parse error on cil output", "test/attr");
-  altFailTest("cast specifies function type", "test/attr $wildbox");
-  altFailTest("parse error on cil output", "test/attr3");
-  altFailTest("cast specifies function type", "test/attr3 $wildbox");
-}
-else {
-  altAddTest("test/attr");
-  altAddTest("test/attr $wildbox");
-  altAddTest("test/attr3");
-  altAddTest("test/attr3 $wildbox");
-}
-
 altAddTest("test/attr4 $box");
-altAddTest("test/bitfield");
-altAddTest("test/box1");
-altAddTest("test/cast1");
-altAddTest("test/constprop");
-altAddTest("test/enum");
-altAddTest("test/format1");
-altAddTest("test/func");
-altAddTest("test/globals");
 altAddTest("test/init");
 altAddTest("test/init $box");
 altAddTest("test/initial");
 altAddTest("test/jmp_buf");
-altAddTest("test/linux_atomic");
-altAddTest("test/list");
-altAddTest("test/pointers");
-altAddTest("test/printf");
-altAddTest("test/retval");
-altAddTest("test/seq");
 altAddTest("test/sized");
-altAddTest("test/sizeof");
-altAddTest("test/smallstring");
 altAddTest("test/static");
-altAddTest("test/strcpy");
-altAddTest("test/string");
-altAddTest("test/struct_init");
-altAddTest("test/structassign");
-altAddTest("test/tags");
-altAddTest("test/task");
-altAddTest("test/voidstar");
-# end copied block of tests
+
 
 # more random stuff
 altAddTest("scott-nogcc/funcname $gcc");
@@ -1577,12 +1529,21 @@ sub addTests {
 
 sub add3Tests {
     my($self, $name, $extraargs) = @_;
-    return $self->addTests($name, $extraargs, ['cil', 'inferbox', 'box']);
+    my @tests = $self->addTests($name, $extraargs, ['cil', 'inferbox', 'box']);
+    # Run the CCured test as a quick test, and the others as slow.
+    # The CCured test should catch any CIL errors, anyways.
+    $self->addGroups($name . "-cil", "slow");
+    $self->addGroups($name . "-box", "slow");
+    return @tests;
 }
 
 sub add2Tests {
     my($self, $name, $extraargs) = @_;
-    return $self->addTests($name, $extraargs, ['cil', 'inferbox']);
+    my @tests = $self->addTests($name, $extraargs, ['cil', 'inferbox']);
+    # Run the CCured test as a quick test, and the CIL as slow.
+    # The CCured test should catch any CIL errors, anyways.
+    $self->addGroups($name . "-cil", "slow");
+    return @tests;
 }
 
 sub addTestsFail {
@@ -1662,7 +1623,3 @@ sub uniqueName {
 }
 
 1;
-
-
-# sm: tweak to test cvs commit
-# another one
