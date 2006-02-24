@@ -1379,6 +1379,110 @@ if(-d $ctorture &&
 #    }
 #}
 
+
+################   Deputy tests:
+
+sub addDeputyTest {
+    my($name, @groups) = @_;
+
+    push(@groups, "deputy");
+    $TEST->newTest(Name => "deputy/" . $name,
+                   Dir => "./deputy",
+                   Cmd => "$make runall/" . $name,
+                   Group => \@groups,
+                   Patterns => ());
+}
+
+# A test named "foo" here will be listed in the regression tester
+# as "deputy/foo", and run as "cd deputy; make runall/foo".
+
+addDeputyTest("addrof1");
+addDeputyTest("addrof2");
+addDeputyTest("addrof3");
+addDeputyTest("addrof4");
+addDeputyTest("addrof5");
+addDeputyTest("addrof6");
+addDeputyTest("addrof7");
+
+addDeputyTest("alloc1");
+addDeputyTest("alloc2");
+addDeputyTest("alloc3");
+
+addDeputyTest("array1");
+addDeputyTest("array2");
+
+addDeputyTest("call1");
+addDeputyTest("call2");
+addDeputyTest("call3");
+addDeputyTest("call4");
+addDeputyTest("call5");
+
+addDeputyTest("cast1");
+addDeputyTest("cast2");
+addDeputyTest("cast3");
+addDeputyTest("cast4");
+addDeputyTest("cast5");
+addDeputyTest("cast6");
+addDeputyTest("cast7");
+addDeputyTest("cast8");
+
+addDeputyTest("deref1");
+addDeputyTest("deref2");
+addDeputyTest("deref3");
+
+addDeputyTest("field1");
+addDeputyTest("field2");
+addDeputyTest("field3");
+addDeputyTest("field4");
+
+addDeputyTest("global1");
+addDeputyTest("global2");
+
+addDeputyTest("infer1");
+addDeputyTest("infer2");
+addDeputyTest("infer3");
+addDeputyTest("infer4");
+addDeputyTest("infer5");
+addDeputyTest("infer6");
+addDeputyTest("infer7");
+addDeputyTest("infer8");
+addDeputyTest("infer9");
+addDeputyTest("infer10");
+addDeputyTest("infer11");
+
+addDeputyTest("memcpy1");
+addDeputyTest("memset1");
+addDeputyTest("memcmp1");
+addDeputyTest("ptrarith1");
+addDeputyTest("return1");
+addDeputyTest("sizeof1");
+addDeputyTest("startof1");
+addDeputyTest("startof2");
+addDeputyTest("string1");
+addDeputyTest("string2");
+addDeputyTest("string3");
+addDeputyTest("trusted1");
+
+addDeputyTest("types1");
+addDeputyTest("types2");
+addDeputyTest("types3");
+addDeputyTest("types4");
+addDeputyTest("types5");
+addDeputyTest("types6");
+addDeputyTest("types7");
+addDeputyTest("types8");
+
+addDeputyTest("union1");
+addDeputyTest("union2");
+addDeputyTest("union3");
+
+addDeputyTest("var1");
+addDeputyTest("var2");
+addDeputyTest("var3");
+addDeputyTest("vararg1");
+
+
+
 # Now invoke it
 $TEST->doit();
 
@@ -1621,5 +1725,6 @@ sub uniqueName {
     return $name . $ct;
   }
 }
+
 
 1;
