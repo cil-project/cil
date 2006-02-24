@@ -14,16 +14,19 @@ let name = ref ""
 (* Switches *)
 let printFunctionName = ref "printf"
 
+let addProto = ref false
+
 let printf: varinfo option ref = ref None
 let makePrintfFunction () : varinfo = 
     match !printf with 
       Some v -> v
     | None -> begin 
-        let f = emptyFunction !printFunctionName in 
-        f.svar.vtype <- TFun(voidType, Some [("format", charPtrType, [])],
-                             true, []);
-        printf := Some f.svar;
-        f.svar
+        let v = makeGlobalVar !printFunctionName 
+                     (TFun(voidType, Some [("format", charPtrType, [])],
+                             true, [])) in
+        printf := Some v;
+        addProto := true;
+        v
     end
 
 let mkPrint (format: string) (args: exp list) : instr = 
@@ -42,6 +45,8 @@ let currentFunc: string ref = ref ""
 class logCallsVisitorClass = object
   inherit nopCilVisitor
 
+  (* Watch for a declaration for our printer *)
+  
   method vinst i = begin
     match i with
     | Call(lo,e,al,l) ->
@@ -108,12 +113,15 @@ end
 
 let logCallsVisitor = new logCallsVisitorClass
 
-let addProto = ref false
 
 let logCalls (f: file) : unit =
 
   let doGlobal = function
-      GFun (fdec, loc) ->
+    | GVarDecl (v, _) when v.vname = !printFunctionName -> 
+          if !printf = None then
+             printf := Some v
+
+    | GFun (fdec, loc) ->
         currentFunc := fdec.svar.vname;
         (* do the body *)
         ignore (visitCilFunction logCallsVisitor fdec);
@@ -204,6 +212,7 @@ let logCalls (f: file) : unit =
   Stats.time "logCalls" (iterGlobals f) doGlobal;
   if !addProto then begin
      let p = makePrintfFunction () in 
+     E.log "Adding prototype for call logging function %s\n" p.vname;
      f.globals <- GVarDecl (p, locUnknown) :: f.globals
   end  
 
