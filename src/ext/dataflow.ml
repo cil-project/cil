@@ -173,8 +173,9 @@ module ForwardsDataFlow =
 
     (** Process a statement *)
     let processStmt (s: stmt) : unit = 
+      currentLoc := get_stmtLoc s.skind;
       if !T.debug then 
-        ignore (E.log "FF(%s).stmt %d\n" T.name s.sid);
+        ignore (E.log "FF(%s).stmt %d at %t\n" T.name s.sid d_thisloc);
 
       (* It must be the case that the block has some data *)
       let init: T.t = 
@@ -184,7 +185,6 @@ module ForwardsDataFlow =
       in
 
       (** See what the custom says *)
-      currentLoc := get_stmtLoc s.skind;
       match T.doStmt s init with 
         SDone  -> ()
       | (SDefault | SUse _) as act -> begin

@@ -1140,55 +1140,8 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
 
 
 
-(* Represents an integer as for a given kind. 
-   Returns a flag saying whether the value was changed
-   during truncation (because it was too large to fit in k). *)
-let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
-  let nrBits, signed = 
-    match k with 
-    | IChar|ISChar -> 8, true
-    | IUChar -> 8, false
-    | IShort -> 16, true
-    | IUShort -> 16, false
-    | IInt | ILong -> 32, true
-    | IUInt | IULong -> 32, false
-    | ILongLong -> 64, true
-    | IULongLong -> 64, false
-  in
-  if nrBits = 64 then 
-    i, false
-  else begin
-    let i1 = Int64.shift_left i (64 - nrBits) in
-    let i2 = 
-      if signed then Int64.shift_right i1 (64 - nrBits) 
-      else Int64.shift_right_logical i1 (64 - nrBits)
-    in
-    let truncated =
-      if i2 = i then false
-      else
-        (* Examine the bits that we chopped off.  If they are all zero, then
-         * any difference between i2 and i is due to a simple sign-extension.
-         *   e.g. casting the constant 0x80000000 to int makes it
-         *        0xffffffff80000000.
-         * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right_logical i (64 - nrBits)
-        in chopped <> Int64.zero
-    in
-    i2, truncated
-  end
-
-(* Construct an integer constant with possible truncation *)
-let kinteger64 (k: ikind) (i: int64) : exp = 
-  let i', truncated = truncateInteger64 k i in
-  if truncated then 
-    ignore (warnOpt "Truncating integer %s to %s\n" 
-              (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
-  Const (CInt64(i', k,  None))
-
-(* Construct an integer of a given kind. *)
-let kinteger (k: ikind) (i: int) = kinteger64 k (Int64.of_int i)
-
-(* Construct an integer. Use only for values that fit on 31 bits *)
+(* Construct an integer. Use only for values that fit on 31 bits.
+   For larger values, use kinteger *)
 let integer (i: int) = Const (CInt64(Int64.of_int i, IInt, None))
             
 let zero      = integer 0
@@ -1236,111 +1189,6 @@ let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
 
 let doubleType = TFloat(FDouble, [])
-
-let parseInt (str: string) : exp = 
-  let hasSuffix str = 
-    let l = String.length str in
-    fun s -> 
-      let ls = String.length s in
-      l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
-  in
-  let l = String.length str in
-  (* See if it is octal or hex *)
-  let octalhex = (l >= 1 && String.get str 0 = '0') in 
-  (* The length of the suffix and a list of possible kinds. See ISO 
-  * 6.4.4.1 *)
-  let hasSuffix = hasSuffix str in
-  let suffixlen, kinds = 
-    if hasSuffix "ULL" || hasSuffix "LLU" then 
-      3, [IULongLong]
-    else if hasSuffix "LL" then
-      2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
-    else if hasSuffix "UL" || hasSuffix "LU" then
-      2, [IULong; IULongLong]
-    else if hasSuffix "L" then
-      1, if octalhex then [ILong; IULong; ILongLong; IULongLong] 
-      else [ILong; ILongLong]
-    else if hasSuffix "U" then
-      1, [IUInt; IULong; IULongLong]
-    else if (!msvcMode && hasSuffix "UI64") then
-      4, [IULongLong]
-    else if (!msvcMode && hasSuffix "I64") then
-      3, [ILongLong]
-    else
-      0, if octalhex || true (* !!! This is against the ISO but it 
-        * is what GCC and MSVC do !!! *)
-      then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
-      else [IInt; ILong; IUInt; ILongLong]
-  in
-  (* Convert to integer. To prevent overflow we do the arithmetic 
-  * on Int64 and we take care of overflow. We work only with 
-  * positive integers since the lexer takes care of the sign *)
-  let rec toInt (base: int64) (acc: int64) (idx: int) : int64 = 
-    let doAcc (what: int) = 
-      let acc' = 
-        Int64.add (Int64.mul base acc)  (Int64.of_int what) in
-      if acc < Int64.zero || (* We clearly overflow since base >= 2 
-      * *)
-      (acc' > Int64.zero && acc' < acc) then 
-        E.s (unimp "Cannot represent on 64 bits the integer %s\n"
-               str)
-      else
-        toInt base acc' (idx + 1)
-    in 
-    if idx >= l - suffixlen then begin
-      acc
-    end else 
-      let ch = String.get str idx in
-      if ch >= '0' && ch <= '9' then
-        doAcc (Char.code ch - Char.code '0')
-      else if  ch >= 'a' && ch <= 'f'  then
-        doAcc (10 + Char.code ch - Char.code 'a')
-      else if  ch >= 'A' && ch <= 'F'  then
-        doAcc (10 + Char.code ch - Char.code 'A')
-      else
-        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)" 
-               str ch idx)
-  in
-  try
-    let i = 
-      if octalhex then
-        if l >= 2 && 
-          (let c = String.get str 1 in c = 'x' || c = 'X') then
-          toInt (Int64.of_int 16) Int64.zero 2
-        else
-          toInt (Int64.of_int 8) Int64.zero 1
-      else
-        toInt (Int64.of_int 10) Int64.zero 0
-    in
-    (* Construct an integer of the first kinds that fits. i must be 
-    * POSITIVE  *)
-    let res = 
-      let rec loop = function
-        | ((IInt | ILong) as k) :: _ 
-                  when i < Int64.shift_left (Int64.of_int 1) 31 ->
-                    kinteger64 k i
-        | ((IUInt | IULong) as k) :: _ 
-                  when i < Int64.shift_left (Int64.of_int 1) 32
-          ->  kinteger64 k i
-        | (ILongLong as k) :: _ 
-                 when i <= Int64.sub (Int64.shift_left 
-                                              (Int64.of_int 1) 63) 
-                                          (Int64.of_int 1) 
-          -> 
-            kinteger64 k i
-        | (IULongLong as k) :: _ -> kinteger64 k i
-        | _ :: rest -> loop rest
-        | [] -> E.s (E.unimp "Cannot represent the integer %s\n" 
-                       (Int64.to_string i))
-      in
-      loop kinds 
-    in
-    res
-  with e -> begin
-    ignore (E.log "int_of_string %s (%s)\n" str 
-              (Printexc.to_string e));
-    zero
-  end
 
 
 (* An integer type that fits pointers. Initialized by initCIL *)
@@ -2023,6 +1871,51 @@ let rec alignOf_int = function
   | TVoid _ as t -> raise (SizeOfError ("void", t))
       
 
+let bitsSizeOfInt (ik: ikind): int = 
+  (* For long long sometimes the alignof and sizeof are different *)
+  if (ik = ILongLong) || (ik = IULongLong) then
+    8 * !theMachine.M.sizeof_longlong
+  else 8 * alignOf_int (TInt(ik,[]))
+
+(* Represents an integer as for a given kind. 
+   Returns a flag saying whether the value was changed
+   during truncation (because it was too large to fit in k). *)
+let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
+  let nrBits = bitsSizeOfInt k in
+  let signed = isSigned k in
+  if nrBits = 64 then 
+    i, false
+  else begin
+    let i1 = Int64.shift_left i (64 - nrBits) in
+    let i2 = 
+      if signed then Int64.shift_right i1 (64 - nrBits) 
+      else Int64.shift_right_logical i1 (64 - nrBits)
+    in
+    let truncated =
+      if i2 = i then false
+      else
+        (* Examine the bits that we chopped off.  If they are all zero, then
+         * any difference between i2 and i is due to a simple sign-extension.
+         *   e.g. casting the constant 0x80000000 to int makes it
+         *        0xffffffff80000000.
+         * Suppress the truncation warning in this case.      *)
+        let chopped = Int64.shift_right_logical i (64 - nrBits)
+        in chopped <> Int64.zero
+    in
+    i2, truncated
+  end
+
+(* Construct an integer constant with possible truncation *)
+let kinteger64 (k: ikind) (i: int64) : exp = 
+  let i', truncated = truncateInteger64 k i in
+  if truncated then 
+    ignore (warnOpt "Truncating integer %s to %s\n" 
+              (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
+  Const (CInt64(i', k,  None))
+
+(* Construct an integer of a given kind. *)
+let kinteger (k: ikind) (i: int) = kinteger64 k (Int64.of_int i)
+
      
 type offsetAcc = 
     { oaFirstFree: int;        (* The first free bit *)
@@ -2226,11 +2119,10 @@ and bitsSizeOf t =
   if not !initCIL_called then 
     E.s (E.error "You did not call Cil.initCIL before using the CIL library");
   match t with 
-    (* For long long sometimes the alignof and sizeof are different *)
-  | TInt((ILongLong|IULongLong), _) -> 8 * !theMachine.M.sizeof_longlong
+  | TInt (ik,_) -> bitsSizeOfInt ik
   | TFloat(FDouble, _) -> 8 * 8
   | TFloat(FLongDouble, _) -> 8 * !theMachine.M.sizeof_longdouble
-  | TInt _ | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
+  | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
     -> 8 * alignOf_int t
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields == [] -> begin
@@ -2536,6 +2428,113 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
     newe
   end else
     BinOp(bop, e1', e2', tres)
+
+
+
+let parseInt (str: string) : exp = 
+  let hasSuffix str = 
+    let l = String.length str in
+    fun s -> 
+      let ls = String.length s in
+      l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
+  in
+  let l = String.length str in
+  (* See if it is octal or hex *)
+  let octalhex = (l >= 1 && String.get str 0 = '0') in 
+  (* The length of the suffix and a list of possible kinds. See ISO 
+  * 6.4.4.1 *)
+  let hasSuffix = hasSuffix str in
+  let suffixlen, kinds = 
+    if hasSuffix "ULL" || hasSuffix "LLU" then 
+      3, [IULongLong]
+    else if hasSuffix "LL" then
+      2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
+    else if hasSuffix "UL" || hasSuffix "LU" then
+      2, [IULong; IULongLong]
+    else if hasSuffix "L" then
+      1, if octalhex then [ILong; IULong; ILongLong; IULongLong] 
+      else [ILong; ILongLong]
+    else if hasSuffix "U" then
+      1, [IUInt; IULong; IULongLong]
+    else if (!msvcMode && hasSuffix "UI64") then
+      4, [IULongLong]
+    else if (!msvcMode && hasSuffix "I64") then
+      3, [ILongLong]
+    else
+      0, if octalhex || true (* !!! This is against the ISO but it 
+        * is what GCC and MSVC do !!! *)
+      then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
+      else [IInt; ILong; IUInt; ILongLong]
+  in
+  (* Convert to integer. To prevent overflow we do the arithmetic 
+  * on Int64 and we take care of overflow. We work only with 
+  * positive integers since the lexer takes care of the sign *)
+  let rec toInt (base: int64) (acc: int64) (idx: int) : int64 = 
+    let doAcc (what: int) = 
+      let acc' = 
+        Int64.add (Int64.mul base acc)  (Int64.of_int what) in
+      if acc < Int64.zero || (* We clearly overflow since base >= 2 
+      * *)
+      (acc' > Int64.zero && acc' < acc) then 
+        E.s (unimp "Cannot represent on 64 bits the integer %s\n"
+               str)
+      else
+        toInt base acc' (idx + 1)
+    in 
+    if idx >= l - suffixlen then begin
+      acc
+    end else 
+      let ch = String.get str idx in
+      if ch >= '0' && ch <= '9' then
+        doAcc (Char.code ch - Char.code '0')
+      else if  ch >= 'a' && ch <= 'f'  then
+        doAcc (10 + Char.code ch - Char.code 'a')
+      else if  ch >= 'A' && ch <= 'F'  then
+        doAcc (10 + Char.code ch - Char.code 'A')
+      else
+        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)" 
+               str ch idx)
+  in
+  try
+    let i = 
+      if octalhex then
+        if l >= 2 && 
+          (let c = String.get str 1 in c = 'x' || c = 'X') then
+          toInt (Int64.of_int 16) Int64.zero 2
+        else
+          toInt (Int64.of_int 8) Int64.zero 1
+      else
+        toInt (Int64.of_int 10) Int64.zero 0
+    in
+    (* Construct an integer of the first kinds that fits. i must be 
+    * POSITIVE  *)
+    let res = 
+      let rec loop = function
+        | ((IInt | ILong) as k) :: _ 
+                  when i < Int64.shift_left (Int64.of_int 1) 31 ->
+                    kinteger64 k i
+        | ((IUInt | IULong) as k) :: _ 
+                  when i < Int64.shift_left (Int64.of_int 1) 32
+          ->  kinteger64 k i
+        | (ILongLong as k) :: _ 
+                 when i <= Int64.sub (Int64.shift_left 
+                                              (Int64.of_int 1) 63) 
+                                          (Int64.of_int 1) 
+          -> 
+            kinteger64 k i
+        | (IULongLong as k) :: _ -> kinteger64 k i
+        | _ :: rest -> loop rest
+        | [] -> E.s (E.unimp "Cannot represent the integer %s\n" 
+                       (Int64.to_string i))
+      in
+      loop kinds 
+    in
+    res
+  with e -> begin
+    ignore (E.log "int_of_string %s (%s)\n" str 
+              (Printexc.to_string e));
+    zero
+  end
 
 
 
@@ -2939,7 +2938,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (self#pExpPrec level () e1)
           ++ chr ' ' 
           ++ (d_binop () b)
-          ++ break 
+          ++ chr ' '
           ++ (self#pExpPrec level () e2)
           ++ unalign
 

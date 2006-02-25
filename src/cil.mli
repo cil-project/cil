@@ -1170,7 +1170,14 @@ val prepareCFG: fundec -> unit
   * {!Cil.prepareCFG} to transform them away.  The second argument should
   * be [true] if you wish a global statement number, [false] if you wish a
   * local (per-function) statement numbering. The list of statements is set 
-  * in the sallstmts field of a fundec. *)
+  * in the sallstmts field of a fundec. 
+  * 
+  * NOTE: unless you want the simpler control-flow graph provided by
+  * prepareCFG, or you need the function's smaxstmtid and sallstmt fields
+  * filled in, we recommend you use {!Cfg.computeFileCFG} instead of this
+  * function to compute control-flow information.
+  * {!Cfg.computeFileCFG} is newer and will handle switch, break, and
+  * continue correctly.*)
 val computeCFGInfo: fundec -> bool -> unit
 
 
