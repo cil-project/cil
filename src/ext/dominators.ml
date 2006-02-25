@@ -89,7 +89,7 @@ module DT = struct
 
   let doInstr (i: instr) (d: t) = DF.Default
 
-  let doStmt (s: stmt) (d: t) = DF.Default
+  let doStmt (s: stmt) (d: t) = DF.SDefault
   
   let doGuard condition _ = DF.GDefault
 

@@ -13,6 +13,13 @@ type 't action =
   | Post of ('t -> 't) (* The default action, followed by the given 
                         * transformer *)
 
+type 't stmtaction = 
+    SDefault   (* The default action *)
+  | SDone      (* Do not visit this statement or its successors *)
+  | SUse of 't (* Visit the instructions and successors of this statement
+                  as usual, but use the specified state instead of the 
+                  one that was passed to doStmt *)
+
 (* For if statements *)
 type 't guardaction = 
     GDefault      (* The default state *)
@@ -59,12 +66,10 @@ module type ForwardsTransfer = sig
    * {!Cil.currentLoc} is set before calling this. The default action is to 
    * continue with the state unchanged. *)
 
-
-  val doStmt: Cil.stmt -> t -> unit action
+  val doStmt: Cil.stmt -> t -> t stmtaction
   (** The (forwards) transfer function for a statement. The {!Cil.currentLoc} 
-   * is set before calling this. The default action is to continue with the 
-   * successors of this block, but only for the ... statements. For other 
-   * kinds of branches you must handle it, and return {!Jvmflow.Done}. *)
+   * is set before calling this. The default action is to do the instructions
+   * in this statement, if applicable, and continue with the successors. *)
 
   val doGuard: Cil.exp -> t -> t guardaction
   (** Generate the successor to an If statement assuming the given expression
@@ -181,8 +186,13 @@ module ForwardsDataFlow =
       (** See what the custom says *)
       currentLoc := get_stmtLoc s.skind;
       match T.doStmt s init with 
-        Done init' -> init'
-      | (Default | Post _) as act -> begin
+        SDone  -> ()
+      | (SDefault | SUse _) as act -> begin
+          let curr = match act with
+              SDefault -> init
+            | SUse d -> d
+            | SDone -> E.s (bug "SDone")
+          in
           (* Do the instructions in order *)
           let handleInstruction (s: T.t) (i: instr) : T.t = 
             currentLoc := get_instrLoc i;
@@ -202,11 +212,11 @@ module ForwardsDataFlow =
             match s.skind with 
               Instr il -> 
                 (* Handle instructions starting with the first one *)
-                List.fold_left handleInstruction init il
+                List.fold_left handleInstruction curr il
 
             | Goto _ | Break _ | Continue _ | If _ 
             | TryExcept _ | TryFinally _ 
-            | Switch _ | Loop _ | Return _ | Block _ -> init
+            | Switch _ | Loop _ | Return _ | Block _ -> curr
           in
           currentLoc := get_stmtLoc s.skind;
                 
@@ -241,10 +251,6 @@ module ForwardsDataFlow =
           in
           (* Reach the successors *)
           List.iter (fun s' -> reachedStatement s' after) succsToReach;
-
-          match act with 
-            Post f -> f ()
-          | _ -> ()
 
       end
 

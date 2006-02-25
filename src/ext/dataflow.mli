@@ -6,6 +6,13 @@ type 't action =
   | Post of ('t -> 't) (* The default action, followed by the given 
                         * transformer *)
 
+type 't stmtaction = 
+    SDefault   (* The default action *)
+  | SDone      (* Do not visit this statement or its successors *)
+  | SUse of 't (* Visit the instructions and successors of this statement
+                  as usual, but use the specified state instead of the 
+                  one that was passed to doStmt *)
+
 (* For if statements *)
 type 't guardaction = 
     GDefault      (* The default state *) 
@@ -53,12 +60,10 @@ module type ForwardsTransfer = sig
    * {!Cil.currentLoc} is set before calling this. The default action is to 
    * continue with the state unchanged. *)
 
-
-  val doStmt: Cil.stmt -> t -> unit action
+  val doStmt: Cil.stmt -> t -> t stmtaction
   (** The (forwards) transfer function for a statement. The {!Cil.currentLoc} 
-   * is set before calling this. The default action is to continue with the 
-   * successors of this block, but only for the ... statements. For other 
-   * kinds of branches you must handle it, and return {!Jvmflow.Done}. *)
+   * is set before calling this. The default action is to do the instructions
+   * in this statement, if applicable, and continue with the successors. *)
 
   val doGuard: Cil.exp -> t -> t guardaction
   (** Generate the successor to an If statement assuming the given expression

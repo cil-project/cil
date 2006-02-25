@@ -2144,6 +2144,7 @@ module Flow = struct
   let stmtStartData = stateMap
   let pretty = d_state
   let computeFirstPredecessor s a = a
+
   let combinePredecessors s ~(old:t) newa = 
     let nnv = List.filter 
                 (fun vi -> List.memq vi newa.nonNullVars) 
@@ -2156,8 +2157,6 @@ module Flow = struct
 
   let doInstr i a = 
 (*     log "Visiting %a  State is %a.\n" dn_instr i d_state a; *)
-    let checks = GA.getg allChecks !curStmt in
-    let a = List.fold_left processCheck a checks in
     let a = match i with
         Set((Var vi, NoOffset), e, _) when isPointerType vi.vtype -> 
           if isNonNull a e then
@@ -2172,7 +2171,11 @@ module Flow = struct
 
   let doStmt s a = 
     curStmt := s.sid;
-    DF.Default
+    (* Look for any checks associated with this stmt, and
+       include that info in our state. *)
+    let checks = GA.getg allChecks s.sid in
+    let a = List.fold_left processCheck a checks in
+    DF.SUse a
 
   let doGuard e a = 
     if isFalse a e then DF.GUnreachable

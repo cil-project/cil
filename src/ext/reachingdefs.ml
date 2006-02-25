@@ -248,7 +248,7 @@ module ReachingDef =
     (* all the work gets done at the instruction level *)
     let doStmt stm (_, s, iosh) = 
       if !debug then ignore(E.log "RD: looking at %a\n" d_stmt stm);
-      DF.Default
+      DF.SDefault
 
     let doGuard condition _ = DF.GDefault
 
