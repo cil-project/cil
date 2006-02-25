@@ -235,6 +235,8 @@ type check =
   | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CPositive of exp     (** e > 0 *)
   | CMult of exp * exp   (** e1 * k == e2 for some int k *)
+  | CNullOrMult of exp * exp * exp
+                         (** e1 == 0 || e2 * k == e3 for some int k *)
   | COverflow of exp * exp
                          (** e1 + e2 does not overflow (e2 is signed) *)
   | CUnsignedLess of exp * exp * string
@@ -307,6 +309,7 @@ let ceq = mkCheckFun "CEq" 2
 let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
 let cmult = mkCheckFun "CMult" 2
+let cnullormult = mkCheckFun "CNullOrMult" 3
 let coverflow = mkCheckFun "COverflow" 3
 let cunsignedless = mkCheckFun "CUnsignedLess" 3
 let cunsignedle = mkCheckFun "CUnsignedLE" 3
@@ -330,6 +333,7 @@ let checkToInstr (c:check) =
   | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CPositive (e) -> call cpositive [e]
   | CMult (e1,e2) -> call cmult [e1;e2]
+  | CNullOrMult (e1,e2,e3) -> call cnullormult [e1;e2;e3]
   | COverflow (e1,e2) -> call coverflow [e1;e2]
   | CUnsignedLess (e1,e2,why) -> call cunsignedless [e1;e2; mkString why]
   | CUnsignedLE (e1,e2,why) -> call cunsignedle [e1;e2; mkString why]
@@ -342,7 +346,7 @@ let checkToInstr (c:check) =
   | CSelected (e) -> call cselected [e]
   | CNotSelected (e) -> call cnotselected [e]
 
-let addBoundsCheck lo e hi: unit =
+let addBoundsCheck (lo: exp) (e: exp) (hi: exp) : unit =
   let why = "Bounds" in
   addCheck (CUnsignedLE(lo, e, why));
   addCheck (CUnsignedLE(e, hi, why));
@@ -351,14 +355,21 @@ let addBoundsCheck lo e hi: unit =
 (* Checks that ptr != 0,
    lo <= (ptr+off) <= hi,
    and ptr+off does not overflow *)
-let addArithChecks lo ptr off hi: unit =
+let addArithChecks (lo: exp) (ptr: exp) (off : exp) (hi : exp) : unit =
   addCheck (CNonNull ptr);
   addCheck (COverflow (ptr, off));
   let e = BinOp (PlusPI, ptr, off, typeOf ptr) in
   addBoundsCheck lo e hi
 
+let addAlignmentCheck (e: exp) (lo: exp) (hi: exp) (t: typ) : unit =
+  let diff =
+    BinOp (MinusPP, CastE (charPtrType, hi),
+                    CastE (charPtrType, lo), intType)
+  in
+  addCheck (CNullOrMult (e, SizeOf t, diff))
 
-let addCoercionCheck lo_from lo_to e hi_to hi_from =
+let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
+                     (hi_to: exp) (hi_from: exp) (t: typ) : unit =
   (* If the lower bound has changed, do an lbound check. 
    * (we already know that lo_from <= e, so if lo_from=lo_to,
    *  we don't have to check that lo_to <= e)
@@ -367,10 +378,12 @@ let addCoercionCheck lo_from lo_to e hi_to hi_from =
   if !optLevel = 0 || not (compareExp lo_from lo_to) then begin
     addCheck (CNullOrLE(e, lo_from, lo_to, why));
     addCheck (CNullOrLE(e, lo_to, e, why));
+    addAlignmentCheck e lo_from lo_to t
   end;
   if !optLevel = 0 || not (compareExp hi_from hi_to) then begin
     addCheck (CNullOrLE(e, e, hi_to, why));
     addCheck (CNullOrLE(e, hi_to, hi_from, why));
+    addAlignmentCheck e hi_to hi_from t
   end;
   ()
 
@@ -952,23 +965,17 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         if bitsSizeOf bt2 <> 8 then
           E.s (unimp "nullterm buffer that's not a char*");
         addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
-      end
-      else
-        addCoercionCheck lo_from lo_to e hi_to hi_from;
-      ()
+      end else
+        addCoercionCheck lo_from lo_to e hi_to hi_from bt2
   | TPtr (bt1, _), TPtr (bt2, _) when not (typeContainsPointers bt1) &&
                                       not (typeContainsPointers bt2) ->
       if isNullterm tto || isNullterm tfrom then
         E.s (unimp "Nullterm cast with different base types");
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
-      let getDiff e1 e2 =
-        BinOp (MinusPP, CastE (charPtrType, e1),
-                        CastE (charPtrType, e2), intType)
-      in
-      addCheck (CMult (SizeOf bt1, getDiff e lo_to));
-      addCheck (CMult (SizeOf bt1, getDiff hi_to e));
-      addCoercionCheck lo_from lo_to e hi_to hi_from
+      addAlignmentCheck e lo_to e bt2;
+      addAlignmentCheck e e hi_to bt2;
+      addCoercionCheck lo_from lo_to e hi_to hi_from bt2
   | (TEnum _ | TPtr _), TInt _ ->
       (* Coerce pointer/enum to integer. *)
       ()
@@ -1979,6 +1986,11 @@ let map_to_check f c =
 	let e1' = f e1 in
 	let e2' = f e2 in
 	CMult(e1',e2')
+    | CNullOrMult(e1,e2,e3) ->
+	let e1' = f e1 in
+	let e2' = f e2 in
+	let e3' = f e3 in
+	CNullOrMult(e1',e2',e3')
     | COverflow(e1,e2) ->
 	let e1' = f e1 in
 	let e2' = f e2 in

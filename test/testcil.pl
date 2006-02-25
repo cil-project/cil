@@ -1404,6 +1404,8 @@ addDeputyTest("addrof5");
 addDeputyTest("addrof6");
 addDeputyTest("addrof7");
 
+addDeputyTest("align1");
+
 addDeputyTest("alloc1");
 addDeputyTest("alloc2");
 addDeputyTest("alloc3");
@@ -1425,6 +1427,7 @@ addDeputyTest("cast5");
 addDeputyTest("cast6");
 addDeputyTest("cast7");
 addDeputyTest("cast8");
+addDeputyTest("cast9");
 
 addDeputyTest("deref1");
 addDeputyTest("deref2");
