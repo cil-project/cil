@@ -2735,6 +2735,8 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_strncat" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
+  H.add h "__builtin_strspn" (intType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strpbrk" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   (* When we parse builtin_types_compatible_p, we change its interface *)
   H.add h "__builtin_types_compatible_p"
                               (intType, [ uintType; (* Sizeof the type *)
