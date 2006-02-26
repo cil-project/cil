@@ -4972,7 +4972,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
     match i with 
       (* Skip two functions to which we add Sizeof to the type arguments. 
          See the comments for these above. *)
-      Call(_,(Lval (Var v,NoOffset)),_,_) 
+      Call(_,(Lval (Var vi,NoOffset)),_,_) 
         when ((vi.vname = "__builtin_va_arg") 
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
