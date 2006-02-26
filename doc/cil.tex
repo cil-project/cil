@@ -2173,6 +2173,8 @@ GCC. For example, when you use variable-length arrays, CIL turns them into
 calls to \t{alloca}. This means that they are deallocated when the function
 returns and not when the local scope ends. 
 
+Variable-length arrays are not supported as fields of a struct or union.
+
 \item CIL cannot parse a line containing an empty \t{\#pragma}.
 
 \item CIL cannot parse the following code (fixing this problem would require

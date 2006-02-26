@@ -4968,6 +4968,15 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 class constFoldVisitorClass (machdep: bool) : cilVisitor = object
   inherit nopCilVisitor
       
+  method vinst i = 
+    match i with 
+      (* Skip two functions to which we add Sizeof to the type arguments. 
+         See the comments for these above. *)
+      Call(_,(Lval (Var v,NoOffset)),_,_) 
+        when ((vi.vname = "__builtin_va_arg") 
+              || (vi.vname = "__builtin_types_compatible_p")) ->
+          SkipChildren
+    | _ -> DoChildren
   method vexpr (e: exp) = 
     (* Do it bottom up *)
     ChangeDoChildrenPost (e, constFold machdep)
