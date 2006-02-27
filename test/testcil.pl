@@ -460,6 +460,7 @@ $TEST->addTests("scott/nullterm3", "", ['inferbox']);
 $TEST->addTests("runall/sentinel", "", ['inferbox']);
 
 
+
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
@@ -565,6 +566,7 @@ $TEST->addTests("testrun/union3", "", ['cil']);
 $TEST->addTests("testrun/union4", "", ['inferbox']);
 $TEST->addTests("test/union5", "", ['cil']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
+$TEST->addTests("runall/extinline", "", ['cil']);
 $TEST->addTests("testrun/tcast2", "", ['inferbox']);
 $TEST->addTests("testrun/rtti1", "", ['inferbox']);
 $TEST->addTests("testrun/rtti2", "", ['inferbox']);

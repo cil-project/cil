@@ -5054,8 +5054,19 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       when isglobal && isExtern specs && isInline specs 
            && (H.mem genv (n ^ "__extinline")) -> 
        currentLoc := convLoc(loc);
-       ignore (warn "Duplicate extern inline definition for %s ignored"
-                 n);
+       let othervi, _ = lookupVar (n ^ "__extinline") in
+       if othervi.vname = n then 
+         (* The previous entry in the env is also an extern inline version
+            of n. *)
+         ignore (warn "Duplicate extern inline definition for %s ignored" n)
+       else begin
+         (* Otherwise, the previous entry is an ordinary function that
+            happens to be named __extinline.  Renaming n to n__extinline
+            would confict with other, so report an error. *)
+         E.s (unimp("Trying to rename %s to\n %s__extinline, but %s__extinline"
+                     ^^ " already exists in the env.\n  \"__extinline\" is"
+                     ^^ " reserved for CIL.\n") n n n)
+       end;
        (* Treat it as a prototype *)
        doDecl isglobal (A.DECDEF ((specs, [((n,dt,a,loc'), A.NO_INIT)]), loc))
 
@@ -5122,14 +5133,24 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   * then we make this functions' varinfo we will not think 
                   * it is a duplicate definition *)
                   (try
-                    ignore (lookupVar n'); (* n' is defined *)
+                    ignore (lookupVar n'); (* if this succeeds, n' is defined*)
                     let oldvi, _ = lookupVar n in
-                    if oldvi.vname <> n' then 
-                      E.s (bug "extern inline redefinition: %s (expected %s)"
-                             oldvi.vname n');
-                    H.remove env n; H.remove genv n;
-                    H.remove env n'; H.remove genv n'
-                  with Not_found -> ());
+                    if oldvi.vname = n' then begin 
+                      (* oldvi is an extern inline function that has been
+                         renamed to n ^ "__extinline".  Remove it from the
+                         environment. *)
+                      H.remove env n; H.remove genv n;
+                      H.remove env n'; H.remove genv n'
+                    end 
+                    else
+                      (* oldvi is not a renamed extern inline function, and
+                         we should do nothing.  The reason the lookup
+                         of n' succeeded is probably because there's
+                         an ordinary function that happens to be named,
+                         n ^ "__extinline", probably as a result of a previous
+                         pass through CIL.   See small2/extinline.c*)
+                      ()
+                   with Not_found -> ());
                   n, sto 
                 end
               in
