@@ -1391,6 +1391,7 @@ sub addDeputyTest {
     $TEST->newTest(Name => "deputy/" . $name,
                    Dir => "./deputy",
                    Cmd => "$make runall/" . $name,
+                   ExpectPattern => '^All \d+ tests were successful!',
                    Group => \@groups,
                    Patterns => ());
 }

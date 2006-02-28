@@ -1243,9 +1243,11 @@ $6, $7, $8, $9\n";
                 &{$handler}($self, $tst, $1, $2, $3, $4, $5, $6, $7, $8, $9);
             }
         }
-        # See if any pattern is expected
-        if(defined $tst->{ExpectPattern} 
-           && $line =~ m|$tst->{ExpectPattern}|) {
+    }
+    # See if any pattern is expected
+    if(defined $tst->{ExpectPattern}) {
+        my $pat = $tst->{ExpectPattern};
+        if ($line =~ m|$pat|) {
             $tst->{FoundExpectedPattern} = 1;
         }
     }
