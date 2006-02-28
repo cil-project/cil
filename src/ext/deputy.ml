@@ -199,7 +199,7 @@ let rec typeContainsPointers (t: typ) : bool =
 let rec compareExp (e1: exp) (e2: exp) : bool =
 (*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
   e1 == e2 ||
-  match stripCasts e1, stripCasts e2 with
+  match e1, e2 with
   | Lval lv1, Lval lv2
   | StartOf lv1, StartOf lv2
   | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
