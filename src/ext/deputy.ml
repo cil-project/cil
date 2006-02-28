@@ -197,8 +197,9 @@ let rec typeContainsPointers (t: typ) : bool =
       (List.map (fun fld -> fld.ftype) ci.cfields)
 
 let rec compareExp (e1: exp) (e2: exp) : bool =
+(*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
   e1 == e2 ||
-  match e1, e2 with
+  match stripCasts e1, stripCasts e2 with
   | Lval lv1, Lval lv2
   | StartOf lv1, StartOf lv2
   | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
@@ -1063,8 +1064,7 @@ and checkExp ?(toSentinel=false) (e : exp) : typ =
         in
         if toSentinel then 
           (* We're casting e to a sentinel.  We now permit sentinels to point
-             to unallocated memory, so don't check that e1 is nonnull.
-             Later, we'll assert that lo=e=hi. *)
+             to unallocated memory, so don't check that e1 is nonnull. *)
           addBoundsCheck lo e hi
         else
           addArithChecks lo e1 e2' hi
@@ -1869,21 +1869,34 @@ let rec getBaseOffset (e: exp) : exp * int =
 
 
 let proveLeWithBounds (e1: exp) (e2: exp) : bool =
-  let getVarBounds (vi: varinfo) : string option * string option =
-    let getBoundString (a: attrparam) : string option =
-      match a with
-      | ACons (s, []) -> Some s
-      | _ -> None
-    in
-    match getBounds (typeAttrs vi.vtype) with
-    | BSimple (lo, hi) -> getBoundString lo, getBoundString hi
+  let ctx = localsContext !curFunc in
+  let rec getExpBounds (e:exp) : exp option * exp option =
+    match e with
+      (* TODO: structs, memory *)
+      Lval (Var vi, NoOffset) ->
+        let ctx = addThisBinding ctx e in
+        let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in
+        log " %a has bounds %a and %a.\n" d_exp e
+          d_exp lo d_exp hi;
+        Some lo, Some hi
+    | BinOp(PlusPI, e1, e2, _)-> getExpBounds e1
+    | CastE (_, e') -> getExpBounds e'
     | _ -> None, None
   in
-  match e1, e2 with
-  | Lval (Var vi1, NoOffset), Lval (Var vi2, NoOffset) ->
-      (snd (getVarBounds vi1) = Some vi2.vname) ||
-      (fst (getVarBounds vi2) = Some vi1.vname)
-  | _ -> false
+  let lo1, hi1 = getExpBounds e1 in
+  let lo2, hi2 = getExpBounds e2 in
+  (* we know e1 <= hi1 and lo2 <= e2 *)
+  match hi1, lo2 with
+    Some hi1, Some lo2 ->
+      (compareExp hi1 lo2)
+      || (compareExp hi1 e2)
+      || (compareExp e1 lo2)
+  | Some hi1, None ->
+      (compareExp hi1 e2)
+  | None, Some lo2 ->
+      (compareExp e1 lo2)
+  | None, None -> 
+      false
 
 let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
   let b1, off1 = getBaseOffset e1 in
