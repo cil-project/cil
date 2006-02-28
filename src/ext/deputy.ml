@@ -108,6 +108,7 @@ let curFunc : fundec ref = ref dummyFunDec
 let curStmt : int ref = ref (-1)
 
 let staticGlobalVars : varinfo list ref = ref []
+let nonStaticGlobalVars : varinfo list ref = ref []
 
 let exemptLocalVars : varinfo list ref = ref []
 
@@ -226,6 +227,11 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
   | (Mem e1, off1), (Mem e2, off2) ->
       compareExp e1 e2 && compareOffset off1 off2
   | _ -> false
+
+let stripOneCast (e: exp) : exp =
+  match e with
+  | CastE (_, e') -> e'
+  | _ -> e
 
 (**************************************************************************)
 
@@ -454,6 +460,7 @@ let rec getDeps (a: attrparam) : string list =
   match a with 
   | AInt k -> []
   | ASizeOf t -> []
+  | ASizeOfE e -> []
   | ACons(name, []) -> [name]
   | ABinOp (_, e1, e2) -> (getDeps e1) @ (getDeps e2)
   | _ -> E.s (error "Cannot get dependencies for %a" d_attrparam a)
@@ -541,10 +548,6 @@ let hasExternalDeps (lv: lval) : bool =
       false
   | _ -> E.s (bug "Unexpected result from removeOffset")
 
-(* mapping from variable/field names to expressions representing 
-   the runtime value. *)
-type context = (string * exp) list
-
 let isPointer e: bool =
   isPointerType (typeOf e)
 
@@ -562,12 +565,41 @@ let isTrustedType (t: typ) : bool =
 let isTrustedComp (ci: compinfo) : bool =
   isTrustedAttr ci.cattr
 
+(* A context maps variable/field names to the corresponding CIL expr. *)
+type context = (string * exp) list
+
+let localsContext (f:fundec) : context =
+  List.fold_left
+    (fun acc v -> (v.vname, Lval (var v)) :: acc)
+    []
+    (f.sformals @ f.slocals)
+
+let globalsContext () : context =
+  List.fold_left
+    (fun acc v -> (v.vname, Lval (var v)) :: acc)
+    []
+    !staticGlobalVars
+
+let structContext (lv: lval) (ci: compinfo) : context =
+  List.fold_left
+    (fun acc fld ->
+       (fld.fname, Lval (addOffsetLval (Field (fld, NoOffset)) lv)) :: acc)
+    []
+    ci.cfields
+
+let allContext () : context =
+  List.fold_left
+    (fun acc v -> (v.vname, Lval (var v)) :: acc)
+    []
+    (!staticGlobalVars @ !nonStaticGlobalVars @
+     !curFunc.sformals @ !curFunc.slocals)
+
 (** The dependent types are expressed using attributes. We compile an 
  * attribute given a mapping from names to lvals.  Returns the names of
  * meta values that this annotation depends on, and the expression.
  *  
  * This is a helper for both fields and formals. *)
-let compileAttribute 
+let rec compileAttribute 
   (ctx: context) (* Should include a mapping for thisKeyword *)
   (a: attrparam) 
   : string list * exp = 
@@ -575,6 +607,9 @@ let compileAttribute
     match a with 
       AInt k -> [], integer k
     | ASizeOf t -> [], SizeOf t
+    | ASizeOfE e ->
+        let _, e' = compileAttribute (allContext ()) e in
+        [], SizeOfE e'
     | ACons(name, []) -> begin
         try 
           let e = List.assoc name ctx in 
@@ -723,26 +758,6 @@ let hasBinding (ctx:context) (name:string) : bool =
   List.exists (fun (n, _) -> n = name) ctx
 let hasBindings (ctx:context) (names : string list) : bool =
   List.for_all (hasBinding ctx) names
-
-(* The context of local and formal variables. *)
-let localsContext (f:fundec) : context =
-  List.fold_left
-    (fun acc v -> (v.vname, Lval (var v)) :: acc)
-    []
-    (f.sformals @ f.slocals)
-
-let globalsContext () : context =
-  List.fold_left
-    (fun acc v -> (v.vname, Lval (var v)) :: acc)
-    []
-    !staticGlobalVars
-
-let structContext (lv: lval) (ci: compinfo) : context =
-  List.fold_left
-    (fun acc fld ->
-       (fld.fname, Lval (addOffsetLval (Field (fld, NoOffset)) lv)) :: acc)
-    []
-    ci.cfields
 
 (**************************************************************************)
 
@@ -1294,7 +1309,7 @@ let checkMemset (lvo: lval option) (fnType: typ) (args: exp list) : unit =
     let size' : int64 option = isInteger (constFold true size) in
     size' = Some (Int64.of_int actualSize)
   in
-  match List.map stripCasts args with
+  match List.map stripOneCast args with
   | [AddrOf lv1; e2; e3] 
     when (isZero e2) && (isCorrectSize e3 lv1) ->
       (* Special case: if we're overwriting a complete lval with 0, we
@@ -1332,8 +1347,8 @@ let checkMemcpy (lvo: lval option) (fnType: typ) (args: exp list) : unit =
     E.log "%a: checking memcpy\n" d_loc !currentLoc;
   match args with
   | [e1; e2; e3] ->
-      let e1 = stripCasts e1 in
-      let e2 = stripCasts e2 in
+      let e1 = stripOneCast e1 in
+      let e2 = stripOneCast e2 in
       let e1Type = checkExp e1 in
       let e2Type = checkExp e2 in
       let e1BaseType =
@@ -1364,8 +1379,8 @@ let checkMemcmp (lvo: lval option) (fnType: typ) (args: exp list) : unit =
     E.log "%a: checking memcmp\n" d_loc !currentLoc;
   match args with
   | [e1; e2; e3] ->
-      let e1 = stripCasts e1 in
-      let e2 = stripCasts e2 in
+      let e1 = stripOneCast e1 in
+      let e2 = stripOneCast e2 in
       let e1Type = checkExp e1 in
       let e2Type = checkExp e2 in
       let lo1, hi1 = fancyBoundsOfType e1Type in
@@ -2305,9 +2320,12 @@ let checkFile (f: file) : unit =
   List.iter
     (fun global ->
        match global with
-       | GVar (vi, _, _) when vi.vstorage = Static ->
+       | GVar (vi, _, _) ->
            assert vi.vglob;
-           staticGlobalVars := vi :: !staticGlobalVars
+           if vi.vstorage = Static then
+             staticGlobalVars := vi :: !staticGlobalVars
+           else
+             nonStaticGlobalVars := vi :: !nonStaticGlobalVars
        | _ -> ())
     f.globals;
   visitCilFileSameGlobals preProcessVisitor f;

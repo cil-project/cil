@@ -1461,6 +1461,7 @@ addDeputyTest("memcmp1");
 addDeputyTest("ptrarith1");
 addDeputyTest("return1");
 addDeputyTest("sizeof1");
+addDeputyTest("sizeof2");
 addDeputyTest("startof1");
 addDeputyTest("startof2");
 addDeputyTest("string1");
