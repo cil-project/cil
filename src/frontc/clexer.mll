@@ -66,8 +66,7 @@ let int64_to_char value =
   if (compare value (Int64.of_int 255) > 0) || (compare value Int64.zero < 0) then
     begin
       let msg = Printf.sprintf "clexer:intlist_to_string: character 0x%Lx too big" value in
-      (*parse_error msg;*)
-      raise Parsing.Parse_error
+      E.parse_error msg;
     end
   else
     Char.chr (Int64.to_int value)

@@ -286,7 +286,7 @@ let addCheck (c:check) : unit =
     if id < 0 then 
       E.s (bug "addCheck when sid = %d.\n" id);
     let otherChecks = GA.getg allChecks id in
-    if not (List.mem c otherChecks) then
+    if !optLevel = 0 || not (List.mem c otherChecks) then
       GA.set allChecks id (c::otherChecks)
   end
 
@@ -633,7 +633,7 @@ let rec compileAttribute
           | PlusA, true, false -> PlusPI
           | _ -> bop
         in
-        lv1' @ lv2', BinOp(bop', e1', e2', intType)
+        lv1' @ lv2', BinOp(bop', e1', e2', typeOf e1')
     | _ -> E.s (error "Cannot compile the dependency %a" d_attrparam a)
   in
   compile a
@@ -1032,10 +1032,17 @@ type whyLval=
 (* Calls checkExp e, then calls coerceType to make sure that
    e can be coerced to tto.  tto must have fancy bounds. *)
 let rec coerceExp (e:exp) (tto : typ) : unit =
-  coerceType e ~tfrom:(checkExp e) ~tto
+  (* If we're casting to a sentinel type, we do less-strict checking of e *)
+  let toSentinel: bool = 
+    (isPointerType tto) &&
+    (let lo_to, hi_to = fancyBoundsOfType tto in
+     compareExp lo_to hi_to)
+  in    
+  let tfrom = checkExp ~toSentinel e in
+  coerceType e ~tfrom ~tto
         
 
-and checkExp (e : exp) : typ =
+and checkExp ?(toSentinel=false) (e : exp) : typ =
   if !verbose then
     E.log "%a: checking exp %a\n" d_loc !currentLoc d_exp e;
   match e with
@@ -1054,7 +1061,13 @@ and checkExp (e : exp) : typ =
           | PlusPI | IndexPI -> e2
           | _ -> E.s (bug "Unexpected operation")
         in
-        addArithChecks lo e1 e2' hi
+        if toSentinel then 
+          (* We're casting e to a sentinel.  We now permit sentinels to point
+             to unallocated memory, so don't check that e1 is nonnull.
+             Later, we'll assert that lo=e=hi. *)
+          addBoundsCheck lo e hi
+        else
+          addArithChecks lo e1 e2' hi
       end;
       t1
   | BinOp (MinusPP, e1, e2, t) ->
@@ -1399,6 +1412,7 @@ let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp
        let yExp = expOf y in
        let ySubst = if (nameOf x) <> (nameOf y) then yExp else e in
        let ctx' = addBinding (addThisBinding ctx ySubst) (nameOf x) e in
+(*        log "checkSetEnv for %s\n" (nameOf x); *)
        coerceExp ySubst (substType ctx' (typeOf y)))
     env
 
@@ -1608,63 +1622,40 @@ let inferVisitor = object (self)
     in
     ChangeDoChildrenPost (t, postProcessType)
 
-  method vstmt s =
-    (* Make sure each statement contains one instruction only. *)
-    begin
-      match s.skind with
-      | Instr [] -> ()
-      | Instr [_] -> ()
-      | Instr instrs ->
-          s.skind <- Block (mkBlock (List.map mkStmtOneInstr instrs))
-      | _ -> ()
-    end;
-    (* Process individual instructions.  We do this at the statement level
-     * because conditionals need to be introduced. *)
-    let postProcessStmt (s: stmt) : stmt =
-      match s.skind with
-      | Instr [] -> s
-      | Instr [instr] ->
-          begin
-            match instr with
-            | Set ((Var vi, NoOffset), e, l)
-                  when Hashtbl.mem varBounds vi.vname ->
-                if !verbose then
-                  E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
-                let baseVar, endVar = Hashtbl.find varBounds vi.vname in
-                let t = checkExp e in
-                let lo, hi =
-                  if isPointerType t then
-                    fancyBoundsOfType t
-                  else
-                    Lval (var vi), Lval (var vi)
-                in
-                let zeroBlock =
-                  mkBlock [mkStmt (Instr [Set (var vi, zero, l);
-                                          Set (var baseVar, zero, l);
-                                          Set (var endVar, zero, l)])]
-                in
-                let nonZeroBlock =
-                  mkBlock [mkStmt (Instr [Set (var vi, zero, l);
-                                          Set (var baseVar, lo, l);
-                                          Set (var endVar, hi, l);
-                                          instr])]
-                in
-                if isZero e then
-                  mkStmt (Block zeroBlock)
+  method vinst i =
+    (* Process individual instructions.   *)
+    let postProcessInstr (instrs: instr list) : instr list =
+      match instrs with 
+        [] -> []
+      | [Set ((Var vi, NoOffset), e, l) as instr]
+          when Hashtbl.mem varBounds vi.vname ->
+          if !verbose then
+            E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
+            let baseVar, endVar = Hashtbl.find varBounds vi.vname in
+            let t = checkExp e in
+            (* matth: don't insert an If that checks whether vi is null.
+               This means that sentinels may point to unmapped memory.*)
+            if isZero e then
+              [Set (var vi, zero, l);
+               Set (var baseVar, zero, l);
+               Set (var endVar, zero, l)]
+            else begin
+              let lo, hi =
+                if isPointerType t then
+                  fancyBoundsOfType t
                 else
-                  mkStmt (If (e, nonZeroBlock, zeroBlock, l))
-(*                   mkStmt (Instr [Set (var vi, zero, l); *)
-(*                                  Set (var baseVar, lo, l); *)
-(*                                  Set (var endVar, hi, l); *)
-(*                                  instr]) *)
-            | _ ->
-                s
-          end
-      | Instr _ ->
-          E.s (bug "Expected one-instruction statements only")
-      | _ -> s
+                  Lval (var vi), Lval (var vi)
+              in
+              [Set (var vi, zero, l);
+               Set (var baseVar, lo, l);
+               Set (var endVar, hi, l);
+               instr]
+            end
+      | [_] -> instrs
+      | _ -> 
+          E.s (bug "more than one instr in inferVisitor:postProcessInstr.")
     in
-    ChangeDoChildrenPost (s, postProcessStmt)
+    ChangeDoChildrenPost([i], postProcessInstr)
           
 
   method vfunc fd =
@@ -1897,6 +1888,7 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
 let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
   let b1, off1 = getBaseOffset e1 in
   let b2, off2 = getBaseOffset e2 in
+(*   log "  Comparing:\n"; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e1 d_plainexp b1 off1; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e2 d_plainexp b2 off2; *)
   if compareExp (stripCasts b1) (stripCasts b2) then begin
@@ -1905,17 +1897,21 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
         if not allowGt then
           error "Bounds check (%a <= %a) will always fail" d_exp e1 d_exp e2;
         false
-      end else
+      end else begin
         true
+      end
     in
     let t1 = typeOf b1 in
     let t2 = typeOf b2 in
     match sizeOfBaseType t1, sizeOfBaseType t2 with
     | Some n1, Some n2 -> doCompare (off1 * n1) (off2 * n2)
     | _ when compareTypes t1 t2 -> doCompare off1 off2
-    | _ -> false
-  end else
+    | _ -> 
+(*         log "   Comparetypes %a, %a failed.\n" d_type t1 d_type t2; *)
+        false
+  end else begin
     (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
+  end
 (*    (\* matth:  a hack that assumes the top page of memory is unmapped.   *)
 (*       Therefore, if e1 is in bounds, we can assume e1 <= e1+off when *)
 (*       off<4096.  *\) *)
@@ -2100,28 +2096,61 @@ let constProp = checkVisit RCT.const_prop
 (**************************************************************************)
 (* new, flow-sensitive optimizer *)
 
-type absState = {
-  nonNullVars: varinfo list;
+type symval = {
+  v: varinfo;
 }
-let top = { nonNullVars = []; }
+type term = exp
+(*     TVar of varinfo *)
+(*   | TPlusPI of varinfo * exp *)
+let compareTerm = compareExp
+    
+module VarMap = Map.Make(struct 
+                           type t = int
+                           let compare i1 i2 = i2 - i1
+                         end)
+type absState = {
+  varstate: term VarMap.t;
+  nonNullVars: varinfo list;
+(*   disEqual: (varinfo * varinfo) list; *)
+}
+let top = { varstate = VarMap.empty; nonNullVars = []; }
 let d_state () a: doc =
   dprintf "Nonnull vars:@[%a@]"
     (docList (fun vi -> text vi.vname)) a.nonNullVars
+(*   dprintf "Nonnull vars:@[%a@].  Disequal vars:@[%a@]"  *)
+(*     (docList (fun vi -> text vi.vname)) a.nonNullVars *)
+(*     (docList (fun (v1,v2) -> text v1.vname ++ text " != " ++ text v2.vname)) *)
+(*       a.disEqual *)
 
 let addNonNull (a:absState) (vi: varinfo) : absState = 
-  if List.memq vi a.nonNullVars then a
+  if List.mem vi a.nonNullVars then a
   else begin
 (*     log "%s is nonnull.\n" vi.vname; *)
-    { nonNullVars = vi::a.nonNullVars }
+    { a with nonNullVars = vi::a.nonNullVars }
   end
+(* let areDisequal (a:absState) (v1: varinfo) (v2: varinfo): bool =  *)
+(*   List.exists  *)
+(*     (fun (v1',v2') -> (v1==v1'&&v2==v2') || (v2==v1'&&v1==v2')) *)
+(*     a.disEqual *)
+
+(* let addDisEqual (a:absState) (v1: varinfo) (v2: varinfo) : absState =  *)
+(*   if areDisequal a v1 v2 then a *)
+(*   else begin *)
+(*     { a with disEqual = (v1,v2)::a.disEqual } *)
+(*   end *)
+
 
 let scrambleVar (a:absState) (v: varinfo) : absState =
   let a =
     if List.memq v a.nonNullVars then
-      {(*  a with  *)nonNullVars = List.filter ((!=) v) a.nonNullVars }
+      { a with nonNullVars = List.filter ((!=) v) a.nonNullVars }
     else
       a
   in
+(*   let doesNotReferToV (v1',v2') = (v==v1') || (v==v2')) in *)
+(*   if List.for_all doesNotReferToV a.disEqual then a *)
+(*   else *)
+(*     { a with disEqual = List.filter doesNotReferToV a.disEqual } *)
   a  
   
 let stateMap : absState IH.t = IH.create 50
@@ -2178,7 +2207,7 @@ module Flow = struct
                 old.nonNullVars
     in
     if List.length nnv <> List.length old.nonNullVars then
-      Some {nonNullVars = nnv}
+      Some {old with nonNullVars = nnv}
     else
       None (* at fixed point *)
 

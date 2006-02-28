@@ -321,7 +321,10 @@ let varXformClass action iosh fd nofrm = object(self)
     Lval(Var vi, NoOffset) as lv->
       (match action iosh vi fd nofrm with
 	None -> DoChildren
-      | Some e' -> ChangeTo e')
+      | Some e' -> 
+          (* Cast e' to the correct type. *)
+          let e'' = mkCast ~e:e' ~newt:vi.vtype in
+          ChangeTo e'')
   | Lval(Mem e', off) ->
       (* don't substitute constants in memory lvals *)
       let post e = match e with
