@@ -89,6 +89,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cfg reachingdefs rmciltmps deadcodeelim\
               zrapp \
               testcil \
+              cfg \
 	      $(CILLY_FEATURES) \
 	      ciloptions feature_config
 # ww: we don't want "maincil" in an external cil library (cil.cma),
@@ -434,7 +435,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 	          simplemem.ml simplify.ml \
 	          blockinggraph.ml blockinggraph.mli \
 		  dataslicing.ml dataslicing.mli \
-		  reachingdefs.ml
+		  reachingdefs.ml \
+		  cfg.ml cfg.mli
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
