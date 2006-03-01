@@ -229,6 +229,10 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
       compareExp e1 e2 && compareOffset off1 off2
   | _ -> false
 
+let compareExpStripCasts (e1: exp) (e2: exp) : bool =
+  compareExp (stripCasts e1) (stripCasts e2)
+
+
 let stripOneCast (e: exp) : exp =
   match e with
   | CastE (_, e') -> e'
@@ -382,12 +386,12 @@ let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
    *  we don't have to check that lo_to <= e)
   *)
   let why = "Coerce" in
-  if !optLevel = 0 || not (compareExp lo_from lo_to) then begin
+  if !optLevel = 0 || not (compareExpStripCasts lo_from lo_to) then begin
     addCheck (CNullOrLE(e, lo_from, lo_to, why));
     addCheck (CNullOrLE(e, lo_to, e, why));
     addAlignmentCheck e lo_from lo_to t
   end;
-  if !optLevel = 0 || not (compareExp hi_from hi_to) then begin
+  if !optLevel = 0 || not (compareExpStripCasts hi_from hi_to) then begin
     addCheck (CNullOrLE(e, e, hi_to, why));
     addCheck (CNullOrLE(e, hi_to, hi_from, why));
     addAlignmentCheck e hi_to hi_from t
@@ -1037,7 +1041,7 @@ let rec coerceExp (e:exp) (tto : typ) : unit =
   let toSentinel: bool = 
     (isPointerType tto) &&
     (let lo_to, hi_to = fancyBoundsOfType tto in
-     compareExp lo_to hi_to)
+     compareExpStripCasts lo_to hi_to)
   in    
   let tfrom = checkExp ~toSentinel e in
   coerceType e ~tfrom ~tto
@@ -1869,33 +1873,32 @@ let rec getBaseOffset (e: exp) : exp * int =
 
 
 let proveLeWithBounds (e1: exp) (e2: exp) : bool =
-(*   let ctx = localsContext !curFunc in *)
-(*   let rec getExpBounds (e:exp) : exp option * exp option = *)
-(*     match e with *)
-(*       (\* TODO: structs, memory *\) *)
-(*       Lval (Var vi, NoOffset) -> *)
-(*         let ctx = addThisBinding ctx e in *)
-(*         let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in *)
-(*         log " %a has bounds %a and %a.\n" d_exp e *)
-(*           d_exp lo d_exp hi; *)
-(*         Some lo, Some hi *)
-(*     | BinOp(PlusPI, e1, e2, _)-> getExpBounds e1 *)
-(*     | CastE (_, e') -> getExpBounds e' *)
-(*     | _ -> None, None *)
-(*   in *)
-(*   let lo1, hi1 = getExpBounds e1 in *)
-(*   let lo2, hi2 = getExpBounds e2 in *)
-(*   (\* we know e1 <= hi1 and lo2 <= e2 *\) *)
-(*   match hi1, lo2 with *)
-(*     Some hi1, Some lo2 -> *)
-(*       (compareExp hi1 lo2) *)
-(*       || (compareExp hi1 e2) *)
-(*       || (compareExp e1 lo2) *)
-(*   | Some hi1, None -> *)
-(*       (compareExp hi1 e2) *)
-(*   | None, Some lo2 -> *)
-(*       (compareExp e1 lo2) *)
-(*   | None, None ->  *)
+  let ctx = allContext () in
+  let rec getExpBounds (e:exp) : exp option * exp option =
+    match e with
+      (* TODO: structs, memory *)
+      Lval (Var vi, NoOffset) ->
+        let ctx = addThisBinding ctx e in
+        let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in
+        log " %a has bounds %a and %a.\n" d_exp e
+          d_exp lo d_exp hi;
+        Some lo, Some hi
+    | CastE (_, e') -> getExpBounds e'
+    | _ -> None, None
+  in
+  let lo1, hi1 = getExpBounds e1 in
+  let lo2, hi2 = getExpBounds e2 in
+  (* we know e1 <= hi1 and lo2 <= e2 *)
+  match hi1, lo2 with
+    Some hi1, Some lo2 ->
+      (compareExpStripCasts hi1 lo2)
+      || (compareExpStripCasts hi1 e2)
+      || (compareExpStripCasts e1 lo2)
+  | Some hi1, None ->
+      (compareExpStripCasts hi1 e2)
+  | None, Some lo2 ->
+      (compareExpStripCasts e1 lo2)
+  | None, None ->
       false
 
 let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
@@ -1904,7 +1907,7 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
 (*   log "  Comparing:\n"; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e1 d_plainexp b1 off1; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e2 d_plainexp b2 off2; *)
-  if compareExp (stripCasts b1) (stripCasts b2) then begin
+  if compareExpStripCasts b1 b2 then begin
     let doCompare n1 n2 =
       if n1 > n2 then begin
         if not allowGt then
@@ -1958,16 +1961,19 @@ let optimizeCheck (c: check) : check list =
   | CNotEq(e1, e2) ->
       let b1, off1 = getBaseOffset e1 in
       let b2, off2 = getBaseOffset e2 in
-      if compareExp b1 b2 && off1 <> off2 then []
+      if compareExpStripCasts b1 b2 && off1 <> off2 then []
       else [c]
 (* FIXME: do COverflow checks *)
   | CEq(e1, e2) -> 
-      if compareExp e1 e2 then []
+      if compareExpStripCasts e1 e2 then []
       else begin
         warn "CEq: Couldn't prove %a  ==  %a. Inserting a runtime check.\n"
           d_plainexp e1 d_plainexp e2;
         [c]
       end
+  | CNullOrMult(e1, e2, e3) ->
+      if isZero e1 then []
+      else [c]
   | _ -> [c]
 
 let optimizeVisitor = object (self)
@@ -2115,7 +2121,7 @@ type symval = {
 type term = exp
 (*     TVar of varinfo *)
 (*   | TPlusPI of varinfo * exp *)
-let compareTerm = compareExp
+let compareTerm = compareExpStripCasts
     
 module VarMap = Map.Make(struct 
                            type t = int
