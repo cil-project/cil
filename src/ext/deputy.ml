@@ -51,6 +51,16 @@ let optLevel : int ref = ref 1
     2: all optimization *)
 let inferFile : string ref = ref ""
 
+(* Be careful when converting int64 to int.  Int64.to_int
+   treats 2^31 the same as 0 *)
+let to_int (i: int64) : int = 
+  let i': int = Int64.to_int i in (* i.e. i' = i mod 2^31 *)
+  if i = Int64.of_int i' then i'
+  else E.s (error "Int constant too large: %Ld\n" i)
+
+let isPointer e: bool =
+  isPointerType (typeOf e)
+
 (**************************************************************************)
 
 let d_thisloc () : doc = d_loc () !currentLoc
@@ -229,8 +239,30 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
       compareExp e1 e2 && compareOffset off1 off2
   | _ -> false
 
+
+(* Remove casts that do not effect the value of the expression, such
+ * as casts between different pointer types.  Of course, these casts
+ * change the type, so don't use this within e.g. an arithmetic
+ * expression.
+ * 
+ * We also prune casts between equivalent integer types, such as a
+ * difference in sign or int vs long.  But we keep other arithmetic casts,
+ * since they actually change the value of the expression. *)
+let rec stripNopCasts (e:exp): exp =
+  match e with
+    CastE(t, e') -> begin
+      match unrollType t, unrollType (typeOf e') with
+        TPtr _, TPtr _ -> (* okay to strip *)
+          stripNopCasts e'
+      | (TInt _ as t1), (TInt _ as t2) 
+          when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
+          stripNopCasts e'
+      |  _ -> e
+    end
+  | _ -> e
+      
 let compareExpStripCasts (e1: exp) (e2: exp) : bool =
-  compareExp (stripCasts e1) (stripCasts e2)
+  compareExp (stripNopCasts e1) (stripNopCasts e2)
 
 
 let stripOneCast (e: exp) : exp =
@@ -553,9 +585,6 @@ let hasExternalDeps (lv: lval) : bool =
       false
   | _ -> E.s (bug "Unexpected result from removeOffset")
 
-let isPointer e: bool =
-  isPointerType (typeOf e)
-
 let isNullterm (t: typ) : bool =
   match unrollType t with
   | TPtr (_, a) -> hasAttribute "nullterm" a
@@ -811,13 +840,12 @@ let getCallocArgs (attrs: attributes) : int * int =
   | [] -> E.s (bug "No dcalloc attribute found")
 
 let rec expToAttr (e: exp) : attrparam option =
-  match e with
+  match stripNopCasts e with
   | Lval (Var vi, NoOffset) -> Some (ACons (vi.vname, []))
-  | CastE (t, e') -> expToAttr e' (* TODO: check type? *)
   | Const _ ->
       begin
         match isInteger e with
-        | Some i -> Some (AInt (Int64.to_int i))
+        | Some i -> Some (AInt (to_int i))
         | None -> None
       end
   | BinOp ((MinusA | PlusA) as op, e1, e2, _) ->
@@ -834,7 +862,7 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     if hasAttribute "dcalloc" fnAttrs then
       let i1, i2 = getCallocArgs fnAttrs in
       try
-        match List.nth args i1, stripCasts (List.nth args i2) with
+        match List.nth args i1, stripNopCasts (List.nth args i2) with
         | e, SizeOf t' -> e, t'
         | e, SizeOfE et -> e, typeOf et
         | _ -> E.s (error "Unrecognized calloc arguments")
@@ -843,7 +871,7 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     else if hasAttribute "dmalloc" fnAttrs then
       let i = getMallocArg fnAttrs in
       try
-        match stripCasts (List.nth args i) with
+        match stripNopCasts (List.nth args i) with
         | BinOp (Mult, e', SizeOf t, _)
         | BinOp (Mult, SizeOf t, e', _) -> e', t
         | BinOp (Mult, e', SizeOfE et, _)
@@ -861,6 +889,8 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     | TPtr (bt, _) -> bt
     | _ -> E.s (error "Return type of allocation is not a pointer")
   in
+  if !verbose then
+    log "Allocating %a elements with type %a\n" d_exp numElts d_type baseType;
   if not (compareTypes baseType retBaseType) then
     errorwarn "Type mismatch: alloc type %a and return type %a differ"
               d_type baseType d_type retBaseType;
@@ -1226,6 +1256,8 @@ and checkLval (why: whyLval) (lv: lval) : typ =
             end;
             let ctx = addThisBinding emptyContext (Lval lv) in
             substType ctx bt
+        | TArray (bt, None, a) ->
+            E.s (error "Accessing unsized array %a" d_lval lv')
         | t -> E.s (error "Expecting an array, got %a" d_type t)
       end
   | _ -> E.s (bug "Unexpected result from removeOffset")
@@ -1840,7 +1872,7 @@ let sizeOfBaseType ptrt: int option =
   match unrollType ptrt with
   | TPtr (bt, _) -> begin
       match isInteger (constFold true (SizeOf bt)) with
-      | Some n -> Some (Int64.to_int n)
+      | Some n -> Some (to_int n)
       | None -> None
     end
   | _ -> (* maybe the expression is NULL *)
@@ -1862,9 +1894,9 @@ let rec getBaseOffset (e: exp) : exp * int =
       begin
         match getBaseOffset e', intFold off, op with
         | (b, n1), Some n2, (PlusPI | IndexPI) ->
-            b, n1 + (Int64.to_int n2)
+            b, n1 + (to_int n2)
         | (b, n1), Some n2, MinusPI ->
-            b, n1 - (Int64.to_int n2)
+            b, n1 - (to_int n2)
         | _, _, _ ->
             e, 0
       end
@@ -1880,8 +1912,8 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
       Lval (Var vi, NoOffset) ->
         let ctx = addThisBinding ctx e in
         let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in
-        log " %a has bounds %a and %a.\n" d_exp e
-          d_exp lo d_exp hi;
+(*         log " %a has bounds %a and %a.\n" d_exp e *)
+(*           d_exp lo d_exp hi; *)
         Some lo, Some hi
     | CastE (_, e') -> getExpBounds e'
     | _ -> None, None
@@ -1902,8 +1934,8 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
       false
 
 let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
-  let b1, off1 = getBaseOffset e1 in
-  let b2, off2 = getBaseOffset e2 in
+  let b1, off1 = getBaseOffset (stripNopCasts e1) in
+  let b2, off2 = getBaseOffset (stripNopCasts e2) in
 (*   log "  Comparing:\n"; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e1 d_plainexp b1 off1; *)
 (*   log "   %a = (%a) + %d.\n" d_exp e2 d_plainexp b2 off2; *)
@@ -1928,10 +1960,6 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
   end else begin
     (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
   end
-(*    (\* matth:  a hack that assumes the top page of memory is unmapped.   *)
-(*       Therefore, if e1 is in bounds, we can assume e1 <= e1+off when *)
-(*       off<4096.  *\) *)
-(*    off2 >= 0 && off2 < (4096/(sizeOfBaseType (typeOf b2)))) *)
 
 let optimizeCheck (c: check) : check list =
   let checkCoerce e1 e2 e3 e4 e5 nt =
@@ -1963,7 +1991,6 @@ let optimizeCheck (c: check) : check list =
       let b2, off2 = getBaseOffset e2 in
       if compareExpStripCasts b1 b2 && off1 <> off2 then []
       else [c]
-(* FIXME: do COverflow checks *)
   | CEq(e1, e2) -> 
       if compareExpStripCasts e1 e2 then []
       else begin
@@ -1974,6 +2001,20 @@ let optimizeCheck (c: check) : check list =
   | CNullOrMult(e1, e2, e3) ->
       if isZero e1 then []
       else [c]
+  | COverflow(ptr, Const(CInt64 (off,_,_))) ->
+      let off = to_int off in
+   (* matth:  We'll assume that the top page of memory is unmapped.
+      Therefore, if ptr is in bounds, we can assume ptr < (2^32 - 4096),
+      and ptr+off will not overflow for small values of off.
+      FIXME: does kmalloc actually obey this assumption?  *)
+      let sizeOfBase = match sizeOfBaseType (typeOf ptr) with
+          Some s -> s
+        | None -> E.s (error ("Overflow check on %a + %d, but I don't know"
+                              ^^" how big each element is.\n") d_exp ptr off)
+      in
+      if (off >= 0) && (off*sizeOfBase < 4096) then []
+      else [c]
+
   | _ -> [c]
 
 let optimizeVisitor = object (self)
@@ -2176,7 +2217,7 @@ let stateMap : absState IH.t = IH.create 50
 
 let isNonNull state e: bool = 
 (*   log "isNonNull? on %a.\n" d_plainexp e; *)
-  match stripCasts e with
+  match stripNopCasts e with
     Lval(Var vi, NoOffset) -> 
       List.memq vi state.nonNullVars 
   | BinOp((PlusPI|IndexPI|MinusPI), e1, e2, _) when isPointer e1 ->
@@ -2195,7 +2236,7 @@ let isFalse state e =
 (* Update a state to reflect a branch *)
 let doBranch (a:absState) (e:exp) : absState = 
 (*   log "Guard %a.\n" d_exp e; *)
-  let e = match stripCasts e with
+  let e = match stripNopCasts e with
       UnOp(LNot, UnOp(LNot, e, _), _) -> e
     | e -> e
   in
