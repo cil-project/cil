@@ -834,9 +834,9 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     if hasAttribute "dcalloc" fnAttrs then
       let i1, i2 = getCallocArgs fnAttrs in
       try
-        match stripCasts (List.nth args i1), List.nth args i2 with
-        | SizeOf t', e -> e, t'
-        | SizeOfE et, e -> e, typeOf et
+        match List.nth args i1, stripCasts (List.nth args i2) with
+        | e, SizeOf t' -> e, t'
+        | e, SizeOfE et -> e, typeOf et
         | _ -> E.s (error "Unrecognized calloc arguments")
       with Failure "nth" ->
         E.s (error "Invalid indices in calloc annotation")
