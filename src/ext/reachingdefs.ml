@@ -14,8 +14,6 @@
  * for each instruction figures out which definitions
  * reach into or out of each instruction.
  *
- * TODO:
- * 3. Handle pre-increments.
  *)
 
 open Cil
@@ -167,8 +165,8 @@ module ReachingDef =
        or must-reach *)
     let mayReach = ref false
 
-    (* hash from ints to variables and
-       an integer that tells the id number of
+ 
+    (* An integer that tells the id number of
        the first definition *)
     (* Also a hash from variable ids to a set of 
        definition ids that reach this statement.

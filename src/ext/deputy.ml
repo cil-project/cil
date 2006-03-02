@@ -2103,15 +2103,20 @@ let map_to_check f c =
  * action takes reaching definition data, an expression,
  * the fundec that the expression is in, and a boolean.
  * If the boolean is true then all variables are considered.
- * If the boolean is false then only temps are considered. *)
-(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp *)
+ * If the boolean is false then only temps are considered. 
+ * The returned bool is true if the expression was changed *)
+(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp * bool *)
+let checkVisit_change = ref false
 let checkVisit action (fd : fundec) = object(self)
     inherit RD.rdVisitorClass
 
   method private do_action b e =
     match self#get_cur_iosh() with
       None -> e
-    | Some iosh -> action iosh e fd b
+    | Some iosh -> 
+	let e', b' = action iosh e fd b in
+	if b' then checkVisit_change := true;
+	e'
 
   method private fix_check =
     map_to_check (self#do_action true)
@@ -2129,13 +2134,28 @@ let checkVisit action (fd : fundec) = object(self)
 
   method vexpr e = 
     self#handle_checks();
+    ignore(E.log "checkVisit: looking in %a\n" d_plainexp e);
     ChangeTo(self#do_action false e)
 
   method vfunc fd =
-    RD.computeRDs fd;
+    RD.computeRDs fd;  
     DoChildren
 
 end
+
+(* applies the action to the function until
+   no changes are made *)
+(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp * bool *)
+(* action -> fundec -> unit *)
+let fp action fd =
+  let vis = checkVisit action fd in
+  let rec loop () =
+    checkVisit_change := false;
+    ignore(visitCilFunction (vis :> cilVisitor) fd);
+    if !checkVisit_change
+    then loop() else ()
+  in
+  loop()
 
 (* zra - Try to remove tmp variables in exps
  * through forward substitution.
@@ -2145,12 +2165,14 @@ end
  * by an accurate constant propagation.
  *
  * Run after optimizeVisitor.
- * Only run if optLevel = 2 *)
-let forwardTmpSub = checkVisit RCT.fwd_subst
-
+ * Only run if optLevel = 2 
+ * Temps might be copied to temps, so it is necessary
+ * to reach a fixed point.
+ *)
+let forwardTmpSub = fp RCT.fwd_subst
 
 (* Constant propagation into checks *)
-let constProp = checkVisit RCT.const_prop
+let constProp = fp RCT.const_prop
 
 (**************************************************************************)
 (**************************************************************************)
@@ -2442,13 +2464,14 @@ let checkFile (f: file) : unit =
                ignore (visitCilFunction optimizeVisitor fd)
              else if !optLevel = 2 then begin
                ignore (visitCilFunction optimizeVisitor fd);
-	       let fts = forwardTmpSub fd in
-	       let cp = constProp fd in
 	       let cf = constFoldVisitor false in
-               ignore(visitCilFunction (fts :> cilVisitor) fd);
-	       ignore(visitCilFunction (cp :> cilVisitor) fd);
+               forwardTmpSub fd;
+	       constProp fd;
 	       ignore(visitCilFunction cf fd);
                doFlowAnalysis fd;
+               forwardTmpSub fd;
+	       constProp fd;
+	       ignore(visitCilFunction cf fd);
 	       ignore(visitCilFunction optimizeVisitor fd);
              end
           end
@@ -2462,6 +2485,9 @@ let checkFile (f: file) : unit =
     Cfg.clearFileCFG f; 
     Cfg.computeFileCFG f;
     Deadcodeelim.dce f;
+    List.iter (fun g -> match g with GFun(fd,loc) ->
+      forwardTmpSub fd | _ -> ()) f.globals;
+    Deadcodeelim.dce f
   end;
   f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)

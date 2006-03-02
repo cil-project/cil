@@ -1914,6 +1914,41 @@ partial optimization of \t{foo}):
   }
 \end{cilcode}
 
+\subsection{Reaching Definitions}
+
+The \t{reachingdefs.ml} module uses the dataflow framework and CFG
+information to calculate the definitions that reach each
+statement. After computing the CFG and calling computeRDs on a
+function declaration, ReachingDef.stmtStartData will contain a mapping
+form statement IDs to data about which definitions reach each
+statement. In particular, it is a mapping from statement IDs to a
+triple the first two members of which are used internally. The third
+member is a mapping from variable IDs to Sets of integer options. If
+the set contains Some(i), then the definition of that variable with ID
+i reaches that statement. If the set contains None, then there is a
+path to that statement on which there is no definition of that variable.
+Also, if the variable ID is unmapped at a statement, then no definition
+of that variable reaches that statement.
+
+To summarize, reachingdefs.ml has the following interface:
+\begin{itemize}
+\item computeRDs -- Computes reaching definitions.
+\item ReachingDef.stmtStartData -- contains reaching
+definition data after computeRDs is called.
+\item ReachingDef.defIdStmtHash -- Contains a mapping
+from definition IDs to the ID of the statement in which
+the definition occurs.
+\item getRDs -- Takes a statement ID and returns
+reaching definition data for that statement.
+\item instrRDs -- Takes a list of instructions and the
+definitions that reach the first instruction, and for
+each instruction calculates the definitions that reach
+either into or out of that instruction.
+\item rdVisitorClass -- A subclass of nopCilVisitor that
+can be extended such that the current reaching definition
+data is available when expressions are visited.
+\end{itemize}
+
 \subsection{Simple Memory Operations} 
 
 The \t{simplemem.ml} module allows CIL lvalues that contain memory accesses

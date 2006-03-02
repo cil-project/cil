@@ -2,12 +2,6 @@
    temporary variables. Some can be removed immediately,
    others must wait until pretty printing *)
 
-(* 
- *  TODO:
- *  1. provide a list of prefixes and suffixes that the
- *  names of variables to be eliminated may have.
- *)
-
 open Cil
 open Pretty
 
@@ -116,12 +110,9 @@ let ok_to_replace curiosh defiosh f r =
 	    let defios = try IH.find defiosh vi.vid 
 	    with Not_found -> RD.IOS.empty in
 	    RD.IOS.compare curios defios == 0
-(*
-	    (if !debug then ignore (E.log "ok_to_replace: %s IS defined in function\n" vi.vname);
-	    false)
-*)
       | _, _ ->
-	  (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions\n" vi.vname);
+	  (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions. cur: %a\n def: %a\n" 
+				    vi.vname RD.ReachingDef.pretty ((),0,curiosh) RD.ReachingDef.pretty ((),0,defiosh));
 	  false)) 
     uses true
 
@@ -336,14 +327,36 @@ let varXformClass action iosh fd nofrm = object(self)
 
 end
 
+(* Returns the set of definitions of vi in iosh that
+   are not due to assignments of the form x = x *)
+(* IOS.t IH.t -> varinfo -> int option *)
+let iosh_get_useful_def iosh vi =
+  if IH.mem iosh vi.vid then
+    let ios = IH.find iosh vi.vid in
+    let ios' = RD.IOS.filter (fun ido  ->
+      match ido with None -> true | Some(id) ->
+	match getDefRhs id with
+	  Some(RDExp(Lval(Var vi',NoOffset)),_,_)
+	| Some(RDExp(CastE(_,Lval(Var vi',NoOffset))),_,_) ->
+	    not(vi.vid = vi'.vid) (* false if they are the same *)
+	| _ -> true) ios
+    in
+    if not(RD.IOS.cardinal ios' = 1) 
+    then (if !debug then ignore(E.log "iosh_get_useful_def: multiple different defs of %d:%s(%d)\n" vi.vid vi.vname (RD.IOS.cardinal ios'));
+	  None)
+    else RD.IOS.choose ios'
+  else (if !debug then ignore(E.log "iosh_get_useful_def: no def of %s reaches here\n" vi.vname);
+	None)  
+
 (* if the temp with varinfo vi can be
    replaced by an expression then return
    Some of that expression. o/w None.
    If b is true, then don't check the form *)
 (* IOS.t IH.t -> varinfo -> fundec -> bool -> exp option *)
+let tmp_to_exp_change = ref false
 let tmp_to_exp iosh vi fd nofrm =
-  if nofrm || check_forms vi.vname forms then
-  let ido = RD.iosh_singleton_lookup iosh vi in
+  if nofrm || check_forms vi.vname forms 
+  then let ido = iosh_get_useful_def iosh vi in 
   match ido with None -> 
     if !debug then ignore(E.log "tmp_to_exp: non-sigle def: %s\n" vi.vname);
     None
@@ -355,21 +368,27 @@ let tmp_to_exp iosh vi fd nofrm =
 	if ok_to_replace iosh defiosh fd r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
-	  Some e)
+	   tmp_to_exp_change := true;
+	   Some e)
 	else 
 	  (if !debug then ignore(E.log "tmp_to_exp: not ok to replace %s\n" vi.vname);
 	   None)
     | _ -> 
 	if !debug then ignore(E.log "tmp_to_exp: rhs is call %s\n" vi.vname);
 	None
-  else None
+  else 
+    (if !debug then ignore(E.log "tmp_to_exp: %s didn't match form or nofrm\n" vi.vname);
+     None)
 
 let fwd_subst iosh e fd nofrm =
-  visitCilExpr (varXformClass tmp_to_exp iosh fd nofrm) e
+  tmp_to_exp_change := false;
+  let e' = visitCilExpr (varXformClass tmp_to_exp iosh fd nofrm) e in
+  (e', !tmp_to_exp_change)
 
 (* See if vi can be replaced by a constant
    by checking all of the definitions reaching
    this use of vi *)
+let tmp_to_const_change = ref false
 let tmp_to_const iosh vi fd nofrm =
   if nofrm || check_forms vi.vname forms then
     match RD.iosh_lookup iosh vi with
@@ -390,12 +409,16 @@ let tmp_to_const iosh vi fd nofrm =
 		      Util.equals c c'
 		  | _ -> false) ios
 	      in
-	      if same then Some(Const c) else None
+	      if same 
+	      then (tmp_to_const_change := true; Some(Const c))
+	      else None
 	  | _ -> None
   else None
 
 let const_prop iosh e fd nofrm =
-  visitCilExpr (varXformClass tmp_to_const iosh fd nofrm) e
+  tmp_to_const_change := false;
+  let e' = visitCilExpr (varXformClass tmp_to_const iosh fd nofrm) e in
+  (e', !tmp_to_const_change)
 
 class expTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
@@ -469,7 +492,7 @@ class incdecTempElimClass (fd:fundec) = object (self)
     match e with
       Lval (Var vi,off) ->
 	(if check_forms vi.vname forms then
-	 (* only allowed to replace a tmp with a function call once *)
+	 (* only allowed to replace a tmp with an inc/dec if there is only one use *)
 	  (match cur_rd_dat with
 	    Some(_,s,iosh) -> do_change iosh vi
 	  | None -> let iviho = RD.getRDs sid in
@@ -511,7 +534,7 @@ class callTempElimClass (fd:fundec) = object (self)
     match e with
       Lval (Var vi,off) ->
 	(if check_forms vi.vname forms then
-	 (* only allowed to replace a tmp with a function call once *)
+	 (* only allowed to replace a tmp with a function call if there is only one use *)
 	  if IH.mem iioh vi.vid
 	  then (IH.replace iioh vi.vid None; DoChildren)
 	  else
