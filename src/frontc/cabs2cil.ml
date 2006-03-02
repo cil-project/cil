@@ -3562,6 +3562,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         match ce with
           CEExp (se, ((Const _) as c)) -> 
             finishExp se (if isConstTrue c then one else zero) intType
+	| CEExp (se, (UnOp(LNot, _, _) as e)) ->
+	    (* already normalized to 0 or 1 *)
+	    finishExp se e intType
         | CEExp (se, e) ->
             let e' = 
               let te = typeOf e in
