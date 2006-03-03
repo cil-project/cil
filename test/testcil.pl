@@ -1460,16 +1460,23 @@ addDeputyTest("infer11");
 addDeputyTest("memcpy1");
 addDeputyTest("memset1");
 addDeputyTest("memcmp1");
+
 addDeputyTest("ptrarith1");
+
 addDeputyTest("return1");
+
 addDeputyTest("sizeof1");
 addDeputyTest("sizeof2");
+
 addDeputyTest("startof1");
 addDeputyTest("startof2");
+
 addDeputyTest("string1");
 addDeputyTest("string2");
 addDeputyTest("string3");
+
 addDeputyTest("trusted1");
+addDeputyTest("trusted2");
 
 addDeputyTest("types1");
 addDeputyTest("types2");
@@ -1487,6 +1494,7 @@ addDeputyTest("union3");
 addDeputyTest("var1");
 addDeputyTest("var2");
 addDeputyTest("var3");
+
 addDeputyTest("vararg1");
 
 
