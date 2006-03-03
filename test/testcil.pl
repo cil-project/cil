@@ -1431,6 +1431,7 @@ addDeputyTest("cast6");
 addDeputyTest("cast7");
 addDeputyTest("cast8");
 addDeputyTest("cast9");
+addDeputyTest("cast11");
 
 addDeputyTest("deref1");
 addDeputyTest("deref2");

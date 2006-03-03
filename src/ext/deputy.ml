@@ -444,6 +444,9 @@ let countAttr (a: attrparam) : attribute =
 
 let safeAttr : attribute = countAttr (AInt 1)
 
+let sentinelAttr : attribute =
+  Attr ("bounds", [ACons (thisKeyword, []); ACons (thisKeyword, [])])
+
 (* remember complicated bounds expressions *)
 let boundsTable : exp Inthash.t = IH.create 13
 let boundsTableCtr : int ref = ref 0
@@ -1649,14 +1652,80 @@ let inferVisitor = object (self)
   val varBounds : (string, varinfo * varinfo) Hashtbl.t =
     Hashtbl.create 7
 
+  val mutable curIndex = 0
+
+  method private makeName () =
+    curIndex <- curIndex + 1;
+    "cbound" ^ (string_of_int curIndex)
+
+  method private needsAnnot (t: typ) =
+    isPointerType t && not (hasAttribute "bounds" (typeAttrs t))
+
+  method private makeBoundVars (name: string) (bt: typ) (a: attributes) =
+    let makeBoundVar (suffix: string) : varinfo =
+      let boundName = name ^ suffix in
+      let boundType = TPtr (bt, sentinelAttr :: a) in
+      makeLocalVar !curFunc boundName boundType
+    in
+    let baseVar = makeBoundVar "__b" in
+    let endVar = makeBoundVar "__e" in
+    let boundAttr =
+      Attr ("bounds", [ACons (baseVar.vname, []);
+                       ACons (endVar.vname, [])])
+    in
+    baseVar, endVar, boundAttr
+
   method vtype t =
     let postProcessType (t: typ) =
-      if isPointerType t && not (hasAttribute "bounds" (typeAttrs t)) then
+      if self#needsAnnot t then
         typeAddAttributes [safeAttr] t
       else
         t
     in
     ChangeDoChildrenPost (t, postProcessType)
+
+  method vexpr e =
+    let castNeedsAnnot =
+      match e with
+      | CastE (t, _) when self#needsAnnot t -> true
+      | _ -> false
+    in
+    let postProcessExpr (e: exp) =
+      if castNeedsAnnot then
+        match e with
+        | CastE (t, e') ->
+            if !verbose then
+              log "inferring for cast %a\n" dn_exp e;
+            let bt, a =
+              match unrollType t with
+              | TPtr (bt, a) -> bt, dropAttribute "bounds" a
+              | _ -> E.s (bug "expected pointer type")
+            in
+            let baseVar, endVar, boundAttr =
+              self#makeBoundVars (self#makeName ()) bt a
+            in
+	    let lo, hi =
+	      if isZero e then
+	        zero, zero
+              else begin
+	        let t' = checkExp e' in
+                if isPointerType t' then
+                  fancyBoundsOfType t'
+                else
+                  e', e'
+	      end
+	    in
+	    let lo', hi' =
+	      CastE (baseVar.vtype, lo), CastE (endVar.vtype, hi)
+	    in
+	    self#queueInstr [Set (var baseVar, lo', !currentLoc);
+                             Set (var endVar, hi', !currentLoc)];
+            CastE (TPtr (bt, boundAttr :: a), e')
+        | _ -> E.s (bug "expected cast expression")
+      else
+        e
+    in
+    ChangeDoChildrenPost (e, postProcessExpr)
 
   method vinst i =
     (* Process individual instructions.   *)
@@ -1665,8 +1734,8 @@ let inferVisitor = object (self)
         [] -> []
       | [Set ((Var vi, NoOffset), e, l) as instr]
           when Hashtbl.mem varBounds vi.vname ->
-          if !verbose then
-            E.log "%a: inferring for instr %a\n" d_loc l dn_instr instr;
+            if !verbose then
+              log "inferring for instr %a\n" dn_instr instr;
             let baseVar, endVar = Hashtbl.find varBounds vi.vname in
             let t = checkExp e in
             (* matth: don't insert an If that checks whether vi is null.
@@ -1701,18 +1770,8 @@ let inferVisitor = object (self)
       (fun vi ->
          match vi.vtype with
          | TPtr (bt, a) when not (hasAttribute "bounds" a) ->
-             let makeBoundVar (suffix: string) : varinfo =
-               let boundName = vi.vname ^ suffix in
-               let boundParam = ACons (boundName, []) in
-               let boundAttr = Attr ("bounds", [boundParam; boundParam]) in
-               let boundType = TPtr (bt, boundAttr :: a) in
-               makeLocalVar fd boundName boundType
-             in
-             let baseVar = makeBoundVar "__b" in
-             let endVar = makeBoundVar "__e" in
-             let boundAttr =
-               Attr ("bounds", [ACons (baseVar.vname, []);
-                                ACons (endVar.vname, [])])
+	     let baseVar, endVar, boundAttr =
+               self#makeBoundVars vi.vname bt a
              in
              vi.vtype <- TPtr (bt, boundAttr :: a);
              Hashtbl.add varBounds vi.vname (baseVar, endVar)
@@ -1814,6 +1873,10 @@ let preProcessVisitor = object (self)
                  Set (lv, Lval (var tmp), l) ::
                  Set (var tmp, zero, l) ::
                  acc
+           | Call (ret, fn, args, l) when isMemset (typeOf fn) ||
+                                          isMemcpy (typeOf fn) ||
+                                          isMemcmp (typeOf fn) ->
+               Call (ret, fn, List.map stripOneCast args, l) :: acc
            | Call (Some (Var vi, NoOffset), fn, args, l) ->
                let rt, argInfo =
                  match typeOf fn with
@@ -2134,7 +2197,6 @@ let checkVisit action (fd : fundec) = object(self)
 
   method vexpr e = 
     self#handle_checks();
-    ignore(E.log "checkVisit: looking in %a\n" d_plainexp e);
     ChangeTo(self#do_action false e)
 
   method vfunc fd =
