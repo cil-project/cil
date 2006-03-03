@@ -126,7 +126,6 @@ let iosh_equals iosh1 iosh2 =
 (* IOS.t IH.t -> int -> varinfo -> unit *)
 let iosh_replace iosh i vi =
   if IH.mem iosh vi.vid then
-    let ios = IH.find iosh vi.vid in
     let newset = IOS.singleton (Some i) in
     IH.replace iosh vi.vid newset
   else

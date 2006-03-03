@@ -46,6 +46,7 @@ let simpleGaSearch l =
     | Some(0) -> i
     | Some(-1) -> loop (i-1)
     | Some(1) -> i
+    | _ -> E.s (E.error "simpleGaSearch: unexpected return from loc_comp\n")
   in
   loop hi
 
@@ -149,6 +150,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	   text rhsvi.vname ++ text "++"
        | MinusA | MinusPI ->
 	   text rhsvi.vname ++ text "--"
+       | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec\n")
      else (self#checkViAndWarn v;
 	   text v.vname)
 

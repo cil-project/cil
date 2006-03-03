@@ -49,10 +49,10 @@ let getDefRhs defId =
 	| None -> false) iihl in
       (try 
 	let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.hd iihl' in
-	let vid = 
+	(*let vid = 
 	  match RD.iosh_defId_find diosh defId with
 	    None -> E.s (E.error "getDefRhs: defId %d doesn't reach first instr?!\n" defId)
-	  | Some(vid') -> vid' in
+	  | Some(vid') -> vid' in*)
 	(match i with
 	  Set((lh,_),e,_) ->
 	    (match lh with
@@ -173,15 +173,12 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 	    Const(CInt64(one,_,_)),_) ->
 	      if vi.vid = vi'.vid && one = Int64.one 
 	      then Some(PlusA)
+	      else if vi.vid = vi'.vid && one = Int64.minus_one
+	      then Some(MinusA)
 	      else None
     | BinOp((MinusA|MinusPI), Lval(Var vi', NoOffset),
 	    Const(CInt64(one,_,_)),_) ->
 	      if vi.vid = vi'.vid && one = Int64.one
-	      then Some(MinusA)
-	      else None
-    | BinOp((PlusA|PlusPI|IndexPI), Lval(Var vi', NoOffset),
-	    Const(CInt64(mone,_,_)),_) ->
-	      if vi.vid = vi'.vid && mone = Int64.minus_one 
 	      then Some(MinusA)
 	      else None
     | _ -> None
@@ -231,7 +228,8 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 				None)
 		      | None ->
 			  (if !debug then ignore (E.log "ok_to_replace: redef isn't adding or subtracting one from itself\n");
-			   None))
+			   None)
+		      | _ -> E.s (E.error "ok_to_replace: unexpected op in inc/dec info."))
 		    | _ -> (if !debug then ignore (E.log "ok_to_replace: redef a call\n");
 			    None)))
       | _ -> (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions\n" rhsvi.vname);
@@ -309,7 +307,7 @@ let varXformClass action iosh fd nofrm = object(self)
     inherit nopCilVisitor
 
   method vexpr e = match e with
-    Lval(Var vi, NoOffset) as lv->
+    Lval(Var vi, NoOffset) ->
       (match action iosh vi fd nofrm with
 	None -> DoChildren
       | Some e' -> 
@@ -400,7 +398,7 @@ let tmp_to_const iosh vi fd nofrm =
 	match defido with None -> None | Some defid ->
 	  match getDefRhs defid with
 	    None -> None
-	  | Some(RDExp(Const c) as r, _, defiosh) ->
+	  | Some(RDExp(Const c), _, defiosh) ->
 	      let same = RD.IOS.for_all (fun defido ->
 		match defido with None -> false | Some defid ->
 		  match getDefRhs defid with
