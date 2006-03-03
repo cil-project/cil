@@ -5379,6 +5379,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * That set a return value via an ASM statement. As a result, I 
              * am changing this so a final ASM statement does not count as 
              * "fall through" for the purposes of this warning.  *)
+            (* matth: But it's better to assume assemly will fall through,
+             * since  most such blocks do.  It's probably better to print an
+             * unnecessary warning than to break CIL's invariant that
+             * return statements are inserted properly.  *)
             let instrFallsThrough (i : instr) = match i with
               Set _ -> true
             | Call (None, Lval (Var e, NoOffset), _, _) -> 
@@ -5387,7 +5391,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 else if hasAttribute "noreturn" e.vattr then false
                 else true
             | Call _ -> true
-            | Asm _ -> false
+            | Asm _ -> true
             in 
             let rec stmtFallsThrough (s: stmt) : bool = 
               match s.skind with
