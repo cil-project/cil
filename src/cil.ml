@@ -991,7 +991,7 @@ let assertEmptyQueue vis =
     (* Either a visitor inserted an instruction somewhere that it shouldn't
        have (i.e. at the top level rather than inside of a statement), or
        there's a bug in the visitor engine. *)
-    E.s (E.bug "Visitor's instruction queue is not empty\n. You should only use queueInstr inside a function body!");
+    E.s (E.bug "Visitor's instruction queue is not empty.\n  You should only use queueInstr inside a function body!");
   ()
 
 
@@ -4886,10 +4886,15 @@ and childrenAttrparam (vis: cilVisitor) (aa: attrparam) : attrparam =
 
 let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   if debugVisit then ignore (E.log "Visiting function %s\n" f.svar.vname);
-  doVisit vis vis#vfunc childrenFunction f
+  assertEmptyQueue vis;
+  let f = doVisit vis vis#vfunc childrenFunction f in
+
+  let toPrepend = vis#unqueueInstr () in
+  if toPrepend <> [] then 
+    f.sbody.bstmts <- mkStmt (Instr toPrepend) :: f.sbody.bstmts;
+  f
 
 and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
-  assertEmptyQueue vis;
   f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
   (* visit local declarations *)
   f.slocals <- mapNoCopy (visitCilVarDecl vis) f.slocals;
