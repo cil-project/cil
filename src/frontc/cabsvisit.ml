@@ -190,7 +190,7 @@ and childrenTypeSpecifier vis ts =
       if n' != n || eo' != eo then (n', eo') else input
     in
     let nel' = mapNoCopy doOneField nel in
-    if s' != s || nel' != nel then (s', nel) else input
+    if s' != s || nel' != nel then (s', nel') else input
   in
   match ts with
     Tstruct (n, Some fg, extraAttrs) ->
