@@ -1006,7 +1006,9 @@ sub applyCilAndCompile {
 # Linking after CIL
 sub link_after_cil {
     my ($self, $psrcs, $dest, $ppargs, $ccargs, $ldargs) = @_;
-    return $self->straight_link($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+    if (!defined($ENV{CILLY_DONT_COMPILE_AFTER_MERGE})) {
+      return $self->straight_link($psrcs, $dest, $ppargs, $ccargs, $ldargs);
+    }
 }
 
 # See if we must merge this one
