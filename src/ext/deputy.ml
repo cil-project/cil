@@ -1691,7 +1691,9 @@ let inferVisitor = object (self)
       | _ -> false
     in
     let postProcessExpr (e: exp) =
-      if castNeedsAnnot then
+      (* matt: we'll have to do something else for casts in globals,
+         since inserting variables won't help. *)
+      if castNeedsAnnot && (!curFunc != dummyFunDec) then
         match e with
         | CastE (t, e') ->
             if !verbose then
