@@ -201,7 +201,12 @@ sub collectOneArgument {
     if($self->compilerArgument($self->{OPTIONS}, $arg, $pargs)) { return 1; }
 
     if($arg eq "--help" || $arg eq "-help") {
-        $self->printHelp(); exit 1;
+        $self->printVersion(); 
+        $self->printHelp(); 
+        exit 1;
+    }
+    if($arg eq "--version" || $arg eq "-version") {
+        $self->printVersion(); exit 0;
     }
     if($arg eq "--verbose") {
         $self->{VERBOSE} = 1; return 1;
@@ -336,11 +341,15 @@ sub collectOneArgument {
 }
 
 
+sub printVersion {
+    system ($CilCompiler::compiler, '--version'); 
+}
 
 sub printHelp {
     my($self) = @_;
     $self->usage();
     print <<EOF;
+
 Options:
   --mode=xxx   What tool to emulate:
                 GNUCC   - GNU gcc

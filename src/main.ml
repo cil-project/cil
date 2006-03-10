@@ -196,6 +196,11 @@ let rec theMain () =
     
   let argDescr = Ciloptions.options @ 
     [
+    "--version", Arg.Unit 
+              (fun _ -> print_endline ("CIL version " ^ Cil.cilVersion ^
+                       "\nMore information at http://cil.sourceforge.net/\n");
+                 exit 0),
+           "output version information and exit";
     "--testcil", Arg.String (fun s -> testcil := s),
           "test CIL using the give compiler";
     "--forceRLArgEval", 
