@@ -270,16 +270,14 @@ let stripOneCast (e: exp) : exp =
   | CastE (_, e') -> e'
   | _ -> e
 
+
 (**************************************************************************)
 
 type check =
     CNonNull of exp      (** e != 0 *)
   | CEq of exp * exp     (** e1 == e2 *)
-  | CNotEq of exp * exp  (** e1 != e2,   e.g. e != hi *)
   | CPositive of exp     (** e > 0 *)
   | CMult of exp * exp   (** e1 * k == e2 for some int k *)
-  | CNullOrMult of exp * exp * exp
-                         (** e1 == 0 || e2 * k == e3 for some int k *)
   | COverflow of exp * exp
                          (** e1 + e2 does not overflow (e2 is signed) *)
   | CUnsignedLess of exp * exp * string
@@ -349,10 +347,8 @@ let mkCheckFun (name: string) (n: int) : exp =
   mkFun name voidType args'
 let cnonnull = mkCheckFun "CNonNull" 1
 let ceq = mkCheckFun "CEq" 2
-let cnoteq = mkCheckFun "CNotEq" 2
 let cpositive = mkCheckFun "CPositive" 1
 let cmult = mkCheckFun "CMult" 2
-let cnullormult = mkCheckFun "CNullOrMult" 3
 let coverflow = mkCheckFun "COverflow" 3
 let cunsignedless = mkCheckFun "CUnsignedLess" 3
 let cunsignedle = mkCheckFun "CUnsignedLE" 3
@@ -373,10 +369,8 @@ let checkToInstr (c:check) =
   match c with
     CNonNull (e) -> call cnonnull [e]
   | CEq (e1,e2) -> call ceq [e1;e2]
-  | CNotEq (e1,e2) -> call cnoteq [e1;e2]
   | CPositive (e) -> call cpositive [e]
   | CMult (e1,e2) -> call cmult [e1;e2]
-  | CNullOrMult (e1,e2,e3) -> call cnullormult [e1;e2;e3]
   | COverflow (e1,e2) -> call coverflow [e1;e2]
   | CUnsignedLess (e1,e2,why) -> call cunsignedless [e1;e2; mkString why]
   | CUnsignedLE (e1,e2,why) -> call cunsignedle [e1;e2; mkString why]
@@ -404,13 +398,6 @@ let addArithChecks (lo: exp) (ptr: exp) (off : exp) (hi : exp) : unit =
   let e = BinOp (PlusPI, ptr, off, typeOf ptr) in
   addBoundsCheck lo e hi
 
-let addAlignmentCheck (e: exp) (lo: exp) (hi: exp) (t: typ) : unit =
-  let diff =
-    BinOp (MinusPP, CastE (charPtrType, hi),
-                    CastE (charPtrType, lo), intType)
-  in
-  addCheck (CNullOrMult (e, SizeOf t, diff))
-
 let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
                      (hi_to: exp) (hi_from: exp) (t: typ) : unit =
   (* If the lower bound has changed, do an lbound check. 
@@ -421,12 +408,10 @@ let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
   if !optLevel = 0 || not (compareExpStripCasts lo_from lo_to) then begin
     addCheck (CNullOrLE(e, lo_from, lo_to, why));
     addCheck (CNullOrLE(e, lo_to, e, why));
-    addAlignmentCheck e lo_from lo_to t
   end;
   if !optLevel = 0 || not (compareExpStripCasts hi_from hi_to) then begin
     addCheck (CNullOrLE(e, e, hi_to, why));
     addCheck (CNullOrLE(e, hi_to, hi_from, why));
-    addAlignmentCheck e hi_to hi_from t
   end;
   ()
 
@@ -1017,6 +1002,9 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       if isNullterm tfrom then begin
         if bitsSizeOf bt2 <> 8 then
           E.s (unimp "nullterm buffer that's not a char*");
+        if bitsSizeOf bt2 <> bitsSizeOf bt1 then
+          (* this won't actually fail yet, since only char* NT is allowed *)
+          E.s (error "NULLTERM cast between base types of different sizes");
         addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
       end else
         addCoercionCheck lo_from lo_to e hi_to hi_from bt2
@@ -1026,8 +1014,6 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         E.s (unimp "Nullterm cast with different base types");
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
-      addAlignmentCheck e lo_to e bt2;
-      addAlignmentCheck e e hi_to bt2;
       addCoercionCheck lo_from lo_to e hi_to hi_from bt2
   | (TEnum _ | TPtr _), TInt _ ->
       (* Coerce pointer/enum to integer. *)
@@ -1172,22 +1158,27 @@ and checkLval (why: whyLval) (lv: lval) : typ =
         let ptrTy = checkExp e in
         let lo, hi = fancyBoundsOfType ptrTy in
         addCheck (CNonNull e);
+        let addUBoundChecks (): unit =
+          addCheck (COverflow (e, one));
+          let ePlusOne = BinOp(PlusPI, e, one, ptrTy) in
+          addCheck (CUnsignedLE(ePlusOne,hi, "access"))
+        in
         match why with
           ForRead ->
             if not (isNullterm ptrTy) then
-              addCheck (CNotEq(e,hi))
+              addUBoundChecks ()
         | ForAddrOf ->
             (* check e != hi even if this is nullterm, because
                otherwise we could create a pointer with bounds hi,hi+1. *)
-            addCheck (CNotEq(e,hi))
+            addUBoundChecks ()
         | ForCall ->
             (* Conservatively forbid assignment of a call result when e=hi. *)
-            addCheck (CNotEq(e,hi))
+            addUBoundChecks ()
         | ForWrite what ->
             if isNullterm ptrTy then
               addCheck (CNTWrite(e,hi,what))
             else
-              addCheck (CNotEq(e,hi))
+              addUBoundChecks ()
       end
     | Var vi, off -> ()
   end;
@@ -1444,18 +1435,30 @@ let checkMemcmp (lvo: lval option) (fnType: typ) (args: exp list) : unit =
       checkCall lvo fnType [e1; e2; e3] [1; 2]
   | _ -> E.s (error "Expected three args to memcmp")
 
+
 let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp)
                 (nameOf: 'a -> string) (typeOf: 'a -> typ) : unit =
+  (* Cast e to its new type, so that we do arithmetic correctly. *)
+  let eCast = mkCast ~e ~newt:(typeOf x) in
   List.iter
     (fun y ->
        let yExp = expOf y in
-       let ySubst = if (nameOf x) <> (nameOf y) then yExp else e in
-       let ctx' = addBinding (addThisBinding ctx ySubst) (nameOf x) e in
-(*        log "checkSetEnv for %s\n" (nameOf x); *)
+       (* ySubst is the new value of y after the assignment.  
+          ySubstCast is ySubst with a cast to its new type, for use in
+          the enviroment.  Without the cast, case cast3 of cast9.c incorrectly
+          passes because the arithmetic is wrong.  *)
+       let ySubst, ySubstCast =  if (nameOf x) <> (nameOf y) 
+                                 then  yExp, yExp  else  e, eCast
+       in
+       let ctx' = addBinding 
+                    (addThisBinding ctx ySubstCast) 
+                    (nameOf x) 
+                    eCast in
        coerceExp ySubst (substType ctx' (typeOf y)))
     env
 
 let checkSet (lv: lval) (e: exp) : unit =
+  (* log "checkSet for %a := %a\n" d_lval lv d_exp e; *)
   ignore (checkLval (ForWrite e) lv);
   let off1, off2 = removeOffset (snd lv) in
   begin
@@ -2051,11 +2054,6 @@ let optimizeCheck (c: check) : check list =
         []
       else
         [c]
-  | CNotEq(e1, e2) ->
-      let b1, off1 = getBaseOffset e1 in
-      let b2, off2 = getBaseOffset e2 in
-      if compareExpStripCasts b1 b2 && off1 <> off2 then []
-      else [c]
   | CEq(e1, e2) -> 
       if compareExpStripCasts e1 e2 then []
       else begin
@@ -2063,9 +2061,6 @@ let optimizeCheck (c: check) : check list =
           d_plainexp e1 d_plainexp e2;
         [c]
       end
-  | CNullOrMult(e1, e2, e3) ->
-      if isZero e1 then []
-      else [c]
   | COverflow(ptr, Const(CInt64 (off,_,_))) ->
       let off = to_int off in
    (* matth:  We'll assume that the top page of memory is unmapped.
@@ -2111,10 +2106,6 @@ let map_to_check f c =
 	let e1' = f e1 in
 	let e2' = f e2 in
 	CEq(e1',e2')
-    | CNotEq(e1,e2) ->
-	let e1' = f e1 in
-	let e2' = f e2 in
-	CNotEq(e1',e2')
     | CPositive e ->
 	let e' = f e in
 	CPositive(e')
@@ -2122,11 +2113,6 @@ let map_to_check f c =
 	let e1' = f e1 in
 	let e2' = f e2 in
 	CMult(e1',e2')
-    | CNullOrMult(e1,e2,e3) ->
-	let e1' = f e1 in
-	let e2' = f e2 in
-	let e3' = f e3 in
-	CNullOrMult(e1',e2',e3')
     | COverflow(e1,e2) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
