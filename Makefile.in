@@ -69,7 +69,7 @@ ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
 ifdef USE_DEPUTY
-  CILLY_FEATURES += ccl deputy
+  CILLY_FEATURES += deputy
 endif
 # Add the EXTRAFEATURES
 CILLY_FEATURES += @EXTRAFEATURES@
@@ -254,7 +254,6 @@ ifdef USE_CQUALANN
 	echo "   Cqualann.feature;" >> $@  
 endif
 ifdef USE_DEPUTY
-	echo "   Ccl.feature;" >> $@  
 	echo "   Deputy.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
