@@ -454,6 +454,64 @@ let clearBoundsTable () : unit =
   Inthash.clear boundsTable;
   boundsTableCtr := 0
 
+type paramkind =
+| PKNone
+| PKThis
+| PKOffset of attrparam
+
+class deputyPrinterClass : cilPrinter = object (self)
+  inherit defaultCilPrinterClass as super
+
+  method pAttr (Attr (an, args) : attribute) : doc * bool =
+    let rec checkParam (ap: attrparam) : paramkind =
+      match ap with
+      | ACons (name, []) when name = thisKeyword -> PKThis
+      | ABinOp (PlusA, a1, a2) when checkParam a1 = PKThis ->
+          if a2 = AInt 0 then PKThis else PKOffset a2
+      | _ -> PKNone
+    in
+    match an, args with 
+    | "fancybounds", [AInt i1; AInt i2] ->
+        let d1 = self#pExp () (getBoundsExp i1) in
+        let d2 = self#pExp () (getBoundsExp i2) in
+        text "BND(" ++ d1 ++ text ", " ++ d2 ++ text ")", false
+    | "bounds", [a1; a2] ->
+        begin
+          match checkParam a1, checkParam a2 with
+          | PKThis, PKThis ->
+              text "SNT", false
+          | PKThis, PKOffset (AInt 1) ->
+              text "SAFE", false
+          | PKThis, PKOffset a ->
+              let d = self#pAttrParam () a in
+              text "COUNT(" ++ d ++ text ")", false
+          | _ ->
+              let d1 = self#pAttrParam () a1 in
+              let d2 = self#pAttrParam () a2 in
+              text "BND(" ++ d1 ++ text ", " ++ d2 ++ text ")", false
+        end
+    | "fancywhen", [AInt i] ->
+        let d = self#pExp () (getBoundsExp i) in
+        text "WHEN(" ++ d ++ text ")", false
+    | "when", [a] ->
+        let d = self#pAttrParam () a in
+        text "WHEN(" ++ d ++ text ")", false
+    | "nullterm", [] ->
+        text "NULLTERM", false
+    | "trusted", [] ->
+        text "TRUSTED", false
+    | _ ->
+        super#pAttr (Attr (an, args))
+end
+
+let deputyPrinter = new deputyPrinterClass
+
+let dx_type () (t: typ) : doc =
+  printType deputyPrinter () t
+
+let dx_exp () (e: exp) : doc =
+  printExp deputyPrinter () e
+
 (* remember complicated WHEN expressions. For each union in each context,
    we have a whenMap, which maps fields to the expanded when condition for that
    field in the context.  *)
@@ -463,7 +521,7 @@ let whenTableCtr : int ref = ref 0
 let d_whenMap () (wm:whenMap) :  doc =
   Pretty.align ++
   docList ~sep:line 
-    (fun (f,e) -> text f.fname ++ text ": " ++ d_exp () e)
+    (fun (f,e) -> text f.fname ++ text ": " ++ dx_exp () e)
     () wm
   ++ Pretty.unalign
 
@@ -701,7 +759,7 @@ let fancyBoundsOfAttrs (a: attributes) : exp * exp =
 
 let fancyBoundsOfType (t: typ) : exp * exp =
   if !verbose then
-    E.log "%a: fancyBoundsOfType %a\n" d_loc !currentLoc d_type t;
+    E.log "%a: fancyBoundsOfType %a\n" d_loc !currentLoc dx_type t;
   match unrollType t with
   | TPtr (_, a) -> fancyBoundsOfAttrs a
   | _ -> E.s (error "Expected pointer type")
@@ -739,7 +797,7 @@ let fancyWhenOfType (t: typ) : whenMap =
 (* Replace the names in type t with the corresponding expressions in ctx *)
 let substType (ctx: context) (t: typ) : typ =
   if !verbose then
-    E.log "%a: substType %a\n" d_loc !currentLoc d_type t;
+    E.log "%a: substType %a\n" d_loc !currentLoc dx_type t;
   match unrollType t with
   | TPtr (bt, a) ->
       let lo, hi = boundsOfAttrs ctx a in
@@ -878,28 +936,28 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
     | _ -> E.s (error "Return type of allocation is not a pointer")
   in
   if !verbose then
-    log "Allocating %a elements with type %a\n" d_exp numElts d_type baseType;
+    log "Allocating %a elements with type %a\n" dx_exp numElts dx_type baseType;
   if not (compareTypes baseType retBaseType) then
     errorwarn "Type mismatch: alloc type %a and return type %a differ"
-              d_type baseType d_type retBaseType;
+              dx_type baseType dx_type retBaseType;
   match expToAttr numElts with
   | Some a -> typeAddAttributes [countAttr a]
                 (typeRemoveAttributes ["bounds"] retType)
   | None -> E.s (error "Cannot convert alloc expression to type: %a"
-                 d_exp numElts)
+                 dx_exp numElts)
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
   if !verbose then
     E.log "%a: checkSameType on %a and %a\n" 
       d_loc !currentLoc
-      d_type t1 d_type t2;
+      dx_type t1 dx_type t2;
     match unrollType t1, unrollType t2 with
     | t1, t2 when isTrustedType t1 || isTrustedType t2 ->
         ()
     | TPtr (bt1, a1), TPtr (bt2, a2) ->
         if not (compareTypes bt1 bt2) then
-          errorwarn "Base type mismatch: %a and %a" d_type t1 d_type t2;
+          errorwarn "Base type mismatch: %a and %a" dx_type t1 dx_type t2;
         (* Make sure the bounds are the same.
            We can use the empty context, because these should only contain 
            fancybounds *)
@@ -918,7 +976,7 @@ let checkSameType (t1 : typ) (t2 : typ) : unit =
         ()
     | _ -> 
         if not (compareTypes t1 t2) then
-          errorwarn "Type mismatch: %a and %a" d_type t1 d_type t2
+          errorwarn "Type mismatch: %a and %a" dx_type t1 dx_type t2
 
 let checkUnionWhen (ctx:context) (fld:fieldinfo) : bool =
   isTrustedComp fld.fcomp ||
@@ -986,7 +1044,7 @@ let rec checkType (ctx: context) (t: typ) : bool =
 let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   if !verbose then
     E.log "%a: coercing exp %a from %a to %a\n"
-          d_loc !currentLoc d_exp e d_type tfrom d_type tto;
+          d_loc !currentLoc dx_exp e dx_type tfrom dx_type tto;
   match unrollType tfrom, unrollType tto with
   | t1, t2 when isTrustedType t1 || isTrustedType t2 ->
       ()
@@ -1042,7 +1100,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         end
   | _ -> 
     if not (compareTypes tfrom tto) then
-      errorwarn "Type mismatch: coercion from %a to %a" d_type tfrom d_type tto
+      errorwarn "Type mismatch: coercion from %a to %a" dx_type tfrom dx_type tto
         
 type whyLval=
     ForRead          (* Reading this lval. *)
@@ -1068,7 +1126,7 @@ let rec coerceExp (e:exp) (tto : typ) : unit =
 
 and checkExp ?(toSentinel=false) (e : exp) : typ =
   if !verbose then
-    E.log "%a: checking exp %a\n" d_loc !currentLoc d_exp e;
+    E.log "%a: checking exp %a\n" d_loc !currentLoc dx_exp e;
   match e with
   | UnOp (op, e', t) -> coerceExp e' t; t
   | BinOp ((PlusPI | IndexPI | MinusPI) as op, e1, e2, t) ->
@@ -1214,7 +1272,7 @@ and checkLval (why: whyLval) (lv: lval) : typ =
         match compType with
         | TComp (ci, _) when ci == fld.fcomp -> ()
         | t ->
-            E.s (error "Bad field offset %s on type %a" fld.fname d_type t)
+            E.s (error "Bad field offset %s on type %a" fld.fname dx_type t)
       end;
       if fld.fcomp.cstruct then begin
         let ctx = structContext lv' fld.fcomp in
@@ -1252,7 +1310,7 @@ and checkLval (why: whyLval) (lv: lval) : typ =
             substType ctx bt
         | TArray (bt, None, a) ->
             E.s (error "Accessing unsized array %a" d_lval lv')
-        | t -> E.s (error "Expecting an array, got %a" d_type t)
+        | t -> E.s (error "Expecting an array, got %a" dx_type t)
       end
   | _ -> E.s (bug "Unexpected result from removeOffset")
 
@@ -1458,7 +1516,7 @@ let checkSetEnv (ctx: context) (x: 'a) (e: exp) (env: 'a list) (expOf: 'a -> exp
     env
 
 let checkSet (lv: lval) (e: exp) : unit =
-  (* log "checkSet for %a := %a\n" d_lval lv d_exp e; *)
+  (* log "checkSet for %a := %a\n" d_lval lv dx_exp e; *)
   ignore (checkLval (ForWrite e) lv);
   let off1, off2 = removeOffset (snd lv) in
   begin
@@ -1534,7 +1592,7 @@ let checkReturn (eo : exp option) : unit =
   match eo with
   | Some e ->
       if !verbose then
-        E.log "%a: checking return %a\n" d_loc !currentLoc d_exp e;
+        E.log "%a: checking return %a\n" d_loc !currentLoc dx_exp e;
       let ctx = addThisBinding emptyContext e in
       coerceExp e (substType ctx returnType)
   | None ->
@@ -1634,7 +1692,7 @@ let checkFundec (fd : fundec) (loc:location) : unit =
                   [mkAddrOf (var vi); zero; SizeOf t],
                   loc)
          | _ -> E.s(bug "Unexpected type %a for local var %s." 
-                      d_type t vi.vname))
+                      dx_type t vi.vname))
       fd.slocals
   in
   let init' = mkStmt(Instr init) in
@@ -1980,8 +2038,8 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
       Lval (Var vi, NoOffset) ->
         let ctx = addThisBinding ctx e in
         let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in
-(*         log " %a has bounds %a and %a.\n" d_exp e *)
-(*           d_exp lo d_exp hi; *)
+(*         log " %a has bounds %a and %a.\n" dx_exp e *)
+(*           dx_exp lo dx_exp hi; *)
         Some lo, Some hi
     | CastE (_, e') -> getExpBounds e'
     | _ -> None, None
@@ -2005,13 +2063,13 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
   let b1, off1 = getBaseOffset (stripNopCasts e1) in
   let b2, off2 = getBaseOffset (stripNopCasts e2) in
 (*   log "  Comparing:\n"; *)
-(*   log "   %a = (%a) + %d.\n" d_exp e1 d_plainexp b1 off1; *)
-(*   log "   %a = (%a) + %d.\n" d_exp e2 d_plainexp b2 off2; *)
+(*   log "   %a = (%a) + %d.\n" dx_exp e1 d_plainexp b1 off1; *)
+(*   log "   %a = (%a) + %d.\n" dx_exp e2 d_plainexp b2 off2; *)
   if compareExpStripCasts b1 b2 then begin
     let doCompare n1 n2 =
       if n1 > n2 then begin
         if not allowGt then
-          error "Bounds check (%a <= %a) will always fail" d_exp e1 d_exp e2;
+          error "Bounds check (%a <= %a) will always fail" dx_exp e1 dx_exp e2;
         false
       end else begin
         true
@@ -2023,7 +2081,7 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
     | Some n1, Some n2 -> doCompare (off1 * n1) (off2 * n2)
     | _ when compareTypes t1 t2 -> doCompare off1 off2
     | _ -> 
-(*         log "   Comparetypes %a, %a failed.\n" d_type t1 d_type t2; *)
+(*         log "   Comparetypes %a, %a failed.\n" dx_type t1 dx_type t2; *)
         false
   end else begin
     (proveLeWithBounds b1 b2 && off1 = 0 && off2 = 0)
@@ -2070,7 +2128,7 @@ let optimizeCheck (c: check) : check list =
       let sizeOfBase = match sizeOfBaseType (typeOf ptr) with
           Some s -> s
         | None -> E.s (error ("Overflow check on %a + %d, but I don't know"
-                              ^^" how big each element is.\n") d_exp ptr off)
+                              ^^" how big each element is.\n") dx_exp ptr off)
       in
       if (off >= 0) && (off*sizeOfBase < 4096) then []
       else [c]
@@ -2307,7 +2365,7 @@ let isFalse state e =
 
 (* Update a state to reflect a branch *)
 let doBranch (a:absState) (e:exp) : absState = 
-(*   log "Guard %a.\n" d_exp e; *)
+(*   log "Guard %a.\n" dx_exp e; *)
   let e = match stripNopCasts e with
       UnOp(LNot, UnOp(LNot, e, _), _) -> e
     | e -> e
