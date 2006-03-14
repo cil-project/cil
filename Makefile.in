@@ -231,8 +231,7 @@ deputylib:
 endif
 
 
-
-$(OBJDIR)/feature_config.ml: Makefile.cil.in config.status
+$(OBJDIR)/feature_config.ml: Makefile.cil config.status
 	rm -f $(OBJDIR)/feature_config.*
 	echo "(* This module was generated automatically by code in Makefile.in *)" >$@
 # The Cilly feature options. A list of Cil.featureDescr 
