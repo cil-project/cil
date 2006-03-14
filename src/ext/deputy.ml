@@ -270,6 +270,19 @@ let stripOneCast (e: exp) : exp =
   | CastE (_, e') -> e'
   | _ -> e
 
+let isNullterm (t: typ) : bool =
+  match unrollType t with
+  | TPtr (_, a) -> hasAttribute "nullterm" a
+  | _ -> E.s (error "Expected pointer type")
+
+let isTrustedAttr (attr: attributes) : bool =
+  hasAttribute "trusted" attr
+
+let isTrustedType (t: typ) : bool =
+  isTrustedAttr (typeAttrs t)
+
+let isTrustedComp (ci: compinfo) : bool =
+  isTrustedAttr ci.cattr
 
 (**************************************************************************)
 
@@ -286,8 +299,11 @@ type check =
   | CUnsignedLE of exp * exp * string
                          (** e1 <= e2, unsigned.
                            * Also remember why this check was added. *)
+  | CUnsignedLENT of exp * exp * string
+                         (** e1 <= (e2 + sizeof(e2)), unsigned.
+                           * Also remember why this check was added. *)
   | CNullOrLE of exp * exp * exp * string
-                         (** e3 == 0 || e2 <= e3.
+                         (** e1 == 0 || e2 <= e3.
                            * Also remember why this check was added. *)
   | CCoerceN of exp * exp * exp * exp * exp
                          (** e3 == 0 ||
@@ -352,6 +368,7 @@ let cmult = mkCheckFun "CMult" 2
 let coverflow = mkCheckFun "COverflow" 3
 let cunsignedless = mkCheckFun "CUnsignedLess" 3
 let cunsignedle = mkCheckFun "CUnsignedLE" 3
+let cunsignedlent = mkCheckFun "CUnsignedLENT" 3
 let cnullorle = mkCheckFun "CNullOrLE" 4
 let ccoercen = mkCheckFun "CCoerceN" 5
 let cntwrite = mkCheckFun "CNTWrite" 5
@@ -374,6 +391,7 @@ let checkToInstr (c:check) =
   | COverflow (e1,e2) -> call coverflow [e1;e2]
   | CUnsignedLess (e1,e2,why) -> call cunsignedless [e1;e2; mkString why]
   | CUnsignedLE (e1,e2,why) -> call cunsignedle [e1;e2; mkString why]
+  | CUnsignedLENT (e1,e2,why) -> call cunsignedlent [e1;e2; mkString why]
   | CNullOrLE (e1,e2,e3,why) -> call cnullorle [e1;e2;e3; mkString why]
   | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
   | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
@@ -383,10 +401,13 @@ let checkToInstr (c:check) =
   | CSelected (e) -> call cselected [e]
   | CNotSelected (e) -> call cnotselected [e]
 
-let addBoundsCheck (lo: exp) (e: exp) (hi: exp) : unit =
+let addBoundsCheck (lo: exp) (e: exp) (hi: exp) (nt: bool) : unit =
   let why = "Bounds" in
   addCheck (CUnsignedLE(lo, e, why));
-  addCheck (CUnsignedLE(e, hi, why));
+  if nt then
+    addCheck (CUnsignedLENT(e, hi, why))
+  else
+    addCheck (CUnsignedLE(e, hi, why));
   ()
 
 (* Checks that ptr != 0,
@@ -396,7 +417,8 @@ let addArithChecks (lo: exp) (ptr: exp) (off : exp) (hi : exp) : unit =
   addCheck (CNonNull ptr);
   addCheck (COverflow (ptr, off));
   let e = BinOp (PlusPI, ptr, off, typeOf ptr) in
-  addBoundsCheck lo e hi
+  let nt = isNullterm (typeOf ptr) in
+  addBoundsCheck lo e hi nt
 
 let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
                      (hi_to: exp) (hi_from: exp) (t: typ) : unit =
@@ -630,20 +652,6 @@ let hasExternalDeps (lv: lval) : bool =
          FIXME: what about arrays inside null-terminated arrays? *)
       false
   | _ -> E.s (bug "Unexpected result from removeOffset")
-
-let isNullterm (t: typ) : bool =
-  match unrollType t with
-  | TPtr (_, a) -> hasAttribute "nullterm" a
-  | _ -> E.s (error "Expected pointer type")
-
-let isTrustedAttr (attr: attributes) : bool =
-  hasAttribute "trusted" attr
-
-let isTrustedType (t: typ) : bool =
-  isTrustedAttr (typeAttrs t)
-
-let isTrustedComp (ci: compinfo) : bool =
-  isTrustedAttr ci.cattr
 
 (* A context maps variable/field names to the corresponding CIL expr. *)
 type context = (string * exp) list
@@ -1146,7 +1154,7 @@ and checkExp ?(toSentinel=false) (e : exp) : typ =
         if toSentinel then 
           (* We're casting e to a sentinel.  We now permit sentinels to point
              to unallocated memory, so don't check that e1 is nonnull. *)
-          addBoundsCheck lo e hi
+          addBoundsCheck lo e hi false
         else
           addArithChecks lo e1 e2' hi
       end;
@@ -2183,6 +2191,10 @@ let map_to_check f c =
 	let e1' = f e1 in
 	let e2' = f e2 in
 	CUnsignedLE(e1',e2',why)
+    | CUnsignedLENT(e1,e2,why) ->
+	let e1' = f e1 in
+	let e2' = f e2 in
+	CUnsignedLENT(e1',e2',why)
     | CNullOrLE(e1,e2,e3,why) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
