@@ -14,6 +14,7 @@ module UD = Usedef
 module A = Cabs
 module GA = GrowArray
 module RCT = Rmciltmps
+module DCE = Deadcodeelim
 
 let doElimTemps = ref false
 let debug = ref false
@@ -140,8 +141,18 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	   let _ = printInstrTerminator <- oldpit in
 	   let _ = printComments := opc in
 	   c ++ d
-       | _ -> (self#checkViAndWarn v;
-	       text v.vname)
+       | _ -> 
+	   if IH.mem RCT.incdecHash v.vid then
+	     (* print an post-inc/dec instead of a temp variable *)
+	     let redefid, rhsvi, b = IH.find RCT.incdecHash v.vid in
+	     match b with
+	       PlusA | PlusPI | IndexPI ->
+		 text rhsvi.vname ++ text "++"
+	     | MinusA | MinusPI ->
+		 text rhsvi.vname ++ text "--"
+	     | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec\n")
+	   else (self#checkViAndWarn v;
+		 text v.vname)
      else if IH.mem RCT.incdecHash v.vid then
        (* print an post-inc/dec instead of a temp variable *)
        let redefid, rhsvi, b = IH.find RCT.incdecHash v.vid in
@@ -586,7 +597,7 @@ let feature : featureDescr =
     Arg.Unit (fun n -> doElimTemps := true),
     "Try to eliminate temporary variables during pretty printing";
     "--zrapp_debug",
-    Arg.Unit (fun n -> debug := true; RD.debug := true; RCT.debug := true),
+    Arg.Unit (fun n -> debug := true; RD.debug := true; RCT.debug := true; DCE.debug := true),
     "Lots of debugging info for pretty printing and reaching definitions";
     "--zrapp_comments",
     Arg.Unit (fun _ -> printComments := true),

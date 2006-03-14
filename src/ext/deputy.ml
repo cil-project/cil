@@ -2608,7 +2608,9 @@ let checkFile (f: file) : unit =
     Deadcodeelim.dce f;
     List.iter (fun g -> match g with GFun(fd,loc) ->
       forwardTmpSub fd | _ -> ()) f.globals;
-    Deadcodeelim.dce f
+    Deadcodeelim.dce f;
+    List.iter (fun g -> match g with GFun(fd,loc) ->
+      RCT.rm_unused_locals fd | _ -> ()) f.globals;
   end;
   f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)

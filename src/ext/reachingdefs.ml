@@ -113,13 +113,16 @@ let iosh_combine iosh1 iosh2 =
 
 (* determine if two IOS.t IH.t s are the same *)
 let iosh_equals iosh1 iosh2 =
-   IH.fold (fun vid ios b ->
-     if not b then b else
-     if not(IH.mem iosh2 vid)
-     then false
-     else let ios2 = IH.find iosh2 vid in
-     (*IOS.is_empty (IOS.diff ios ios2)*)
-     IOS.compare ios ios2 = 0) iosh1 true
+  if IH.length iosh1 = 0 && not(IH.length iosh2 = 0) ||
+  IH.length iosh2 = 0 && not(IH.length iosh1 = 0)
+  then false else
+    IH.fold (fun vid ios b ->
+      if not b then b else
+      if not(IH.mem iosh2 vid)
+      then false
+      else let ios2 = IH.find iosh2 vid in
+      (*IOS.is_empty (IOS.diff ios ios2)*)
+      IOS.compare ios ios2 = 0) iosh1 true
 
 (* replace an entire set with a singleton.
    if nothing was there just add the singleton *)

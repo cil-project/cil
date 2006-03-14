@@ -549,7 +549,35 @@ class callTempElimClass (fd:fundec) = object (self)
 	  else DoChildren)
     | _ -> DoChildren
 
+    (* Unused definitions cause multiple replacements
+       unless they are found and the replacement prevented.
+       It will be possible to replace more temps if dead
+       code elimination is performed before printing. *)
+  method vinst i = match i with
+    Set((Var vi,off),_,_) ->
+      if IH.mem iioh vi.vid
+      then (IH.replace iioh vi.vid None; DoChildren)
+      else (IH.add iioh vi.vid None; DoChildren)
+  | _ -> DoChildren
+
 end
+
+(* Remove local declarations that aren't set or used *)
+(* fundec -> unit *)
+let rm_unused_locals fd =
+  let used = List.fold_left (fun u s ->
+    let u', d' = UD.computeDeepUseDefStmtKind s.skind in
+    UD.VS.union u (UD.VS.union u' d')) UD.VS.empty fd.sbody.bstmts in
+  
+  let unused = List.fold_left (fun un vi ->
+    if UD.VS.mem vi used
+    then un
+    else UD.VS.add vi un) UD.VS.empty fd.slocals in
+
+  let good_var vi = not(UD.VS.mem vi unused) in
+  let good_locals = List.filter good_var fd.slocals in
+  fd.slocals <- good_locals
+ 
 
 (* Remove temp variables that are set but not used *)
 (* This is different from dead code elimination because
@@ -683,10 +711,40 @@ class unusedRemoverClass : cilVisitor = object(self)
 
 end
 
+(* from cleaner.ml *)
 
-(* eliminate some temporaries *)
+(* Lifts child blocks into parents if the block has no attributes or labels *)
+let rec fold_blocks b =
+    b.bstmts <- List.fold_right
+	(fun s acc -> 
+	  match s.skind with
+	    Block ib -> 
+	      fold_blocks ib;
+	      if (List.length ib.battrs = 0 && 
+		  List.length s.labels = 0) then
+		ib.bstmts @ acc
+	      else
+		s::acc
+	  | Instr il when il = [] && s.labels = [] -> 
+	      acc
+	  | _ -> s::acc)
+	b.bstmts
+	[]
+
+class removeBrackets = object (self)
+  inherit nopCilVisitor
+  method vblock b =
+    fold_blocks b;
+    DoChildren
+end
+
+(* clean up the code and
+   eliminate some temporaries *)
 (* Cil.fundec -> Cil.fundec *)
 let eliminate_temps f =
+  ignore(visitCilFunction (new removeBrackets) f);
+  Cfg.clearCFGinfo f;
+  ignore(Cfg.cfgFun f);
   RD.computeRDs f;
   IH.clear iioh;
   IH.clear incdecHash;

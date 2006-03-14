@@ -28,25 +28,23 @@ class usedDefsCollectorClass = object(self)
     let u = UD.computeUseExp e in
     let add_defids iosh =
       UD.VS.iter (fun vi ->
-	if IH.mem iosh vi.vid
-	then let ios = IH.find iosh vi.vid in
-	if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
-				vi.vname sid (RD.IOS.cardinal ios));
-	RD.IOS.iter (function
-	    Some(i) -> 
-	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
-	      usedDefsSet := IS.add i (!usedDefsSet)
-	  | None -> ()) ios
-	else if !debug then ignore(E.log "DCE: vid %d not in iosh at %a\n"
-				     vi.vid d_plainexp e)) u
+	if IH.mem iosh vi.vid then 
+	  let ios = IH.find iosh vi.vid in
+	  if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
+				  vi.vname sid (RD.IOS.cardinal ios));
+	  RD.IOS.iter (function
+	      Some(i) -> 
+		if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
+		usedDefsSet := IS.add i (!usedDefsSet)
+	    | None -> ()) ios
+	else if !debug then ignore(E.log "DCE: vid %d:%s not in iosh at %a\n"
+				     vi.vid vi.vname d_plainexp e)) u
     in
-    match cur_rd_dat with
-      Some(_,_,iosh) -> add_defids iosh; DoChildren
-    | None -> match RD.getRDs sid with
-	None -> 
-	  if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
-	  DoChildren
-      | Some(_,_,iosh) -> add_defids iosh; DoChildren
+    match self#get_cur_iosh() with
+      Some(iosh) -> add_defids iosh; DoChildren
+    | None ->
+	if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
+	DoChildren
 
 end
       
