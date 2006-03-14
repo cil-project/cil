@@ -1220,31 +1220,32 @@ and checkLval (why: whyLval) (lv: lval) : typ =
     E.log "%a: checking lvalue %a\n" d_loc !currentLoc d_lval lv;
   begin
     match lv with
-      Mem e, off -> begin
+      Mem e, off ->
         let ptrTy = checkExp e in
-        let lo, hi = fancyBoundsOfType ptrTy in
-        addCheck (CNonNull e);
-        let addUBoundChecks (): unit =
-          addCheck (COverflow (e, one));
-          let ePlusOne = BinOp(PlusPI, e, one, ptrTy) in
-          addCheck (CUnsignedLE(ePlusOne,hi, "access"))
-        in
-        match why with
-          ForRead ->
-            if not (isNullterm ptrTy) then
+        if not (isTrustedType ptrTy) then begin
+          let lo, hi = fancyBoundsOfType ptrTy in
+          addCheck (CNonNull e);
+          let addUBoundChecks (): unit =
+            addCheck (COverflow (e, one));
+            let ePlusOne = BinOp(PlusPI, e, one, ptrTy) in
+            addCheck (CUnsignedLE(ePlusOne,hi, "access"))
+          in
+          match why with
+            ForRead ->
+              if not (isNullterm ptrTy) then
+                addUBoundChecks ()
+          | ForAddrOf ->
+              (* check e != hi even if this is nullterm, because
+                 otherwise we could create a pointer with bounds hi,hi+1. *)
               addUBoundChecks ()
-        | ForAddrOf ->
-            (* check e != hi even if this is nullterm, because
-               otherwise we could create a pointer with bounds hi,hi+1. *)
-            addUBoundChecks ()
-        | ForCall ->
+          | ForCall ->
             (* Conservatively forbid assignment of a call result when e=hi. *)
-            addUBoundChecks ()
-        | ForWrite what ->
-            if isNullterm ptrTy then
-              addCheck (CNTWrite(e,hi,what))
-            else
               addUBoundChecks ()
+          | ForWrite what ->
+              if isNullterm ptrTy then
+                addCheck (CNTWrite(e,hi,what))
+              else
+                addUBoundChecks ()
       end
     | Var vi, off -> ()
   end;
@@ -2564,7 +2565,7 @@ let checkFile (f: file) : unit =
   if !inferFile <> "" then begin
     try
       let inferChannel = open_out !inferFile in
-      dumpFile defaultCilPrinter inferChannel !inferFile f;
+      dumpFile deputyPrinter inferChannel !inferFile f;
       close_out inferChannel
     with Sys_error _ ->
       E.s (E.error "Error dumping inference results to %s\n" !inferFile)
