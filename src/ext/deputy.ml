@@ -284,6 +284,20 @@ let isTrustedType (t: typ) : bool =
 let isTrustedComp (ci: compinfo) : bool =
   isTrustedAttr ci.cattr
 
+(* Keyword in bounds attributes representing the current value *)
+let thisKeyword = "__this"
+
+(* Note that we use PlusA here instead of PlusPI in order to match actual
+ * annotations as parsed by CIL. *)
+let countAttr (a: attrparam) : attribute =
+  Attr ("bounds", [ACons (thisKeyword, []);
+                   ABinOp (PlusA, ACons (thisKeyword, []), a)])
+
+let safeAttr : attribute = countAttr (AInt 1)
+
+let sentinelAttr : attribute =
+  Attr ("bounds", [ACons (thisKeyword, []); ACons (thisKeyword, [])])
+
 (**************************************************************************)
 
 type check =
@@ -376,6 +390,8 @@ let cnullunion = mkCheckFun "CNullUnion" 2
 let cselected = mkCheckFun "CSelected" 1
 let cnotselected = mkCheckFun "CNotSelected" 1
 let memset = mkFun "memset" voidType [voidPtrType; intType; !upointType]
+let strlen = mkFun "deputy_strlen" intType
+                   [typeAddAttributes [sentinelAttr] charPtrType]
 
 let checkToInstr (c:check) =
   let call f args = Call(None, f,
@@ -439,20 +455,6 @@ let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
 
 
 (**************************************************************************)
-
-(* Keyword in bounds attributes representing the current value *)
-let thisKeyword = "__this"
-
-(* Note that we use PlusA here instead of PlusPI in order to match actual
- * annotations as parsed by CIL. *)
-let countAttr (a: attrparam) : attribute =
-  Attr ("bounds", [ACons (thisKeyword, []);
-                   ABinOp (PlusA, ACons (thisKeyword, []), a)])
-
-let safeAttr : attribute = countAttr (AInt 1)
-
-let sentinelAttr : attribute =
-  Attr ("bounds", [ACons (thisKeyword, []); ACons (thisKeyword, [])])
 
 (* remember complicated bounds expressions *)
 let boundsTable : exp Inthash.t = IH.create 13
@@ -1154,7 +1156,7 @@ and checkExp ?(toSentinel=false) (e : exp) : typ =
         if toSentinel then 
           (* We're casting e to a sentinel.  We now permit sentinels to point
              to unallocated memory, so don't check that e1 is nonnull. *)
-          addBoundsCheck lo e hi false
+          addBoundsCheck lo e hi (isNullterm t1)
         else
           addArithChecks lo e1 e2' hi
       end;
@@ -1724,9 +1726,9 @@ let inferVisitor = object (self)
 
   val mutable curIndex = 0
 
-  method private makeName () =
+  method private makeName (base: string) =
     curIndex <- curIndex + 1;
-    "cbound" ^ (string_of_int curIndex)
+    base ^ (string_of_int curIndex)
 
   method private needsAnnot (t: typ) =
     isPointerType t && not (hasAttribute "bounds" (typeAttrs t))
@@ -1744,6 +1746,16 @@ let inferVisitor = object (self)
                        ACons (endVar.vname, [])])
     in
     baseVar, endVar, boundAttr
+
+  method private getPointerBounds (toType: typ) (fromType: typ) =
+    let lo, hi = fancyBoundsOfType fromType in
+    if isNullterm fromType && not (isNullterm toType) then
+      let tmp = makeLocalVar !curFunc (self#makeName "depstrlen") intType in
+      let instrs = [Call (Some (var tmp), strlen, [hi], !currentLoc)] in
+      let hi' = BinOp (PlusPI, hi, Lval (var tmp), typeOf hi) in
+      instrs, lo, hi'
+    else
+      [], lo, hi
 
   method vtype t =
     let postProcessType (t: typ) =
@@ -1774,22 +1786,23 @@ let inferVisitor = object (self)
               | _ -> E.s (bug "expected pointer type")
             in
             let baseVar, endVar, boundAttr =
-              self#makeBoundVars (self#makeName ()) bt a
+              self#makeBoundVars (self#makeName "cbound") bt a
             in
-	    let lo, hi =
+	    let newInstrs, lo, hi =
 	      if isZero e then
-	        zero, zero
+	        [], zero, zero
               else begin
 	        let t' = checkExp e' in
                 if isPointerType t' then
-                  fancyBoundsOfType t'
+                  self#getPointerBounds t t'
                 else
-                  e', e'
+                  [], e', e'
 	      end
 	    in
 	    let lo', hi' =
 	      CastE (baseVar.vtype, lo), CastE (endVar.vtype, hi)
 	    in
+            self#queueInstr newInstrs;
 	    self#queueInstr [Set (var baseVar, lo', !currentLoc);
                              Set (var endVar, hi', !currentLoc)];
             CastE (TPtr (bt, boundAttr :: a), e')
@@ -1817,12 +1830,13 @@ let inferVisitor = object (self)
                Set (var baseVar, zero, l);
                Set (var endVar, zero, l)]
             else begin
-              let lo, hi =
-                if isPointerType t then
-                  fancyBoundsOfType t
-                else
-                  Lval (var vi), Lval (var vi)
+              let newInstrs, lo, hi =
+                if isPointerType t then begin
+                  self#getPointerBounds vi.vtype t
+                end else
+                  [], Lval (var vi), Lval (var vi)
               in
+              newInstrs @
               [Set (var vi, zero, l);
                Set (var baseVar, lo, l);
                Set (var endVar, hi, l);
