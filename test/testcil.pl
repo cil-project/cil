@@ -711,6 +711,8 @@ $TEST->addTests("testrun/scanf3", "", ['inferbox']);
 $TEST->addTests("testrun/scanf4", "", ['inferbox']);
 $TEST->add2Tests("testrun/stringsize");
 $TEST->addTests("testrun/argv2", "", ['inferbox']);
+$TEST->addTests("testrun/min", "", ['cil']);
+
 
 
 $TEST->addTests("test/simplify_structs1", 

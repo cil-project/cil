@@ -319,9 +319,9 @@ type check =
   | CNullOrLE of exp * exp * exp * string
                          (** e1 == 0 || e2 <= e3.
                            * Also remember why this check was added. *)
-  | CCoerceN of exp * exp * exp * exp * exp
-                         (** e3 == 0 ||
-                             e1 <= e2 <= e3 <= e4 <= (e5 + strlen(e5)) *)
+  | CNullOrLENT of exp * exp * exp * string
+                         (** e1 == 0 || e2 <= (e3 + sizeof(e3)).
+                           * Also remember why this check was added. *)
   | CNTWrite of exp * exp * exp
                          (** (e1 == e2) ==> (e3 = 0)   *)
   | CNullUnion of lval   (** e = \vec{0} *)
@@ -384,7 +384,7 @@ let cunsignedless = mkCheckFun "CUnsignedLess" 3
 let cunsignedle = mkCheckFun "CUnsignedLE" 3
 let cunsignedlent = mkCheckFun "CUnsignedLENT" 3
 let cnullorle = mkCheckFun "CNullOrLE" 4
-let ccoercen = mkCheckFun "CCoerceN" 5
+let cnullorlent = mkCheckFun "CNullOrLENT" 4
 let cntwrite = mkCheckFun "CNTWrite" 5
 let cnullunion = mkCheckFun "CNullUnion" 2
 let cselected = mkCheckFun "CSelected" 1
@@ -409,7 +409,7 @@ let checkToInstr (c:check) =
   | CUnsignedLE (e1,e2,why) -> call cunsignedle [e1;e2; mkString why]
   | CUnsignedLENT (e1,e2,why) -> call cunsignedlent [e1;e2; mkString why]
   | CNullOrLE (e1,e2,e3,why) -> call cnullorle [e1;e2;e3; mkString why]
-  | CCoerceN (e1,e2,e3,e4,e5) -> call ccoercen [e1;e2;e3;e4;e5]
+  | CNullOrLENT (e1,e2,e3,why) -> call cnullorlent [e1;e2;e3; mkString why]
   | CNTWrite (p,hi,what) -> call cntwrite [p;hi;what]
   | CNullUnion (lv) -> 
       let sz = sizeOf (typeOfLval lv) in
@@ -436,7 +436,7 @@ let addArithChecks (lo: exp) (ptr: exp) (off : exp) (hi : exp) : unit =
   let nt = isNullterm (typeOf ptr) in
   addBoundsCheck lo e hi nt
 
-let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
+let addCoercionCheck ?(fromNullterm=false) (lo_from: exp) (lo_to: exp) (e: exp)
                      (hi_to: exp) (hi_from: exp) (t: typ) : unit =
   (* If the lower bound has changed, do an lbound check. 
    * (we already know that lo_from <= e, so if lo_from=lo_to,
@@ -449,7 +449,10 @@ let addCoercionCheck (lo_from: exp) (lo_to: exp) (e: exp)
   end;
   if !optLevel = 0 || not (compareExpStripCasts hi_from hi_to) then begin
     addCheck (CNullOrLE(e, e, hi_to, why));
-    addCheck (CNullOrLE(e, hi_to, hi_from, why));
+    if fromNullterm then
+      addCheck (CNullOrLENT(e, hi_to, hi_from, why))
+    else
+      addCheck (CNullOrLE(e, hi_to, hi_from, why));
   end;
   ()
 
@@ -1073,7 +1076,7 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
         if bitsSizeOf bt2 <> bitsSizeOf bt1 then
           (* this won't actually fail yet, since only char* NT is allowed *)
           E.s (error "NULLTERM cast between base types of different sizes");
-        addCheck (CCoerceN(lo_from, lo_to, e, hi_to, hi_from))
+        addCoercionCheck ~fromNullterm:true lo_from lo_to e hi_to hi_from bt2
       end else
         addCoercionCheck lo_from lo_to e hi_to hi_from bt2
   | TPtr (bt1, _), TPtr (bt2, _) when not (typeContainsPointers bt1) &&
@@ -1093,8 +1096,9 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       (* ignore signed/unsigned differences.  FIXME: is this safe? *)
       ()
   | TInt _, TInt _ ->
-      (* ignore signed/unsigned differences.  FIXME: is this safe? *)
-      warn "Allowing integer cast with different sizes";
+      (* This isn't worth warning about.  We catch casts between
+         pointers to different int sizes above.  *)
+      (* warn "Allowing integer cast with different sizes"; *)
       ()
   | TComp (ci, _), TComp (ci', _) when ci == ci' && not ci.cstruct ->
       (* If the when maps differ, it's because a WHEN clause depends on
@@ -2111,18 +2115,9 @@ let proveLe ?(allowGt: bool = false) (e1: exp) (e2: exp) : bool =
   end
 
 let optimizeCheck (c: check) : check list =
-  let checkCoerce e1 e2 e3 e4 e5 nt =
-    if proveLe e1 e2 && proveLe e2 e3 &&
-       proveLe e3 e4 && proveLe e4 e5 ~allowGt:nt then
-      []
-    else
-      [c]
-  in
   match c with
-  | CCoerceN (e1, e2, e3, e4, e5) ->
-      (* FIXME: turn this into CNullOrLE checks*)
-      checkCoerce e1 e2 e3 e4 e5 true
-  | CNullOrLE (e, e1, e2, _) ->
+  | CNullOrLE (_, e1, e2, _)
+  | CUnsignedLE (e1, e2, _) ->
       (* If e1 is statically larger than e2, this test could still pass
          if e == 0.  But Report an error, since it's probably a coding
          bug anyways. *)
@@ -2130,8 +2125,9 @@ let optimizeCheck (c: check) : check list =
         []
       else
         [c]
-  | CUnsignedLE (e1, e2, _) ->
-      if proveLe e1 e2 then
+  | CNullOrLENT (_, e1, e2, _)
+  | CUnsignedLENT (e1, e2, _) ->
+      if proveLe ~allowGt:true e1 e2 then
         []
       else
         [c]
@@ -2215,13 +2211,11 @@ let map_to_check f c =
 	let e2' = f e2 in
 	let e3' = f e3 in
 	CNullOrLE(e1',e2',e3',why)
-    | CCoerceN(e1,e2,e3,e4,e5) ->
+    | CNullOrLENT(e1,e2,e3,why) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
 	let e3' = f e3 in
-	let e4' = f e4 in
-	let e5' = f e5 in
-	CCoerceN(e1',e2',e3',e4',e5')
+	CNullOrLENT(e1',e2',e3',why)
     | CNTWrite(e1,e2,e3) ->
 	let e1' = f e1 in
 	let e2' = f e2 in
@@ -2466,10 +2460,13 @@ let flowOptimizeCheck (c: check) ((inState, acc):(absState * check list))
   match c with
   | CNonNull (e1) when isNonNull e1 ->
       state, acc
-  | CNullOrLE (e1, e2, e3, why) when isZero e1 ->
+  | CNullOrLE (e1, e2, e3, why)
+  | CNullOrLENT (e1, e2, e3, why) when isZero e1 ->
       state, acc
   | CNullOrLE (e1, e2, e3, why) when isNonNull e1 ->
       state, CUnsignedLE(e2, e3, why)::acc
+  | CNullOrLENT (e1, e2, e3, why) when isNonNull e1 ->
+      state, CUnsignedLENT(e2, e3, why)::acc
   | _ -> state, c::acc
 
 let flowOptimizeVisitor = object (self)

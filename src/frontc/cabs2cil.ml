@@ -2238,14 +2238,17 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
           
     | [A.TtypeofE e] -> 
-        let (c, e', t) = doExp false e ADrop in
+        (* We'll drop the result, but use AExp None instead of ADrop here
+           because we need the type of the exp.  For example, ADrop will 
+           cause GNU_BODYs to be given type void. *)            
+        let (c, e', t) = doExp false e (AExp None) in
         let t' = 
           match e' with 
             StartOf(lv) -> typeOfLval lv
                 (* If this is a string literal, then we treat it as in sizeof*)
           | Const (CStr s) -> begin
               match typeOf e' with 
-                TPtr(bt, _) -> (* This is the type of arary elements *)
+                TPtr(bt, _) -> (* This is the type of array elements *)
                   TArray(bt, Some (SizeOfStr s), [])
               | _ -> E.s (bug "The typeOf a string is not a pointer type")
           end
