@@ -275,6 +275,22 @@ let isNullterm (t: typ) : bool =
   | TPtr (_, a) -> hasAttribute "nullterm" a
   | _ -> E.s (error "Expected pointer type")
 
+let isPoly (t: typ) : bool =
+  match unrollType t with
+  | TPtr (TVoid _, a) -> hasAttribute "poly" a
+  | _ -> false
+
+let hasPolyId (t: typ) : bool =
+  match filterAttributes "poly" (typeAttrs t) with
+  | [Attr ("poly", [AInt _])] -> true
+  | _ -> false
+
+let getPolyId (t: typ) : int =
+  match filterAttributes "poly" (typeAttrs t) with
+  | [Attr ("poly", [AInt n])] -> n
+  | [] -> E.s (bug "Expected poly attribute")
+  | _ -> E.s (bug "Unexpected poly attribute args")
+
 let isTrustedAttr (attr: attributes) : bool =
   hasAttribute "trusted" attr
 
@@ -460,7 +476,7 @@ let addCoercionCheck ?(fromNullterm=false) (lo_from: exp) (lo_to: exp) (e: exp)
 (**************************************************************************)
 
 (* remember complicated bounds expressions *)
-let boundsTable : exp Inthash.t = IH.create 13
+let boundsTable : exp IH.t = IH.create 13
 let boundsTableCtr : int ref = ref 0
 
 let addBoundsExp (e: exp) : int =
@@ -478,7 +494,7 @@ let getBoundsExp (n: int) : exp =
     E.s (bug "Couldn't look up expression in bounds table")
 
 let clearBoundsTable () : unit =
-  Inthash.clear boundsTable;
+  IH.clear boundsTable;
   boundsTableCtr := 0
 
 type paramkind =
@@ -527,6 +543,11 @@ class deputyPrinterClass : cilPrinter = object (self)
         text "NULLTERM", false
     | "trusted", [] ->
         text "TRUSTED", false
+    | "poly", [a] ->
+        let d = self#pAttrParam () a in
+        text "POLY(" ++ d ++ text ")", false
+    | "poly", [] ->
+        text "POLY", false
     | _ ->
         super#pAttr (Attr (an, args))
 end
@@ -543,7 +564,7 @@ let dx_exp () (e: exp) : doc =
    we have a whenMap, which maps fields to the expanded when condition for that
    field in the context.  *)
 type whenMap = (fieldinfo * exp) list
-let whenTable : whenMap Inthash.t = IH.create 13
+let whenTable : whenMap IH.t = IH.create 13
 let whenTableCtr : int ref = ref 0
 let d_whenMap () (wm:whenMap) :  doc =
   Pretty.align ++
@@ -1052,9 +1073,39 @@ let rec checkType (ctx: context) (t: typ) : bool =
   | TEnum _
   | TBuiltin_va_list _ -> true
 
+let polyTable : typ IH.t = IH.create 13
+
+let rec checkPolyType (polyType: typ) (otherType: typ)
+                      (e: exp) (forRead: bool) : unit =
+  if isPoly otherType then begin
+    if getPolyId polyType != getPolyId otherType then
+      errorwarn "Cannot directly assign two different poly types"
+  end else begin
+    let n = getPolyId polyType in
+    let instantiatedType =
+      try
+        IH.find polyTable n
+      with Not_found ->
+        let instantiatedType =
+          typeAddAttributes [safeAttr]
+            (typeRemoveAttributes ["fancybounds"] otherType)
+        in
+        IH.add polyTable n instantiatedType;
+        instantiatedType
+    in
+    let fancyType =
+      substType (addThisBinding emptyContext (CastE (otherType, e)))
+                instantiatedType
+    in
+    if forRead then
+      coerceType e fancyType otherType
+    else
+      coerceType e otherType fancyType
+  end
+
 (* Add checks for a coercion of e from tfrom to tto.
    Both tfrom and tto must have fancy bounds. *)
-let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
+and coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
   if !verbose then
     E.log "%a: coercing exp %a from %a to %a\n"
           d_loc !currentLoc dx_exp e dx_type tfrom dx_type tto;
@@ -1065,6 +1116,10 @@ let coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       (* Coerce NULL to pointer.  Do we need to do any well-formedness checks
          here? *)
       ()
+  | (TPtr (TVoid _, _) as polyType), (TPtr _ as ptrType) when isPoly polyType ->
+      checkPolyType polyType ptrType e true
+  | (TPtr _ as ptrType), (TPtr (TVoid _, _) as polyType) when isPoly polyType ->
+      checkPolyType polyType ptrType e false
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
         errorwarn "Cast to NULLTERM from an ordinary pointer";
@@ -1751,13 +1806,24 @@ let inferVisitor = object (self)
     in
     baseVar, endVar, boundAttr
 
-  method private getPointerBounds (toType: typ) (fromType: typ) =
+  method private getPointerBounds (toType: typ) (fromType: typ) (e: exp) =
     let lo, hi = fancyBoundsOfType fromType in
     if isNullterm fromType && not (isNullterm toType) then
       let tmp = makeLocalVar !curFunc (self#makeName "depstrlen") intType in
       let instrs = [Call (Some (var tmp), strlen, [hi], !currentLoc)] in
       let hi' = BinOp (PlusPI, hi, Lval (var tmp), typeOf hi) in
       instrs, lo, hi'
+    else if isPoly fromType then
+      let instantiatedType =
+        typeAddAttributes [safeAttr]
+          (typeRemoveAttributes ["fancybounds"] toType)
+      in
+      let fancyType =
+        substType (addThisBinding emptyContext (CastE (toType, e)))
+                  instantiatedType
+      in
+      let lo', hi' = fancyBoundsOfType fancyType in
+      [], lo', hi'
     else
       [], lo, hi
 
@@ -1798,7 +1864,7 @@ let inferVisitor = object (self)
               else begin
 	        let t' = checkExp e' in
                 if isPointerType t' then
-                  self#getPointerBounds t t'
+                  self#getPointerBounds t t' e'
                 else
                   [], e', e'
 	      end
@@ -1836,7 +1902,7 @@ let inferVisitor = object (self)
             else begin
               let newInstrs, lo, hi =
                 if isPointerType t then begin
-                  self#getPointerBounds vi.vtype t
+                  self#getPointerBounds vi.vtype t e
                 end else
                   [], Lval (var vi), Lval (var vi)
               in
@@ -1884,7 +1950,7 @@ let stripSomeCasts (t: typ) (e: exp) : exp =
       let normalize = typeRemoveAttributes ["bounds"; "trusted"] in
       if compareTypes t t' &&
          (compareTypes (normalize t') (normalize (typeOf e')) || 
-          (isPointerType t' && isZero e)) then
+          isPoly t' || (isPointerType t' && isZero e)) then
         e'
       else
         e
@@ -2015,7 +2081,42 @@ let preProcessVisitor = object (self)
       x
     in
     ChangeDoChildrenPost (fd, cleanup)
+end
 
+(**************************************************************************)
+
+let polyVisitor = object (self)
+  inherit nopCilVisitor
+
+  val mutable curPolyId = 0
+
+  method private makePolyId () =
+    curPolyId <- curPolyId + 1;
+    curPolyId
+
+  method private assignPolyId t =
+    if isPoly t && not (hasPolyId t) then
+      typeAddAttributes
+        [Attr ("poly", [AInt (self#makePolyId ())])]
+        (typeRemoveAttributes ["poly"] t)
+    else
+      t
+
+  method vglob g =
+    begin
+      match g with
+      | GVar (vi, _, _)
+      | GVarDecl (vi, _) ->
+          vi.vtype <- self#assignPolyId vi.vtype
+      | GFun (fd, _) ->
+          List.iter (fun vi -> vi.vtype <- self#assignPolyId vi.vtype)
+                    fd.slocals;
+      | GCompTag (ci, _) ->
+          List.iter (fun fi -> fi.ftype <- self#assignPolyId fi.ftype)
+                    ci.cfields
+      | _ -> ()
+    end;
+    SkipChildren
 end
 
 (**************************************************************************)
@@ -2572,6 +2673,7 @@ let checkFile (f: file) : unit =
        | _ -> ())
     f.globals;
   visitCilFileSameGlobals preProcessVisitor f;
+  visitCilFileSameGlobals polyVisitor f;
   visitCilFileSameGlobals inferVisitor f;
   if !inferFile <> "" then begin
     try
