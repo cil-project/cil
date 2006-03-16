@@ -216,7 +216,7 @@ $(DEPUTY_LIBC): lib/deputy_libc.c
 
 $(DEPUTY_LINUX): lib/deputy_linux.c
 ifdef KERNELDIR
-	$(CC) -D__KERNEL__ -DMODULE \
+	$(CC) -O -g -D__KERNEL__ -DMODULE \
 	-I$(KERNELDIR)/include \
 	-I$(KERNELDIR)/include/asm-i386/mach-default \
 	$(CONLY) $(OBJOUT)$@ $^
