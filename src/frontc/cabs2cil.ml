@@ -2238,10 +2238,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
           
     | [A.TtypeofE e] -> 
-        (* We'll drop the result, but use AExp None instead of ADrop here
-           because we need the type of the exp.  For example, ADrop will 
-           cause GNU_BODYs to be given type void. *)            
-        let (c, e', t) = doExp false e (AExp None) in
+        let (c, e', t) = doExp false e AExpLeaveArrayFun in
         let t' = 
           match e' with 
             StartOf(lv) -> typeOfLval lv
