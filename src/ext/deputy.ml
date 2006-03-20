@@ -1098,9 +1098,9 @@ let rec checkPolyType (polyType: typ) (otherType: typ)
                 instantiatedType
     in
     if forRead then
-      coerceType e fancyType otherType
+      coerceType e ~tfrom:fancyType ~tto:otherType
     else
-      coerceType e otherType fancyType
+      coerceType e ~tfrom:otherType ~tto:fancyType
   end
 
 (* Add checks for a coercion of e from tfrom to tto.

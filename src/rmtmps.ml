@@ -335,8 +335,6 @@ let isExportedRoot global =
 	true, "constructor or destructor function"
       else if v.vstorage = Static then 
         false, "static function"
-      else if v.vinline then 
-        false, "inline function"
       else
 	true, "other function"
   end
