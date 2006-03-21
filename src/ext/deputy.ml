@@ -45,7 +45,7 @@ module DF = Dataflow
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
 let trustAll : bool ref = ref false
-let optLevel : int ref = ref 1
+let optLevel : int ref = ref 2
 (** 0: no optimization
     1: flow-insensitive optimization
     2: all optimization *)

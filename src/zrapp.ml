@@ -79,7 +79,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s\n" s)
+        E.s (warn "Cannot find the last named argument when priting call to %s." s)
 
   (*** VARIABLES ***)
 
@@ -94,17 +94,19 @@ class zraCilPrinterClass : cilPrinter = object (self)
       then H.find lenvHtbl v.vname
       else H.find genvHtbl v.vname
     with Not_found ->
-      ignore (warn "variable %s not in pp environment\n" v.vname);
+      ignore (warn "variable %s not in pp environment" v.vname);
       v
 
   (* True when v agrees with the entry in the environment for the name of v.
      False otherwise *)
   method private checkVi (v:varinfo) : bool =
-    U.equals v (self#getEnvVi v)
+    let v' = self#getEnvVi v in
+    v.vid = v'.vid
+(*    U.equals v (self#getEnvVi v w)*)
 
   method private checkViAndWarn (v:varinfo) =
     if not (self#checkVi v) then
-      ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo.\n"
+      ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo."
 		v.vname)
 
   (** What terminator to print after an instruction. sometimes we want to 
@@ -174,10 +176,12 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ignore( warn "name %s has already been declared locally with different varinfo\n" v.vname)
     else if (H.mem genvHtbl v.vname) && not(self#checkVi v) then
       ignore( warn "name %s has already been declared globally with different varinfo\n" v.vname)
-    else if not v.vglob then 
-      H.add lenvHtbl v.vname v 
+    else if not v.vglob then
+      (if !debug then ignore(E.log "zrapp: adding %s to local pp environment\n" v.vname);
+      H.add lenvHtbl v.vname v)
     else
-      H.add genvHtbl v.vname v in
+      (if !debug then ignore(E.log "zrapp: adding %s to global pp envirnoment\n" v.vname);
+       H.add genvHtbl v.vname v) in
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     self#pLineDirective v.vdecl ++
@@ -555,13 +559,14 @@ class zraCilPrinterClass : cilPrinter = object (self)
       if !doElimTemps
       then RCT.eliminate_temps f
       else f in
+    let decls = docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";")
+	() nf.slocals in
     self#pVDecl () nf.svar
       ++  line
       ++ text "{ "
       ++ (align
 	    (* locals. *)
-	    ++ (docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";") 
-                  () nf.slocals)
+	    ++ decls
 	    ++ line ++ line
 	    (* the body *)
 	    ++ ((* remember the declaration *) currentFormals <- nf.sformals; 

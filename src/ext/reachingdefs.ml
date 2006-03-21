@@ -270,7 +270,7 @@ let computeRDs fdec =
     let _ = ReachingDef.nextDefId := 0 in
     let fst_stm = List.hd slst in
     let fst_iosh = IH.create 32 in
-    let _ = UD.onlyNoOffsetsAreDefs := true in
+    let _ = UD.onlyNoOffsetsAreDefs := false in
     let _ = IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh) in
     let _ = ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh) in
     if !debug then
@@ -381,6 +381,8 @@ class rdVisitorClass = object (self)
 	    DoChildren
 
   method vinst i =
+    if !debug then ignore(E.log "rdVis: before %a, rd_dat_lst is %d long\n" 
+			    d_instr i (List.length rd_dat_lst));
     try
       cur_rd_dat <- Some(List.hd rd_dat_lst);
       rd_dat_lst <- List.tl rd_dat_lst;

@@ -40,8 +40,8 @@ let getDefRhs defId =
 	match RD.iosh_defId_find iosh' defId with
 	  Some vid -> 
 	    (match i with
-	      Set((Var vi',_),_,_) -> vi'.vid = vid
-	    | Call(Some(Var vi',_),_,_,_) -> vi'.vid = vid
+	      Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
+	    | Call(Some(Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
 	    | Call(None,_,_,_) -> false
 	    | Asm(_,_,sll,_,_,_) -> List.exists 
 		  (function (_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
@@ -61,9 +61,42 @@ let getDefRhs defId =
 	| Call(lvo,e,el,_) -> Some(RDCall(i), (), iosh_in)
 	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
       with Failure _ ->
-	E.s (E.error "getDefRhs: No instruction defines %d\n" defId))
+	(if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
+	 None))
   | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
       (*None*)
+
+(* exp_is_ok_replacement -
+   Returns true if the argument contains a pointer dereference
+   or a variable whose address is taken anywhere *)
+
+let exp_ok = ref true
+class memReadOrAddrOfFinderClass = object(self)
+  inherit nopCilVisitor
+
+  method vexpr e = match e with
+    Lval(Mem _, _) -> 
+      exp_ok := false;
+      SkipChildren
+  | _ -> DoChildren
+
+  method vvrbl vi =
+    if vi.vaddrof then
+      (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s has its address taken\n"
+			       vi.vname);
+       exp_ok := false;
+       SkipChildren)
+    else DoChildren
+
+end
+
+let memReadOrAddrOfFinder = new memReadOrAddrOfFinderClass
+
+(* exp -> bool *)
+let exp_is_ok_replacement e =
+  exp_ok := true;
+  ignore(visitCilExpr memReadOrAddrOfFinder e);
+  !exp_ok
 
 (* ok_to_replace *)
 (* is it alright to replace a variable use with the expression
@@ -80,15 +113,24 @@ let getDefRhs defId =
    2) At both points no one definition *must* reach there.
    For this reason, this function also takes the fundec,
    so that it can be figured out which is the case *)
+(* BUG: if an expression contains either a memory read or a variable
+   whose address has been taken, then it may not replace a temporary *)
 (* varinfo IH.t -> varinfo IH.t -> fundec -> rhs -> bool *)
 let ok_to_replace curiosh defiosh f r =
-  let uses = match r with
-    RDExp e -> UD.computeUseExp e
-  | RDCall i -> 
+  let uses, safe = match r with
+    RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
+  | RDCall (Call(_,_,el,_) as i) ->
+      let safe = List.fold_left (fun b e ->
+	(exp_is_ok_replacement e) && b) true el in
       let u,d = UD.computeUseDefInstr i in
-      u 
+      u, safe
+  | _ -> E.s (E.bug "ok_to_replace: got non Call in RDCall.")
   in
-  let fdefs = List.fold_left (fun d s ->
+  if not safe 
+  then 
+    (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
+     false) 
+  else let fdefs = List.fold_left (fun d s ->
     let _, d' = UD.computeDeepUseDefStmtKind s.skind in
     UD.VS.union d d') UD.VS.empty f.sbody.bstmts in
   let _ = if !debug then ignore (E.log "ok_to_replace: card fdefs = %d\n" (UD.VS.cardinal fdefs)) in
@@ -442,7 +484,7 @@ class expTempElimClass (fd:fundec) = object (self)
     in
 
     match e with
-      Lval (Var vi,off) ->
+      Lval (Var vi,NoOffset) ->
 	(if check_forms vi.vname forms then
 	 (* only allowed to replace a tmp with a function call once *)
 	  (match cur_rd_dat with
@@ -488,7 +530,7 @@ class incdecTempElimClass (fd:fundec) = object (self)
     in
 
     match e with
-      Lval (Var vi,off) ->
+      Lval (Var vi,NoOffset) ->
 	(if check_forms vi.vname forms then
 	 (* only allowed to replace a tmp with an inc/dec if there is only one use *)
 	  (match cur_rd_dat with
@@ -530,7 +572,7 @@ class callTempElimClass (fd:fundec) = object (self)
     in
 
     match e with
-      Lval (Var vi,off) ->
+      Lval (Var vi,NoOffset) ->
 	(if check_forms vi.vname forms then
 	 (* only allowed to replace a tmp with a function call if there is only one use *)
 	  if IH.mem iioh vi.vid
@@ -541,7 +583,7 @@ class callTempElimClass (fd:fundec) = object (self)
 	    | None -> let iviho = RD.getRDs sid in
 	      match iviho with
 		Some(_,s,iosh) -> 
-		  (if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
+		  (if !debug then ignore (E.log "Try to change %s:%d outside of instruction.\n" vi.vname vi.vid);
 		   do_change iosh vi)
 	      | None -> 
 		  (if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
@@ -553,14 +595,25 @@ class callTempElimClass (fd:fundec) = object (self)
        unless they are found and the replacement prevented.
        It will be possible to replace more temps if dead
        code elimination is performed before printing. *)
-  method vinst i = match i with
-    Set((Var vi,off),_,_) ->
-      if IH.mem iioh vi.vid
-      then (IH.replace iioh vi.vid None; DoChildren)
-      else (IH.add iioh vi.vid None; DoChildren)
-  | _ -> DoChildren
+  method vinst i = 
+    (* Need to copy this from rdVisitorClass because we are overriding *)
+    if !debug then ignore(E.log "rdVis: before %a, rd_dat_lst is %d long\n" 
+			    d_instr i (List.length rd_dat_lst));
+    (try
+      cur_rd_dat <- Some(List.hd rd_dat_lst);
+      rd_dat_lst <- List.tl rd_dat_lst
+    with Failure "hd" -> 
+      if !debug then ignore(E.log "rdVis: il rd_dat_lst mismatch\n"));
+    match i with
+      Set((Var vi,off),_,_) ->
+	if IH.mem iioh vi.vid
+	then (IH.replace iioh vi.vid None; DoChildren)
+	else (IH.add iioh vi.vid None; DoChildren)
+    | _ -> DoChildren
 
 end
+
+
 
 (* Remove local declarations that aren't set or used *)
 (* fundec -> unit *)
@@ -568,7 +621,7 @@ let rm_unused_locals fd =
   let used = List.fold_left (fun u s ->
     let u', d' = UD.computeDeepUseDefStmtKind s.skind in
     UD.VS.union u (UD.VS.union u' d')) UD.VS.empty fd.sbody.bstmts in
-  
+
   let unused = List.fold_left (fun un vi ->
     if UD.VS.mem vi used
     then un
@@ -577,7 +630,7 @@ let rm_unused_locals fd =
   let good_var vi = not(UD.VS.mem vi unused) in
   let good_locals = List.filter good_var fd.slocals in
   fd.slocals <- good_locals
- 
+
 
 (* Remove temp variables that are set but not used *)
 (* This is different from dead code elimination because
@@ -687,6 +740,15 @@ class unusedRemoverClass : cilVisitor = object(self)
 	     not (IH.mem iioh vi.vid) ||
 	     (match IH.find iioh vi.vid with
 	       None -> true | Some _ -> false)
+	   | Asm(_,_,slvlst,_,_,_) ->
+	       (* make sure the outputs are in the locals list *)
+	       List.iter (fun (s,lv) ->
+		 match lv with (Var vi,_) ->
+		   if List.mem vi cur_func.slocals
+		   then ()
+		   else cur_func.slocals <- vi::cur_func.slocals
+		 |_ -> ()) slvlst;
+	       true
 	   | _ -> true
     in
 
