@@ -187,6 +187,25 @@ sig
                -> doc
   end
 
+(** Format sets. *)
+module MakeSetPrinter :
+  functor (Set: sig 
+                  type elt
+                  type t
+                  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
+                end) ->
+sig
+    (** Format a set, analogous to docList. *)
+    val docSet: ?sep:doc -> (Set.elt -> doc) -> unit -> Set.t -> doc
+
+    (** Format a set, analogous to d_list. *)
+    val d_set: string
+               -> (unit -> Set.elt -> doc)
+               -> unit
+               -> Set.t
+               -> doc
+end
+
 (** A function that is useful with the [printf]-like interface *)
 val insert: unit -> doc -> doc
 

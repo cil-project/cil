@@ -194,6 +194,26 @@ struct
     docMap ~sep:(text sep) doit
 end
 
+(** Format sets *)
+module MakeSetPrinter =
+  functor (Set: sig 
+                  type elt
+                  type t
+                  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
+                end) ->
+struct
+  let docSet ?(sep=chr ',') (doit: Set.elt -> doc) () (set: Set.t) : doc =
+    Set.fold
+      (fun elt acc ->
+	(if acc==nil then acc else acc ++ sep)
+	  ++ (doit elt))
+      set
+      nil
+
+  let d_set (sep:string) delt =
+    docSet ~sep:(text sep) (delt ())
+end
+
 
 (******************************************************************************)	
 (* Some debugging stuff *)
