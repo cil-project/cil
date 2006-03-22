@@ -1947,7 +1947,9 @@ end
 let stripSomeCasts (t: typ) (e: exp) : exp =
   match e with
   | CastE (t', e') ->
-      let normalize = typeRemoveAttributes ["bounds"; "trusted"] in
+      let normalize =
+        typeRemoveAttributes ["bounds"; "nullterm"; "trusted"; "poly"]
+      in
       if compareTypes t t' &&
          (compareTypes (normalize t') (normalize (typeOf e')) || 
           isPoly t' || (isPointerType t' && isZero e)) then
