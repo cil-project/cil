@@ -112,48 +112,41 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
   incr numNodes;
   s.sid <- !numNodes;
   nodeList := s :: !nodeList; (* Future traversals can be made in linear time. e.g.  *)
+  if s.succs <> [] then
+    E.s (bug "CFG must be cleared before being computed!");
+  let addSucc (n: stmt) =
+    if not (List.memq n s.succs) then
+      s.succs <- n::s.succs;
+    if not (List.memq s n.preds) then
+      n.preds <- s::n.preds
+  in
+  let addOptionSucc (n: stmt option) =
+    match n with
+      None -> ()
+    | Some n' -> addSucc n'
+  in
+  let addBlockSucc (b: block) =
+    match b.bstmts with
+      [] -> addOptionSucc next
+    | hd::_ -> addSucc hd
+  in
   match s.skind with
-    Instr _  ->
-      (match next with
-	None -> ()
-      | Some n -> s.succs <- [n]; n.preds <- s::n.preds)
+    Instr _  -> addOptionSucc next
   | Return _  -> ()
-  | Goto (p,_) ->
-      s.succs <- [!p]; (!p).preds <- s::(!p).preds
-  | Break _ ->
-      (match break with
-        None -> ()
-      | Some b -> s.succs <- [b]; b.preds <- s::b.preds)
-  | Continue _ ->
-      (match cont with
-        None -> ()
-      | Some c -> s.succs <- [c]; c.preds <- s::c.preds)
+  | Goto (p,_) -> addSucc !p
+  | Break _ -> addOptionSucc break
+  | Continue _ -> addOptionSucc cont
   | If (_, blk1, blk2, _) ->
       (* The succs of If is [true branch;false branch] *)
-      (match blk2.bstmts with
-        [] -> (match next with
-          None -> ()
-        | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
-      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
-      (match blk1.bstmts with
-        [] -> (match next with
-          None -> ()
-        | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
-      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
+      addBlockSucc blk2;
+      addBlockSucc blk1;
       cfgBlock blk1 next break cont;
       cfgBlock blk2 next break cont
   | Block b -> 
-      (match b.bstmts with
-        [] -> 
-          (match next with
-             None -> ()
-           | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds)
-      | (hd::tl) -> s.succs <- hd::s.succs; hd.preds <- s::hd.preds);
+      addBlockSucc b;
       cfgBlock b next break cont
-
   | Switch(_,blk,l,_) -> 
-      s.succs <- l; (* in order *)
-
+      List.iter addSucc (List.rev l); (* Add successors in order *)
       (* sfg: if there's no default, need to connect s->next *)
       if not (List.exists 
                 (fun stmt -> List.exists 
@@ -161,21 +154,13 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
                    stmt.labels) 
                 l) 
       then 
-        (match next with  
-           | None -> ()
-           | Some n -> s.succs <- n::s.succs; n.preds <- s::n.preds);
-
-      List.iter (function br -> br.preds <- s::br.preds) l;
+        addOptionSucc next;
       cfgBlock blk next next cont
   | Loop(blk,_,_,_) ->
-      if (blk.bstmts <> []) then begin
-        s.succs <- [List.hd blk.bstmts];
-        (List.hd blk.bstmts).preds <- s::(List.hd blk.bstmts).preds
-      end;
+      addBlockSucc blk;
       cfgBlock blk (Some s) next (Some s)
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
-
   | TryExcept _ | TryFinally _ -> 
       E.s (E.unimp "try/except/finally")
 
