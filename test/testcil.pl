@@ -1485,6 +1485,7 @@ addDeputyTest("string7");
 
 addDeputyTest("trusted1");
 addDeputyTest("trusted2");
+addDeputyTest("trusted3");
 
 addDeputyTest("types1");
 addDeputyTest("types2");

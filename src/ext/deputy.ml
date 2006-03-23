@@ -2165,7 +2165,7 @@ let proveLeWithBounds (e1: exp) (e2: exp) : bool =
   let rec getExpBounds (e:exp) : exp option * exp option =
     match e with
       (* TODO: structs, memory *)
-      Lval (Var vi, NoOffset) ->
+    | Lval (Var vi, NoOffset) when isPointerType vi.vtype ->
         let ctx = addThisBinding ctx e in
         let lo, hi = boundsOfAttrs ctx (typeAttrs vi.vtype) in
 (*         log " %a has bounds %a and %a.\n" dx_exp e *)
