@@ -600,7 +600,7 @@ let rec depsOfAttrs (a: attributes) : string list =
   let checkrest rest =
     if hasAttribute "bounds" rest ||
        hasAttribute "fancybounds" rest then
-      E.s (error "Type has duplicate bounds attributes")
+      E.s (error "Type has duplicate bounds attributes: %a" d_attrlist a)
   in
   match a with
   | Attr ("bounds", [lo; hi]) :: rest ->
@@ -760,7 +760,7 @@ let rec getBounds (a: attributes) : bounds =
   let checkrest rest =
     if hasAttribute "bounds" rest ||
        hasAttribute "fancybounds" rest then
-      E.s (error "Type has duplicate bounds attributes")
+      E.s (error "Type has duplicate bounds attributes: %a" d_attrlist a)
   in
   match a with
   | Attr ("bounds", [lo; hi]) :: rest ->
@@ -879,6 +879,7 @@ let compareTypes (t1 : typ) (t2 : typ) : bool =
   let typeSigNC (t : typ) : typsig =
     let attrFilter (attr : attribute) : bool =
       match attr with
+      | Attr ("poly", _) (* TODO: hack hack! *)
       | Attr ("const", [])
       | Attr ("volatile", [])
       | Attr ("always_inline", []) -> false
@@ -1094,7 +1095,7 @@ let rec checkPolyType (polyType: typ) (otherType: typ)
         instantiatedType
     in
     let fancyType =
-      substType (addThisBinding emptyContext (CastE (otherType, e)))
+      substType (addThisBinding emptyContext (CastE (instantiatedType, e)))
                 instantiatedType
     in
     if forRead then
@@ -1816,10 +1817,10 @@ let inferVisitor = object (self)
     else if isPoly fromType then
       let instantiatedType =
         typeAddAttributes [safeAttr]
-          (typeRemoveAttributes ["fancybounds"] toType)
+          (typeRemoveAttributes ["bounds"] toType)
       in
       let fancyType =
-        substType (addThisBinding emptyContext (CastE (toType, e)))
+        substType (addThisBinding emptyContext (CastE (instantiatedType, e)))
                   instantiatedType
       in
       let lo', hi' = fancyBoundsOfType fancyType in
@@ -2076,6 +2077,23 @@ let preProcessVisitor = object (self)
     in
     ChangeDoChildrenPost ([i], postProcessInstr)
 
+  method vstmt s =
+    let postProcessStmt s =
+      begin
+        match s.skind with
+        | Return (Some e, l) ->
+            let returnType =
+              match !curFunc.svar.vtype with
+              | TFun (returnType, _, _, _) -> returnType
+              | _ -> E.s (bug "Expected function type")
+            in
+            s.skind <- Return (Some (stripSomeCasts returnType e), l)
+        | _ -> ()
+      end;
+      s
+    in
+    ChangeDoChildrenPost (s, postProcessStmt)
+
   method vfunc fd =
     curFunc := fd;
     let cleanup x =
@@ -2104,13 +2122,36 @@ let polyVisitor = object (self)
     else
       t
 
+  method private updateFunctionType t =
+    match t with
+    | TFun (ret, args, vararg, attrs) ->
+        let ret' = self#assignPolyId ret in
+        let args' =
+          match args with
+          | Some args ->
+              let args' =
+                List.map
+                  (fun (argName, argType, argAttrs) ->
+                     argName, self#assignPolyId argType, argAttrs)
+                  args
+              in
+              Some args'
+          | None -> None
+        in
+        TFun (ret', args', vararg, attrs)
+    | _ -> t
+
   method vglob g =
     begin
       match g with
       | GVar (vi, _, _)
       | GVarDecl (vi, _) ->
-          vi.vtype <- self#assignPolyId vi.vtype
+          if isFunctionType vi.vtype then
+            vi.vtype <- self#updateFunctionType vi.vtype
+          else
+            vi.vtype <- self#assignPolyId vi.vtype
       | GFun (fd, _) ->
+          setFunctionType fd (self#updateFunctionType fd.svar.vtype);
           List.iter (fun vi -> vi.vtype <- self#assignPolyId vi.vtype)
                     fd.slocals;
       | GCompTag (ci, _) ->

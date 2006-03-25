@@ -1466,6 +1466,8 @@ addDeputyTest("memcmp1");
 
 addDeputyTest("poly1");
 addDeputyTest("poly2");
+addDeputyTest("poly3");
+addDeputyTest("poly4");
 
 addDeputyTest("ptrarith1");
 
