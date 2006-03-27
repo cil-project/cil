@@ -366,7 +366,7 @@ class rdVisitorClass = object (self)
     sid <- stm.sid;
     match getRDs sid with
       None -> 
-	ignore(E.log "rdVis: stm %d had no data\n" sid);
+	if !debug then ignore(E.log "rdVis: stm %d had no data\n" sid);
 	cur_rd_dat <- None;
 	DoChildren
     | Some(_,s,iosh) ->

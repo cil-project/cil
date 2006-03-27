@@ -2617,26 +2617,24 @@ let flowOptimizeVisitor = object (self)
   inherit nopCilVisitor
 
   method vstmt s =
-    let state = 
-      try IH.find stateMap s.sid 
-      with Not_found -> E.s (bug "Stmt not in stateMap.\n")
-    in
-    (*     log "Optimizing.  State is %a\n" d_state state; *)
-    let checks = GA.getg allChecks s.sid in
-    (* Process the checks.  Use fold_right to start from the end of the
-       list, because the list is in reverse order. *)
-    let _, checks' = List.fold_right flowOptimizeCheck checks (state, []) in
-    GA.set allChecks s.sid checks';
-    (* Optimize branches *)
     begin
-      match s.skind with
-        If(e, blk1, blk2, l) when isNonNull state e -> 
-(*           s.skind <- If(Cil.one, blk1, blk2, l) *)
-          s.skind <- Block blk1
-      | If(e, blk1, blk2, l) when isFalse state e -> 
-(*           s.skind <- If(Cil.zero, blk1, blk2, l) *)
-          s.skind <- Block blk2
-      | _ -> ()
+      try
+        let state = IH.find stateMap s.sid in
+        let checks = GA.getg allChecks s.sid in
+        (* Process the checks.  Use fold_right to start from the end of the
+           list, because the list is in reverse order. *)
+        let _, checks' = List.fold_right flowOptimizeCheck checks (state, []) in
+        GA.set allChecks s.sid checks';
+        (* Optimize branches *)
+        begin
+          match s.skind with
+          | If(e, blk1, blk2, l) when isNonNull state e -> 
+              s.skind <- Block blk1
+          | If(e, blk1, blk2, l) when isFalse state e -> 
+              s.skind <- Block blk2
+          | _ -> ()
+        end
+      with Not_found -> () (* stmt is unreachable *)
     end;
     DoChildren
 
