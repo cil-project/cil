@@ -937,29 +937,19 @@ let rec expToAttr (e: exp) : attrparam option =
       end
   | _ -> None
 
-let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
+let getAllocationExp (retType: typ) (fnType: typ) (args: exp list) : exp =
   let fnAttrs = typeAttrs fnType in
-  let numElts, baseType =
+  let size =
     if hasAttribute "dcalloc" fnAttrs then
       let i1, i2 = getCallocArgs fnAttrs in
       try
-        match List.nth args i1, stripNopCasts (List.nth args i2) with
-        | e, SizeOf t' -> e, t'
-        | e, SizeOfE et -> e, typeOf et
-        | _ -> E.s (error "Unrecognized calloc arguments")
+        BinOp (Mult, List.nth args i1, List.nth args i2, intType)
       with Failure "nth" ->
         E.s (error "Invalid indices in calloc annotation")
     else if hasAttribute "dmalloc" fnAttrs then
       let i = getMallocArg fnAttrs in
       try
-        match stripNopCasts (List.nth args i) with
-        | BinOp (Mult, e', SizeOf t, _)
-        | BinOp (Mult, SizeOf t, e', _) -> e', t
-        | BinOp (Mult, e', SizeOfE et, _)
-        | BinOp (Mult, SizeOfE et, e', _) -> e', typeOf et
-        | SizeOf t -> integer 1, t
-        | SizeOfE et -> integer 1, typeOf et
-        | e -> e, charType
+        List.nth args i
       with Failure "nth" ->
         E.s (error "Invalid index in malloc annotation")
     else
@@ -968,18 +958,13 @@ let getAllocationType (retType: typ) (fnType: typ) (args: exp list) : typ =
   let retBaseType =
     match unrollType retType with
     | TPtr (bt, _) -> bt
-    | _ -> E.s (error "Return type of allocation is not a pointer")
+    | _ -> E.s (error "Left-hand side of allocation is not a pointer type")
   in
-  if !verbose then
-    log "Allocating %a elements with type %a\n" dx_exp numElts dx_type baseType;
-  if not (compareTypes baseType retBaseType) then
-    errorwarn "Type mismatch: alloc type %a and return type %a differ"
-              dx_type baseType dx_type retBaseType;
-  match expToAttr numElts with
-  | Some a -> typeAddAttributes [countAttr a]
-                (typeRemoveAttributes ["bounds"] retType)
-  | None -> E.s (error "Cannot convert alloc expression to type: %a"
-                 dx_exp numElts)
+  let elts = BinOp (Div, size, SizeOf retBaseType, intType) in
+  if isNullterm retType then
+    BinOp (MinusA, elts, one, intType)
+  else
+    elts
 
 (* Check that two types are the same. *)
 let checkSameType (t1 : typ) (t2 : typ) : unit =
@@ -2016,11 +2001,18 @@ let preProcessVisitor = object (self)
                  | Some lv -> lv
                  | None -> E.s (error "Allocation has no return")
                in
-               let t = getAllocationType (typeOfLval lv) (typeOf fn) args in
-               let tmp = makeTempVar !curFunc t in
-               Call (Some (var tmp), fn, stripArgCasts argInfo args, l) ::
-                 Set (lv, Lval (var tmp), l) ::
-                 Set (var tmp, zero, l) ::
+               let retType = typeOfLval lv in
+               let size = getAllocationExp retType (typeOf fn) args in
+               let sizeVar = makeTempVar !curFunc intType in
+               let allocType =
+                 typeAddAttributes [countAttr (ACons (sizeVar.vname, []))]
+                                   (typeRemoveAttributes ["bounds"] retType)
+               in
+               let allocVar = makeTempVar !curFunc allocType in
+               Set (var sizeVar, size, l) ::
+                 Call (Some (var allocVar), fn, stripArgCasts argInfo args, l)::
+                 Set (lv, Lval (var allocVar), l) ::
+                 Set (var allocVar, zero, l) ::
                  acc
            | Call (ret, fn, args, l) when isMemset (typeOf fn) ||
                                           isMemcpy (typeOf fn) ||

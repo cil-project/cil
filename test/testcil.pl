@@ -1414,6 +1414,7 @@ addDeputyTest("align1");
 addDeputyTest("alloc1");
 addDeputyTest("alloc2");
 addDeputyTest("alloc3");
+addDeputyTest("alloc4");
 
 addDeputyTest("array1");
 addDeputyTest("array2");
