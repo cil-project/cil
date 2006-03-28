@@ -1142,19 +1142,8 @@ and coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
       addCoercionCheck lo_from lo_to e hi_to hi_from bt2
-  | (TEnum _ | TPtr _), TInt _ ->
-      (* Coerce pointer/enum to integer. *)
-      ()
-  | TInt _, TEnum _ ->
-      (* Coerce integer to enum. *)
-      ()
-  | TInt _, TInt _ when (bitsSizeOf tfrom) = (bitsSizeOf tto) ->
-      (* ignore signed/unsigned differences.  FIXME: is this safe? *)
-      ()
-  | TInt _, TInt _ ->
-      (* This isn't worth warning about.  We catch casts between
-         pointers to different int sizes above.  *)
-      (* warn "Allowing integer cast with different sizes"; *)
+  | (TInt _ | TEnum _ | TPtr _), (TInt _ | TEnum _) ->
+      (* These are all totally safe. *)
       ()
   | TComp (ci, _), TComp (ci', _) when ci == ci' && not ci.cstruct ->
       (* If the when maps differ, it's because a WHEN clause depends on
@@ -1260,7 +1249,8 @@ and checkExp ?(toSentinel=false) (e : exp) : typ =
             let nt = hasAttribute "nullterm" attrs in
             let e' = if nt then BinOp (MinusA, e, one, typeOf e) else e in
             bt, e', attrs
-        | TArray (_, None, _) -> E.s (error "Array type has no length")
+        | TArray (bt, None, attrs) ->
+            bt, zero, attrs
         | _ -> E.s (bug "Expected array type")
       in
       let lo = StartOf lv in
