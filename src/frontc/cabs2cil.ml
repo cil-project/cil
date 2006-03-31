@@ -2089,7 +2089,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
        so they will be returned by doSpecAttr and used in the variable 
        declaration. 
        Testcase: small1/attr9.c *)
-    let an, af, at = cabsPartitionAttributes AttrType !attrs in
+    let an, af, at = cabsPartitionAttributes ~default:AttrType !attrs in
     attrs := an;      (* Save the name attributes for later *)
     if af <> [] then
       E.s (error "Invalid position for function type attributes.");
