@@ -715,7 +715,9 @@ configure EXTRASRCDIRS=/home/necula EXTRAFEATURES=logwrites
 name of the entry point in the file is \t{feature}.
 
  An alternative way to specify the new features, is to change the build files
-yourself, as explained below:
+yourself, as explained below.  You'll need to use this method if a single
+feature is split across multiple files.
+
 \begin{enumerate}
  \item Put \t{logwrites.ml} in the \t{src} or \t{src/ext} directory. This
  will make sure that \t{make} can find it. If you want to put it in some
@@ -723,9 +725,25 @@ yourself, as explained below:
  directory.  Alternately, you can create a symlink from \t{src} or
  \t{src/ext} to your file.
 
- \item Modify the \t{Makefile.cil.in} and add your module to the \t{MODULES} or
+ \item Modify the \t{Makefile.cil.in} and add your module to the 
+ \t{CILLY\_MODULES} or
  \t{CILLY\_LIBRARY\_MODULES} variables. The order of the modules matters. Add
  your modules somewhere after \t{cil} and before \t{maincil}.
+
+ \item If you have any helper files for your module, add those to
+ the makefile in the same way.  e.g.:
+
+\begin{verbatim}
+CILLY_MODULES = $(CILLY_LIBRARY_MODULES) \
+                myutilities1 myutilities2 logwrites \
+                maincil
+\end{verbatim}
+  % $  <- emacs hack
+
+ Again, order is important: \t{myutilities2.ml} will be able to refer
+ to Myutilities1 but not Logwrites.  If you have any ocamllex or ocamlyacc
+ files, add them to both \t{CILLY\_MODULES} and either \t{MLLS} or
+ \t{MLYS}.
 
  \item Modify \t{maincil.ml} so that your new feature descriptor appears in
  the global list of CIL features. 
@@ -743,12 +761,10 @@ let features : C.featureDescr list =
   @ Feature_config.features 
 \end{verbatim}
 
- \item An alternative to the last two steps is to invoke the make command with
- the argument \t{EXTRAFEATURES=logwrites}.
-
  Features are processed in the order they appear on this list.  Put
  your feature last on the list if you plan to run any of CIL's
  built-in features (such as makeCFGfeature) before your own.
+
 \end{enumerate}
 
  Standard code in \t{cilly} takes care of adding command-line arguments,
