@@ -1328,7 +1328,8 @@ let attributeHash: (string, attributeClass) H.t =
       "uuid"; "align" ];
 
   List.iter (fun a -> H.add table a (AttrFunType false))
-    [ "format"; "regparm"; "longcall"; ];
+    [ "format"; "regparm"; "longcall"; 
+      "noinline"; "always_inline"; ];
 
   List.iter (fun a -> H.add table a (AttrFunType true))
     [ "stdcall";"cdecl"; "fastcall" ];

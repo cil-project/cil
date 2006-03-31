@@ -2080,9 +2080,22 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
       | A.Tdouble -> 9
       | _ -> 10 (* There should be at most one of the others *)
     in
-    (* Hopefully this is stable sort *)
-    List.sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs' 
+    List.stable_sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs' 
   in
+  let getTypeAttrs () : A.attribute list =
+    (* Partitions the attributes in !attrs.
+       Type attributes are removed from attrs and returned, so that they
+       can go into the type definition.  Name attributes are left in attrs,
+       so they will be returned by doSpecAttr and used in the variable 
+       declaration. 
+       Testcase: small1/attr9.c *)
+    let an, af, at = cabsPartitionAttributes AttrType !attrs in
+    attrs := an;      (* Save the name attributes for later *)
+    if af <> [] then
+      E.s (error "Invalid position for function type attributes.");
+    at
+  in 
+
   (* And now try to make sense of it. See ISO 6.7.2 *)
   let bt = 
     match sortedspecs with
@@ -2154,9 +2167,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tstruct (n, Some nglist, extraAttrs)] -> (* A definition of a struct *)
       let n' =
         if n <> "" then n else anonStructName "struct" suggestedAnonName in
-      (* Use the (non-cv) attributes now *)
-      let a = extraAttrs @ !attrs in
-      attrs := [];
+      (* Use the (non-cv, non-name) attributes in !attrs now *)
+      let a = extraAttrs @ (getTypeAttrs ()) in
       makeCompType true n' nglist (doAttributes a)
 
     | [A.Tunion (n, None, _)] -> (* A reference to a union *)
@@ -2166,8 +2178,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let n' =
           if n <> "" then n else anonStructName "union" suggestedAnonName in
         (* Use the attributes now *)
-        let a = extraAttrs @ !attrs in
-        attrs := [];
+        let a = extraAttrs @ (getTypeAttrs ()) in
         makeCompType false n' nglist (doAttributes a)
 
     | [A.Tenum (n, None, _)] -> (* Just a reference to an enum *)
@@ -2179,12 +2190,11 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           if n <> "" then n else anonStructName "enum" suggestedAnonName in
         (* make a new name for this enumeration *)
         let n'', _  = newAlphaName true "enum" n' in
+
         (* Create the enuminfo, or use one that was created already for a
          * forward reference *)
-        (* Use the attributes now *)
-        let a = extraAttrs @ !attrs in 
-        attrs := [];
         let enum, _ = createEnumInfo n'' in 
+        let a = extraAttrs @ (getTypeAttrs ()) in 
         enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
 
@@ -2412,6 +2422,29 @@ and doAttr (a: A.attribute) : attribute list =
 
 and doAttributes (al: A.attribute list) : attribute list =
   List.fold_left (fun acc a -> cabsAddAttributes (doAttr a) acc) [] al
+
+(* A version of Cil.partitionAttributes that works on CABS attributes.
+   It would  be better to use Cil.partitionAttributes instead to avoid
+   the extra doAttr conversions here, but that's hard to do in doSpecList.*)
+and cabsPartitionAttributes 
+    ~(default:attributeClass)  
+    (attrs:  A.attribute list) :
+    A.attribute list * A.attribute list * A.attribute list = 
+  let rec loop (n,f,t) = function
+      [] -> n, f, t
+    | a :: rest -> 
+        let kind = match doAttr a with 
+            [] -> default
+          | Attr(an, _)::_ -> 
+              (try H.find attributeHash an with Not_found -> default)
+        in
+        match kind with 
+          AttrName _ -> loop (a::n, f, t) rest
+        | AttrFunType _ -> 
+            loop (n, a::f, t) rest
+        | AttrType -> loop (n, f, a::t) rest
+  in
+  loop ([], [], []) attrs
 
 
 

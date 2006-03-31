@@ -25,3 +25,25 @@ int main() {
   state = Reset;
   return 0;
 }
+
+///////////////////////////////////////////////////////////////////////////
+
+//More tests of the section attribute:  (not in initramfs.c)
+__attribute__ ((__section__ (".init.data"))) enum state state2;
+enum state __attribute__ ((__section__ (".init.data"))) state3;
+
+__attribute__ ((__section__ (".init.data"))) struct foo {
+  int field;
+} mystruct;
+
+static __attribute__ ((__section__ (".init.data"))) union {
+  int field;
+} myunion;
+
+
+int test() {
+  state2 = state3 = Reset;
+  myunion.field = 15;
+  return 0;
+}
+
