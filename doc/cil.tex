@@ -297,7 +297,7 @@ USECILLY=1 testsafec --run --group cil --nogroup slow
 \end{verbatim}
 \end{itemize}
 
- Drop the argument \t{--nogroup slow} to run even larger tests. 
+ Drop the argument \t{-{}-nogroup slow} to run even larger tests. 
 
  {\bf Note that some tests will fail either because they are not included in
  our distribution, or because we still have a few failing test cases.}
@@ -700,7 +700,7 @@ let feature : featureDescr =
   argument parsing, so initialize the ref cell to true if you want
   this feature to be enabled by default.
   
-  When the user passes the \t{--dologwrites}
+  When the user passes the \t{-{}-{}dologwrites}
   command-line option to \t{cilly}, the variable associated with the
   \t{fd\_enabled} flag is set and the \t{fd\_doit} function is called
   on the \t{Cil.file} that represents the merger (see \secref{merger}) of
@@ -776,7 +776,7 @@ let features : C.featureDescr list =
  instead use the \t{cilly} driver which provides a convenient compiler-like
  interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
  Remember to enable your analysis by passing the right argument (e.g.,
- \t{--dologwrites}).   
+ \t{-{}-{}dologwrites}).   
 
 \end{enumerate}
 
@@ -1237,7 +1237,7 @@ ensures that one can rename the variable by changing the name in the
 \t{varinfo}. These constraints are mentioned in the API documentation. There
 is also a consistency checker in file \t{src/check.ml}. If you suspect that
 your transformation is breaking these constraints then you can pass the
-\t{--check} option to cilly and this will ensure that the consistency checker
+\t{-{}-check} option to cilly and this will ensure that the consistency checker
 is run after each transformation. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
@@ -1493,22 +1493,22 @@ make CC="bin/cilly" LD="bin/cilly"
 \end{verbatim}
 
  \t{cilly} can also behave as the Microsoft Visual C compiler, if the first
- argument is \t{--mode=MSVC}:
+ argument is \t{-{}-mode=MSVC}:
 \begin{verbatim}
 bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 \end{verbatim}
 
- (This in turn will pass a \t{--MSVC} flag to the underlying \t{cilly.asm}
+ (This in turn will pass a \t{-{}-MSVC} flag to the underlying \t{cilly.asm}
  process which will make it understand the Microsoft Visual C extensions)
 
  \t{cilly} can also behave as the archiver \t{ar}, if it is passed an
-argument \t{--mode=AR}. Note that only the \t{cr} mode is supported (create a
+argument \t{-{}-mode=AR}. Note that only the \t{cr} mode is supported (create a
 new archive and replace all files in there). Note that the previous version of
 the archive is lost. 
 
  Furthermore, \t{cilly} allows you to pass some arguments on to the
 underlying \t{cilly.asm} process. As a general rule all arguments that start
-with \t{--} and that \t{cilly} itself does not process, are passed on. For
+with \t{-{}-} and that \t{cilly} itself does not process, are passed on. For
 example, 
 \begin{verbatim}
 bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
@@ -1520,7 +1520,7 @@ written by the application.
  The most powerful feature of \t{cilly} is that it can collect all the
 sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
-have to do is to pass the \t{--merge} flag to \t{cilly}:
+have to do is to pass the \t{-{}-merge} flag to \t{cilly}:
 \begin{verbatim}
 make CC="bin/cilly --dologwrites --merge"
 \end{verbatim}
@@ -1569,7 +1569,7 @@ is turned on or not:
   \end{enumerate}
 \end{itemize}
 
- Note that files that you specify with \t{--leavealone} are not merged and
+ Note that files that you specify with \t{-{}-leavealone} are not merged and
 never presented to CIL. They are compiled as usual and then are linked in at
 the end. 
 
@@ -1592,10 +1592,10 @@ include files should be produced with the patcher script (see
 go in the command line of the compiler that \t{cilly} is impersonating.
 \t{cilly} will do its best to pass those options along to the appropriate
 subprocess. In addition, the following options are supported (a complete and
-up-to-date list can always be obtained by running \t{cilly --help}):
+up-to-date list can always be obtained by running \t{cilly -{}-help}):
 
 \begin{itemize}
-\item \t{--mode=mode} This must be the first argument if present. It makes
+\item \t{-{}-mode=mode} This must be the first argument if present. It makes
 \t{cilly} behave as a given compiled. The following modes are recognized: 
      \begin{itemize}
         \item GNUCC - the GNU C Compiler. This is the default.
@@ -1604,76 +1604,76 @@ up-to-date list can always be obtained by running \t{cilly --help}):
         \item AR - the archiver \t{ar}. Only the mode \t{cr} is supported and
                    the original version of the archive is lost. 
      \end{itemize}
-\item \t{--help} Prints a list of the options supported.
-\item \t{--verbose} Prints lots of messages about what is going on.
-\item \t{--stages} Less than \t{--verbose} but lets you see what \t{cilly}
+\item \t{-{}-help} Prints a list of the options supported.
+\item \t{-{}-verbose} Prints lots of messages about what is going on.
+\item \t{-{}-stages} Less than \t{-{}-verbose} but lets you see what \t{cilly}
                    is doing. 
-\item \t{--merge} This tells \t{cilly} to first attempt to collect into one
+\item \t{-{}-merge} This tells \t{cilly} to first attempt to collect into one
 source file all of the sources that make your application, and then to apply
 \t{cilly.asm} on the resulting source. The sequence of actions in this case is
 described above and the merger itself is described in \secref{merger}.
 
-\item \t{--leavealone=xxx}. Do not merge and do not present to CIL the files
+\item \t{-{}-leavealone=xxx}. Do not merge and do not present to CIL the files
 whose basename is "xxx". These files are compiled as usual and linked in at
 the end. 
-\item \t{--includedir=xxx}. Override the include files with those in the given
+\item \t{-{}-includedir=xxx}. Override the include files with those in the given
 directory. The given directory is the same name that was given an an argument
 to the patcher (see \secref{patcher}). In particular this means that
 that directory contains subdirectories named based on the current compiler
 version. The patcher creates those directories. 
-\item \t{--usecabs}. Do not CIL, but instead just parse the source and print
+\item \t{-{}-usecabs}. Do not CIL, but instead just parse the source and print
 its AST out. This should looked like the preprocessed file. This is useful
 when you suspect that the conversion to CIL phase changes the meaning of the
 program. 
-\item \c{--save-temps=xxx}. Temporary files are preserved in the xxx directory.
-\item \c{--save-temps}. Temporay files are preserved in the current directory.
+\item \c{-{}-save-temps=xxx}. Temporary files are preserved in the xxx directory.
+\item \c{-{}-save-temps}. Temporay files are preserved in the current directory.
 \end{itemize}
  
  
   \subsection{\t{cilly.asm} Options}
 
- All of the options that start with \t{--} and are not understood by
+ All of the options that start with \t{-{}-} and are not understood by
 \t{cilly} are passed on to \t{cilly.asm}. The following options are
 supported:
 \begin{itemize}
-\item \t{--out <xxx>}. The name of the pretty-printed file.
-\item \t{--verbose}. Print lots of random stuff. This is passed on from
+\item \t{-{}-out <xxx>}. The name of the pretty-printed file.
+\item \t{-{}-verbose}. Print lots of random stuff. This is passed on from
 \t{cilly}.
 \item \t{-help}. Print the help. Actually \t{cilly} will do this if you
-      pass it \t{--help}.  
-\item \t{--check}. Run a consistency check over the CIL after every operation. 
-\item \t{--MSVC}. Enable the MSVC extensions and pretty-print for consumption
+      pass it \t{-{}-help}.  
+\item \t{-{}-check}. Run a consistency check over the CIL after every operation. 
+\item \t{-{}-MSVC}. Enable the MSVC extensions and pretty-print for consumption
 by MSVC.
-\item \t{--warnall}. Print all the warnings.
-\item \t{--log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
+\item \t{-{}-warnall}. Print all the warnings.
+\item \t{-{}-log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
 application. By default \t{stderr} is used.
-\item \t{--keepunused}. Do not attempt to remove the unused variables and
+\item \t{-{}-keepunused}. Do not attempt to remove the unused variables and
        types from CIL. 
-\item \t{--noPrintLn}. Do not print line numbers.
-\item \t{--commPrintLn}. Print line numbers but in comments.
-\item \t{--printCilAsIs}. Do not attempt to simplify the program while
+\item \t{-{}-noPrintLn}. Do not print line numbers.
+\item \t{-{}-commPrintLn}. Print line numbers but in comments.
+\item \t{-{}-printCilAsIs}. Do not attempt to simplify the program while
   printing. If this is turned on, then all loops will be printed as
   ``while(1)'', as they are in the internal language.
-\item \t{--extrafiles <xxx>}. Give the name of a text file that contains
+\item \t{-{}-extrafiles <xxx>}. Give the name of a text file that contains
 whitespace-separated named of additional files to process.
 
-\item \t{--dologcalls}. Insert code in the processed source to print the name of
+\item \t{-{}-dologcalls}. Insert code in the processed source to print the name of
 functions as are called. Implemented in \t{src/ext/logcalls.ml}.
-\item \t{--dologwrites}. Insert code in the processed source to print the
+\item \t{-{}-dologwrites}. Insert code in the processed source to print the
 address of all memory writes. Implemented in \t{src/ext/logwrites.ml}.
-\item \t{--dooneRet}. Make each function have at most one 'return'.
+\item \t{-{}-dooneRet}. Make each function have at most one 'return'.
 Implemented in \t{src/ext/oneret.ml}. 
-\item \t{--dostackGuard}. Instrument function calls and returns to
+\item \t{-{}-dostackGuard}. Instrument function calls and returns to
 maintain a separate stack for return addresses. Implemeted in
 \t{src/ext/heapify.ml}. 
-\item \t{--domakeCFG}. Make the program look more like a CFG. Implemented
+\item \t{-{}-domakeCFG}. Make the program look more like a CFG. Implemented
 in \t{src/cil.ml}. 
-\item \t{--dopartial}. Do interprocedural partial evaluation and
+\item \t{-{}-dopartial}. Do interprocedural partial evaluation and
 constant folding. Implemented in \t{src/ext/partial.ml}. 
-\item \t{--dosimpleMem}. Simplify all memory expressions. Implemented in
+\item \t{-{}-dosimpleMem}. Simplify all memory expressions. Implemented in
 \t{src/ext/simplemem.ml}. 
 
-For an up-to-date list of available options, run \t{cilly.asm --help}. 
+For an up-to-date list of available options, run \t{cilly.asm -{}-help}. 
 
 \end{itemize}
 
@@ -1820,7 +1820,7 @@ how to perform a simple source-to-source program analysis and
 transformation. As an optimization only functions that contain a dangerous
 local array make use of the special return address stack. 
 
-For a concrete example, you can see how \t{cilly --dostackGuard}
+For a concrete example, you can see how \t{cilly -{}-dostackGuard}
 transforms the following dangerous code: 
 
 \begin{cilcode}[global] --dostackGuard
@@ -1841,7 +1841,7 @@ The module \t{heapify.ml} also contains a transformation that moves all
 dangerous local arrays to the heap. This also prevents a number of buffer
 overruns. 
 
-For a concrete example, you can see how \t{cilly --doheapify}
+For a concrete example, you can see how \t{cilly -{}-doheapify}
 transforms the following dangerous code: 
 
 \begin{cilcode}[global] --doheapify
@@ -1861,7 +1861,7 @@ The module \t{oneret.ml} contains a transformation the ensures that all
 function bodies have at most one return statement. This simplifies a number
 of analyses by providing a canonical exit-point. 
 
-For a concrete example, you can see how \t{cilly --dooneRet}
+For a concrete example, you can see how \t{cilly -{}-dooneRet}
 transforms the following code: 
 
 \begin{cilcode}[global] --dooneRet
@@ -1883,7 +1883,7 @@ CIL can reduce high-level C control-flow constructs like \t{switch} and
 possible classes of statements from the program and may make the result
 easier to analyze (e.g., it simplifies data-flow analysis). 
 
-For a concrete example, you can see how \t{cilly --domakeCFG}
+For a concrete example, you can see how \t{cilly -{}-domakeCFG}
 transforms the following code (note the fall-through in case 1): 
 
 \begin{cilcode}[global] --domakeCFG
@@ -1904,9 +1904,9 @@ transforms the following code (note the fall-through in case 1):
 
 The \t{partial.ml} module provides a simple interprocedural partial
 evaluation and constant folding data-flow analysis and transformation. This
-transformation requires the \t{--domakeCFG} option. 
+transformation requires the \t{-{}-domakeCFG} option. 
 
-For a concrete example, you can see how \t{cilly --domakeCFG --dopartial}
+For a concrete example, you can see how \t{cilly -{}-domakeCFG -{}-dopartial}
 transforms the following code (note the eliminated \t{if} branch and the
 partial optimization of \t{foo}): 
 
@@ -1972,7 +1972,7 @@ to be even futher simplified via the introduction of well-typed
 temporaries. After this transformation all lvalues involve at
 most one memory reference. 
 
-For a concrete example, you can see how \t{cilly --dosimpleMem} 
+For a concrete example, you can see how \t{cilly -{}-dosimpleMem} 
 transforms the following code:
 
 \begin{cilcode}[global] --dosimpleMem
@@ -2013,7 +2013,7 @@ constants. Accesses to arrays and variables whose address is taken are
 turned into "Mem" accesses. All field and index computations are turned
 into address arithmetic.
 
-For a concrete example, you can see how \t{cilly --dosimplify} 
+For a concrete example, you can see how \t{cilly -{}-dosimplify} 
 transforms the following code:
 
 \begin{cilcode}[global] --dosimplify
@@ -2039,7 +2039,7 @@ differences between C and C++, so that the output is (hopefully) valid
 C++ code.  This may be incomplete --- certain fixes which are necessary
 for some programs are not yet implemented.
 
-Using the \t{--doCanonicalize} option with CIL will perform the
+Using the \t{-{}-doCanonicalize} option with CIL will perform the
 following changes to your program:
 
 \begin{enumerate}
@@ -2065,7 +2065,7 @@ following changes to your program:
 
  In the process of converting a C file to CIL we drop the unused prototypes
 and even inline function definitions. This results in much smaller files. If
-you do not want this behavior then you must pass the \t{--keepunused} argument
+you do not want this behavior then you must pass the \t{-{}-keepunused} argument
 to the CIL application. 
 
  Alternatively you can put the following pragma in the code (instructing CIL
@@ -2384,10 +2384,10 @@ gcc file1.o -lfile2 -o a.out
 \end{itemize}
 
  In each of the cases above you must replace all occurrences of \t{gcc} and
-\t{ld} with \t{cilly --merge}, and all occurrences of \t{ar} with \t{cilly
---merge --mode=AR}. It is very important that the \t{--merge} flag be used
+\t{ld} with \t{cilly -{}-merge}, and all occurrences of \t{ar} with \t{cilly
+-{}-merge -{}-mode=AR}. It is very important that the \t{-{}-merge} flag be used
 throughout the build process. If you want to see the merged source file you
-must also pass the \t{--keepmerged} flag to the linking phase. 
+must also pass the \t{-{}-keepmerged} flag to the linking phase. 
 
  The result of merging file1.c and file2.c is:
 \begin{code}
@@ -2940,7 +2940,7 @@ is the old behavior to replace them with integers.
 \item {\bf September 26, 2005}: CIL no longer uses the `\t{-I-}' flag
   by default when preprocessing with gcc.
 \item {\bf August 24, 2005}: Added a command-line option
-  ``--forceRLArgEval'' that forces function arguments to be evaluated
+  ``-{}-forceRLArgEval'' that forces function arguments to be evaluated
   right-to-left.  This is the default behavior in unoptimized gcc and
   MSVC, but the order of evaluation is undefined when using
   optimizations, unless you apply this CIL transformation.  This flag
@@ -2991,7 +2991,7 @@ is the old behavior to replace them with integers.
 \item {\bf April 23, 2005}: The cattr field was not visited.
 \item {\bf March 6, 2005}: Debian packaging support
 \item {\bf February 16, 2005}: Merger fixes.
-\item {\bf February 11, 2005}: Fixed a bug in \t{--dopartial}. Thanks to
+\item {\bf February 11, 2005}: Fixed a bug in \t{-{}-dopartial}. Thanks to
 Nathan Cooprider for this fix. 
 \item {\bf January 31, 2005}: Make sure the input file is closed even if a
   parsing error is encountered. 
@@ -3020,7 +3020,7 @@ Nathan Cooprider for this fix.
   BLOCK around a single atom unnecessarily. 
 \item {\bf August 7, 2004}: {\bf Released version 1.3.1}
 \item {\bf August 4, 2004}: Fixed a bug in splitting of structs using 
-  \t{--dosimplify}
+  \t{-{}-dosimplify}
 \item {\bf July 29, 2004}: Minor changes to the type typeSig (type signatures)
   to ensure that they do not contain types, so that you can do structural
   comparison without danger of nontermination. 
@@ -3099,8 +3099,8 @@ utilities shared with other projects.
 \item {\bf November 24, 2003}: Fixed a bug that allowed a static local to
   conflict with a global with the same name that is declared later in the
   file. 
-\item {\bf November 24, 2003}: Removed the \t{--keep} option of the \t{cilly}
-  driver and replaced it with \t{--save-temps}.
+\item {\bf November 24, 2003}: Removed the \t{-{}-keep} option of the \t{cilly}
+  driver and replaced it with \t{-{}-save-temps}.
 \item {\bf November 24, 2003}: Added printing of what CIL features are being
   run.
 \item {\bf November 24, 2003}: Fixed a bug that resulted in attributes being
@@ -3186,17 +3186,17 @@ mishandling certain labeled return statements.
 thanks to Jeff Foster, Andy Begel and Tim Leek. 
 \item {\bf April 30, 2003}: Better description of how to use CIL for your
 analysis. 
-\item {\bf April 28, 2003}: Fixed a bug with \texttt{--dooneRet} and
-\texttt{--doheapify}. Thanks, Manos Renieris.
+\item {\bf April 28, 2003}: Fixed a bug with \texttt{-{}-dooneRet} and
+\texttt{-{}-doheapify}. Thanks, Manos Renieris.
 \item {\bf April 16, 2003}: Reworked management of
   temporary/intermediate output files in Perl driver scripts.  Default
   behavior is now to remove all such files.  To keep intermediate
   files, use one of the following existing flags:
   \begin{itemize}
-  \item \texttt{--keepmerged} for the single-file merge of all sources
-  \item \texttt{--keep=<\textit{dir}>} for various other CIL and
+  \item \texttt{-{}-keepmerged} for the single-file merge of all sources
+  \item \texttt{-{}-keep=<\textit{dir}>} for various other CIL and
     CCured output files
-  \item \texttt{-save-temps} for various gcc intermediate files; MSVC
+  \item \texttt{-{}-save-temps} for various gcc intermediate files; MSVC
     has no equivalent option
   \end{itemize}
   As part of this change, some intermediate files have changed their
