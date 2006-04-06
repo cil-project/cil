@@ -2999,7 +2999,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             match unrollType t, initl with
               TComp(ci, _), [(Field(f, NoOffset), _)] -> 
                 if not (ci.cstruct) && ci.cfields != [] && 
-                  (List.hd ci.cfields).fname = f.fname then
+                  (List.hd ci.cfields) != f then
                   true
                 else
                   false
