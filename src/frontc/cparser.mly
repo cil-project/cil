@@ -982,6 +982,8 @@ type_spec:   /* ISO 6.7.2 */
 |   UNSIGNED        { Tunsigned, $1 }
 |   STRUCT                 id_or_typename
                                                    { Tstruct ($2, None,    []), $1 }
+|   STRUCT just_attributes id_or_typename
+                                                   { Tstruct ($3, None,    $2), $1 }
 |   STRUCT                 id_or_typename LBRACE struct_decl_list RBRACE
                                                    { Tstruct ($2, Some $4, []), $1 }
 |   STRUCT                                LBRACE struct_decl_list RBRACE

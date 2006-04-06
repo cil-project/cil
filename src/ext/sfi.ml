@@ -127,8 +127,9 @@ let addr_of_lv (lv: lval) =
     let enclosing_type = TComp(bf.fcomp, []) in 
     let bits_offset, bits_width = 
       bitsOffset enclosing_type (Field(bf,NoOffset)) in
-    let bytes_offset = bits_offset / 8 in 
-    (BinOp(PlusPI,(AddrOf (new_lv)),(integer bytes_offset) ,ulongType))
+    let bytes_offset = bits_offset / 8 in
+    let lvPtr = mkCast ~e:(mkAddrOf (new_lv)) ~newt:(charPtrType) in
+    (BinOp(PlusPI, lvPtr, (integer bytes_offset), ulongType))
   end else 
     (mkAddrOf (lh,lo)) 
 
