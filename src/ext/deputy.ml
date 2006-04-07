@@ -2356,12 +2356,12 @@ let map_to_check f c =
     | CNullUnion _ -> c
 
 (* Applies action to all expressions in a function.
- * action takes reaching definition data, an expression,
+ * action takes reaching definition data, an sid, an expression,
  * the fundec that the expression is in, and a boolean.
  * If the boolean is true then all variables are considered.
  * If the boolean is false then only temps are considered. 
  * The returned bool is true if the expression was changed *)
-(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp * bool *)
+(* action: RD.IOS.t IH.t -> sid -> exp -> fundec -> bool -> exp * bool *)
 let checkVisit_change = ref false
 let checkVisit action (fd : fundec) = object(self)
     inherit RD.rdVisitorClass
@@ -2370,7 +2370,7 @@ let checkVisit action (fd : fundec) = object(self)
     match self#get_cur_iosh() with
       None -> e
     | Some iosh -> 
-	let e', b' = action iosh e fd b in
+	let e', b' = action iosh sid e fd b in
 	if b' then checkVisit_change := true;
 	e'
 
@@ -2400,7 +2400,7 @@ end
 
 (* applies the action to the function until
    no changes are made *)
-(* action: RD.IOS.t IH.t -> exp -> fundec -> bool -> exp * bool *)
+(* action: RD.IOS.t IH.t -> sid -> exp -> fundec -> bool -> exp * bool *)
 (* action -> fundec -> unit *)
 let fp action fd =
   let vis = checkVisit action fd in
