@@ -272,35 +272,35 @@ Run \t{cl} with no arguments to get the compiler version.
 \item On Linux, using \t{gcc} version 2.95.3, 3.0, 3.2, 3.3, and 4.0.
 \end{itemize}
 
-Others have successfully used CIL with Mac OS X, Solaris, and *BSD.
-If you make any changes to the build system in order to run CIL on
-your platform, please send us a patch.
+Others have successfully used CIL with Mac OS X (on both PowerPC and
+x86), Solaris, and *BSD.  If you make any changes to the build
+system in order to run CIL on your platform, please send us a patch.
 
-  \section{Testing CIL} 
-  Once you have built CIL you can run 
-\begin{verbatim}
-make quicktest
-\end{verbatim}
+%%   \section{Testing CIL} 
+%%   Once you have built CIL you can run 
+%% \begin{verbatim}
+%% make quicktest
+%% \end{verbatim}
 
-  This will run a few small examples. If you want to test CIL on a large
-part of our own regression suite you need to do the following:
-\begin{itemize}
-\item Download the CCured regression suite from the
-\ahref{distrib}{distribution} directory. The latest version is
-\ahrefurl{../ccured/distrib/ccured-tests-\ccuredversion.tar.gz}.
-\item Unpack that file in the \t{cil} (you must end up with \t{cil/test}).
-\item Run \t{./configure} to create the file \t{cil/test/Makefile}
-\item Re-run \t{make}
-\item In the \t{test} directory, run
-\begin{verbatim}
-USECILLY=1 testsafec --run --group cil --nogroup slow
-\end{verbatim}
-\end{itemize}
+%%   This will run a few small examples. If you want to test CIL on a large
+%% part of our own regression suite you need to do the following:
+%% \begin{itemize}
+%% \item Download the CCured regression suite from the
+%% \ahref{distrib}{distribution} directory. The latest version is
+%% \ahrefurl{../ccured/distrib/ccured-tests-\ccuredversion.tar.gz}.
+%% \item Unpack that file in the \t{cil} (you must end up with \t{cil/test}).
+%% \item Run \t{./configure} to create the file \t{cil/test/Makefile}
+%% \item Re-run \t{make}
+%% \item In the \t{test} directory, run
+%% \begin{verbatim}
+%% USECILLY=1 testsafec --run --group cil --nogroup slow --nogroup vslow
+%% \end{verbatim}
+%% \end{itemize}
 
- Drop the argument \t{-{}-nogroup slow} to run even larger tests. 
+%%  Drop the argument \t{-{}-nogroup slow} to run even larger tests. 
 
- {\bf Note that some tests will fail either because they are not included in
- our distribution, or because we still have a few failing test cases.}
+%%  {\bf Note that some tests will fail either because they are not included in
+%%  our distribution, or because we still have a few failing test cases.}
 
   \section{Distribution Contents}
 
@@ -317,8 +317,7 @@ Filename   & Description \\
 \t{configure.in}                & The \t{autoconf} source for \t{configure} \\
 \t{config.guess}, \t{config.sub}, \t{install-sh} & stuff required by
                                 \t{configure} \\
-\t{Makefile.ocaml}              & A file that is included by \t{Makefile} \\
-\t{Makefile.ocaml.build}        & A file that is included by \t{Makefile} \\
+\\
 \t{doc/}                        & HTML documentation of the CIL API \\
 \t{obj/}                        & Directory that will contain the compiled
                                    CIL modules and executables\\
@@ -338,6 +337,7 @@ Filename   & Description \\
                                   uses it. \\
 \t{bin/patcher.in}              & A Perl script that applies specified patches
                                   to standard include files.\\
+\\
 \t{src/check.ml,mli}            & Checks the well-formedness of a CIL file \\
 \t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
                                    utilities for manipulating it\\
@@ -348,8 +348,8 @@ Filename   & Description \\
                                    variables from the stack to the heap \\
 \t{src/ext/logcalls.ml,mli}     & A CIL transformation that logs every
                                    function call \\
-\t{src/ext/logwrites.ml}        & A CIL transformation that logs every memory
-                                   write \\
+\t{src/ext/sfi.ml}              & A CIL transformation that can log every
+                                   memory read and write \\
 \t{src/frontc/clexer.mll}       & The lexer \\
 \t{src/frontc/cparser.mly}      & The parser \\
 \t{src/frontc/cabs.ml}          & The abstract syntax \\
@@ -365,7 +365,23 @@ Filename   & Description \\
                                   C compiler)\\
 \t{src/trace.ml,mli}            & Utilities useful for printing debugging
                                    information\\
-\t{src/util.ml}                 & Miscellaneous functions and global variables
+\\
+\t{ocamlutil/}                  & Miscellaneous libraries that are not
+                                  specific to CIL. \\
+\t{ocamlutil/Makefile.ocaml}    & A file that is included by \t{Makefile} \\
+\t{ocamlutil/Makefile.ocaml.build}& A file that is included by \t{Makefile} \\
+\t{ocamlutil/perfcount.c}       & C code that links with src/stats.ml
+                                  and reads Intel performance
+                                  counters. \\
+\\
+\t{obj/@ARCHOS@/feature\_config.ml}  & File generated by Makefile.cil
+                                      describing which extra ``features''
+                                      to compile. See \secref{cil} \\
+\t{obj/@ARCHOS@/machdep.ml}     & File generated by Makefile.cil containing
+                                  information about your architecture,
+                                  such as the size of a pointer \\
+\t{src/machdep.c}               & C program that generates
+                                  \t{machdep.ml} files \\
 \end{tabular}
 
 
@@ -2226,7 +2242,21 @@ returns and not when the local scope ends.
 
 Variable-length arrays are not supported as fields of a struct or union.
 
-\item CIL cannot parse a line containing an empty \t{\#pragma}.
+\item CIL cannot parse arbitrary \t{\#pragma} directives.  Their
+  syntax must follow gcc's attribute syntax to be understood.  If you
+  need a pragma that does not follow gcc syntax, add that pragma's name
+  to \t{no\_parse\_pragma} in \t{src/frontc/clexer.mll} to indicate that
+  CIL should treat that pragma as a monolithic string rather than try
+  to parse its arguments.
+
+  CIL cannot parse a line containing an empty \t{\#pragma}.
+
+\item CIL only parses \t{\#pragma} directives at the "top level", this is,
+  outside of any enum, structure, union, or function definitions.
+
+  If your compiler uses pragmas in places other than the top-level,
+  you may have to preprocess the sources in a special way (sed, perl,
+  etc.) to remove pragmas from these locations.
 
 \item CIL cannot parse the following code (fixing this problem would require
 extensive hacking of the LALR grammar):
@@ -2913,6 +2943,22 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 6, 2006}: Fix for global initializers of unions when
+  the union field being initialized is not the first one.
+\item {\bf April 6, 2006}: Fix for bitfields in the SFI module.
+\item {\bf April 6, 2006}: Various fixes for gcc attributes.
+  \t{packed}, \t{section}, and \t{always\_inline} attributes are now
+  parsed correctly.  Also fixed printing of attributes on enum types.
+\item {\bf March 30, 2006}: Fix for \t{rmtemps.ml}, which deleted
+  unused inline functions on the faulty assumption that \t{inline}
+  implies \t{static}.
+\item {\bf March 15, 2006}: Fix for \t{typeof($e$)} when $e$ has type
+  \t{void}.
+\item {\bf March 3, 2006}: Assume inline assembly instructions can
+  fall through for the purposes of adding return statements.  Thanks to
+  Nathan Cooprider for the patch.
+\item {\bf February 27, 2006}: Fix for extern inline functions when
+  the output of CIL is fed back into CIL.
 \item {\bf January 30, 2006}: Fix parsing of \t{switch} without braces.
 \item {\bf January 30, 2006}: Allow `\$' to appear in identifiers.
 \item {\bf January 13, 2006}: Added support for gcc's alias attribute
