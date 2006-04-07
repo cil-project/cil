@@ -4205,7 +4205,7 @@ done
 # $target is typically processor-vendor-os
 case "$target" in
   # linux
-  *86*linux*|*86*freebsd*|*86*openbsd*)
+  *86*linux*|*86*freebsd*|*86*openbsd*|*86*darwin*)
     echo "$as_me:$LINENO: result: configuring for linux/x86" >&5
 echo "${ECHO_T}configuring for linux/x86" >&6
 
@@ -4247,14 +4247,14 @@ echo "${ECHO_T}configuring for SPARC/Solaris" >&6
     { { echo "$as_me:$LINENO: error:
       Unsupported platform $target -- sorry.
       ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), freeBSD, and openBSD
+         on x86:     Linux, Win32(with Cygwin), freeBSD, openBSD, and Mac OS X
          on PowerPC: Mac OS X
          on SPARC:   Solaris
     " >&5
 echo "$as_me: error:
       Unsupported platform $target -- sorry.
       ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), freeBSD, and openBSD
+         on x86:     Linux, Win32(with Cygwin), freeBSD, openBSD, and Mac OS X
          on PowerPC: Mac OS X
          on SPARC:   Solaris
     " >&2;}
