@@ -39,7 +39,6 @@ let box_int_to_exp (n : int64) (ye : typ) : exp =
 
 let cil_to_ocaml_int (e : exp) : (int64 * int * sign) = 
   let unbox_int_exp (e : exp) : int64 = 
-    let res = isInteger e in
     match isInteger e with 
       None -> raise Not_an_integer
     | Some (x) -> x

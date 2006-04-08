@@ -313,6 +313,7 @@ $TEST->add2Tests("testrun/init16", "");
 $TEST->addTests("testrun/init17", "", ['cil']);
 $TEST->addTests("testrun/init18", "", ['cil']);
 $TEST->addTests("testrun/init19", "WARNINGS_ARE_ERRORS=1", ['cil']);
+$TEST->addTests("testrun/init20", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/array-size-trick", "", ['cil']);
 $TEST->add2Tests("testrun/logical", "");
 $TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);

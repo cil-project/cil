@@ -2944,7 +2944,9 @@ as it will ensure your message is viewed by a broad audience.
 \section{Changes}\label{sec-changes}
 \begin{itemize}
 \item {\bf April 6, 2006}: Fix for global initializers of unions when
-  the union field being initialized is not the first one.
+  the union field being initialized is not the first one, and for
+  missing initializers of unions when the first field is not the
+  largest field.
 \item {\bf April 6, 2006}: Fix for bitfields in the SFI module.
 \item {\bf April 6, 2006}: Various fixes for gcc attributes.
   \t{packed}, \t{section}, and \t{always\_inline} attributes are now

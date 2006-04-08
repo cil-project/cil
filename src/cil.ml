@@ -5499,13 +5499,39 @@ let rec makeZeroInit (t: typ) : init =
       CompoundInit (t', inits)
 
   | TComp (comp, _) when not comp.cstruct -> 
-      let fstfield = 
+      let fstfield, rest = 
         match comp.cfields with
-          f :: _ -> f
+          f :: rest -> f, rest
         | [] -> E.s (unimp "Cannot create init for empty union")
       in
-      CompoundInit(t, [(Field(fstfield, NoOffset), 
-                        makeZeroInit fstfield.ftype)])
+      let fieldToInit = 
+        if !msvcMode then
+          (* ISO C99 [6.7.8.10] says that the first field of the union
+             is the one we should initialize. *)
+          fstfield
+        else begin
+          (* gcc initializes the whole union to zero.  So choose the largest
+             field, and set that to zero.  Choose the first field if possible.
+             MSVC also initializes the whole union, but use the ISO behavior
+             for MSVC because it only allows compound initializers to refer
+             to the first union field. *)
+          let fieldSize f = try bitsSizeOf f.ftype with SizeOfError _ -> 0 in
+          let widestField, widestFieldWidth =
+            List.fold_left (fun acc thisField ->
+                              let widestField, widestFieldWidth = acc in
+                              let thisSize = fieldSize thisField in
+                              if thisSize > widestFieldWidth then
+                                thisField, thisSize
+                              else
+                                acc)
+              (fstfield, fieldSize fstfield)
+              rest
+          in
+          widestField
+        end
+      in
+      CompoundInit(t, [(Field(fieldToInit, NoOffset), 
+                        makeZeroInit fieldToInit.ftype)])
 
   | TArray(bt, Some len, _) as t' -> 
       let n = 
