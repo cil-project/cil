@@ -51,8 +51,6 @@ module IH = Inthash
  *
  *)
 
-module M = Machdep
-
 (* The module Cilversion is generated automatically by Makefile from 
  * information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
@@ -67,7 +65,11 @@ let msvcMode = ref false              (* Whether the pretty printer should
 
 let useLogicalOperators = ref false
 
-(* Cil.initCil will set this to the current machine description *)
+
+module M = Machdep
+(* Cil.initCil will set this to the current machine description.
+   Makefile.cil generates the file obj/@ARCHOS@/machdep.ml,
+   which contains the descriptions of gcc and msvc. *)
 let theMachine : M.mach ref = ref M.gcc
 
 
@@ -1834,17 +1836,17 @@ exception SizeOfError of string * typ
 (* Get the minimum aligment in bytes for a given type *)
 let rec alignOf_int = function
   | TInt((IChar|ISChar|IUChar), _) -> 1
-  | TInt((IShort|IUShort), _) -> !theMachine.M.sizeof_short
-  | TInt((IInt|IUInt), _) -> !theMachine.M.sizeof_int
-  | TInt((ILong|IULong), _) -> !theMachine.M.sizeof_long
+  | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
+  | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
+  | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
   | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
-  | TEnum _ -> !theMachine.M.sizeof_enum
-  | TFloat(FFloat, _) -> 4
+  | TEnum _ -> !theMachine.M.alignof_enum
+  | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
   | TFloat(FDouble, _) -> !theMachine.M.alignof_double
   | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
   | TNamed (t, _) -> alignOf_int t.ttype
   | TArray (t, _, _) -> alignOf_int t
-  | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.sizeof_ptr
+  | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
 
         (* For composite types get the maximum alignment of any field inside *)
   | TComp (c, _) ->
@@ -1873,10 +1875,12 @@ let rec alignOf_int = function
       
 
 let bitsSizeOfInt (ik: ikind): int = 
-  (* For long long sometimes the alignof and sizeof are different *)
-  if (ik = ILongLong) || (ik = IULongLong) then
-    8 * !theMachine.M.sizeof_longlong
-  else 8 * alignOf_int (TInt(ik,[]))
+  match ik with 
+  | IChar | ISChar | IUChar -> 8 
+  | IInt | IUInt -> 8 * !theMachine.M.sizeof_int
+  | IShort | IUShort -> 8 * !theMachine.M.sizeof_short
+  | ILong | IULong -> 8 * !theMachine.M.sizeof_long
+  | ILongLong | IULongLong -> 8 * !theMachine.M.sizeof_longlong
 
 (* Represents an integer as for a given kind. 
    Returns a flag saying whether the value was changed
@@ -2121,10 +2125,12 @@ and bitsSizeOf t =
     E.s (E.error "You did not call Cil.initCIL before using the CIL library");
   match t with 
   | TInt (ik,_) -> bitsSizeOfInt ik
-  | TFloat(FDouble, _) -> 8 * 8
+  | TFloat(FDouble, _) -> 8 * !theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !theMachine.M.sizeof_longdouble
-  | TFloat _ | TEnum _ | TPtr _ | TBuiltin_va_list _ 
-    -> 8 * alignOf_int t
+  | TFloat _ -> 8 * !theMachine.M.sizeof_float
+  | TEnum _ -> 8 * !theMachine.M.sizeof_enum
+  | TPtr _ -> 8 * !theMachine.M.sizeof_ptr
+  | TBuiltin_va_list _ -> 8 * !theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields == [] -> begin
       (* Empty structs are allowed in msvc mode *)
@@ -2387,6 +2393,8 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | BAnd, _, Const(CInt64(0L,_,_)) -> zero
       | BOr, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logor i1 i2)
+      | BOr, _, _ when isZero e1' -> e2'
+      | BOr, _, _ when isZero e2' -> e1'
       | BXor, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
           kinteger64 tk (Int64.logxor i1 i2)
 

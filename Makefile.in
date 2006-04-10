@@ -152,12 +152,20 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 	echo "  sizeof_longlong: int;   (* Size of \"long long\" *)"   >> $@
 	echo "  sizeof_ptr: int;        (* Size of pointers *)"        >> $@
 	echo "  sizeof_enum: int;       (* Size of enum types *)"      >> $@
+	echo "  sizeof_float: int;      (* Size of \"float\" *)"       >> $@
+	echo "  sizeof_double: int;     (* Size of \"double\" *)"      >> $@
 	echo "  sizeof_longdouble: int; (* Size of \"long double\" *)" >> $@
 	echo "  sizeof_sizeof: int;     (* Size of \"sizeof(T)\" *)"   >> $@
 	echo "  sizeof_wchar: int;      (* Size of \"wchar_t\" *)"     >> $@ 
 	echo "  sizeof_void: int;       (* Size of \"void\" *)"        >> $@
 	echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
+	echo "  alignof_short: int;     (* Alignment of \"short\" *)"  >> $@
+	echo "  alignof_int: int;       (* Alignment of \"int\" *)"    >> $@
+	echo "  alignof_long: int;      (* Alignment of \"long\" *)"   >> $@
 	echo "  alignof_longlong: int;  (* Alignment of \"long long\" *)" >> $@
+	echo "  alignof_ptr: int;       (* Alignment of pointers *)"   >> $@
+	echo "  alignof_enum: int;      (* Alignment of enum types *)" >> $@
+	echo "  alignof_float: int;     (* Alignment of \"float\" *)"  >> $@
 	echo "  alignof_double: int;    (* Alignment of \"double\" *)" >> $@
 	echo "  alignof_longdouble: int;  (* Alignment of \"long double\" *)" >> $@
 	echo "  alignof_str: int;       (* Alignment of strings *)" >> $@
