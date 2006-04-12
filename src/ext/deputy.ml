@@ -885,7 +885,7 @@ let compareTypes (t1 : typ) (t2 : typ) : bool =
       | Attr ("always_inline", []) -> false
       | _ -> true
     in
-    typeSigWithAttrs (List.filter attrFilter) t
+    typeSigWithAttrs ~ignoreSign:true (List.filter attrFilter) t
   in
   (typeSigNC t1) = (typeSigNC t2)
 
@@ -1076,6 +1076,8 @@ let rec checkPolyType (polyType: typ) (otherType: typ)
           typeAddAttributes [safeAttr]
             (typeRemoveAttributes ["fancybounds"] otherType)
         in
+        if !verbose then
+          log "Inferred POLY(%d) = %a.\n" n dx_type instantiatedType;
         IH.add polyTable n instantiatedType;
         instantiatedType
     in

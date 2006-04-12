@@ -1423,8 +1423,10 @@ val d_typsig: unit -> typsig -> Pretty.doc
 (** Compute a type signature *)
 val typeSig: typ -> typsig
 
-(** Like {!Cil.typeSig} but customize the incorporation of attributes *)
-val typeSigWithAttrs: (attributes -> attributes) -> typ -> typsig
+(** Like {!Cil.typeSig} but customize the incorporation of attributes.
+    Use ~ignoreSign:true to convert all signed integer types to unsigned,
+    so that signed and unsigned will compare the same. *)
+val typeSigWithAttrs: ?ignoreSign:bool -> (attributes -> attributes) -> typ -> typsig
 
 (** Replace the attributes of a signature (only at top level) *)
 val setTypeSigAttrs: attributes -> typsig -> typsig 

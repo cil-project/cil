@@ -5248,13 +5248,27 @@ let typeSigAddAttrs a0 t =
   | TSEnum (n, a) -> TSEnum (n, addAttributes a0 a)
   | TSFun(ts, tsargs, isva, a) -> TSFun(ts, tsargs, isva, addAttributes a0 a)
 
-(* Compute a type signature *)
-let rec typeSigWithAttrs doattr t = 
-  let typeSig = typeSigWithAttrs doattr in
+(* Compute a type signature.
+    Use ~ignoreSign:true to convert all signed integer types to unsigned,
+    so that signed and unsigned will compare the same. *)
+let rec typeSigWithAttrs ?(ignoreSign=false) doattr t = 
+  let typeSig = typeSigWithAttrs ~ignoreSign doattr in
   let attrVisitor = new typeSigVisitor typeSig in
   let doattr al = visitCilAttributes attrVisitor (doattr al) in
   match t with 
-  | TInt (ik, al) -> TSBase (TInt (ik, doattr al))
+  | TInt (ik, al) -> 
+      let ik' = if ignoreSign then begin
+        match ik with
+          | ISChar | IChar -> IUChar
+          | IShort -> IUShort
+          | IInt -> IUInt
+          | ILong -> IULong
+          | ILongLong -> IULongLong
+          | _ -> ik          
+      end else
+        ik
+      in
+      TSBase (TInt (ik', doattr al))
   | TFloat (fk, al) -> TSBase (TFloat (fk, doattr al))
   | TVoid al -> TSBase (TVoid (doattr al))
   | TEnum (enum, a) -> TSEnum (enum.ename, doattr a)
