@@ -1994,7 +1994,7 @@ let preProcessVisitor = object (self)
            match instr with
            | Call (ret, fn, args, l) when isAllocator (typeOf fn) ->
                let argInfo =
-                 match typeOf fn with
+                 match unrollType (typeOf fn) with
                  | TFun (_, argInfo, _, _) -> argInfo
                  | _ -> E.s (bug "Expected function type")
                in
@@ -2022,7 +2022,7 @@ let preProcessVisitor = object (self)
                Call (ret, fn, List.map stripOneCast args, l) :: acc
            | Call (Some (Var vi, NoOffset), fn, args, l) ->
                let rt, argInfo =
-                 match typeOf fn with
+                 match unrollType (typeOf fn) with
                  | TFun (rt, argInfo, _, _) ->
                      if isPointerType rt &&
                         not (hasAttribute "bounds" (typeAttrs rt)) then
@@ -2039,7 +2039,7 @@ let preProcessVisitor = object (self)
                  acc
            | Call (lvo, fn, args, l) ->
                let argInfo =
-                 match typeOf fn with
+                 match unrollType (typeOf fn) with
                  | TFun (_, argInfo, _, _) -> argInfo
                  | _ -> E.s (bug "Expected function type")
                in

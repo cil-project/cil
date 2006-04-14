@@ -1504,6 +1504,7 @@ addDeputyTest("types5");
 addDeputyTest("types6");
 addDeputyTest("types7");
 addDeputyTest("types8");
+addDeputyTest("types9");
 
 addDeputyTest("union1");
 addDeputyTest("union2");
