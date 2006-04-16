@@ -132,13 +132,13 @@ let options : (string * Arg.spec * string) list =
     "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
                "do not wrap long lines when printing";
     "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
-               "print some statistics";
+               "Print statistics about running times and memory usage.";
 
     "--stages", Arg.Unit (fun _ -> Cilutil.printStages := true),
                "print the stages of the algorithm as they happen";
 
     "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
-             "the name of the log file";
+             "Set the name of the log file.  By default stderr is used";
 
     "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
                 "do not remove the unused variables and types";

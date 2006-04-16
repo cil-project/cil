@@ -98,6 +98,7 @@ let rec isCompositeType tp =
   | TPtr(x, _) -> isCompositeType x
   | TArray(x,_,_) -> isCompositeType x
   | TFun(x,_,_,_) -> isCompositeType x
+  | TNamed (x,_) -> isCompositeType x.ttype
   | _ -> false
 
 (** START OF deepHasAttribute ************************************************)

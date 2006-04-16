@@ -129,7 +129,9 @@ let rec processOneFile (cil: C.file) =
           if !E.verboseFlag then 
             ignore (E.log "Running CIL feature %s (%s)\n" 
                       fdesc.C.fd_name fdesc.C.fd_description);
-          fdesc.C.fd_doit cil;
+          (* Run the feature, and see how long it takes. *)
+          Stats.time ("Feature: "^fdesc.C.fd_name)
+            fdesc.C.fd_doit cil;
           (* See if we need to do some checking *)
           if !Cilutil.doCheck && fdesc.C.fd_post_check then begin
             ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
@@ -145,7 +147,7 @@ let rec processOneFile (cil: C.file) =
 	(C.dumpFile (!C.printerForMaincil) c.fchan c.fname) cil);
 
     if !E.hadErrors then
-      E.s (E.error "Error while processing file");
+      E.s (E.error "Error while processing file; see above for details.");
 
   end with Done_Processing -> ()
         
@@ -229,7 +231,7 @@ let rec theMain () =
   begin
     (* this point in the code is the program entry point *)
 
-    Stats.reset false; (* no performance counters *)
+    Stats.reset (Stats.has_performance_counters ());
 
     (* parse the command-line arguments *)
     Arg.parse argDescr Ciloptions.recordFile usageMsg;

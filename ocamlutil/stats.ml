@@ -57,12 +57,13 @@ let print chn msg =
       (Printf.fprintf chn "%s%-20s          %6.3f s\n" 
          (String.make ind ' ') node.name node.time);
 
-   List.iter (prTree (ind + 2)) node.sub
+   List.iter (prTree (ind + 2)) (List.rev node.sub)
   in
   Printf.fprintf chn "%s" msg; 
   List.iter (prTree 0) [ top ];
   Printf.fprintf chn "Timing used %s\n"
-    (if !do_use_performance_counters then "performance counters" else "Unix.time");
+    (if !do_use_performance_counters then "Pentium performance counters"
+     else "Unix.time");
   let gc = Gc.quick_stat () in 
   let printM (w: float) : string = 
     Printf.sprintf "%.2fMb" (w *. 4.0 /. 1000000.0)

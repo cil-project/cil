@@ -1672,6 +1672,12 @@ application. By default \t{stderr} is used.
   ``while(1)'', as they are in the internal language.
 \item \t{-{}-extrafiles <xxx>}. Give the name of a text file that contains
 whitespace-separated named of additional files to process.
+\item \t{-{}-stats}.  Print statistics about the running time of the
+  parser, conversion to CIL, etc.  Also prints memory-usage
+  statistics.  You can time parts of your own code as well.  Calling
+  \t{Stats.time ``label'' func arg} will evaluate \t{(func arg)} and
+  remember how long this takes.  If you call \t{Stats.time} repeatedly
+  with the same label, CIL will report the aggregate time.
 
 \item \t{-{}-dologcalls}. Insert code in the processed source to print the name of
 functions as are called. Implemented in \t{src/ext/logcalls.ml}.
@@ -2943,6 +2949,9 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf April 12, 2006}: Minor improvements to the \t{-{}-stats}
+  flag. We now use Pentium performance counters by default, if your
+  processor supports them.
 \item {\bf April 10, 2006}: Extended \t{machdep.c} to support
   microcontroller compilers where the struct alignment of integer
   types does not match the size of the type.  Thanks to Nathan
