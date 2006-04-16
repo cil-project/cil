@@ -2282,12 +2282,57 @@ let optimizeCheck (c: check) : check list =
 
   | _ -> [c]
 
+let checks_equal c1 c2 = match c1, c2 with
+| CEq(e11,e12), CEq(e21,e22)
+| CMult(e11,e12), CMult(e21, e22)
+| COverflow(e11, e12), COverflow(e21,e22) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22)
+| CUnsignedLess(e11,e12,s1), CUnsignedLess(e21,e22,s2)
+| CUnsignedLE(e11,e12,s1), CUnsignedLE(e21,e22,s2)
+| CUnsignedLENT(e11,e12,s1), CUnsignedLENT(e21,e22,s2) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22) &&
+    (String.compare s1 s2 = 0)
+| CNullOrLE(e11,e12,e13,s1), CNullOrLE(e21,e22,e23,s2)
+| CNullOrLENT(e11,e12,e13,s1), CNullOrLENT(e21,e22,e23,s2) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22) &&
+    (compareExpStripCasts e13 e23) &&
+    (String.compare s1 s2 = 0)
+| CNTWrite(e11,e12,e13),CNTWrite(e21,e22,e23) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22) &&
+    (compareExpStripCasts e13 e23)
+| CNullUnion l1, CNullUnion l2 ->
+    compareLval l1 l2
+| CSelected e1, CSelected e2
+| CNotSelected e1, CNotSelected e2
+| CNonNull e1, CNonNull e2
+| CPositive e1, CPositive e2 ->
+    compareExpStripCasts e1 e2
+| _ -> false
+
+(* Removes duplicate entries from a list *)
+(* check list -> check list *)
+let elim_dup_checks l =
+  let rec ed pre rest = match rest with
+    [] -> List.rev pre
+  | (c::rst) ->
+      (*if IntSet.mem (hash_check c) set
+      then*) if List.exists (fun c' -> checks_equal c c') pre
+      then ed pre rst
+      else ed (c::pre) rst
+  in
+  ed [] l
+
 let optimizeVisitor = object (self)
   inherit nopCilVisitor
 
   method vstmt s =
     let checks = GA.getg allChecks s.sid in
-    GA.setg allChecks s.sid (List.flatten (List.map optimizeCheck checks));
+    let checks' = List.flatten (List.map optimizeCheck checks) in
+    GA.setg allChecks s.sid (elim_dup_checks checks');
     DoChildren
 
   method vfunc fd =
