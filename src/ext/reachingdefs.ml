@@ -288,6 +288,12 @@ let getRDs sid =
     None
 (*    E.s (E.error "getRDs: sid %d not found\n" sid) *)
 
+let getDefIdStmt defid =
+  try
+    Some(IH.find ReachingDef.defIdStmtHash defid)
+  with Not_found ->
+    None
+
 (* Pretty print the reaching definition data for
    a function *)
 let ppFdec fdec =

@@ -86,7 +86,9 @@ class memReadOrAddrOfFinderClass = object(self)
 			       vi.vname);
        exp_ok := false;
        SkipChildren)
-    else DoChildren
+    else (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s does not have its address taken\n"
+				  vi.vname);
+	  DoChildren)
 
 end
 
@@ -94,6 +96,8 @@ let memReadOrAddrOfFinder = new memReadOrAddrOfFinderClass
 
 (* exp -> bool *)
 let exp_is_ok_replacement e =
+  if !debug then ignore(E.log "exp_is_ok_replacement: in exp_is_ok_replacement with %a\n"
+			  d_exp e);
   exp_ok := true;
   ignore(visitCilExpr memReadOrAddrOfFinder e);
   !exp_ok
@@ -132,10 +136,11 @@ let writes_between f dsid sid =
       | _ -> false) il
   | _ -> false
   in
-  (* is there a path from start to goal that includes in
+  (* is there a path from start to goal that includes an
      instruction that writes to memory? Do a dfs *)
   let visited_sid_lr = ref [] in
   let rec dfs start goal b =
+    if !debug then ignore(E.log "writes_between: dfs visiting %a\n" d_stmt start);
     if start.sid = goal.sid then b || (find_write start) else
     if List.mem start.sid (!visited_sid_lr) then false else
     let w = find_write start in
@@ -151,9 +156,8 @@ let writes_between f dsid sid =
       let _ = visited_sid_lr := [stm.sid] in
       let from_stm = List.fold_left (visit stm) false stm.succs in
       let _ = visited_sid_lr := [] in
-      let from_dstm = dfs stm dstm false in
+      let from_dstm = dfs dstm stm false in
       from_stm || from_dstm
-
 
 (* ok_to_replace *)
 (* is it alright to replace a variable use with the expression
@@ -170,10 +174,11 @@ let writes_between f dsid sid =
    2) At both points no one definition *must* reach there.
    For this reason, this function also takes the fundec,
    so that it can be figured out which is the case *)
-(* varinfo IH.t -> sid -> varinfo IH.t -> fundec -> rhs -> bool *)
+(* varinfo -> varinfo IH.t -> sid -> varinfo IH.t -> fundec -> rhs -> bool *)
 (* sid is an int that is the statement id of the statement where
    we are trying to do a replacement *)
-let ok_to_replace curiosh sid defiosh dsid f r =
+(* vi is the varinfo of the variable that we are trying to replace *)
+let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
     RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
   | RDCall (Call(_,_,el,_) as i) ->
@@ -183,8 +188,13 @@ let ok_to_replace curiosh sid defiosh dsid f r =
       u, safe
   | _ -> E.s (E.bug "ok_to_replace: got non Call in RDCall.")
   in
-  let writes = if safe then false else writes_between f dsid sid in
-  if not safe && writes
+  let target_addrof = if vi.vaddrof then
+    (if !debug then ignore(E.log "ok_to_replace: target %s had its address taken\n" vi.vname);
+    true)
+  else (if !debug then ignore(E.log "ok_to_replace: target %s does not have its address taken\n" vi.vname);
+	false) in
+  let writes = if safe && not(target_addrof) then false else writes_between f dsid sid in
+  if (not safe || target_addrof) && writes
   then
     (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
      false) 
@@ -463,7 +473,7 @@ let tmp_to_exp iosh sid vi fd nofrm =
       if !debug then ignore(E.log "tmp_to_exp: no def of %s\n" vi.vname);
       None
     | Some(RDExp(e) as r, dsid , defiosh) ->
-	if ok_to_replace iosh sid defiosh dsid fd r
+	if ok_to_replace vi iosh sid defiosh dsid fd r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
 	   tmp_to_exp_change := true;
@@ -499,17 +509,25 @@ let tmp_to_const iosh sid vi fd nofrm =
 	  match getDefRhs defid with
 	    None -> None
 	  | Some(RDExp(Const c), _, defiosh) ->
-	      let same = RD.IOS.for_all (fun defido ->
-		match defido with None -> false | Some defid ->
-		  match getDefRhs defid with
-		    None -> false
-		  | Some(RDExp(Const c'),_,_) ->
-		      Util.equals c c'
-		  | _ -> false) ios
-	      in
-	      if same 
-	      then (tmp_to_const_change := true; Some(Const c))
-	      else None
+	      (match RD.getDefIdStmt defid with
+		None -> E.s (E.error "tmp_to_const: defid has no statement\n")
+	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RDExp(Const c)) then
+		  let same = RD.IOS.for_all (fun defido ->
+		    match defido with None -> false | Some defid ->
+		      match getDefRhs defid with
+			None -> false
+		      | Some(RDExp(Const c'),_,defiosh) ->
+			  if Util.equals c c' then
+			    match RD.getDefIdStmt defid with
+			      None -> E.s (E.error "tmp_to_const: defid has no statement\n")
+			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RDExp(Const c')) 
+			  else false
+		      | _ -> false) ios
+		  in
+		  if same 
+		  then (tmp_to_const_change := true; Some(Const c))
+		  else None
+	      else None)
 	  | _ -> None
   else None
 
@@ -531,7 +549,7 @@ class expTempElimClass (fd:fundec) = object (self)
 	  (match riviho with
 	    Some(RDExp(e) as r, dsid, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
-	      if ok_to_replace iosh sid defiosh dsid fd r
+	      if ok_to_replace vi iosh sid defiosh dsid fd r
 	      then 
 		(if !debug then ignore(E.log "Yes.\n");
 		 ChangeTo(e))
@@ -619,7 +637,7 @@ class callTempElimClass (fd:fundec) = object (self)
 	  (match riviho with
 	    Some(RDCall(i) as r, dsid, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
-	      if ok_to_replace iosh sid defiosh dsid fd r
+	      if ok_to_replace vi iosh sid defiosh dsid fd r
 	      then (if !debug then ignore(E.log "Yes.\n");
 		    IH.add iioh vi.vid (Some(i));
 		    DoChildren)

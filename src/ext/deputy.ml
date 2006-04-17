@@ -2319,8 +2319,7 @@ let elim_dup_checks l =
   let rec ed pre rest = match rest with
     [] -> List.rev pre
   | (c::rst) ->
-      (*if IntSet.mem (hash_check c) set
-      then*) if List.exists (fun c' -> checks_equal c c') pre
+      if List.exists (fun c' -> checks_equal c c') pre
       then ed pre rst
       else ed (c::pre) rst
   in
@@ -2788,10 +2787,10 @@ let checkFile (f: file) : unit =
   if !optLevel >= 2 then begin
     Cfg.clearFileCFG f; 
     Cfg.computeFileCFG f;
-    Deadcodeelim.dce f;
+    (*Deadcodeelim.dce f;*)
     List.iter (fun g -> match g with GFun(fd,loc) ->
       forwardTmpSub fd | _ -> ()) f.globals;
-    Deadcodeelim.dce f;
+    (*Deadcodeelim.dce f;*)
     List.iter (fun g -> match g with GFun(fd,loc) ->
       RCT.rm_unused_locals fd | _ -> ()) f.globals;
   end;
