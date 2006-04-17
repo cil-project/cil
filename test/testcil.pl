@@ -1463,6 +1463,7 @@ addDeputyTest("infer9");
 addDeputyTest("infer10");
 addDeputyTest("infer11");
 addDeputyTest("infer12");
+addDeputyTest("infer13");
 
 addDeputyTest("memcpy1");
 addDeputyTest("memset1");

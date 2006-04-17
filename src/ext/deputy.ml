@@ -2035,7 +2035,6 @@ let preProcessVisitor = object (self)
                let tmp = makeTempVar !curFunc rt in
                Call (Some (var tmp), fn, stripArgCasts argInfo args, l) ::
                  Set (var vi, Lval (var tmp), l) ::
-                 Set (var tmp, zero, l) ::
                  acc
            | Call (lvo, fn, args, l) ->
                let argInfo =
