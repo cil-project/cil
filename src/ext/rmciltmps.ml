@@ -147,7 +147,7 @@ let writes_between f dsid sid =
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
     visited_sid_lr := start.sid::(!visited_sid_lr);
     if List.length start.succs = 0 then false else
-    List.fold_left (visit goal) w start.succs
+    List.mem true (List.map (visit goal w) start.succs)
   and visit g b s = (dfs s g b) in
   match stmo, dstmo with
     None, _ | _, None -> 
