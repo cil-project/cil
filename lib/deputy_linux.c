@@ -1,11 +1,20 @@
+#include <linux/config.h>    /* has to be first!  */
 #include <linux/init.h>
 #include <linux/module.h>
+#ifdef CONFIG_KRECOVER
+#include <linux/krecover.h>
+#endif
 
 asmlinkage void deputy_fail(const char *what, const char *check,
                  const char *file, int line) {
     printk(KERN_ALERT
            "Assertion \"%s\" failed in %s check at %s:%d.\n", 
            what, check, file, line);
+#ifdef CONFIG_KRECOVER
+    /* This will trigger real krecover recovery */
+    if (kr_recovery_enabled)
+        kr_trigger_fault();
+#endif
 }
 
 asmlinkage int deputy_strlen(const char *str) {
