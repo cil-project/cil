@@ -1470,6 +1470,7 @@ addDeputyTest("memset1");
 addDeputyTest("memcmp1");
 
 addDeputyTest("opt1");
+addDeputyTest("opt2");
 
 addDeputyTest("poly1");
 addDeputyTest("poly2");
