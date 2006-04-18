@@ -2786,10 +2786,10 @@ let checkFile (f: file) : unit =
   if !optLevel >= 2 then begin
     Cfg.clearFileCFG f; 
     Cfg.computeFileCFG f;
-    (*Deadcodeelim.dce f;*)
+    Deadcodeelim.dce f;
     List.iter (fun g -> match g with GFun(fd,loc) ->
       forwardTmpSub fd | _ -> ()) f.globals;
-    (*Deadcodeelim.dce f;*)
+    Deadcodeelim.dce f;
     List.iter (fun g -> match g with GFun(fd,loc) ->
       RCT.rm_unused_locals fd | _ -> ()) f.globals;
   end;

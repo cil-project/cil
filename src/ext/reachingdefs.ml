@@ -113,8 +113,9 @@ let iosh_combine iosh1 iosh2 =
 
 (* determine if two IOS.t IH.t s are the same *)
 let iosh_equals iosh1 iosh2 =
-  if IH.length iosh1 = 0 && not(IH.length iosh2 = 0) ||
-  IH.length iosh2 = 0 && not(IH.length iosh1 = 0)
+(*  if IH.length iosh1 = 0 && not(IH.length iosh2 = 0) ||
+  IH.length iosh2 = 0 && not(IH.length iosh1 = 0)*)
+  if not(IH.length iosh1 = IH.length iosh2)
   then false else
     IH.fold (fun vid ios b ->
       if not b then b else

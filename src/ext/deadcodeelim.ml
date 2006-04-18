@@ -37,8 +37,8 @@ class usedDefsCollectorClass = object(self)
 		if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
 		usedDefsSet := IS.add i (!usedDefsSet)
 	    | None -> ()) ios
-	else if !debug then ignore(E.log "DCE: vid %d:%s not in iosh at %a\n"
-				     vi.vid vi.vname d_plainexp e)) u
+	else if !debug then ignore(E.log "DCE: vid %d:%s not in stm:%d iosh at %a\n"
+				     vi.vid vi.vname sid d_plainexp e)) u
     in
     match self#get_cur_iosh() with
       Some(iosh) -> add_defids iosh; DoChildren
