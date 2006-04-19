@@ -1989,7 +1989,7 @@ let preProcessVisitor = object (self)
              try
                (List.map2 stripSomeCasts formals actuals1) @ actuals2
              with Invalid_argument "List.map2" ->
-               E.s (bug "Expected lists of equal length")
+               E.s (error "Wrong number of arguments for function")
            in
            match instr with
            | Call (ret, fn, args, l) when isAllocator (typeOf fn) ->
@@ -2762,18 +2762,31 @@ let checkFile (f: file) : unit =
        | GFun (fd, loc) ->
            if not (isTrustedAttr fd.svar.vattr) then begin
              checkFundec fd loc;
-             if !optLevel = 1 then 
+             if !optLevel = 1 then begin
+               if !verbose then
+                 log "Doing flow-insensitive optimizations.\n";
                ignore (visitCilFunction optimizeVisitor fd)
+             end
              else if !optLevel = 2 then begin
+               if !verbose then
+                 log "Doing all optimizations:\n1. optimizeVisitor\n";
                ignore (visitCilFunction optimizeVisitor fd);
+               if !verbose then
+                 log "2. Substitutions.\n";
 	       let cf = constFoldVisitor false in
                forwardTmpSub fd;
 	       constProp fd;
 	       ignore(visitCilFunction cf fd);
+               if !verbose then
+                 log "3. Flow-sensitive opts.\n";
                doFlowAnalysis fd;
+               if !verbose then
+                 log "4. Substitutions. (second pass)\n";
                forwardTmpSub fd;
 	       constProp fd;
 	       ignore(visitCilFunction cf fd);
+               if !verbose then
+                 log "5. optimizeVisitor. (second pass)\n";
 	       ignore(visitCilFunction optimizeVisitor fd);
              end
           end
@@ -2810,8 +2823,8 @@ let feature : featureDescr =
     "--deputyopt", Arg.Set_int optLevel,
          ("Control deputy optimizations:\n\t\t" ^
           "0: no optimization\n\t\t" ^
-          "1: flow-insensitive optimization  (Default)\n\t\t" ^
-          "2: all optimization");
+          "1: flow-insensitive optimization\n\t\t" ^
+          "2: all optimization  (Default)");
     "--deputytrust", Arg.Set trustAll,
           "Trust all bad casts by default";
     ];
