@@ -1724,23 +1724,27 @@ let checkFundec (fd : fundec) (loc:location) : unit =
   curStmt := -1;
   (* Initialize all locals to 0.  Do this after adding checks *)
   let init: instr list =
-    List.map
-      (fun vi ->
+    List.fold_left
+      (fun acc vi ->
          let t = unrollType vi.vtype in
          match t with
            TInt _
          | TEnum _
          | TPtr _ ->
-             Set(var vi, zero, loc)
+             Set(var vi, zero, loc)::acc
          | TFloat _ -> 
-             Set(var vi, Const(CReal(0.0, FFloat, None)), loc)
+             Set(var vi, Const(CReal(0.0, FFloat, None)), loc)::acc
          | TComp _ 
          | TArray _ ->
              Call(None, memset,
                   [mkAddrOf (var vi); zero; SizeOf t],
-                  loc)
+                  loc)::acc
+         | TBuiltin_va_list _ ->
+             warn "va_list variables not handled";
+             acc
          | _ -> E.s(bug "Unexpected type %a for local var %s." 
                       dx_type t vi.vname))
+      []
       fd.slocals
   in
   let init' = mkStmt(Instr init) in
