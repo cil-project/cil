@@ -2411,7 +2411,7 @@ let map_to_check f c =
  * If the boolean is false then only temps are considered. 
  * The returned bool is true if the expression was changed *)
 (* action: RD.IOS.t IH.t -> sid -> exp -> fundec -> bool -> exp * bool *)
-let checkVisit_change = ref false
+let checkVisit_change = ref true
 let checkVisit action (fd : fundec) = object(self)
     inherit RD.rdVisitorClass
 
@@ -2448,18 +2448,19 @@ let checkVisit action (fd : fundec) = object(self)
 end
 
 (* applies the action to the function until
-   no changes are made *)
+   no changes are made, or lim is reached *)
 (* action: RD.IOS.t IH.t -> sid -> exp -> fundec -> bool -> exp * bool *)
-(* action -> fundec -> unit *)
-let fp action fd =
+(* action -> int -> fundec -> unit *)
+let fp action lim fd =
   let vis = checkVisit action fd in
-  let rec loop () =
+  let i = ref 0 in
+  checkVisit_change := true;
+  while !i < lim && !checkVisit_change do
+    if !debug then ignore(E.log "fp: in while loop\n");
     checkVisit_change := false;
     ignore(visitCilFunction (vis :> cilVisitor) fd);
-    if !checkVisit_change
-    then loop() else ()
-  in
-  loop()
+    i := !i + 1;
+  done
 
 (* zra - Try to remove tmp variables in exps
  * through forward substitution.
@@ -2473,10 +2474,18 @@ let fp action fd =
  * Temps might be copied to temps, so it is necessary
  * to reach a fixed point.
  *)
-let forwardTmpSub = fp RCT.fwd_subst
+(*let forwardTmpSub fd = 
+  let vis = checkVisit RCT.fwd_subst fd in
+  ignore(visitCilFunction (vis :> cilVisitor) fd)
+
+let constProp fd =
+  let vis = checkVisit RCT.const_prop fd in
+  ignore(visitCilFunction (vis :> cilVisitor) fd)*)
+
+let forwardTmpSub = fp RCT.fwd_subst 4
 
 (* Constant propagation into checks *)
-let constProp = fp RCT.const_prop
+let constProp = fp RCT.const_prop 4
 
 (**************************************************************************)
 (**************************************************************************)

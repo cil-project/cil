@@ -15,7 +15,7 @@ module IS = Set.Make(
     let compare = compare
   end)
 
-let debug = ref false
+let debug = RD.debug
 
 
 let usedDefsSet = ref IS.empty

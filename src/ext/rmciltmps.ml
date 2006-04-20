@@ -10,11 +10,8 @@ module RD = Reachingdefs
 module UD = Usedef
 module IH = Inthash
 
-let debug = ref false
+let debug = RD.debug
 
-(* The right hand side of an assignment is either
-   a function call or an expression *)
-type rhs = RDExp of exp | RDCall of instr
 
 (* Type for the form of temporary variable names *)
 type nameform = Suffix of string | Prefix of string | Exact of string
@@ -24,47 +21,9 @@ type nameform = Suffix of string | Prefix of string | Exact of string
    Returns None if, for example, the definition is
    caused by an assembly instruction *)
 (* int -> (rhs * int * IOS.t IH.t) option *)
-let getDefRhs defId =
-  let stm =
-    try IH.find RD.ReachingDef.defIdStmtHash defId 
-    with Not_found -> E.s (E.error "getDefRhs: defId %d not found in defIdStmtHash\n" defId) in
-  let (_,s,iosh) = 
-    try IH.find RD.ReachingDef.stmtStartData stm.sid
-    with Not_found -> E.s (E.error "getDefRhs: sid %d not found \n" stm.sid) in
-  match stm.skind with
-    Instr il ->
-      let ivihl = RD.instrRDs il ((),s,iosh) true in (* defs that reach out of each instr *)
-      let ivihl_in = RD.instrRDs il ((),s,iosh) false in (* defs that reach into each instr *)
-      let iihl = List.combine (List.combine il ivihl) ivihl_in in
-      let iihl' = List.filter (fun ((i,(_,_,iosh')),_) -> (* find the defining instr *)
-	match RD.iosh_defId_find iosh' defId with
-	  Some vid -> 
-	    (match i with
-	      Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
-	    | Call(Some(Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
-	    | Call(None,_,_,_) -> false
-	    | Asm(_,_,sll,_,_,_) -> List.exists 
-		  (function (_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
-	    | _ -> false)
-	| None -> false) iihl in
-      (try 
-	let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.hd iihl' in
-	(*let vid = 
-	  match RD.iosh_defId_find diosh defId with
-	    None -> E.s (E.error "getDefRhs: defId %d doesn't reach first instr?!\n" defId)
-	  | Some(vid') -> vid' in*)
-	(match i with
-	  Set((lh,_),e,_) ->
-	    (match lh with
-	      Var(vi') -> Some(RDExp(e), stm.sid, iosh_in)
-	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
-	| Call(lvo,e,el,_) -> Some(RDCall(i), stm.sid, iosh_in)
-	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
-      with Failure _ ->
-	(if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
-	 None))
-  | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
-      (*None*)
+let getDefRhs = RD.getDefRhs 
+    RD.ReachingDef.defIdStmtHash
+    RD.ReachingDef.stmtStartData
 
 (* exp_is_ok_replacement -
    Returns false if the argument contains a pointer dereference
@@ -180,8 +139,8 @@ let writes_between f dsid sid =
 (* vi is the varinfo of the variable that we are trying to replace *)
 let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
-    RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
-  | RDCall (Call(_,_,el,_) as i) ->
+    RD.RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
+  | RD.RDCall (Call(_,_,el,_) as i) ->
       let safe = List.fold_left (fun b e ->
 	(exp_is_ok_replacement e) && b) true el in
       let u,d = UD.computeUseDefInstr i in
@@ -295,7 +254,7 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
   in
 
   match r with
-    RDExp(Lval(Var rhsvi, NoOffset)) ->
+    RD.RDExp(Lval(Var rhsvi, NoOffset)) ->
       let curido = RD.iosh_singleton_lookup curiosh rhsvi in
       let defido = RD.iosh_singleton_lookup defiosh rhsvi in
       (match  curido, defido with
@@ -325,7 +284,7 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 		     None)
 		  else
 		    (match redefrhs with
-		      RDExp(e) -> (match inc_or_dec e rhsvi with
+		      RD.RDExp(e) -> (match inc_or_dec e rhsvi with
 			Some(PlusA) ->
 			  if num_uses () = 1 then 
 			    Some(curdef_stmt.sid, curid, rhsvi, PlusA)
@@ -444,8 +403,8 @@ let iosh_get_useful_def iosh vi =
     let ios' = RD.IOS.filter (fun ido  ->
       match ido with None -> true | Some(id) ->
 	match getDefRhs id with
-	  Some(RDExp(Lval(Var vi',NoOffset)),_,_)
-	| Some(RDExp(CastE(_,Lval(Var vi',NoOffset))),_,_) ->
+	  Some(RD.RDExp(Lval(Var vi',NoOffset)),_,_)
+	| Some(RD.RDExp(CastE(_,Lval(Var vi',NoOffset))),_,_) ->
 	    not(vi.vid = vi'.vid) (* false if they are the same *)
 	| _ -> true) ios
     in
@@ -472,7 +431,7 @@ let tmp_to_exp iosh sid vi fd nofrm =
     match defrhs with None -> 
       if !debug then ignore(E.log "tmp_to_exp: no def of %s\n" vi.vname);
       None
-    | Some(RDExp(e) as r, dsid , defiosh) ->
+    | Some(RD.RDExp(e) as r, dsid , defiosh) ->
 	if ok_to_replace vi iosh sid defiosh dsid fd r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
@@ -508,19 +467,19 @@ let tmp_to_const iosh sid vi fd nofrm =
 	match defido with None -> None | Some defid ->
 	  match getDefRhs defid with
 	    None -> None
-	  | Some(RDExp(Const c), _, defiosh) ->
+	  | Some(RD.RDExp(Const c), _, defiosh) ->
 	      (match RD.getDefIdStmt defid with
 		None -> E.s (E.error "tmp_to_const: defid has no statement\n")
-	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RDExp(Const c)) then
+	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c)) then
 		  let same = RD.IOS.for_all (fun defido ->
 		    match defido with None -> false | Some defid ->
 		      match getDefRhs defid with
 			None -> false
-		      | Some(RDExp(Const c'),_,defiosh) ->
+		      | Some(RD.RDExp(Const c'),_,defiosh) ->
 			  if Util.equals c c' then
 			    match RD.getDefIdStmt defid with
 			      None -> E.s (E.error "tmp_to_const: defid has no statement\n")
-			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RDExp(Const c')) 
+			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c')) 
 			  else false
 		      | _ -> false) ios
 		  in
@@ -547,7 +506,7 @@ class expTempElimClass (fd:fundec) = object (self)
 	Some id ->
 	  let riviho = getDefRhs id in
 	  (match riviho with
-	    Some(RDExp(e) as r, dsid, defiosh) ->
+	    Some(RD.RDExp(e) as r, dsid, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
 	      if ok_to_replace vi iosh sid defiosh dsid fd r
 	      then 
@@ -589,7 +548,7 @@ class incdecTempElimClass (fd:fundec) = object (self)
 	Some id ->
 	  let riviho = getDefRhs id in
 	  (match riviho with
-	    Some(RDExp(e) as r, _, defiosh) ->
+	    Some(RD.RDExp(e) as r, _, defiosh) ->
 	      (match ok_to_replace_with_incdec iosh defiosh fd id vi r with
 		Some(curdef_stmt_id,redefid, rhsvi, b) ->
 		  (if !debug then ignore(E.log "No, but I can replace it with a post-inc/dec\n");
@@ -635,7 +594,7 @@ class callTempElimClass (fd:fundec) = object (self)
 	Some id ->
 	  let riviho = getDefRhs id in
 	  (match riviho with
-	    Some(RDCall(i) as r, dsid, defiosh) ->
+	    Some(RD.RDCall(i) as r, dsid, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_instr i);
 	      if ok_to_replace vi iosh sid defiosh dsid fd r
 	      then (if !debug then ignore(E.log "Yes.\n");
@@ -772,9 +731,9 @@ class unusedRemoverClass : cilVisitor = object(self)
 		     false)
 	  | Some(rhs, _, indiosh) ->
 	      (match rhs with
-		RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
+		RD.RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
 				false)
-	      | RDExp e' -> 
+	      | RD.RDExp e' -> 
 		  if Util.equals e e' then true
 		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
 					      redefid d_plainexp e' d_plainexp e);

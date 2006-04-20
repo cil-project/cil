@@ -602,8 +602,11 @@ let feature : featureDescr =
     Arg.Unit (fun n -> doElimTemps := true),
     "Try to eliminate temporary variables during pretty printing";
     "--zrapp_debug",
-    Arg.Unit (fun n -> debug := true; RD.debug := true; RCT.debug := true; DCE.debug := true),
+    Arg.Unit (fun n -> debug := true; RD.debug := true),
     "Lots of debugging info for pretty printing and reaching definitions";
+    "--zrapp_debug_fn",
+    Arg.String (fun s -> RD.debug_fn := s),
+    "Only output debugging info for one function";
     "--zrapp_comments",
     Arg.Unit (fun _ -> printComments := true),
     "Print comments from source file in output";];

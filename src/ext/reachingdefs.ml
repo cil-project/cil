@@ -25,6 +25,8 @@ module UD = Usedef
 module IH = Inthash
 module U = Util
 
+let debug_fn = ref ""
+
 module IOS = 
   Set.Make(struct
     type t = int option
@@ -116,14 +118,21 @@ let iosh_equals iosh1 iosh2 =
 (*  if IH.length iosh1 = 0 && not(IH.length iosh2 = 0) ||
   IH.length iosh2 = 0 && not(IH.length iosh1 = 0)*)
   if not(IH.length iosh1 = IH.length iosh2)
-  then false else
+  then 
+    (if !debug then ignore(E.log "iosh_equals: length not same\n");
+    false)
+  else
     IH.fold (fun vid ios b ->
       if not b then b else
       if not(IH.mem iosh2 vid)
-      then false
+      then 
+	(if !debug then ignore(E.log "iosh_equals: vid %d not in iosh2\n" vid);
+	false)
       else let ios2 = IH.find iosh2 vid in
-      (*IOS.is_empty (IOS.diff ios ios2)*)
-      IOS.compare ios ios2 = 0) iosh1 true
+      if not(IOS.compare ios ios2 = 0) then
+	    (if !debug then ignore(E.log "iosh_equals: sets for vid %d not equal\n" vid);
+	     false)
+      else true) iosh1 true
 
 (* replace an entire set with a singleton.
    if nothing was there just add the singleton *)
@@ -144,8 +153,8 @@ let iosh_replace iosh i vi =
 let proc_defs vs iosh f = 
   let pd vi =
     let newi = f() in
-    if !debug then
-      ignore (E.log "proc_defs: genning %d\n" newi);
+    (*if !debug then
+      ignore (E.log "proc_defs: genning %d\n" newi);*)
     iosh_replace iosh newi vi
   in
   UD.VS.iter pd vs
@@ -156,6 +165,120 @@ let idMaker () start =
     let ret = !counter in
     counter := !counter + 1;
     ret
+
+(* given reaching definitions into a list of
+   instructions, figure out the definitions that
+   reach in/out of each instruction *)
+(* if out is true then calculate the definitions that
+   go out of each instruction, if it is false then
+   calculate the definitions reaching into each instruction *)
+(* instr list -> (varinfo IH.t * int) -> bool -> (varinfo IH.t * int) list *)
+let instrRDs il (ivih, s, iosh) out =
+
+  let print_instr i (_,s', iosh') =
+    let d = d_instr () i ++ line in
+    fprint stdout 80 d;
+    flush stdout
+  in
+
+  let proc_one hil i =
+    match hil with
+    | [] -> 
+	let _, defd = UD.computeUseDefInstr i in
+	if UD.VS.is_empty defd 
+	then ((*if !debug then print_instr i ((), s, iosh);*)
+	      [((), s, iosh)])
+	else 
+	  let iosh' = IH.copy iosh in
+	  proc_defs defd iosh' (idMaker () s);
+	  (*if !debug then
+	    print_instr i ((), s + UD.VS.cardinal defd, iosh');*)
+	  ((), s + UD.VS.cardinal defd, iosh')::hil
+    | (_, s', iosh')::hrst as l ->
+	let _, defd = UD.computeUseDefInstr i in
+	if UD.VS.is_empty defd 
+	then 
+	  ((*if !debug then
+	    print_instr i ((),s', iosh');*)
+	   ((), s', iosh')::l)
+	else let iosh'' = IH.copy iosh' in
+	proc_defs defd iosh'' (idMaker () s');
+	(*if !debug then
+	  print_instr i ((), s' + UD.VS.cardinal defd, iosh'');*)
+	((),s' + UD.VS.cardinal defd, iosh'')::l
+  in
+  if out then
+    List.tl (List.rev (List.fold_left proc_one [((),s,iosh)] il))
+  else
+    List.rev (List.tl (List.fold_left proc_one [((),s,iosh)] il))
+
+
+(* The right hand side of an assignment is either
+   a function call or an expression *)
+type rhs = RDExp of exp | RDCall of instr
+
+(* take the id number of a definition and return
+   the rhs of the definition if there is one.
+   Returns None if, for example, the definition is
+   caused by an assembly instruction *)
+(* stmt IH.t -> (()*int*IOS.t IH.t) IH.t -> int -> (rhs * int * IOS.t IH.t) option *)
+let getDefRhs didstmh stmdat defId =
+  let stm =
+    try IH.find didstmh defId 
+    with Not_found -> E.s (E.error "getDefRhs: defId %d not found\n" defId) in
+  let (_,s,iosh) = 
+    try IH.find stmdat stm.sid
+    with Not_found -> E.s (E.error "getDefRhs: sid %d not found \n" stm.sid) in
+  match stm.skind with
+    Instr il ->
+      let ivihl = instrRDs il ((),s,iosh) true in (* defs that reach out of each instr *)
+      let ivihl_in = instrRDs il ((),s,iosh) false in (* defs that reach into each instr *)
+      let iihl = List.combine (List.combine il ivihl) ivihl_in in
+      let iihl' = List.filter (fun ((i,(_,_,iosh')),_) -> (* find the defining instr *)
+	match iosh_defId_find iosh' defId with
+	  Some vid -> 
+	    (match i with
+	      Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
+	    | Call(Some(Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
+	    | Call(None,_,_,_) -> false
+	    | Asm(_,_,sll,_,_,_) -> List.exists 
+		  (function (_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
+	    | _ -> false)
+	| None -> false) iihl in
+      (try 
+	let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.hd iihl' in
+	(*let vid = 
+	  match iosh_defId_find diosh defId with
+	    None -> E.s (E.error "getDefRhs: defId %d doesn't reach first instr?!\n" defId)
+	  | Some(vid') -> vid' in*)
+	(match i with
+	  Set((lh,_),e,_) ->
+	    (match lh with
+	      Var(vi') -> Some(RDExp(e), stm.sid, iosh_in)
+	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
+	| Call(lvo,e,el,_) -> Some(RDCall(i), stm.sid, iosh_in)
+	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
+      with Failure _ ->
+	(if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
+	 None))
+  | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
+      (*None*)
+
+let prettyprint didstmh stmdat () (_,s,iosh) = text ""
+  (*seq line (fun (vid,ios) ->
+    num vid ++ text ": " ++
+      IOS.fold (fun io d -> match io with
+	None -> d ++ text "None "
+      | Some i ->
+	  let stm = IH.find didstmh i in
+	  match getDefRhs didstmh stmdat i with
+	    None -> d ++ num i
+	  | Some(RDExp(e),_,_) ->
+	      d ++ num i ++ text " " ++ (d_exp () e)
+	  | Some(RDCall(c),_,_) ->
+	      d ++ num i ++ text " " ++ (d_instr () c))
+      ios nil)
+    (IH.tolist iosh)*)
 
 module ReachingDef =
   struct
@@ -187,15 +310,8 @@ module ReachingDef =
        the statement corresponding to that id *)
     let defIdStmtHash = IH.create 32
 
-    let pretty () (_, s, iosh) =
-	seq line (fun (vid,ios) ->
-	  num vid ++ text ": " ++
-	  IOS.fold (fun io d -> match io with
-	    None -> d ++ text "None "
-	  | Some i -> 
-	      let stm = IH.find defIdStmtHash i in
-	      d ++ num i ++ text " " ++ d_stmt () stm) ios nil)
-	(IH.tolist iosh)
+    let pretty = prettyprint defIdStmtHash stmtStartData
+      
 
     (* The first id to use when computeFirstPredecessor
        is next called *)
@@ -259,11 +375,22 @@ end
 
 module RD = DF.ForwardsDataFlow(ReachingDef)
 
+(* map all variables in vil to a set containing
+   None in iosh *)
+(* IOS.t IH.t -> varinfo list -> () *)
+let iosh_none_fill iosh vil =
+  List.iter (fun vi -> 
+    IH.add iosh vi.vid (IOS.singleton None))
+    vil
+
 (* Computes the reaching definitions for a
    function. *)
 (* Cil.fundec -> unit *)
 let computeRDs fdec =
   try
+    if compare fdec.svar.vname (!debug_fn) = 0 then
+      (debug := true;
+       ignore (E.log "%s =\n%a\n" (!debug_fn) d_block fdec.sbody));
     let bdy = fdec.sbody in
     let slst = bdy.bstmts in
     let _ = IH.clear ReachingDef.stmtStartData in
@@ -272,13 +399,17 @@ let computeRDs fdec =
     let fst_stm = List.hd slst in
     let fst_iosh = IH.create 32 in
     let _ = UD.onlyNoOffsetsAreDefs := false in
+    (*let _ = iosh_none_fill fst_iosh fdec.sformals in*)
     let _ = IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh) in
     let _ = ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh) in
     if !debug then
       ignore (E.log "computeRDs: fst_stm.sid=%d\n" fst_stm.sid);
-    RD.compute [fst_stm]
-      (* now ReachingDef.stmtStartData has the reaching def data in it *)
-  with Failure "hd" -> ()
+    RD.compute [fst_stm];
+    if compare fdec.svar.vname (!debug_fn) = 0 then
+      debug := false
+    (* now ReachingDef.stmtStartData has the reaching def data in it *)
+  with Failure "hd" -> if compare fdec.svar.vname (!debug_fn) = 0 then
+    debug := false
 
 (* return the definitions that reach the statement
    with statement id sid *)
@@ -302,55 +433,6 @@ let ppFdec fdec =
     let ivih = IH.find ReachingDef.stmtStartData stm.sid in
     ReachingDef.pretty () ivih) fdec.sbody.bstmts
 
-(* given reaching definitions into a list of
-   instructions, figure out the definitions that
-   reach in/out of each instruction *)
-(* if out is true then calculate the definitions that
-   go out of each instruction, if it is false then
-   calculate the definitions reaching into each instruction *)
-(* instr list -> (varinfo IH.t * int) -> bool -> (varinfo IH.t * int) list *)
-let instrRDs il (ivih, s, iosh) out =
-
-  let print_instr i (_,s', iosh') =
-    let d = d_instr () i
-	++ line
-	++ ReachingDef.pretty () ((),s', iosh')
-	++ line
-    in
-    fprint stdout 80 d;
-    flush stdout
-  in
-
-  let proc_one hil i =
-    match hil with
-    | [] -> 
-	let _, defd = UD.computeUseDefInstr i in
-	if UD.VS.is_empty defd 
-	then (if !debug then print_instr i ((), s, iosh);
-	      [((), s, iosh)])
-	else 
-	  let iosh' = IH.copy iosh in
-	  proc_defs defd iosh' (idMaker () s);
-	  if !debug then
-	    print_instr i ((), s + UD.VS.cardinal defd, iosh');
-	  ((), s + UD.VS.cardinal defd, iosh')::hil
-    | (_, s', iosh')::hrst as l ->
-	let _, defd = UD.computeUseDefInstr i in
-	if UD.VS.is_empty defd 
-	then 
-	  (if !debug then
-	    print_instr i ((),s', iosh');
-	   ((), s', iosh')::l)
-	else let iosh'' = IH.copy iosh' in
-	proc_defs defd iosh'' (idMaker () s');
-	if !debug then
-	  print_instr i ((), s' + UD.VS.cardinal defd, iosh'');
-	((),s' + UD.VS.cardinal defd, iosh'')::l
-  in
-  if out then
-    List.tl (List.rev (List.fold_left proc_one [((),s,iosh)] il))
-  else
-    List.rev (List.tl (List.fold_left proc_one [((),s,iosh)] il))
 
 (* If this class is extended with a visitor on expressions,
    then the current rd data is available at each expression *)
