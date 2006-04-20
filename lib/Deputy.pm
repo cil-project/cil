@@ -116,4 +116,19 @@ sub CillyCommand {
     return ($aftercil, @cmd, '--out', $aftercil);
 }
 
+
+sub helpMessage {
+    my($self) = @_;
+    # Print first the original
+    $self->SUPER::helpMessage();
+    print <<EOF;
+
+  All other arguments starting with -- are passed to the Cilly process.
+
+The following are the arguments of the Cilly process
+EOF
+   my @cmd = ($compiler, '-help');
+   $self->runShell(@cmd); 
+}
+
 1;

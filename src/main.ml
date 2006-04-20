@@ -130,7 +130,7 @@ let rec processOneFile (cil: C.file) =
             ignore (E.log "Running CIL feature %s (%s)\n" 
                       fdesc.C.fd_name fdesc.C.fd_description);
           (* Run the feature, and see how long it takes. *)
-          Stats.time ("Feature: "^fdesc.C.fd_name)
+          Stats.time fdesc.C.fd_name
             fdesc.C.fd_doit cil;
           (* See if we need to do some checking *)
           if !Cilutil.doCheck && fdesc.C.fd_post_check then begin

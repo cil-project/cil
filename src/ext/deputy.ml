@@ -50,6 +50,7 @@ let optLevel : int ref = ref 2
     1: flow-insensitive optimization
     2: all optimization *)
 let inferFile : string ref = ref ""
+let assumeString : bool ref = ref false
 
 (* Be careful when converting int64 to int.  Int64.to_int
    treats 2^31 the same as 0 *)
@@ -314,6 +315,9 @@ let safeAttr : attribute = countAttr (AInt 1)
 let sentinelAttr : attribute =
   Attr ("bounds", [ACons (thisKeyword, []); ACons (thisKeyword, [])])
 
+let nulltermAttr : attribute =
+  Attr ("nullterm", [])
+
 (**************************************************************************)
 
 type check =
@@ -349,14 +353,44 @@ type check =
    part of one of the above checks can be proved statically. *)
 
 
+let checks_equal c1 c2 = match c1, c2 with
+| CEq(e11,e12), CEq(e21,e22)
+| CMult(e11,e12), CMult(e21, e22)
+| COverflow(e11, e12), COverflow(e21,e22) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22)
+| CUnsignedLess(e11,e12,_), CUnsignedLess(e21,e22,_)
+| CUnsignedLE(e11,e12,_), CUnsignedLE(e21,e22,_)
+| CUnsignedLENT(e11,e12,_), CUnsignedLENT(e21,e22,_) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22)
+| CNullOrLE(e11,e12,e13,_), CNullOrLE(e21,e22,e23,_)
+| CNullOrLENT(e11,e12,e13,_), CNullOrLENT(e21,e22,e23,_) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22) &&
+    (compareExpStripCasts e13 e23)
+| CNTWrite(e11,e12,e13),CNTWrite(e21,e22,e23) ->
+    (compareExpStripCasts e11 e21) &&
+    (compareExpStripCasts e12 e22) &&
+    (compareExpStripCasts e13 e23)
+| CNullUnion l1, CNullUnion l2 ->
+    compareLval l1 l2
+| CSelected e1, CSelected e2
+| CNotSelected e1, CNotSelected e2
+| CNonNull e1, CNonNull e2
+| CPositive e1, CPositive e2 ->
+    compareExpStripCasts e1 e2
+| _ -> false
+
+
 (* A mapping from stmt ids to checks for that instruction. The list of checks 
    is stored in reverse order.  *)
 let allowChecks : bool ref = ref false
 let allChecks : check list GA.t = GA.make 200 (GA.Elem [])
 
 (* Add a check for the current statement.
- * When more than one check is added for a statement, they will be executed in
- * the order that addCheck was called.
+ * When more than one check is added for a statement, they will be
+ * executed in the order that addCheck was called.
  * For example, when accessing "**e", call addCheck (CNonNull e)
  * first, then addCheck (CNonNull *e).  Then we'll be sure to check e 
  * before *e, which ensures that the *e check won't segfault. 
@@ -367,7 +401,7 @@ let addCheck (c:check) : unit =
     if id < 0 then 
       E.s (bug "addCheck when sid = %d.\n" id);
     let otherChecks = GA.getg allChecks id in
-    if !optLevel = 0 || not (List.mem c otherChecks) then
+    if !optLevel = 0 || not (List.exists (checks_equal c) otherChecks) then
       GA.set allChecks id (c::otherChecks)
   end
 
@@ -805,7 +839,7 @@ let makeFancyPtrType ?(nullterm:bool=false) (bt: typ) (lo: exp) (hi: exp)
   : typ =
   let bounds_attr = [makeFancyBoundsAttr lo hi] in
   let attrs = if nullterm then 
-    addAttribute (Attr("nullterm",[])) bounds_attr
+    addAttribute nulltermAttr bounds_attr
   else
     bounds_attr
   in
@@ -1110,7 +1144,7 @@ and coerceType (e:exp) ~(tfrom : typ) ~(tto : typ) : unit =
       checkPolyType polyType ptrType e false
   | TPtr(bt1, _), TPtr(bt2, _) when compareTypes bt1 bt2 ->
       if isNullterm tto && not (isNullterm tfrom) then
-        errorwarn "Cast to NULLTERM from an ordinary pointer";
+        errorwarn "Cast to NULLTERM from an ordinary pointer: %a" dx_exp e;
       let lo_from, hi_from = fancyBoundsOfType tfrom in
       let lo_to, hi_to = fancyBoundsOfType tto in
       if isNullterm tfrom then begin
@@ -1759,6 +1793,21 @@ let checkFundec (fd : fundec) (loc:location) : unit =
 
 (**************************************************************************)
 
+let needsAnnot (t: typ): bool =
+  isPointerType t && not (hasAttribute "bounds" (typeAttrs t))
+
+let isCharPtr (t:typ): bool =
+  match unrollTypeDeep t with
+      TPtr (TInt((IChar|ISChar|IUChar), _), _) -> true
+    | _ -> false
+
+let guessAnnot (t: typ): typ =
+  if !assumeString && isCharPtr t then
+    typeAddAttributes [nulltermAttr; sentinelAttr] t
+  else
+    typeAddAttributes [safeAttr] t
+
+
 let inferVisitor = object (self)
   inherit nopCilVisitor
 
@@ -1770,9 +1819,6 @@ let inferVisitor = object (self)
   method private makeName (base: string) =
     curIndex <- curIndex + 1;
     base ^ (string_of_int curIndex)
-
-  method private needsAnnot (t: typ) =
-    isPointerType t && not (hasAttribute "bounds" (typeAttrs t))
 
   method private makeBoundVars (name: string) (bt: typ) (a: attributes) =
     let makeBoundVar (suffix: string) : varinfo =
@@ -1811,8 +1857,8 @@ let inferVisitor = object (self)
 
   method vtype t =
     let postProcessType (t: typ) =
-      if self#needsAnnot t then
-        typeAddAttributes [safeAttr] t
+      if needsAnnot t then
+        guessAnnot t
       else
         t
     in
@@ -1821,7 +1867,7 @@ let inferVisitor = object (self)
   method vexpr e =
     let castNeedsAnnot =
       match e with
-      | CastE (t, _) when self#needsAnnot t -> true
+      | CastE (t, _) when needsAnnot t -> true
       | _ -> false
     in
     let postProcessExpr (e: exp) =
@@ -1969,13 +2015,22 @@ and lvalRefersToVar (name: string) ((host, offset): lval) : bool =
 let preProcessVisitor = object (self)
   inherit nopCilVisitor
 
+  method vvdec vi =
+    if !assumeString then begin
+      (* Assume all char[] are nullterm *)
+      match unrollType vi.vtype with
+          TArray(TInt(IChar, _), _, a) as t -> 
+            if not (hasAttribute "nullterm" a) then
+              vi.vtype <- typeAddAttributes [nulltermAttr] vi.vtype
+        | _ -> ()
+    end;
+    DoChildren
+
   method vexpr e =
     match e with
     | Const (CStr str) when !curFunc != dummyFunDec ->
         let t =
-          TPtr (charType, [Attr ("nullterm", []);
-                           Attr ("bounds", [ACons ("__this", []);
-                                            ACons ("__this", [])])])
+          TPtr (charType, [nulltermAttr; sentinelAttr])
         in
         let tmp = makeTempVar !curFunc t in
         exemptLocalVars := tmp :: !exemptLocalVars;
@@ -2028,9 +2083,8 @@ let preProcessVisitor = object (self)
                let rt, argInfo =
                  match unrollType (typeOf fn) with
                  | TFun (rt, argInfo, _, _) ->
-                     if isPointerType rt &&
-                        not (hasAttribute "bounds" (typeAttrs rt)) then
-                       typeAddAttributes [safeAttr] rt, argInfo
+                     if needsAnnot rt then
+                       guessAnnot rt, argInfo
                      else
                        rt, argInfo
                  | _ ->
@@ -2285,56 +2339,13 @@ let optimizeCheck (c: check) : check list =
 
   | _ -> [c]
 
-let checks_equal c1 c2 = match c1, c2 with
-| CEq(e11,e12), CEq(e21,e22)
-| CMult(e11,e12), CMult(e21, e22)
-| COverflow(e11, e12), COverflow(e21,e22) ->
-    (compareExpStripCasts e11 e21) &&
-    (compareExpStripCasts e12 e22)
-| CUnsignedLess(e11,e12,s1), CUnsignedLess(e21,e22,s2)
-| CUnsignedLE(e11,e12,s1), CUnsignedLE(e21,e22,s2)
-| CUnsignedLENT(e11,e12,s1), CUnsignedLENT(e21,e22,s2) ->
-    (compareExpStripCasts e11 e21) &&
-    (compareExpStripCasts e12 e22) &&
-    (String.compare s1 s2 = 0)
-| CNullOrLE(e11,e12,e13,s1), CNullOrLE(e21,e22,e23,s2)
-| CNullOrLENT(e11,e12,e13,s1), CNullOrLENT(e21,e22,e23,s2) ->
-    (compareExpStripCasts e11 e21) &&
-    (compareExpStripCasts e12 e22) &&
-    (compareExpStripCasts e13 e23) &&
-    (String.compare s1 s2 = 0)
-| CNTWrite(e11,e12,e13),CNTWrite(e21,e22,e23) ->
-    (compareExpStripCasts e11 e21) &&
-    (compareExpStripCasts e12 e22) &&
-    (compareExpStripCasts e13 e23)
-| CNullUnion l1, CNullUnion l2 ->
-    compareLval l1 l2
-| CSelected e1, CSelected e2
-| CNotSelected e1, CNotSelected e2
-| CNonNull e1, CNonNull e2
-| CPositive e1, CPositive e2 ->
-    compareExpStripCasts e1 e2
-| _ -> false
-
-(* Removes duplicate entries from a list *)
-(* check list -> check list *)
-let elim_dup_checks l =
-  let rec ed pre rest = match rest with
-    [] -> List.rev pre
-  | (c::rst) ->
-      if List.exists (fun c' -> checks_equal c c') pre
-      then ed pre rst
-      else ed (c::pre) rst
-  in
-  ed [] l
-
 let optimizeVisitor = object (self)
   inherit nopCilVisitor
 
   method vstmt s =
     let checks = GA.getg allChecks s.sid in
     let checks' = List.flatten (List.map optimizeCheck checks) in
-    GA.setg allChecks s.sid (elim_dup_checks checks');
+    GA.setg allChecks s.sid checks';
     DoChildren
 
   method vfunc fd =
@@ -2732,7 +2743,8 @@ let postPassVisitor2 = object (self)
   method vattr a =
     match a with
     | Attr(("bounds" | "fancybounds" | "nullterm" | "trusted"
-            | "when" | "fancywhen"), _) ->
+            | "when" | "fancywhen" | "poly" 
+            | "dmalloc" | "dmemset" | "dmemcpy"), _) ->
         ChangeTo []
     | _ -> DoChildren
 
@@ -2740,30 +2752,64 @@ end
 
 (**************************************************************************)
 
+let optLevel1 (fd:fundec) : unit =
+  if !verbose then
+    log "Doing flow-insensitive optimizations.\n";
+  ignore (visitCilFunction optimizeVisitor fd)
+
+let optLevel2 (fd:fundec) : unit =
+  if !verbose then
+    log "Doing all optimizations:\n";
+  ignore (visitCilFunction optimizeVisitor fd);
+  let cf = constFoldVisitor false in
+  forwardTmpSub fd;
+  constProp fd;
+  ignore(visitCilFunction cf fd);
+  doFlowAnalysis fd;
+  forwardTmpSub fd;
+  constProp fd;
+  ignore(visitCilFunction cf fd);
+  ignore(visitCilFunction optimizeVisitor fd);
+  ()               
+
+let deadCodeElim (f:file) : unit =
+  Cfg.clearFileCFG f; 
+  Cfg.computeFileCFG f;
+  Deadcodeelim.dce f;
+  List.iter (fun g -> match g with GFun(fd,loc) ->
+               forwardTmpSub fd | _ -> ()) f.globals;
+  Deadcodeelim.dce f;
+  List.iter (fun g -> match g with GFun(fd,loc) ->
+               RCT.rm_unused_locals fd | _ -> ()) f.globals;
+  ()
+
 let checkFile (f: file) : unit =
   if !verbose then E.log "Using optimization level %d.\n" !optLevel;
-  List.iter
-    (fun global ->
-       match global with
-       | GVar (vi, _, _) ->
-           assert vi.vglob;
-           if vi.vstorage = Static then
-             staticGlobalVars := vi :: !staticGlobalVars
-           else
-             nonStaticGlobalVars := vi :: !nonStaticGlobalVars
-       | _ -> ())
-    f.globals;
-  visitCilFileSameGlobals preProcessVisitor f;
-  visitCilFileSameGlobals polyVisitor f;
-  visitCilFileSameGlobals inferVisitor f;
-  if !inferFile <> "" then begin
-    try
-      let inferChannel = open_out !inferFile in
-      dumpFile deputyPrinter inferChannel !inferFile f;
-      close_out inferChannel
-    with Sys_error _ ->
-      E.s (E.error "Error dumping inference results to %s\n" !inferFile)
-  end;
+  let doPreprocess () = 
+    List.iter
+      (fun global ->
+         match global with
+           | GVar (vi, _, _) ->
+               assert vi.vglob;
+               if vi.vstorage = Static then
+                 staticGlobalVars := vi :: !staticGlobalVars
+               else
+                 nonStaticGlobalVars := vi :: !nonStaticGlobalVars
+           | _ -> ())
+      f.globals;
+    visitCilFileSameGlobals preProcessVisitor f;
+    visitCilFileSameGlobals polyVisitor f;
+    visitCilFileSameGlobals inferVisitor f;
+    if !inferFile <> "" then begin
+      try
+        let inferChannel = open_out !inferFile in
+        dumpFile deputyPrinter inferChannel !inferFile f;
+        close_out inferChannel
+      with Sys_error _ ->
+        E.s (E.error "Error dumping inference results to %s\n" !inferFile)
+    end
+  in
+  Stats.time "preprocessing" doPreprocess ();
   allowChecks := true;
   List.iter
     (fun global ->
@@ -2775,33 +2821,10 @@ let checkFile (f: file) : unit =
        | GFun (fd, loc) ->
            if not (isTrustedAttr fd.svar.vattr) then begin
              checkFundec fd loc;
-             if !optLevel = 1 then begin
-               if !verbose then
-                 log "Doing flow-insensitive optimizations.\n";
-               ignore (visitCilFunction optimizeVisitor fd)
-             end
-             else if !optLevel = 2 then begin
-               if !verbose then
-                 log "Doing all optimizations:\n1. optimizeVisitor\n";
-               ignore (visitCilFunction optimizeVisitor fd);
-               if !verbose then
-                 log "2. Substitutions.\n";
-	       let cf = constFoldVisitor false in
-               forwardTmpSub fd;
-	       constProp fd;
-	       ignore(visitCilFunction cf fd);
-               if !verbose then
-                 log "3. Flow-sensitive opts.\n";
-               doFlowAnalysis fd;
-               if !verbose then
-                 log "4. Substitutions. (second pass)\n";
-               forwardTmpSub fd;
-	       constProp fd;
-	       ignore(visitCilFunction cf fd);
-               if !verbose then
-                 log "5. optimizeVisitor. (second pass)\n";
-	       ignore(visitCilFunction optimizeVisitor fd);
-             end
+             if !optLevel = 1 then
+               Stats.time "optimizations" optLevel1 fd
+             else if !optLevel = 2 then
+               Stats.time "optimizations" optLevel2 fd
           end
        | _ -> ())
     f.globals;
@@ -2809,16 +2832,8 @@ let checkFile (f: file) : unit =
      in the output. *)
   visitCilFileSameGlobals postPassVisitor1 f;
   visitCilFileSameGlobals postPassVisitor2 f;
-  if !optLevel >= 2 then begin
-    Cfg.clearFileCFG f; 
-    Cfg.computeFileCFG f;
-    Deadcodeelim.dce f;
-    List.iter (fun g -> match g with GFun(fd,loc) ->
-      forwardTmpSub fd | _ -> ()) f.globals;
-    Deadcodeelim.dce f;
-    List.iter (fun g -> match g with GFun(fd,loc) ->
-      RCT.rm_unused_locals fd | _ -> ()) f.globals;
-  end;
+  if !optLevel >= 2 then
+    Stats.time "dead code elim" deadCodeElim f;
   f.globals <- (GText "#include <deputy/checks.h>\n\n")::f.globals;
   (* Tell CIL to put comments around the bounds attributes. *)
   print_CIL_Input := false;
@@ -2840,6 +2855,8 @@ let feature : featureDescr =
           "2: all optimization  (Default)");
     "--deputytrust", Arg.Set trustAll,
           "Trust all bad casts by default";
+    "--deputyassumestring", Arg.Set assumeString,
+          "Assume all char arrays, and all unannotated char*s in function types, are NT.";
     ];
     fd_doit = checkFile;
     fd_post_check = true;
