@@ -100,13 +100,20 @@ let writes_between f dsid sid =
   let visited_sid_lr = ref [] in
   let rec dfs start goal b =
     if !debug then ignore(E.log "writes_between: dfs visiting %a\n" d_stmt start);
-    if start.sid = goal.sid then b || (find_write start) else
+    if start.sid = goal.sid then
+      let wh = find_write start in
+      (if !debug && b then ignore(E.log "writes_between: start=goal and found a write\n");
+       if !debug && (not b) then ignore(E.log "writes_between: start=goal and no write\n");
+       if !debug && wh then ignore(E.log "writes_between: start=goal and write here\n");
+       if !debug && (not wh) then ignore(E.log "writes_between: start=goal and no write here\n");
+       b || (find_write start))
+    else
     if List.mem start.sid (!visited_sid_lr) then false else
     let w = find_write start in
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
     visited_sid_lr := start.sid::(!visited_sid_lr);
     if List.length start.succs = 0 then false else
-    List.mem true (List.map (visit goal w) start.succs)
+    List.mem true (List.map (visit goal (w || b)) start.succs)
   and visit g b s = (dfs s g b) in
   match stmo, dstmo with
     None, _ | _, None -> 
