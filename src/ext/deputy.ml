@@ -51,6 +51,7 @@ let optLevel : int ref = ref 2
     2: all optimization *)
 let inferFile : string ref = ref ""
 let assumeString : bool ref = ref false
+let allowAllGlobalDeps : bool ref = ref false
 
 (* Be careful when converting int64 to int.  Int64.to_int
    treats 2^31 the same as 0 *)
@@ -117,9 +118,6 @@ let errorwarn (fmt : ('a,unit,doc,unit) format4) : 'a =
 
 let curFunc : fundec ref = ref dummyFunDec
 let curStmt : int ref = ref (-1)
-
-let staticGlobalVars : varinfo list ref = ref []
-let nonStaticGlobalVars : varinfo list ref = ref []
 
 let exemptLocalVars : varinfo list ref = ref []
 
@@ -509,6 +507,26 @@ let addCoercionCheck ?(fromNullterm=false) (lo_from: exp) (lo_to: exp) (e: exp)
 
 (**************************************************************************)
 
+
+let staticGlobalVars : varinfo list ref = ref []
+let allGlobalVars : varinfo list ref = ref []
+
+(* If the user passes --deputyglobaldeps to Deputy, we'll allow non-static
+   globals to depend on each other.  This is unsound unless all files see
+   all relevant dependencies. *)
+let globalsEnv (vi:varinfo) : varinfo list =
+  assert (vi.vglob);
+  if !allowAllGlobalDeps then
+    !allGlobalVars
+  else if vi.vstorage = Static then
+    !staticGlobalVars
+  else
+    [vi]  (* can depend only on itself *)    
+
+
+(**************************************************************************)
+
+
 (* remember complicated bounds expressions *)
 let boundsTable : exp IH.t = IH.create 13
 let boundsTableCtr : int ref = ref 0
@@ -692,10 +710,8 @@ let hasExternalDeps (lv: lval) : bool =
             let env =
               if not vi.vglob then
                 !curFunc.slocals @ !curFunc.sformals
-              else if vi.vglob && vi.vstorage = Static then
-                !staticGlobalVars
-              else
-                [vi]
+              else 
+                globalsEnv vi
             in
             let vars = List.map (fun vi -> vi.vname, vi.vtype) env in
             hasDeps vi.vname vars
@@ -722,11 +738,11 @@ let localsContext (f:fundec) : context =
     []
     (f.sformals @ f.slocals)
 
-let globalsContext () : context =
+let globalsContext (vi:varinfo) : context =
   List.fold_left
     (fun acc v -> (v.vname, Lval (var v)) :: acc)
     []
-    !staticGlobalVars
+    (globalsEnv vi)
 
 let structContext (lv: lval) (ci: compinfo) : context =
   List.fold_left
@@ -739,7 +755,7 @@ let allContext () : context =
   List.fold_left
     (fun acc v -> (v.vname, Lval (var v)) :: acc)
     []
-    (!staticGlobalVars @ !nonStaticGlobalVars @
+    (!allGlobalVars @
      !curFunc.sformals @ !curFunc.slocals)
 
 (** The dependent types are expressed using attributes. We compile an 
@@ -1340,10 +1356,8 @@ and checkLval (why: whyLval) (lv: lval) : typ =
         | Var vi ->
             if not vi.vglob then
               localsContext !curFunc
-            else if vi.vglob && vi.vstorage = Static then
-              globalsContext ()
-            else
-              addBinding emptyContext vi.vname (Lval (var vi))
+            else 
+              globalsContext vi
         | Mem e -> emptyContext
       in
       let ctx' = addThisBinding ctx (Lval lv) in
@@ -1610,10 +1624,8 @@ let checkSet (lv: lval) (e: exp) : unit =
               let ctx, env =
                 if not x.vglob then
                   localsContext !curFunc, !curFunc.slocals @ !curFunc.sformals
-                else if x.vglob && x.vstorage = Static then
-                  globalsContext (), !staticGlobalVars
-                else
-                  addBinding emptyContext x.vname (Lval (var x)), [x]
+                else 
+                  globalsContext x, globalsEnv x
               in
               checkSetEnv ctx x e env
                        (fun vi -> Lval (var vi))
@@ -1727,7 +1739,7 @@ let checkStruct (ci: compinfo) : unit =
     ci.cfields
 
 let checkVar (vi: varinfo) (init: initinfo) : unit =
-  let ctxThis = addThisBinding (globalsContext ()) zero in
+  let ctxThis = addThisBinding (globalsContext vi) zero in
   if not (checkType ctxThis vi.vtype) then
     E.s (error "Type of global %s is ill-formed" vi.vname);
   if init.init <> None then
@@ -2789,12 +2801,14 @@ let checkFile (f: file) : unit =
     List.iter
       (fun global ->
          match global with
-           | GVar (vi, _, _) ->
+           | GVar (vi, _, _)
+           | GVarDecl (vi, _) when not (isFunctionType vi.vtype)->
                assert vi.vglob;
-               if vi.vstorage = Static then
-                 staticGlobalVars := vi :: !staticGlobalVars
-               else
-                 nonStaticGlobalVars := vi :: !nonStaticGlobalVars
+               if not (List.memq vi !allGlobalVars) then begin
+                 allGlobalVars := vi :: !allGlobalVars;
+                 if vi.vstorage = Static then
+                   staticGlobalVars := vi :: !staticGlobalVars
+               end
            | _ -> ())
       f.globals;
     visitCilFileSameGlobals preProcessVisitor f;
@@ -2857,6 +2871,8 @@ let feature : featureDescr =
           "Trust all bad casts by default";
     "--deputyassumestring", Arg.Set assumeString,
           "Assume all char arrays, and all unannotated char*s in function types, are NT.";
+    "--deputyglobaldeps", Arg.Set allowAllGlobalDeps,
+          "Allow globals to depend on each other, even if not static (unsound)";
     ];
     fd_doit = checkFile;
     fd_post_check = true;

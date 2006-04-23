@@ -182,6 +182,14 @@ let categorizePragmas file =
 	    in
 	    List.iter processArg args
 	  end
+      | GVarDecl (v, _) -> begin
+          (* Look for alias attributes, e.g. Linux modules *)
+          match filterAttributes "alias" v.vattr with
+              [] -> ()  (* ordinary prototype. *)
+            | [Attr("alias", [AStr othername])] ->
+                H.add keepers.defines othername ()
+           | _ -> E.s (error "Bad alias attribute at %a" d_loc !currentLoc)
+        end          
 
       (*** Begin CCured-specific checks:  ***)
       (* these pragmas indirectly require that we keep the function named in
@@ -338,6 +346,8 @@ let isExportedRoot global =
       else
 	true, "other function"
   end
+  | GVarDecl(v,_) when hasAttribute "alias" v.vattr ->
+      true, "has GCC alias attribute"
   | _ ->
       false, "neither function nor variable"
   in
