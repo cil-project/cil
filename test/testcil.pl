@@ -429,6 +429,7 @@ $TEST->addTests("test-bad/stackptr", "", ['inferbox']);
 $TEST->addTests("test-bad1/escape", "", ['inferbox']);
 $TEST->addTests("test-bad1/alias", "", ['inferbox']);
 $TEST->addTests("test-bad1/overflow", "", ['inferbox']);
+$TEST->addTests("test-bad1/badcast", "", ['inferbox']);
 
 $TEST->addTests("test-bad/nonptr1", 
                 "EXTRAARGS=--logNonPointers", ['inferbox']);
