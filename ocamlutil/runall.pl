@@ -3,21 +3,25 @@
 use strict;
 use File::Basename;
 
-# usage runtests.pl filename
+# usage runall.pl filename
+#      See below for the environment variables that control the execution
 #
-# The file is expected to contain the code for the test.
 #
-# The test file is scanned for lines that match some keywords. In 
-# all cases the rest of the line following the keywords may be a test
+# The file is expected to contain the code for the tests.
+#
+# The test file is scanned for lines that contain some keywords. In 
+# all cases the rest of the line following the keywords must be a test
 # specification, of the form:
 #
-#  TestSpec ::= ["testname"] [: (error|success)[(=|~) "message"]]
+#  TestSpec ::= [testname] [: (error|success)[(=|~) "message"]]
 #
 # "testname" is the (optional) name of the test. If it is missing
 #   then a fresh new numeric name is made up. 
+#
 # If this specification is not the first for the given test name then the rest
 # of the line may be empty. Otherwise there must be at least [: error] or [:
 # success], to say whether this test should fail or should succeed. 
+#
 # Both for success and for failure you can define some text that must appear 
 # in the output of the test (with the = specifier), or a Perl regexp that must
 # appear in the output (with the ~ specifier). 
@@ -25,8 +29,8 @@ use File::Basename;
 #
 # In a first pass, the file is scanned to collect a list of tests.
 # If there are no tests defined in the file, then we assume a default line
-#    TESTDEF "default" : success
-#
+#    TESTDEF default : success
+# This actually means that 
 #
 # Then for each test we process the file and we comment out some lines based
 # on the keywords that appear in the file:
@@ -47,12 +51,35 @@ use File::Basename;
 #  be commented. The DROP and the KEEP keywords must appear after a comment
 #  character. 
 #
+#
+#  EXAMPLES
+#
+#  ======== foo1.c ======
+#  int main() { return 0; }
+#  
+#  ==
+#      Only one test, called "default" will be executed and expected to
+#      succeed
+#
+#  ======= foo2.c ======
+#  int main() { 
+#      return 1; // KEEP : error
+#      return 0; // KEEP : success
+#  }
+#
+#  ==
+#    Two tests are executed, one with each version of the return. The test
+#    that contains "return 1" is expected to fail, while the other is 
+#    expected to succeed
+#
+
+#
 #  The result of processing the file for each test is obtained from the 
 #  directory and base names of the file along with "-tmp" followed by the 
 #  original extension. Thus, for "foo/test.s" we get "foo/test-tmp.s".
 #
-#  If the environment variable RUNONLY is set to "t", then only the test named
-#  "t" is run.
+#  If the environment variable RUNONLY is set to tst, then only the test named
+#  tst is run.
 #
 #  If the environment variable KEEPGOING is set, then we continue after
 #  errors.
@@ -201,9 +228,10 @@ sub scanTestFile {
     $countFreshName = 0;
     open(IN, "<$ARGV[0]") || die "Cannot open file $ARGV[0]";
 
-    my @ifenv = ();  # The IF statements we are in: IFTEST:x or IFNTEST:x 
-
-    my $keep = 1; # Whether to keep this lines or not
+    # We keep track of the IF scopes we are in. We keep a stack of scopes,
+    # starting with the global scope. For each scope on the stack we keep a
+    # boolean, saying whether the scope is positive or negative. 
+    my @ifenv = (1); # We enclose everything in a positive global scope
 
     my $line = 0;
     while(<IN>) {
@@ -212,71 +240,68 @@ sub scanTestFile {
 
         my $comment = 0;
 
+        my $linename = "";
+
+        # Look first at the test descriptions
+        # Set $comment if we want to comment this line
         if($_ =~ m|^\s*TESTDEF(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS') { $comment = 1; }
+            $comment = 1;
+
         } elsif($_ =~ m|DROP(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS' &&
-               ($name eq $current || !$keep)) { $comment = 1; }
+            if($name eq $current) { $comment = 1; }
+            $linename = "KEEP($name)";
 
         } elsif($_ =~ m|KEEP(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS' &&
-                ($name ne $current || !$keep))  { $comment = 1; }
+            if($name ne $current) { $comment = 1; }
+            $linename = "DROP($name)";
 
         } elsif($_ =~ m|^\s*IFTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS') {
-                unshift @ifenv, ($name eq $current), $keep;
-                $keep = $keep && ($name eq $current);
-                if($debug) { 
-                    print "IFTEST($name): Current=$current, Keep=$keep on line $line: env=", 
-                    join(',', @ifenv), "\n"; 
-                }
-                $comment = 1;
-            }
+            $linename = "IFTEST($name)";
+            # Push on the stack
+            unshift @ifenv, ($name eq $current ? 1 : 0);
+            $comment = 1;
+
         } elsif($_ =~ m|^\s*IFNTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
-            if($action eq 'PROCESS') {
-                unshift @ifenv, ($name ne $current), $keep;
-                $keep = $keep && ($name ne $current);
-                if($debug) { 
-                    print "IFNTEST($name): Current=$current, Keep=$keep on line $line: env=", 
-                    join(',', @ifenv), "\n"; 
-                }
-                $comment = 1;
-            }
+            $linename = "IFNTEST($name)";
+            unshift @ifenv, ($name ne $current ? 1 : 0);
+            $comment = 1;
+
         } elsif($_ =~ m|^\s*ELSE\s*$|) {
-            if($action eq 'PROCESS') {
-                if($#ifenv < 1) { die "Found ELSE without IF"; }
-                $keep = (! $ifenv[0] && $ifenv[1]) ? 1 : 0;
-                if($debug) { print "ELSE: Keep=$keep on line $line\n"; }
-                $comment = 1;
-            }
+            # Stack must have at least 2 elements
+            if($#ifenv < 1) { die "Found ELSE without IF"; }
+            $linename = "ELSE";
+            $ifenv[0] = ($ifenv[0] ? 0 : 1);
+            $comment = 1;
+
         } elsif($_ =~ m|^\s*ENDIF\s*$|) {
-            if($action eq 'PROCESS') {
-                if($#ifenv < 1) { die "Found ENDIF without IF"; }
-                shift @ifenv; 
-                $keep = shift @ifenv;
-                if($debug) { print "ENDIF: Keep=$keep on line $line\n"; }
-                $comment = 1;
-            }
+            # Stack must have at least 2 elements
+            if($#ifenv < 1) { die "Found ENDIF without IF"; }
+            $linename = "ENDIF";
+            shift @ifenv;
+            $comment = 1;
         }
 
-        # Just print the line if we do not recognize this line
-        if($action eq 'PROCESS') {
-            if(! $keep || $comment) { 
-                if(defined $ENV{'COMMENT'}) {
-                    print OUT $ENV{'COMMENT'};
-                    print OUT " ";
-                    print OUT $_;
-                } else {
-                    print OUT "\n";
-                }
-            } else {
+        # We are done if collecting
+        if($action ne 'PROCESS') { next; }
+
+        if($debug && $linename ne "") {
+            print "$linename: current=$current, env = ", join(',', @ifenv), "\n";
+        }
+        if($comment || ! $ifenv[0]) {
+            if(defined $ENV{'COMMENT'}) {
+                print OUT $ENV{'COMMENT'};
+                print OUT " ";
                 print OUT $_;
+            } else {
+                print OUT "\n";
             }
+        } else {
+            print OUT $_;
         }
     }
 
