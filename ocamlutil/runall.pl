@@ -233,6 +233,9 @@ sub scanTestFile {
     # boolean, saying whether the scope is positive or negative. 
     my @ifenv = (1); # We enclose everything in a positive global scope
 
+    # This variable is the && of all entries in ifenv
+    my $keep = 1;
+
     my $line = 0;
     while(<IN>) {
         $line ++;
@@ -251,24 +254,26 @@ sub scanTestFile {
         } elsif($_ =~ m|DROP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name eq $current) { $comment = 1; }
-            $linename = "KEEP($name)";
+            $linename = "DROP($name)";
 
         } elsif($_ =~ m|KEEP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name ne $current) { $comment = 1; }
-            $linename = "DROP($name)";
+            $linename = "KEEP($name)";
 
         } elsif($_ =~ m|^\s*IFTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
             $linename = "IFTEST($name)";
             # Push on the stack
             unshift @ifenv, ($name eq $current ? 1 : 0);
+            $keep = &allTrue(@ifenv);
             $comment = 1;
 
         } elsif($_ =~ m|^\s*IFNTEST(.*)$|) {
             $name = &parseTestDef($1, $line);
             $linename = "IFNTEST($name)";
             unshift @ifenv, ($name ne $current ? 1 : 0);
+            $keep = &allTrue(@ifenv);
             $comment = 1;
 
         } elsif($_ =~ m|^\s*ELSE\s*$|) {
@@ -276,6 +281,7 @@ sub scanTestFile {
             if($#ifenv < 1) { die "Found ELSE without IF"; }
             $linename = "ELSE";
             $ifenv[0] = ($ifenv[0] ? 0 : 1);
+            $keep = &allTrue(@ifenv);
             $comment = 1;
 
         } elsif($_ =~ m|^\s*ENDIF\s*$|) {
@@ -283,16 +289,23 @@ sub scanTestFile {
             if($#ifenv < 1) { die "Found ENDIF without IF"; }
             $linename = "ENDIF";
             shift @ifenv;
+            $keep = &allTrue(@ifenv);
             $comment = 1;
         }
 
         # We are done if collecting
         if($action ne 'PROCESS') { next; }
 
+        my $keep_this_line = $comment ? 0 : $keep;
         if($debug && $linename ne "") {
-            print "$linename: current=$current, env = ", join(',', @ifenv), "\n";
+            if($linename =~ m|^KEEP| ||
+               $linename =~ m|^DROP|) {
+               print "$line: $linename: keep=", ($comment ? 0 : 1), "\n";
+            } else {
+               print "$line: $linename: keep=$keep, env = ", join(',', @ifenv), "\n";
+           }
         }
-        if($comment || ! $ifenv[0]) {
+        if($comment || ! $keep) {
             if(defined $ENV{'COMMENT'}) {
                 print OUT $ENV{'COMMENT'};
                 print OUT " ";
@@ -311,6 +324,17 @@ sub scanTestFile {
         
     }
 }
+
+sub allTrue {
+    my $res = 1;
+    while(@_) {
+        if(! (shift @_)) {
+            $res = 0;
+        }
+    }
+    return $res;
+}
+
 
 sub runOneTest {
     my($t) = @_;
