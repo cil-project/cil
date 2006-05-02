@@ -75,6 +75,9 @@ let theMachine : M.mach ref = ref M.gcc
 
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
+let insertImplicitCasts: bool ref = ref true
+    (** Do insert implicit casts (default true) *)
+
 
 let little_endian = ref true
 let char_is_unsigned = ref false
