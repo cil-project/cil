@@ -269,25 +269,25 @@ vpath %.c   $(SOURCEDIRS)
              # copy it to OBJDIR (where the .ml) file will live.
 $(OBJDIR)/%.ml: %.mll
 	$(CAMLLEX) $<
-	$(AT)mv -f $(basename $<).ml $(OBJDIR)
+	$(AT)mv -f $(basename $<).ml $(OBJDIR)/
 	$(ECHO)if test -f $(basename $<).mli ;then \
-	  $(COMMAND) cp -f $(basename $<).mli $(OBJDIR); \
-	  cp -f $(basename $<).mli $(OBJDIR) \
+	  $(COMMAND) cp -f $(basename $<).mli $(OBJDIR)/; \
+	  cp -f $(basename $<).mli $(OBJDIR)/ \
         ;fi
 
              # Run the parser generator
              # Move the result to the $(OBJDIR) directory.
 $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
 	$(CAMLYACC) $(CAMLYACCFLAGS) $<
-	$(AT)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)
+	$(AT)mv -f $(basename $<).ml $(basename $<).mli $(OBJDIR)/
 
          # Compile an MLI file. After compilation move the result to OBJDIR
 $(OBJDIR)/%.cmi: %.mli
 	@$(NARRATIVE) Compiling interface $<
 	$(AT)$(CAMLC) $(COMPILEFLAGS) -c $<
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
-                   $(COMMAND) mv -f $(basename $<).cmi $(OBJDIR); \
-                   mv -f $(basename $<).cmi $(OBJDIR) \
+                   $(COMMAND) mv -f $(basename $<).cmi $(OBJDIR)/; \
+                   mv -f $(basename $<).cmi $(OBJDIR)/ \
         ;fi
 
          # Compile an ML file. After compilation we 
@@ -303,8 +303,8 @@ $(OBJDIR)/%.$(CMO): %.ml
 	   if test $(OBJDIR) != $(<D) ;then \
               for ext in $(MOVEAFTERCAMLC); do \
                 if test -f $(basename $<).$$ext ;then \
-                  $(COMMAND) mv -f $(basename $<).$$ext $(OBJDIR); \
-                  mv -f $(basename $<).$$ext $(OBJDIR); \
+                  $(COMMAND) mv -f $(basename $<).$$ext $(OBJDIR)/; \
+                  mv -f $(basename $<).$$ext $(OBJDIR)/; \
                 fi; \
               done; \
            fi; exit $$res
