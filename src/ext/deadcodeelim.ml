@@ -8,6 +8,7 @@ module E = Errormsg
 module RD = Reachingdefs
 module UD = Usedef
 module IH = Inthash
+module S = Stats
 
 module IS = Set.Make(
   struct
@@ -99,9 +100,9 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
   let rec loop fd =
     usedDefsSet := IS.empty;
     removedCount := 0;
-    RD.computeRDs fd;
-    ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
-    let fd' = visitCilFunction (new uselessInstrElim) fd in
+    S.time "reaching definitions" RD.computeRDs fd;
+    ignore(S.time "UDCollector" (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
+    let fd' = S.time "uselessInstrElim" (visitCilFunction (new uselessInstrElim)) fd in
     if !removedCount = 0 then fd' else loop fd'
   in
   loop fd
@@ -111,9 +112,9 @@ let elim_dead_code (fd : fundec) :  fundec =
   (* fundec -> fundec *)
   usedDefsSet := IS.empty;
   removedCount := 0;
-  RD.computeRDs fd;
-  ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
-  let fd' = visitCilFunction (new uselessInstrElim) fd in
+  S.time "reaching definitions" RD.computeRDs fd;
+  ignore(S.time "UDCollector" (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
+  let fd' = S.time "uselessINstrElim" (visitCilFunction (new uselessInstrElim)) fd in
   fd'
 
 class deadCodeElimClass : cilVisitor = object(self)

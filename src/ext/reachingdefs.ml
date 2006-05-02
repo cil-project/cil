@@ -24,6 +24,7 @@ module DF = Dataflow
 module UD = Usedef
 module IH = Inthash
 module U = Util
+module S = Stats
 
 let debug_fn = ref ""
 
@@ -184,33 +185,34 @@ let instrRDs il (ivih, s, iosh) out =
   let proc_one hil i =
     match hil with
     | [] -> 
-	let _, defd = UD.computeUseDefInstr i in
+	let _, defd = S.time "UDInstr" UD.computeUseDefInstr i in
 	if UD.VS.is_empty defd 
 	then ((*if !debug then print_instr i ((), s, iosh);*)
 	      [((), s, iosh)])
 	else 
-	  let iosh' = IH.copy iosh in
-	  proc_defs defd iosh' (idMaker () s);
+	  let iosh' = S.time "IHcopy" IH.copy iosh in
+	  S.time "proc_defs" (proc_defs defd iosh') (idMaker () s);
 	  (*if !debug then
 	    print_instr i ((), s + UD.VS.cardinal defd, iosh');*)
 	  ((), s + UD.VS.cardinal defd, iosh')::hil
     | (_, s', iosh')::hrst as l ->
-	let _, defd = UD.computeUseDefInstr i in
+	let _, defd = S.time "UDInstr" UD.computeUseDefInstr i in
 	if UD.VS.is_empty defd 
 	then 
 	  ((*if !debug then
 	    print_instr i ((),s', iosh');*)
 	   ((), s', iosh')::l)
-	else let iosh'' = IH.copy iosh' in
-	proc_defs defd iosh'' (idMaker () s');
+	else let iosh'' = S.time "IH.copy" IH.copy iosh' in
+	S.time "proc_defs" (proc_defs defd iosh'') (idMaker () s');
 	(*if !debug then
 	  print_instr i ((), s' + UD.VS.cardinal defd, iosh'');*)
 	((),s' + UD.VS.cardinal defd, iosh'')::l
   in
+  let folded = List.fold_left proc_one [((),s,iosh)] il in
   if out then
-    List.tl (List.rev (List.fold_left proc_one [((),s,iosh)] il))
+    List.tl (S.time "List.rev" List.rev folded)
   else
-    List.rev (List.tl (List.fold_left proc_one [((),s,iosh)] il))
+    S.time "List.rev" List.rev (List.tl folded)
 
 
 (* The right hand side of an assignment is either
@@ -222,7 +224,9 @@ type rhs = RDExp of exp | RDCall of instr
    Returns None if, for example, the definition is
    caused by an assembly instruction *)
 (* stmt IH.t -> (()*int*IOS.t IH.t) IH.t -> int -> (rhs * int * IOS.t IH.t) option *)
+let rhsHtbl = IH.create 64 (* to avoid recomputation *)
 let getDefRhs didstmh stmdat defId =
+  if IH.mem rhsHtbl defId then IH.find rhsHtbl defId else
   let stm =
     try IH.find didstmh defId 
     with Not_found -> E.s (E.error "getDefRhs: defId %d not found\n" defId) in
@@ -231,8 +235,8 @@ let getDefRhs didstmh stmdat defId =
     with Not_found -> E.s (E.error "getDefRhs: sid %d not found \n" stm.sid) in
   match stm.skind with
     Instr il ->
-      let ivihl = instrRDs il ((),s,iosh) true in (* defs that reach out of each instr *)
-      let ivihl_in = instrRDs il ((),s,iosh) false in (* defs that reach into each instr *)
+      let ivihl = S.time "instrRDs" (instrRDs il ((),s,iosh)) true in (* defs that reach out of each instr *)
+      let ivihl_in = S.time "instrRDs" (instrRDs il ((),s,iosh)) false in (* defs that reach into each instr *)
       let iihl = List.combine (List.combine il ivihl) ivihl_in in
       let iihl' = List.filter (fun ((i,(_,_,iosh')),_) -> (* find the defining instr *)
 	match iosh_defId_find iosh' defId with
@@ -254,9 +258,13 @@ let getDefRhs didstmh stmdat defId =
 	(match i with
 	  Set((lh,_),e,_) ->
 	    (match lh with
-	      Var(vi') -> Some(RDExp(e), stm.sid, iosh_in)
+	      Var(vi') -> 
+		(IH.add rhsHtbl defId (Some(RDExp(e),stm.sid,iosh_in));
+		Some(RDExp(e), stm.sid, iosh_in))
 	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
-	| Call(lvo,e,el,_) -> Some(RDCall(i), stm.sid, iosh_in)
+	| Call(lvo,e,el,_) -> 
+	    (IH.add rhsHtbl defId (Some(RDCall(i),stm.sid,iosh_in));
+	    Some(RDCall(i), stm.sid, iosh_in))
 	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
       with Failure _ ->
 	(if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
@@ -310,6 +318,11 @@ module ReachingDef =
        the statement corresponding to that id *)
     let defIdStmtHash = IH.create 32
 
+    (* mapping from statement ids to statements
+       for better performance of ok_to_replace *)
+    let sidStmtHash = IH.create 64
+
+    (* pretty printer *)
     let pretty = prettyprint defIdStmtHash stmtStartData
       
 
@@ -363,7 +376,9 @@ module ReachingDef =
       DF.Post transform
 
     (* all the work gets done at the instruction level *)
-    let doStmt stm (_, s, iosh) = 
+    let doStmt stm (_, s, iosh) =
+      if not(IH.mem sidStmtHash stm.sid) then 
+	IH.add sidStmtHash stm.sid stm;
       if !debug then ignore(E.log "RD: looking at %a\n" d_stmt stm);
       DF.SDefault
 
@@ -395,6 +410,7 @@ let computeRDs fdec =
     let slst = bdy.bstmts in
     let _ = IH.clear ReachingDef.stmtStartData in
     let _ = IH.clear ReachingDef.defIdStmtHash in
+    let _ = IH.clear rhsHtbl in
     let _ = ReachingDef.nextDefId := 0 in
     let fst_stm = List.hd slst in
     let fst_iosh = IH.create 32 in
@@ -425,6 +441,10 @@ let getDefIdStmt defid =
     Some(IH.find ReachingDef.defIdStmtHash defid)
   with Not_found ->
     None
+
+let getStmt sid =
+  try Some(IH.find ReachingDef.sidStmtHash sid)
+  with Not_found -> None
 
 (* Pretty print the reaching definition data for
    a function *)
@@ -462,7 +482,7 @@ class rdVisitorClass = object (self)
 	match stm.skind with
 	  Instr il ->
 	    if !debug then ignore(E.log "rdVis: visit il\n");
-	    rd_dat_lst <- instrRDs il ((),s,iosh) false;
+	    rd_dat_lst <- S.time "instrRDs" (instrRDs il ((),s,iosh)) false;
 	    DoChildren
 	| _ ->
 	    if !debug then ignore(E.log "rdVis: visit non-il\n");

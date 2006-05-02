@@ -9,6 +9,7 @@ module E = Errormsg
 module RD = Reachingdefs
 module UD = Usedef
 module IH = Inthash
+module S = Stats
 
 let debug = RD.debug
 
@@ -73,19 +74,19 @@ class stmtFinderClass sid = object(self)
 
 end
 
-let find_statement f sid =
-  fsr := emptyStmt;
+let find_statement f sid = RD.getStmt sid
+(*  fsr := emptyStmt;
   ignore (visitCilFunction (new stmtFinderClass sid) f);
   if not(Util.equals fsr (ref emptyStmt)) 
   then Some(!fsr)
-  else None
+  else None *)
 
 (* Are there writes to memory in between
    the two statements with the given ids *)
 (* fundec -> int -> int -> bool *)
 let writes_between f dsid sid =
-  let dstmo = find_statement f dsid in
-  let stmo = find_statement f sid in
+  let dstmo = S.time "find_statement" (find_statement f) dsid in
+  let stmo = S.time "find_statement" (find_statement f) sid in
   let find_write s = match s.skind with
     Instr il -> List.exists (fun i ->
       match i with
@@ -98,7 +99,7 @@ let writes_between f dsid sid =
   (* is there a path from start to goal that includes an
      instruction that writes to memory? Do a dfs *)
   let visited_sid_lr = ref [] in
-  let rec dfs start goal b =
+  let rec dfs goal b start =
     if !debug then ignore(E.log "writes_between: dfs visiting %a\n" d_stmt start);
     if start.sid = goal.sid then
       let wh = find_write start in
@@ -113,16 +114,17 @@ let writes_between f dsid sid =
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
     visited_sid_lr := start.sid::(!visited_sid_lr);
     if List.length start.succs = 0 then false else
-    List.mem true (List.map (visit goal (w || b)) start.succs)
-  and visit g b s = (dfs s g b) in
+    List.mem true (List.map (dfs goal (w || b)) start.succs)
+  in
+  (*and visit g b s = (dfs s g b) in*)
   match stmo, dstmo with
     None, _ | _, None -> 
       E.s (E.error "writes_between: defining stmt not an instr\n")
   | Some stm, Some dstm ->
       let _ = visited_sid_lr := [stm.sid] in
-      let from_stm = List.fold_left (visit stm) false stm.succs in
+      let from_stm = List.fold_left (dfs stm) false stm.succs in
       let _ = visited_sid_lr := [] in
-      let from_dstm = dfs dstm stm false in
+      let from_dstm = dfs stm false dstm in
       from_stm || from_dstm
 
 (* ok_to_replace *)
@@ -144,13 +146,14 @@ let writes_between f dsid sid =
 (* sid is an int that is the statement id of the statement where
    we are trying to do a replacement *)
 (* vi is the varinfo of the variable that we are trying to replace *)
+let udDeepSkindHtbl = IH.create 64
 let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
-    RD.RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
+    RD.RDExp e -> (S.time "UDExp" UD.computeUseExp e, S.time "e_is_ok_r" exp_is_ok_replacement e)
   | RD.RDCall (Call(_,_,el,_) as i) ->
       let safe = List.fold_left (fun b e ->
-	(exp_is_ok_replacement e) && b) true el in
-      let u,d = UD.computeUseDefInstr i in
+	(S.time "e_is_ok_r" exp_is_ok_replacement e) && b) true el in
+      let u,d = S.time "UDinst" UD.computeUseDefInstr i in
       u, safe
   | _ -> E.s (E.bug "ok_to_replace: got non Call in RDCall.")
   in
@@ -159,19 +162,23 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
     true)
   else (if !debug then ignore(E.log "ok_to_replace: target %s does not have its address taken\n" vi.vname);
 	false) in
-  let writes = if safe && not(target_addrof) then false else writes_between f dsid sid in
+  let writes = if safe && not(target_addrof) then false else (S.time "writes_between" (writes_between f dsid) sid) in
   if (not safe || target_addrof) && writes
   then
     (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
      false) 
   else let fdefs = List.fold_left (fun d s ->
-    let _, d' = UD.computeDeepUseDefStmtKind s.skind in
+    let _, d' = if IH.mem udDeepSkindHtbl s.sid 
+    then IH.find udDeepSkindHtbl s.sid
+    else let u',d' = S.time "UDDeepSkind" UD.computeDeepUseDefStmtKind s.skind in
+    (IH.add udDeepSkindHtbl s.sid (u',d'); (u',d'))
+    in
     UD.VS.union d d') UD.VS.empty f.sbody.bstmts in
   let _ = if !debug then ignore (E.log "ok_to_replace: card fdefs = %d\n" (UD.VS.cardinal fdefs)) in
   let _ = if !debug then ignore (E.log "ok_to_replace: card uses = %d\n" (UD.VS.cardinal uses)) in
   UD.VS.fold (fun vi b ->
-      let curido = RD.iosh_singleton_lookup curiosh vi in
-      let defido = RD.iosh_singleton_lookup defiosh vi in
+      let curido = S.time "sing_lookup" (RD.iosh_singleton_lookup curiosh) vi in
+      let defido = S.time "sing_lookup" (RD.iosh_singleton_lookup defiosh) vi in
       match curido, defido with
 	Some(curid), Some(defid) -> 
 	  (if !debug then ignore (E.log "ok_to_replace: curido: %d defido: %d\n" curid defid);
@@ -409,7 +416,7 @@ let iosh_get_useful_def iosh vi =
     let ios = IH.find iosh vi.vid in
     let ios' = RD.IOS.filter (fun ido  ->
       match ido with None -> true | Some(id) ->
-	match getDefRhs id with
+	match S.time "getDefRhs" getDefRhs id with
 	  Some(RD.RDExp(Lval(Var vi',NoOffset)),_,_)
 	| Some(RD.RDExp(CastE(_,Lval(Var vi',NoOffset))),_,_) ->
 	    not(vi.vid = vi'.vid) (* false if they are the same *)
@@ -429,17 +436,17 @@ let iosh_get_useful_def iosh vi =
 (* IOS.t IH.t -> sid -> varinfo -> fundec -> bool -> exp option *)
 let tmp_to_exp_change = ref false
 let tmp_to_exp iosh sid vi fd nofrm =
-  if nofrm || check_forms vi.vname forms 
+  if nofrm || (S.time "check_forms" (check_forms vi.vname) forms) 
   then let ido = iosh_get_useful_def iosh vi in 
   match ido with None -> 
     if !debug then ignore(E.log "tmp_to_exp: non-sigle def: %s\n" vi.vname);
     None
-  | Some(id) -> let defrhs = getDefRhs id in
+  | Some(id) -> let defrhs = S.time "getDefRhs" getDefRhs id in
     match defrhs with None -> 
       if !debug then ignore(E.log "tmp_to_exp: no def of %s\n" vi.vname);
       None
     | Some(RD.RDExp(e) as r, dsid , defiosh) ->
-	if ok_to_replace vi iosh sid defiosh dsid fd r
+	if S.time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
 	   tmp_to_exp_change := true;
@@ -472,7 +479,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 	  try RD.IOS.choose ios
 	  with Not_found -> None in
 	match defido with None -> None | Some defid ->
-	  match getDefRhs defid with
+	  match S.time "getDefRhs" getDefRhs defid with
 	    None -> None
 	  | Some(RD.RDExp(Const c), _, defiosh) ->
 	      (match RD.getDefIdStmt defid with
@@ -480,7 +487,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c)) then
 		  let same = RD.IOS.for_all (fun defido ->
 		    match defido with None -> false | Some defid ->
-		      match getDefRhs defid with
+		      match S.time "getDefRhs" getDefRhs defid with
 			None -> false
 		      | Some(RD.RDExp(Const c'),_,defiosh) ->
 			  if Util.equals c c' then
@@ -498,8 +505,9 @@ let tmp_to_const iosh sid vi fd nofrm =
   else None
 
 let const_prop iosh sid e fd nofrm =
+  let tttc = S.time "tmp_to_const" tmp_to_const in
   tmp_to_const_change := false;
-  let e' = visitCilExpr (varXformClass tmp_to_const iosh sid fd nofrm) e in
+  let e' = visitCilExpr (varXformClass tttc iosh sid fd nofrm) e in
   (e', !tmp_to_const_change)
 
 class expTempElimClass (fd:fundec) = object (self)

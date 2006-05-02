@@ -110,6 +110,7 @@ let features : C.featureDescr list =
     Logcalls.feature;
     Ptranal.feature;
     Zrapp.feature;
+    Liveness.feature;
   ] 
   @ Feature_config.features 
 
