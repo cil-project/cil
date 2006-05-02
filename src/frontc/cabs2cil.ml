@@ -1124,7 +1124,8 @@ let rec castTo ?(fromsource=false)
      * source. *)
     (ot, e) 
   else begin
-    let result = (nt, mkCastT e ot nt) in
+    let result = (nt, 
+                  if !insertImplicitCasts || fromsource then mkCastT e ot nt else e) in
 (*
     ignore (E.log "castTo: ot=%a nt=%a\n  result is %a\n" 
               d_type ot d_type nt
@@ -1132,8 +1133,8 @@ let rec castTo ?(fromsource=false)
 *)
     (* Now see if we can have a cast here *)
     match ot, nt with
-      TNamed(r, _), _ -> castTo r.ttype nt e
-    | _, TNamed(r, _) -> castTo ot r.ttype e
+      TNamed(r, _), _ -> castTo ~fromsource:fromsource r.ttype nt e
+    | _, TNamed(r, _) -> castTo ~fromsource:fromsource ot r.ttype e
     | TInt(ikindo,_), TInt(ikindn,_) -> 
         (* We used to ignore attributes on integer-integer casts. Not anymore *)
         (* if ikindo = ikindn then (nt, e) else *) 

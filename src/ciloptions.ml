@@ -163,5 +163,9 @@ let options : (string * Arg.spec * string) list =
 
     "--noLowerConstants", Arg.Unit (fun _ -> Cil.lowerConstants := false), 
      "do not lower constant expressions";
+
+    "--noInsertImplicitCasts", Arg.Unit (fun _ -> Cil.insertImplicitCasts := false),
+    "do not insert implicit casts";
+
   ]
     
