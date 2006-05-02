@@ -68,9 +68,6 @@ endif
 ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
-ifdef USE_DEPUTY
-  CILLY_FEATURES += deputy
-endif
 # Add the EXTRAFEATURES
 CILLY_FEATURES += @EXTRAFEATURES@
 
@@ -210,32 +207,9 @@ $(OBJDIR)/cilversion.ml: configure.in Makefile.cil.in
 # build two libraries
 .PHONY: cillib libcil
 ifeq ($(NATIVECAML),1)
-cillib: $(OBJDIR)/cil.$(CMXA) deputylib $(OBJDIR)/libcil.a
+cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.a
 else
-cillib: $(OBJDIR)/cil.$(CMXA) deputylib
-endif
-
-# Build Deputy libraries
-DEPUTY_LIBC = $(OBJDIR)/deputy_libc.$(OBJ)
-DEPUTY_LINUX = $(OBJDIR)/deputy_linux.$(OBJ)
-
-$(DEPUTY_LIBC): lib/deputy_libc.c
-	$(CC) $(CONLY) $(OBJOUT)$@ $^
-
-$(DEPUTY_LINUX): lib/deputy_linux.c
-ifdef KERNELDIR
-	$(CC) -O -g -D__KERNEL__ -DMODULE \
-	-I$(KERNELDIR)/include \
-	-I$(KERNELDIR)/include/asm-i386/mach-default \
-	$(CONLY) $(OBJOUT)$@ $^
-else
-	@echo "Set KERNELDIR to build Deputy Linux library!"
-endif
-
-ifdef USE_DEPUTY
-deputylib: $(DEPUTY_LIBC) $(DEPUTY_LINUX)
-else
-deputylib:
+cillib: $(OBJDIR)/cil.$(CMXA) 
 endif
 
 
@@ -259,9 +233,6 @@ ifdef USE_SMALLOC
 endif
 ifdef USE_CQUALANN
 	echo "   Cqualann.feature;" >> $@  
-endif
-ifdef USE_DEPUTY
-	echo "   Deputy.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
 	echo -ne \
