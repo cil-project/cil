@@ -76,7 +76,7 @@ class uselessInstrElim : cilVisitor = object(self)
     in
 
     let filter il stmdat =
-      let rd_dat_lst = RD.instrRDs il stmdat false in
+      let rd_dat_lst = RD.instrRDs il stm.sid stmdat false in
       let ildatlst = List.combine il rd_dat_lst in
       let ildatlst' = List.filter test ildatlst in
       let (newil,_) = List.split ildatlst' in
@@ -101,8 +101,8 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
     usedDefsSet := IS.empty;
     removedCount := 0;
     S.time "reaching definitions" RD.computeRDs fd;
-    ignore(S.time "UDCollector" (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
-    let fd' = S.time "uselessInstrElim" (visitCilFunction (new uselessInstrElim)) fd in
+    ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+    let fd' = visitCilFunction (new uselessInstrElim) fd in
     if !removedCount = 0 then fd' else loop fd'
   in
   loop fd
@@ -113,8 +113,8 @@ let elim_dead_code (fd : fundec) :  fundec =
   usedDefsSet := IS.empty;
   removedCount := 0;
   S.time "reaching definitions" RD.computeRDs fd;
-  ignore(S.time "UDCollector" (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
-  let fd' = S.time "uselessINstrElim" (visitCilFunction (new uselessInstrElim)) fd in
+  ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+  let fd' = visitCilFunction (new uselessInstrElim) fd in
   fd'
 
 class deadCodeElimClass : cilVisitor = object(self)

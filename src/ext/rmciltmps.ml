@@ -11,6 +11,12 @@ module UD = Usedef
 module IH = Inthash
 module S = Stats
 
+module IS = 
+  Set.Make(struct
+    type t = int
+    let compare = Pervasives.compare
+  end)
+
 let debug = RD.debug
 
 
@@ -84,9 +90,11 @@ let find_statement f sid = RD.getStmt sid
 (* Are there writes to memory in between
    the two statements with the given ids *)
 (* fundec -> int -> int -> bool *)
+let wbHtbl = Hashtbl.create 256
 let writes_between f dsid sid =
-  let dstmo = S.time "find_statement" (find_statement f) dsid in
-  let stmo = S.time "find_statement" (find_statement f) sid in
+  if Hashtbl.mem wbHtbl (dsid,sid) then Hashtbl.find wbHtbl (dsid,sid) else
+  let dstmo = find_statement f dsid in
+  let stmo = find_statement f sid in
   let find_write s = match s.skind with
     Instr il -> List.exists (fun i ->
       match i with
@@ -98,7 +106,7 @@ let writes_between f dsid sid =
   in
   (* is there a path from start to goal that includes an
      instruction that writes to memory? Do a dfs *)
-  let visited_sid_lr = ref [] in
+  let visited_sid_isr = ref IS.empty in
   let rec dfs goal b start =
     if !debug then ignore(E.log "writes_between: dfs visiting %a\n" d_stmt start);
     if start.sid = goal.sid then
@@ -108,24 +116,29 @@ let writes_between f dsid sid =
        if !debug && wh then ignore(E.log "writes_between: start=goal and write here\n");
        if !debug && (not wh) then ignore(E.log "writes_between: start=goal and no write here\n");
        b || (find_write start))
-    else
-    if List.mem start.sid (!visited_sid_lr) then false else
+    else 
+    (* if S.time "List.mem1" (List.mem start.sid) (!visited_sid_lr) then false else *)
+    if IS.mem start.sid (!visited_sid_isr) then false else
     let w = find_write start in
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
-    visited_sid_lr := start.sid::(!visited_sid_lr);
-    if List.length start.succs = 0 then false else
-    List.mem true (List.map (dfs goal (w || b)) start.succs)
+    visited_sid_isr := IS.add start.sid (!visited_sid_isr);
+    let rec proc_succs sl = match sl with [] -> false 
+    | s::rest -> if dfs goal (w || b) s then true else proc_succs rest
+    in
+    proc_succs start.succs
+(*      S.time "List.mem2" (List.mem true) (List.map (dfs goal (w || b)) start.succs)*)
   in
   (*and visit g b s = (dfs s g b) in*)
   match stmo, dstmo with
     None, _ | _, None -> 
       E.s (E.error "writes_between: defining stmt not an instr\n")
   | Some stm, Some dstm ->
-      let _ = visited_sid_lr := [stm.sid] in
+      let _ = visited_sid_isr := IS.singleton stm.sid in
       let from_stm = List.fold_left (dfs stm) false stm.succs in
-      let _ = visited_sid_lr := [] in
+      let _ = visited_sid_isr := IS.empty in
       let from_dstm = dfs stm false dstm in
-      from_stm || from_dstm
+      (Hashtbl.add wbHtbl (dsid,sid) (from_stm || from_dstm);
+      from_stm || from_dstm)
 
 (* ok_to_replace *)
 (* is it alright to replace a variable use with the expression
@@ -149,11 +162,11 @@ let writes_between f dsid sid =
 let udDeepSkindHtbl = IH.create 64
 let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
-    RD.RDExp e -> (S.time "UDExp" UD.computeUseExp e, S.time "e_is_ok_r" exp_is_ok_replacement e)
+    RD.RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
   | RD.RDCall (Call(_,_,el,_) as i) ->
       let safe = List.fold_left (fun b e ->
-	(S.time "e_is_ok_r" exp_is_ok_replacement e) && b) true el in
-      let u,d = S.time "UDinst" UD.computeUseDefInstr i in
+	(exp_is_ok_replacement e) && b) true el in
+      let u,d = UD.computeUseDefInstr i in
       u, safe
   | _ -> E.s (E.bug "ok_to_replace: got non Call in RDCall.")
   in
@@ -170,15 +183,16 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
   else let fdefs = List.fold_left (fun d s ->
     let _, d' = if IH.mem udDeepSkindHtbl s.sid 
     then IH.find udDeepSkindHtbl s.sid
-    else let u',d' = S.time "UDDeepSkind" UD.computeDeepUseDefStmtKind s.skind in
+    else let u',d' = UD.computeDeepUseDefStmtKind s.skind in
     (IH.add udDeepSkindHtbl s.sid (u',d'); (u',d'))
     in
     UD.VS.union d d') UD.VS.empty f.sbody.bstmts in
   let _ = if !debug then ignore (E.log "ok_to_replace: card fdefs = %d\n" (UD.VS.cardinal fdefs)) in
   let _ = if !debug then ignore (E.log "ok_to_replace: card uses = %d\n" (UD.VS.cardinal uses)) in
+(* XXX: Write separate function to do this *)
   UD.VS.fold (fun vi b ->
-      let curido = S.time "sing_lookup" (RD.iosh_singleton_lookup curiosh) vi in
-      let defido = S.time "sing_lookup" (RD.iosh_singleton_lookup defiosh) vi in
+      let curido = RD.iosh_singleton_lookup curiosh vi in
+      let defido = RD.iosh_singleton_lookup defiosh vi in
       match curido, defido with
 	Some(curid), Some(defid) -> 
 	  (if !debug then ignore (E.log "ok_to_replace: curido: %d defido: %d\n" curid defid);
@@ -192,7 +206,7 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
 	    with Not_found -> RD.IOS.empty in
 	    let defios = try IH.find defiosh vi.vid 
 	    with Not_found -> RD.IOS.empty in
-	    RD.IOS.compare curios defios == 0
+	    RD.IOS.compare curios defios == 0 && b
       | _, _ ->
 	  (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions. cur: %a\n def: %a\n" 
 				    vi.vname RD.ReachingDef.pretty ((),0,curiosh) RD.ReachingDef.pretty ((),0,defiosh));
@@ -436,7 +450,7 @@ let iosh_get_useful_def iosh vi =
 (* IOS.t IH.t -> sid -> varinfo -> fundec -> bool -> exp option *)
 let tmp_to_exp_change = ref false
 let tmp_to_exp iosh sid vi fd nofrm =
-  if nofrm || (S.time "check_forms" (check_forms vi.vname) forms) 
+  if nofrm || (check_forms vi.vname forms) 
   then let ido = iosh_get_useful_def iosh vi in 
   match ido with None -> 
     if !debug then ignore(E.log "tmp_to_exp: non-sigle def: %s\n" vi.vname);
@@ -505,9 +519,8 @@ let tmp_to_const iosh sid vi fd nofrm =
   else None
 
 let const_prop iosh sid e fd nofrm =
-  let tttc = S.time "tmp_to_const" tmp_to_const in
   tmp_to_const_change := false;
-  let e' = visitCilExpr (varXformClass tttc iosh sid fd nofrm) e in
+  let e' = visitCilExpr (varXformClass tmp_to_const iosh sid fd nofrm) e in
   (e', !tmp_to_const_change)
 
 class expTempElimClass (fd:fundec) = object (self)
