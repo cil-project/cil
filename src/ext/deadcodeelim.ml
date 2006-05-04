@@ -9,6 +9,7 @@ module RD = Reachingdefs
 module UD = Usedef
 module IH = Inthash
 module S = Stats
+module RCT = Rmciltmps
 
 module IS = Set.Make(
   struct
@@ -100,6 +101,8 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
   let rec loop fd =
     usedDefsSet := IS.empty;
     removedCount := 0;
+    IH.clear RCT.udDeepSkindHtbl;
+    Hashtbl.clear RCT.wbHtbl;
     S.time "reaching definitions" RD.computeRDs fd;
     ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
     let fd' = visitCilFunction (new uselessInstrElim) fd in
@@ -112,6 +115,8 @@ let elim_dead_code (fd : fundec) :  fundec =
   (* fundec -> fundec *)
   usedDefsSet := IS.empty;
   removedCount := 0;
+  IH.clear RCT.udDeepSkindHtbl;
+  Hashtbl.clear RCT.wbHtbl;
   S.time "reaching definitions" RD.computeRDs fd;
   ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
   let fd' = visitCilFunction (new uselessInstrElim) fd in
