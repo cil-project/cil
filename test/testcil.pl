@@ -215,6 +215,7 @@ $TEST->add3Tests("testrun/offsetof2");
 $TEST->addTests("testrun/question", "", ['cil']);
 $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");
+$TEST->addTests("testrun/array4", "", ['cil']);
 $TEST->add3Tests("test/array2");
 $TEST->addTests("testrun/array3", "", ['inferbox']);
 $TEST->add2Tests("testrun/array_varsize");

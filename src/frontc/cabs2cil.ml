@@ -485,8 +485,12 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
             E.s (E.error "It seems that we would need to rename global %s (to %s) because of previous occurrence at %a" 
                    vi.vname newname d_loc oldloc);
         end
-      end else
+      end else begin 
+        (* We have changed the name of a local variable. Can we try to detect 
+         * if the other variable was also local in the same scope? Not for 
+         * now. *)
         copyVarinfo vi newname
+      end
     end
   in
   (* Store all locals in the slocals (in reversed order). We'll reverse them 
