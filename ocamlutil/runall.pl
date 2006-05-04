@@ -251,12 +251,12 @@ sub scanTestFile {
             $name = &parseTestDef($1, $line);
             $comment = 1;
 
-        } elsif($_ =~ m|DROP(.*)$|) {
+        } elsif($_ =~ m|//\s*DROP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name eq $current) { $comment = 1; }
             $linename = "DROP($name)";
 
-        } elsif($_ =~ m|KEEP(.*)$|) {
+        } elsif($_ =~ m|//\s*KEEP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name ne $current) { $comment = 1; }
             $linename = "KEEP($name)";
