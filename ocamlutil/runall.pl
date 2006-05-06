@@ -236,6 +236,10 @@ sub scanTestFile {
     # This variable is the && of all entries in ifenv
     my $keep = 1;
 
+    my $COMMENT = "//";
+    if (defined $ENV{'COMMENT'}) {
+        $COMMENT = $ENV{'COMMENT'};
+    }
     my $line = 0;
     while(<IN>) {
         $line ++;
@@ -251,12 +255,12 @@ sub scanTestFile {
             $name = &parseTestDef($1, $line);
             $comment = 1;
 
-        } elsif($_ =~ m|//\s*DROP(.*)$|) {
+        } elsif($_ =~ m|$COMMENT\s*DROP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name eq $current) { $comment = 1; }
             $linename = "DROP($name)";
 
-        } elsif($_ =~ m|//\s*KEEP(.*)$|) {
+        } elsif($_ =~ m|$COMMENT\s*KEEP(.*)$|) {
             $name = &parseTestDef($1, $line);
             if($name ne $current) { $comment = 1; }
             $linename = "KEEP($name)";
