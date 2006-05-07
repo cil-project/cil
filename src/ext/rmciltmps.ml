@@ -47,9 +47,15 @@ class memReadOrAddrOfFinderClass = object(self)
   | _ -> DoChildren
 
   method vvrbl vi =
-    if vi.vaddrof then
-      (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s has its address taken\n"
+    if vi.vglob then
+      (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s is a global\n"
 			       vi.vname);
+       exp_ok := false;
+       SkipChildren)
+    else if vi.vaddrof then
+      (if !debug then 
+         ignore(E.log "memReadOrAddrOfFinder: %s has its address taken\n"
+		  vi.vname);
        exp_ok := false;
        SkipChildren)
     else (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s does not have its address taken\n"
@@ -170,8 +176,8 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
       u, safe
   | _ -> E.s (E.bug "ok_to_replace: got non Call in RDCall.")
   in
-  let target_addrof = if vi.vaddrof then
-    (if !debug then ignore(E.log "ok_to_replace: target %s had its address taken\n" vi.vname);
+  let target_addrof = if vi.vaddrof || vi.vglob then
+    (if !debug then ignore(E.log "ok_to_replace: target %s had its address taken or is a global\n" vi.vname);
     true)
   else (if !debug then ignore(E.log "ok_to_replace: target %s does not have its address taken\n" vi.vname);
 	false) in
