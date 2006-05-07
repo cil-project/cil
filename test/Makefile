@@ -898,7 +898,7 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	COMMAND="$(CCURED) --allowInlineAssembly \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe" \
-	COMMENT="// " \
+	COMMENT="//" \
 	 perl ../../ocamlutil/runall.pl $*.c
 
 
@@ -908,7 +908,7 @@ runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	COMMAND="$(CCURED) --allowInlineAssembly \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
-	COMMENT="// " \
+	COMMENT="//" \
 	 perl ../../ocamlutil/runall.pl $*.c
 
 # sm: trivial test of combiner
