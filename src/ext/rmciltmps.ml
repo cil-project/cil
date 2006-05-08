@@ -701,6 +701,21 @@ let rm_unused_locals fd =
   fd.slocals <- good_locals
 
 
+(* see if a vi is volatile *)
+let is_volatile vi =
+  let vi_vol =
+    List.exists (function (Attr("volatile",_)) -> true 
+      | _ -> false) vi.vattr in
+  let typ_vol =
+    List.exists (function (Attr("volatile",_)) -> true 
+      | _ -> false) (typeAttrs vi.vtype) in
+  if !debug && (vi_vol || typ_vol) then 
+    ignore(E.log "unusedRemover: %s is volatile\n" vi.vname);
+  if !debug && not(vi_vol || typ_vol) then 
+    ignore(E.log "unusedRemover: %s is not volatile\n" vi.vname);
+  vi_vol || typ_vol
+
+
 (* Remove temp variables that are set but not used *)
 (* This is different from dead code elimination because
    temps that can be eliminated during pretty printing
@@ -729,11 +744,12 @@ class unusedRemoverClass : cilVisitor = object(self)
     (* a filter function for picking out
        the local variables that need to be kept *)
     let good_var vi =
-      not(UD.VS.mem vi unused) &&
+      (is_volatile vi) ||
+      (not(UD.VS.mem vi unused) &&
       (not(IH.mem iioh vi.vid) ||
       (match IH.find iioh vi.vid with
 	None -> true | Some _ -> false)) &&
-      not(IH.mem incdecHash vi.vid)
+      not(IH.mem incdecHash vi.vid))
     in
     let good_locals = List.filter good_var f.slocals in
     f.slocals <- good_locals;
@@ -799,6 +815,7 @@ class unusedRemoverClass : cilVisitor = object(self)
 	  if will_be_call e &&
 	    not(List.mem vi cur_func.slocals)
 	  then cur_func.slocals <- vi::cur_func.slocals;
+	  is_volatile vi ||
 	  (not (UD.VS.mem vi unused_set) &&
 	   not (IH.mem incdecHash vi.vid) &&
 	   not (check_incdec vi e)) ||

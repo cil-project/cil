@@ -49,7 +49,7 @@ class usedDefsCollectorClass = object(self)
 	DoChildren
 
 end
-      
+
 
 let removedCount = ref 0
 (* Filter out instructions whose definition ids are not
@@ -58,11 +58,25 @@ class uselessInstrElim : cilVisitor = object(self)
   inherit nopCilVisitor
 
   method vstmt stm =
+    let is_volatile vi =
+      let vi_vol =
+	List.exists (function (Attr("volatile",_)) -> true 
+	  | _ -> false) vi.vattr in
+      let typ_vol =
+	List.exists (function (Attr("volatile",_)) -> true 
+	  | _ -> false) (typeAttrs vi.vtype) in
+      if !debug && (vi_vol || typ_vol) then 
+	ignore(E.log "DCE: %s is volatile\n" vi.vname);
+      if !debug && not(vi_vol || typ_vol) then 
+	ignore(E.log "DCE: %s is not volatile\n" vi.vname);
+      vi_vol || typ_vol
+    in
+
     let test (i,(_,s,iosh)) =
       match i with 
 	Call _ -> true 
       | Set((Var vi,NoOffset),_,_) ->
-	  if vi.vglob then true else
+	  if vi.vglob || (is_volatile vi) then true else
 	  let _, defd = UD.computeUseDefInstr i in
 	  let rec loop n =
 	    if n < 0 then false else
@@ -132,4 +146,5 @@ class deadCodeElimClass : cilVisitor = object(self)
 end
 
 let dce f =
+  if !debug then ignore(E.log "DCE: starting dead code elimination\n");
   visitCilFile (new deadCodeElimClass) f

@@ -119,18 +119,18 @@ let computeLiveness fdec =
   UD.onlyNoOffsetsAreDefs := false;
   let a = null_adder fdec in
   L.compute a
-(*
-  let sinks = find_sinks fdec in
-  List.iter (fun s ->
-    IH.add LiveFlow.stmtStartData s.sid VS.empty) sinks;
-  L.compute sinks
-*)
 
 let print_everything () =
   let d = IH.fold (fun i vs d -> 
     d ++ num i ++ text ": " ++ LiveFlow.pretty () vs) 
       LiveFlow.stmtStartData nil in
   ignore(printf "%t" (fun () -> d))
+
+let match_label lbl = match lbl with
+  Label(str,_,b) ->
+    if !debug then ignore(E.log "Liveness: label seen: %s\n" str);
+    (*b && *)(String.compare str (!live_label) = 0)
+| _ -> false
 
 class doFeatureClass = object(self)
   inherit nopCilVisitor
@@ -148,12 +148,6 @@ class doFeatureClass = object(self)
     else SkipChildren
 
   method vstmt s =
-    let match_label lbl = match lbl with
-      Label(str,_,b) ->
-	if !debug then ignore(E.log "Liveness: label seen: %s\n" str);
-	(*b && *)(String.compare str (!live_label) = 0)
-    | _ -> false
-    in
     if List.exists match_label s.labels then try
       let vs = IH.find LiveFlow.stmtStartData s.sid in
       (printer := min_print;
