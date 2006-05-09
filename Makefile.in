@@ -412,7 +412,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 	          blockinggraph.ml blockinggraph.mli \
 		  dataslicing.ml dataslicing.mli \
 		  reachingdefs.ml \
-		  cfg.ml cfg.mli
+		  cfg.ml cfg.mli \
+		  liveness.ml
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
