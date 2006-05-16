@@ -399,19 +399,19 @@ let forms = [Exact "tmp";
 	     Suffix "__e";
 	     Suffix "__b";]
 
-(* action: RD.IOS.t IH.t -> varinfo -> fundec -> bool -> exp option
- * iosh: RD.IOS.t IH.t
+(* action: 'a -> varinfo -> fundec -> bool -> exp option
+ * iosh: 'a
  * fd: fundec
  * nofrm: bool
  *
  * Replace Lval(Var vi, NoOffset) with
  * e where action iosh sid vi fd nofrm returns Some(e) *)
-let varXformClass action iosh sid fd nofrm = object(self)
+let varXformClass action data sid fd nofrm = object(self)
     inherit nopCilVisitor
 
   method vexpr e = match e with
     Lval(Var vi, NoOffset) ->
-      (match action iosh sid vi fd nofrm with
+      (match action data sid vi fd nofrm with
 	None -> DoChildren
       | Some e' -> 
           (* Cast e' to the correct type. *)
@@ -443,23 +443,36 @@ let iosh_get_useful_def iosh vi =
 	| _ -> true) ios
     in
     if not(RD.IOS.cardinal ios' = 1) 
-    then (if !debug then ignore(E.log "iosh_get_useful_def: multiple different defs of %d:%s(%d)\n" vi.vid vi.vname (RD.IOS.cardinal ios'));
+    then (if !debug then ignore(E.log "iosh_get_useful_def: multiple different defs of %d:%s(%d)\n" 
+				  vi.vid vi.vname (RD.IOS.cardinal ios'));
 	  None)
     else RD.IOS.choose ios'
   else (if !debug then ignore(E.log "iosh_get_useful_def: no def of %s reaches here\n" vi.vname);
 	None)  
+
+let ae_tmp_to_exp_change = ref false
+let ae_tmp_to_exp eh sid vi fd nofrm =
+  if nofrm || (check_forms vi.vname forms)
+  then try 
+    begin let e = IH.find eh vi.vid in
+    if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n"
+			    vi.vname d_plainexp e);
+    ae_tmp_to_exp_change := true;
+    Some e end
+  with Not_found -> None
+  else None
 
 (* if the temp with varinfo vi can be
    replaced by an expression then return
    Some of that expression. o/w None.
    If b is true, then don't check the form *)
 (* IOS.t IH.t -> sid -> varinfo -> fundec -> bool -> exp option *)
-let tmp_to_exp_change = ref false
-let tmp_to_exp iosh sid vi fd nofrm =
+let rd_tmp_to_exp_change = ref false
+let rd_tmp_to_exp iosh sid vi fd nofrm =
   if nofrm || (check_forms vi.vname forms) 
   then let ido = iosh_get_useful_def iosh vi in 
   match ido with None -> 
-    if !debug then ignore(E.log "tmp_to_exp: non-sigle def: %s\n" vi.vname);
+    if !debug then ignore(E.log "tmp_to_exp: non-single def: %s\n" vi.vname);
     None
   | Some(id) -> let defrhs = S.time "getDefRhs" getDefRhs id in
     match defrhs with None -> 
@@ -469,7 +482,7 @@ let tmp_to_exp iosh sid vi fd nofrm =
 	if S.time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
-	   tmp_to_exp_change := true;
+	   rd_tmp_to_exp_change := true;
 	   Some e)
 	else 
 	  (if !debug then ignore(E.log "tmp_to_exp: not ok to replace %s\n" vi.vname);
@@ -481,10 +494,26 @@ let tmp_to_exp iosh sid vi fd nofrm =
     (if !debug then ignore(E.log "tmp_to_exp: %s didn't match form or nofrm\n" vi.vname);
      None)
 
-let fwd_subst iosh sid e fd nofrm =
-  tmp_to_exp_change := false;
-  let e' = visitCilExpr (varXformClass tmp_to_exp iosh sid fd nofrm) e in
-  (e', !tmp_to_exp_change)
+let rd_fwd_subst data sid e fd nofrm =
+  rd_tmp_to_exp_change := false;
+  let e' = visitCilExpr (varXformClass rd_tmp_to_exp data sid fd nofrm) e in
+  (e', !rd_tmp_to_exp_change)
+
+let ae_fwd_subst data sid e fd nofrm =
+  ae_tmp_to_exp_change := false;
+  let e' = visitCilExpr (varXformClass ae_tmp_to_exp data sid fd nofrm) e in
+  (e', !ae_tmp_to_exp_change)
+
+let ae_tmp_to_const_change = ref false
+let ae_tmp_to_const eh sid vi fd nofrm =
+  if nofrm || check_forms vi.vname forms then
+    try begin let e = IH.find eh vi.vid in
+    match e with Const c -> begin
+      ae_tmp_to_const_change := true;
+      Some(Const c) end
+    | _ -> None end
+    with Not_found -> None
+  else None
 
 (* See if vi can be replaced by a constant
    by checking all of the definitions reaching
@@ -528,6 +557,11 @@ let const_prop iosh sid e fd nofrm =
   tmp_to_const_change := false;
   let e' = visitCilExpr (varXformClass tmp_to_const iosh sid fd nofrm) e in
   (e', !tmp_to_const_change)
+
+let ae_const_prop eh sid e fd nofrm =
+  ae_tmp_to_const_change := false;
+  let e' = visitCilExpr (varXformClass ae_tmp_to_const eh sid fd nofrm) e in
+  (e', !ae_tmp_to_const_change)
 
 class expTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass

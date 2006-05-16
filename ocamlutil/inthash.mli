@@ -13,6 +13,7 @@ val copy_into: 'a t -> 'a t -> unit
 val add: 'a t -> int -> 'a -> unit
 val replace: 'a t -> int -> 'a -> unit
 val remove: 'a t -> int -> unit
+val remove_all: 'a t -> int -> unit
 
 val mem: 'a t -> int -> bool
 val find: 'a t -> int -> 'a

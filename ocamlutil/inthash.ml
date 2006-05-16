@@ -65,6 +65,18 @@ let remove h key =
   let i = (hash key) mod (Array.length h.data) in
   h.data.(i) <- remove_bucket h.data.(i)
 
+let remove_all h key =
+  let rec remove_bucket = function
+      Empty ->
+        Empty
+    | Cons(k, i, next) ->
+        if k = key
+        then begin h.size <- pred h.size; 
+	  remove_bucket next end
+        else Cons(k, i, remove_bucket next) in
+  let i = (hash key) mod (Array.length h.data) in
+  h.data.(i) <- remove_bucket h.data.(i)
+
 let rec find_rec key = function
     Empty ->
       raise Not_found

@@ -83,7 +83,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               setp uref olf ptranal \
               canonicalize heap oneret partial simplemem simplify \
 	      dataslicing sfi \
-              cfg reachingdefs rmciltmps deadcodeelim\
+              cfg reachingdefs rmciltmps deadcodeelim availexps\
               zrapp liveness \
               testcil \
 	      $(CILLY_FEATURES) \

@@ -99,6 +99,9 @@ let find_sinks fdec =
   ignore(visitCilFunction (new sinkFinderClass) fdec);
   !sink_stmts
 
+(* XXX: This does not compute the best ordering to
+ * give to the work-list algorithm.
+ *)
 let all_stmts = ref []
 class nullAdderClass = object(self)
   inherit nopCilVisitor
@@ -117,6 +120,7 @@ let null_adder fdec =
 let computeLiveness fdec =
   IH.clear LiveFlow.stmtStartData;
   UD.onlyNoOffsetsAreDefs := false;
+  all_stmts := [];
   let a = null_adder fdec in
   L.compute a
 
