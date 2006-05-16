@@ -26,27 +26,46 @@ let usedDefsSet = ref IS.empty
 class usedDefsCollectorClass = object(self)
     inherit RD.rdVisitorClass
 
+  method add_defids iosh e u =
+    UD.VS.iter (fun vi ->
+      if IH.mem iosh vi.vid then 
+	let ios = IH.find iosh vi.vid in
+	if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
+				vi.vname sid (RD.IOS.cardinal ios));
+	RD.IOS.iter (function
+	    Some(i) -> 
+	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
+	      usedDefsSet := IS.add i (!usedDefsSet)
+	  | None -> ()) ios
+      else if !debug then ignore(E.log "DCE: vid %d:%s not in stm:%d iosh at %a\n"
+				   vi.vid vi.vname sid d_plainexp e)) u
+
   method vexpr e =
     let u = UD.computeUseExp e in
-    let add_defids iosh =
-      UD.VS.iter (fun vi ->
-	if IH.mem iosh vi.vid then 
-	  let ios = IH.find iosh vi.vid in
-	  if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
-				  vi.vname sid (RD.IOS.cardinal ios));
-	  RD.IOS.iter (function
-	      Some(i) -> 
-		if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
-		usedDefsSet := IS.add i (!usedDefsSet)
-	    | None -> ()) ios
-	else if !debug then ignore(E.log "DCE: vid %d:%s not in stm:%d iosh at %a\n"
-				     vi.vid vi.vname sid d_plainexp e)) u
-    in
     match self#get_cur_iosh() with
-      Some(iosh) -> add_defids iosh; DoChildren
+      Some(iosh) -> self#add_defids iosh e u; DoChildren
     | None ->
 	if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
 	DoChildren
+
+  (* Silly inline assembly... making me break my nice abstraction =( *)
+  method vinst i =
+    let handle_inst iosh i = match i with
+    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (s,lv) ->
+	match lv with (Var v, off) ->
+	  if s.[0] = '+' then
+	    self#add_defids iosh (Lval(Var v, off)) (UD.VS.singleton v)
+	| _ -> ()) slvl
+    | _ -> ()
+    in
+    begin try
+      cur_rd_dat <- Some(List.hd rd_dat_lst);
+      rd_dat_lst <- List.tl rd_dat_lst
+    with Failure "hd" -> ()
+    end;
+    match self#get_cur_iosh() with
+      Some iosh -> handle_inst iosh i; DoChildren
+    | None -> DoChildren
 
 end
 
