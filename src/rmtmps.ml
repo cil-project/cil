@@ -330,6 +330,9 @@ let hasExportingAttribute funvar =
  * - functions bearing a "constructor" or "destructor" attribute
  * - functions declared extern but not inline
  * - functions declared neither inline nor static
+ *
+ * gcc incorrectly (according to C99) makes inline functions visible to
+ * the linker.  So we can only remove inline functions on MSVC.
  *)
 
 let isExportedRoot global =
@@ -343,6 +346,8 @@ let isExportedRoot global =
 	true, "constructor or destructor function"
       else if v.vstorage = Static then 
         false, "static function"
+      else if v.vinline && v.vstorage != Extern && !msvcMode then 
+        false, "inline function"
       else
 	true, "other function"
   end

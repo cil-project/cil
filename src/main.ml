@@ -289,6 +289,21 @@ let cleanup () =
     close_out (! E.logChannel);  
   (match ! outChannel with Some c -> close_out c.fchan | _ -> ())
 
+
+(* Without this handler, cilly.asm.exe will quit silently with return code 0
+   when a segfault happens. *)
+let handleSEGV code =
+  if !Cil.currentLoc == Cil.locUnknown then
+    E.log  "**** Segmentation fault (possibly a stack overflow)\n"
+  else begin
+    E.log ("**** Segmentation fault (possibly a stack overflow) "^^
+           "while processing %a\n")
+      Cil.d_loc !Cil.currentLoc
+  end;
+  exit code
+
+let _ = Sys.set_signal Sys.sigsegv (Sys.Signal_handle handleSEGV);
+
 ;;
 
 begin 
