@@ -45,6 +45,9 @@ module H = Hashtbl
 module E = Errormsg
 module U = Util
 
+(* Set on the command-line: *)
+let keepUnused = ref false
+let rmUnusedInlines = ref false
 
 
 let trace = Trace.trace "rmtmps"
@@ -346,7 +349,8 @@ let isExportedRoot global =
 	true, "constructor or destructor function"
       else if v.vstorage = Static then 
         false, "static function"
-      else if v.vinline && v.vstorage != Extern && !msvcMode then 
+      else if v.vinline && v.vstorage != Extern
+              && (!msvcMode || !rmUnusedInlines) then 
         false, "inline function"
       else
 	true, "other function"
@@ -731,9 +735,6 @@ let removeUnmarked file =
 type rootsFilter = global -> bool
 
 let isDefaultRoot = isExportedRoot
-
-
-let keepUnused = ref false
 
 let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
   if !keepUnused || Trace.traceActive "disableTmpRemoval" then

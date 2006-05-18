@@ -132,10 +132,6 @@ let options : (string * Arg.spec * string) list =
     "--commPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineComment;
                                        Cprint.printLnComment := true),
                "output #line directives in comments";
-    "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
-               "do not try to simplify the CIL when printing";
-    "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
-               "do not wrap long lines when printing";
     "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
                "Print statistics about running times and memory usage.";
 
@@ -145,14 +141,20 @@ let options : (string * Arg.spec * string) list =
     "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
              "Set the name of the log file.  By default stderr is used";
 
-    "--keepunused", Arg.Unit (fun _ -> Rmtmps.keepUnused := true),
-                "do not remove the unused variables and types";
-
     "--MSVC", Arg.Unit (fun _ ->   Cil.msvcMode := true;
                                    Frontc.setMSVCMode ();
                                    if not Machdep.hasMSVC then
                                      ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
                        ), "Produce MSVC output. Default is GNU";
+
+    "--testcil", Arg.String (fun s -> Cilutil.testcil := s),
+          "test CIL using the given compiler";
+
+    "--ignore-merge-conflicts", 
+                 Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
+                  "ignore merging conflicts";
+    "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
+               "output is the slice of #pragma cilnoremove(sym) symbols";
 
     (* sm: some more debugging options *)
     "--tr",         Arg.String Trace.traceAddMulti,
@@ -172,8 +174,6 @@ let options : (string * Arg.spec * string) list =
     "--noInsertImplicitCasts", Arg.Unit (fun _ -> Cil.insertImplicitCasts := false),
     "do not insert implicit casts";
 
-    "--testcil", Arg.String (fun s -> Cilutil.testcil := s),
-          "test CIL using the give compiler";
     "--forceRLArgEval", 
           Arg.Unit (fun n -> Cabs2cil.forceRLArgEval := true),
           "Forces right to left evaluation of function arguments";
@@ -181,16 +181,18 @@ let options : (string * Arg.spec * string) list =
                       "Do not compile to CIL the global with the given index";
     "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
                       "Prevent small chunks of code from being duplicated";
-    "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
-                 "Show all warnings";
+    "--keepunused", Arg.Set Rmtmps.keepUnused,
+                "Do not remove the unused variables and types";
+    "--rmUnusedInlines", Arg.Set Rmtmps.rmUnusedInlines,
+                "Delete any unused inline functions.  This is the default in MSVC mode";
 
-    "--ignore-merge-conflicts", 
-                 Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
-                  "ignore merging conflicts";
+
+
+    "", Arg.Unit (fun () -> ()), "\n\t\tOutput Options\n" ; 
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
                "do not try to simplify the CIL when printing";
-     "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
-               "output is the slice of #pragma cilnoremove(sym) symbols";
+    "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
+               "do not wrap long lines when printing";
 
   ]
     
