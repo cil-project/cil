@@ -107,6 +107,11 @@ let options : (string * Arg.spec * string) list =
     (* General Options *) 
     "", Arg.Unit (fun () -> ()), "\n\t\tGeneral Options\n" ; 
 
+    "--version", Arg.Unit 
+              (fun _ -> print_endline ("CIL version " ^ Cil.cilVersion ^
+                       "\nMore information at http://cil.sourceforge.net/\n");
+                 exit 0),
+           "output version information and exit";
     "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
                 "turn on verbose mode";
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true), "Show all warnings";
@@ -166,6 +171,26 @@ let options : (string * Arg.spec * string) list =
 
     "--noInsertImplicitCasts", Arg.Unit (fun _ -> Cil.insertImplicitCasts := false),
     "do not insert implicit casts";
+
+    "--testcil", Arg.String (fun s -> Cilutil.testcil := s),
+          "test CIL using the give compiler";
+    "--forceRLArgEval", 
+          Arg.Unit (fun n -> Cabs2cil.forceRLArgEval := true),
+          "Forces right to left evaluation of function arguments";
+    "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
+                      "Do not compile to CIL the global with the given index";
+    "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
+                      "Prevent small chunks of code from being duplicated";
+    "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
+                 "Show all warnings";
+
+    "--ignore-merge-conflicts", 
+                 Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
+                  "ignore merging conflicts";
+    "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
+               "do not try to simplify the CIL when printing";
+     "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
+               "output is the slice of #pragma cilnoremove(sym) symbols";
 
   ]
     

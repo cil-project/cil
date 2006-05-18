@@ -48,16 +48,11 @@ module E = Errormsg
 open Pretty
 open Trace
 
-
 type outfile = 
     { fname: string;
       fchan: out_channel } 
 let outChannel : outfile option ref = ref None
 let mergedChannel : outfile option ref = ref None
-let dumpFCG = ref false
-let testcil = ref ""
-
-exception Done_Processing
 
 
 let parseOneFile (fname: string) : C.file =
@@ -115,7 +110,7 @@ let features : C.featureDescr list =
   @ Feature_config.features 
 
 let rec processOneFile (cil: C.file) =
-  try begin
+  begin
 
     if !Cilutil.doCheck then begin
       ignore (E.log "First CIL check\n");
@@ -150,7 +145,7 @@ let rec processOneFile (cil: C.file) =
     if !E.hadErrors then
       E.s (E.error "Error while processing file; see above for details.");
 
-  end with Done_Processing -> ()
+  end
         
 (***** MAIN *****)  
 let rec theMain () =
@@ -198,37 +193,15 @@ let rec theMain () =
   in
     
   let argDescr = Ciloptions.options @ 
-    [
-    "--version", Arg.Unit 
-              (fun _ -> print_endline ("CIL version " ^ Cil.cilVersion ^
-                       "\nMore information at http://cil.sourceforge.net/\n");
-                 exit 0),
-           "output version information and exit";
-    "--testcil", Arg.String (fun s -> testcil := s),
-          "test CIL using the give compiler";
-    "--forceRLArgEval", 
-          Arg.Unit (fun n -> Cabs2cil.forceRLArgEval := true),
-          "Forces right to left evaluation of function arguments";
-    "--nocil", Arg.Int (fun n -> Cabs2cil.nocil := n),
-                      "Do not compile to CIL the global with the given index";
-    "--disallowDuplication", Arg.Unit (fun n -> Cabs2cil.allowDuplication := false),
-                      "Prevent small chunks of code from being duplicated";
-    "--out", Arg.String (openFile "output" (fun oc -> outChannel := Some oc)),
-             "the name of the output CIL file";
-    "--warnall", Arg.Unit (fun _ -> E.warnFlag := true),
-                 "Show all warnings";
-
-    "--mergedout", Arg.String (openFile "merged output"
-                                   (fun oc -> mergedChannel := Some oc)),
-                "specify the name of the merged file";
-    "--ignore-merge-conflicts", 
-                 Arg.Unit (fun _ -> Mergecil.ignore_merge_conflicts := true),
-                  "ignore merging conflicts";
-    "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
-               "do not try to simplify the CIL when printing";
-     "--sliceGlobal", Arg.Unit (fun _ -> Cilutil.sliceGlobal := true),
-               "output is the slice of #pragma cilnoremove(sym) symbols";
-  ] @ F.args @ featureArgs in
+        [ 
+          "--out", Arg.String (openFile "output" 
+                                 (fun oc -> outChannel := Some oc)),
+              "the name of the output CIL file";
+          "--mergedout", Arg.String (openFile "merged output"
+                                       (fun oc -> mergedChannel := Some oc)),
+              "specify the name of the merged file";
+        ]
+        @ F.args @ featureArgs in
   begin
     (* this point in the code is the program entry point *)
 
@@ -240,8 +213,8 @@ let rec theMain () =
 
     Ciloptions.fileNames := List.rev !Ciloptions.fileNames;
 
-    if !testcil <> "" then begin
-      Testcil.doit !testcil
+    if !Cilutil.testcil <> "" then begin
+      Testcil.doit !Cilutil.testcil
     end else
       (* parse each of the files named on the command line, to CIL *)
       let files = List.map parseOneFile !Ciloptions.fileNames in

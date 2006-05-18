@@ -2733,16 +2733,14 @@ and makeCompType (isstruct: bool)
         E.s (error "Storage or inline not allowed for fields");
       let ftype, nattr = 
         doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in 
-      (* matth: check for fields whose type is an undefined struct.  This rules
+      (* check for fields whose type is an undefined struct.  This rules
          out circularity:
              struct C1 { struct C2 c2; };          //This line is now an error.
              struct C2 { struct C1 c1; int dummy; };
-         But is this too restrictive?  Do any programs declare and use empty
-         structs?  The problem is that CIL doesn't distinguish empty vs
-         undefined structs. *)
+       *)
       (match unrollType ftype with
-         TComp (ci',_) when ci'.cfields = [] ->
-           E.s (error "Type of field %s is an empty or undefined struct.\n" n)
+         TComp (ci',_) when not ci'.cdefined ->
+           E.s (error "Type of field %s is an undefined struct.\n" n)
        | _ -> ());
       let width = 
         match widtho with 
@@ -5428,7 +5426,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * That set a return value via an ASM statement. As a result, I 
              * am changing this so a final ASM statement does not count as 
              * "fall through" for the purposes of this warning.  *)
-            (* matth: But it's better to assume assemly will fall through,
+            (* matth: But it's better to assume assembly will fall through,
              * since  most such blocks do.  It's probably better to print an
              * unnecessary warning than to break CIL's invariant that
              * return statements are inserted properly.  *)

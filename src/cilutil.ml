@@ -67,3 +67,6 @@ let doCxxPP = ref false
 
 let libDir = ref ""
 
+let dumpFCG = ref false
+let testcil = ref ""
+

@@ -464,6 +464,8 @@ $TEST->addTests("scott/nullterm2", "", ['inferbox']);
 $TEST->addTests("scott/nullterm3", "", ['inferbox']);
 $TEST->addTests("runall/sentinel", "", ['inferbox']);
 
+$TEST->addTests("runall/circular", "", ['cil']);
+
 
 
 $TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
@@ -586,8 +588,8 @@ $TEST->addTests("test/rtti10", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo", "", ['inferbox']);
 $TEST->addTests("testrun/rttioo2", "", ['inferbox']);
 $TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
-$TEST->addTests("test/bind-used-not-defined", "", ['inferbox']); # Superseeded
-                                                                 # by oneret
+#$TEST->addTests("test/bind-used-not-defined", "", ['inferbox']); # Superseeded
+                                                                  # by oneret
 $TEST->addTests("testrun/oneret", "", ['inferbox']);
 $TEST->addTests("test/bind-too-many", "", ['inferbox']);
 $TEST->addTests("testrun/split1", "", ['inferbox']);
