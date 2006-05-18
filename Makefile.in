@@ -400,7 +400,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
                   epicenter.ml usedef.ml ciltools.ml \
-                  cfg.ml rmciltmps.ml deadcodeelim.ml \
+                  cfg.ml rmciltmps.ml deadcodeelim.ml availexps.ml \
                   dataflow.ml dataflow.mli \
 		  dominators.ml dominators.mli \
 		  bitmap.ml bitmap.mli \
