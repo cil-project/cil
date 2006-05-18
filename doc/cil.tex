@@ -1962,43 +1962,126 @@ partial optimization of \t{foo}):
 
 The \t{reachingdefs.ml} module uses the dataflow framework and CFG
 information to calculate the definitions that reach each
-statement. After computing the CFG and calling computeRDs on a
-function declaration, ReachingDef.stmtStartData will contain a mapping
-form statement IDs to data about which definitions reach each
+statement. After computing the CFG and calling \t{computeRDs} on a
+function declaration, \t{ReachingDef.stmtStartData} will contain a
+mapping from statement IDs to data about which definitions reach each
 statement. In particular, it is a mapping from statement IDs to a
 triple the first two members of which are used internally. The third
 member is a mapping from variable IDs to Sets of integer options. If
-the set contains Some(i), then the definition of that variable with ID
-i reaches that statement. If the set contains None, then there is a
-path to that statement on which there is no definition of that variable.
-Also, if the variable ID is unmapped at a statement, then no definition
-of that variable reaches that statement.
+the set contains \t{Some(i)}, then the definition of that variable
+with ID \t{i} reaches that statement. If the set contains \t{None},
+then there is a path to that statement on which there is no definition
+of that variable.  Also, if the variable ID is unmapped at a
+statement, then no definition of that variable reaches that statement.
 
 To summarize, reachingdefs.ml has the following interface:
 \begin{itemize}
-\item computeRDs -- Computes reaching definitions.
-\item ReachingDef.stmtStartData -- contains reaching
-definition data after computeRDs is called.
-\item ReachingDef.defIdStmtHash -- Contains a mapping
+\item \t{computeRDs} -- Computes reaching definitions. Requires that
+CFG information has already been computed for each statement.
+\item \t{ReachingDef.stmtStartData} -- contains reaching
+definition data after \t{computeRDs} is called.
+\item \t{ReachingDef.defIdStmtHash} -- Contains a mapping
 from definition IDs to the ID of the statement in which
 the definition occurs.
-\item getRDs -- Takes a statement ID and returns
+\item \t{getRDs} -- Takes a statement ID and returns
 reaching definition data for that statement.
-\item instrRDs -- Takes a list of instructions and the
+\item \t{instrRDs} -- Takes a list of instructions and the
 definitions that reach the first instruction, and for
 each instruction calculates the definitions that reach
 either into or out of that instruction.
-\item rdVisitorClass -- A subclass of nopCilVisitor that
+\item \t{rdVisitorClass} -- A subclass of nopCilVisitor that
 can be extended such that the current reaching definition
-data is available when expressions are visited.
+data is available when expressions are visited through
+the \t{get\_cur\_iosh} method of the class.
+\end{itemize}
+
+\subsection{Available Expressions}
+
+The \t{availexps.ml} module uses the dataflow framework and CFG
+information to calculate something similar to a traditional available
+expressions analysis. After \t{computeAEs} is called following a CFG
+calculation, \t{AvailableExps.stmtStartData} will contain a mapping
+from statement IDs to data about what expressions are available at
+that statement. The data for each statement is a mapping for each
+variable ID to the whole expression available at that point(in the
+traditional sense) which the variable was last defined to be. So,
+this differs from a traditional available expressions analysis in that
+only whole expressions from a variable definition are considered rather
+than all expressions.
+
+The interface is as follows:
+\begin{itemize}
+\item \t{computeAEs} -- Computes available expressions. Requires
+that CFG information has already been comptued for each statement.
+\item \t{AvailableExps.stmtStartData} -- Contains available
+expressions data for each statement after \t{computeAEs} has been
+called.
+\item \t{getAEs} -- Takes a statement ID and returns
+available expression data for that statement.
+\item \t{instrAEs} -- Takes a list of instructions and
+the availalbe expressions at the first instruction, and
+for each instruction calculates the expressions available
+on entering or exiting each instruction.
+\item \t{aeVisitorClass} -- A subclass of nopCilVisitor that
+can be extended such that the current available expressions
+data is available when expressions are visited through the
+\t{get\_cur\_eh} method of the class.
+\end{itemize}
+
+\subsection{Liveness Analysis}
+
+The \t{liveness.ml} module uses the dataflow framework and
+CFG information to calculate which variables are live at
+each program point. After \t{computeLiveness} is called
+following a CFG calculation, \t{LiveFlow.stmtStartData} will
+contain a mapping for each statement ID to a set of \t{varinfo}s
+for varialbes live at that program point.
+
+The interface is as follows:
+\begin{itemize}
+\item \t{computeLiveness} -- Computes live variables. Requires
+that CFG information has already been computed for each statement.
+\item \t{LiveFlow.stmtStartData} -- Contains live variable data
+for each statement after \t{computeLiveness} has been called.
+\end{itemize}
+
+Also included in this module is a command line interface that
+will cause liveness data to be printed to standard out for
+a particular function or label.
+
+\begin{itemize}
+\item \t{--doliveness} -- Instructs cilly to comptue liveness
+information and to print on standard out the variables live
+at the points specified by \t{--live\_func} and \t{live\_label}.
+If both are ommitted, then nothing is printed.
+\item \t{--live\_func} -- The name of the function whose
+liveness data is of interest. If \t{--live\_label} is ommitted,
+then data for each statement is printed.
+\item \t{--live\_label} -- The name of the label at which
+the liveness data will be printed.
+\end{itemize}
+
+\subsection{Dead Code Elimination}
+
+The module \t{deadcodeelim.ml} uses the reaching definitions
+analysis to eliminate assignment instructions whose results
+are not used. The interface is as follows:
+
+\begin{itemize}
+\item \t{elim\_dead\_code} -- Performs dead code elimination
+on a function. Requires that CFG information has already
+been computed.
+\item \t{dce} -- Performs dead code elimination on an
+entire file. Requires that CFG information has already
+been computed.
 \end{itemize}
 
 \subsection{Simple Memory Operations} 
 
-The \t{simplemem.ml} module allows CIL lvalues that contain memory accesses
-to be even futher simplified via the introduction of well-typed
-temporaries. After this transformation all lvalues involve at
-most one memory reference. 
+The \t{simplemem.ml} module allows CIL lvalues that contain memory
+accesses to be even futher simplified via the introduction of
+well-typed temporaries. After this transformation all lvalues involve
+at most one memory reference.
 
 For a concrete example, you can see how \t{cilly -{}-dosimpleMem} 
 transforms the following code:

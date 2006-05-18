@@ -48,7 +48,6 @@ class usedDefsCollectorClass = object(self)
 	if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
 	DoChildren
 
-  (* Silly inline assembly... making me break my nice abstraction =( *)
   method vinst i =
     let handle_inst iosh i = match i with
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (s,lv) ->
@@ -69,6 +68,29 @@ class usedDefsCollectorClass = object(self)
 
 end
 
+(***************************************************
+ * Also need to find reads from volatiles 
+ * uses two functions I've put in ciltools which 
+ * are basically what Zach wrote, except one is for 
+ * types and one is for vars. Another difference is
+ * they filter out pointers to volatiles. This 
+ * handles DMA 
+ ***************************************************)
+class hasVolatile flag = object (self)
+  inherit nopCilVisitor   
+  method vlval l = 
+    let tp = typeOfLval l in
+    if (Ciltools.is_volatile_tp tp) then flag := true;
+    DoChildren
+  method vexpr e =
+    DoChildren
+end
+
+let exp_has_volatile e = 
+  let flag = ref false in
+  ignore (visitCilExpr (new hasVolatile flag) e);
+  !flag
+ (***************************************************)
 
 let removedCount = ref 0
 (* Filter out instructions whose definition ids are not
@@ -77,25 +99,12 @@ class uselessInstrElim : cilVisitor = object(self)
   inherit nopCilVisitor
 
   method vstmt stm =
-    let is_volatile vi =
-      let vi_vol =
-	List.exists (function (Attr("volatile",_)) -> true 
-	  | _ -> false) vi.vattr in
-      let typ_vol =
-	List.exists (function (Attr("volatile",_)) -> true 
-	  | _ -> false) (typeAttrs vi.vtype) in
-      if !debug && (vi_vol || typ_vol) then 
-	ignore(E.log "DCE: %s is volatile\n" vi.vname);
-      if !debug && not(vi_vol || typ_vol) then 
-	ignore(E.log "DCE: %s is not volatile\n" vi.vname);
-      vi_vol || typ_vol
-    in
 
     let test (i,(_,s,iosh)) =
       match i with 
 	Call _ -> true 
-      | Set((Var vi,NoOffset),_,_) ->
-	  if vi.vglob || (is_volatile vi) then true else
+      | Set((Var vi,NoOffset),e,_) ->
+	  if vi.vglob || (Ciltools.is_volatile_vi vi) || (exp_has_volatile e) then true else
 	  let _, defd = UD.computeUseDefInstr i in
 	  let rec loop n =
 	    if n < 0 then false else

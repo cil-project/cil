@@ -87,11 +87,6 @@ class stmtFinderClass sid = object(self)
 end
 
 let find_statement f sid = RD.getStmt sid
-(*  fsr := emptyStmt;
-  ignore (visitCilFunction (new stmtFinderClass sid) f);
-  if not(Util.equals fsr (ref emptyStmt)) 
-  then Some(!fsr)
-  else None *)
 
 (* Are there writes to memory in between
    the two statements with the given ids *)
@@ -132,9 +127,7 @@ let writes_between f dsid sid =
     | s::rest -> if dfs goal (w || b) s then true else proc_succs rest
     in
     proc_succs start.succs
-(*      S.time "List.mem2" (List.mem true) (List.map (dfs goal (w || b)) start.succs)*)
   in
-  (*and visit g b s = (dfs s g b) in*)
   match stmo, dstmo with
     None, _ | _, None -> 
       E.s (E.error "writes_between: defining stmt not an instr\n")
@@ -145,6 +138,58 @@ let writes_between f dsid sid =
       let from_dstm = dfs stm false dstm in
       (Hashtbl.add wbHtbl (dsid,sid) (from_stm || from_dstm);
       from_stm || from_dstm)
+
+(* returns true when the variables in uses
+ * have the same definition ids in both curiosh
+ * and defiosh or are global and not defined in
+ * the current function *)
+let verify_unmodified uses fdefs curiosh defiosh =
+  UD.VS.fold (fun vi b ->
+    let curido = RD.iosh_singleton_lookup curiosh vi in
+    let defido = RD.iosh_singleton_lookup defiosh vi in
+    match curido, defido with
+      Some(curid), Some(defid) -> 
+	(if !debug then ignore (E.log "verify_unmodified: curido: %d defido: %d\n" curid defid);
+	 curid = defid && b)
+    | None, None -> 
+	if not(UD.VS.mem vi fdefs) then
+	  (if !debug then ignore (E.log "verify_unmodified: %s not defined in function\n" vi.vname);
+	   b)
+	else (* if the same set of definitions reaches, we can replace, also *)
+	  let curios = try IH.find curiosh vi.vid
+	  with Not_found -> RD.IOS.empty in
+	  let defios = try IH.find defiosh vi.vid 
+	  with Not_found -> RD.IOS.empty in
+	  RD.IOS.compare curios defios == 0 && b
+    | _, _ ->
+	(if !debug then ignore (E.log "verify_unmodified: %s has conflicting definitions. cur: %a\n def: %a\n" 
+				  vi.vname RD.ReachingDef.pretty ((),0,curiosh) 
+				  RD.ReachingDef.pretty ((),0,defiosh));
+	 false)) 
+    uses true
+
+let fdefs = ref UD.VS.empty
+let udDeepSkindHtbl = IH.create 64
+class defCollectorClass = object(self)
+  inherit nopCilVisitor
+
+  method vstmt s =
+    let _,d = if IH.mem udDeepSkindHtbl s.sid
+    then IH.find udDeepSkindHtbl s.sid 
+    else let u',d' = UD.computeDeepUseDefStmtKind s.skind in
+    IH.add udDeepSkindHtbl s.sid (u',d');
+    (u',d') in
+    fdefs := UD.VS.union !fdefs d;
+    DoChildren
+
+end
+
+let defCollector = new defCollectorClass
+
+let collect_fun_defs fd =
+  fdefs := UD.VS.empty;
+  ignore(visitCilFunction defCollector fd);
+  !fdefs
 
 (* ok_to_replace *)
 (* is it alright to replace a variable use with the expression
@@ -165,7 +210,6 @@ let writes_between f dsid sid =
 (* sid is an int that is the statement id of the statement where
    we are trying to do a replacement *)
 (* vi is the varinfo of the variable that we are trying to replace *)
-let udDeepSkindHtbl = IH.create 64
 let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
     RD.RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
@@ -186,38 +230,10 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
   then
     (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
      false) 
-  else let fdefs = List.fold_left (fun d s ->
-    let _, d' = if IH.mem udDeepSkindHtbl s.sid 
-    then IH.find udDeepSkindHtbl s.sid
-    else let u',d' = UD.computeDeepUseDefStmtKind s.skind in
-    (IH.add udDeepSkindHtbl s.sid (u',d'); (u',d'))
-    in
-    UD.VS.union d d') UD.VS.empty f.sbody.bstmts in
+  else let fdefs = collect_fun_defs f in
   let _ = if !debug then ignore (E.log "ok_to_replace: card fdefs = %d\n" (UD.VS.cardinal fdefs)) in
   let _ = if !debug then ignore (E.log "ok_to_replace: card uses = %d\n" (UD.VS.cardinal uses)) in
-(* XXX: Write separate function to do this *)
-  UD.VS.fold (fun vi b ->
-      let curido = RD.iosh_singleton_lookup curiosh vi in
-      let defido = RD.iosh_singleton_lookup defiosh vi in
-      match curido, defido with
-	Some(curid), Some(defid) -> 
-	  (if !debug then ignore (E.log "ok_to_replace: curido: %d defido: %d\n" curid defid);
-	  curid = defid && b)
-      | None, None -> 
-	  if not(UD.VS.mem vi fdefs) then
-	    (if !debug then ignore (E.log "ok_to_replace: %s not defined in function\n" vi.vname);
-	     b)
-	  else (* if the same set of definitions reaches, we can replace, also *)
-	    let curios = try IH.find curiosh vi.vid
-	    with Not_found -> RD.IOS.empty in
-	    let defios = try IH.find defiosh vi.vid 
-	    with Not_found -> RD.IOS.empty in
-	    RD.IOS.compare curios defios == 0 && b
-      | _, _ ->
-	  (if !debug then ignore (E.log "ok_to_replace: %s has conflicting definitions. cur: %a\n def: %a\n" 
-				    vi.vname RD.ReachingDef.pretty ((),0,curiosh) RD.ReachingDef.pretty ((),0,defiosh));
-	  false)) 
-    uses true
+  verify_unmodified uses fdefs curiosh defiosh
 
 let useList = ref []
 (* Visitor for making a list of statements that use a definition *)
@@ -227,24 +243,14 @@ class useListerClass (defid:int) (vi:varinfo) = object(self)
   method vexpr e =
     match e with
       Lval(Var vi', off) ->
-	(match cur_rd_dat with
-	  Some(_,_,inst_iosh) ->
-	    let vido = RD.iosh_defId_find inst_iosh defid in
+	(match self#get_cur_iosh() with
+	  Some iosh ->
+	    let vido = RD.iosh_defId_find iosh defid in
 	    let exists = match vido with Some _ -> true | None -> false in
 	    if Util.equals vi vi' && exists
-	    then (useList := sid::(!useList);
-		  DoChildren)
+	    then (useList := sid::(!useList); DoChildren)
 	    else DoChildren
-	| None -> let iviho = RD.getRDs sid in
-	  (match iviho with
-	    Some (_,_,iosh) ->
-	      let vido = RD.iosh_defId_find iosh defid in
-	      let exists = match vido with Some _ -> true | None -> false in
-	      if Util.equals vi vi' && exists
-	      then (useList := sid::(!useList);
-		    DoChildren)
-	      else DoChildren
-	  | None -> E.s (E.error "useLister: no ivih for statement\n")))
+	| _ -> E.s (E.error "useLister: no data for statement\n"))
     | _ -> DoChildren
 
 end

@@ -2,6 +2,23 @@ open Cil
 
 (* Contributed by Nathan Cooprider *)
 
+let isOne e = 
+  isInteger e = Some Int64.one
+
+
+(* written by Zach *)
+let is_volatile_tp tp =
+  List.exists (function (Attr("volatile",_)) -> true 
+    | _ -> false) (typeAttrs tp) 
+    
+(* written by Zach *)
+let is_volatile_vi vi =
+  let vi_vol =
+    List.exists (function (Attr("volatile",_)) -> true 
+      | _ -> false) vi.vattr in
+  let typ_vol = is_volatile_tp vi.vtype in
+  vi_vol || typ_vol
+
 (*****************************************************************************
  * A collection of useful functions that were not already in CIL as far as I 
  * could tell. However, I have been surprised before . . . 
@@ -30,6 +47,13 @@ let unbox_int_type (ye : typ) : (int * sign) =
   in
   (bitsSizeOf tp), s
   
+(* depricated. Use isInteger directly instead *)
+let unbox_int_exp (e : exp) : int64 = 
+  let res = isInteger e in
+  match isInteger e with 
+    None -> raise Not_an_integer
+  | Some (x) -> x
+  
 let box_int_to_exp (n : int64) (ye : typ) : exp =
   let tp = unrollType ye in
   match tp with 
@@ -38,19 +62,12 @@ let box_int_to_exp (n : int64) (ye : typ) : exp =
   | _ -> raise Not_an_integer
 
 let cil_to_ocaml_int (e : exp) : (int64 * int * sign) = 
-  let unbox_int_exp (e : exp) : int64 = 
-    match isInteger e with 
-      None -> raise Not_an_integer
-    | Some (x) -> x
-  in
   let v, s = unbox_int_type (typeOf e) in
   unbox_int_exp (e), v, s
 
 exception Weird_bitwidth
 
 (* (int64 * int * sign) : exp *)
-(* this isn't done yet, but I have to figure out how to make the bitwidth
-   choose between these options *)
 let ocaml_int_to_cil v n s =
   let char_size = bitsSizeOf charType in 
   let int_size = bitsSizeOf intType in
@@ -175,6 +192,7 @@ let one_instruction_per_statement f =
 (*****************************************************************************
  * A transformation that gives each variable a unique identifier. 
  ****************************************************************************)
+
 class vidVisitor = object
   inherit nopCilVisitor 
   val count = ref 0 
@@ -186,7 +204,26 @@ end
 
 let globally_unique_vids f =
   let thisVisitor = new vidVisitor in
-  visitCilFileSameGlobals thisVisitor f  
+  visitCilFileSameGlobals thisVisitor f 
 
 (** End of stuff from ptranal ************************************************)
 
+class sidVisitor = object
+  inherit nopCilVisitor 
+  val count = ref 0 
+
+  method vstmt s = 
+    s.sid <- !count ;
+    incr count ;
+    DoChildren
+end 
+
+let globally_unique_sids f =
+  let thisVisitor = new sidVisitor in
+  visitCilFileSameGlobals thisVisitor f 
+
+(** Comparing expressions without a Out_of_memory error **********************)
+
+let compare_exp x y =
+  compare x y
+    
