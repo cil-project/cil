@@ -10,34 +10,51 @@
  * Author: George Necula (necula@cs.berkeley.edu)
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-/* Store here the first value read from the performance counter */
-unsigned static long long first_value;
 
-/* This is the function that actually reads the performance counter. */
-inline static unsigned long long read_ppc() {
-  unsigned long low, high;
-  unsigned long long lowhigh;
-
-#if !defined(__i386__)
-  printf ("Reading of performance counters is supported only on Intel x86\n");
-  exit(1);
-#else
-
+#if defined(__GNUC__)
+  #define longlong long long
   // RDTSC puts the result in EAX and EDX. We tell gcc to use those registers
   // for "low" and "high"
-  __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+  #if defined(__i386__)
+    #define GETCOUNTER(low,high) \
+            __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
+  #else
+    #define GETCOUNTER(low,high) \
+            printf ("Reading of performance counters is supported only on Intel x86\n"); \
+            exit(1);
+  #endif
+#else
+  // Microsoft Visual Studio
+  #define longlong __int64
+  #define inline   __inline
+  #define GETCOUNTER(low,high) __asm { \
+    __asm rdtsc \
+    __asm mov low, eax \
+    __asm mov high, edx };
+#endif
 
+/* Store here the first value read from the performance counter */
+unsigned static longlong first_value;
+
+
+/* This is the function that actually reads the performance counter. */
+inline unsigned longlong read_ppc(void) {
+  unsigned long pclow, pchigh;
+  unsigned longlong lowhigh;
+
+  GETCOUNTER(pclow, pchigh);
+  
   // printf ("Read low=0x%08lx high=0x%08lx\n", low, high);
 
   // Put the 64-bit value together
-  lowhigh = ((unsigned long long)low) | ((unsigned long long)high << 32);
+  lowhigh = ((unsigned longlong)pclow) | ((unsigned longlong)pchigh << 32);
 
   if(first_value == 0) {
     first_value = lowhigh;
   }
   return lowhigh - first_value;
-#endif
 }
 
 
@@ -48,32 +65,24 @@ inline static unsigned long long read_ppc() {
  * result is 30 bits (always a positive Ocaml int); this yields
  * megacycles, which for GHz machines will be something like
  * milliseconds. */
-inline static unsigned long sample_ppc_20()
+static unsigned long sample_ppc_20(void)
 {
-  unsigned long low, high;
-#if defined(__i386__)
-  __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
-#else  
-  printf("Reading performance counters is supported only on x86");
-  exit(1);
-#endif  
+  unsigned long pclow, pchigh;
 
-  return ((low >> 20) | (high << 12)) & 0x3FFFFFFF;
+  GETCOUNTER(pclow, pchigh);
+
+  return ((pclow >> 20) | (pchigh << 12)) & 0x3FFFFFFF;
 }
 
 /* This version drops the low 10 bits, yielding something like
  * microseconds. */
 inline static unsigned long sample_ppc_10()
 {
-  unsigned long low, high;
-#if defined(__i386__)
-  __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
-#else  
-  printf("Reading performance counters is supported only on x86");
-  exit(1);
-#endif  
+  unsigned long pclow, pchigh;
 
-  return ((low >> 10) | (high << 22)) & 0x3FFFFFFF;
+  GETCOUNTER(pclow,pchigh);
+    
+  return ((pclow >> 10) | (pchigh << 22)) & 0x3FFFFFFF;
 }
 
 
@@ -127,7 +136,7 @@ value sample_pentium_perfcount_10()
 int main() {
   struct tms t;
   clock_t start, finish, diff;
-  unsigned long long start_pc, finish_pc, diff_pc;
+  unsigned longlong start_pc, finish_pc, diff_pc;
   long clk_per_sec = sysconf(_SC_CLK_TCK);
   double cycles_per_usec;
   

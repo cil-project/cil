@@ -1,10 +1,2 @@
  
- See the documentation in doc/html. If you do not see any documentation there
- then you must have gotten the sources from the CVS repository. You can
- populate the doc/html directory by running:
-  
-          make doc
-
- This step requires that you have installed hevea:
-
-      http://pauillac.inria.fr/~maranget/hevea/
+ See the documentation in doc/html.

@@ -327,21 +327,20 @@ $(OBJDIR)/profile.$(CMC): profile.c
 #	Phonies should be "remade" even if someone mistakenly creates them
 .PHONY: cleancaml
 cleancaml:
-	-find obj \( \
-		-name '*.cmi' -o \
-		-name '*.cmo' -o \
-                -name '*.cmx' -o \
-		-name '*.cma' -o \
-		-name '*.cmxa' -o \
-		-name '*.exe' -o \
-		-name '*.obj' -o \
-		-name '*.o' -o \
-		-name '*.lib' -o \
-		-name '*.a' -o \
-		-name '*.ml' -o \
-		-name '*.mli' -o \
-		-name '*.obj' \
-	\) -exec rm {} \;
+	-rm -f $(OBJDIR)/*.cmi
+	-rm -f $(OBJDIR)/*.cmo
+	-rm -f $(OBJDIR)/*.cmx
+	-rm -f $(OBJDIR)/*.cma
+	-rm -f $(OBJDIR)/*.cmxa
+	-rm -f $(OBJDIR)/*.exe
+	-rm -f $(OBJDIR)/*.obj
+	-rm -f $(OBJDIR)/*.o
+	-rm -f $(OBJDIR)/*.obj
+	-rm -f $(OBJDIR)/*.o
+	-rm -f $(OBJDIR)/*.lib
+	-rm -f $(OBJDIR)/*.a
+	-rm -f $(OBJDIR)/*.mli
+	-rm -f $(OBJDIR)/*.ml
 	-rm -f $(DEPENDDIR)/*.d $(DEPENDDIR)/*.di
 	-rm -f $(MLLS:%.mll=$(OBJDIR)/%.ml) \
                $(MLLS:%.mll=$(OBJDIR)/%.mli) \

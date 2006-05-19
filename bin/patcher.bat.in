@@ -1,1 +1,1 @@
-perl @CCUREDHOME@/bin/patcher %*
+perl @CILHOME@/bin/patcher %*
