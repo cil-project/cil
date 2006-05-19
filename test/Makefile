@@ -232,7 +232,9 @@ ifdef MERGEONLY
   CCURED+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
 endif
 ifdef PRINTSTAGES
-  CCURED+= --stages
+  ifndef USECILLY
+    CCURED+= --stages
+  endif
 endif
 ifdef FAILISTERSE
   CCURED+= --failIsTerse
@@ -277,9 +279,7 @@ endif
 # Do STATS= to disable the stats.
 STATS := 1
 ifdef STATS
-  ifndef USECILLY
-    CCURED+= --stats
-  endif
+  CCURED+= --stats
 endif
 
 # enable logging of all fn calls in the application
@@ -2103,9 +2103,6 @@ ifdef COMMLINES
 endif
 ifdef VERBOSE
   CILLY+= --verbose
-endif
-ifdef PRINTSTAGES
-  CILLY+= --stages
 endif
 ifdef TV
   CILLY+= --transval=/home/necula/TransVal/obj/x86_LINUX/transval.asm.exe
