@@ -68,6 +68,9 @@ endif
 ifdef USE_CQUALANN
   CILLY_FEATURES += cqualann
 endif
+ifdef USE_ZRAPP
+  CILLY_FEATURES += zrapp
+endif
 # Add the EXTRAFEATURES
 CILLY_FEATURES += @EXTRAFEATURES@
 
@@ -84,7 +87,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               canonicalize heap oneret partial simplemem simplify \
 	      dataslicing sfi \
               cfg reachingdefs rmciltmps deadcodeelim availexps\
-              zrapp liveness \
+              liveness \
               testcil \
 	      $(CILLY_FEATURES) \
 	      ciloptions feature_config
@@ -234,6 +237,9 @@ endif
 ifdef USE_CQUALANN
 	echo "   Cqualann.feature;" >> $@  
 endif
+ifdef USE_ZRAPP
+	echo "   Zrapp.feature;" >> $@  
+endif
 # Now the extra features, with the first letter capitalized
 	echo -ne \
           $(foreach f,@EXTRAFEATURES@, \
@@ -313,7 +319,9 @@ odoc: $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
                     ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
 	  	    ocamlutil/stats.mli src/cil.mli src/formatcil.mli \
-                    ocamlutil/alpha.mli src/cillower.mli
+                    ocamlutil/alpha.mli src/cillower.mli \
+                    src/ext/cfg.mli src/ext/dataflow.mli \
+                    src/ext/dominators.mli
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex 
 	-rm -rf doc/html/cil
@@ -380,8 +388,7 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli maincil.ml machdep.c \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
-	      escape.ml escape.mli cillower.mli cillower.ml \
-	      zrapp.ml zrapp.mli
+	      escape.ml escape.mli cillower.mli cillower.ml
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \

@@ -848,6 +848,7 @@ Optional Packages:
   --with-blockinggraph    enable the blocking graph feature
   --with-rand             enable the randomized value numbering
   --with-arithabs         enable the arithmetic abstraction
+  --with-zrapp            enable the zrapp pretty-printer
 
 Some influential environment variables:
   CC          C compiler command
@@ -4325,7 +4326,7 @@ NEWLINE="\\
 
 
 # Give a space-separated list of features with the defaults
-features="blockinggraph=no rand=no arithabs=no"
+features="blockinggraph=no rand=no arithabs=no zrapp=no"
 
 
 # Check whether --with-blockinggraph or --without-blockinggraph was given.
@@ -4343,6 +4344,12 @@ fi;
 # Check whether --with-arithabs or --without-arithabs was given.
 if test "${with_arithabs+set}" = set; then
   withval="$with_arithabs"
+
+fi;
+
+# Check whether --with-zrapp or --without-zrapp was given.
+if test "${with_zrapp+set}" = set; then
+  withval="$with_zrapp"
 
 fi;
 
