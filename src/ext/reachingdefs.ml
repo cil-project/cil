@@ -178,11 +178,11 @@ let iRDsHtbl = Hashtbl.create 128
 let instrRDs il sid (ivih, s, iosh) out =
   if Hashtbl.mem iRDsHtbl (sid,out) then Hashtbl.find iRDsHtbl (sid,out) else
 
-  let print_instr i (_,s', iosh') =
-    let d = d_instr () i ++ line in
-    fprint stdout 80 d;
-    flush stdout
-  in
+(*   let print_instr i (_,s', iosh') = *)
+(*     let d = d_instr () i ++ line in *)
+(*     fprint stdout 80 d; *)
+(*     flush stdout *)
+(*   in *)
 
   let proc_one hil i =
     match hil with

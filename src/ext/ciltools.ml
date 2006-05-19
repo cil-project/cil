@@ -49,7 +49,6 @@ let unbox_int_type (ye : typ) : (int * sign) =
   
 (* depricated. Use isInteger directly instead *)
 let unbox_int_exp (e : exp) : int64 = 
-  let res = isInteger e in
   match isInteger e with 
     None -> raise Not_an_integer
   | Some (x) -> x
