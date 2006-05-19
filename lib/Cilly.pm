@@ -376,7 +376,6 @@ Options:
   --leavealone=xxx   Leave alone files whose base name is xxx. This means
                      they are not merged and not processed with CIL.
   --includedir=xxx   Adds a new include directory to replace existing ones
-  --stages           Show the processing stages
   --bytecode         Invoke the bytecode (as opposed to native code) system
 
 EOF

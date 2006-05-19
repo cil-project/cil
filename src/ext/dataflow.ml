@@ -8,23 +8,24 @@ open Pretty
 (** A framework for data flow analysis for CIL code *)
 
 type 't action = 
-    Default (* The default action *)
-  | Done of 't (* Do not do the default action. Use this result *)
-  | Post of ('t -> 't) (* The default action, followed by the given 
+    Default (** The default action *)
+  | Done of 't (** Do not do the default action. Use this result *)
+  | Post of ('t -> 't) (** The default action, followed by the given 
                         * transformer *)
 
 type 't stmtaction = 
-    SDefault   (* The default action *)
-  | SDone      (* Do not visit this statement or its successors *)
-  | SUse of 't (* Visit the instructions and successors of this statement
+    SDefault   (** The default action *)
+  | SDone      (** Do not visit this statement or its successors *)
+  | SUse of 't (** Visit the instructions and successors of this statement
                   as usual, but use the specified state instead of the 
                   one that was passed to doStmt *)
 
 (* For if statements *)
 type 't guardaction = 
-    GDefault      (* The default state *)
-  | GUse of 't    (* Use this data for the branch *)
-  | GUnreachable  (* The branch will never be taken. *)
+    GDefault      (** The default state *) 
+  | GUse of 't    (** Use this data for the branch *)
+  | GUnreachable  (** The branch will never be taken. *)
+
 
 (******************************************************************
  **********
@@ -33,7 +34,7 @@ type 't guardaction =
  ********************************************************************)
 
 module type ForwardsTransfer = sig
-  val name: string (* For debugging purposes, the name of the analysis *)
+  val name: string (** For debugging purposes, the name of the analysis *)
 
   val debug: bool ref (** Whether to turn on debugging *)
 

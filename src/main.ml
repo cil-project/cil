@@ -195,7 +195,7 @@ let rec theMain () =
         [ 
           "--out", Arg.String (openFile "output" 
                                  (fun oc -> outChannel := Some oc)),
-              "the name of the output CIL file";
+              "the name of the output CIL file.  The cilly script sets this for you.";
           "--mergedout", Arg.String (openFile "merged output"
                                        (fun oc -> mergedChannel := Some oc)),
               "specify the name of the merged file";

@@ -33,7 +33,6 @@
 % Use this to refer to a Cil type/val
 \def\ciltyperef#1{\apiref{Cil}{TYPE}{#1}}
 \def\cilvalref#1{\apiref{Cil}{VAL}{#1}}
-\def\formatcilvalref#1{\apiref{Formatcil}{VAL}{#1}}
 \def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
 \def\cilprinter#1{\apiref{Cil.cilPrinter}{#1}}
 
@@ -44,6 +43,10 @@
 % Use this to refer to a type/val in the Errormsg module
 \def\etyperef#1{\apiref{Errormsg}{TYPE}{#1}}
 \def\evalref#1{\apiref{Errormsg}{VAL}{#1}}
+
+\def\formatcilvalref#1{\apiref{Formatcil}{VAL}{#1}}
+\def\cfgref#1{\apiref{Cfg}{VAL}{#1}}
+
 
 %----------------------------------------------------------------------
 % MACROS
@@ -1488,22 +1491,27 @@ that you can move it to any place you want.
 
  A simple use of the driver is:
 \begin{verbatim}
-bin/cilly -D HAPPY_MOOD -I myincludes hello.c -o hello
+bin/cilly --save-temps -D HAPPY_MOOD -I myincludes hello.c -o hello
 \end{verbatim}
 
- This performs the following actions: 
+\c{-{}-save-temps} tells CIL to save the resulting output files in the
+current directory.  Otherwise, they'll be put in \t{/tmp} and deleted
+automatically.  Not that this is the only CIL-specific flag in the
+list -- the other flags use \t{gcc}'s syntax.
+
+This performs the following actions: 
 \begin{itemize}
-\item preprocessing using the -D and -I arguments with the resulting file left in \t{hello.i}, 
+\item preprocessing using the -D and -I arguments with the resulting 
+  file left in \t{hello.i}, 
 \item the invocation of the \t{cilly.asm} application which parses \t{hello.i}
-converts it to CIL and the pretty-prints it to \t{hello.cil.c}
+  converts it to CIL and the pretty-prints it to \t{hello.cil.c}
 \item another round of preprocessing with the result placed in \t{hello.cil.i}
 \item the true compilation with the result in \t{hello.cil.o}
 \item a linking phase with the result in \t{hello}
 \end{itemize}
  
- Note that \t{cilly} behaves like the \t{gcc} compiler with the additional
-effect that CIL sees all the source code. This makes it easy
-to use it with existing \t{Makefiles}:
+ Note that \t{cilly} behaves like the \t{gcc} compiler. This makes it
+easy to use it with existing \t{Makefiles}:
 \begin{verbatim}
 make CC="bin/cilly" LD="bin/cilly"
 \end{verbatim}
@@ -1519,7 +1527,7 @@ bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 
  \t{cilly} can also behave as the archiver \t{ar}, if it is passed an
 argument \t{-{}-mode=AR}. Note that only the \t{cr} mode is supported (create a
-new archive and replace all files in there). Note that the previous version of
+new archive and replace all files in there).  Therefore the previous version of
 the archive is lost. 
 
  Furthermore, \t{cilly} allows you to pass some arguments on to the
@@ -1538,12 +1546,12 @@ sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
 have to do is to pass the \t{-{}-merge} flag to \t{cilly}:
 \begin{verbatim}
-make CC="bin/cilly --dologwrites --merge"
+make CC="bin/cilly --save-temps --dologwrites --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="bin/cilly --dologwrites --merge --leavealone=foo --leavealone=bar"
+make CC="bin/cilly --save-temps --dologwrites --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
@@ -1641,8 +1649,10 @@ version. The patcher creates those directories.
 its AST out. This should looked like the preprocessed file. This is useful
 when you suspect that the conversion to CIL phase changes the meaning of the
 program. 
-\item \c{-{}-save-temps=xxx}. Temporary files are preserved in the xxx directory.
-\item \c{-{}-save-temps}. Temporay files are preserved in the current directory.
+\item \t{-{}-save-temps=xxx}. Temporary files are preserved in the xxx
+  directory.  For example, the output of CIL will be put in a file
+  named \t{*.cil.c}.
+\item \t{-{}-save-temps}. Temporay files are preserved in the current directory.
 \end{itemize}
  
  
@@ -1650,41 +1660,57 @@ program.
   \label{sec-cilly-asm-options}
 
  All of the options that start with \t{-{}-} and are not understood by
-\t{cilly} are passed on to \t{cilly.asm}. The following options are
-supported:
+\t{cilly} are passed on to \t{cilly.asm}.   \t{cilly} also passes along to
+\t{cilly.asm} flags such as \t{-{}-MSVC} that both need to know
+about.  The following options are supported:
+
+\hspace*{2cm} {\bf General Options:}
 \begin{itemize}
-\item \t{-{}-out <xxx>}. The name of the pretty-printed file.
-\item \t{-{}-verbose}. Print lots of random stuff. This is passed on from
-\t{cilly}.
-\item \t{-help}. Print the help. Actually \t{cilly} will do this if you
-      pass it \t{-{}-help}.  
-\item \t{-{}-check}. Run a consistency check over the CIL after every operation. 
-\item \t{-{}-MSVC}. Enable the MSVC extensions and pretty-print for consumption
-by MSVC.
-\item \t{-{}-warnall}. Print all the warnings.
-\item \t{-{}-log=xxx}. Set \t{xxx} to be the name of the log file for the CIL
-application. By default \t{stderr} is used.
-\item \t{-{}-keepunused}. Do not attempt to remove the unused variables and
-       types from CIL. 
-\item \t{-{}-noPrintLn}. Do not print line numbers.
-\item \t{-{}-commPrintLn}. Print line numbers but in comments.
-\item \t{-{}-printCilAsIs}. Do not attempt to simplify the program while
-  printing. If this is turned on, then all loops will be printed as
-  ``while(1)'', as they are in the internal language.
-\item \t{-{}-extrafiles <xxx>}. Give the name of a text file that contains
-whitespace-separated named of additional files to process.
-\item \t{-{}-stats}.  Print statistics about the running time of the
-  parser, conversion to CIL, etc.  Also prints memory-usage
-  statistics.  You can time parts of your own code as well.  Calling
-  (\t{Stats.time ``label'' func arg}) will evaluate \t{(func arg)} and
-  remember how long this takes.  If you call \t{Stats.time} repeatedly
-  with the same label, CIL will report the aggregate time.
+  \item \t{-{}-version} output version information and exit
+  \item \t{-{}-verbose} Print lots of random stuff. This is passed on from cilly
+  \item \t{-{}-warnall} Show all warnings.
+  \item \t{-{}-debug=xxx} turns on debugging flag xxx
+  \item \t{-{}-nodebug=xxx} turns off debugging flag xxx
+  \item \t{-{}-flush} Flush the output streams often (aids debugging).
+  \item \t{-{}-check} Run a consistency check over the CIL after every operation.
+  \item \t{-{}-nocheck} turns off consistency checking of CIL.
+  \item \t{-{}-noPrintLn} Don't output \#line directives in the output.
+  \item \t{-{}-commPrintLn} Print \#line directives in the output, but
+    put them in comments.
+  \item \t{-{}-stats} Print statistics about running times and memory usage.
+  \item \t{-{}-log=xxx} Set the name of the log file.  By default stderr is used
+  \item \t{-{}-MSVC} Enable MSVC compatibility. Default is GNU.
+  %\item \t{-{}-testcil} test CIL using the given compiler
+  \item \t{-{}-ignore-merge-conflicts} ignore merging conflicts.
+  %\item \t{-{}-sliceGlobal} output is the slice of #pragma cilnoremove(sym) symbols
+  %\item \t{-{}-tr <sys>}: subsystem to show debug printfs for
+  %\item \t{-{}-pdepth=n}: set max print depth (default: 5)
+  \item \t{-{}-extrafiles=filename}: the name of a file that contains a list of additional files to process, separated by whitespace.
+   
+   {\bf Lowering Options}
+  \item \t{-{}-noLowerConstants} do not lower constant expressions.
+  \item \t{-{}-noInsertImplicitCasts} do not insert implicit casts.
+  \item \t{-{}-forceRLArgEval} Forces right to left evaluation of function arguments.
+  %\item \t{-{}-nocil=n} Do not compile to CIL the global with the given index.
+  \item \t{-{}-disallowDuplication} Prevent small chunks of code from being duplicated.
+  \item \t{-{}-keepunused} Do not remove the unused variables and types.
+  \item \t{-{}-rmUnusedInlines} Delete any unused inline functions.  This is the default in MSVC mode.
+   
+  {\bf Output Options:}
+  \item \t{-{}-printCilAsIs} Do not try to simplify the CIL when
+  printing.  Without this flag, CIL will attempt to produce prettier
+  output by e.g. changing \t{while(1)} into more meaningful loops.
+  \item \t{-{}-noWrap} do not wrap long lines when printing
+  \item \t{-{}-out=xxx} the name of the output CIL file.  \t{cilly}
+  sets this for you.
+  \item \t{-{}-mergedout=xxx} specify the name of the merged file
+  \item \t{-{}-cabsonly=xxx} CABS output file name
+%%   \item \t{-{}-printComments : print cabs tree structure in comments in cabs output
+%%   \item \t{-{}-patchFile <fname>: name the file containing patching transformations
+%%   \item \t{-{}-printPatched : print patched CABS files after patching, to *.patched
+%%   \item \t{-{}-printProtos : print prototypes to safec.proto.h after parsing
 
-  If available, CIL uses the x86 performance counters for these stats.
-  This is very precise, but results in ``wall-clock time.''  To report
-  only user-mode time, find the call to \t{Stats.reset} in
-  \t{maincil.ml}, and change it to \t{Stats.reset false}.
-
+  {\bf Selected features.}  See \secref{Extension} for more information.
 \item \t{-{}-dologcalls}. Insert code in the processed source to print the name of
 functions as are called. Implemented in \t{src/ext/logcalls.ml}.
 \item \t{-{}-dologwrites}. Insert code in the processed source to print the
@@ -1714,16 +1740,64 @@ on your code, or generally as inspiration for writing similar modules. A
 particularly big and complex application written on top of CIL is CCured
 (\ahrefurl{../ccured/index.html}).
 
+\subsection{Control-Flow Graphs} \label{sec-cfg}
+
+The \ciltyperef{stmt} datatype includes fields for intraprocedural
+control-flow information: the predecessor and successor statements of
+the current statement.  This information is not computed by default.
+If you want to use the control-flow graph, or any of the extensions in
+this section that require it, you have to explicitly ask CIL to
+compute the CFG.
+
+\subsubsection{The CFG module (new in CIL 1.3.5)}
+
+The best way to compute the CFG is with the CFG module.  Just invoke
+\cfgref{computeFileCFG} on your file. The \moduleref{Cfg} API
+describes the rest of actions you can take with this module, including
+computing the CFG for one function at a time, or printing the CFG in
+\t{dot} form.
+
+\subsubsection{Simplified control flow}
+
+CIL can reduce high-level C control-flow constructs like \t{switch} and
+\t{continue} to lower-level \t{goto}s. This completely eliminates some
+possible classes of statements from the program and may make the result
+easier to analyze (e.g., it simplifies data-flow analysis).
+
+You can invoke this transformation on the command line with
+\t{-{}-domakeCFG} or programatically with \cilvalref{prepareCFG}.
+After calling Cil.prepareCFG, you can use \cilvalref{computeCFGInfo}
+to compute the CFG information and find the successor and predecessor
+of each statement.
+
+For a concrete example, you can see how \t{cilly -{}-domakeCFG}
+transforms the following code (note the fall-through in case 1): 
+
+\begin{cilcode}[global] --domakeCFG
+  int foo (int predicate) {
+    int x = 0;
+    switch (predicate) {
+      case 0: return 111;
+      case 1: x = x + 1;
+      case 2: return (x+3);
+      case 3: break;
+      default: return 222;
+    }
+    return 333;
+  }
+\end{cilcode}
+
 \subsection{Data flow analysis framework}
 
- The module \t{dataflow.ml} contains a parameterized framework for forward and
-backward data flow analyses. You provide the transfer functions and this
-module does the analysis. 
+ The \moduleref{Dataflow} module contains a parameterized framework
+for forward and backward data flow analyses. You provide the transfer
+functions and this module does the analysis.  Click on the link for
+the API.
 
 \subsection{Dominators} 
  
- The module \t{dominators.ml} contains the computation of immediate
- dominators. It uses the \t{dataflow.ml} module. 
+ The module \moduleref{Dominators} contains the computation of immediate
+ dominators. It uses the \moduleref{Dataflow} module. 
 
 \subsection{Points-to Analysis}
 
@@ -1904,30 +1978,6 @@ transforms the following code:
   }
 \end{cilcode}
 
-\subsection{Control-Flow Graphs}
-
-CIL can reduce high-level C control-flow constructs like \t{switch} and
-\t{continue} to lower-level \t{goto}s. This completely eliminates some
-possible classes of statements from the program and may make the result
-easier to analyze (e.g., it simplifies data-flow analysis). 
-
-For a concrete example, you can see how \t{cilly -{}-domakeCFG}
-transforms the following code (note the fall-through in case 1): 
-
-\begin{cilcode}[global] --domakeCFG
-  int foo (int predicate) {
-    int x = 0;
-    switch (predicate) {
-      case 0: return 111;
-      case 1: x = x + 1;
-      case 2: return (x+3);
-      case 3: break;
-      default: return 222;
-    }
-    return 333;
-  }
-\end{cilcode}
-
 \subsection{Partial Evaluation and Constant Folding} 
 
 The \t{partial.ml} module provides a simple interprocedural partial
@@ -1962,7 +2012,8 @@ partial optimization of \t{foo}):
 
 The \t{reachingdefs.ml} module uses the dataflow framework and CFG
 information to calculate the definitions that reach each
-statement. After computing the CFG and calling \t{computeRDs} on a
+statement. After computing the CFG (\secref{cfg}) and calling
+\t{computeRDs} on a 
 function declaration, \t{ReachingDef.stmtStartData} will contain a
 mapping from statement IDs to data about which definitions reach each
 statement. In particular, it is a mapping from statement IDs to a
@@ -2000,7 +2051,8 @@ the \t{get\_cur\_iosh} method of the class.
 The \t{availexps.ml} module uses the dataflow framework and CFG
 information to calculate something similar to a traditional available
 expressions analysis. After \t{computeAEs} is called following a CFG
-calculation, \t{AvailableExps.stmtStartData} will contain a mapping
+calculation (\secref{cfg}), \t{AvailableExps.stmtStartData} will
+contain a mapping
 from statement IDs to data about what expressions are available at
 that statement. The data for each statement is a mapping for each
 variable ID to the whole expression available at that point(in the
@@ -2033,7 +2085,7 @@ data is available when expressions are visited through the
 The \t{liveness.ml} module uses the dataflow framework and
 CFG information to calculate which variables are live at
 each program point. After \t{computeLiveness} is called
-following a CFG calculation, \t{LiveFlow.stmtStartData} will
+following a CFG calculation (\secref{cfg}), \t{LiveFlow.stmtStartData} will
 contain a mapping for each statement ID to a set of \t{varinfo}s
 for varialbes live at that program point.
 
@@ -2070,7 +2122,7 @@ are not used. The interface is as follows:
 \begin{itemize}
 \item \t{elim\_dead\_code} -- Performs dead code elimination
 on a function. Requires that CFG information has already
-been computed.
+been computed (\secref{cfg}).
 \item \t{dce} -- Performs dead code elimination on an
 entire file. Requires that CFG information has already
 been computed.
@@ -3485,4 +3537,4 @@ end of an array initializer. Added the API function
 
 
 
-% LocalWords:  CIL
+% LocalWords:  CIL intraprocedural datatype CIL's html

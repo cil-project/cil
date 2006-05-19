@@ -113,7 +113,7 @@ let options : (string * Arg.spec * string) list =
                  exit 0),
            "output version information and exit";
     "--verbose", Arg.Unit (fun _ -> E.verboseFlag := true),
-                "turn on verbose mode";
+                "Print lots of random stuff. This is passed on from cilly.";
     "--warnall", Arg.Unit (fun _ -> E.warnFlag := true), "Show all warnings";
     "--debug", Arg.String (setDebugFlag true),
                      "<xxx> turns on debugging flag xxx";
@@ -123,20 +123,18 @@ let options : (string * Arg.spec * string) list =
     "--flush", Arg.Unit (fun _ -> Pretty.flushOften := true),
                      "Flush the output streams often (aids debugging)" ;
     "--check", Arg.Unit (fun _ -> Cilutil.doCheck := true),
-                     "turns on consistency checking of CIL";
+                     "Run a consistency check over the CIL after every operation.";
     "--nocheck", Arg.Unit (fun _ -> Cilutil.doCheck := false),
                      "turns off consistency checking of CIL";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := None;
                                      Cprint.printLn := false),
-               "don't output #line directives";
+               "Don't output #line directives in the output.";
     "--commPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineComment;
                                        Cprint.printLnComment := true),
-               "output #line directives in comments";
+               "Print #line directives in the output, but put them in comments.";
     "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
                "Print statistics about running times and memory usage.";
 
-    "--stages", Arg.Unit (fun _ -> Cilutil.printStages := true),
-               "print the stages of the algorithm as they happen";
 
     "--log", Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
              "Set the name of the log file.  By default stderr is used";
@@ -145,7 +143,7 @@ let options : (string * Arg.spec * string) list =
                                    Frontc.setMSVCMode ();
                                    if not Machdep.hasMSVC then
                                      ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")
-                       ), "Produce MSVC output. Default is GNU";
+                       ), "Enable MSVC compatibility. Default is GNU.";
 
     "--testcil", Arg.String (fun s -> Cilutil.testcil := s),
           "test CIL using the given compiler";
@@ -190,7 +188,7 @@ let options : (string * Arg.spec * string) list =
 
     "", Arg.Unit (fun () -> ()), "\n\t\tOutput Options\n" ; 
     "--printCilAsIs", Arg.Unit (fun _ -> Cil.printCilAsIs := true),
-               "do not try to simplify the CIL when printing";
+               "do not try to simplify the CIL when printing.  Without this flag, CIL will attempt to produce prettier output by e.g. changing while(1) into more meaningful loops.";
     "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
                "do not wrap long lines when printing";
 
