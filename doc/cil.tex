@@ -1677,7 +1677,6 @@ about.  The following options are supported:
   \item \t{-{}-noPrintLn} Don't output \#line directives in the output.
   \item \t{-{}-commPrintLn} Print \#line directives in the output, but
     put them in comments.
-  \item \t{-{}-stats} Print statistics about running times and memory usage.
   \item \t{-{}-log=xxx} Set the name of the log file.  By default stderr is used
   \item \t{-{}-MSVC} Enable MSVC compatibility. Default is GNU.
   %\item \t{-{}-testcil} test CIL using the given compiler
@@ -1685,8 +1684,21 @@ about.  The following options are supported:
   %\item \t{-{}-sliceGlobal} output is the slice of #pragma cilnoremove(sym) symbols
   %\item \t{-{}-tr <sys>}: subsystem to show debug printfs for
   %\item \t{-{}-pdepth=n}: set max print depth (default: 5)
-  \item \t{-{}-extrafiles=filename}: the name of a file that contains a list of additional files to process, separated by whitespace.
-   
+  \item \t{-{}-extrafiles=filename}: the name of a file that contains
+    a list of additional files to process, separated by whitespace.
+  \item \t{-{}-stats} Print statistics about the running time of the
+    parser, conversion to CIL, etc.  Also prints memory-usage
+    statistics.  You can time parts of your own code as well.  Calling
+    (\t{Stats.time ``label'' func arg}) will evaluate \t{(func arg)}
+    and remember how long this takes.  If you call \t{Stats.time}
+    repeatedly with the same label, CIL will report the aggregate
+    time.
+
+    If available, CIL uses the x86 performance counters for these
+    stats.  This is very precise, but results in ``wall-clock time.''
+    To report only user-mode time, find the call to \t{Stats.reset} in
+    \t{maincil.ml}, and change it to \t{Stats.reset false}.
+  
    {\bf Lowering Options}
   \item \t{-{}-noLowerConstants} do not lower constant expressions.
   \item \t{-{}-noInsertImplicitCasts} do not insert implicit casts.
@@ -1789,10 +1801,11 @@ transforms the following code (note the fall-through in case 1):
 
 \subsection{Data flow analysis framework}
 
- The \moduleref{Dataflow} module contains a parameterized framework
-for forward and backward data flow analyses. You provide the transfer
-functions and this module does the analysis.  Click on the link for
-the API.
+ The \moduleref{Dataflow} module (click for the ocamldoc) contains a
+parameterized framework for forward and backward data flow
+analyses. You provide the transfer functions and this module does the
+analysis.  You must compute control-flow information (\secref{cfg})
+before invoking the Dataflow module.
 
 \subsection{Dominators} 
  
@@ -3090,10 +3103,16 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}
 \begin{itemize}
+\item {\bf May 18, 2006}: Added a new module \moduleref{Cfg} to compute the
+  control-flow graph.  Unlike the older \cilvalref{computeCFGInfo},
+  the new version does not modify the code.  
+\item {\bf May 18, 2006}: Added several new analyses: reaching
+  definitions, available expressions, liveness analysis, and dead code
+  elimination.  See \secref{Extension}.
 \item {\bf May 2, 2006}: Added a flag \t{-{}-noInsertImplicitCasts}.
   When this flag is used, CIL code will only include casts inserted by
   the programmer.  Implicit coercions are not changed to explicit casts.
-\item {\bf April 1,6 2006}: Minor improvements to the \t{-{}-stats}
+\item {\bf April 16, 2006}: Minor improvements to the \t{-{}-stats}
   flag (\secref{cilly-asm-options}). We now use Pentium performance
   counters by default, if your processor supports them.
 \item {\bf April 10, 2006}: Extended \t{machdep.c} to support
@@ -3537,4 +3556,5 @@ end of an array initializer. Added the API function
 
 
 
-% LocalWords:  CIL intraprocedural datatype CIL's html
+% LocalWords:  CIL intraprocedural datatype CIL's html Dataflow ocamldoc cilly
+% LocalWords:  Dominators
