@@ -15,7 +15,8 @@
 .PHONY: setup quickbuild doc distrib machdep cilversion
 ECHO = @
 
-all:  setup cillib
+# It is important to build quickbuild first, to generate the proper dependencies
+all:  quickbuild setup
 
 # Now add the defines for the CIL features
 @CIL_FEATURES_DEFINES@
@@ -94,7 +95,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 # ww: we don't want "maincil" in an external cil library (cil.cma),
 # otherwise every program that links against that library will get
 # maincil's argument checking and whatnot ...
-CILLY_MODULES = $(CILLY_LIBRARY_MODULES) maincil
+CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
 
@@ -247,8 +248,8 @@ endif
 	echo "]"   >>$@ 
 # Must delete maincil.d and remake it, because it may have been made
 # before feature_config existed.
-	rm -f $(DEPENDDIR)/maincil.d
-	$(MAKE) $(DEPENDDIR)/maincil.d
+	rm -f $(DEPENDDIR)/main.d
+	$(MAKE) $(DEPENDDIR)/main.d
 
 
 
@@ -258,9 +259,9 @@ endif
 OCAML_CIL_LIB_MODULES := $(CILLY_LIBRARY_MODULES) 
 OCAML_CIL_LIB_CMODULES := perfcount
 
-# list of modules to use for building a library; remove 'maincil'
+# list of modules to use for building a library; remove 'main'
 # and add 'libmaincil'
-OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:maincil=) libmaincil
+OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:main=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
@@ -386,7 +387,7 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
 DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
-	      mergecil.ml mergecil.mli maincil.ml machdep.c \
+	      mergecil.ml mergecil.mli main.ml machdep.c \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
 	      escape.ml escape.mli cillower.mli cillower.ml
 
