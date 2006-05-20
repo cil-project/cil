@@ -408,33 +408,10 @@ testdir/% :
 	make -C CC="ccured" $*
 
 
-
-# sm: stuff I've put into the misc/ directory
-misc-tests:
-	cd $(CILHOME)/test/misc; \
-	  make clean all CILLY_EXE=$(CILHOME)/obj/$(ARCHOS)/cilly.byte.exe
-
-# sm: test ability to merge already-merged files
-merge-twice:
-	$(CILHOME)/bin/merger.pl --ccured --out small2/merged-once.c \
-	  --in small2/merge-twice-[12].c
-	gcc -c -w small2/merged-once.c
-	$(CILHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
-	  --in small2/merged-once.c small2/merge-twice-3.c
-	gcc -c -w small2/merged-twice.c
-
-#merge-twice-1.c is just included here so that we use the merger.  The
-# interesting code is in merge-ar.c
-#3 steps: compile to *.o, merge to libmerge.a, and compile
 merge-ar:
 	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
 	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
 	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
 
-blockattr: small1/blockattr.c
-	cd small1; $(CILHOME)/obj/$(ARCHOS)/cilly.byte.exe \
-                             --onlyMerge --mergeKeepAnnotations \
-                             --commPrintLn --verbose \
-                             --mergedout - blockattr.c | grep  -v '/\\* __blockattribute' | grep '__blockattribute'
 
 

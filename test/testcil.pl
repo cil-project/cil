@@ -158,7 +158,6 @@ $TEST->add3Tests("testrun/strloop");
 $TEST->add2Tests("testrun/strloop3");
 $TEST->add2Tests("testrun/percentm");
 $TEST->add2Tests("testrun/percent400");
-$TEST->add2Tests("testrun/functattr");
 $TEST->add3Tests("testrun/caserange", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add3Tests("test/attr");
@@ -321,7 +320,6 @@ $TEST->add2Tests("testrun/escapes");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
-$TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2", "EXTRAARGS=--allowInlineAssembly");
    $TEST->add3Group("test/bind2", "slow");
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
@@ -446,19 +444,15 @@ $TEST->add2Tests("merge-ar", "");
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->add2Tests("testrun/sizeof2");
 $TEST->addTests("test/outofmem", "", ['cil']);
-$TEST->addTests("testrun/seq1", "", ['inferbox']);
-$TEST->addTests("testrun/seq2", "", ['inferbox']);
 $TEST->addTests("testrun/builtin", "", ['cil']);
 $TEST->addTests("test/builtin2", "", ['cil']);
 $TEST->addTests("testrun/builtin3", "", ['cil']);
-$TEST->addTests("blockattr", "", ['cil']);
 $TEST->add2Tests("testrun/comparisons");
     
 
 
 # -------------- alternate testcase interface ---------------
 # sm: trying to make a regrtest-like interface
-# 'args' should include things like "INFERBOX=infer" to specify operating mode
 sub altAddTest {
   my ($command, @groups) = @_;
 
@@ -502,136 +496,47 @@ sub altFailTest {
 
 
 # operating modes
-my $box =       "INFERBOX=infer";
-my $manualbox = "INFERBOX=infer";
-my $wildbox =   "INFERBOX=wild";
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 # self-contained tests of specific things which had problems before
 altAddTest("scott/multiplestatics");
-altAddTest("scott/regbeforeassign $box");
 altAddTest("scott/partialbracket");
 altAddTest("scott/enuminit");
-altAddTest("scott-nogcc/staticafternostorage $box");
-altAddTest("scott/voidfree $box");
-altAddTest("scott/recursetype $box");
-altAddTest("scott/rmunused $box $gcc");
-altAddTest("scott/simplewild $box");
-altAddTest("scott/ptrtolocal $wildbox");
-altAddTest("scott/tprintf $box");
-altAddTest("scott/rmunused2 $box");
 
 altAddTest("scott/gimpdouble");
 altAddTest("scott/struct_cs");
 
-$TEST->setField(altAddTest("scott/tprintf $wildbox"), "FailDiagnosis", <<'EOF');
 
-  Failure of this test case usually indicates the stdin/out/err
-  section of the patch file (lib/ccured_???.patch) does not exactly
-  match your /usr/include/stdio.h.
-
-EOF
-
-altAddTest("scott/ptrmanip $wildbox");
 altAddTest("scott-nogcc/bogus_redef");
 altAddTest("scott/s59");
 altAddTest("scott/putc $gcc");
-altAddTest("scott/putc $wildbox $gcc");
 altAddTest("scott/lexnum");
 altAddTest("scott/ctype");
-altAddTest("scott/ctype $box");
-altAddTest("test-bad/wildfun $box");
 
-# verify results of inference
-$TEST->setField(altAddTest("scott/ptrkinds $box"), "AfterSuccessScript", <<'EOF');
-
-  grepBoth() {
-    grep -w $2 $1 | grep -w $3
-  }
-
-  # looks like we no longer print __SAFE with safe pointers...
-  #grepBoth $src safeptr __SAFE && \
-
-  src=small2/ptrkinds.cured.c
-  if grepBoth $src fseqptr __FSEQ && \
-     grepBoth $src seqptr __SEQ && \
-     grepBoth $src wildptr __WILD; then
-    echo "inference seems to work"
-  else
-    echo ""
-    echo "Something is wrong with the inference algorithm."
-    exit 2
-  fi
-
-EOF
-
-# similar to ptrkinds failure
-altAddTest("scott/argv $box");
 
 # function pointers don't work with inferred wildness
 altAddTest("scott/funcptr");
-altAddTest("scott/funcptr $box", "slow");
 
 # transparent unions are a problem for network apps
 altAddTest("scott/transpunion $gcc");
 altAddTest("scott/sockaddr $gcc");
-
-# test of recent __HEAPIFY annotation
-altAddTest("scott/heapify $box");
-altAddTest("scott/heapify $wildbox");
 
 # misc...
 altAddTest("scott/constdecl");
 altAddTest("scott/oldstyle");
 altAddTest("scott/typeof $gcc");
 altAddTest("scott/asmfndecl $gcc");
-altAddTest("scott/xlsubr $box");
 altAddTest("scott/open $gcc");
-altAddTest("scott/ioctl $box $gcc");
-altAddTest("scott/stralloc $box $gcc");
 altAddTest("scott/constfold");
 altAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 altAddTest("scott-nolink/brlock $gcc");
-altAddTest("scott/qsort_wild $box");
 altAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
 altAddTest("scott/unscomp");               # kernel/fs/buffer.c
-altAddTest("scott/suppress_optim $box");
-altFailTest("missing __mkptr_string_ww",
-           "scott/suppress_optim $wildbox");
-altFailTest("makes too many things tagged; this changed when matth modified "
-           . "the way main() gets its arguments wrapped, and we haven't "
-           . "cared enough about TAGALLFNS=1 to fix it",
-           "scott/suppress_optim $wildbox TAGALLFNS=1");
-altAddTest("testrun/bug1 $box");
-altAddTest("scott/structs_edg_stl_ccuredlib_test $box", "slow");
-altAddTest("misc-tests");
-altAddTest("scott/chararr1 $box", "slow");
-altAddTest("scott/chararr2 $box", "slow");
 altAddTest("scott/thing");
-altAddTest("scott/strerror1 $box");
-altAddTest("scott/bsearch $box", "slow");
-altAddTest("scott/signal $box");
-altAddTest("scott/getaddrinfo $box", "slow");
-altAddTest("test-bad/sin_zero $box");
-altAddTest("scott/getopt $box", "slow");
-altAddTest("scott/glob $box", "slow");
 
 # current problematic test cases
-altAddTest("scott/complex_float $box");
 altAddTest("mergeinline");
-altAddTest("scott-nolink/name-capture-bitand $box");
-altAddTest("scott-nolink/wildfun2 $box");
-altAddTest("scott/dblarg.int $box");       # this yields a warning that might be a problem
-altAddTest("scott/decl_inl $box");         # produces a gcc warning I'd like to silence
-altAddTest("doThrowFv $wildbox UNTAGGEDFNS=1");
 altAddTest("scott/uninit_tmp");
-altAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt");
-altAddTest("test-tagfile $wildbox TAGFILE=tagfile.txt EXTRAARGS=-DSTATIC_FUNC");
-altAddTest("scott/monthname $box");
-altFailTest("problem with gcc coercions",
-           "scott/floatarg INFERBOX=wild TAGALLFNS=1");
-altFailTest("problem with over-aggressive pointer checks?",
-           "scott/ptrarith INFERBOX=infer");
 altAddTest("combine_samefn");
 altAddTest("combine_node_alloc");
 altAddTest("combine_sbump");
@@ -645,75 +550,25 @@ altAddTest("combine_syserr");
 altAddTest("combine_syserr MERGEINLINES=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
-altAddTest("merge-twice");
-altAddTest("scott/bufferlinegetter INFERBOX=infer");
-altAddTest("scott/null_pointer_field INFERBOX=infer");
 
 # tests of things implemented for EDG compatibility
 altAddTest("mergestruct");
-altAddTest("test-bad/globstackptr $box");
-altAddTest("test-bad/ehstack $box");
-altAddTest("test-bad/setjmp $box", "slow");
-altAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
-
-# test of strings (need more!)
-altAddTest("test-bad/strloop2 $box");
-
-# tests of function models
-altAddTest("scott/memcpy $box");
-altAddTest("scott/realloc $box");
-altAddTest("scott/strchr $box");
-altAddTest("scott/models $box", "slow");
-
-# tests of things in safec.c
-altAddTest("scott/qsort $box");
-altAddTest("scott/strpbrk $box");
-altFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
-
-# more stuff, mostly from ftpd
-altAddTest("scott/reply $box");
-
-# works on my machine; works on manju now too apparently
-altAddTest("scott/getpwnam $box $gcc", "slow");
-
-altAddTest("test-bad/execv $box $gcc");
-altAddTest("scott/popen $box $gcc", "slow");
-altAddTest("scott/memset_int $box");
-altAddTest("scott/printfllong $box $gcc");
-altAddTest("test-bad/replydirname $box");
-altAddTest("test-bad/boundaries $box", "slow");
-altAddTest("scott/stat $box");
-altAddTest("scott/scanf $box");
-
-# simple self-contained thing
-altAddTest("hola");
-altAddTest("hola $box");
 
 # a few things that should fail
 altAddTest("test-bad/trivial-tb");
-altAddTest("test-bad/retptr $box RELEASE=1");
-$TEST->addBadComment("test-bad/retptr", "Fails in RELEASE mode because the ok() function is inlined, making it look like we're returning a local.");
 
-altAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
 
 # simple test of combiner
 altAddTest("comb $gcc");
-altAddTest("comb $box $gcc");
 
 # test combiner's ability to detect inconsistency
 altAddTest("baddef");
 
 
-# apache modules; set is needed for next one
-$TEST->setField(altAddTest("apache!1setup"), 'Cmd', "$make apachesetup");
-$TEST->setField(altAddTest("apache!2setup"), 'Cmd', "$make apachesetup");
-
 # does not work: complains of many incompatible type redefinitions
 #runTest $make apache/rewrite
 
-altAddTest("test/attr4 $box");
 altAddTest("test/init");
-altAddTest("test/init $box");
 altAddTest("test/initial");
 altAddTest("test/jmp_buf");
 altAddTest("test/static");
@@ -733,10 +588,7 @@ altAddTest("scott/memberofptr $gcc");
 altAddTest("scott/invalredef $gcc");
 altAddTest("scott/invalredef2 $gcc");
 altAddTest("scott/errorinfn");
-altAddTest("scott/unionassign $box");
-altAddTest("scott/unionassign $wildbox");
-altAddTest("scott/readv $box", "slow");
-altAddTest("scott/funcptr3 $box");
+altAddTest("scott/unionassign");
 altAddTest("scott/structattr");
 altAddTest("scott/neg64");
 altAddTest("testrun/arrayinitsize");
@@ -750,16 +602,8 @@ altAddTest("scott/structattr3");
 altAddTest("scott/enumerator_sizeof");
 altAddTest("testrun/decl_mix_stmt");
 altAddTest("scott/enumattr");
-altAddTest("scott/alignprob $box");
-altAddTest("scott/doublefree $box RELEASE=1");
-altAddTest("scott/alignok $box");
-altAddTest("scott/subtypebug1 $box");
-altAddTest("scott/subtypebug2 $box");
 
 
-# $TEST->getTest("apache/gzip-inferbox")->{Enabled} = 0; # Due to a bug
-# my $tst = $TEST->getTest("apache/gzip-inferbox");
-# print Dumper($tst);
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
@@ -810,17 +654,6 @@ if(-d $ctorture &&
 
 # print Dumper($TEST);
 
-# Disable most tests
-#foreach my $tst (keys %{$TEST->{tests}}) {
-#    if($tst ne "testrun/failnull1-inferbox") {
-#        print "Disabling $tst\n";
-#        $TEST->{tests}->{$tst}->{Enabled} = 0;
-#    } else {
-#        print "Enabling $tst\n";
-#        $TEST->{tests}->{$tst}->{Enabled} = 1;
-#    }
-#}
-
 
 # Now invoke it
 $TEST->doit();
@@ -860,7 +693,7 @@ sub extraOptions {
     my @supopt = $self->SUPER::extraOptions();
     return (
         @supopt,
-        "--safecdebug!",
+        "--cildebug!",
         "--noremake!", 
             );
 }
@@ -870,11 +703,11 @@ sub extraHelpMessage {
     my($self) = @_;
     
     my ($scriptname, $extra) = $self->SUPER::extraHelpMessage();
-    return ("testsafec",
+    return ("testcil",
             $extra . << "EOF");
 
 Additional arguments for SafeC test harness
-  --safecdebug         Use the debug versions of everything (default is false)
+  --cildebug           Use the debug versions of everything (default is false)
   --noremake           Does not try to remake the executable before each test.
                        (so that you can modify the sources while the test 
                        is running)
@@ -889,10 +722,6 @@ sub errorHeading {
     return "Preprocessor error" if $err == 1000;
     return "Parse error" if $err == 1001;
     return "Cabs2cil error" if $err == 1002;
-    return "Collecting constraints error" if $err == 1003;
-    return "Constraint solving error" if $err == 1004;
-    return "Boxing error" if $err == 1005;
-    return "Optimization error" if $err == 1006;
     return "Compilation error" if $err == 1007;
     return "Execution error" if $err == 1008;
     return $self->SUPER::errorHeading($err);
@@ -917,7 +746,7 @@ sub testCommandExtras {
     my ($self, $extraargs) = @_;
 
     # (sm: pulled this out of addTests so I could write my own addTests)
-    my $theargs = defined($self->{option}->{safecdebug})
+    my $theargs = defined($self->{option}->{cildebug})
         ? " " : " RELEASE=1 ";
     $theargs .= " $extraargs ";
     if(defined $self->{option}->{noremake}) {
