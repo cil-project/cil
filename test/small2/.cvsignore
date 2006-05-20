@@ -78,6 +78,7 @@ strchr
 getopt
 scary
 scary*.s
+*.s
 ope.m
 *cured.c
 *.optim.c

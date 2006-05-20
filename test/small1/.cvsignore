@@ -45,3 +45,4 @@ longBlock.cmx
 polystruct-tmp.c
 sscanf_string
 wchar-bad-tmp.c
+*-tmp.c

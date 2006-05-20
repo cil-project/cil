@@ -19,10 +19,10 @@ $ENV{LANG} = 'C';
 print "Test infrastructure for CIL\n";
 
 # Create our customized test harness
-my $TEST = SafecRegTest->new(AvailParams => { 'RUN' => 1,
-                                              'SUCCESS' => 0},
-                             LogFile => "cil.log",
-                             CommandName => "testcil");
+my $TEST = CilRegTest->new(AvailParams => { 'RUN' => 1,
+                                            'SUCCESS' => 0},
+                           LogFile => "cil.log",
+                           CommandName => "testcil");
 
 # sm: I want a global name for this $TEST thing, since I find it is merely
 # excess verbiage when adding tests..
@@ -34,6 +34,11 @@ my $inferbox="none";
 my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
 my $solaris = $^O eq 'solaris';
+
+
+# operating modes
+my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
+
 
 # am I using egcs?
 my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
@@ -58,8 +63,6 @@ if ($solaris) {
 #  1003 - Compilation
 #  1004 - Running 
 
-my @runpattern = 
-    ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
 
 my %commonerrors = 
     ("^Parsing " => sub { $_[1]->{instage} = 1001; },
@@ -102,6 +105,59 @@ my %commonerrors =
     );
 
                                          
+# Add a test.
+# command is the base name of the tests + space separated arguments
+# extrargs are passed on the command line for each test
+# fields must be fields to be added to the newly created tests
+sub addTest {
+    my($command, %extrafields) = @_;
+
+    my $self = $main::globalTEST;
+    my ($name, $extraargs) = 
+        ($command =~ /^(\S+) ?(.*)$/);     # name is first word
+
+    my $theargs = $self->testCommandExtras($extraargs);
+
+    my %patterns = %commonerrors;
+    my $kind;
+
+    my $tst =
+        $self->newTest(Name => $name,
+                       Dir => ".",
+                       Cmd => "$make " . $name . $theargs,
+                       Group => [ ],
+                       Patterns => \%patterns);
+    # Add the extra fields
+    my $key;
+    foreach $key (keys %extrafields) {
+        $tst->{$key} = $extrafields{$key};
+    }
+    return $tst;
+}
+sub addTestFail {
+    my($command, $failpattern) = @_;
+    addTest($command, MustFail => $failpattern);
+}
+
+
+
+
+sub addBadComment {
+    my($name, $comm) = @_;
+    my $self = $main::globalTEST;
+    $self->addComment($name, $comm);
+    $self->addGroups($name, "bad");
+}
+
+
+
+
+sub addToGroup {
+    my ($name, @groups) = @_;
+    my $self = $main::globalTEST;
+    $self->addGroups($name, @groups);
+}
+
 
 # Start with a few tests that must be run first
 $TEST->newTest(
@@ -124,484 +180,428 @@ $TEST->newTest(
     Group => ["doc"]);
     
 # Now add tests
-$TEST->addTests("testrun/const-array-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("test/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("test/warnings-cast", "WARNINGS_ARE_ERRORS=1", ['cil']);
+addTest("testrun/const-array-init WARNINGS_ARE_ERRORS=1");
+addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
+addTest("test/const-struct-init WARNINGS_ARE_ERRORS=1");
+addTest("testrun/warnings-noreturn WARNINGS_ARE_ERRORS=1");
+addTest("testrun/warnings-unused-label WARNINGS_ARE_ERRORS=1");
+addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
 
+addTest("test/apachebits");
+addTest("testrun/apachebuf");
 
-$TEST->add3Tests("test/apachebits");
-$TEST->add3Tests("testrun/apachebuf");
+addTest("testrun/apachefptr");
+addTest("testrun/asm1 _GNUCC=1");
+addTest("test/asm2 _GNUCC=1");
+addTest("test/asm3 _GNUCC=1");
+addTest("test/asm4 _GNUCC=1");
+addTest("testobj/asm5 _GNUCC=1");
 
-$TEST->add3Tests("testrun/apachefptr");
-$TEST->add2Tests("testrun/asm1", "_GNUCC=1");
-$TEST->addTests("test/asm2", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
-$TEST->addTests("testobj/asm5", "_GNUCC=1", ['cil']);
-
-$TEST->add3Tests("testrun/offsetof");
-$TEST->add3Tests("testrun/offsetof1");
-$TEST->add3Tests("testrun/offsetof2");
-$TEST->addTests("testrun/question", "", ['cil']);
-$TEST->add3Tests("test/argcast");
-$TEST->add3Tests("test/array1");
-$TEST->addTests("testrun/array4", "", ['cil']);
-$TEST->add3Tests("test/array2");
-$TEST->add2Tests("testrun/array_varsize");
-$TEST->addTests("testrun/formalscope", "", ['cil']);
-$TEST->add3Tests("test/matrix");
-$TEST->add3Tests("testrun/switch");
-$TEST->add3Tests("testrun/strloop");
-$TEST->add2Tests("testrun/strloop3");
-$TEST->add2Tests("testrun/percentm");
-$TEST->add2Tests("testrun/percent400");
-$TEST->add3Tests("testrun/caserange", "_GNUCC=1");
-if (!$egcs) {
-  $TEST->add3Tests("test/attr");
-  $TEST->add3Tests("test/attr2", "_GNUCC=1");
-  $TEST->add3Tests("test/attr3", "_GNUCC=1");
-  $TEST->add3Tests("testrun/attr4", "_GNUCC=1");
-  $TEST->addTests("testrun/attr5", "_GNUCC=1", ['cil']);
-}
-$TEST->addTests("test/attr6", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/attr7", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/attr8", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/attr9", "_GNUCC=1 WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/packed", "_GNUCC=1 WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->add3Tests("test/bitfield");
-$TEST->add3Tests("testrun/bitfield3");
+addTest("testrun/offsetof");
+addTest("testrun/offsetof1");
+addTest("testrun/offsetof2");
+addTest("testrun/question");
+addTest("test/argcast");
+addTest("test/array1");
+addTest("testrun/array4");
+addTest("test/array2");
+addTest("testrun/array_varsize");
+addTest("testrun/formalscope");
+addTest("test/matrix");
+addTest("testrun/switch");
+addTest("testrun/strloop");
+addTest("testrun/strloop3");
+addTest("testrun/percentm");
+addTest("testrun/percent400");
+addTest("testrun/caserange _GNUCC=1");
+addTest("test/attr");
+addTest("test/attr2 _GNUCC=1");
+addTest("test/attr3 _GNUCC=1");
+addTest("testrun/attr4 _GNUCC=1");
+addTest("testrun/attr5_GNUCC=1");
+addTest("test/attr6 _GNUCC=1");
+addTest("test/attr7 _GNUCC=1");
+addTest("test/attr8 _GNUCC=1");
+addTest("test/attr9 _GNUCC=1 WARNINGS_ARE_ERRORS=1");
+addTest("testrun/packed _GNUCC=1 WARNINGS_ARE_ERRORS=1");
+addTest("test/bitfield");
+addTest("testrun/bitfield3");
      
-$TEST->add3Tests("testrun/bitfield2");
-$TEST->addTests("testrun/call2", "", ['cil']);
-$TEST->add3Tests("test/cast1");
-$TEST->add3Tests("test/cast2");
-$TEST->add2Tests("test/cast4", "_GNUCC=1");
-$TEST->addTests("testrun/cast8", "", ['cil']);
-$TEST->add3Tests("test/constprop");
-$TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/const2", "", ['cil']);
-$TEST->addTests("testrun/const3", "", ['cil']);
-$TEST->addTests("testrun/const4", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/const5", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/const6", "", ['cil']);
-$TEST->addTests("test/const7", "", ['cil']);
-$TEST->addTests("testrun/const8", "", ['cil']);
-$TEST->addTests("test/const9", "", ['cil']);
-$TEST->addTests("testrun/const10", "", ['cil']);
-$TEST->addTests("testrun/const11", "", ['cil']);
-$TEST->add2Tests("test/deref", "_GNUCC=1");
-$TEST->add3Tests("test/enum");
-$TEST->add3Tests("testrun/enum2");
-$TEST->add3Tests("test/func");
-$TEST->addTests("test/funcarg", "", ['cil']);
-   $TEST->addBadComment("test/funcarg-cil", "Bug in parser (argument of function type)");
+addTest("testrun/bitfield2");
+addTest("testrun/call2 ");
+addTest("test/cast1");
+addTest("test/cast2");
+addTest("test/cast4 _GNUCC=1");
+addTest("testrun/cast8 ");
+addTest("test/constprop");
+addTest("testrun/const1 _GNUCC=1");
+addTest("testrun/const2 ");
+addTest("testrun/const3 ");
+addTest("testrun/const4 _GNUCC=1");
+addTest("testrun/const5 _GNUCC=1");
+addTest("testrun/const6 ");
+addTest("test/const7 ");
+addTest("testrun/const8 ");
+addTest("test/const9 ");
+addTest("testrun/const10 ");
+addTest("testrun/const11 ");
+addTest("test/deref _GNUCC=1");
+addTest("test/enum");
+addTest("testrun/enum2");
+addTest("test/func");
+addTest("test/funcarg ");
+addBadComment("test/funcarg", 
+                        "Bug in parser (argument of function type)");
 
-$TEST->add3Tests("testrun/func2");
-$TEST->add3Tests("testrun/func3");
-$TEST->add3Tests("testrun/func4");
-$TEST->addTests("test/func10", "", ['cil']);
-$TEST->addBadComment("test/func10-cil", 
+addTest("testrun/func2");
+addTest("testrun/func3");
+addTest("testrun/func4");
+addTest("test/func10 ");
+addBadComment("test/func10", 
                      "Cil bug: Cannot parse some strange K&R function definition");
-$TEST->add3Tests("test/globals");
-$TEST->addTests("test/globals2", "", ['cil']);
-$TEST->addBadComment("test/globals2-cil", "CIL bug: we print array size expressions that refer to variables that haven't been defined yet.");
-$TEST->add3Tests("testrun/float");
-$TEST->addTests("testrun/float2", "", ['cil']);
-$TEST->add3Tests("test/huff1");
-$TEST->add3Tests("testrun/init");
-$TEST->add3Tests("testrun/init1");
-$TEST->addTests("testrun/init2", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init3", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init4", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init5", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init6", "", ['cil']);
-$TEST->addTests("test/init8", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init9", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init10", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init11", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/init12", "_GNUCC=1", ['cil']);
-$TEST->add2Tests("testrun/init13", "_GNUCC=1");
-$TEST->add2Tests("testrun/init14", "_GNUCC=1");
-$TEST->add2Tests("testrun/init15", "_GNUCC=1");
-$TEST->add2Tests("testrun/init16", "");
-$TEST->addTests("testrun/init17", "", ['cil']);
-$TEST->addTests("testrun/init18", "", ['cil']);
-$TEST->addTests("testrun/init19", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("testrun/init20", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/array-size-trick", "", ['cil']);
-$TEST->add2Tests("testrun/logical", "");
-$TEST->addTests("testrun/cond1", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/cond2", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/initial", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/inline1", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/decl2", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("test/jmp_buf");
-$TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
-$TEST->add3Tests("testrun/linux_signal", "_GNUCC=1");
-$TEST->add3Tests("test/li");
-$TEST->add3Tests("test/list");
-$TEST->addTests("testrun/localinit", "", ['cil']);
+addTest("test/globals");
+addTest("test/globals2 ");
+addBadComment("test/globals2", "CIL bug: we print array size expressions that refer to variables that haven't been defined yet.");
+addTest("testrun/float");
+addTest("testrun/float2 ");
+addTest("test/huff1");
+addTest("testrun/init");
+addTest("testrun/init1");
+addTest("testrun/init2 _GNUCC=1");
+addTest("testrun/init3 _GNUCC=1");
+addTest("testrun/init4 _GNUCC=1");
+addTest("testrun/init5 _GNUCC=1");
+addTest("testrun/init6 ");
+addTest("test/init8 _GNUCC=1");
+addTest("testrun/init9 _GNUCC=1");
+addTest("testrun/init9 _GNUCC=1");
+addTest("testrun/init10 _GNUCC=1");
+addTest("testrun/init11 _GNUCC=1");
+addTest("testrun/init12 _GNUCC=1");
+addTest("testrun/init13 _GNUCC=1");
+addTest("testrun/init14 _GNUCC=1");
+addTest("testrun/init15 _GNUCC=1");
+addTest("testrun/init16 ");
+addTest("testrun/init17 ");
+addTest("testrun/init18 ");
+addTest("testrun/init19 WARNINGS_ARE_ERRORS=1");
+addTest("testrun/init20 _GNUCC=1");
+addTest("test/array-size-trick ");
+addTest("testrun/logical ");
+addTest("testrun/cond1 _GNUCC=1");
+addTest("testrun/cond2 _GNUCC=1");
+addTest("testrun/initial _GNUCC=1");
+addTest("testrun/inline1 _GNUCC=1");
+addTest("test/decl2 _GNUCC=1");
+addTest("test/jmp_buf");
+addTest("test/linux_atomic _GNUCC=1");
+addTest("testrun/linux_signal _GNUCC=1");
+addTest("test/li");
+addTest("test/list");
+addTest("testrun/localinit ");
 
-$TEST->addTests('testrun/longBlock', '', ['cil']);
-$TEST->add2Tests("testrun/perror");
-$TEST->add2Tests("testrun/perror1");
-$TEST->add2Tests("test/pure");
-$TEST->addTests("testrun/post-assign", "", ['cil']);
-   $TEST->addBadComment("testrun/post-assign-cil", 
+addTest('testrun/longBlock', '');
+addTest("testrun/perror");
+addTest("testrun/perror1");
+addTest("test/pure");
+addTest("testrun/post-assign ");
+addBadComment("testrun/post-assign", 
                         "CIL does not have the same evaluation order for ++ as gcc");
-$TEST->add3Tests("test/printf", "", @runpattern);
-$TEST->add3Tests("test/printf_const", "", @runpattern);
-$TEST->add3Tests("testrun/printf2");
-$TEST->add2Tests("test/unimplemented");
-$TEST->add2Tests("testrun/vararg1");
-$TEST->add2Tests("testrun/vararg2");
-$TEST->add2Tests("testrun/vararg3");
-$TEST->add2Tests("testrun/vararg4");
+addTest("test/printf ");
+addTest("test/printf_const ");
+addTest("testrun/printf2");
+addTest("test/unimplemented");
+addTest("testrun/vararg1");
+addTest("testrun/vararg2");
+addTest("testrun/vararg3");
+addTest("testrun/vararg4");
 if($win32) {
-  $TEST->add2Tests("testrun/vararg11", "_MSVC=1");
+  addTest("testrun/vararg11 _MSVC=1");
 }
-$TEST->add2Tests("testrun/varargauto1");
-$TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
-if (!$egcs) {
-  $TEST->add2Tests("testrun/vararg6");
-}
-$TEST->add2Tests("test/vararg7", "_GNUCC=1");
-$TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
-$TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
-if (!$egcs) {
-  $TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
-}
-$TEST->addTests("test-bad/arrsize", "", ['cil']);
-$TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("test/retval");
-$TEST->add3Tests("testrun/static", "", @runpattern);
-$TEST->add3Tests("test/static1");
-$TEST->addTests("testrun/static2", "", ['cil']);
-$TEST->add3Tests("test/strcpy");
-$TEST->add3Tests("test/struct_init");
-$TEST->add3Tests("test/structassign");
-$TEST->addTests("testrun/align1", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/align2", "_GNUCC=1 EXTRAARGS=-O2", ['cil']);
-$TEST->add3Tests("test/tags");
-$TEST->add3Tests("test/task", "_GNUCC=1");
-$TEST->add3Tests("test/power1");
-$TEST->add3Tests("testrun/scope1");
-$TEST->add3Tests("test/scope2");
-$TEST->add3Tests("test/scope3");
-$TEST->add3Tests("test/scope4");
-$TEST->add3Tests("testrun/scope5", "_GNUCC=1");
-$TEST->add3Tests("testrun/scope6");
-$TEST->add3Tests("testrun/scope8");
-$TEST->addTests("testrun/scope9", "", ['cil']);
-$TEST->addTests("testrun/scope10", "", ['cil']);
-$TEST->addTests("testrun/scope11", "", ['cil']);
-$TEST->add3Tests("test/voidstar");
-$TEST->add3Tests("testrun/memcpy1");
+addTest("testrun/varargauto1");
+addTest("testrun/vararg5 _GNUCC=1");
+addTest("testrun/vararg6");
+addTest("test/vararg7 _GNUCC=1");
+addTest("testrun/va-arg-1 _GNUCC=1");
+addTest("testrun/va-arg-2 _GNUCC=1");
+addTest("testrun/va-arg-7 _GNUCC=1");
+addTest("test-bad/arrsize ");
+addTest("testrun/comma1 _GNUCC=1");
+addTest("test/retval");
+addTest("testrun/static ");
+addTest("test/static1");
+addTest("testrun/static2 ");
+addTest("test/strcpy");
+addTest("test/struct_init");
+addTest("test/structassign");
+addTest("testrun/align1 _GNUCC=1");
+addTest("testrun/align2 _GNUCC=1 EXTRAARGS=-O2");
+addTest("test/tags");
+addTest("test/task _GNUCC=1");
+addTest("test/power1");
+addTest("testrun/scope1");
+addTest("test/scope2");
+addTest("test/scope3");
+addTest("test/scope4");
+addTest("testrun/scope5 _GNUCC=1");
+addTest("testrun/scope6");
+addTest("testrun/scope8");
+addTest("testrun/scope9 ");
+addTest("testrun/scope10 ");
+addTest("testrun/scope11 ");
+addTest("test/voidstar");
+addTest("testrun/memcpy1");
 
-$TEST->addTests("test/noreturn", "", ['cil']);
+addTest("test/noreturn ");
                 
 
-$TEST->add3Tests("testrun/label1");
-$TEST->add3Tests("testrun/label2");
-$TEST->add3Tests("testrun/label3");
-$TEST->add2Tests("testrun/label4", "_GNUCC=1");
-$TEST->add3Tests("testrun/wchar1");
-$TEST->add3Tests("testrun/wchar2");
-$TEST->add3Tests("testrun/wchar3");
-$TEST->add3Tests("testrun/wchar4");
-$TEST->addTests("testrun/wchar5", "", ['cil']);
-$TEST->add2Tests("testrun/wchar6"); 
-$TEST->add3Tests("testrun/wchar7"); 
-$TEST->add2Tests("testrun/escapes");
-$TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
-$TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("testrun/lval1", "_GNUCC=1");
-$TEST->add3Tests("test/bind2", "EXTRAARGS=--allowInlineAssembly");
-   $TEST->add3Group("test/bind2", "slow");
-$TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
-$TEST->add3Tests("testrun/addr-array");
-$TEST->addTests("combine1", "", ['cil']);
-$TEST->addTests("combine2", "", ['cil']);
-$TEST->addTests("combine3", "", ['cil']);
-$TEST->addTests("combine5", "", ['cil']);
-$TEST->addTests("combine6", "", ['cil']);
-$TEST->addTests("combine8", "", ['cil']);
-$TEST->addTestsFail("combine9", "", "Incompatible declaration for g", ['cil']);
-$TEST->addTests("combine10", "", ['cil']);
-$TEST->addTests("combine11", "", ['cil']);
-$TEST->addTests("combine12", "", ['cil']);
-$TEST->addTests("combine13", "", ['cil']);
-$TEST->addTests("combine14", "", ['cil']);
-$TEST->addTests("combine15", "", ['cil']);
-$TEST->addTests("combine16", "", ['cil']);
-$TEST->addTests("combine17", "", ['cil']);
-$TEST->addTests("combine18", "", ['cil']);
-$TEST->addTests("combine20", "", ['cil']);
-$TEST->addTests("combine21", "", ['cil']);
-$TEST->addTests("combine22", "", ['cil']);
-$TEST->addTests("combinealias", "", ['cil']);
-$TEST->addTests("combinelibrik", "", ['cil']);
-$TEST->addTests("combineenum1", "", ['cil']);
-$TEST->addTests("combineenum2", "", ['cil']);
-$TEST->addTests("combineenum3", "", ['cil']);
-$TEST->addTests("combineinline1", "", ['cil']);
-$TEST->addTests("combineinline2", "", ['cil']);
-$TEST->addTests("combineinline3", "", ['cil']);
-$TEST->addTests("combineinline4", "", ['cil']);
-$TEST->addTests("combineinline6", "", ['cil']);
-$TEST->addTests("combinestruct1", "", ['cil']);
-$TEST->addTests("mixedcomb", "", ['cil']);
-$TEST->addTests("testrun/math1", "", ['cil']);
-$TEST->addTests("test/linuxcombine1_1", "", ['cil']);
+addTest("testrun/label1");
+addTest("testrun/label2");
+addTest("testrun/label3");
+addTest("testrun/label4 _GNUCC=1");
+addTest("testrun/wchar1");
+addTest("testrun/wchar2");
+addTest("testrun/wchar3");
+addTest("testrun/wchar4");
+addTest("testrun/wchar5 ");
+addTest("testrun/wchar6"); 
+addTest("testrun/wchar7"); 
+addTest("testrun/escapes");
+addTest("test-bad1/wchar-bad ");
+addTest("testrun/addrof3 _GNUCC=1");
+addTest("testrun/lval1 _GNUCC=1");
+addTest("test/bind2 EXTRAARGS=--allowInlineAssembly");
+addToGroup("test/bind2", "slow");
+addTest("testrun/decl1 _GNUCC=1");
+addTest("testrun/addr-array");
+addTest("combine1 ");
+addTest("combine2 ");
+addTest("combine3 ");
+addTest("combine5 ");
+addTest("combine6 ");
+addTest("combine8 ");
+addTestFail("combine9 ", "Incompatible declaration for g");
+addTest("combine10 ");
+addTest("combine11 ");
+addTest("combine12 ");
+addTest("combine13 ");
+addTest("combine14 ");
+addTest("combine15 ");
+addTest("combine16 ");
+addTest("combine17 ");
+addTest("combine18 ");
+addTest("combine20 ");
+addTest("combine21 ");
+addTest("combine22 ");
+addTest("combinealias ");
+addTest("combinelibrik ");
+addTest("combineenum1 ");
+addTest("combineenum2 ");
+addTest("combineenum3 ");
+addTest("combineinline1 ");
+addTest("combineinline2 ");
+addTest("combineinline3 ");
+addTest("combineinline4 ");
+addTest("combineinline6 ");
+addTest("combinestruct1 ");
+addTest("mixedcomb ");
+addTest("testrun/math1 ");
+addTest("test/linuxcombine1_1 ");
 
-$TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
-$TEST->add2Tests("testrun/funptr1");
-$TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
-   $TEST->addBadComment("testrun/typespec1-cil", 
+addTest("arcombine _GNUCC=1");
+addTest("testrun/funptr1");
+addTest("testrun/typespec1 _GNUCC=1");
+addBadComment("testrun/typespec1", 
                         "Must emulate bug in GCC?");
-$TEST->addTests("testrun/returnvoid", "", ['cil']);
-$TEST->addTests("testrun/returnvoid1", "", ['cil']);
-$TEST->addTests("testrun/return1", "", ['cil']);
-$TEST->addTests("testrun/for1", "", ['cil']);
-$TEST->addTests("testrun/void", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/voidtypedef", "", ['cil']);
-$TEST->addTests("testrun/wrongnumargs", "", ['cil']);
-   $TEST->addBadComment("testrun/wrongnumargs-cil", 
+addTest("testrun/returnvoid ");
+addTest("testrun/returnvoid1 ");
+addTest("testrun/return1 ");
+addTest("testrun/for1 ");
+addTest("testrun/void _GNUCC=1");
+addTest("test/voidtypedef ");
+addTest("testrun/wrongnumargs ");
+addBadComment("testrun/wrongnumargs", 
                         "Should fail since we don't pad argument lists");
-if (!$egcs) {
-  $TEST->addTests("test/restrict", "EXTRAARGS=-std=c9x _GNUCC=1", ['cil']);
-  $TEST->addTests("test/restrict1", "_GNUCC=1", ['cil']);
-}
-$TEST->addTests("testrun/rmtmps1", "", ['cil']);
-$TEST->addTests("testrun/rmtmps2", "_GNUCC=1", ['cil']);
-$TEST->addTests("test/proto1", "", ['cil']);
-$TEST->addTests("test/proto2", "", ['cil']);
-   $TEST->addBadComment("test/proto2-cil", 
+addTest("test/restrict EXTRAARGS=-std=c9x _GNUCC=1");
+addTest("test/restrict1 _GNUCC=1");
+addTest("testrun/rmtmps1 ");
+addTest("testrun/rmtmps2 _GNUCC=1");
+addTest("test/proto1 ");
+addTest("test/proto2 ");
+addBadComment("test/proto2", 
                         "Bug in parser (precedences)");
-$TEST->addTests("testrun/struct1", "", ['cil']);
-$TEST->addTests("testrun/voidarg", "", ['cil']);
-$TEST->addTests("testrun/union2", "", ['cil']);
-$TEST->addTests("testrun/union3", "", ['cil']);
-$TEST->addTests("test/union5", "", ['cil']);
-$TEST->addTests("testrun/inline1", "", ['cil']);
-$TEST->addTests("runall/extinline", "", ['cil']);
+addTest("testrun/struct1 ");
+addTest("testrun/voidarg ");
+addTest("testrun/union2 ");
+addTest("testrun/union3 ");
+addTest("test/union5 ");
+addTest("testrun/inline1 ");
+addTest("runall/extinline ");
 
-$TEST->addTests("testrun/rmtmps-attr", "", ['cil']);
-   $TEST->addBadComment("testrun/rmtmps-attr-cil", 
+addTest("testrun/rmtmps-attr ");
+addBadComment("testrun/rmtmps-attr", 
                         "A limitation of our support for attributes");
  
-$TEST->add3Tests("testrun/vsp");
+addTest("testrun/vsp");
 
-$TEST->addTests("test/cpp-2", "", ['cil']);
-   $TEST->addBadComment("test/cpp-2-cil", 
+addTest("test/cpp-2 ");
+addBadComment("test/cpp-2", 
                         "Bug in parser (empty pragmas)");
-$TEST->addTests("test/cpp-3", "_GNUCC=1", ['cil']);
+addTest("test/cpp-3 _GNUCC=1");
 
 
 
 if($win32) {
-    $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
-    $TEST->addTests("testrun/msvc2", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc3", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc4", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc6", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc7", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc8", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc9", "_MSVC=1", ["cil"]);
+    addTest("testrun/extern_init _MSVC=1");   
+    addTest("testrun/msvc2 _MSVC=1");
+    addTest("testrun/msvc3 _MSVC=1");
+    addTest("testrun/msvc4 _MSVC=1");
+    addTest("testrun/msvc6 _MSVC=1");
+    addTest("testrun/msvc7 _MSVC=1");
+    addTest("testrun/msvc8 _MSVC=1");
+    addTest("testrun/msvc9 _MSVC=1");
 
-    $TEST->addTests("test-bad/try1", "_MSVC=1", ["cil"]);
+    addTest("test-bad/try1 _MSVC=1");
 }
-$TEST->addTests("testrun/msvc1", "", ["cil"]);
-$TEST->addTests("testrun/msvc5", "", ["cil"]);
+addTest("testrun/msvc1 ");
+addTest("testrun/msvc5 ");
 
-$TEST->addTests("testrun/extern1", "", ['cil']);
+addTest("testrun/extern1 ");
 
-$TEST->addTests("test/duplicate", "", ['cil']);
+addTest("test/duplicate ");
 
-$TEST->add2Tests("testrun/simon6");
+addTest("testrun/simon6");
     
-$TEST->add2Tests("testrun/stringsize");
-$TEST->addTests("testrun/min", "", ['cil']);
+addTest("testrun/stringsize");
+addTest("testrun/min ");
 
 
 
-$TEST->addTests("test/simplify_structs1", 
-                "USECILLY=1 EXTRAARGS=--dosimplify",  ['cil']);
-$TEST->addTests("testrun/simplify_structs2", 
-                "USECILLY=1 EXTRAARGS=--dosimplify",  ['cil']);
+addTest("test/simplify_structs1 USECILLY=1 EXTRAARGS=--dosimplify");
+addTest("testrun/simplify_structs2 USECILLY=1 EXTRAARGS=--dosimplify");
 
-$TEST->addTests("testrun/typeof1", "", ['cil']);
-$TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
+addTest("testrun/typeof1 ");
+addTest("testrun/semicolon _GNUCC=1");
 
-$TEST->add2Tests("merge-ar", "");
+addTest("merge-ar ");
 
 
 
-$TEST->add2Tests("testrun/sizeof1");
-$TEST->add2Tests("testrun/sizeof2");
-$TEST->addTests("test/outofmem", "", ['cil']);
-$TEST->addTests("testrun/builtin", "", ['cil']);
-$TEST->addTests("test/builtin2", "", ['cil']);
-$TEST->addTests("testrun/builtin3", "", ['cil']);
-$TEST->add2Tests("testrun/comparisons");
+addTest("testrun/sizeof1");
+addTest("testrun/sizeof2");
+addTest("test/outofmem ");
+addTest("testrun/builtin ");
+addTest("test/builtin2 ");
+addTest("testrun/builtin3 ");
+addTest("testrun/comparisons");
     
 
 
-# -------------- alternate testcase interface ---------------
-# sm: trying to make a regrtest-like interface
-sub altAddTest {
-  my ($command, @groups) = @_;
-
-  my $self = $main::globalTEST;
-  my ($name, $args) = ($command =~ /^(\S+) ?(.*)$/);     # name is first word
-  my $tname = $self->uniqueName($name);
-
-  if(scalar(@groups) == 0) { 
-      @groups = ( 'alt' );
-  } 
-  my %patterns = %commonerrors;
-  my $tst = $self->newTest(Name => $tname,
-                           Dir => ".",
-                           Cmd => "$make $command" . $self->testCommandExtras(""),
-                           Group => [ @groups ],
-                           Patterns => \%patterns);
-
-  return $tname;
-}
-
-
-# here 'why' is a human-readable explanation for why the test fails,
-# rather than a regexp to match the error message because:
-#   - I don't care if the error message changes while it's a failing test
-#   - sometimes the message is machine- or compiler-dependent
-#   - I want a human-readable explanation
-sub altFailTest {
-  my ($why, $command) = @_;
-
-  if (!$command) {
-      # presumably 'why' is actually the intended command
-      print STDERR ("You forgot to give a reason for $why\n");
-      exit 2;
-  }
-
-  my $tname = altAddTest($command);
-  $main::globalTEST->addBadComment($tname, $why);
-
-  return $tname;
-}
-
-
-# operating modes
-my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 # self-contained tests of specific things which had problems before
-altAddTest("scott/multiplestatics");
-altAddTest("scott/partialbracket");
-altAddTest("scott/enuminit");
+addTest("scott/multiplestatics");
+addTest("scott/partialbracket");
+addTest("scott/enuminit");
 
-altAddTest("scott/gimpdouble");
-altAddTest("scott/struct_cs");
+addTest("scott/gimpdouble");
+addTest("scott/struct_cs");
 
 
-altAddTest("scott-nogcc/bogus_redef");
-altAddTest("scott/s59");
-altAddTest("scott/putc $gcc");
-altAddTest("scott/lexnum");
-altAddTest("scott/ctype");
+addTest("scott-nogcc/bogus_redef");
+addTest("scott/s59");
+addTest("scott/putc $gcc");
+addTest("scott/lexnum");
+addTest("scott/ctype");
 
 
 # function pointers don't work with inferred wildness
-altAddTest("scott/funcptr");
+addTest("scott/funcptr");
 
 # transparent unions are a problem for network apps
-altAddTest("scott/transpunion $gcc");
-altAddTest("scott/sockaddr $gcc");
+addTest("scott/transpunion $gcc");
+addTest("scott/sockaddr $gcc");
 
 # misc...
-altAddTest("scott/constdecl");
-altAddTest("scott/oldstyle");
-altAddTest("scott/typeof $gcc");
-altAddTest("scott/asmfndecl $gcc");
-altAddTest("scott/open $gcc");
-altAddTest("scott/constfold");
-altAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
-altAddTest("scott-nolink/brlock $gcc");
-altAddTest("scott/regparm0 $gcc");         # this works, unfortunately..
-altAddTest("scott/unscomp");               # kernel/fs/buffer.c
-altAddTest("scott/thing");
+addTest("scott/constdecl");
+addTest("scott/oldstyle");
+addTest("scott/typeof $gcc");
+addTest("scott/asmfndecl $gcc");
+addTest("scott/open $gcc");
+addTest("scott/constfold");
+addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
+addTest("scott-nolink/brlock $gcc");
+addTest("scott/regparm0 $gcc");         # this works, unfortunately..
+addTest("scott/unscomp");               # kernel/fs/buffer.c
+addTest("scott/thing");
 
 # current problematic test cases
-altAddTest("mergeinline");
-altAddTest("scott/uninit_tmp");
-altAddTest("combine_samefn");
-altAddTest("combine_node_alloc");
-altAddTest("combine_sbump");
-altAddTest("combine_sbumpB");
-altAddTest("combine_sbumpB MERGEINLINES=1");
-altAddTest("combine_allocate");
-altAddTest("combine_allocate MERGEINLINES=1");
-altAddTest("combine_theFunc");
-altAddTest("combine_theFunc MERGEINLINES=1");
-altAddTest("combine_syserr");
-altAddTest("combine_syserr MERGEINLINES=1");
-altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
-altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
+addTest("mergeinline");
+addTest("scott/uninit_tmp");
+addTest("combine_samefn");
+addTest("combine_node_alloc");
+addTest("combine_sbump");
+addTest("combine_sbumpB");
+addTest("combine_sbumpB MERGEINLINES=1");
+addTest("combine_allocate");
+addTest("combine_allocate MERGEINLINES=1");
+addTest("combine_theFunc");
+addTest("combine_theFunc MERGEINLINES=1");
+addTest("combine_syserr");
+addTest("combine_syserr MERGEINLINES=1");
+addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
+addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 
 # tests of things implemented for EDG compatibility
-altAddTest("mergestruct");
+addTest("mergestruct");
 
 # a few things that should fail
-altAddTest("test-bad/trivial-tb");
+addTest("test-bad/trivial-tb");
 
 
 # simple test of combiner
-altAddTest("comb $gcc");
+addTest("comb $gcc");
 
 # test combiner's ability to detect inconsistency
-altAddTest("baddef");
+addTest("baddef");
 
 
 # does not work: complains of many incompatible type redefinitions
 #runTest $make apache/rewrite
 
-altAddTest("test/init");
-altAddTest("test/initial");
-altAddTest("test/jmp_buf");
-altAddTest("test/static");
+addTest("test/init");
+addTest("test/initial");
+addTest("test/jmp_buf");
+addTest("test/static");
 
 
 # more random stuff
-altAddTest("scott-nogcc/funcname $gcc");
-altAddTest("scott/litstruct $gcc");
-altAddTest("scott/main $gcc");
-altAddTest("scott/globalprob $gcc");
-altAddTest("scott/bisonerror $gcc");
-altAddTest("scott/cmpzero");
-altAddTest("scott/kernel1 $gcc");
-altAddTest("scott/kernel2 $gcc");
-altAddTest("scott/xcheckers $gcc");
-altAddTest("scott/memberofptr $gcc");
-altAddTest("scott/invalredef $gcc");
-altAddTest("scott/invalredef2 $gcc");
-altAddTest("scott/errorinfn");
-altAddTest("scott/unionassign");
-altAddTest("scott/structattr");
-altAddTest("scott/neg64");
-altAddTest("testrun/arrayinitsize");
-altAddTest("test-bad/enuminit2");
-altAddTest("scott/volatilestruct");
-altAddTest("scott/sizeofchar");
-altAddTest("scott/initedextern");
-altAddTest("scott/arrayinit");
-altAddTest("scott/structattr2");
-altAddTest("scott/structattr3");
-altAddTest("scott/enumerator_sizeof");
-altAddTest("testrun/decl_mix_stmt");
-altAddTest("scott/enumattr");
+addTest("scott-nogcc/funcname $gcc");
+addTest("scott/litstruct $gcc");
+addTest("scott/main $gcc");
+addTest("scott/globalprob $gcc");
+addTest("scott/bisonerror $gcc");
+addTest("scott/cmpzero");
+addTest("scott/kernel1 $gcc");
+addTest("scott/kernel2 $gcc");
+addTest("scott/xcheckers $gcc");
+addTest("scott/memberofptr $gcc");
+addTest("scott/invalredef $gcc");
+addTest("scott/invalredef2 $gcc");
+addTest("scott/errorinfn");
+addTest("scott/unionassign");
+addTest("scott/structattr");
+addTest("scott/neg64");
+addTest("testrun/arrayinitsize");
+addTest("test-bad/enuminit2");
+addTest("scott/volatilestruct");
+addTest("scott/sizeofchar");
+addTest("scott/initedextern");
+addTest("scott/arrayinit");
+addTest("scott/structattr2");
+addTest("scott/structattr3");
+addTest("scott/enumerator_sizeof");
+addTest("testrun/decl_mix_stmt");
+addTest("scott/enumattr");
 
 
 
@@ -646,10 +646,16 @@ if(-d $ctorture &&
        @tortures = grep { my $t = "$tortdir/$_"; 
                           ! grep { $_ =~ m|$t|} @omit } @tortures;
        foreach my $tst (@tortures) {
-           $TEST->addTests("tort/$tortdir/$tst", "_GNUCC=1", ['cil']); 
-           $TEST->addGroups("tort/$tortdir/$tst-cil", 'ctorture');
+           addTest("tort/$tortdir/$tst _GNUCC=1"); 
+           $TEST->addGroups("tort/$tortdir/$tst", 'ctorture');
        }
    }
+}
+
+
+## We add here a mechanism for adding new tests
+if(defined $ENV{CILEXTRATESTS}) {
+    require $ENV{CILEXTRATESTS};
 }
 
 # print Dumper($TEST);
@@ -668,14 +674,14 @@ exit(0);
 ###
 ### Specialize RegTest
 ###
-package SafecRegTest;
+package CilRegTest;
 
 use strict;
 # use Data::Dumper;
 
 BEGIN {
     use RegTest;
-    @SafecRegTest::ISA = qw(RegTest);        # Inherit from RegTest
+    @CilRegTest::ISA = qw(RegTest);        # Inherit from RegTest
 }
 
 # The constructor
@@ -760,108 +766,6 @@ sub testCommandExtras {
     return $theargs;
 }
 
-
-# Add a number of tests.
-# name is the base name of the tests
-# extrargs are passed on the command line for each test
-# kinds must be a list containing: cil, inferbox, box
-# fields must be fields to be added to the newly created tests
-sub addTests {
-    my($self, $name, $extraargs, $pkinds, %extrafields) = @_;
-
-    my $theargs = $self->testCommandExtras($extraargs);
-
-    my %patterns = %commonerrors;
-    my $kind;
-    my @tests = ();
-    foreach $kind (@{$pkinds}) {
-        my $thisargs = $theargs;
-        if($kind eq 'inferbox') {
-            next;
-        }
-        if($kind eq 'box') {
-            next;
-        }
-        $thisargs .= ' NOEMITBROWSER=1 ';  
-        my $tst =
-            $self->newTest(Name => $name . "-" . $kind,
-                           Dir => ".",
-                           Cmd => "$make " . $name . $thisargs,
-                           Group => [$kind],
-                           Patterns => \%patterns);
-        # Add the extra fields
-        my $key;
-        foreach $key (keys %extrafields) {
-            $tst->{$key} = $extrafields{$key};
-        }
-    }
-    return @tests;
-}
-
-
-sub add3Tests {
-    my($self, $name, $extraargs) = @_;
-    my @tests = $self->addTests($name, $extraargs, ['cil']);
-    # Run the CCured test as a quick test, and the others as slow.
-    # The CCured test should catch any CIL errors, anyways.
-    $self->addGroups($name . "-cil", "slow");
-    return @tests;
-}
-
-sub add2Tests {
-    my($self, $name, $extraargs) = @_;
-    my @tests = $self->addTests($name, $extraargs, ['cil']);
-    # Run the CCured test as a quick test, and the CIL as slow.
-    # The CCured test should catch any CIL errors, anyways.
-    $self->addGroups($name . "-cil", "slow");
-    return @tests;
-}
-
-sub addTestsFail {
-    my($self, $name, $extraargs, $failpattern, $pkinds) = @_;
-    my @tests = $self->addTests($name, $extraargs, $pkinds, 
-                                MustFail => $failpattern);
-    return @tests;
-}
-
-sub addBadComment {
-    my($self, $name, $comm) = @_;
-    $self->addComment($name, $comm);
-    $self->addGroups($name, "bad");
-}
-
-sub add3Comment {
-    my ($self, $name, $comm) = @_;
-    $self->addComment($name . "-cil", $comm);
-}
-
-sub add2Comment {
-    my ($self, $name, $comm) = @_;
-    $self->addComment($name . "-cil", $comm);
-}
-
-
-sub add3BadComment {
-    my ($self, $name, $comm) = @_;
-    $self->add3Comment($name, $comm);
-    $self->add3Group($name, "bad");
-}
-
-sub add2BadComment {
-    my ($self, $name, $comm) = @_;
-    $self->add2Comment($name, $comm);
-    $self->add2Group($name, "bad");
-}
-
-sub add3Group {
-    my ($self, $name, @groups) = @_;
-    $self->addGroups($name . "-cil", @groups);
-}
-
-sub add2Group {
-    my ($self, $name, @groups) = @_;
-    $self->addGroups($name . "-cil", @groups);
-}
 
 
 # ensure uniqueness of names (I don't like using these names to
