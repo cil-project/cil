@@ -1,6 +1,6 @@
 # -*- Mode: makefile -*- 
 # Makefile for the cil wrapper
-# @do_not_edit@ Makefile.cil.in
+# @do_not_edit@ Makefile.in
 #
 # author: George Necula
 
@@ -15,7 +15,7 @@
 .PHONY: setup quickbuild doc distrib machdep cilversion
 ECHO = @
 
-all:  quickbuild cillib
+all:  setup cillib
 
 # Now add the defines for the CIL features
 @CIL_FEATURES_DEFINES@
@@ -23,7 +23,7 @@ all:  quickbuild cillib
 
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
-Makefile.cil: config.status Makefile.cil.in 
+Makefile: config.status Makefile.in 
 	./$<
 
 config.status: configure
@@ -128,18 +128,18 @@ quickbuild: cilversion machdep cilly
 # into two targets so we build cil.cma both ways, but no one is using
 # cil.cma now so I'll leave it alone
 setup: cilversion machdep
-	$(MAKE) -f Makefile.cil cilly NATIVECAML= 
-	$(MAKE) -f Makefile.cil cilly NATIVECAML=1
-	$(MAKE) -f Makefile.cil cillib NATIVECAML=
-	$(MAKE) -f Makefile.cil cillib NATIVECAML=1
+	$(MAKE) cilly NATIVECAML= 
+	$(MAKE) cilly NATIVECAML=1
+	$(MAKE) cillib NATIVECAML=
+	$(MAKE) cillib NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
 .PHONY : machdep 
 machdep: $(OBJDIR)/machdep.ml 
-$(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
+$(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	rm -f $@
-	echo "(* This module was generated automatically by code in Makefile.cil and machdep.c *)" >$@
+	echo "(* This module was generated automatically by code in Makefile and machdep.c *)" >$@
 # Now generate the type definition
 	echo "type mach = {" >> $@ 
 	echo "  version_major: int;     (* Major version number *)"    >> $@
@@ -198,7 +198,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.cil.in
 # Create the version information module
 .PHONY: cilversion 
 cilversion: $(OBJDIR)/cilversion.ml
-$(OBJDIR)/cilversion.ml: configure.in Makefile.cil.in
+$(OBJDIR)/cilversion.ml: configure.in Makefile.in
 	rm -f $@
 	echo "(* This module was generated automatically by code in Makefile *)" >$@
 # Generate here the version information
@@ -216,7 +216,7 @@ cillib: $(OBJDIR)/cil.$(CMXA)
 endif
 
 
-$(OBJDIR)/feature_config.ml: Makefile.cil config.status
+$(OBJDIR)/feature_config.ml: Makefile config.status
 	rm -f $(OBJDIR)/feature_config.*
 	echo "(* This module was generated automatically by code in Makefile.in *)" >$@
 # The Cilly feature options. A list of Cil.featureDescr 
@@ -378,7 +378,7 @@ TEMP_DIR = TEMP_cil-distrib
 # The tar archive members will be relative to this directory
 TOP_DIR = $(TEMP_DIR)/cil
 
-DISTRIB_ROOT = README LICENSE INSTALL Makefile.cil.in  \
+DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
                config.h.in Makefile.gcc Makefile.msvc \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
@@ -460,13 +460,6 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
               $(TOP_DIR)/ocamlutil
 
 	cp $(patsubst %,%,$(DISTRIB_ROOT)) $(TOP_DIR)
-        # Add a new Makefile which invokes Makefile.cil
-	echo "#This Makefile is a wrapper for Makefile.cil">$(TOP_DIR)/Makefile
-	echo "setup: setup" >>$(TOP_DIR)/Makefile
-	echo "%: " >>$(TOP_DIR)/Makefile
-# note that we have a TAB in the next line
-	echo '	if test ! -f Makefile.cil ;then echo Run configure first ;fi'>>$(TOP_DIR)/Makefile
-	echo '	$$(MAKE) -f Makefile.cil $$*' >>$(TOP_DIR)/Makefile
 
 	cp $(patsubst %,src/%,$(DISTRIB_SRC)) $(TOP_DIR)/src
 	cp $(patsubst %,ocamlutil/%,$(DISTRIB_OCAMLUTIL)) $(TOP_DIR)/ocamlutil
@@ -503,7 +496,7 @@ distclean: clean
 	rm -f bin/CilConfig.pm
 	rm -f config.log
 	rm -f config.h
-	rm -f Makefile.cil
+	rm -f Makefile
 
 ## Publish the distribution
 CILHTMLDEST=/var/www/cil

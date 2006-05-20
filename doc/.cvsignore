@@ -18,9 +18,7 @@ cil-api.tex
 cil.version.tex
 cilpp.tex
 cilcode.tmp
-ccuredcode.tmp
-ccuredpp.tex
 cil.version
-cilheader.html
-cilindex.html
+header.html
+index.html
 ocamldoc.sty

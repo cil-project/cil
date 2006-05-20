@@ -309,7 +309,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CCUREDHOME CILHOME HAS_MSVC DEFAULT_COMPILER DEFAULT_CIL_MODE CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CCURED_VERSION_MAJOR CCURED_VERSION_MINOR CCURED_VERSION_REV CCURED_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD UNDERSCORE_NAME EXTRAFEATURES EXTRASRCDIRS LTLIBOBJS'
+ac_subst_vars='CIL_FEATURES_DEFINES NEWLINE SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA build build_cpu build_vendor build_os host host_cpu host_vendor host_os target target_cpu target_vendor target_os CPP EGREP LIBOBJS ARCHOS CILHOME HAS_MSVC DEFAULT_COMPILER DEFAULT_CIL_MODE CIL_VERSION_MAJOR CIL_VERSION_MINOR CIL_VERSION_REV CIL_VERSION CYCLES_PER_USEC HAS_PERFCOUNT HAVE_BUILTIN_VA_LIST THREAD_IS_KEYWORD UNDERSCORE_NAME EXTRAFEATURES EXTRASRCDIRS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1308,13 +1308,9 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=3
-CIL_VERSION_REV=4
+CIL_VERSION_REV=5
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
-CCURED_VERSION_MAJOR=1
-CCURED_VERSION_MINOR=3
-CCURED_VERSION_REV=4
-CCURED_VERSION=$CCURED_VERSION_MAJOR.$CCURED_VERSION_MINOR.$CCURED_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
 if test configure -ot configure.in; then
@@ -2477,7 +2473,7 @@ binaryExists() {
 # this specifies the root of the source tree; it's just the
 # directory where ./configure runs, except on cygwin, which
 # overrides this below
-CCUREDHOME=`pwd`
+CILHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
@@ -2620,12 +2616,12 @@ echo $ECHO_N "checking for Perl... $ECHO_C" >&6
   if ! binaryExists perl; then
     { { echo "$as_me:$LINENO: error:
       perl not found.
-      You need perl version 5.6.1 or later for CCured.
+      You need perl version 5.6.1 or later for CIL.
       You can get perl at http://www.cpan.org/src/index.html .
     " >&5
 echo "$as_me: error:
       perl not found.
-      You need perl version 5.6.1 or later for CCured.
+      You need perl version 5.6.1 or later for CIL.
       You can get perl at http://www.cpan.org/src/index.html .
     " >&2;}
    { (exit 1); exit 1; }; }
@@ -4228,10 +4224,10 @@ echo "${ECHO_T}configuring for Cygwin on win32/x86" >&6
 
     ARCHOS=x86_WIN32
 
-    # override CCUREDHOME; even on cygwin we want forward slashes
+    # override CILHOME; even on cygwin we want forward slashes
     # sm: I folded this into what I hope will be the only
     # case-analysis of machine type
-    CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
+    CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;
@@ -4262,7 +4258,6 @@ echo "$as_me: error:
    { (exit 1); exit 1; }; }
     ;;
 esac
-CILHOME=$CCUREDHOME
 
 # Make the object directory if not already present
 as_ac_File=`echo "ac_cv_file_obj/$ARCHOS" | $as_tr_sh`
@@ -4412,11 +4407,6 @@ done
 
 
 
-
-
-
-
-
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
 # I find it useful to mark generated files as read-only so I don't
@@ -4448,30 +4438,12 @@ done
   fi
 }
 {
-  if test -f lib/gc/GNUCC/Makefile.in; then
-              ac_config_files="$ac_config_files lib/gc/GNUCC/Makefile"
-
-  else
-    true
-    #echo "skipping [lib/gc/GNUCC/Makefile] because it's not in this distribution"
-  fi
-}
-{
   if test -f test/Makefile.in; then
               ac_config_files="$ac_config_files test/Makefile"
 
   else
     true
     #echo "skipping [test/Makefile] because it's not in this distribution"
-  fi
-}
-{
-  if test -f Makefile.cil.in; then
-              ac_config_files="$ac_config_files Makefile.cil"
-
-  else
-    true
-    #echo "skipping [Makefile.cil] because it's not in this distribution"
   fi
 }
 {
@@ -4493,15 +4465,6 @@ done
   fi
 }
 {
-  if test -f bin/ccured.bat.in; then
-              ac_config_files="$ac_config_files bin/ccured.bat"
-
-  else
-    true
-    #echo "skipping [bin/ccured.bat] because it's not in this distribution"
-  fi
-}
-{
   if test -f bin/CilConfig.pm.in; then
               ac_config_files="$ac_config_files bin/CilConfig.pm"
 
@@ -4511,21 +4474,21 @@ done
   fi
 }
 {
-  if test -f doc/cilindex.html.in; then
-              ac_config_files="$ac_config_files doc/cilindex.html"
+  if test -f doc/index.html.in; then
+              ac_config_files="$ac_config_files doc/index.html"
 
   else
     true
-    #echo "skipping [doc/cilindex.html] because it's not in this distribution"
+    #echo "skipping [doc/index.html] because it's not in this distribution"
   fi
 }
 {
-  if test -f doc/cilheader.html.in; then
-              ac_config_files="$ac_config_files doc/cilheader.html"
+  if test -f doc/header.html.in; then
+              ac_config_files="$ac_config_files doc/header.html"
 
   else
     true
-    #echo "skipping [doc/cilheader.html] because it's not in this distribution"
+    #echo "skipping [doc/header.html] because it's not in this distribution"
   fi
 }
 {
@@ -5066,15 +5029,12 @@ do
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "cil.spec" ) CONFIG_FILES="$CONFIG_FILES cil.spec" ;;
-  "lib/gc/GNUCC/Makefile" ) CONFIG_FILES="$CONFIG_FILES lib/gc/GNUCC/Makefile" ;;
   "test/Makefile" ) CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
-  "Makefile.cil" ) CONFIG_FILES="$CONFIG_FILES Makefile.cil" ;;
   "bin/cilly.bat" ) CONFIG_FILES="$CONFIG_FILES bin/cilly.bat" ;;
   "bin/patcher.bat" ) CONFIG_FILES="$CONFIG_FILES bin/patcher.bat" ;;
-  "bin/ccured.bat" ) CONFIG_FILES="$CONFIG_FILES bin/ccured.bat" ;;
   "bin/CilConfig.pm" ) CONFIG_FILES="$CONFIG_FILES bin/CilConfig.pm" ;;
-  "doc/cilindex.html" ) CONFIG_FILES="$CONFIG_FILES doc/cilindex.html" ;;
-  "doc/cilheader.html" ) CONFIG_FILES="$CONFIG_FILES doc/cilheader.html" ;;
+  "doc/index.html" ) CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
+  "doc/header.html" ) CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
   "ocamlutil/perfcount.c" ) CONFIG_FILES="$CONFIG_FILES ocamlutil/perfcount.c" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -5189,7 +5149,6 @@ s,@CPP@,$CPP,;t t
 s,@EGREP@,$EGREP,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@ARCHOS@,$ARCHOS,;t t
-s,@CCUREDHOME@,$CCUREDHOME,;t t
 s,@CILHOME@,$CILHOME,;t t
 s,@HAS_MSVC@,$HAS_MSVC,;t t
 s,@DEFAULT_COMPILER@,$DEFAULT_COMPILER,;t t
@@ -5198,10 +5157,6 @@ s,@CIL_VERSION_MAJOR@,$CIL_VERSION_MAJOR,;t t
 s,@CIL_VERSION_MINOR@,$CIL_VERSION_MINOR,;t t
 s,@CIL_VERSION_REV@,$CIL_VERSION_REV,;t t
 s,@CIL_VERSION@,$CIL_VERSION,;t t
-s,@CCURED_VERSION_MAJOR@,$CCURED_VERSION_MAJOR,;t t
-s,@CCURED_VERSION_MINOR@,$CCURED_VERSION_MINOR,;t t
-s,@CCURED_VERSION_REV@,$CCURED_VERSION_REV,;t t
-s,@CCURED_VERSION@,$CCURED_VERSION,;t t
 s,@CYCLES_PER_USEC@,$CYCLES_PER_USEC,;t t
 s,@HAS_PERFCOUNT@,$HAS_PERFCOUNT,;t t
 s,@HAVE_BUILTIN_VA_LIST@,$HAVE_BUILTIN_VA_LIST,;t t
@@ -5450,15 +5405,12 @@ s,@INSTALL@,$ac_INSTALL,;t t
   case $ac_file in
     Makefile ) chmod a-w Makefile ;;
     cil.spec ) chmod a-w cil.spec ;;
-    lib/gc/GNUCC/Makefile ) chmod a-w lib/gc/GNUCC/Makefile ;;
     test/Makefile ) chmod a-w test/Makefile ;;
-    Makefile.cil ) chmod a-w Makefile.cil ;;
     bin/cilly.bat ) chmod a-w,a+x bin/cilly.bat ;;
     bin/patcher.bat ) chmod a-w,a+x bin/patcher.bat ;;
-    bin/ccured.bat ) chmod a-w,a+x bin/ccured.bat ;;
     bin/CilConfig.pm ) chmod a-w bin/CilConfig.pm ;;
-    doc/cilindex.html ) chmod a-w doc/cilindex.html ;;
-    doc/cilheader.html ) chmod a-w doc/cilheader.html ;;
+    doc/index.html ) chmod a-w doc/index.html ;;
+    doc/header.html ) chmod a-w doc/header.html ;;
     ocamlutil/perfcount.c ) chmod a-w ocamlutil/perfcount.c ;;
   esac
 done
@@ -5720,15 +5672,15 @@ fi
 # show the user what the variables have been set to
 cat <<EOF
 
-CCured/CIL configuration:
+CIL configuration:
   architecture/OS:            ARCHOS             $ARCHOS
-  source tree root:           CCUREDHOME         $CCUREDHOME
+  source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra directories           EXTRASRCDIRS       $EXTRASRCDIRS
+  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
   Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
 

@@ -1,4 +1,4 @@
-# A regression tester for safec
+# A regression tester for CIL
 #
 require 5.000;
 
@@ -16,20 +16,13 @@ use RegTest;
 
 $ENV{LANG} = 'C';
 
-print "Test infrastructure for CCured and CIL\n";
+print "Test infrastructure for CIL\n";
 
 # Create our customized test harness
-my $TEST = SafecRegTest->new(AvailParams => { 'SAFE' => 1,
-                                              'WILD' => 1,
-                                              'FSEQ' => 1,
-                                              'CHK_RET' => 1,
-                                              'CHK_STR' => 1,
-                                              'RUN' => 1,
-                                              'CURE' => 1,
-                                              'NODES' => 1,
+my $TEST = SafecRegTest->new(AvailParams => { 'RUN' => 1,
                                               'SUCCESS' => 0},
-                             LogFile => "safec.log",
-                             CommandName => "testsafec");
+                             LogFile => "cil.log",
+                             CommandName => "testcil");
 
 # sm: I want a global name for this $TEST thing, since I find it is merely
 # excess verbiage when adding tests..
@@ -60,12 +53,8 @@ if ($solaris) {
 #  1000 - Start (scripts, preprocessors, etc.)
 #  1001 - Parsing
 #  1002 - cabs2cil
-#  1003 - collecting constraints
-#  1004 - solving constraints
-#  1005 - Curing file
-#  1006 - Optimization
-#  1007 - Compilation
-#  1008 - Running 
+#  1003 - Compilation
+#  1004 - Running 
 
 my @runpattern = 
     ("^Run.+ ([.\\d]+)ms" => sub { $_[1]->{"run"} = $_[2]; });
@@ -74,16 +63,6 @@ my %commonerrors =
     ("^Parsing " => sub { $_[1]->{instage} = 1001; },
 
      "^Converting CABS" => sub { $_[1]->{instage} = 1002; },
-
-     "^Collecting constraints" => sub { $_[1]->{instage} = 1003; },
-
-     "^Solving constraints" => sub { $_[1]->{instage} = 1004; },
-
-     "^Adding run-time checks" => sub { $_[1]->{instage} = 1005; },
-
-     "^Optimizing checks" => sub { $_[1]->{instage} = 1006; },
-
-     "^Cure complete" => sub { $_[1]->{instage} = 1007; },
 
      "^Linked the cured program" => sub { $_[1]->{instage} = 1008; },
 
@@ -113,22 +92,6 @@ my %commonerrors =
                    sub { if(! defined $_[1]->{ErrorMsg}) {
                          $_[1]->{ErrorMsg} = $_[2];} },
 
-#
-# Now collect some parameters
-    "^ptrkinds:\\s+SAFE - \\d+ \\(\\s*(\\d+)\\%" 
-              => sub { $_[1]->{SAFE} = $_[2]; },
-    "^ptrkinds:\\s+WILD - \\d+ \\(\\s*(\\d+)\\%" 
-              => sub { $_[1]->{WILD} = $_[2]; },
-    "^ptrkinds:\\s+FSEQ - \\d+ \\(\\s*(\\d+)\\%" 
-              => sub { $_[1]->{FSEQ} = $_[2]; },
-
-    "contains (\\d+) nodes" => sub { $_[1]->{NODES} = $_[2]; },
-
-#     "^\\s*CHECK_NULL\\s+(\\d+)" => sub { $_[1]->{CHK_NULL} = $_[2]; },
-
-    "^\\s*CHECK_RETURNPTR\\s+(\\d+)" => sub { $_[1]->{CHK_RET} = $_[2]; },
-
-    "^\\s*CHECK_STOREPTR\\s+(\\d+)" => sub { $_[1]->{CHK_STR} = $_[2]; },
 
     "^user\\s+(\\d+)m([\\d.]+)s"
               => sub { $_[1]->{RUN} = 60 * $_[2] + $_[3]; },
@@ -137,7 +100,6 @@ my %commonerrors =
     );
 
                                          
-my $inferbox = "infer";	# weimer: "paper"
 
 # Start with a few tests that must be run first
 $TEST->newTest(
@@ -162,7 +124,7 @@ $TEST->newTest(
     Group => ["apache", "slow"],
     Cmd => "$make apachesetup _GNUCC=1");
 
-# build the documentation
+# build the documentation, to make sure that it still builds
 $TEST->newTest(
     Name => "doc",
     Dir => "..",
@@ -176,16 +138,8 @@ $TEST->addTests("test/const-struct-init", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-noreturn", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("test/warnings-cast", "WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->addTests("test_withtrusted/deepcopy1", "", ['inferbox']);
-$TEST->addTests("test_withtrusted/deepcopy3", "", ['inferbox']);
-$TEST->addTests("test/compat1", "", ['inferbox']);
-$TEST->addTests("testrun/compat2", "", ['inferbox']);
-$TEST->addTests("testrun/pointsto", "", ['inferbox']);
-$TEST->addTests("testrun/trusted1", "", ['inferbox']);
-$TEST->addTests("testrun/hostent", "", ['inferbox'],
-                Group => [ 'slow' ]);
-$TEST->addTests("testrun/hostent2", "", ['inferbox'],
-                Group => [ 'slow' ] );
+
+
 $TEST->add3Tests("btreetest");
    $TEST->add3Group("btreetest", "slow");
 $TEST->add3Tests("hashtest");
@@ -194,16 +148,11 @@ $TEST->add3Tests("rbtest");
    $TEST->add3Group("rbtest", "slow");
 $TEST->add2Tests("hufftest");
    $TEST->add2Group("hufftest", "slow");
-$TEST->add3Tests("test/alloc");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
-$TEST->add3Tests("testrun/alloc2");
-$TEST->addTests("testrun/alloc3", "", ['inferbox']);
+
 $TEST->add3Tests("testrun/apachefptr");
-$TEST->add2Tests("testrun/asm1", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
-    # sm: this one works for me
-    #$TEST->addBadComment("testrun/asm1-inferbox",
-    #                     "Unimplemented inline assmebly");
+$TEST->add2Tests("testrun/asm1", "_GNUCC=1");
 $TEST->addTests("test/asm2", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm3", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/asm4", "_GNUCC=1", ['cil']);
@@ -217,7 +166,6 @@ $TEST->add3Tests("test/argcast");
 $TEST->add3Tests("test/array1");
 $TEST->addTests("testrun/array4", "", ['cil']);
 $TEST->add3Tests("test/array2");
-$TEST->addTests("testrun/array3", "", ['inferbox']);
 $TEST->add2Tests("testrun/array_varsize");
 $TEST->addTests("testrun/formalscope", "", ['cil']);
 $TEST->add3Tests("test/matrix");
@@ -240,20 +188,14 @@ $TEST->addTests("test/attr7", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/attr8", "_GNUCC=1", ['cil']);
 $TEST->addTests("test/attr9", "_GNUCC=1 WARNINGS_ARE_ERRORS=1", ['cil']);
 $TEST->addTests("testrun/packed", "_GNUCC=1 WARNINGS_ARE_ERRORS=1", ['cil']);
-$TEST->add3Tests("test/bh1");
 $TEST->add3Tests("test/bitfield");
 $TEST->add3Tests("testrun/bitfield3");
      
 $TEST->add3Tests("testrun/bitfield2");
-$TEST->add3Tests("test/box1");
-$TEST->addTests("testrun/call1", "", ['inferbox']);
 $TEST->addTests("testrun/call2", "", ['cil']);
 $TEST->add3Tests("test/cast1");
 $TEST->add3Tests("test/cast2");
 $TEST->add2Tests("test/cast4", "_GNUCC=1");
-$TEST->addTestsFail("test/cast5", "Failure UBOUND", ['inferbox', 'box']);
-$TEST->addTestsFail("test/cast6", "Failure UBOUND", ['inferbox', 'box']);
-$TEST->addTests("testrun/cast7", "", ['inferbox']);
 $TEST->addTests("testrun/cast8", "", ['cil']);
 $TEST->add3Tests("test/constprop");
 $TEST->addTests("testrun/const1", "_GNUCC=1", ['cil']);
@@ -270,20 +212,13 @@ $TEST->addTests("testrun/const11", "", ['cil']);
 $TEST->add2Tests("test/deref", "_GNUCC=1");
 $TEST->add3Tests("test/enum");
 $TEST->add3Tests("testrun/enum2");
-$TEST->add3Tests("test/format1");
 $TEST->add3Tests("test/func");
-$TEST->addTests("test/splitargs","WARNINGS_ARE_ERRORS=1", ['inferbox']);
 $TEST->addTests("test/funcarg", "", ['cil']);
    $TEST->addBadComment("test/funcarg-cil", "Bug in parser (argument of function type)");
 
 $TEST->add3Tests("testrun/func2");
 $TEST->add3Tests("testrun/func3");
 $TEST->add3Tests("testrun/func4");
-$TEST->add3Tests("testrun/func5");
-$TEST->add3Tests("testrun/func6");
-$TEST->addTests("testrun/func7", "", ['inferbox']);
-$TEST->addTests("testrun/func8", "", ['inferbox']);
-$TEST->add2Tests("testrun/func9");
 $TEST->addTests("test/func10", "", ['cil']);
 $TEST->addBadComment("test/func10-cil", 
                      "Cil bug: Cannot parse some strange K&R function definition");
@@ -292,7 +227,6 @@ $TEST->addTests("test/globals2", "", ['cil']);
 $TEST->addBadComment("test/globals2-cil", "CIL bug: we print array size expressions that refer to variables that haven't been defined yet.");
 $TEST->add3Tests("testrun/float");
 $TEST->addTests("testrun/float2", "", ['cil']);
-$TEST->add3Tests("testrun/ptr1");
 $TEST->add3Tests("test/huff1");
 $TEST->add3Tests("testrun/init");
 $TEST->add3Tests("testrun/init1");
@@ -326,7 +260,6 @@ $TEST->add3Tests("test/jmp_buf");
 $TEST->add3Tests("test/linux_atomic", "_GNUCC=1");
 $TEST->add3Tests("testrun/linux_signal", "_GNUCC=1");
 $TEST->add3Tests("test/li");
-$TEST->add3Tests("test/li1", "_GNUCC=1");
 $TEST->add3Tests("test/list");
 $TEST->addTests("testrun/localinit", "", ['cil']);
 
@@ -334,15 +267,12 @@ $TEST->addTests('testrun/longBlock', '', ['cil']);
 $TEST->add2Tests("testrun/perror");
 $TEST->add2Tests("testrun/perror1");
 $TEST->add2Tests("test/pure");
-$TEST->add3Tests("test/pointers");
 $TEST->addTests("testrun/post-assign", "", ['cil']);
    $TEST->addBadComment("testrun/post-assign-cil", 
                         "CIL does not have the same evaluation order for ++ as gcc");
 $TEST->add3Tests("test/printf", "", @runpattern);
 $TEST->add3Tests("test/printf_const", "", @runpattern);
 $TEST->add3Tests("testrun/printf2");
-$TEST->addTests("testrun/safeunion", "", ['inferbox']);
-$TEST->add3Tests("testrun/solver1");
 $TEST->add2Tests("test/unimplemented");
 $TEST->add2Tests("testrun/vararg1");
 $TEST->add2Tests("testrun/vararg2");
@@ -353,36 +283,23 @@ if($win32) {
 }
 $TEST->add2Tests("testrun/varargauto1");
 $TEST->add2Tests("testrun/vararg5", "_GNUCC=1");
-$TEST->add2Tests("testrun/vararg-tagged1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/vararg6");
 }
 $TEST->add2Tests("test/vararg7", "_GNUCC=1");
-$TEST->addTests("testrun/vararg8", "", ['inferbox']);
-$TEST->addTests("testrun/vararg9", "", ['cil', 'inferbox']);
 $TEST->add2Tests("testrun/va-arg-1", "_GNUCC=1");
 $TEST->add2Tests("testrun/va-arg-2", "_GNUCC=1");
 if (!$egcs) {
   $TEST->add2Tests("testrun/va-arg-7", "_GNUCC=1");
 }
-$TEST->addTests("test-bad/vararg", "", ['inferbox']);
 $TEST->addTests("test-bad/arrsize", "", ['cil']);
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
-$TEST->add3Tests("test/seq");
-$TEST->addTestsFail("test/seq2", "Failure LBOUND", ['inferbox']);
-$TEST->addTestsFail("test/fseq4fail", "Failure DECFSEQ", ['inferbox']);
-$TEST->add3Tests("testrun/sized");
-$TEST->addTestsFail("testrun/sized2", "", 
-    "Initializing SIZED open array", ['inferbox']);
 $TEST->add3Tests("test/sizeof");
-$TEST->add3Tests("test/smallstring");
 $TEST->add3Tests("testrun/static", "", @runpattern);
 $TEST->add3Tests("test/static1");
 $TEST->addTests("testrun/static2", "", ['cil']);
 $TEST->add3Tests("test/strcpy");
-$TEST->addTests("test-bad/strcpy1", "", ['inferbox']);
-$TEST->add3Tests("test/string");
 $TEST->add3Tests("test/struct_init");
 $TEST->add3Tests("test/structassign");
 $TEST->addTests("testrun/align1", "_GNUCC=1", ['cil']);
@@ -402,73 +319,10 @@ $TEST->addTests("testrun/scope10", "", ['cil']);
 $TEST->addTests("testrun/scope11", "", ['cil']);
 $TEST->add3Tests("test/voidstar");
 $TEST->add3Tests("testrun/memcpy1");
-$TEST->add3Tests("testrun/memset1");
-$TEST->addTests("testrun/memcpy2", "", ['inferbox'],
-                Group => [ 'slow' ]);
-$TEST->add3Tests("testrun/poly1");
-$TEST->add3Tests("testrun/poly2");
-$TEST->add3Tests("testrun/poly3");
-$TEST->add3Tests("testrun/polypeek1");
-$TEST->add3Tests("testrun/polypeek2", "RELEASE=");
-$TEST->add3Tests("testrun/polypeek3");
-$TEST->add3Tests("testrun/polyapply1");
-$TEST->add3Tests("testrun/polyapply2");
-$TEST->add3Tests("testrun/polyapply3");
-$TEST->add3Tests("testrun/polyrec");
-$TEST->addTests("testrun/polylist", "", ['inferbox']);
-$TEST->addTests("test-bad1/polystruct", "", ['inferbox']);
-  $TEST->addBadComment("test-bad1/polystruct-inferbox", 
-                       "Polymorphic structures seem to be broken");
-$TEST->addTests("test-bad1/helpers", "", ['inferbox']);
-$TEST->addTests("test-bad1/helpers2", "", ['inferbox']);
-$TEST->addTests("testrun/polystruct2", "", ['inferbox']);
-$TEST->addTests("test-bad/fseq1fail", "", ['inferbox']);
-$TEST->addTests("test-bad/seqalign", "", ['inferbox']);
-$TEST->addTests("test-bad/globinit", "", ['inferbox']);
-$TEST->addTests("test-bad/index1", "", ['inferbox']);
-$TEST->addTests("test-bad/stackptr", "", ['inferbox']);
-$TEST->addTests("test-bad1/escape", "", ['inferbox']);
-$TEST->addTests("test-bad1/alias", "", ['inferbox']);
-$TEST->addTests("test-bad1/overflow", "", ['inferbox']);
-$TEST->addTests("test-bad1/badcast", "", ['inferbox']);
 
-$TEST->addTests("test-bad/nonptr1", 
-                "EXTRAARGS=--logNonPointers", ['inferbox']);
-$TEST->addTests("test-bad/asm1", 
-                "EXTRAARGS=--allowInlineAssembly", ['inferbox']);
-
-$TEST->addTests("test-bad/size1", "", ['inferbox']);
-$TEST->addTests("runall/size2", "", ['inferbox']);
-$TEST->addTests("runall/size3", 
-                "EXTRAARGS=--noUnrefPointerChecks", ['inferbox']);
-$TEST->addTests("runone/size4", "", ['inferbox']);
-$TEST->addTests("runall/size5", 
-                "EXTRAARGS=--noUnrefPointerChecks", ['inferbox']);
-$TEST->addTests("runall/endannot", 
-                "EXTRAARGS=--noUnrefPointerChecks", ['inferbox']);
 $TEST->addTests("test/noreturn", "", ['cil']);
                 
-$TEST->addTests("test-bad-ln/handler1",
-    "CCURED_ERROR_HANDLERS=handler1.handlers FAILISVERBOSE=1", ['inferbox']);
 
-$TEST->addTests("runall/cilreturn", "", ['inferbox']);
-$TEST->addTests("runall/strings", "", ['inferbox']);
-$TEST->addTests("runall/strings-bill", "", ['inferbox']);
-$TEST->addTests("runall/strings-jeremy", "", ['inferbox']);
-$TEST->addTests("runall/strings-jeremy2", "", ['inferbox']);
-$TEST->addTests("runall/strings-zach", "", ['inferbox']);
-  $TEST->addBadComment("runall/strings-jeremy-inferbox", 
-                       "Fails on Manju because Manju doesn't have strlcat");
-$TEST->addTests("runall/nullterm", "", ['inferbox']);
-$TEST->addTests("scott/nullterm2", "", ['inferbox']);
-$TEST->addTests("scott/nullterm3", "", ['inferbox']);
-$TEST->addTests("runall/sentinel", "", ['inferbox']);
-
-$TEST->addTests("runall/circular", "", ['cil']);
-
-
-
-$TEST->addTests("test-bad/fieldaddr", "", ['inferbox']);
 $TEST->add3Tests("testrun/label1");
 $TEST->add3Tests("testrun/label2");
 $TEST->add3Tests("testrun/label3");
@@ -482,27 +336,12 @@ $TEST->add2Tests("testrun/wchar6");
 $TEST->add3Tests("testrun/wchar7"); 
 $TEST->add2Tests("testrun/escapes");
 $TEST->addTests("test-bad1/wchar-bad", "", ['cil']);
-$TEST->add3Tests("testrun/addrof", "MANUALBOX=1");
-$TEST->add3Tests("testrun/addrof2", "MANUALBOX=1");
 $TEST->addTests("testrun/addrof3", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/addrof4", "", ['inferbox']);
 $TEST->add3Tests("testrun/lval1", "_GNUCC=1");
 $TEST->add3Tests("testrun/bind1", "EXTRAARGS=--assumePrintf");
 $TEST->add3Tests("test/bind2", "EXTRAARGS=--allowInlineAssembly");
    $TEST->add3Group("test/bind2", "slow");
-# $TEST->add3Tests("testmodel/model1");
-# $TEST->add3Tests("testmodel/modelpoly");
-$TEST->add2Tests("testwrapper/wrapper1");
-$TEST->add2Tests("testwrapper/wrapperpoly");
-$TEST->addTests("test-bad-wrapper/wrapper1", "", ['inferbox']);
-$TEST->addTests("test-bad-wrapper/wrapper2", "", ['inferbox']);
-$TEST->addTests("test-bad-crypt/crypt", "", ['inferbox']);
 $TEST->addTests("testrun/decl1", "_GNUCC=1", ['cil']);
-$TEST->addTests("wes-hashtest", "", ['cil', 'inferbox'], 
-                Group => [ 'slow' ]);
-$TEST->add3Tests("wes-rbtest", "");
-  $TEST->add3Group("wes-rbtest", "slow");
-$TEST->addTests("test/alloc", "MANUALBOX=1", ['inferbox']);
 $TEST->add3Tests("testrun/addr-array");
 $TEST->addTests("combine1", "", ['cil']);
 $TEST->addTests("combine2", "", ['cil']);
@@ -540,13 +379,9 @@ $TEST->addTests("test/linuxcombine1_1", "", ['cil']);
 
 $TEST->addTests("arcombine", "_GNUCC=1", ['cil']);
 $TEST->add2Tests("testrun/funptr1");
-$TEST->addTests("testrun/funptr2", "", ['inferbox']);
-$TEST->addTests("testrun/funptralloc1", "", ['inferbox']);
 $TEST->addTests("testrun/typespec1", "_GNUCC=1", ['cil']);
    $TEST->addBadComment("testrun/typespec1-cil", 
                         "Must emulate bug in GCC?");
-$TEST->add2Tests("testrun/wild2", "_GNUCC=1");
-$TEST->addTests("testrun/wild3", "_GNUCC=1", ['inferbox']);
 $TEST->addTests("testrun/returnvoid", "", ['cil']);
 $TEST->addTests("testrun/returnvoid1", "", ['cil']);
 $TEST->addTests("testrun/return1", "", ['cil']);
@@ -570,59 +405,22 @@ $TEST->addTests("testrun/struct1", "", ['cil']);
 $TEST->addTests("testrun/voidarg", "", ['cil']);
 $TEST->addTests("testrun/union2", "", ['cil']);
 $TEST->addTests("testrun/union3", "", ['cil']);
-$TEST->addTests("testrun/union4", "", ['inferbox']);
 $TEST->addTests("test/union5", "", ['cil']);
 $TEST->addTests("testrun/inline1", "", ['cil']);
 $TEST->addTests("runall/extinline", "", ['cil']);
-$TEST->addTests("testrun/tcast2", "", ['inferbox']);
-$TEST->addTests("testrun/rtti1", "", ['inferbox']);
-$TEST->addTests("testrun/rtti2", "", ['inferbox']);
-$TEST->addTests("testrun/rtti3", "", ['inferbox']);
-$TEST->addTests("testrun/rtti4", "", ['inferbox']);
-$TEST->addTests("testrun/rtti5", "", ['inferbox']);
-$TEST->addTests("testrun/rtti6", "", ['inferbox']);
-$TEST->addTests("testrun/rtti7", "", ['inferbox']);
-$TEST->addTests("testrun/rtti8", "", ['inferbox']);
-$TEST->addTests("test-bad1/rtti9", "", ['inferbox']);
-$TEST->addTests("test/rtti10", "", ['inferbox']);
-$TEST->addTests("testrun/rttioo", "", ['inferbox']);
-$TEST->addTests("testrun/rttioo2", "", ['inferbox']);
-$TEST->addTests("test/bind-cannot-convert", "", ['inferbox']);
-#$TEST->addTests("test/bind-used-not-defined", "", ['inferbox']); # Superseeded
-                                                                  # by oneret
-$TEST->addTests("testrun/oneret", "", ['inferbox']);
-$TEST->addTests("test/bind-too-many", "", ['inferbox']);
-$TEST->addTests("testrun/split1", "", ['inferbox']);
+
 $TEST->addTests("testrun/rmtmps-attr", "", ['cil']);
    $TEST->addBadComment("testrun/rmtmps-attr-cil", 
                         "A limitation of our support for attributes");
  
 $TEST->add3Tests("testrun/vsp");
-$TEST->addTests("testrun/vsp1", "", ['inferbox']);
-$TEST->addTests("testrun/strtoul", "", ['inferbox'], Group => [ 'slow']);
 
-$TEST->addTests("test/bind-formatstring", "EXTRAARGS=--assumePrintf",
-                ['inferbox'],
-                Group => [ 'slow' ]);
-$TEST->addTests("test/bind-empty-chain", "", ['inferbox']);
-$TEST->addTests("test/bind-safe-wild", "EXTRAARGS=--assumePrintf", ['inferbox']);
-$TEST->addTests("test/bind-zero", "EXTRAARGS=--assumePrintf", ['inferbox']);
-$TEST->addTests("testrun/pointerdiff", "", ['cil', 'inferbox', 'box']);
 $TEST->addTests("test/cpp-2", "", ['cil']);
    $TEST->addBadComment("test/cpp-2-cil", 
                         "Bug in parser (empty pragmas)");
 $TEST->addTests("test/cpp-3", "_GNUCC=1", ['cil']);
 
-$TEST->addTests("testrun/field1", "", ['inferbox']);
-   $TEST->addBadComment("testrun/field1-inferbox", 
-                        "Bug in handling of unsafe unions?");
 
-$TEST->addTests("testrun/openssl-bounds", "", ['inferbox']);
-   $TEST->addBadComment("testrun/openssl-bounds-inferbox", 
-                        "FSEQ2SAFE prevents code that should be legal.");
-
-
-$TEST->addTestsFail("testrun/struct3", "", "Failure NULL", ['inferbox']);
 
 if($win32) {
     $TEST->addTests("testrun/extern_init", "_MSVC=1", ['cil']);   
@@ -643,81 +441,9 @@ $TEST->addTests("testrun/extern1", "", ['cil']);
 
 $TEST->addTests("test/duplicate", "", ['cil']);
 
-# Tests that are expected to fail
-$TEST->add2TestsFail("testrun/failubound1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/failnull1", "", "Failure");
-$TEST->add2TestsFail("testrun/failprintf1", "", "Failure NONPTR");
-$TEST->add2TestsFail("testrun/failprintf2", "", "Failure NONPTR");
-$TEST->add2TestsFail("testrun/failprintf3", "", "Failure VARARGBAD");
-$TEST->add2TestsFail("testrun/failprintf4", "", "Failure VARARGBAD");
-$TEST->add2TestsFail("testrun/failprintf5", "", 
-                     "Failure UBOUND");
-$TEST->add2TestsFail("testrun/failprintf6", "", "Failure VARARGBAD");
-$TEST->add2TestsFail("testrun/demo1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/demo2", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/demo3", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/demo4", "", "Failure LBOUND");
-
-# $TEST->add2TestsFail("testmodel/noproto1", "", "Function pointer");
-# $TEST->add2TestsFail("testmodel/noproto2", "", "Failure: Non-pointer");
-# $TEST->add2Tests("testmodel/noproto");
-
-$TEST->add2TestsFail("testrun/failsprintf1", "", "Failure UBOUND");
-$TEST->add2TestsFail("testrun/failsprintf2", "", "Failure");
-$TEST->add2TestsFail("testrun/failsprintf3", "", "Failure LBOUND");
-
-$TEST->add2TestsFail("testrun/failsscanf1", "", "Failure UBOUND");
-    $TEST->addBadComment("testrun/failsscanf1-box", "Missing wrappers");
 $TEST->add2Tests("testrun/simon6");
     
-$TEST->add2TestsFail("testrun/infer1", "", "Failure ");
-$TEST->addTestsFail("testrun/fseq1", "", "Failure DECFSEQ", 
-                    ['inferbox']);
-$TEST->addTestsFail("testrun/fseq1", "", "Failure LBOUND", 
-                    ['box']);
-$TEST->addTestsFail("testrun/string1", "", "Failure UBOUND", ['inferbox']);
-$TEST->addTestsFail("testrun/string2", "", "Failure UBOUND", ['inferbox']);
-$TEST->addTestsFail("testrun/string3", "", "Failure UBOUND", ['inferbox']);
-$TEST->addTestsFail("testrun/fseq3", "", "Failure NONPTR", ['inferbox']);
-$TEST->addTests("test-bad/badpoly", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/polyfunptr", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/polylist", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/poly2", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/castnoedge", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("runall/checkret", "_GNUCC=1 RELEASE=", [ 'inferbox' ]);
-$TEST->addTests("test-bad/checkstore", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/checkstore3", "RELEASE=", [ 'inferbox' ]);
-$TEST->addTests("test-bad/checkinit", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/union2", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/metabug3", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/voidstarint", "", ['inferbox']);
-$TEST->addTests("test-bad/override", "", [ 'inferbox' ]);
-$TEST->addTests("test-bad/wild1", "_GNUCC=1", [ 'inferbox' ]);
-$TEST->addTests("test-bad/union4", "", [ 'inferbox' ]);
-$TEST->addTests("test-bad/union6", "", [ 'inferbox' ]);
-$TEST->addTests("test-bad/union7", "", [ 'inferbox' ]);
-  $TEST->addBadComment("test-bad/union7-inferbox", 
-                       "Discriminated unions not yet implemented");
-$TEST->addTests("runall/union8", "", [ 'inferbox' ]);
-$TEST->addTests("test-bad/malloc1", "", [ 'inferbox' ]);
-$TEST->addTests("scott/union5", "", ['inferbox']);
-$TEST->addTests("scott/funptr1", "", ['inferbox']);
-$TEST->addTests("testrun/unrolltype", "", ['inferbox']);
-$TEST->addTests("testrun/wrapper2", "", ['cil', 'inferbox']);
-$TEST->addTests("testrun/fseqn1", "", ['inferbox']);
-$TEST->addTests("testrun/ubound1", "", ['inferbox']);
-$TEST->addTests("test/longunion", "", ['inferbox']);
-$TEST->addTests("testrun/fseq5", "", ['inferbox']);
-$TEST->addTests("testrun/recur1", "", ['inferbox']);
-$TEST->addTests("testrun/recur2", "", ['inferbox']);
-# $TEST->addTests("testrun/seqn1", "", ['inferbox']);
-$TEST->addTests("test_heapify", "", ['cil']);
-$TEST->addTests("testrun/scanf2", "", ['inferbox']);
-$TEST->addTests("testrun/scanf3", "", ['inferbox']);
-    $TEST->addBadComment("testrun/scanf3-inferbox", "ccured_fscanf_string is too consrevative");
-$TEST->addTests("testrun/scanf4", "", ['inferbox']);
 $TEST->add2Tests("testrun/stringsize");
-$TEST->addTests("testrun/argv2", "", ['inferbox']);
 $TEST->addTests("testrun/min", "", ['cil']);
 
 
@@ -729,7 +455,6 @@ $TEST->addTests("testrun/simplify_structs2",
 
 $TEST->addTests("testrun/typeof1", "", ['cil']);
 $TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
-$TEST->addTests("testrun/oom", "", ['inferbox']);
 
 $TEST->add2Tests("merge-ar", "");
 #
@@ -822,15 +547,6 @@ $TEST->add2Tests("testrun/comparisons");
 $TEST->add2Tests("cfrac");
    $TEST->add2Group("cfrac", "slow");
 $TEST->add2Tests("matxmult");
-
-#---------------- some performance tests 
-$TEST->add2Tests("perf/perfglobarray");
-$TEST->add2Tests("perf/perffseq");
-$TEST->add2Tests("perf/perffseq1");
-$TEST->add2Tests("perf/perfindex");
-$TEST->add2Tests("perf/perfseq");
-$TEST->add2Tests("perf/perfwild");
-$TEST->add2Tests("perf/perfrtti");
 
 
 # VSLOW tests
@@ -970,13 +686,6 @@ $TEST->newTest(
     Enabled => 1,
     Group => ['vslow'],
     Patterns => \%commonerrors);
-
-#
-# SciMark2 benchmark from NIST, used in a paper submitted to Usenix that
-# compared itself to CCured. 
-#
-$TEST->add2Tests("testrunlm/scimark2", "-lm");
-   $TEST->add2Group("testrunlm/scimark2", "slow");
 
 # -------------- alternate testcase interface ---------------
 # sm: trying to make a regrtest-like interface
@@ -1144,7 +853,6 @@ altAddTest("scott/glob $box", "slow");
 # current problematic test cases
 altAddTest("scott/complex_float $box");
 altAddTest("mergeinline");
-altAddTest("test/addrofparam $box");
 altAddTest("scott-nolink/name-capture-bitand $box");
 altAddTest("scott-nolink/wildfun2 $box");
 altAddTest("scott/dblarg.int $box");       # this yields a warning that might be a problem

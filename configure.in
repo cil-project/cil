@@ -1,4 +1,4 @@
-# configure.in for CCured           -*- sh -*-
+# configure.in for CIL           -*- sh -*-
 # Process this file with autoconf to produce a configure script.
 
 # Autoconf runs this through the M4 macroprocessor first; lines
@@ -35,13 +35,9 @@ AC_PREREQ(2.50)
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=3
-CIL_VERSION_REV=4
+CIL_VERSION_REV=5
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
-CCURED_VERSION_MAJOR=1
-CCURED_VERSION_MINOR=3
-CCURED_VERSION_REV=4
-CCURED_VERSION=$CCURED_VERSION_MAJOR.$CCURED_VERSION_MINOR.$CCURED_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
 if test configure -ot configure.in; then
@@ -89,7 +85,7 @@ binaryExists() {
 # this specifies the root of the source tree; it's just the
 # directory where ./configure runs, except on cygwin, which
 # overrides this below
-CCUREDHOME=`pwd`
+CILHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
@@ -198,7 +194,7 @@ AC_MSG_CHECKING([for Perl])
   if ! binaryExists perl; then
     AC_MSG_ERROR([
       perl not found.
-      You need perl version 5.6.1 or later for CCured.
+      You need perl version 5.6.1 or later for CIL.
       You can get perl at http://www.cpan.org/src/index.html .
     ])
   fi
@@ -412,10 +408,10 @@ case "$target" in
 
     ARCHOS=x86_WIN32
 
-    # override CCUREDHOME; even on cygwin we want forward slashes
+    # override CILHOME; even on cygwin we want forward slashes
     # sm: I folded this into what I hope will be the only
     # case-analysis of machine type
-    CCUREDHOME=`cygpath -wa "$CCUREDHOME"  | sed -e "s/\\\\\/\\//g"`
+    CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;
@@ -437,7 +433,6 @@ case "$target" in
     ])
     ;;
 esac
-CILHOME=$CCUREDHOME
 
 # Make the object directory if not already present
 AC_CHECK_FILE(obj/$ARCHOS,, AC_MSG_RESULT(creating obj/$ARCHOS);
@@ -531,7 +526,6 @@ done
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
 AC_SUBST(ARCHOS)
-AC_SUBST(CCUREDHOME)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
@@ -540,10 +534,6 @@ AC_SUBST(CIL_VERSION_MAJOR)
 AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)
 AC_SUBST(CIL_VERSION)
-AC_SUBST(CCURED_VERSION_MAJOR)
-AC_SUBST(CCURED_VERSION_MINOR)
-AC_SUBST(CCURED_VERSION_REV)
-AC_SUBST(CCURED_VERSION)
 AC_SUBST(CYCLES_PER_USEC)
 AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
@@ -582,15 +572,12 @@ define([MY_AC_CONFIG_EXE_FILES],
 
 MY_AC_CONFIG_FILES(Makefile)
 MY_AC_CONFIG_FILES(cil.spec)
-MY_AC_CONFIG_FILES(lib/gc/GNUCC/Makefile)
 MY_AC_CONFIG_FILES(test/Makefile)
-MY_AC_CONFIG_FILES(Makefile.cil)
 MY_AC_CONFIG_EXE_FILES(bin/cilly.bat)
 MY_AC_CONFIG_EXE_FILES(bin/patcher.bat)
-MY_AC_CONFIG_EXE_FILES(bin/ccured.bat)
 MY_AC_CONFIG_FILES(bin/CilConfig.pm)
-MY_AC_CONFIG_FILES(doc/cilindex.html)
-MY_AC_CONFIG_FILES(doc/cilheader.html)
+MY_AC_CONFIG_FILES(doc/index.html)
+MY_AC_CONFIG_FILES(doc/header.html)
 MY_AC_CONFIG_FILES(ocamlutil/perfcount.c)
 
 AC_OUTPUT()
@@ -598,15 +585,15 @@ AC_OUTPUT()
 # show the user what the variables have been set to
 cat <<EOF
 
-CCured/CIL configuration:
+CIL configuration:
   architecture/OS:            ARCHOS             $ARCHOS
-  source tree root:           CCUREDHOME         $CCUREDHOME
+  source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra directories           EXTRASRCDIRS       $EXTRASRCDIRS
+  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
   Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
 

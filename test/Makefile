@@ -1,5 +1,5 @@
 # -*- Mode: makefile -*- 
-# Makefile.in for running the test cases for the CCured compiler
+# Makefile.in for running the test cases for the CIL compiler
 # Use from the test directory !!!
 # author: George Necula
 # hacks here and there by Wes and Scott
@@ -9,7 +9,7 @@
 
 # pull in definitions from ./configure
 export ARCHOS := @ARCHOS@
-export CCUREDHOME := @CCUREDHOME@
+export CILHOME := @CILHOME@
 export HAS_MSVC := @HAS_MSVC@
 
 TESTDIR := .
@@ -39,13 +39,9 @@ clean:
 	-find . \( \
 		-name '*~' -o \
 		-name '*.cil.c' -o \
-		-name '*.cured.c' -o \
-		-name '*cured.c' -o \
 		-name '*.s' -o \
 		-name '*.a' -o \
 		-name '*.stackdump' -o \
-		-name '*.optimcured.c' -o \
-                -name '*.cured.*.optim.c' -o \
 		-name '*.exe' -o \
 		-name '*.i' -o \
 		-name '*_ppp.c' -o \
@@ -53,7 +49,6 @@ clean:
 		-name '*.o' -o \
 		-name '*.obj' -o \
 		-name '*.cabs.c' -o \
-		-name '*.infer.c' -o \
 	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' -o \
 		-name 'libmerge.a*' \
@@ -61,27 +56,21 @@ clean:
 	-find . -name '*.browser' -exec rm -rf {} \;
 
 
-# sm: infer CCUREDHOME when not set, to ease having multiple trees
-ifndef CCUREDHOME
+# sm: infer CILHOME when not set, to ease having multiple trees
+ifndef CILHOME
   ifeq ($(ARCHOS), x86_WIN32)
-    $(error You have not defined the CCUREDHOME variable)
+    $(error You have not defined the CILHOME variable)
   else
-    export CCUREDHOME := $(shell pwd)/..
+    export CILHOME := $(shell pwd)/..
   endif
 endif
 
-ifdef USECILLY
- CCURED := $(CCUREDHOME)/bin/cilly
-else
- CCURED := $(CCUREDHOME)/bin/ccured
-endif
-
-CILLY := $(CCUREDHOME)/bin/cilly
-PATCHER := $(CCUREDHOME)/bin/patcher
+CILLY := $(CILHOME)/bin/cilly
+PATCHER := $(CILHOME)/bin/patcher
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
--include $(CCUREDHOME)/.ccuredrc
+-include $(CILHOME)/.cilrc
 
 # as a convenience, let RELEASE=1 on the command line imply
 # all options designed to make things fast (at least when not in
@@ -89,18 +78,7 @@ PATCHER := $(CCUREDHOME)/bin/patcher
 ifdef RELEASE
   # use native code tools
   export NATIVECAML := 1
-  # enable the optimizer inside our translator
-  ifndef USECILLY
-    export OPTIM := 1
-    # use runtime library with minimal debugging checks
-    export RELEASELIB := 1
-    # turn on gcc's optimizer for the resulting executables
-    ifndef FAILISVERBOSE
-      export FAILISTERSE := 1
-      CCURED += --alwaysStopOnError
-    endif
-  endif
-  export CCURED += -O2
+  export CILLY += -O2
 endif
 
 # By default we are on Linux
@@ -130,15 +108,10 @@ else
 endif
 
 
-CCURED  += --mode=$(COMPILERNAME)
-PATCHER += --mode=$(COMPILERNAME)
+CILLY  += --mode=$(COMPILERNAME)
+CILLY += --mode=$(COMPILERNAME)
 
 export EXTRAARGS
-export INFERBOX
-
-ifndef INFERBOX
-  INFERBOX := none
-endif
 
 
 # CCURED contains arguments that are passed to ccured
@@ -148,46 +121,10 @@ endif
 # specified EXTRAARGS on the command line
 CCURED+= --save-temps $(EXTRAARGS)
 
-ifneq ($(INFERBOX),none)
-  ifeq ($(INFERBOX),wild)
-    # sm: some of my edg-related source changes need to know whether
-    # they're being processed for the all-WILD mode
-    CCURED+= --allwild $(DEF)WILDBOX
-  endif
-  ifdef NOEMITBROWSER
-     CCURED+= --noemitbrowser
-  endif
-else
-  ifndef USECILLY
-     CCURED+= --nocure
-  endif
-endif
-
-ifdef NOCURE
-  CCURED+= --nocure
-endif
-
-ifdef NOMANUALBOX
-  CCURED+= $(DEF)NOMANUALBOX
-endif
-
-
 ifdef OCAMLDEBUG
   CCURED+= --ocamldebug
 endif
-ifdef NOGC
-  CCURED+= --nogc
-endif
 
-ifdef MAXSPLIT
-  CCURED+= --maxSplit
-endif
-ifeq ($(TABLE), A)
-  CCURED+= --tableAll
-endif
-ifeq ($(TABLE), I)
-  CCURED+= --tableInterface
-endif
 ifdef NOLINES
   CCURED+= --noPrintLn
 endif
@@ -198,29 +135,8 @@ endif
 ifdef USECABS
   CCURED+= --usecabs
 endif
-ifdef USECIL
-  CCURED+= --usecil
-endif	
-ifdef NO_TAGS
-  CCURED+= $(DEF)NO_TAGS
-endif
-ifdef CHECK
-  CCURED += --check
-endif
 ifndef NATIVECAML
   CCURED+= --bytecode
-endif
-ifdef ANNOT
-  CCURED+= --annotate
-endif
-ifdef OPTIM
-  CCURED += --optimize
-endif
-ifdef ANN
-  CCURED+= --annotate
-endif
-ifdef RELEASELIB
-  CCURED+= --releaselib -DRELEASELIB
 endif
 ifdef VERBOSE
   CCURED+= --verbose --warnall
@@ -231,103 +147,28 @@ endif
 ifdef MERGEONLY
   CCURED+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
 endif
-ifdef PRINTSTAGES
-  ifndef USECILLY
-    CCURED+= --stages
-  endif
-endif
-ifdef FAILISTERSE
-  CCURED+= --failIsTerse
-endif
-ifdef EMITINFER
-  CCURED+= --emitinfer
-endif
-ifdef EMITINFERDETAIL
-  CCURED+= --emitinfer --emitGraphDetailLevel=3
-endif
-ifdef BROWSER_SOURCE_FILE_SIZE
-  CCURED+= --browserSourceFileSize=$(BROWSER_SOURCE_FILE_SIZE)
-endif
-ifdef BROWSER_NODE_FILE_SIZE
-  CCURED+= --browserNodeFileSize=$(BROWSER_NODE_FILE_SIZE)
-endif
 ifdef CABSONLY
-  CCURED+= --cabsonly
   CILLY+= --cabsonly
 endif
-ifdef CCURED_FAIL_IS_VERBOSE
-  # note that we also add this to CCUREDLIBARG in Makefile.ccured; this
-  # affects the instrumented code *and* the support library
-  CCURED+= $(DEF)CCURED_FAIL_IS_VERBOSE
-endif
-ifdef ALLOW_INLINE_ASSEMBLY
-  CCURED+= --allowInlineAssembly
-endif
 
-ifdef NO_STRINGS
-  CCURED += --noStrings
-endif
-
-# sm: pass tracing directives on 'make' command line like TRACE=usedVars
-# I don't quote $(TRACE) because it actually appears inside another quoted
-# string already when passed as CC="perl ...."
-ifdef TRACE
-  CCURED+= --tr=$(TRACE)
-endif
 
 # This is a way to enable the stats, allowing the command line to override it
 # Do STATS= to disable the stats.
 STATS := 1
 ifdef STATS
-  CCURED+= --stats
+  CILLY+= --stats
 endif
 
 # enable logging of all fn calls in the application
 # (see LOGSTYLE, below)
 ifdef LOGCALLS
-  CCURED+= --logcalls
+  CILLY+= --logcalls
 endif
 
-# sm: specify style of function logging, as integer sum of:
-#   linux        1       use printk instead of printf
-#   allInsts     2       log every *instruction* (very verbose!)
-#   printPtrs    4       print raw pointer values
-#   printStrings 8       try to print char* as string
-#   noCFuncs     16      omit printing calls to functions whose name 
-#                        starts with "C" (only relevant when allInsts)
-# this does not imply LOGCALLS, so one can set a preferred style
-# in (e.g.) .ccuredrc without always enabling logging
-ifdef LOGSTYLE
-  CCURED+= --logstyle=$(LOGSTYLE)
-endif
-
-# when this is turned on, it should disable any source changes we've
-# made that are purely in the interest of performance
-ifdef NO_PERF_CHANGES
-  CCURED+= $(DEF)NO_PERF_CHANGES
-endif
 
 # when SEPARATE is defined, merging is disabled
 ifdef SEPARATE
-  CCURED+= --nomerge
-endif
-
-# when UNTAGGEDFNS is defined, and the WILD solver is being used,
-# functions are *never* tagged, even when they're used unsafely
-ifdef UNTAGGEDFNS
-  CCURED+= --wildUntaggedFns
-endif
-
-# when TAGALLFNS is defined, and the WILD solver is being used,
-# functions are *always* tagged
-ifdef TAGALLFNS
-  CCURED+= --wildTagAllFns
-endif
-
-# when TAGFILE is defined, it names a file that lists, one per
-# line, the functions which should be tagged
-ifdef TAGFILE
-  CCURED+= --wildTagTheseFns=$(TAGFILE)
+  CILLY+= --nomerge
 endif
 
 # sm: this will make gcc warnings into errors; it's almost never
@@ -339,31 +180,9 @@ ifdef WARNINGS_ARE_ERRORS
 endif
 
 
-# enable the new tree-based patcher
-ifdef NEWPATCH
-  # at the moment, the new patcher is kinda shoehorned into this Makefile..
-  # perhaps ccured is the right place to deal with telling ccured.exe
-  # about this file
-
-  # hack: possible append 'd' to the name, so we get different versions
-  # for with and without CCURED; otherwise it would appear to be
-  # up-to-date but for the wrong way
-  ifdef PATCHDEFS
-    PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.id
-  else
-    PATCHFILE2=$(CCUREDHOME)/lib/$(PATCHFILE)2.i
-  endif
-
-  # tell ccured.byte.exe (via ccured) where to find the patch file
-  CCURED+= --patchFile=$(PATCHFILE2)
-
-  # and turn off the other patcher
-  PATCHECHO := true
-endif
-
 # Enable profiling
 ifdef PROFILE
-  CCURED+= -pg
+  CILLY+= -pg
 endif
 
 # sm: use this instead of "sh ./testit" for those self-tests which can't
@@ -375,8 +194,7 @@ UNIXTESTIT := sh ./testit
 
 CC_OPTIMVARIANT:= $(CC) $(DEF)_$(COMPILERNAME) \
                  $(DEF)CIL \
-                 $(DEF)CCURED $(DEF)RELEASELIB \
-                 $(INC)$(CCUREDHOME)/include \
+                 $(INC)$(CILHOME)/include \
                  $(OPT_O2)
 
 # use this dependency for those targets that must be built with GCC
@@ -390,160 +208,86 @@ ifneq ($(ARCHOS), x86_LINUX)
 	@echo This test case works only on Linux; exit 3
 endif
 
-# ITERATIONS is the number of iterations
-ifndef ITERATIONS
-ITERATIONS := 1
-endif
-# Set ITERATION_ELEMS to a list
-ITERATION_ELEMS := $(shell perl -e 'for ($$i=1; $$i <= $(ITERATIONS); $$i++) { print("$$i "); }')
-
-
-####### Test with PCC sources
-PCCDIR := $(CCUREDHOME)/test/PCC
-PCCTEST := PCCout
-# sm: didn't update following use of RELEASE b/c I don't understand it
-ifdef RELEASE
-  PCCTYPE := RELEASE
-  SPJARG :=
-else
-  PCCTYPE := _DEBUG
-  SPJARG := --gory --save-temps=pccout
-endif
-ifdef _GNUCC
-  PCCCOMP := _GNUCC
-else
-  PCCCOMP := _MSVC
-endif
-
-testpcc/% : $(PCCDIR)/src/%.c 
-	cd $(CCUREDHOME)/test/PCCout; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) \
-                  $(DEF)$(PCCTYPE) $(CONLY) \
-                  $(PCCDIR)/src/$*.c \
-                  $(OBJOUT)$(notdir $*).o
-
-
-
-ifdef _MSVC
-  MSLINK := --mode=mscl
-endif
-PCCSAFECC=$(CCURED) $(DEF)CCURED \
-                    --save-temps=$(CCUREDHOME)/test/PCCout \
-                    --leavealone=pccbox --leavealone=alloc
-pcc : 
-#	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
-	-rm $(PCCDIR)/bin/*.exe
-	make -C $(PCCDIR) \
-             CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK) --save-temps=$(CCUREDHOME)/test/PCCout" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
-             COMPILER=$(PCCCOMP) \
-	     clean  
-
-pcc-noclean : 
-#	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.o
-	-rm $(PCCDIR)/$(ARCHOS)$(PCCCOMP)/$(PCCTYPE)/*.exe
-	-rm $(PCCDIR)/bin/*.exe
-	make -C $(PCCDIR) \
-             CC="$(PCCSAFECC) $(CONLY)" \
-             LD="$(CCURED) $(MSLINK)  --save-temps=$(CCUREDHOME)/test/PCCout" \
-             USE_JAVA=1 USE_JUMPTABLE=1 TYPE=$(PCCTYPE) \
-             COMPILER=$(PCCCOMP) \
-
-pcc-combined: 
-	cd $(PCCDIR)/bin; \
-          $(CCURED) engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe_all.c \
-              $(EXEOUT)engine.$(ARCHOS)$(PCCCOMP).$(PCCTYPE).exe
-
-
-pccclean :
-	make -C $(PCCDIR) clean
-
-
-SPJDIR := C:/Necula/Source/Touchstone/test
-SPJARG +=  -WV,"-H,4000000,-noindent" -WC,"-H,4000000,-noindent"
-# sm: didn't update following use of RELEASE b/c I don't understand it
-ifndef RELEASE
-  SPJARG += --pccdebug
-endif
-ifdef SPJTIME
-  SPJARG += -WC,"-T,1000" 
-endif
-
-runspj.fact :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj Arith/Fact.java --gory $(SPJARG) --pcchome=$(PCCDIR)
-
-runspj.linpack :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj linpack/Linpack.java --gory  \
-                      $(SPJARG) --pcchome=$(PCCDIR)
-
-runspj.quicksort :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj arrays/QuickSort.java --gory \
-                      $(SPJARG) --pcchome=$(PCCDIR)
-
-runspj.simplex :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj simplex/Simplex.java --gory  \
-                      $(SPJARG) --pcchome=$(PCCDIR)
-
-runspj.getopt :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj gnu/getopt --gory  \
-                      $(SPJARG) --pcchome=$(PCCDIR)
-
-runspj.antlr :
-ifdef _GNUCC
-	rm $(PCCDIR)/bin/*_MSVC*
-endif
-	cd $(SPJDIR); spj antlr --gory  "-WV,-H,10000000" "-WC,-H,10000000" \
-                      $(SPJARG) --pcchome=$(PCCDIR)
 
 ############ Small tests
 SMALL1 := $(TESTDIR)/small1
 CXXDIR := $(TESTDIR)/cxx
 
 test/% : $(SMALL1)/%.c 
-	cd $(SMALL1); $(CCURED) --nomerge --commPrintLn \
+	cd $(SMALL1); $(CILLY) --nomerge --commPrintLn \
 	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
 	echo SUCCESS
 
-testnopatch/% : $(SMALL1)/%.c 
-	cd $(SMALL1); $(CCURED)    --commPrintLn \
-               $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
-
 testobj/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CONLY) $(CFLAGS) $(OBJOUT)$*.o $*.c 
 
-testexe/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
-	       $(CFLAGS) $(EXEOUT)$*.exe $*.c 
-
 testrun/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
 # ww: for a running test that requires the math library ( -lm )
 testrunlm/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --nomerge  --commPrintLn  \
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c -lm
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
+
+
+
+# sm: some project members don't want the testing targets to depend
+# on quickbuild (which rebuilds translator components whose dependencies
+# have changed), and others do..
+ifdef TARGETS_DEP_QUICKBUILD
+  # with switch to test/Makefile, doesn't do what I want, so no-op
+  #TARGET_DEP := quickbuild
+  TARGET_DEP := 
+endif
+
+ifndef NOPRINTLN
+ NOPRINTLN := --commPrintLn
+endif
+
+# sm: attempt at a single rule for my testing purposes
+# gn: I added .exe so that I can delete the executables
+scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	rm -f $(TESTDIR)/small2/$*.exe
+	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(CFLAGS) $(WARNALL) $*.c
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge --save-temps=. \
+                 $(CFLAGS) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+	bash -c "time $(TESTDIR)/small2/$*.exe"
+
+runone/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	rm -f $(TESTDIR)/small2/$*.exe
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge --save-temps=. \
+                 $(CFLAGS) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+	bash -c "time $(TESTDIR)/small2/$*.exe"
+
+# There are a few tests that CIL supports but recent versions of gcc don't.
+# So don't try calling gcc on these.
+scott-nogcc/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	rm -f $(TESTDIR)/small2/$*.exe
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge --save-temps=. \
+                 $(CFLAGS) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+	bash -c "time $(TESTDIR)/small2/$*.exe"
+
+scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
+	rm -f $(TESTDIR)/small2/$*.exe
+	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge $(CONLY) --save-temps=. \
+                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
+                 $*.c \
+                 $(EXEOUT)$*.exe
+
+
 
 ARCHOS := @ARCHOS@
 OBJDIR := @CILHOME@/obj/$(ARCHOS)
@@ -560,72 +304,35 @@ testrun/% : $(SMALL1)/%.ml
 	$(basename $<).exe
 	echo SUCCESS
 
-test_withtrusted/% : $(SMALL1)/%.c $(SMALL1)/%_trusted.c
-	cd $(SMALL1); $(CCURED) --leavealone=$*_trusted  --commPrintLn \
-	       $(CFLAGS) $(EXEOUT)$*.exe $*.c $*_trusted.c 
-	cd $(SMALL1); ./$*.exe
-	echo SUCCESS
-
-cxx/% : $(CXXDIR)/%.cc  
-	cd $(CXXDIR); $(CILLY) --nomerge --cxx \
-               $(CFLAGS) $(EXEOUT)$*.exe $*.cc
-	cd $(CXXDIR); ./$*.exe
-	echo SUCCESS
-
-
-
-testmodel/%: $(SMALL1)/%.c $(SMALL1)/modelextern.c 
-	cd $(SMALL1); $(CCURED) \
-                         --leavealone=modelextern  \
-                         $(CFLAGS) $(EXEOUT)$*.exe $*.c modelextern.c
-	cd $(SMALL1); ./$*.exe
-
-testwrapper/%: $(SMALL1)/%.c $(SMALL1)/wrapperextern.c 
-	cd $(SMALL1); $(CCURED) \
-                         --leavealone=wrapperextern  \
-                         $(CFLAGS) $(EXEOUT)$*.exe $*.c wrapperextern.c
-	cd $(SMALL1); ./$*.exe
-
-
-#test of "cilly --heapify"
-test_heapify: $(SMALL1)/heapify.c  
-	cd $(SMALL1); $(CILLY) --doheapify --keepunused  \
-	       $(CFLAGS) $(EXEOUT)heapify.exe heapify.c
-	cd $(SMALL1); ./heapify.exe
-	echo SUCCESS
-
 
 combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
-          $(CCURED) $(CFLAGS) \
+          $(CILLY) $(CFLAGS) \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
 arcombine: mustbegcc
-	cd $(SMALL1); $(CCURED) -c array1.c array2.c
-	cd $(SMALL1); $(CCUREDHOME)/bin/cilly \
+	cd $(SMALL1); $(CILLY) -c array1.c array2.c
+	cd $(SMALL1); $(CILHOME)/bin/cilly \
                            --mode=AR --merge --verbose crv array.a array1.o array2.o
-	cd $(SMALL1); $(CCURED) -o matrix.exe array.a matrix.c
+	cd $(SMALL1); $(CILLY) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
 
 # weimer: test, compile and run
 testc/% : $(SMALL1)/%.c  
-	cd $(SMALL1); $(CCURED) --nomerge  \
+	cd $(SMALL1); $(CILLY) --nomerge  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c && ./$*.exe
 
-# Aman's optim tests
-OPTIMTESTDIR := $(TESTDIR)/optim
-optim/% : $(OPTIMTESTDIR)/%.c 
-	cd $(OPTIMTESTDIR); $(CCURED) --nomerge  \
-	       $(CFLAGS) $*.c $(EXEOUT)$*.exe
-	$(OPTIMTESTDIR)/$*.exe
+
+
+
 
 
 
 hashtest: $(TESTDIR)/small2/hashtest.c 
 	rm -f $(PCCTEST)/hashtest.exe
-	cd $(PCCTEST); $(CCURED)  \
+	cd $(PCCTEST); $(CILLY)  \
                                  --save-temps=. $(DEF)x86_LINUX $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
@@ -635,7 +342,7 @@ hashtest: $(TESTDIR)/small2/hashtest.c
 	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
                                    do time ./hashtest.exe $(HUFFINPUT) ; done"
 
-CCUREDLIB := $(CCUREDHOME)/obj/$(ARCHOS)/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT)
+CCUREDLIB := $(CILHOME)/obj/$(ARCHOS)/ccured_$(COMPILERNAME)_releaselib.$(LIBEXT)
 
 hashtest-optimvariant: mustbegcc
 	cd $(PCCTEST); rm -f hashtest.exe 
@@ -651,7 +358,7 @@ hashtest-optimvariant: mustbegcc
 rbtest: $(TESTDIR)/small2/rbtest.c 
 	rm -f $(PCCTEST)/rbtest.exe
 	@true "compile with gcc for better error diagnostics (ha!)"
-	cd $(PCCTEST); $(CCURED)  \
+	cd $(PCCTEST); $(CILLY)  \
                                  --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  $(INC)$(PCCDIR)/src \
@@ -674,7 +381,7 @@ rbtest-optimvariant: mustbegcc
 btreetest: $(TESTDIR)/small2/testbtree.c \
            $(TESTDIR)/small2/btree.c 
 	rm -f $(TESTDIR)/small2/btreetest.exe
-	cd $(TESTDIR)/small2; $(CCURED) --save-temps=. \
+	cd $(TESTDIR)/small2; $(CILLY) --save-temps=. \
                  $(CFLAGS) \
                  btree.c testbtree.c \
                  $(EXEOUT)btreetest.exe
@@ -695,88 +402,16 @@ btreetest-optimvariant: mustbegcc
 # ww: a small program that demonstrates a merging problem
 HYPHENODIR = hypheno
 hypheno: mustbegcc
-	cd $(HYPHENODIR) ; make CC="@CCUREDHOME@/bin/cilly --merge"
+	cd $(HYPHENODIR) ; make CC="@CILHOME@/bin/cilly --merge"
 
 # sm: this is my little test program
 hola: scott/hola
 
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju
-	cd /usr/src/big-examples/; $(CCURED) --nomerge \
+	cd /usr/src/big-examples/; $(CILLY) --nomerge \
 	       $(CONLY) $(CFLAGS) structs-edg-stl.c 
 	echo SUCCESS
-
-# sm: some project members don't want the testing targets to depend
-# on quickbuild (which rebuilds translator components whose dependencies
-# have changed), and others do..
-ifdef TARGETS_DEP_QUICKBUILD
-  # with switch to test/Makefile, doesn't do what I want, so no-op
-  #TARGET_DEP := quickbuild
-  TARGET_DEP := 
-endif
-
-ifndef NOPRINTLN
- NOPRINTLN := --commPrintLn
-endif
-
-# sm: attempt at a single rule for my testing purposes
-# gn: I added .exe so that I can delete the executables
-scott/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*.exe
-	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(CFLAGS) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
-                 $(CFLAGS) $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*.exe
-	bash -c "time $(TESTDIR)/small2/$*.exe"
-
-runone/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*.exe
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
-                 $(CFLAGS) $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*.exe
-	bash -c "time $(TESTDIR)/small2/$*.exe"
-
-# There are a few tests that CIL supports but recent versions of gcc don't.
-# So don't try calling gcc on these.
-scott-nogcc/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*.exe
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
-                 $(CFLAGS) $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*.exe
-	bash -c "time $(TESTDIR)/small2/$*.exe"
-
-scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	rm -f $(TESTDIR)/small2/$*.exe
-	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge $(CONLY) --save-temps=. \
-                 $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*.exe
-
-#
-# Some performance tests
-perf/%: $(TESTDIR)/small1/%.c
-	rm -f $(TESTDIR)/small1/$*
-	cd $(TESTDIR)/small1; \
-             $(CCURED) --nomerge --save-temps=. \
-                 $(CFLAGS) `true $(WARNALL)` $(NOPRINTLN) \
-                 $*.c \
-                 $(EXEOUT)$*.exe
-	cd $(TESTDIR)/small1; bash -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./$*.exe ; done"
-
-perf/%-optimvariant: $(TESTDIR)/small1/%.optimcured.c
-	cd $(TESTDIR)/small1; rm -f $*.exe
-	cd $(TESTDIR)/small1; \
-           $(CC_OPTIMVARIANT) \
-                 $*optimcured.$(OPTIMVARIANT).c \
-                 $(CCUREDLIB) \
-                 $(EXEOUT)$*.exe
-	cd $(TESTDIR)/small1; bash -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./$*.exe ; done"
 
 
 # sm: a target for programs which are *supposed* to fail, because
@@ -789,7 +424,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/bad/$*.exe
 	cd $(TESTDIR)/bad; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/bad; $(CCURED) --nomerge --save-temps=. \
+	cd $(TESTDIR)/bad; $(CILLY) --nomerge --save-temps=. \
                  -g $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -800,7 +435,7 @@ badd/%: $(TESTDIR)/bad/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/bad; $(CCURED) --nomerge --save-temps=. \
+	cd $(TESTDIR)/bad; $(CILLY) --nomerge --save-temps=. \
                  $(CFLAGS) -fno-inline-functions $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -817,7 +452,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	rm -f $(TESTDIR)/small2/$*.exe
 	cd $(TESTDIR)/small2; $(CC) $(CONLY) $(WARNALL) $*.c
 	@true "first try the succeed case"
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge --save-temps=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -827,7 +462,7 @@ bads/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 		echo "That should have worked; FAIL was not defined!"; exit 2; \
 	fi
 	@true "now try the failure case"
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge --save-temps=. \
+	cd $(TESTDIR)/small2; $(CILLY) --nomerge --save-temps=. \
                  $(CFLAGS) $(WARNALL) $(NOPRINTLN) -DFAIL \
                  $*.c \
                  $(EXEOUT)$*.exe
@@ -847,8 +482,8 @@ ifndef RELEASE
 endif
 endif
 	cd $(TESTDIR)/small2; \
-	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --nomerge --commPrintLn" \
+	  CILHOME="$(CILHOME)" \
+	  CCURED="$(CILLY) --nomerge --commPrintLn" \
 	  CFLAGS="$(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
@@ -856,46 +491,20 @@ endif
 
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small1; \
-	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --nomerge --commPrintLn" \
+	  CILHOME="$(CILHOME)" \
+	  CCURED="$(CILLY) --nomerge --commPrintLn" \
 	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
 	  bash ../../bin/test-bad $*.c
 
-test-bad-ln/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-	cd $(TESTDIR)/small2; \
-	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --nomerge " \
-	  CFLAGS="$(CFLAGS) $(WARNALL)" \
-          TESTBADONCE="$(TESTBADONCE)" \
-	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
-
-test-bad-wrapper/%: $(TESTDIR)/small2/%.c $(TESTDIR)/small2/wrapperextern.c 
-	cd $(TESTDIR)/small2; \
-	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --nomerge --leavealone=wrapperextern --commPrintLn" \
-	  CFLAGS="wrapperextern.c $(CFLAGS) $(WARNALL)" \
-          TESTBADONCE="$(TESTBADONCE)" \
-	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c 
-
-test-bad-crypt/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
-	cd $(TESTDIR)/small1; \
-	  CCUREDHOME="$(CCUREDHOME)" \
-	  CCURED="$(CCURED) --nomerge --commPrintLn -lcrypt" \
-	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
-          TESTBADONCE="$(TESTBADONCE)" \
-	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
 
 #CCURED_NO_SIGABRT prevents cygwin from doing a memory dump on every failure
 # case.
 runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
 	CCURED_NO_SIGABRT=1 \
-	COMMAND="$(CCURED) --allowInlineAssembly \
+	COMMAND="$(CILLY) --allowInlineAssembly \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe" \
 	COMMENT="//" \
@@ -905,14 +514,14 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
 	CCURED_NO_SIGABRT=1 \
-	COMMAND="$(CCURED) --allowInlineAssembly \
+	COMMAND="$(CILLY) --allowInlineAssembly \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
 	COMMENT="//" \
 	 perl ../../ocamlutil/runall.pl $*.c
 
 # sm: trivial test of combiner
-MYSAFECC := $(CCURED) --save-temps=.
+MYSAFECC := $(CILLY) --save-temps=.
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
@@ -937,13 +546,13 @@ mixedcomb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 # sm: another merger test
 mergestruct: $(TESTDIR)/small2/mergestruct1.c $(TESTDIR)/small2/mergestruct2.c
 	cd $(TESTDIR)/small2; \
-	  $(CCURED) mergestruct1.c mergestruct2.c -o mergestruct.exe
+	  $(CILLY) mergestruct1.c mergestruct2.c -o mergestruct.exe
 	$(TESTDIR)/small2/mergestruct.exe
 
 # sm: yet another merger test (I know there's a target somewhere)
 mergeinline: $(TESTDIR)/small2/mergeinline1.c $(TESTDIR)/small2/mergeinline2.c
 	cd $(TESTDIR)/small2; \
-	  $(CCURED) mergeinline1.c mergeinline2.c -o mergeinline.exe
+	  $(CILLY) mergeinline1.c mergeinline2.c -o mergeinline.exe
 	$(TESTDIR)/small2/mergeinline.exe
 
 # sm: test of combiner's ability to report inconsistencies
@@ -957,111 +566,12 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
           $(MYSAFECC)  baddef1.o baddef2.o $(EXEOUT)baddef.exe
 	$(TESTDIR)/small2/baddef.exe
 
-# sm: Run CCured in all-wild mode, and see if we get the right answer.
-# The final grep will succeed only once the inference correctly says
-# the argument to __throw_setup is WILD.
-doThrowFv:
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge -c --save-temps=. doThrowFv.c
-	cd $(TESTDIR)/small2; grep throw_setup doThrowFv.cured.c
-	cd $(TESTDIR)/small2; grep throw_setup_ww doThrowFv.cured.c
 
-# sm: compile two files separately, then link them using a tagfile
-# (the tagfile is called tagfile.txt)
-# update: run this with TAGFILE=tagfile.txt
-test-tagfile:
-	cd $(TESTDIR)/small2; $(CCURED) --nomerge -o tagfile.exe \
-	  tagfile1.c tagfile2.c && ./tagfile.exe
-
-# cfrac: a memory benchmark which factorizes into products of primes
-#CFRACDIR := $(CCUREDHOME)/cfrac
-#cfrac: 
-#	 -rm $(CFRACDIR)/*.o
-#	 -rm $(CFRACDIR)/cfrac.exe
-#	 make -C $(CFRACDIR) \
-#	   CC="$(CCURED) --nomerge --save-temps=$(CFRACDIR)" \
-#	   LD="$(CCURED) --nomerge --save-temps=$(CFRACDIR)"
-#	 csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
-
-comcfrac: 
-	-rm $(CFRACDIR)/*.o
-	-rm $(CFRACDIR)/cfrac.exe
-	make -C $(CFRACDIR) \
-	  CC="$(CCURED) --save-temps=$(CFRACDIR)" \
-	  LD="$(CCURED) --save-temps=$(CFRACDIR)"
-	csh -c "time $(CFRACDIR)/cfrac.exe 327905606740421458831903"
-
-# espresso: memory benchmark that does logic minimization
-ESPRESSODIR := $(CCUREDHOME)/../bench/espresso.exe
-espresso: 
-	@true -rm $(ESPRESSODIR)/*.o
-	@true -rm $(ESPRESSODIR)/espresso.exe
-	make -C $(ESPRESSODIR) \
-	  CC="$(CCURED) --save-temps=$(ESPRESSODIR)" \
-	  LD="$(CCURED) --save-temps=$(ESPRESSODIR)"
-	csh -c "time $(ESPRESSODIR)/espresso.exe -t $(ESPRESSODIR)INPUT/Z5xp1.espresso >/dev/null"
-
-
-
-
-HUFFCOMPILE := $(CCURED) $(DEF)NOVARARG --save-temps=. --keepmerged
-# HUFFCOMPILE := cl /MLd
-ifdef _GNUCC
-  HUFFOTHERS += -lm
-endif
-ifndef HUFFINPUT
-  HUFFINPUT=$(CCUREDHOME)/src/frontc/cparser.output
-endif
-hufftest: $(TESTDIR)/small2/hufftest.c 
-	rm -f $(PCCTEST)/hufftest.exe \
-              $(PCCTEST)/huffman.compressed \
-              $(PCCTEST)/huffman.code \
-              $(PCCTEST)/huffman.freq
-	cd $(PCCTEST); $(HUFFCOMPILE) \
-                 $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) $(DEF)$(PCCCOMP) \
-                 $(CFLAGS) \
-                 $(INC)$(PCCDIR)/src \
-                 $(PCCDIR)/src/io.c \
-                 $(PCCDIR)/src/huffman.c \
-                 $(PCCDIR)/src/hash.c \
-                 ../small2/hufftest.c \
-                 $(HUFFOTHERS) \
-                 $(EXEOUT)hufftest.exe
-	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./hufftest.exe $(HUFFINPUT) ; done"
-
-
-hufftest-optimvariant: mustbegcc
-	cd $(PCCTEST); rm -f hufftest.exe
-	cd $(PCCTEST); \
-           $(CC_OPTIMVARIANT) \
-                 hufftest.exe_comboptimcured.$(OPTIMVARIANT).c \
-                 $(CCUREDLIB) \
-                 $(EXEOUT)hufftest.exe
-	cd $(PCCTEST); sh -c "for i in $(ITERATION_ELEMS) ; \
-                                   do time ./hufftest.exe $(HUFFINPUT) ; done"
-
-wes-rbtest: $(TESTDIR)/small2/wes-rbtest.c 
-	rm -f $(PCCTEST)/wes-rbtest.exe
-	cd $(PCCTEST); $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(CFLAGS) \
-                 $(INC)$(PCCDIR)/src \
-                 ../small2/wes-rbtest.c \
-                 $(EXEOUT)wes-rbtest.exe
-	$(PCCTEST)/wes-rbtest.exe
-
-wes-hashtest: $(TESTDIR)/small2/wes-hashtest.c 
-	rm -f $(PCCTEST)/wes-hashtest.exe
-	cd $(PCCTEST); $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
-                 $(CFLAGS) \
-                 $(INC)$(PCCDIR)/src \
-                 ../small2/wes-hashtest.c \
-                 $(EXEOUT)wes-hashtest.exe
-	$(PCCTEST)/wes-hashtest.exe
 
 
 ### Generic test
 testfile/% : 
-	$(CCURED) /TC $*
+	$(CILLY) /TC $*
 
 testdir/% : 
 	make -C CC="ccured" $*
@@ -1069,32 +579,11 @@ testdir/% :
 
 ################## Linux device drivers
 testlinux/% : $(TESTDIR)/linux/%.cpp 
-	cd $(TESTDIR)/linux; $(CCURED) -o $*.o $*.cpp 
+	cd $(TESTDIR)/linux; $(CILLY) -o $*.o $*.cpp 
 
 testqp : testlinux/qpmouse
 testserial: testlinux/generic_serial
 
-################## Rahul's test cases
-SPR-TESTDIR := $(TESTDIR)/spr
-
-# Compile .c to .exe and run it
-sprrun/% : $(SPR-TESTDIR)/%.c  
-	cd $(SPR-TESTDIR); $(CCURED)   \
-	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
-	cd $(SMALL1); ./$*.exe
-	echo SUCCESS
-
-# Compile .c to .s
-sprs/% : $(SPR-TESTDIR)/%.c  
-	cd $(SPR-TESTDIR); $(CCURED) --nomerge  \
-	       $(ASMONLY)$*.s $*.c
-	echo SUCCESS
-
-# Compile .c to .o
-spro/% : $(SPR-TESTDIR)/%.c 
-	cd $(SPR-TESTDIR); $(CCURED) --nomerge  \
-	       $(CONLY) $*.c 
-	echo SUCCESS
 
 ###########################################################################
 #                                  apache 1.3.9
@@ -1149,7 +638,7 @@ apache-setup:
 # result is compared against a gold standard. Then we shut down teh web
 # server. 
 a-m-c/%: apache-setup
-	cd $(APACHESRC)/ccured-modules ; ( $(CCURED) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*.cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
+	cd $(APACHESRC)/ccured-modules ; ( $(CILLY) --includedir=include --assumePrintf --curetype=infer -DINFERBOX mod_$*.c -I ../target/include/ --curedout=mod_$*.cured.c || echo "Undefined references to non-mangled apache functions are OK at this stage" ) ; ../target/bin/apxs -c mod_$*cured.i /home/weimer/cil/obj/x86_LINUX/ccured_GNUCC_debug.a ; ../target/bin/apxs -i mod_$*cured.so 
 	cd $(APACHESRC)/test-files ; cp httpd.conf.local ../target/conf/httpd.conf ; echo "LoadModule $*_module libexec/mod_$*cured.so" >> ../target/conf/httpd.conf
 	cd $(APACHESRC)/target/bin ; echo "Failing to load because of undefined references here is not good." ; ./apachectl start
 	cd $(APACHESRC)/test-files ; sleep 3s ; rm -f index.html ; wget http://localhost:9999/index.html ; 
@@ -1196,7 +685,7 @@ APATCH := --includedir=$(APACHEBASE)/include
 
 apache/% : $(APACHETEST)/mod_%.c
 	rm -f $(APACHETEST)/mod_$*.$(OBJEXT)
-	cd $(APACHETEST) ; $(CCURED) \
+	cd $(APACHETEST) ; $(CILLY) \
                        --save-temps=. $(APATCH) \
                         $(CFLAGS) \
                         $(APACHECFLAGS) \
@@ -1207,7 +696,7 @@ apache/% : $(APACHETEST)/mod_%.c
 # benchmark's Makefile (helps to ensure consistency between the
 # non-ccured build and the ccured build, and also some programs
 # take too long on -O3)
-COMBINECCURED := $(CCURED) --keepmerged
+COMBINECCURED := $(CILLY) --keepmerged
 
 
 #
@@ -1230,7 +719,7 @@ bh-new:  mustbegcc
 
 bh-combined:  mustbegcc
 	cd $(BHDIR); \
-	    $(CCURED) --leavealone=trusted_bh \
+	    $(CILLY) --leavealone=trusted_bh \
                       code.exe_comb.c trusted_bh.c $(EXEOUT)code.exe
 	(export ONE_VARIABLE=1 ; make runbh $(MAKEOVERRIDES) )
 
@@ -1277,7 +766,7 @@ power-optimvariant: mustbegcc
 
 power-combined :  mustbegcc
 	cd $(PWDIR); \
-             $(CCURED) power.exe_comb.c $(EXEOUT)power.exe
+             $(CILLY) power.exe_comb.c $(EXEOUT)power.exe
 
 
 # Health care simulation
@@ -1447,7 +936,7 @@ mst-optimvariant: mustbegcc
 
 
 TREEADDIR := $(TESTDIR)/olden/treeadd
-TREEADDSAFECC := $(CCURED) $(NOPRINTLN)
+TREEADDSAFECC := $(CILLY) $(NOPRINTLN)
 ifeq ($(ARCHOS), x86_WIN32)
   TREEADDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1475,7 +964,7 @@ treeadd-optimvariant: mustbegcc
 
 
 EM3DDIR := $(TESTDIR)/olden/em3d
-EM3DSAFECC := $(CCURED)  
+EM3DSAFECC := $(CILLY)  
 ifeq ($(ARCHOS), x86_WIN32)
   EM3DSAFECC += $(DEF)WIN32 $(DEF)MSDOS
   SS_RAND := TRUE
@@ -1519,7 +1008,7 @@ spec-compress :
 
 old-compress :  $(COMPRESSDIR)/src/combine-compress.c
 	rm -f $(COMPRESSDIR)/combine-compress.exe
-	cd $(COMPRESSDIR)/src ; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(COMPRESSDIR)/src ; $(CILLY) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  combine-compress.c \
                  $(EXEOUT)combine-compress.exe
@@ -1551,7 +1040,7 @@ compress-optimvariant: mustbegcc
 # struct; I need it to *not* be enabled for the run through gcc, since
 # gcc-2.x doesn't know about transparent unions
 LIDIR := $(SPECDIR)/130.li
-LISAFECC := $(CCURED)
+LISAFECC := $(CILLY)
 ifndef USECILLY
 LISAFECC += -DCCURED_MODIFICATIONS --allowInlineAssembly 
 endif
@@ -1579,7 +1068,7 @@ li-optimvariant: mustbegcc
 
 li-combined:  mustbegcc
 	cd $(LIDIR)/src; \
-            $(CCURED) li.exe_comb.c $(LIEXTRA) $(EXEOUT)li.exe
+            $(CILLY) li.exe_comb.c $(LIEXTRA) $(EXEOUT)li.exe
 
 li-noclean:  mustbegcc
 	cd $(LIDIR)/src; \
@@ -1595,7 +1084,7 @@ liclean:
 	cd $(LIDIR)/src; rm -f *.cil.c *box.c *.i *_ppp.c *.origi trial_li_all.c
 
 liinfer: li
-	cd $(LIDIR)/src ; $(CCURED) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
+	cd $(LIDIR)/src ; $(CILLY) --save-temps=. $(DEF)$(ARCHOS) $(DEF)$(PCCTYPE) \
                  $(CFLAGS) \
                  trial_li.c \
                  $(EXEOUT)li.exe
@@ -1603,7 +1092,7 @@ liinfer: li
 
 ### SPEC95 GO
 GODIR := $(SPECDIR)/099.go
-GOSAFECC := $(CCURED)  --commPrintLn $(CFLAGS) $(OPT_O2)
+GOSAFECC := $(CILLY)  --commPrintLn $(CFLAGS) $(OPT_O2)
 
 goclean: 	
 	cd $(GODIR)/src; make clean
@@ -1620,7 +1109,7 @@ go:  mustbegcc
 
 go-combined:  mustbegcc
 	cd $(GODIR)/src; \
-	   $(CCURED) $(CONLY) go_all.c
+	   $(CILLY) $(CONLY) go_all.c
 
 
 go-noclean:  mustbegcc
@@ -1645,7 +1134,7 @@ go-optimvariant: mustbegcc
 
 ### SPEC95 vortex
 VORDIR := $(SPECDIR)/147.vortex
-VORSAFECC := $(CCURED)  
+VORSAFECC := $(CILLY)  
 ifndef USECILLY
 VORSAFECC += --noRTTI 
 endif
@@ -1672,13 +1161,13 @@ vortex-gcc:  mustbegcc
 
 vortex-cabs:   mustbegcc
 	cd $(VORDIR)/src; \
-            make clean build CC="$(CCURED) --mode=gcc --cabs $(CONLY)" \
+            make clean build CC="$(CILLY) --mode=gcc --cabs $(CONLY)" \
                              LD="gcc"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-cil:   mustbegcc
 	cd $(VORDIR)/src; \
-            make clean build CC="$(CCURED) --cil $(CONLY)" \
+            make clean build CC="$(CILLY) --cil $(CONLY)" \
                              LD="gcc"
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 vortex-run:
@@ -1692,7 +1181,7 @@ vortex-noclean:  mustbegcc
 
 vortex-combined:  mustbegcc
 	cd $(VORDIR)/src; \
-            $(CCURED) vortex_all.c -g $(VOREXTRA) $(EXEOUT)vortex.exe
+            $(CILLY) vortex_all.c -g $(VOREXTRA) $(EXEOUT)vortex.exe
 	cd $(VORDIR)/src; sh -c "./testit vortex.exe"
 
 vortex-combined-gcc: mustbegcc
@@ -1726,7 +1215,7 @@ M88DIR := $(SPECDIR)/124.m88ksim
 
 # sm: 12/23/01: found that -I. and -I- don't work with m88k.. as usual I
 # have absolutely no idea why it hasn't been a problem until now ..
-M88SAFECC := $(CCURED) 
+M88SAFECC := $(CILLY) 
 ifndef USECILLY
 M88SAFECC +=--leavealone=m88k_trusted --no-idashi --no-idashdot
 endif
@@ -1754,11 +1243,11 @@ m88k-noclean:  mustbegcc
 # it is for)
 m88k-combined:  mustbegcc
 	cd $(M88DIR)src; \
-            $(CCURED) m88k_all.c $(CONLY)
+            $(CILLY) m88k_all.c $(CONLY)
 
 ### SPEC95 ijpeg
 IJPEGDIR := $(SPECDIR)/132.ijpeg
-IJPEGSAFECC := $(CCURED)  
+IJPEGSAFECC := $(CILLY)  
 ifeq ($(ARCHOS), x86_WIN32)
   IJPEGSAFECC += -DWIN32 -DMSDOS
 endif
@@ -1794,7 +1283,7 @@ ijpeg-optimvariant: mustbegcc
 
 ijpeg-combined:  mustbegcc
 	cd $(IJPEGDIR)/src; \
-            $(CCURED) ijpeg_all.c $(IJPEGEXTRA) \
+            $(CILLY) ijpeg_all.c $(IJPEGEXTRA) \
                 $(EXEOUT)ijpeg
 	bash -c "time $(IJPEGDIR)/src/ijpeg \
             -image_file $(IJPEGDIR)/data/ref/input/penguin.ppm \
@@ -1810,7 +1299,7 @@ ijpeg-noclean:  mustbegcc
 
 #### SPEC95 gcc
 GCCDIR := $(SPECDIR)/126.gcc
-GCCSAFECC := $(CCURED)  
+GCCSAFECC := $(CILLY)  
 
 
 gccclean: 	
@@ -1824,7 +1313,7 @@ gcc:  mustbegcc
 
 gcc-combined:  mustbegcc
 	cd $(GCCDIR)/src; \
-            $(CCURED) $(CONLY) cc1_comb.c
+            $(CILLY) $(CONLY) cc1_comb.c
 
 
 gcc-gcc:  mustbegcc
@@ -1855,7 +1344,7 @@ gzip-clean:
 	cd $(GZIPDIR)/src; rm -f *.$(OBJEXT) *.$(EXEEXT)
 
 gzip-build: gzip-clean
-	cd $(GZIPDIR)/src; $(CCURED)  $(GZIPSOURCES) $(EXEOUT)gzip.exe
+	cd $(GZIPDIR)/src; $(CILLY)  $(GZIPSOURCES) $(EXEOUT)gzip.exe
 
 gzip-run:
 	cd $(GZIPDIR)/src; time ./gzip.exe trees.c
@@ -1872,7 +1361,7 @@ linuxstandard:
 	$(MAKE) -C $(LINUXDIR) clean vmlinux \
               MY-CC="gcc"
 
-LINUXCC := $(CCUREDHOME)/bin/ccured --mode=GNUCC
+LINUXCC := $(CILHOME)/bin/ccured --mode=GNUCC
 ifdef NOLINES
   LINUXCC+= --noPrintLn
 endif
@@ -1896,7 +1385,7 @@ linux-clean:
 	$(MAKE) -C $(LINUXDIR) clean
 
 combinetest: 
-	cd $(TESTDIR)/small1; $(CCURED)  /Fet.exe t.c t1.c
+	cd $(TESTDIR)/small1; $(CILLY)  /Fet.exe t.c t1.c
 
 constrainttest:
 	$(CAMLC) -o obj/constraint.exe src/constraint.ml
@@ -1904,7 +1393,7 @@ constrainttest:
 
 ### ftpd-BSD-0.3.2-5
 FTPDDIR := $(TESTDIR)/ftpd/ftpd
-FTPDSAFECC := $(CCURED)  --allowInlineAssembly 
+FTPDSAFECC := $(CILLY)  --allowInlineAssembly 
 ifeq ($(ARCHOS), x86_WIN32)
   FTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 endif
@@ -1921,7 +1410,7 @@ ftpd: ftpd-clean mustbegcc
 # sm: commenting this out because there's a section later on
 # which talks about 2.6.2
 # WUFTPDDIR := $(TESTDIR)/wu-ftpd-2.6.1
-# WUFTPDSAFECC := $(CCURED)  
+# WUFTPDSAFECC := $(CILLY)  
 # ifeq ($(ARCHOS), x86_WIN32)
 #   WUFTPDSAFECC += $(DEF)WIN32 $(DEF)MSDOS
 # endif
@@ -1938,7 +1427,7 @@ ftpd: ftpd-clean mustbegcc
 ANAGRAMDIR := $(TESTDIR)/ptrdist-1.1/anagram
 anagram: mustbegcc
 	cd $(ANAGRAMDIR); rm -f *.o; \
-             make CC="$(CCURED)  "
+             make CC="$(CILLY)  "
 	cd $(ANAGRAMDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1958,7 +1447,7 @@ anagram-optimvariant: mustbegcc
 BCDIR := $(TESTDIR)/ptrdist-1.1/bc
 bc: mustbegcc
 	cd $(BCDIR); rm -f *.o; \
-            make CC="$(CCURED)  "
+            make CC="$(CILLY)  "
 	cd $(BCDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1975,7 +1464,7 @@ bc-optimvariant: mustbegcc
 FTDIR := $(TESTDIR)/ptrdist-1.1/ft
 ft: mustbegcc
 	cd $(FTDIR); rm -f *.o; \
-           make CC="$(CCURED)  "
+           make CC="$(CILLY)  "
 	cd $(FTDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -1993,7 +1482,7 @@ ft-optimvariant: mustbegcc
 KSDIR := $(TESTDIR)/ptrdist-1.1/ks
 ks: mustbegcc
 	cd $(KSDIR); rm -f *.o; \
-           make CC="$(CCURED)  "
+           make CC="$(CILLY)  "
 	cd $(KSDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -2012,7 +1501,7 @@ ks-optimvariant: mustbegcc
 YACRDIR := $(TESTDIR)/ptrdist-1.1/yacr2
 yacr: mustbegcc
 	cd $(YACRDIR); rm -f *.o; \
-           make CC="$(CCURED)  "
+           make CC="$(CILLY)  "
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 
@@ -2026,7 +1515,7 @@ yacr-optimvariant: mustbegcc
 	cd $(YACRDIR); sh -c "for i in $(ITERATION_ELEMS) ; \
                                       do make test; done"
 ################# LINUX
-LINUX_INCLUDES := $(CCUREDHOME)/$(TESTDIR)/linux/include
+LINUX_INCLUDES := $(CILHOME)/$(TESTDIR)/linux/include
 LINUX_TOPATCH := asm/uaccess.h asm/atomic.h asm/bitops.h \
 	         asm/current.h asm/string.h asm/semaphore.h \
                  linux/config.h linux/list.h linux/skbuff.h \
@@ -2046,41 +1535,41 @@ LINUXPATCH :=  --includedir=$(LINUX_INCLUDES) \
 
 # CCured support library for linux modules. Holds wrappers and definitions
 # for things like ccured_fail(). 
-LINUXMODULELIBDIR := $(CCUREDHOME)/test/linux/
+LINUXMODULELIBDIR := $(CILHOME)/test/linux/
 LINUXMODULELIB := $(LINUXMODULELIBDIR)/ccured_LinuxModule_release.o
 $(LINUXMODULELIB) : 
-	cd $(CCUREDHOME)/test/linux ; make
+	cd $(CILHOME)/test/linux ; make
 
 ################# LINUX DEVICE DRIVERS
 SBULLDIR := $(TESTDIR)/linux/sbull
 sbull: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(SBULLDIR); ( make clean && make .depend && \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='sbull_init'" ) ;
+           make CC="$(CILLY) $(LINUXPATCH) --entryPoint='sbull_init'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make sbull_cured.o
 
 PCNET32DIR := $(TESTDIR)/linux/pcnet32
 pcnet32: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(PCNET32DIR); ( make clean && \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='pcnet32_init_module'" ) ;
+           make CC="$(CILLY) $(LINUXPATCH) --entryPoint='pcnet32_init_module'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make pcnet32_cured.o
 
 IDECDDIR := $(TESTDIR)/linux/ide-cd
 ide-cd: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(IDECDDIR); ( make clean && \
-           make CC="$(CCURED) $(LINUXPATCH) --entryPoint='ide_cdrom_init'" ) ;
+           make CC="$(CILLY) $(LINUXPATCH) --entryPoint='ide_cdrom_init'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make ide-cd_cured.o
 
 REISERFSDIR := $(TESTDIR)/linux/reiserfs
 reiserfs: mustbegcc mustbelinux $(LINUXMODULELIB)
 	cd $(REISERFSDIR); ( make clean && \
-           make CC="$(CCURED)  \
+           make CC="$(CILLY)  \
                        $(LINUXPATCH) --entryPoint='init_reiserfs_fs'" ) ;
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
 
 reiserfs-combined: mustbegcc mustbelinux \
                         $(LINUXMODULELIB) $(REISERFSDIR)/reiserfs.o_comb.c
 	cd $(REISERFSDIR); \
-           make fromcomb CC="$(CCURED) \
+           make fromcomb CC="$(CILLY) \
                             $(LINUXPATCH) --entryPoint='init_reiserfs_fs'"
 	cd $(LINUXMODULELIBDIR) ; make reiserfs_cured.o
 
@@ -2147,10 +1636,10 @@ linux-gcc: mustbelinux mustbemanju linuxclean
 LINUX_MERGE_SRC = /home/weimer/linux
 linux-merge: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --commPrintLn --verbose --nocure `cat merge-file-list`
+        $(CILLY) --commPrintLn --verbose --nocure `cat merge-file-list`
 linux-merge2: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC)/merger ; \
-        $(CCURED) --verbose --nocure `cat merge-file-list2`
+        $(CILLY) --verbose --nocure `cat merge-file-list2`
 
 linux-merge3: mustbegcc mustbelinux mustbemanju 
 	cd $(LINUX_MERGE_SRC) ; \
@@ -2180,21 +1669,13 @@ sendmailclean:
 
 
 sendmail-inferbox: sendmaillinks sendmailclean
-	cd $(SENDMAILDIR); make USE_CCURED=1 CCURED_DIR=$(CCUREDHOME)
+	cd $(SENDMAILDIR); make USE_CCURED=1 CCURED_DIR=$(CILHOME)
 
 sendmail-cil: sendmaillinks sendmailclean
-	cd $(SENDMAILDIR); make USE_CIL=1 CCURED_DIR=$(CCUREDHOME)
+	cd $(SENDMAILDIR); make USE_CIL=1 CCURED_DIR=$(CILHOME)
 
 sendmail: mustbegcc 
-ifeq ($(INFERBOX),none)
 	$(MAKE) sendmail-cil
-else
- ifeq ($(INFERBOX),infer)
-	$(MAKE) sendmail-inferbox
- else
-	@echo "Sendmail supports INFERBOX=none or INFERBOX=infer."
- endif
-endif
 
 
 
@@ -2207,10 +1688,10 @@ OPENSSLSRC := $(BIG_EXAMPLES)/openssl
 #don't use assembly or dynamic linking
 OPENSSL_CONFIG=./config no-asm no-dso
 
-CC_SSL="$(CCURED) $(STANDARDPATCH) --stages --verbose --merge --mode=GNUCC \
+CC_SSL="$(CILLY) $(STANDARDPATCH) --stages --verbose --merge --mode=GNUCC \
 -DCCURED_FIX -DUSE_POLYMORPHIC_QSORT"
 
-AR_SSL="$(CCURED) $(STANDARDPATCH) --stages --verbose --merge --mode=AR rv"
+AR_SSL="$(CILLY) $(STANDARDPATCH) --stages --verbose --merge --mode=AR rv"
 
 openssl-clean:
 	cd $(OPENSSLSRC); if test -f Makefile ; then $(MAKE) clean ; else $(OPENSSL_CONFIG); fi
@@ -2335,22 +1816,22 @@ bindclean:
 		-name '*_comb*.c' \
 	      	\) -exec rm -f {} \;
 
-#              CC="$(CCURED) --assumePrintf $(STANDARDPATCH)" 
+#              CC="$(CILLY) --assumePrintf $(STANDARDPATCH)" 
 # lib/isc/include/isc/event.h has commented out __RTTI annotations
 bind: mustbegcc mustbelinux bindclean
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --noWILD --assumePrintf " \
+              CC="$(CILLY) --noWILD --assumePrintf " \
               MAKE="make -e" \
-                LD="$(CCURED) --merge --verbose --commPrintLn " \
-                AR="$(CCURED) --mode=AR --merge --verbose " \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
                 RANLIB="echo" | tee bind.log
 
 bind-noclean: mustbegcc mustbelinux 
 	cd $(BINDSRC) ; make -e \
-              CC="$(CCURED) --noWILD --assumePrintf " \
+              CC="$(CILLY) --noWILD --assumePrintf " \
               MAKE="make -e" \
-                LD="$(CCURED) --merge --verbose --commPrintLn " \
-                AR="$(CCURED) --mode=AR --merge --verbose " \
+                LD="$(CILLY) --merge --verbose --commPrintLn " \
+                AR="$(CILLY) --mode=AR --merge --verbose " \
                 RANLIB="echo" | tee bind-noclean.log
 
 bind-gcc: mustbegcc mustbelinux bindclean
@@ -2390,10 +1871,10 @@ wuftpdclean:
 	      	\) -exec rm -f {} \;
 
 wuftpd: mustbegcc mustbelinux mustbemanju wuftpdclean
-	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --nomerge" lnx
+	cd $(WUFTPDSRC) ; ./build CC="$(CILHOME)/bin/cilly --nomerge" lnx
 
 wuftpd-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(WUFTPDSRC) ; ./build CC="$(CCUREDHOME)/bin/cilly --nomerge" lnx
+	cd $(WUFTPDSRC) ; ./build CC="$(CILHOME)/bin/cilly --nomerge" lnx
 
 wuftpd-gcc: mustbelinux mustbemanju wuftpdclean
 	cd $(WUFTPDSRC) ; ./build CC=gcc lnx
@@ -2420,10 +1901,10 @@ opensshclean:
 	      	\) -exec rm -f {} \;
 
 openssh: mustbegcc mustbelinux mustbemanju opensshclean
-	cd $(OPENSSHSRC) ; make CC="$(CCURED)"
+	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
 
 openssh-noclean: mustbegcc mustbelinux mustbemanju
-	cd $(OPENSSHSRC) ; make CC="$(CCURED)"
+	cd $(OPENSSHSRC) ; make CC="$(CILLY)"
 
 openssh-gcc: mustbelinux mustbemanju opensshclean
 	cd $(OPENSSHSRC) ; make CC=gcc
@@ -2463,7 +1944,7 @@ endif
 # GIMPDEST is the directory where the installed gimp files go
 ifndef GIMPDEST
   # sm: feel free to change this default, I set mine in .ccuredrc
-  GIMPDEST := $(CCUREDHOME)/gimp
+  GIMPDEST := $(CILHOME)/gimp
 endif
 
 # GIMPNOCLEAN must be set to avoid cleaning before building (for testing)
@@ -2882,28 +2363,28 @@ tort/compat/%: $(CTORTDIR)/compat/%.c mustbemanju mustbegcc
 
 
 # ping, from netkit-base-0.17
-PINGDIR := $(CCUREDHOME)/test/ping
+PINGDIR := $(CILHOME)/test/ping
 .PHONY: ping
 ping:
-	cd $(PINGDIR); rm -f ping.o; make CC="$(CCURED) "
+	cd $(PINGDIR); rm -f ping.o; make CC="$(CILLY) "
 
 
 big-arrays : mustbemanju
-	cd /usr/src/big-examples/; $(CCURED) --verbose --stages --nomerge \
+	cd /usr/src/big-examples/; $(CILLY) --verbose --stages --nomerge \
 	       $(CONLY) $(CFLAGS) big-arrays.c
 	echo SUCCESS
 
 # sm: stuff I've put into the misc/ directory
 misc-tests:
-	cd $(CCUREDHOME)/test/misc; \
-	  make clean all CILLY_EXE=$(CCUREDHOME)/obj/$(ARCHOS)/cilly.byte.exe
+	cd $(CILHOME)/test/misc; \
+	  make clean all CILLY_EXE=$(CILHOME)/obj/$(ARCHOS)/cilly.byte.exe
 
 # sm: test ability to merge already-merged files
 merge-twice:
-	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-once.c \
+	$(CILHOME)/bin/merger.pl --ccured --out small2/merged-once.c \
 	  --in small2/merge-twice-[12].c
 	gcc -c -w small2/merged-once.c
-	$(CCUREDHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
+	$(CILHOME)/bin/merger.pl --ccured --out small2/merged-twice.c \
 	  --in small2/merged-once.c small2/merge-twice-3.c
 	gcc -c -w small2/merged-twice.c
 
@@ -2911,12 +2392,12 @@ merge-twice:
 # interesting code is in merge-ar.c
 #3 steps: compile to *.o, merge to libmerge.a, and compile
 merge-ar:
-	cd small2; $(CCUREDHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
-	cd small2; $(CCUREDHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
-	cd small2; $(CCUREDHOME)/bin/cilly --merge libmerge.a -o merge-ar
+	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
+	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
+	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
 
 blockattr: small1/blockattr.c
-	cd small1; $(CCUREDHOME)/obj/$(ARCHOS)/ccured.byte.exe \
+	cd small1; $(CILHOME)/obj/$(ARCHOS)/ccured.byte.exe \
                              --onlyMerge --mergeKeepAnnotations \
                              --commPrintLn --verbose \
                              --mergedout - blockattr.c | grep  -v '/\\* __blockattribute' | grep '__blockattribute'
@@ -2948,8 +2429,8 @@ js-clean:
 
 js: mustbegcc mustbelinux js-clean
 	cd $(JSDIR)/src ; make -f Makefile.ref CCURED=1 \
-                CC="$(CCURED) $(STANDARDPATCH) --verbose" \
-	        LD="$(CCURED) $(STANDARDPATCH) --verbose --keepmerged" \
+                CC="$(CILLY) $(STANDARDPATCH) --verbose" \
+	        LD="$(CILLY) $(STANDARDPATCH) --verbose --keepmerged" \
                 AR="$(CILLY) --mode=AR --merge --verbose --keepmerged"
 	cd $(JSDIR); ./src/Linux_All_DBG.OBJ/js -f test.js
 
