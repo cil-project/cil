@@ -572,6 +572,7 @@ define([MY_AC_CONFIG_EXE_FILES],
 
 MY_AC_CONFIG_FILES(Makefile)
 MY_AC_CONFIG_FILES(cil.spec)
+MY_AC_CONFIG_FILES(config.mk)
 MY_AC_CONFIG_FILES(test/Makefile)
 MY_AC_CONFIG_EXE_FILES(bin/cilly.bat)
 MY_AC_CONFIG_EXE_FILES(bin/patcher.bat)

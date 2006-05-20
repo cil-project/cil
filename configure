@@ -4438,6 +4438,15 @@ done
   fi
 }
 {
+  if test -f config.mk.in; then
+              ac_config_files="$ac_config_files config.mk"
+
+  else
+    true
+    #echo "skipping [config.mk] because it's not in this distribution"
+  fi
+}
+{
   if test -f test/Makefile.in; then
               ac_config_files="$ac_config_files test/Makefile"
 
@@ -5029,6 +5038,7 @@ do
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
   "cil.spec" ) CONFIG_FILES="$CONFIG_FILES cil.spec" ;;
+  "config.mk" ) CONFIG_FILES="$CONFIG_FILES config.mk" ;;
   "test/Makefile" ) CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
   "bin/cilly.bat" ) CONFIG_FILES="$CONFIG_FILES bin/cilly.bat" ;;
   "bin/patcher.bat" ) CONFIG_FILES="$CONFIG_FILES bin/patcher.bat" ;;
@@ -5405,6 +5415,7 @@ s,@INSTALL@,$ac_INSTALL,;t t
   case $ac_file in
     Makefile ) chmod a-w Makefile ;;
     cil.spec ) chmod a-w cil.spec ;;
+    config.mk ) chmod a-w config.mk ;;
     test/Makefile ) chmod a-w test/Makefile ;;
     bin/cilly.bat ) chmod a-w,a+x bin/cilly.bat ;;
     bin/patcher.bat ) chmod a-w,a+x bin/patcher.bat ;;

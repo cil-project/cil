@@ -8,9 +8,7 @@
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
 # pull in definitions from ./configure
-export ARCHOS := @ARCHOS@
-export CILHOME := @CILHOME@
-export HAS_MSVC := @HAS_MSVC@
+include "../config.mk"
 
 TESTDIR := .
 
@@ -91,12 +89,6 @@ ifndef NEWPATCH
   OLDPATCH := 1
 endif
 
-# Set the compiler, as in ../Makefile.in
-ifndef _MSVC
-  ifndef _GNUCC 
-     @DEFAULT_COMPILER@=1
-  endif
-endif
 
 # Now include the compiler specific stuff
 ifdef _MSVC
