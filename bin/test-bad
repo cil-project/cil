@@ -56,11 +56,11 @@ if [ "$1" = "" ]; then
   # arguments, for better impedance match with Makefile; but it's
   # good to have at least 1 positional arg so when it's missing I
   # can easily tell, and print this message
-  echo "usage: CCUREDHOME=... CCURED=... CFLAGS=... $0 source-file.c"
+  echo "usage: CILHOME=... CILLY=... CFLAGS=... $0 source-file.c"
   echo "You can also set RUNONLY=n to run only the nth iteration"
   exit 0
 fi
-echo "CCURED=$CCURED"
+echo "CILLY=$CILLY"
 echo "CFLAGS=$CFLAGS"
 srcfile="$1"
 # Construct the name of the temporary file to use
@@ -79,7 +79,7 @@ else
 fi
 
 # Start it in the right directory
-# cd "$CCUREDHOME/test/small2" || exit
+# cd "$CILLYHOME/test/small2" || exit
 
 # read how many failure cases are in the file; expect line of form
 # "// NUMERRORS n"
@@ -124,9 +124,9 @@ while [ $i -le $numcases ]; do
 
   # compile this with our tool
   rm -f test-bad.out test-bad.err ${tmpname}$OUTEXT
-  echo $CCURED $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
-  $CCUREDHOME/bin/teetwo test-bad.out test-bad.err \
-              $CCURED $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
+  echo $CILLY $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
+  $CILHOME/bin/teetwo test-bad.out test-bad.err \
+              $CILLY $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   # cat test-bad.out test-bad.err
   status=$?
   runit=1
@@ -154,7 +154,7 @@ while [ $i -le $numcases ]; do
   if [ $runit != 0 ]; then 
     echo "./$tmpname$OUTEXT"
     rm -f test-bad.out test-bad.err
-    if $CCUREDHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
+    if $CILHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
       # cat test-bad.out test-bad.err
       if [ $i = 0 ]; then
         # expected success on 0th iteration

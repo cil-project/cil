@@ -262,8 +262,8 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-ARCHOS := @ARCHOS@
-OBJDIR := @CILHOME@/obj/$(ARCHOS)
+ARCHOS := $(ARCHOS)
+OBJDIR := $(CILHOME)/obj/$(ARCHOS)
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
@@ -273,7 +273,9 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -noautolink -I $(OBJDIR) cil.$(CMXA) $(EXEOUT) $(basename $<).exe $<
+	$(CAMLC) -noautolink -I $(OBJDIR) unix.$(CMXA) str.$(CMXA) \
+                 -cclib -lunix -cclib -lstr cil.$(CMXA) \
+                 $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
 	echo SUCCESS
 
@@ -312,7 +314,7 @@ endif
 endif
 	cd $(TESTDIR)/small2; \
 	  CILHOME="$(CILHOME)" \
-	  CCURED="$(CILLY) --nomerge --commPrintLn" \
+	  CILLY="$(CILLY) --nomerge --commPrintLn" \
 	  CFLAGS="$(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
@@ -321,7 +323,7 @@ endif
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small1; \
 	  CILHOME="$(CILHOME)" \
-	  CCURED="$(CILLY) --nomerge --commPrintLn" \
+	  CILLY="$(CILLY) --nomerge --commPrintLn" \
 	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \

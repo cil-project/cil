@@ -279,7 +279,6 @@ if (!$egcs) {
 $TEST->addTests("test-bad/arrsize", "", ['cil']);
 $TEST->addTests("testrun/comma1", "_GNUCC=1", ['cil']);
 $TEST->add3Tests("test/retval");
-$TEST->add3Tests("test/sizeof");
 $TEST->add3Tests("testrun/static", "", @runpattern);
 $TEST->add3Tests("test/static1");
 $TEST->addTests("testrun/static2", "", ['cil']);
@@ -571,7 +570,6 @@ altAddTest("scott/argv $box");
 
 # function pointers don't work with inferred wildness
 altAddTest("scott/funcptr");
-altAddTest("scott/funcptr $wildbox", "slow");
 altAddTest("scott/funcptr $box", "slow");
 
 # transparent unions are a problem for network apps
@@ -591,7 +589,6 @@ altAddTest("scott/xlsubr $box");
 altAddTest("scott/open $gcc");
 altAddTest("scott/ioctl $box $gcc");
 altAddTest("scott/stralloc $box $gcc");
-altAddTest("scott/mknod $box $gcc");
 altAddTest("scott/constfold");
 altAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 altAddTest("scott-nolink/brlock $gcc");
@@ -672,7 +669,6 @@ altAddTest("scott/models $box", "slow");
 altAddTest("scott/qsort $box");
 altAddTest("scott/strpbrk $box");
 altFailTest("needs a deep-mangled wrapper?", "scott/fgets $box");
-altAddTest("runall/sockets $box $gcc");
 
 # more stuff, mostly from ftpd
 altAddTest("scott/reply $box");
@@ -720,7 +716,6 @@ altAddTest("test/init");
 altAddTest("test/init $box");
 altAddTest("test/initial");
 altAddTest("test/jmp_buf");
-altAddTest("test/sized");
 altAddTest("test/static");
 
 
