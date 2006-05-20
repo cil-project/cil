@@ -28,6 +28,8 @@ my $TEST = SafecRegTest->new(AvailParams => { 'RUN' => 1,
 # excess verbiage when adding tests..
 $main::globalTEST = $TEST;
 
+my $inferbox="none";
+
 # am I on win32?
 my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
@@ -113,16 +115,6 @@ $TEST->newTest(
     Cmd => "$make setup _GNUCC=1",
     Group => ['ALWAYS']);
 
-$TEST->newTest(
-    Name => "apache!1setup",
-    Dir => ".",
-    Group => ["apache", "slow"],
-    Cmd => "$make apachesetup");
-$TEST->newTest(
-    Name => "apache!2setup",
-    Dir => ".",
-    Group => ["apache", "slow"],
-    Cmd => "$make apachesetup _GNUCC=1");
 
 # build the documentation, to make sure that it still builds
 $TEST->newTest(
@@ -140,14 +132,6 @@ $TEST->addTests("testrun/warnings-unused-label", "WARNINGS_ARE_ERRORS=1", ['cil'
 $TEST->addTests("test/warnings-cast", "WARNINGS_ARE_ERRORS=1", ['cil']);
 
 
-$TEST->add3Tests("btreetest");
-   $TEST->add3Group("btreetest", "slow");
-$TEST->add3Tests("hashtest");
-   $TEST->add3Group("hashtest", "slow");
-$TEST->add3Tests("rbtest");
-   $TEST->add3Group("rbtest", "slow");
-$TEST->add2Tests("hufftest");
-   $TEST->add2Group("hufftest", "slow");
 $TEST->add3Tests("test/apachebits");
 $TEST->add3Tests("testrun/apachebuf");
 
@@ -428,11 +412,11 @@ if($win32) {
     $TEST->addTests("testrun/msvc3", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc4", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc6", "_MSVC=1", ["cil"]);
-    $TEST->addTests("testrun/msvc7", "_MSVC=1", ["cil", "inferbox"]);
+    $TEST->addTests("testrun/msvc7", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc8", "_MSVC=1", ["cil"]);
     $TEST->addTests("testrun/msvc9", "_MSVC=1", ["cil"]);
 
-    $TEST->addTests("test-bad/try1", "_MSVC=1", ["cil", "inferbox"]);
+    $TEST->addTests("test-bad/try1", "_MSVC=1", ["cil"]);
 }
 $TEST->addTests("testrun/msvc1", "", ["cil"]);
 $TEST->addTests("testrun/msvc5", "", ["cil"]);
@@ -457,80 +441,8 @@ $TEST->addTests("testrun/typeof1", "", ['cil']);
 $TEST->addTests("testrun/semicolon", "_GNUCC=1", ['cil']);
 
 $TEST->add2Tests("merge-ar", "");
-#
-# OLDEN benchmarks
-#
-$TEST->add2Tests("bh", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
-   $TEST->add2Group("bh", "slow", "olden");
-
-$TEST->add2Tests("power", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
-   $TEST->add2Group("power", "olden", "slow");
-
-$TEST->add2Tests("health", "_GNUCC=1");
-   $TEST->add2Group("health", "olden", "slow");
-
-$TEST->add3Tests("perimeter");
-   $TEST->add3Group("perimeter", "olden", "slow");
-$TEST->add3Tests("tsp");
-   $TEST->add3Group("tsp", "olden", "slow");
-$TEST->add2Tests("bisort", "_GNUCC=1");
-   $TEST->add2Group("bisort", "olden", "slow");
-$TEST->add2Tests("mst");
-   $TEST->add2Group("mst", "olden", "slow");
-$TEST->add2Tests("em3d", "_GNUCC=1");
-   $TEST->add2Group("em3d", "olden", "slow");
-$TEST->add2Tests("treeadd", "_GNUCC=1");
-   $TEST->add2Group("treeadd", "olden", "slow");
-
-# PTR INTENSIVE BENCHMARKS 
-$TEST->add2Tests("anagram", "_GNUCC=1");
-   $TEST->add2Group("anagram", "ptrdist", "slow");
-$TEST->add2Tests("bc", "_GNUCC=1");
-   $TEST->add2Group("bc", "ptrdist", "slow");
-$TEST->add2Tests("ft", "_GNUCC=1");
-   $TEST->add2Group("ft", "ptrdist", "slow");
-$TEST->add2Tests("ks", "_GNUCC=1");
-   $TEST->add2Group("ks", "ptrdist", "slow");
-$TEST->add2Tests("yacr", "_GNUCC=1");
-   $TEST->add2Group("yacr", "ptrdist", "slow");
-
-#
-# SPEC95
-#
-$TEST->add2Tests("li", "EXTRAARGS=--allowInlineAssembly _GNUCC=1");
-  $TEST->add2Group("li", "slow", "spec");
-
-$TEST->add2Tests("compress", "_GNUCC=1");
-  $TEST->add2Group("compress", "slow", "spec");
-
-$TEST->add2Tests("go", "_GNUCC=1");
-   $TEST->add2Group("go", "slow", "spec");
-
-$TEST->add2Tests("ijpeg", "_GNUCC=1");
-  $TEST->add2Group("ijpeg", "slow", "spec");
-
-#$TEST->add2Tests("vortex", "_GNUCC=1 OPTIM= ");
-#  $TEST->add2Group("vortex", "vslow", "spec", "slow");
-#  $TEST->addBadComment("vortex-inferbox", "bug in resetSScanf");
 
 
-$TEST->add2Tests("apache/gzip");
-   $TEST->add2Group("apache/gzip", "apache", "slow");
-#$TEST->add3Tests("apache/rewrite");
-#   $TEST->addBadComment("apache/rewrite-cil", "missing main");
-#   $TEST->add3Group("apache/rewrite", "apache");
-#   $TEST->addBadComment("apache/rewrite-inferbox", "BUG");
-#   $TEST->addBadComment("apache/rewrite-box", "BUG");
-#   $TEST->addBadComment("apache/rewrite-cil", "BUG");
-#$TEST->add3Tests("apache/urlcount");
-#   $TEST->add3Group("apache/urlcount", "apache");
-#   $TEST->add3BadComment("apache/urlcount", "missing include file");
-#$TEST->add3Tests("apache/layout");
-#   $TEST->add3Group("apache/layout", "apache");
-#   $TEST->addBadComment("apache/layout-box", "BUG");
-#$TEST->add3Tests("apache/random");
-#   $TEST->add3Group("apache/random", "apache");
-#   $TEST->addBadComment("apache/random-box", "BUG");
 
 $TEST->add2Tests("testrun/sizeof1");
 $TEST->add2Tests("testrun/sizeof2");
@@ -544,148 +456,6 @@ $TEST->addTests("blockattr", "", ['cil']);
 $TEST->add2Tests("testrun/comparisons");
     
 
-$TEST->add2Tests("cfrac");
-   $TEST->add2Group("cfrac", "slow");
-$TEST->add2Tests("matxmult");
-
-
-# VSLOW tests
-#$TEST->addTests("linux", "", ['cil']);
-#  $TEST->addGroups("linux-cil", 'vslow');
-#$TEST->addTests("linux-merge3", "", ['cil']);
-#  $TEST->addGroups("linux-merge3-cil", 'vslow');
-#$TEST->newTest(
-#    Name => "emacs",
-#    Dir => ".",
-#    Cmd => "$make emacs",
-#    Group => ['vslow'],
-#    Patterns => []);
-#$TEST->addTests("perl", "", ['cil']);
-#  $TEST->addGroups("perl-cil", 'vslow');
-#$TEST->addTests("bind", "", ['cil']);
-#  $TEST->addGroups("bind-cil", 'vslow');
-#$TEST->addTests("wuftpd", "", ['cil']);
-#  $TEST->addGroups("wuftpd-cil", 'vslow');
-#$TEST->addTests("openssh", "", ['cil']);
-#  $TEST->addGroups("openssh-cil", 'vslow');
-#$TEST->addTests("apache", "", ['cil']);
-#  $TEST->addGroups("apache-cil", 'vslow');
-
-
-#
-# GIMP and friends
-#
-$TEST->newTest(
-    Name => "gimpall-world", # A CIL only test
-    Dir => ".",
-    Enabled => 1,
-    Cmd => "$make gimpall-world LD_LIBRARY_PATH=$FindBin::Bin/../gimp/lib",
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-#
-# Apache CIL-ified
-#
-$TEST->newTest(
-    Name => "apache-cil", # A CIL only test
-    Dir => ".",
-    Enabled => 1,
-    Cmd => "$make apache-cil",
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-# Apache-CIL,  Modules-Cured
-$TEST->newTest(
-    Name => "apache-modules-cured", 
-    Dir => ".",
-    Enabled => 0,
-    Cmd => "$make apache-modules-ccured",
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-#
-# PING
-#
-$TEST->newTest(
-    Name => "ping-cil",
-    Dir => ".",
-    Cmd => "$make ping " . $TEST->testCommandExtras(""),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-$TEST->newTest(
-    Name => "ping-inferbox",
-    Dir => ".",
-    Cmd => "$make ping " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-#
-# FTPD
-#
-$TEST->newTest(
-    Name => "ftpd-cil",
-    Dir => ".",
-    Cmd => "$make ftpd " . $TEST->testCommandExtras(""),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-$TEST->newTest(
-    Name => "ftpd-inferbox",
-    Dir => ".",
-    Cmd => "$make ftpd " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 1,      # sm: 9/09/02 05:02: it works!
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-
-#
-# ACE
-#
-$TEST->newTest(
-    Name => "ace",
-    Dir => "/home/necula/ex/ace.edg",
-    Cmd => "$make regtest-clean regtest",
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-#
-# Sendmail
-#
-$TEST->newTest(
-    Name => "sendmail-cil",
-    Dir => ".",
-    Cmd => "$make sendmail " . $TEST->testCommandExtras(""),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-$TEST->newTest(
-    Name => "sendmail-inferbox",
-    Dir => ".",
-    Cmd => "$make sendmail " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-
-
-#
-# openssl
-#
-$TEST->newTest(
-    Name => "openssl-cil",
-    Dir => ".",
-    Cmd => "$make openssl-test-withclean " . $TEST->testCommandExtras(""),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
-$TEST->newTest(
-    Name => "openssl-inferbox",
-    Dir => ".",
-    Cmd => "$make openssl-test-withclean " . $TEST->testCommandExtras("INFERBOX=infer"),
-    Enabled => 1,
-    Group => ['vslow'],
-    Patterns => \%commonerrors);
 
 # -------------- alternate testcase interface ---------------
 # sm: trying to make a regrtest-like interface
@@ -822,7 +592,6 @@ altAddTest("scott/open $gcc");
 altAddTest("scott/ioctl $box $gcc");
 altAddTest("scott/stralloc $box $gcc");
 altAddTest("scott/mknod $box $gcc");
-altAddTest("badd/nullfield $manualbox");
 altAddTest("scott/constfold");
 altAddTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 altAddTest("scott-nolink/brlock $gcc");
@@ -880,12 +649,8 @@ altAddTest("combine_syserr MERGEINLINES=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 altAddTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 altAddTest("merge-twice");
-altAddTest("scott/arrayexpand INFERBOX=infer");
-altAddTest("scott/byteprintf INFERBOX=infer");
 altAddTest("scott/bufferlinegetter INFERBOX=infer");
 altAddTest("scott/null_pointer_field INFERBOX=infer");
-altAddTest("scott/closefunc INFERBOX=infer");
-altAddTest("scott/sockunion INFERBOX=infer", "slow");
 
 # tests of things implemented for EDG compatibility
 altAddTest("mergestruct");
@@ -895,7 +660,6 @@ altAddTest("test-bad/setjmp $box", "slow");
 altAddTest("combinetaggedfn $wildbox SEPARATE=1 UNTAGGEDFNS=1");
 
 # test of strings (need more!)
-altAddTest("badd/ovwrnull $box");
 altAddTest("test-bad/strloop2 $box");
 
 # tests of function models
@@ -930,17 +694,10 @@ altAddTest("hola");
 altAddTest("hola $box");
 
 # a few things that should fail
-altAddTest("badd/lbound $box $gcc");
-altAddTest("badd/ubound $box $gcc");
-altAddTest("badd/fseq $box $gcc");
-altAddTest("badd/calloc $box $gcc");
-altAddTest("badd/stackaddr $box $gcc");
 altAddTest("test-bad/trivial-tb");
 altAddTest("test-bad/retptr $box RELEASE=1");
 $TEST->addBadComment("test-bad/retptr", "Fails in RELEASE mode because the ok() function is inlined, making it look like we're returning a local.");
 
-# verify we have tags and that they work
-# altAddTest("badd/nonptr $box $gcc");          # very simple test. Covered by wild1
 altAddTest("scott/arraytags $box $gcc");     # this one is pretty hairy
 
 # simple test of combiner
@@ -950,34 +707,6 @@ altAddTest("comb $box $gcc");
 # test combiner's ability to detect inconsistency
 altAddTest("baddef");
 
-
-# These take too long if we turn off strings
-## hashtest and rbtest with TABLE
-my $iters = "EXTRAARGS=-DITERS=100";
-#$TEST->setField(altAddTest("rbtest $table $iters"),
-#                "FailDiagnosis", "Maybe ARCHOS isn't set right?");
-#altAddTest("hashtest $table $iters");
-
-# red-black tree
-altAddTest("rbtest $iters", "slow");
-altAddTest("rbtest $box $iters", "slow");
-
-altAddTest("wes-rbtest $iters");
-altAddTest("wes-rbtest $box $iters", "slow");
-
-# hashtable
-$iters = "EXTRAARGS=-DITERS=10000";
-altAddTest("hashtest $iters", "slow");
-altAddTest("hashtest $box $iters", "slow");
-altAddTest("hashtest $wildbox $iters", "slow");
-
-altAddTest("wes-hashtest $iters", "slow");
-altAddTest("wes-hashtest $box $iters", "slow");
-
-altAddTest("hashtest $box $iters MAXSPLIT=1", "slow");
-
-# some piece of PCC
-altAddTest("testpcc/parseobject EXTRAARGS=--no-idashi");
 
 # apache modules; set is needed for next one
 $TEST->setField(altAddTest("apache!1setup"), 'Cmd', "$make apachesetup");
@@ -1012,11 +741,10 @@ altAddTest("scott/errorinfn");
 altAddTest("scott/unionassign $box");
 altAddTest("scott/unionassign $wildbox");
 altAddTest("scott/readv $box", "slow");
-altFailTest("FSEQ incompleteness", "scott/bloop $box");
 altAddTest("scott/funcptr3 $box");
 altAddTest("scott/structattr");
 altAddTest("scott/neg64");
-altAddTest("testc/arrayinitsize");
+altAddTest("testrun/arrayinitsize");
 altAddTest("test-bad/enuminit2");
 altAddTest("scott/volatilestruct");
 altAddTest("scott/sizeofchar");
@@ -1225,10 +953,10 @@ sub addTests {
     foreach $kind (@{$pkinds}) {
         my $thisargs = $theargs;
         if($kind eq 'inferbox') {
-            $thisargs .= "  INFERBOX=$inferbox"; #ww: "EXTRAARGS=--typecheck";
+            next;
         }
         if($kind eq 'box') {
-            $thisargs .= "  INFERBOX=wild ";
+            next;
         }
         $thisargs .= ' NOEMITBROWSER=1 ';  
         my $tst =
@@ -1249,17 +977,16 @@ sub addTests {
 
 sub add3Tests {
     my($self, $name, $extraargs) = @_;
-    my @tests = $self->addTests($name, $extraargs, ['cil', 'inferbox', 'box']);
+    my @tests = $self->addTests($name, $extraargs, ['cil']);
     # Run the CCured test as a quick test, and the others as slow.
     # The CCured test should catch any CIL errors, anyways.
     $self->addGroups($name . "-cil", "slow");
-    $self->addGroups($name . "-box", "slow");
     return @tests;
 }
 
 sub add2Tests {
     my($self, $name, $extraargs) = @_;
-    my @tests = $self->addTests($name, $extraargs, ['cil', 'inferbox']);
+    my @tests = $self->addTests($name, $extraargs, ['cil']);
     # Run the CCured test as a quick test, and the CIL as slow.
     # The CCured test should catch any CIL errors, anyways.
     $self->addGroups($name . "-cil", "slow");
@@ -1272,12 +999,6 @@ sub addTestsFail {
                                 MustFail => $failpattern);
     return @tests;
 }
-sub add2TestsFail {
-    my($self, $name, $extraargs, $failpattern) = @_;
-    return $self->addTestsFail($name, $extraargs, $failpattern, 
-                               [ 'box', 
-                                'inferbox']);
-}
 
 sub addBadComment {
     my($self, $name, $comm) = @_;
@@ -1288,14 +1009,11 @@ sub addBadComment {
 sub add3Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
-    $self->addComment($name . "-box", $comm);
-    $self->addComment($name . "-inferbox", $comm);
 }
 
 sub add2Comment {
     my ($self, $name, $comm) = @_;
     $self->addComment($name . "-cil", $comm);
-    $self->addComment($name . "-inferbox", $comm);
 }
 
 
@@ -1314,14 +1032,11 @@ sub add2BadComment {
 sub add3Group {
     my ($self, $name, @groups) = @_;
     $self->addGroups($name . "-cil", @groups);
-    $self->addGroups($name . "-box", @groups);
-    $self->addGroups($name . "-inferbox", @groups);
 }
 
 sub add2Group {
     my ($self, $name, @groups) = @_;
     $self->addGroups($name . "-cil", @groups);
-    $self->addGroups($name . "-inferbox", @groups);
 }
 
 
