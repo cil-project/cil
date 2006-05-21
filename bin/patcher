@@ -77,6 +77,9 @@ options:
   --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
  
   --clean       Remove all files in the destination directory
+  --stdoutpp    For MSVC only, use the "preprocess to stdout" mode. This 
+                is for some versions of MSVC that do not support 
+                well the /P file
   --dumpversion Print the version name used for the current compiler
 
  All of the other arguments are passed to the preprocessor.
@@ -99,6 +102,7 @@ my %option;
      "--patch=s@",         # Patch files
      "--ufile=s@",         # User include files
      "--sfile=s@",         # System include files
+     "--stdoutpp",        # pp to stdout
      "--dumpversion",
      "--clean",
      );
@@ -265,7 +269,11 @@ sub patchOneFile {
 	    $preproccmd .= " 2>/dev/null";
 	}
     } elsif($option{mode} eq "MSVC") {
-        $preproccmd = "cl /nologo /P $ppargs $preprocfile.c";
+        if($option{stdoutpp}) {
+            $preproccmd = "cl /nologo /E $ppargs >$preprocfile.i";
+        } else {
+            $preproccmd = "cl /nologo /P $ppargs $preprocfile.c";
+        }
     } else { die "Invalid --mode"; }
 
     if(system($preproccmd) && $option{mode} eq "MSVC" ) {

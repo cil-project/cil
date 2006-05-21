@@ -377,6 +377,9 @@ Options:
                      they are not merged and not processed with CIL.
   --includedir=xxx   Adds a new include directory to replace existing ones
   --bytecode         Invoke the bytecode (as opposed to native code) system
+  --stdoutpp         For MSVC only, use the "preprocess to stdout" mode. This 
+                     is for some versions of MSVC that do not support 
+                     well the /P file
 
 EOF
 #   --no-idashi        Do not use '-I-' with the gcc preprocessor.

@@ -201,16 +201,16 @@ in ``Proceedings of Conference on Compilier Construction'', 2002.
 
 \section{Installation}
 
-You will need OCaml release 3.08 or higher to build CIL. CIL has been tested
-on Linux and on Windows (where it can behave at either Microsoft Visual C or
-gcc).
-
- If you want to use CIL on Windows then you must get a complete installation
-of \t{cygwin} and the source-code OCaml distribution and compile it yourself
-using the cygwin tools (as opposed to getting the Win32 native-code version of
-OCaml). If you have not done this before then take a look
-\ahref{../ccured/setup.html}{here}. (Don't need to worry about \t{cvs} and
-\t{ssh} unless you will need to use the master CVS repository for CIL.)
+ You need the following tools to build CIL:
+\begin{itemize}
+\item A Unix-like shell environment (with bash, perl, make, mv, cp,
+  etc.). On Windows, you will need cygwin with those packages.
+\item An ocaml compiler. You will need OCaml release 3.08 or higher to build
+CIL. CIL has been tested on Linux and on Windows (where it can behave as
+either Microsoft Visual C or gcc). On Windows, you can build CIL both with the
+cygwin version of ocaml (preferred) and with the Win32 version of ocaml.
+\item An underlying C compiler, which can be either gcc or Microsoft Visual C.
+\end{itemize}
 
 \begin{enumerate}
 \item Download the CIL \ahref{distrib}{distribution} (latest version is
@@ -226,17 +226,15 @@ OCaml). If you have not done this before then take a look
       \hsp\verb!make!\\
       \hsp\verb!make quicktest!\\
 
-\item You should now find \t{cilly.asm.exe} in a
-subdirectory of \t{obj}. The name of the subdirectory is either \t{x86\_WIN32}
-if you are using \t{cygwin} on Windows or \t{x86\_LINUX} if you are using
-Linux (although you should be using instead the Perl wrapper \t{bin/cilly}).
-Note that we do not have an \t{install} make target and you should use Cil
-from the development directory. 
+\item You should now find \t{cilly.asm.exe} in a subdirectory of \t{obj}. The
+name of the subdirectory is either \t{x86\_WIN32} if you are using \t{cygwin}
+on Windows or \t{x86\_LINUX} if you are using Linux (although you should be
+using instead the Perl wrapper \t{bin/cilly}). Note that we do not have an
+\t{install} make target and you should use Cil from the development directory.
 \item If you decide to use CIL, {\bf please}
 \ahref{mailto:necula@cs.berkeley.edu}{send us a note}. This will help recharge
-our batteries after more than a year of development. And of course, do send us
+our batteries after a few years year of development. And of course, do send us
 your bug reports as well.
-
 \end{enumerate}
 
  The \t{configure} script tries to find appropriate defaults for your system.
@@ -256,15 +254,6 @@ of a pointer or the particular alignment rules for structure fields. (This
 means, of course, that you should re-run \t{./configure} when you move CIL to
 another machine.)
 
-% CIL also depends on how the compiler implements the variable argument
-%functions. 
-%Most notably, {\bf Note: CIL does not work with gcc version 2.96
-%because of the way in which it implements varargs.}. You should not use
-%version 2.96 because \ahref{http://gcc.gnu.org/gcc-2.96.html}{it was not a
-%formal gcc release}, just a (buggy) developement version. You should upgrade
-%your gcc to version 3.2 or to 2.95.3 (which actually appears to be much faster
-%than 3.2). 
-
 We have tested CIL on the following compilers:
 
 \begin{itemize}
@@ -280,31 +269,41 @@ Others have successfully used CIL with Mac OS X (on both PowerPC and
 x86), Solaris, and *BSD.  If you make any changes to the build
 system in order to run CIL on your platform, please send us a patch.
 
-%%   \section{Testing CIL} 
-%%   Once you have built CIL you can run 
-%% \begin{verbatim}
-%% make quicktest
-%% \end{verbatim}
+  \subsection{Building CIL on Windows with Microsoft Visual C}
 
-%%   This will run a few small examples. If you want to test CIL on a large
-%% part of our own regression suite you need to do the following:
-%% \begin{itemize}
-%% \item Download the CCured regression suite from the
-%% \ahref{distrib}{distribution} directory. The latest version is
-%% \ahrefurl{../ccured/distrib/ccured-tests-\ccuredversion.tar.gz}.
-%% \item Unpack that file in the \t{cil} (you must end up with \t{cil/test}).
-%% \item Run \t{./configure} to create the file \t{cil/test/Makefile}
-%% \item Re-run \t{make}
-%% \item In the \t{test} directory, run
-%% \begin{verbatim}
-%% USECILLY=1 testsafec --run --group cil --nogroup slow --nogroup vslow
-%% \end{verbatim}
-%% \end{itemize}
+ Some users might want to build a standalone CIL executable on Windows (an
+executable that does not require cygwin.dll to run). You will need cygwin for
+the build process only. Here is how we do it
 
-%%  Drop the argument \t{-{}-nogroup slow} to run even larger tests. 
+\begin{enumerate}
+\item Start with a clean CIL directory
+\item Start a command-line window setup with the environment variables for
+  Microsoft Visual Studio. You can do this by choosing Programs/Microsoft
+  Visual Studio/Tools/Command Prompt. Check that you can run \t{cl}. 
+\item Ensure that \t{ocamlc} refers to a Win32 version of ocaml. Run \t{ocamlc
+  -v} and look at the path to the standard library. If you have several
+  versions of ocaml, you must set the following variables:
+   \begin{verbatim}
+      set OCAMLWIN=C:/Programs/ocaml-win
 
-%%  {\bf Note that some tests will fail either because they are not included in
-%%  our distribution, or because we still have a few failing test cases.}
+      set OCAMLLIB=%OCAMLWIN%/lib
+      set PATH=%OCAMLWIN%/bin;%PATH%
+      set INCLUDE=%INCLUDE%;%OCAMLWIN%/inc
+      set LIB=%LIB%;%OCAMLWIN%/lib;obj/x86_WIN32
+   \end{verbatim}
+
+\item Run \t{bash -c "./configure CC=cl"}.
+\item Run \t{bash -c "make WIN32=1 quickbuild"}
+\item Run \t{bash -c "make WIN32=1 NATIVECAML=1 cilly}
+\item Run \t{bash -c "make WIN32=1 bindistrib-nocheck}
+\end{enumerate}
+
+ The above steps do not build the CIL library, but just the executable. The
+last step will create a subdirectory \t{TEMP\_cil-bindistrib} that contains
+everything that you need to run CIL on another machine. You will have to edit
+manually some of the files in the \t{bin} directory to replace \t{CILHOME}.
+The resulting CIL can be run with ActiveState Perl also. 
+
 
   \section{Distribution Contents}
 
@@ -1260,7 +1259,7 @@ your transformation is breaking these constraints then you can pass the
 is run after each transformation. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-\subsection{Attributes}\label{sec-attrib}
+\subsection{Attributes}\label{sec-attrib}\cutname{attributes.html}
 
  In CIL you can attach attributes to types and to names (variables, functions
 and fields). Attributes are represented using the type \ciltyperef{attribute}.

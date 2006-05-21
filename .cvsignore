@@ -35,3 +35,4 @@ cvss.txt
 configure.lineno
 confstat*
 config.mk
+TEMP_cil-bindistrib
