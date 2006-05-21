@@ -1,5 +1,8 @@
-(** Code to compute the control-flow graph of a function.  This is
-  required for several other analyses. *)
+(** Code to compute the control-flow graph of a function or file.  
+  This will fill in the [preds] and [succs] fields of {!Cil.stmt}
+
+  This is required for several other extensions, such as {!Dataflow}. 
+*)
 
 open Cil
 

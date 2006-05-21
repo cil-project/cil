@@ -93,9 +93,9 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               testcil \
 	      $(CILLY_FEATURES) \
 	      ciloptions feature_config
-# ww: we don't want "maincil" in an external cil library (cil.cma),
+# ww: we don't want "main" in an external cil library (cil.cma),
 # otherwise every program that links against that library will get
-# maincil's argument checking and whatnot ...
+# main's argument checking and whatnot ...
 CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
 CILLY_CMODULES =
 CILLY_LIBS     = unix str
@@ -185,7 +185,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	$(OBJDIR)/machdep.exe >>$@
 	echo "	 underscore_name = @UNDERSCORE_NAME@ ;" >> $@
 	echo "}"          >>$@
-	if cl /D_MSVC $< /Fe$(OBJDIR)/machdep.exe ;then \
+	if cl /D_MSVC $< /Fe$(OBJDIR)/machdep.exe /Fo$(OBJDIR)/machdep.obj ;then \
            echo "let hasMSVC = true" >>$@ \
         ;else \
            echo "let hasMSVC = false" >>$@ ;fi
@@ -247,7 +247,7 @@ endif
           $(foreach f,@EXTRAFEATURES@, \
              `echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;\n") >> $@
 	echo "]"   >>$@ 
-# Must delete maincil.d and remake it, because it may have been made
+# Must delete main.d and remake it, because it may have been made
 # before feature_config existed.
 	rm -f $(DEPENDDIR)/main.d
 	$(MAKE) $(DEPENDDIR)/main.d
@@ -341,13 +341,13 @@ texdoc: doc/cilpp.tex
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; mv cilpp.html cil.html
 	cd doc/html/cil; hacha -o ciltoc.html cil.html
-	cp -f doc/cilindex.html doc/html/cil/index.html
-	cp -f doc/cilheader.html doc/html/cil
+	cp -f doc/index.html doc/html/cil/index.html
+	cp -f doc/header.html doc/html/cil
 
 pdfdoc: doc/cilpp.tex $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
 	cd doc; echo "\def\cilversion{@CIL_VERSION@}" >cil.version.tex
 	cd doc; echo "\def\ccuredversion{@CCURED_VERSION@}" >>cil.version.tex
-	cd doc; pdflatex cilpp.tex
+	cd doc; pdflatex cilpp.tex; pdflatex cilpp.tex
 	cd doc; mv cilpp.pdf html/cil/CIL.pdf
 	ocamldoc -o doc/cil-api.tex -v -stars \
              -latex \

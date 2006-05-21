@@ -5,7 +5,9 @@ module E = Errormsg
 open Cil
 open Pretty
 
-(** A framework for data flow analysis for CIL code *)
+(** A framework for data flow analysis for CIL code.  Before using 
+    this framework, you must initialize the Control-flow Graph for your
+    program, e.g using {!Cfg.computeFileCFG} *)
 
 type 't action = 
     Default (** The default action *)
@@ -328,14 +330,14 @@ module type BackwardsTransfer = sig
 
 
   val doStmt: Cil.stmt -> t action
-  (** The (backwards) transfer function for a branch. The {!Jvm.currentPc} is 
+  (** The (backwards) transfer function for a branch. The {!Cil.currentLoc} is 
    * set before calling this. If it returns None, then we have some default 
    * handling. Otherwise, the returned data is the data before the branch 
    * (not considering the exception handlers) *)
 
   val doInstr: Cil.instr -> t -> t action
   (** The (backwards) transfer function for an instruction. The 
-   * {!Jvm.currentPc} is set before calling this. If it returns None, then we 
+   * {!Cil.currentLoc} is set before calling this. If it returns None, then we 
    * have some default handling. Otherwise, the returned data is the data 
    * before the branch (not considering the exception handlers) *)
 
