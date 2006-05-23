@@ -246,6 +246,7 @@ addTest("test/const9 ");
 addTest("testrun/const10 ");
 addTest("testrun/const11 ");
 addTest("test/deref _GNUCC=1");
+addTest("test_i/empty");
 addTest("test/enum");
 addTest("testrun/enum2");
 addTest("test/func");

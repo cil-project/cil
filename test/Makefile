@@ -216,6 +216,12 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+#preprocessed files:
+test_i/% : $(SMALL1)/%.i 
+	cd $(SMALL1); $(CILLY) --nomerge --commPrintLn \
+	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.i
+	echo SUCCESS
+
 
 # sm: some project members don't want the testing targets to depend
 # on quickbuild (which rebuilds translator components whose dependencies
