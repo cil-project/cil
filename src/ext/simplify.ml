@@ -190,6 +190,15 @@ and simplifyLval
     end
   in
   let tres = TPtr(typeOfLval lv, []) in
+  let typeForCast restOff: typ =
+    (* in (e+i)-> restoff, what should we cast e+i to? *)
+    match restOff with
+      Index _ -> E.s (bug "index in restOff")
+    | NoOffset -> tres
+    | Field(fi, NoOffset) -> (* bitfield *)
+        TPtr(TComp(fi.fcomp, []), [])
+    | Field(fi, _) -> E.s (bug "bug in offsetToInt")
+  in
   match lv with 
     Mem a, off -> 
       let offidx, restoff = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
@@ -200,7 +209,7 @@ and simplifyLval
           a
       in
       let a' = makeBasic setTemp a' in
-      Mem (mkCast a' tres), restoff
+      Mem (mkCast a' (typeForCast restoff)), restoff
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
       let offidx, restoff = offsetToInt v.vtype off in
@@ -212,7 +221,7 @@ and simplifyLval
         add (mkCast a !upointType) (makeBasic setTemp offidx) 
       in
       let a' = setTemp a' in
-      Mem (mkCast a' tres), restoff
+      Mem (mkCast a' (typeForCast restoff)), restoff
 
   | Var v, off -> 
       (Var v, simplifyOffset setTemp off)

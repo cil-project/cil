@@ -2,6 +2,13 @@
   
 int globalInt;
 
+void y() { }
+
+void typeofVoid() {
+  (typeof(y()))0;
+}
+
+
 int main()
 {
   __typeof(globalInt) localInt;

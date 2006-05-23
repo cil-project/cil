@@ -2253,7 +2253,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
           
     | [A.TtypeofE e] -> 
-        let (c, e', t) = doExp false e AExpLeaveArrayFun in
+        let (c, e', t) = doExp false e ADrop in
         let t' = 
           match e' with 
             StartOf(lv) -> typeOfLval lv
