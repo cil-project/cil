@@ -555,7 +555,7 @@ and comment =
 
 
 and onelinecomment = parse
-    '\n'        {[]}
+    '\n'|eof    {[]}
 |   _           { lex_comment onelinecomment lexbuf }
 
 and matchingpars = parse
