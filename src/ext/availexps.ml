@@ -53,7 +53,7 @@ let eh_combine eh1 eh2 =
   eh'
 
 (* On a memory write, kill expressions containing memory writes
- * or variables whose address has been taken. *)
+ * variables whose address has been taken, and globals. *)
 let exp_ok = ref false
 class memReadOrAddrOfFinderClass = object(self)
   inherit nopCilVisitor
@@ -65,7 +65,7 @@ class memReadOrAddrOfFinderClass = object(self)
   | _ -> DoChildren
 
   method vvrbl vi =
-    if vi.vaddrof then
+    if vi.vaddrof || vi.vglob then
       (exp_ok := true;
        SkipChildren)
     else DoChildren
@@ -98,7 +98,7 @@ class viFinderClass vi = object(self)
 
 end
 
-let exp_has_vi e vi =
+let exp_has_vi vi e =
   let vis = new viFinderClass vi in
   has_vi := false;
   ignore(visitCilExpr vis e);
@@ -106,7 +106,7 @@ let exp_has_vi e vi =
 
 let eh_kill_vi eh vi =
   IH.iter (fun vid e ->
-    if exp_has_vi e vi
+    if exp_has_vi vi e
     then IH.remove eh vid)
     eh
 
