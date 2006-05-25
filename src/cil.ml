@@ -1664,7 +1664,12 @@ let d_const () c =
 
   | CChr(c) -> text ("'" ^ escape_char c ^ "'")
   | CReal(_, _, Some s) -> text s
-  | CReal(f, _, None) -> text (string_of_float f)
+  | CReal(f, fsize, None) -> 
+      text (string_of_float f) ++
+      (match fsize with
+         FFloat -> chr 'f'
+       | FDouble -> nil
+       | FLongDouble -> chr 'L')
   | CEnum(_, s, ei) -> text s
 
 
