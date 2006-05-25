@@ -55,6 +55,8 @@ let mydebugfunction () =
 
 let debugGlobal = false
 
+let continueOnError = true
+
 (** NDC added command line parameter **)
 (* Turn on tranformation that forces correct parameter evaluation order *)
 let forceRLArgEval = ref false
@@ -1036,6 +1038,8 @@ let varSizeArrays : exp IH.t = IH.create 17
 type expAction = 
     ADrop                               (* Drop the result. Only the 
                                          * side-effect is interesting *)
+  | AType                               (* Only the type of the result
+                                           is interesting.  *)
   | ASet of lval * typ                  (* Put the result in a given lval, 
                                          * provided it matches the type. The 
                                          * type is the type of the lval. *)
@@ -2253,7 +2257,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
           
     | [A.TtypeofE e] -> 
-        let (c, e', t) = doExp false e ADrop in
+        let (c, e', t) = doExp false e AType in
         let t' = 
           match e' with 
             StartOf(lv) -> typeOfLval lv
@@ -2894,7 +2898,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
   let finishExp ?(newWhat=what) 
                 (se: chunk) (e: exp) (t: typ) : chunk * exp * typ = 
     match newWhat with 
-      ADrop -> (se, e, t)
+      ADrop 
+    | AType -> (se, e, t)
     | AExpLeaveArrayFun -> 
         (se, e, t) (* It is important that we do not do "processArrayFun" in 
                     * this case. We exploit this when we process the typeOf 
@@ -3256,7 +3261,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match what with
             AExp (Some _) -> AExp (Some typ)
           | AExp None -> what
-          | ADrop | AExpLeaveArrayFun -> what
+          | ADrop | AType | AExpLeaveArrayFun -> what
           | ASet (lv, lvt) -> 
               (* If the cast from typ to lvt would be dropped, then we 
                * continue with a Set *)
@@ -3488,7 +3493,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              in
              let tresult, opresult = doBinOp uop' e' t one intType in
              let se', result = 
-               if what <> ADrop then 
+               if what <> ADrop && what <> AType then 
                  let tmp = newTempVar t in
                  se +++ (Set(var tmp, e', !currentLoc)), Lval(var tmp)
                else
@@ -3882,7 +3887,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             prestype := t
           in
           match !pwhat with 
-            ADrop -> addCall None zero intType
+            ADrop | AType -> addCall None zero intType
                 
                 (* Set to a variable of corresponding type *)
           | ASet(lv, vtype) -> 
@@ -4108,7 +4113,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
 
-  with e -> begin
+  with e when continueOnError -> begin
     ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
     E.hadErrors := true;
     (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc),
@@ -4848,7 +4853,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
         end
       end
     end
-  with e -> begin
+  with e when continueOnError -> begin
     ignore (E.log "error in createGlobal(%s: %a): %s\n" n
               d_loc !currentLoc
               (Printexc.to_string e));
@@ -5543,7 +5548,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                         n docEnv); *)
             cabsPushGlobal (GFun (!currentFunctionFDEC, funloc));
             empty
-          with e -> begin
+          with e when continueOnError -> begin
             ignore (E.log "error in collectFunction %s: %s\n"
                       n (Printexc.to_string e));
             cabsPushGlobal (GAsm("error in function " ^ n, !currentLoc));
@@ -5994,7 +5999,7 @@ and doStatement (s : A.statement) : chunk =
         in
         s2c (mkStmt (TryExcept (c2block b', (il', e'), c2block h', loc')))
 
-  with e -> begin
+  with e when continueOnError -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
     consLabel "booo_statement" empty (convLoc (A.get_statementloc s)) false
   end

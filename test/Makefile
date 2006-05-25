@@ -109,6 +109,7 @@ export EXTRAARGS
 # because *any* such settings will be overridden if someone
 # specified EXTRAARGS on the command line
 CCURED+= --save-temps $(EXTRAARGS)
+CILLY+= --save-temps $(EXTRAARGS)
 
 ifdef OCAMLDEBUG
   CCURED+= --ocamldebug
@@ -358,7 +359,7 @@ runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	 perl ../../ocamlutil/runall.pl $*.c
 
 # sm: trivial test of combiner
-MYSAFECC := $(CILLY) --save-temps=.
+MYSAFECC := $(CILLY)
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
