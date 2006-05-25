@@ -110,6 +110,30 @@ let eh_kill_vi eh vi =
     then IH.remove eh vid)
     eh
 
+(* need to kill exps containing a particular lval sometimes *)
+let has_lval = ref false
+class lvalFinderClass lv = object(self)
+  inherit nopCilVisitor
+
+  method vlval l =
+    if Util.equals l lv
+    then (has_lval := true; SkipChildren)
+    else DoChildren
+
+end
+
+let exp_has_lval lv e =
+  let vis = new lvalFinderClass lv in
+  has_lval := false;
+  ignore(visitCilExpr vis e);
+  !has_lval
+
+let eh_kill_lval eh lv =
+  IH.iter (fun vid e ->
+    if exp_has_lval lv e
+    then IH.remove eh vid)
+    eh
+
 let varHash = IH.create 32
 
 let eh_kill_addrof_or_global eh =
@@ -151,7 +175,8 @@ let eh_handle_inst i eh = match i with
 	  (IH.replace eh vi.vid e;
 	   eh_kill_vi eh vi;
 	   eh))
-  | _ -> eh) (* do nothing for now. *)
+  | _ -> (eh_kill_lval eh lv;
+	  eh))
 | Call(Some(Var vi,NoOffset),_,_,_) ->
     (IH.remove eh vi.vid;
      eh_kill_vi eh vi;
