@@ -510,6 +510,9 @@ let ae_fwd_subst data sid e fd nofrm =
   let e' = visitCilExpr (varXformClass ae_tmp_to_exp data sid fd nofrm) e in
   (e', !ae_tmp_to_exp_change)
 
+let ae_simp_fwd_subst data e nofrm =
+  ae_fwd_subst data (-1) e dummyFunDec nofrm
+
 let ae_tmp_to_const_change = ref false
 let ae_tmp_to_const eh sid vi fd nofrm =
   if nofrm || check_forms vi.vname forms then
