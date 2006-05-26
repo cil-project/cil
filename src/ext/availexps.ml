@@ -15,6 +15,8 @@ module S = Stats
 
 let debug = ref false
 
+let ignore_inst = ref (fun i -> false)
+
 (* exp IH.t -> exp IH.t -> bool *)
 let eh_equals eh1 eh2 =
   if not(IH.length eh1 = IH.length eh2)
@@ -154,46 +156,46 @@ let eh_kill_addrof_or_global eh =
     end
     with Not_found -> ()) eh
 
-let eh_handle_inst i eh = match i with
-  (* if a pointer write, kill things with read in them.
-     also kill mappings from vars that have had their address taken,
-     and globals.
-     otherwise kill things with lv in them and add e *)
-  Set(lv,e,_) -> (match lv with
-    (Mem _, _) -> 
-      (eh_kill_mem eh; 
+let eh_handle_inst i eh = 
+  if (!ignore_inst) i then eh else
+  match i with
+    (* if a pointer write, kill things with read in them.
+       also kill mappings from vars that have had their address taken,
+       and globals.
+       otherwise kill things with lv in them and add e *)
+    Set(lv,e,_) -> (match lv with
+      (Mem _, _) -> 
+	(eh_kill_mem eh; 
+	 eh_kill_addrof_or_global eh;
+	 eh)
+    | (Var vi, NoOffset) -> 
+	(match e with
+	  Lval(Var vi', NoOffset) -> (* ignore x = x *)
+	    if vi'.vid = vi.vid then eh else
+	    (IH.replace eh vi.vid e;
+	     eh_kill_vi eh vi;
+	     eh)
+	| _ ->
+	    (IH.replace eh vi.vid e;
+	     eh_kill_vi eh vi;
+	     eh))
+    | _ -> (eh_kill_lval eh lv;
+	    eh))
+  | Call(Some(Var vi,NoOffset),_,_,_) ->
+      (IH.remove eh vi.vid;
+       eh_kill_vi eh vi;
+       eh_kill_mem eh;
        eh_kill_addrof_or_global eh;
        eh)
-  | (Var vi, NoOffset) -> 
-      (match e with
-	Lval(Var vi', NoOffset) -> (* ignore x = x *)
-	  if vi'.vid = vi.vid then eh else
-	  (IH.replace eh vi.vid e;
-	   eh_kill_vi eh vi;
-	   eh)
-      | _ ->
-	  (IH.replace eh vi.vid e;
-	   eh_kill_vi eh vi;
-	   eh))
-  | _ -> (eh_kill_lval eh lv;
-	  eh))
-| Call(Some(Var vi,NoOffset),_,_,_) ->
-    (IH.remove eh vi.vid;
-     eh_kill_vi eh vi;
-     eh_kill_mem eh;
-     eh_kill_addrof_or_global eh;
-     eh)
-| Call(_,_,_,_) ->
-    (eh_kill_mem eh;
-     eh_kill_addrof_or_global eh;
-     eh)
-| Asm(_,_,_,_,_,_) ->
-    let _,d = UD.computeUseDefInstr i in
-    (UD.VS.iter (fun vi ->
-      eh_kill_vi eh vi) d;
-     eh)
-
-let allExpHash = IH.create 128
+  | Call(_,_,_,_) ->
+      (eh_kill_mem eh;
+       eh_kill_addrof_or_global eh;
+       eh)
+  | Asm(_,_,_,_,_,_) ->
+      let _,d = UD.computeUseDefInstr i in
+      (UD.VS.iter (fun vi ->
+	eh_kill_vi eh vi) d;
+       eh)
 
 module AvailableExps =
   struct
@@ -211,8 +213,7 @@ module AvailableExps =
 
     let pretty = eh_pretty
 
-    let computeFirstPredecessor stm eh = 
-      eh_combine (IH.copy allExpHash) eh
+    let computeFirstPredecessor stm eh = eh
 
     let combinePredecessors (stm:stmt) ~(old:t) (eh:t) =
       if S.time "eh_equals" (eh_equals old) eh then None else
@@ -235,16 +236,8 @@ module AE = DF.ForwardsDataFlow(AvailableExps)
 (* make an exp IH.t with everything in it,
  * also, fill in varHash while we're here.
  *)
-class expCollectorClass = object(self)
+class varHashMakerClass = object(self)
   inherit nopCilVisitor
-
-  method vinst i = match i with
-    Set((Var vi,NoOffset),e,_) ->
-      let e2l = IH.find_all allExpHash vi.vid in
-      if not(List.exists (fun e2 -> Util.equals e e2) e2l)
-      then IH.add allExpHash vi.vid e;
-      DoChildren
-  | _ -> DoChildren
 
   method vvrbl vi =
     (if not(IH.mem varHash vi.vid)
@@ -256,51 +249,24 @@ class expCollectorClass = object(self)
 
 end
 
-let expCollector = new expCollectorClass
+let varHashMaker = new varHashMakerClass
 
-let make_all_exps fd =
-  IH.clear allExpHash;
+let make_var_hash fd =
   IH.clear varHash;
-  ignore(visitCilFunction expCollector fd)
-
-
-
-(* set all statement data to allExpHash, make
- * a list of statements 
- *)
-let all_stmts = ref []
-class allExpSetterClass = object(self)
-  inherit nopCilVisitor
-
-  method vstmt s =
-    all_stmts := s :: (!all_stmts);
-    IH.add AvailableExps.stmtStartData s.sid (IH.copy allExpHash);
-    DoChildren
-
-end
-
-let allExpSetter = new allExpSetterClass
-
-let set_all_exps fd =
-  IH.clear AvailableExps.stmtStartData;
-  ignore(visitCilFunction allExpSetter fd)
+  ignore(visitCilFunction varHashMaker fd)
 
 (*
  * Computes AEs for function fd.
  *
  *
  *)
-(*let iAEsHtbl = Hashtbl.create 128*)
 let computeAEs fd =
   try let slst = fd.sbody.bstmts in
   let first_stm = List.hd slst in
-  S.time "make_all_exps" make_all_exps fd;
-  all_stmts := [];
-  (*S.time "set_all_exps" set_all_exps fd;*)
-  (*Hashtbl.clear iAEsHtbl;*)
-  (*IH.clear (IH.find AvailableExps.stmtStartData first_stm.sid);*)
+  S.time "make_var_hash" make_var_hash fd;
+  IH.clear AvailableExps.stmtStartData;
   IH.add AvailableExps.stmtStartData first_stm.sid (IH.create 4);
-  S.time "compute" AE.compute [first_stm](*(List.rev !all_stmts)*)
+  S.time "compute" AE.compute [first_stm]
   with Failure "hd" -> if !debug then ignore(E.log "fn w/ no stmts?\n")
   | Not_found -> if !debug then ignore(E.log "no data for first_stm?\n")
 
@@ -312,29 +278,19 @@ let getAEs sid =
 
 (* get the AE data for an instruction list *)
 let instrAEs il sid eh out =
-  (*if Hashtbl.mem iAEsHtbl (sid,out)
-  then Hashtbl.find iAEsHtbl (sid,out) 
-  else*) 
-    let proc_one hil i =
-      match hil with
-	[] -> let eh' = IH.copy eh in
+  let proc_one hil i =
+    match hil with
+      [] -> let eh' = IH.copy eh in
+      let eh'' = eh_handle_inst i eh' in
+       eh''::hil
+    | eh'::ehrst as l ->
+	let eh' = IH.copy eh' in
 	let eh'' = eh_handle_inst i eh' in
-	(*if !debug then ignore(E.log "instrAEs: proc_one []: for %a\n data is %a\n"
-	   d_instr i eh_pretty eh'');*)
-	eh''::hil
-      | eh'::ehrst as l ->
-	  let eh' = IH.copy eh' in
-	  let eh'' = eh_handle_inst i eh' in
-	  (*if !debug then ignore(E.log "instrAEs: proc_one: for %a\n data is %a\n"
-	     d_instr i eh_pretty eh'');*)
-	  eh''::l
-    in
-    let folded = List.fold_left proc_one [eh] il in
-    (*let foldedout = List.tl (List.rev folded) in*)
-    let foldednotout = List.rev (List.tl folded) in
-    (*Hashtbl.add iAEsHtbl (sid,true) foldedout;
-    Hashtbl.add iAEsHtbl (sid,false) foldednotout;*)
-    (*if out then foldedout else*) foldednotout
+	eh''::l
+  in
+  let folded = List.fold_left proc_one [eh] il in
+  let foldednotout = List.rev (List.tl folded) in
+  foldednotout
 
 class aeVisitorClass = object(self)
   inherit nopCilVisitor
