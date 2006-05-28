@@ -431,6 +431,7 @@ let lookupVar (n: string) : varinfo * location =
     (EnvVar vi), loc -> vi, loc
   | _ -> raise Not_found
         
+
 let lookupGlobalVar (n: string) : varinfo * location = 
   match H.find genv n with
     (EnvVar vi), loc -> vi, loc
@@ -1539,16 +1540,39 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | _ -> raise (Failure "different type constructors")
 
 
+let extInlineSuffRe = Str.regexp "\\(.+\\)__extinline"
+
 (* Create and cache varinfo's for globals. Starts with a varinfo but if the 
  * global has been declared already it might come back with another varinfo. 
  * Returns the varinfo to use (might be the old one), and an indication 
  * whether the variable exists already in the environment *)
 let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
+  let debug = false in
   try (* See if already defined, in the global environment. We could also 
        * look it up in the whole environment but in that case we might see a 
        * local. This can happen when we declare an extern variable with 
        * global scope but we are in a local scope. *)
-    let oldvi, oldloc = lookupGlobalVar vi.vname in
+
+    (* We lookup in the environement. If this is extern inline then the name 
+     * was already changed to foo__extinline. We lookup with the old name *)
+    let lookupname = 
+      if vi.vstorage = Static then 
+        if Str.string_match extInlineSuffRe vi.vname 0 then 
+          Str.matched_group 1 vi.vname
+        else
+          vi.vname
+      else
+        vi.vname
+    in
+    if debug then 
+      ignore (E.log "makeGlobalVarinfo isadef=%b vi.vname=%s (lookup = %s)\n"
+                isadef vi.vname lookupname);
+
+    (* This may throw an exception Not_found *)
+    let oldvi, oldloc = lookupGlobalVar lookupname in
+    if debug then
+      ignore (E.log "  %s already in the env at loc %a\n" 
+                vi.vname d_loc oldloc);
     (* It was already defined. We must reuse the varinfo. But clean up the 
      * storage.  *)
     let newstorage = (** See 6.2.2 *)
@@ -1592,6 +1616,8 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     oldvi, true
       
   with Not_found -> begin (* A new one.  *)
+    if debug then
+      ignore (E.log "  %s not in the env already\n" vi.vname);
     (* Announce the name to the alpha conversion table. This will not 
      * actually change the name of the vi. See the definition of 
      * alphaConvertVarAndAddToEnv *)
@@ -5179,9 +5205,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                * static *)
               let n', sto' =
                 let n' = n ^ "__extinline" in
-                if inl && sto = Extern then 
+                if inl && sto = Extern then begin
                   n', Static
-                else begin 
+                end else begin 
                   (* Maybe this is the body of a previous extern inline. Then 
                   * we must take that one out of the environment because it 
                   * is not used from here on. This will also ensure that 
@@ -5231,6 +5257,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 
             if H.mem alreadyDefined !currentFunctionFDEC.svar.vname then
               E.s (error "There is a definition already for %s" n);
+
+            H.add alreadyDefined !currentFunctionFDEC.svar.vname funloc;
+
 
 (*
             ignore (E.log "makefunvar:%s@! type=%a@! vattr=%a@!"
