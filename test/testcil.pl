@@ -218,6 +218,7 @@ addTest("test/attr");
 addTest("test/attr2 _GNUCC=1");
 addTest("test/attr3 _GNUCC=1");
 addTest("testrun/attr4 _GNUCC=1");
+addTest("scott/attr4 _GNUCC=1");
 addTest("testrun/attr5_GNUCC=1");
 addTest("test/attr6 _GNUCC=1");
 addTest("test/attr7 _GNUCC=1");

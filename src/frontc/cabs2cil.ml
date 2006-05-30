@@ -2432,6 +2432,11 @@ and doAttr (a: A.attribute) : attribute list =
         | A.UNARY(A.BNOT, aa) -> AUnOp(BNot, ae aa)
         | A.UNARY(A.NOT, aa) -> AUnOp(LNot, ae aa)
         | A.MEMBEROF (e, s) -> ADot (ae e, s)
+        | A.UNARY(A.MEMOF, aa) -> AStar (ae aa)
+        | A.UNARY(A.ADDROF, aa) -> AAddrOf (ae aa)
+        | A.MEMBEROFPTR (aa1, s) -> ADot(AStar(ae aa1), s)
+        | A.INDEX(aa1, aa2) -> AIndex(ae aa1, ae aa2)
+        | A.QUESTION(aa1, aa2, aa3) -> AQuestion(ae aa1, ae aa2, ae aa3)
         | _ -> 
             ignore (E.log "Invalid expression in attribute: ");
             withCprint Cprint.print_expression a;

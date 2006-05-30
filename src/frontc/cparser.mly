@@ -1354,9 +1354,13 @@ primary_attr:
                                             * attribute lists, is translated 
                                             * to aconst *)*/
 |   CONST                                { VARIABLE "aconst" }
+
 |   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
 
+/*(* The following rule conflicts with the ? : attributes. We give it a very 
+   * low priority *)*/
 |   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) } 
+
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
                           
                                             /*(** GCC allows this as an 
@@ -1369,11 +1373,12 @@ postfix_attr:
     primary_attr                         { $1 }
                                          /* (* use a VARIABLE "" so that the 
                                              * parentheses are printed *) */
-|   IDENT LPAREN  RPAREN                 { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
-|   IDENT paren_attr_list_ne             { CALL(VARIABLE (fst $1), $2) }
+|   IDENT LPAREN  RPAREN             { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
+|   IDENT paren_attr_list_ne         { CALL(VARIABLE (fst $1), $2) }
 
 |   postfix_attr ARROW id_or_typename    {MEMBEROFPTR ($1, $3)} 
 |   postfix_attr DOT id_or_typename      {MEMBEROF ($1, $3)}  
+|   postfix_attr LBRACKET attr RBRACKET  {INDEX ($1, $3) }
 ;
 
 /*(* Since in attributes we use both IDENT and NAMED_TYPE as indentifiers, 
@@ -1460,8 +1465,14 @@ logical_or_attr:
 |   logical_or_attr PIPE_PIPE logical_and_attr {BINARY(OR ,$1 , $3)}
 ;
 
+conditional_attr: 
+    logical_or_attr                        { $1 }
+/* This is in conflict for now */
+|   logical_or_attr QUEST conditional_attr COLON conditional_attr 
+                                          { QUESTION($1, $3, $5) }
 
-attr: logical_or_attr                    { $1 }
+
+attr: conditional_attr                    { $1 }
 ;
 
 attr_list_ne:

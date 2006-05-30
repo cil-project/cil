@@ -295,6 +295,10 @@ and attrparam =
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
   | ADot of attrparam * string           (** a.foo **)
+  | AStar of attrparam                   (** * a *)
+  | AAddrOf of attrparam                 (** & a **)
+  | AIndex of attrparam * attrparam      (** a1[a2] *)
+  | AQuestion of attrparam * attrparam * attrparam (** a1 ? a2 : a3 **)
 
 
 (** Information about a composite type (a struct or a union). Use 
@@ -1686,7 +1690,9 @@ let addrOfLevel = 30
 let additiveLevel = 60
 let comparativeLevel = 70
 let bitwiseLevel = 75
-let getParenthLevel = function
+let questionLevel = 100
+let getParenthLevel (e: exp) = 
+  match e with 
   | BinOp((LAnd | LOr), _,_,_) -> 80
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
@@ -1719,6 +1725,18 @@ let getParenthLevel = function
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
   | Const _ -> 0                        (* Constants *)
 
+
+let getParenthLevelAttrParam (a: attrparam) = 
+  (* Create an expression of the same shape, and use {!getParenthLevel} *)
+  match a with 
+    AInt _ | AStr _ | ACons _ -> 0
+  | ASizeOf _ | ASizeOfE _ | ASizeOfS _ -> 20
+  | AAlignOf _ | AAlignOfE _ | AAlignOfS _ -> 20
+  | AUnOp (uo, _) -> getParenthLevel (UnOp(uo, zero, intType))
+  | ABinOp (bo, _, _) -> getParenthLevel (BinOp(bo, zero, zero, intType))
+  | AAddrOf _ -> 30
+  | ADot _ | AIndex _ | AStar _ -> 20
+  | AQuestion _ -> questionLevel
 
 
 (* Separate out the storage-modifier name attributes *)
@@ -3910,7 +3928,26 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ text ")", 
           true
 
-  method pAttrParam () = function 
+  method private pAttrPrec (contextprec: int) () (a: attrparam) = 
+    let thisLevel = getParenthLevelAttrParam a in
+    let needParens =
+      if thisLevel >= contextprec then
+	true
+      else if contextprec == bitwiseLevel then
+        (* quiet down some GCC warnings *)
+	thisLevel == additiveLevel || thisLevel == comparativeLevel
+      else
+	false
+    in
+    if needParens then
+      chr '(' ++ self#pAttrParam () a ++ chr ')'
+    else
+      self#pAttrParam () a
+
+
+  method pAttrParam () a = 
+    let level = getParenthLevelAttrParam a in
+    match a with 
     | AInt n -> num n
     | AStr s -> text ("\"" ^ escape_string s ^ "\"")
     | ACons(s, []) -> text s
@@ -3925,19 +3962,29 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | AAlignOf t -> text "__alignof__(" ++ self#pType None () t ++ text ")"
     | AAlignOfS ts -> text "__alignof__(<typsig>)"
     | AUnOp(u,a1) -> 
-        (d_unop () u) ++ text " (" ++ (self#pAttrParam () a1) ++ text ")"
+        (d_unop () u) ++ chr ' ' ++ (self#pAttrPrec level () a1)
 
     | ABinOp(b,a1,a2) -> 
         align 
           ++ text "(" 
-          ++ (self#pAttrParam () a1)
+          ++ (self#pAttrPrec level () a1)
           ++ text ") "
           ++ (d_binop () b)
           ++ break 
-          ++ text " (" ++ (self#pAttrParam () a2) ++ text ") "
+          ++ text " (" ++ (self#pAttrPrec level () a2) ++ text ") "
           ++ unalign
     | ADot (ap, s) -> (self#pAttrParam () ap) ++ text ("." ^ s)
-          
+    | AStar a1 -> 
+        text "(*" ++ (self#pAttrPrec derefStarLevel () a1) ++ text ")"
+    | AAddrOf a1 -> text "& " ++ (self#pAttrPrec addrOfLevel () a1)
+    | AIndex (a1, a2) -> self#pAttrParam () a1 ++ text "[" ++ 
+                         self#pAttrParam () a2 ++ text "]"
+    | AQuestion (a1, a2, a3) -> 
+          self#pAttrParam () a1 ++ text " ? " ++
+          self#pAttrParam () a2 ++ text " : " ++
+          self#pAttrParam () a3 
+
+ 
   (* A general way of printing lists of attributes *)
   method private pAttrsGen (block: bool) (a: attributes) = 
     (* Scan all the attributes and separate those that must be printed inside 
@@ -4899,6 +4946,22 @@ and childrenAttrparam (vis: cilVisitor) (aa: attrparam) : attrparam =
     | ADot (ap, s) ->
         let ap' = fAttrP ap in
         if ap' != ap then ADot (ap', s) else aa
+    | AStar ap ->
+        let ap' = fAttrP ap in
+        if ap' != ap then AStar ap' else aa
+    | AAddrOf ap ->
+        let ap' = fAttrP ap in
+        if ap' != ap then AAddrOf ap' else aa
+    | AIndex (e1, e2) -> 
+        let e1' = fAttrP e1 in
+        let e2' = fAttrP e2 in
+        if e1' != e1 || e2' != e2 then AIndex (e1', e2') else aa
+    | AQuestion (e1, e2, e3) -> 
+        let e1' = fAttrP e1 in
+        let e2' = fAttrP e2 in
+        let e3' = fAttrP e3 in
+        if e1' != e1 || e2' != e2 || e3' != e3 
+        then AQuestion (e1', e2', e3') else aa
  
 
 let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =

@@ -325,6 +325,10 @@ and attrparam =
   | AUnOp of unop * attrparam
   | ABinOp of binop * attrparam * attrparam
   | ADot of attrparam * string           (** a.foo **)
+  | AStar of attrparam                   (** * a *)
+  | AAddrOf of attrparam                 (** & a **)
+  | AIndex of attrparam * attrparam      (** a1[a2] *)
+  | AQuestion of attrparam * attrparam * attrparam (** a1 ? a2 : a3 **)
 
 (** {b Structures.} The {!Cil.compinfo} describes the definition of a 
  * structure or union type. Each such {!Cil.compinfo} must be defined at the 
