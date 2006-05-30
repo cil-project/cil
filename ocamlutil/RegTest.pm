@@ -297,7 +297,7 @@ sub availableParameters {
 # In a given directory
 # with given destinations for stdout, stderr ("" for no redirection)
 sub runCommand {
-    my($self, $dir, $cmd, $stdoutFile, $stderrFile) = @_;
+    my($self, $tst, $dir, $cmd, $stdoutFile, $stderrFile) = @_;
 
     my $dryrun = $self->{option}->{dryrun};
 
@@ -373,7 +373,11 @@ sub runCommand {
             my $res;
             eval { 
                 local $SIG{ALRM} = sub { die "got timeout"; };
-                alarm $self->{timeout};
+                my $timeout = $self->{timeout};
+                if(defined $tst->{Timeout}) {
+                    $timeout = $tst->{Timeout};
+                }
+                alarm $timeout;
                 $res = system($newcmd);
                 alarm 0; # clear the alarm
             };
@@ -425,6 +429,7 @@ sub runCommand {
 # Enabled => 1/0,             defaults to 1
 # Group => [ "...", "..."]    defaults to empty
 # Comm => "..." a comment to be printed
+# Timeout => 40,              seconds of timeout
 # ErrorMsg => "..." an error message to be printed if there is an error
 #
 sub newTest {
@@ -784,19 +789,6 @@ sub doit {
 
     my $results;
     
-    # See if we only need to run one test
-    # sm: disabled it here because it doesn't work right; moved to runTests
-    if(0 && defined $option{one}) {
-        my $tst = $tests{$option{one}};
-        if(! defined $tst) {
-            die "Cannot find test $option{one}\n";
-        }
-        $self->run($tst, "", $self->{option}->{dryrun},
-                   "", "");    # no output redirection
-        print "\n";
-        exit 0;
-    }
-    
 
     # Enable all tests if specified
     if(defined $option{all}) {
@@ -1129,7 +1121,8 @@ sub run {
     }
  
    my $res =
-        $self->runCommand($tst->{Dir},
+        $self->runCommand($tst, 
+                          $tst->{Dir},
                           $tst->{Cmd} . $extraArgs,
                           $stdoutFile, $stderrFile);
 
