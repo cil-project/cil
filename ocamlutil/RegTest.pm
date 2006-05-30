@@ -654,6 +654,7 @@ sub parseLogFile {
         if(defined($currentTest)) {
             # Recognize the TIMEOUT error
             if($_ =~ m|^Error: TIMEOUT|) {
+                $currentTest->{ErrorCode} = 100;
                 $currentTest->{ErrorMsg} = $_;
             }
             # Do the specialized parsing
