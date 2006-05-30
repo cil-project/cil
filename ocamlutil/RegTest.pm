@@ -388,7 +388,7 @@ sub runCommand {
 #                print STDERR "Got timeout. Kill children\n";
                 print STDERR "  TIMEOUT ";
                 open(ERR, ">>$stderrFile");
-                print ERR "Error: TIMEOUT";
+                print ERR "Error: TIMEOUT ($self->{timeout}s)";
                 close(ERR);
                 local $SIG{HUP} = 'IGNORE';
                 kill HUP => -$$;
@@ -657,6 +657,11 @@ sub parseLogFile {
             }
         }
         if(defined($currentTest)) {
+            # Recognize the TIMEOUT error
+            if($_ =~ m|^Error: TIMEOUT|) {
+                $currentTest->{ErrorMsg} = $_;
+            }
+            # Do the specialized parsing
             $self->parseLogLine($currentTest, $_);
         }
     }
