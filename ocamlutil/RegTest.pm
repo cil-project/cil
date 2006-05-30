@@ -32,11 +32,11 @@ if($^O eq 'MSWin32') {
 # &Getopt::Long::Configure('pass_through'); # Does not work on Linux
 
 # Set a signal handler
-my $interrupt = 0;
+my $interrupt = 0; # Will set this and we'll poll it between tests
 my $timeout = 0;
 sub intHandler {
     my $signame = shift;
-#    print "I got a SIG$signame\n";
+    print "I got a SIG$signame\n";
     $interrupt = 1;
 }
 
@@ -67,28 +67,21 @@ sub processInterrupt {
     if($interrupt) {
         $interrupt = 0;
         print "\n";
-        while(1) {
-            print "You pressed CTRL-C. Want to continue? (y/n): ";
-            my $answer = <STDIN>; chop $answer;
-	    $answer = "n" if eof();
-            if($answer eq "") { next; }
-            if($answer eq "y" || $answer eq "Y") {
-                &setInterruptHandler();
-                return;
-            }
-            last;
+        my $answer = 
+            &promptYN("You pressed CTRL-C. Want to continue? (y/n): ",
+                      'N');
+        if($answer eq "Y") {
+            &setInterruptHandler();
+            return;
         }
-        while(1) {
-            print "Will exit now. Do you want to keep the log file? (y/n): ";
-            my $answer = <STDIN>; chop $answer;
-	    $answer = "y" if eof();
-            if($answer eq "") { next; }
-            if($answer eq "n" || $answer eq "N") {
-                print "I am deleting $self->{LogFile}\n";
-                unlink $self->{LogFile};
-            }
-            last;
-        }            
+
+        $answer = 
+            &promptYN("Will exit now. Do you want to keep the log file? (y/n):"
+                      , 'Y');
+        if($answer eq "N") {
+            print "I am deleting $self->{LogFile}\n";
+            unlink $self->{LogFile};
+        }
         die "I'm outta here\n";
     }
 }
@@ -382,7 +375,7 @@ sub runCommand {
                 local $SIG{ALRM} = sub { die "got timeout"; };
                 alarm $self->{timeout};
                 $res = system($newcmd);
-                alarm 0;
+                alarm 0; # clear the alarm
             };
             if($@ =~ m/got timeout/) {
 #                print STDERR "Got timeout. Kill children\n";
@@ -390,8 +383,10 @@ sub runCommand {
                 open(ERR, ">>$stderrFile");
                 print ERR "Error: TIMEOUT ($self->{timeout}s)";
                 close(ERR);
+                # Kill the children
                 local $SIG{HUP} = 'IGNORE';
                 kill HUP => -$$;
+                &setInterruptHandler();
                 $res = (1 << 7) + 1
             }
 
@@ -1309,6 +1304,34 @@ sub enable {
     }
     $tst->{Enabled} = $value;
 }
+
+sub prompt {
+    my($msg) = @_;
+    print $msg;
+    my $answer = <STDIN>;
+    if($answer =~ m|^([^\r\n]*)[\r\n]+|) {
+        $answer = $1;
+    }
+    return $answer;
+}
+
+sub promptYN {
+    my($msg, $default) = @_;
+    my $counter = 5;
+    while(1) {
+        my $answer = &prompt($msg);
+        if($answer eq "") { 
+            # Perhaps we have no input
+            if(eof(STDIN)) { 
+                return $default; 
+            }
+            next; 
+        }
+        if($answer eq 'y' || $answer eq 'Y') { return 'Y'; }
+        if($answer eq 'n' || $answer eq 'N') { return 'N'; }
+    }
+}
+    
 
 1;
 
