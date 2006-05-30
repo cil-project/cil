@@ -15,7 +15,75 @@ module S = Stats
 
 let debug = ref false
 
+(*
+ * When ignore_inst returns true, then
+ * the instruction in question has no
+ * effects on the abstract state.
+ * When ignore_call returns true, then
+ * the instruction only has side-effects
+ * from the assignment if there is one.
+ *)
 let ignore_inst = ref (fun i -> false)
+let ignore_call = ref (fun i -> false)
+
+(* Expression/type comparison *)
+
+let rec compareExp (e1: exp) (e2: exp) : bool =
+(*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
+  e1 == e2 ||
+  match e1, e2 with
+  | Lval lv1, Lval lv2
+  | StartOf lv1, StartOf lv2
+  | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
+  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) -> 
+      bop1 = bop2 && compareExp l1 l2 && compareExp r1 r2
+  | _ -> begin
+      match isInteger (constFold true e1), isInteger (constFold true e2) with
+        Some i1, Some i2 -> i1 = i2
+      | _ -> false
+    end
+
+and compareLval (lv1: lval) (lv2: lval) : bool =
+  let rec compareOffset (off1: offset) (off2: offset) : bool =
+    match off1, off2 with
+    | Field (fld1, off1'), Field (fld2, off2') ->
+        fld1 == fld2 && compareOffset off1' off2'
+    | Index (e1, off1'), Index (e2, off2') ->
+        compareExp e1 e2 && compareOffset off1' off2'
+    | NoOffset, NoOffset -> true
+    | _ -> false
+  in
+  lv1 == lv2 ||
+  match lv1, lv2 with
+  | (Var vi1, off1), (Var vi2, off2) ->
+      vi1 == vi2 && compareOffset off1 off2
+  | (Mem e1, off1), (Mem e2, off2) ->
+      compareExp e1 e2 && compareOffset off1 off2
+  | _ -> false
+
+(* Remove casts that do not effect the value of the expression, such
+ * as casts between different pointer types.  Of course, these casts
+ * change the type, so don't use this within e.g. an arithmetic
+ * expression.
+ * 
+ * We also prune casts between equivalent integer types, such as a
+ * difference in sign or int vs long.  But we keep other arithmetic casts,
+ * since they actually change the value of the expression. *)
+let rec stripNopCasts (e:exp): exp =
+  match e with
+    CastE(t, e') -> begin
+      match unrollType t, unrollType (typeOf e') with
+        TPtr _, TPtr _ -> (* okay to strip *)
+          stripNopCasts e'
+      | (TInt _ as t1), (TInt _ as t2) 
+          when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
+          stripNopCasts e'
+      |  _ -> e
+    end
+  | _ -> e
+      
+let compareExpStripCasts (e1: exp) (e2: exp) : bool =
+  compareExp (stripNopCasts e1) (stripNopCasts e2)
 
 (* exp IH.t -> exp IH.t -> bool *)
 let eh_equals eh1 eh2 =
@@ -24,7 +92,7 @@ let eh_equals eh1 eh2 =
   else IH.fold (fun vid e b ->
     if not b then b else
     try let e2 = IH.find eh2 vid in
-    if not(Util.equals e e2)
+    if not(compareExpStripCasts e e2)
     then false
     else true
     with Not_found -> false)
@@ -42,10 +110,10 @@ let eh_combine eh1 eh2 =
   let eh' = IH.copy eh1 in (* eh' gets all of eh1 *)
   IH.iter (fun vid e1 ->
     try let e2l = IH.find_all eh2 vid in
-    if not(List.exists (fun e2 -> Util.equals e1 e2) e2l)
+    if not(List.exists (fun e2 -> compareExpStripCasts e1 e2) e2l)
     (* remove things from eh' that eh2 doesn't have *)
     then let e1l = IH.find_all eh' vid in
-    let e1l' = List.filter (fun e -> not(Util.equals e e1)) e1l in
+    let e1l' = List.filter (fun e -> not(compareExpStripCasts e e1)) e1l in
     IH.remove_all eh' vid;
     List.iter (fun e -> IH.add eh' vid e) e1l'
     with Not_found ->
@@ -118,7 +186,7 @@ class lvalFinderClass lv = object(self)
   inherit nopCilVisitor
 
   method vlval l =
-    if Util.equals l lv
+    if compareLval l lv
     then (has_lval := true; SkipChildren)
     else DoChildren
 
@@ -184,8 +252,10 @@ let eh_handle_inst i eh =
   | Call(Some(Var vi,NoOffset),_,_,_) ->
       (IH.remove eh vi.vid;
        eh_kill_vi eh vi;
-       eh_kill_mem eh;
-       eh_kill_addrof_or_global eh;
+       if not((!ignore_call) i) then begin
+	 eh_kill_mem eh;
+	 eh_kill_addrof_or_global eh
+       end;
        eh)
   | Call(_,_,_,_) ->
       (eh_kill_mem eh;
