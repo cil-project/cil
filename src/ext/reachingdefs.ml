@@ -446,6 +446,20 @@ let getStmt sid =
   try Some(IH.find ReachingDef.sidStmtHash sid)
   with Not_found -> None
 
+(* returns the rhs for the definition *)
+let getSimpRhs defId =
+  let rhso = getDefRhs ReachingDef.defIdStmtHash
+      ReachingDef.stmtStartData defId in
+  match rhso with None -> None
+  | Some(r,_,_) -> Some(r)
+
+(* check if i is responsible for defId *)
+(* instr -> int -> bool *)
+let isDefInstr i defId =
+  match getSimpRhs defId with
+    Some(RDCall i') -> Util.equals i i'
+  | _ -> false
+
 (* Pretty print the reaching definition data for
    a function *)
 let ppFdec fdec =
