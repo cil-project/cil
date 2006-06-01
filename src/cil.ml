@@ -219,7 +219,7 @@ and typ =
            * function's sformals. *)
 
   | TNamed of typeinfo * attributes 
-          (* The use of a named type. All uses of the same type name must 
+          (** The use of a named type. All uses of the same type name must 
            * share the typeinfo. Each such type name must be preceeded 
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
@@ -808,7 +808,7 @@ and typsig =
 
 
 
-(** To be able to add/remove features easily, each feature should be package 
+(** To be able to add/remove features easily, each feature should be packaged 
    * as an interface with the following interface. These features should be *)
 type featureDescr = {
     fd_enabled: bool ref; 
@@ -1385,7 +1385,7 @@ let mkCompInfo
                              location) list)   
        (a: attribute list) : compinfo =
 
-  (* make an new name for anonymous structs *)
+  (* make a new name for anonymous structs *)
    if n = "" then 
      E.s (E.bug "mkCompInfo: missing structure name\n");
    (* Make a new self cell and a forward reference *)
@@ -2314,7 +2314,7 @@ and constFold (machdep: bool) (e: exp) : exp =
   | SizeOfStr s when machdep -> kinteger !kindOfSizeOf (1 + String.length s)
   | AlignOf t when machdep -> kinteger !kindOfSizeOf (alignOf_int t)
   | AlignOfE e when machdep -> begin
-      (* The alignmetn of an expression is not always the alignment of its 
+      (* The alignment of an expression is not always the alignment of its 
        * type. I know that for strings this is not true *)
       match e with 
         Const (CStr _) when not !msvcMode -> 
@@ -2344,7 +2344,26 @@ and constFold (machdep: bool) (e: exp) : exp =
       | e', _ -> CastE (t, e')
   end
 
+  | Lval lv -> Lval (constFoldLval machdep lv)
+  | AddrOf lv -> AddrOf (constFoldLval machdep lv)
+  | StartOf lv -> StartOf (constFoldLval machdep lv)
+
   | _ -> e
+
+and constFoldLval machdep (host,offset) =
+  let newhost = 
+    match host with
+    | Mem e -> Mem (constFold machdep e)
+    | Var _ -> host
+  in
+  let rec constFoldOffset machdep = function
+    | NoOffset -> NoOffset
+    | Field (fi,offset) -> Field (fi, constFoldOffset machdep offset)
+    | Index (exp,offset) -> Index (constFold machdep exp,
+                                   constFoldOffset machdep offset)
+  in
+  (newhost, constFoldOffset machdep offset)
+
 
 and constFoldBinOp (machdep: bool) bop e1 e2 tres = 
   let e1' = constFold machdep e1 in
@@ -2770,7 +2789,7 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_strncat" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
-  H.add h "__builtin_strspn" (intType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strpbrk" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   (* When we parse builtin_types_compatible_p, we change its interface *)
   H.add h "__builtin_types_compatible_p"
@@ -2790,6 +2809,7 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
       (voidType, [ TBuiltin_va_list [] ], false);
+    (* When we parse builtin_stdarg_start, we drop the second argument *)
     H.add h "__builtin_va_start" (voidType, [ TBuiltin_va_list [] ], false);
     (* When we parse builtin_stdarg_start, we drop the second argument *)
     H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ],
@@ -2869,7 +2889,7 @@ class type cilPrinter = object
   method pType: doc option -> unit -> typ -> doc  
   (* Use of some type in some declaration. The first argument is used to print 
    * the declared element, or is None if we are just printing a type with no 
-   * name being decalred. Note that for structure/union and enumeration types 
+   * name being declared. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
    * visit it.  *)
 
@@ -2919,7 +2939,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s\n" s)
+        E.s (warn "Cannot find the last named argument when printing call to %s\n" s)
 
   (*** VARIABLES ***)
   (* variable use *)
@@ -3160,7 +3180,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       (* In cabs2cil we have turned the call to builtin_va_arg into a 
        * three-argument call: the last argument is the address of the 
        * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
+    | Call(None, Lval(Var vi, NoOffset), [dest; _destsize; adest], l) 
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
           let destlv = match stripCasts adest with 
             AddrOf destlv -> destlv
@@ -3175,14 +3195,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               (* Now the arguments *)
                               ++ self#pExp () dest 
                               ++ chr ',' ++ break 
-                              ++ self#pType None () t
+                              ++ self#pType None () (typeOfLval destlv)
                               ++ unalign)
             ++ text (")" ^ printInstrTerminator)
 
       (* In cabs2cil we have dropped the last argument in the call to 
-       * __builtin_stdarg_start. *)
+       * __builtin_va_start and __builtin_stdarg_start. *)
     | Call(None, Lval(Var vi, NoOffset), [marker], l) 
-        when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> begin
+        when ((vi.vname = "__builtin_stdarg_start" ||
+              vi.vname = "__builtin_va_start") && not !printCilAsIs) -> begin
           let last = self#getLastNamedArgument vi.vname in
           self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
         end
@@ -4502,7 +4523,7 @@ let loadBinaryFile (filename : string) : file =
 
 
 (* Take the name of a file and make a valid symbol name out of it. There are 
- * a few chanracters that are not valid in symbols *)
+ * a few characters that are not valid in symbols *)
 let makeValidSymbolName (s: string) = 
   let s = String.copy s in (* So that we can update in place *)
   let l = String.length s in
@@ -5122,8 +5143,8 @@ let visitCilFile (vis : cilVisitor) (f : file) : unit =
 
 
 
-(** Create or fetch the global initializer. Tries to put a call to in the the 
- * function with the main_name *)
+(** Create or fetch the global initializer. Tries to put a call to the 
+ * function with the main_name into it *)
 let getGlobInit ?(main_name="main") (fl: file) = 
   match fl.globinit with 
     Some f -> f
@@ -5157,8 +5178,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
        * main *)
       let inserted = ref false in
       List.iter 
-        (fun g ->
-          match g with
+        (function 
             GFun(m, lm) when m.svar.vname = main_name ->
               (* Prepend a prototype to the global initializer *)
               fl.globals <- GVarDecl (f.svar, lm) :: fl.globals;
@@ -5573,7 +5593,7 @@ let lenOfArray (eo: exp option) : int =
   end
   
 
-(*** Make a initializer for zeroe-ing a data type ***)
+(*** Make an initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init = 
   match unrollType t with
     TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))

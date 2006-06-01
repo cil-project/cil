@@ -3671,7 +3671,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           ignore (warn "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
-                                         * becase we might be calling a 
+                                         * because we might be calling a 
                                          * function that does not have a 
                                          * prototype. In that case assume it 
                                          * takes INTs as arguments  *)
@@ -3771,7 +3771,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             | ((_, at, _) :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
                 (* Do not cast as part of translating the argument. We let 
-                 * the castTo to do this work. This was necessary for 
+                 * the castTo do this work. This was necessary for 
                  * test/small1/union5, in which a transparent union is passed 
                  * as an argument *)
                 let (sa, a', att) = force_right_to_left_evaluation
@@ -3835,12 +3835,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                     | _ -> var (newTempVar resTyp), resTyp
                   in
                   pwhat := (ASet (destlv, destlvtyp));
-                  pargs := [marker; SizeOf resTyp; AddrOf destlv];
+                  pargs := [marker; SizeOf resTyp; 
+                            CastE(voidPtrType, AddrOf destlv)];
                   pis__builtin_va_arg := true;
                 end
               | _ -> 
                   ignore (warn "Invalid call to %s\n" fv.vname);
-            end else if fv.vname = "__builtin_stdarg_start" then begin
+            end else if fv.vname = "__builtin_stdarg_start" ||
+                        fv.vname = "__builtin_va_start" then begin
               match !pargs with 
                 marker :: last :: [] -> begin
                   let isOk = 
