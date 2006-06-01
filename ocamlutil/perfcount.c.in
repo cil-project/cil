@@ -17,7 +17,7 @@
   #define longlong long long
   // RDTSC puts the result in EAX and EDX. We tell gcc to use those registers
   // for "low" and "high"
-  #if defined(__i386__)
+  #if defined(__i386__) || defined(__x86_64__)
     #define GETCOUNTER(low,high) \
             __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
   #else
