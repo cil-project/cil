@@ -1905,9 +1905,15 @@ val constFoldVisitor: bool -> cilVisitor
 
 (** Styles of printing line directives *)
 type lineDirectiveStyle =
-  | LineComment
-  | LinePreprocessorInput
-  | LinePreprocessorOutput
+  | LineComment                (** Before every element, print the line 
+                                * number in comments. This is ignored by 
+                                * processing tools (thus errors are reproted 
+                                * in the CIL output), but useful for 
+                                * visual inspection *)
+  | LineCommentSparse          (** Like LineComment but only print a line 
+                                * directive for a new source line *)
+  | LinePreprocessorInput      (** Use # nnn directives (in gcc mode) *)
+  | LinePreprocessorOutput     (** Use #line directives *)
 
 (** How to print line directives *)
 val lineDirectiveStyle: lineDirectiveStyle option ref

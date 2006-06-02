@@ -84,9 +84,15 @@ let char_is_unsigned = ref false
 let underscore_name = ref false
 
 type lineDirectiveStyle =
-  | LineComment
-  | LinePreprocessorInput
-  | LinePreprocessorOutput
+  | LineComment                (** Before every element, print the line 
+                                * number in comments. This is ignored by 
+                                * processing tools (thus errors are reproted 
+                                * in the CIL output), but useful for 
+                                * visual inspection *)
+  | LineCommentSparse          (** Like LineComment but only print a line 
+                                * directive for a new source line *)
+  | LinePreprocessorInput      (** Use # nnn directives (in gcc mode) *)
+  | LinePreprocessorOutput     (** Use #line directives *)
 
 let lineDirectiveStyle = ref (Some LinePreprocessorInput)
  
@@ -3367,17 +3373,26 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (* Store here the name of the last file printed in a line number. This is 
    * private to the object *)
   val mutable lastFileName = ""
+  val mutable lastLineNumber = -1
+
   (* Make sure that you only call self#pLineDirective on an empty line *)
   method pLineDirective ?(forcefile=false) l = 
     currentLoc := l;
     match !lineDirectiveStyle with
-    | Some style when l.line > 0 ->
+    | None -> nil
+    | Some _ when l.line <= 0 -> nil
+
+      (* Do not print lineComment if the same line as above *)
+    | Some LineCommentSparse when l.line = lastLineNumber -> nil
+
+    | Some style  ->
 	let directive =
 	  match style with
-	  | LineComment -> text "//#line "
+	  | LineComment | LineCommentSparse -> text "//#line "
 	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
 	  | _ -> text "#line"
 	in
+        lastLineNumber <- l.line; 
 	let filename =
           if forcefile || l.file <> lastFileName then
 	    begin
@@ -3388,8 +3403,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	    nil
 	in
 	leftflush ++ directive ++ chr ' ' ++ num l.line ++ filename ++ line
-    | _ ->
-	nil
 
 
   method private pStmtKind (next: stmt) () = function

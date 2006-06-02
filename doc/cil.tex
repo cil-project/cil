@@ -1676,6 +1676,8 @@ about.  The following options are supported:
   \item \t{-{}-noPrintLn} Don't output \#line directives in the output.
   \item \t{-{}-commPrintLn} Print \#line directives in the output, but
     put them in comments.
+  \item \t{-{}-commPrintLnSparse} Line \t{-{}-commPrintLn} but print only new
+         line numbers.
   \item \t{-{}-log=xxx} Set the name of the log file.  By default stderr is used
   \item \t{-{}-MSVC} Enable MSVC compatibility. Default is GNU.
   %\item \t{-{}-testcil} test CIL using the given compiler
@@ -3102,6 +3104,7 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf June 2, 2006}: Added \t{-{}-commPrintLnSparse} flag.
 \item {\bf June 1, 2006}: Christian Stork provided some fixes for the handling
   of variable argument functions. 
 \item {\bf May 23, 2006}: Benjamin Monate fixed a lexer bug when a

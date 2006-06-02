@@ -132,6 +132,9 @@ let options : (string * Arg.spec * string) list =
     "--commPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineComment;
                                        Cprint.printLnComment := true),
                "Print #line directives in the output, but put them in comments.";
+    "--commPrintLnSparse", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := Some Cil.LineCommentSparse;
+                                       Cprint.printLnComment := true),
+               "Print #line directives in the output, but put them in comments.";
     "--stats", Arg.Unit (fun _ -> Cilutil.printStats := true),
                "Print statistics about running times and memory usage.";
 
