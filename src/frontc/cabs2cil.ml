@@ -1122,12 +1122,13 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
 (* Specify whether the cast is from the source code *)
 let rec castTo ?(fromsource=false) 
                 (ot : typ) (nt : typ) (e : exp) : (typ * exp ) = 
-(*
-  ignore (E.log "%t: castTo:%s %a->%a\n"
-            d_thisloc
-            (if fromsource then "(source)" else "")
-            d_type ot d_type nt);
-*)
+  let debugCast = false in 
+  if debugCast then 
+    ignore (E.log "%t: castTo:%s %a->%a\n"
+              d_thisloc
+              (if fromsource then "(source)" else "")
+              d_type ot d_type nt);
+
   if not fromsource && Util.equals (typeSig ot) (typeSig nt) then
     (* Do not put the cast if it is not necessary, unless it is from the 
      * source. *)
@@ -1135,11 +1136,12 @@ let rec castTo ?(fromsource=false)
   else begin
     let result = (nt, 
                   if !insertImplicitCasts || fromsource then mkCastT e ot nt else e) in
-(*
-    ignore (E.log "castTo: ot=%a nt=%a\n  result is %a\n" 
-              d_type ot d_type nt
-              d_plainexp (snd result));
-*)
+
+    if debugCast then 
+      ignore (E.log "castTo: ot=%a nt=%a\n  result is %a\n" 
+                d_type ot d_type nt
+                d_plainexp (snd result));
+
     (* Now see if we can have a cast here *)
     match ot, nt with
       TNamed(r, _), _ -> castTo ~fromsource:fromsource r.ttype nt e
@@ -4621,7 +4623,9 @@ and doInit
       ignore (E.log "oneinit'=%a, t'=%a, so.soTyp=%a\n" 
            d_exp oneinit' d_type t' d_type so.soTyp);
 *)
-      setone so.soOff (mkCastT oneinit' t' so.soTyp);
+      setone so.soOff (if !insertImplicitCasts then 
+                          mkCastT oneinit' t' so.soTyp
+                       else oneinit');
       (* Move on *)
       advanceSubobj so; 
       doInit isconst setone so (acc @@ se) restil
@@ -5712,15 +5716,7 @@ and assignInit (lv: lval)
         ~ct:t
         ~initl:initl
         ~acc:acc
-(*
-  | ArrayInit (bt, len, initl) -> 
-      let idx = ref ( -1 ) in
-      List.fold_left
-        (fun acc i -> 
-          assignInit (addOffsetLval (Index(integer !idx, NoOffset)) lv) i bt acc)
-        acc
-        initl
-*)
+
   (* Now define the processors for body and statement *)
 and doBody (blk: A.block) : chunk = 
   enterScope ();
