@@ -2533,14 +2533,13 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
 
       | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) ->
           let i1', i2', ik' = convertInts i1 ik1 i2 ik2 in
-          if i1 <> i2 && ge (isunsigned ik') i2' i1' then one else zero
+          if i1 <> i2 && ge (isunsigned ik') i1' i2' then one else zero
 
       (* We rely on the fact that LAnd/LOr appear in global initializers
          and should not have side effects. *)
       | LAnd, _, _ when isZero e1' || isZero e2' -> zero
-      | LAnd, _, _ when isInteger e1' <> None && isInteger e2' <> None ->
-          (* LAnd of two nonzero constants is TRUE *)
-          one
+      | LAnd, _, _ when isInteger e1' <> None -> e2'  (* e1' is TRUE *)
+      | LAnd, _, _ when isInteger e2' <> None -> e1'  (* e2' is TRUE *)
       | LOr, _, _ when isZero e1' -> e2'
       | LOr, _, _ when isZero e2' -> e1'
       | LOr, _, _ when isInteger e1' <> None || isInteger e2' <> None ->
