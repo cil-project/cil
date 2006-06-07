@@ -1973,8 +1973,8 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
         (* these are just unique numbers representing the integer 
            conversion rank. *)
       | IChar | ISChar | IUChar -> 1
-      | IInt | IUInt -> 2
-      | IShort | IUShort -> 3
+      | IShort | IUShort -> 2
+      | IInt | IUInt -> 3
       | ILong | IULong -> 4
       | ILongLong | IULongLong -> 5
     in
