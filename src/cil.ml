@@ -1914,6 +1914,15 @@ let bitsSizeOfInt (ik: ikind): int =
   | ILong | IULong -> 8 * !theMachine.M.sizeof_long
   | ILongLong | IULongLong -> 8 * !theMachine.M.sizeof_longlong
 
+let unsignedVersionOf (ik:ikind): ikind =
+  match ik with
+  | ISChar | IChar -> IUChar
+  | IShort -> IUShort
+  | IInt -> IUInt
+  | ILong -> IULong
+  | ILongLong -> IULongLong
+  | _ -> ik          
+
 (* Represents an integer as for a given kind. 
    Returns a flag saying whether the value was changed
    during truncation (because it was too large to fit in k). *)
@@ -1952,6 +1961,48 @@ let kinteger64 (k: ikind) (i: int64) : exp =
 
 (* Construct an integer of a given kind. *)
 let kinteger (k: ikind) (i: int) = kinteger64 k (Int64.of_int i)
+
+(* Convert 2 integer constants to integers with the same type, in preparation
+   for a binary operation.   See ISO C 6.3.1.8p1 *)
+let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
+  : int64 * int64 * ikind =
+  if ik1 = ik2 then (* nothing to do *)
+    i1, i2, ik1
+  else begin
+    let rank : ikind -> int = function
+        (* these are just unique numbers representing the integer 
+           conversion rank. *)
+      | IChar | ISChar | IUChar -> 1
+      | IInt | IUInt -> 2
+      | IShort | IUShort -> 3
+      | ILong | IULong -> 4
+      | ILongLong | IULongLong -> 5
+    in
+    let r1 = rank ik1 in
+    let r2 = rank ik2 in
+    let ik' = 
+      if (isSigned ik1) = (isSigned ik2) then begin
+        (* Both signed or both unsigned. *)
+        if r1 > r2 then ik1 else ik2
+      end
+      else begin
+        let signedKind, unsignedKind, signedRank, unsignedRank = 
+          if isSigned ik1 then ik1, ik2, r1, r2 else ik2, ik1, r2, r1
+        in
+        (* The rules for signed + unsigned get hairy.
+           (unsigned short + long) is converted to signed long,
+           but (unsigned int + long) is converted to unsigned long.*)
+        if unsignedRank >= signedRank then unsignedKind
+        else if (bitsSizeOfInt signedKind) > (bitsSizeOfInt unsignedKind) then
+          signedKind
+        else 
+          unsignedVersionOf signedKind
+      end
+    in
+    let i1',_ = truncateInteger64 ik' i1 in
+    let i2',_ = truncateInteger64 ik' i2 in
+    i1', i2', ik'      
+  end
 
      
 type offsetAcc = 
@@ -2462,24 +2513,39 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | Shiftrt, Const(CInt64(0L,_,_)), _ -> zero
       | Shiftrt, e1'', Const(CInt64(0L,_,_)) -> e1''
 
-      | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          integer (if i1 = i2 then 1 else 0)
-      | Ne, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> 
-          integer (if i1 <> i2 then 1 else 0)
-      | Le, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if ge (isunsigned ik1) i2 i1 then 1 else 0)
+      | Eq, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) -> 
+          let i1', i2', _ = convertInts i1 ik1 i2 ik2 in
+          if i1' = i2' then one else zero
+      | Ne, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) -> 
+          let i1', i2', _ = convertInts i1 ik1 i2 ik2 in
+          if i1' <> i2' then one else zero
+      | Le, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) ->
+          let i1', i2', ik' = convertInts i1 ik1 i2 ik2 in
+          if ge (isunsigned ik') i2' i1' then one else zero
 
-      | Ge, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if ge (isunsigned ik1) i1 i2 then 1 else 0)
+      | Ge, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) ->
+          let i1', i2', ik' = convertInts i1 ik1 i2 ik2 in
+          if ge (isunsigned ik') i1' i2' then one else zero
 
-      | Lt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if i1 <> i2 && ge (isunsigned ik1) i2 i1 then 1 else 0)
+      | Lt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) ->
+          let i1', i2', ik' = convertInts i1 ik1 i2 ik2 in
+          if i1' <> i2' && ge (isunsigned ik') i2' i1' then one else zero
 
-      | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 ->
-          integer (if i1 <> i2 && ge (isunsigned ik1) i1 i2 then 1 else 0)
+      | Gt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) ->
+          let i1', i2', ik' = convertInts i1 ik1 i2 ik2 in
+          if i1 <> i2 && ge (isunsigned ik') i2' i1' then one else zero
+
+      (* We rely on the fact that LAnd/LOr appear in global initializers
+         and should not have side effects. *)
       | LAnd, _, _ when isZero e1' || isZero e2' -> zero
+      | LAnd, _, _ when isInteger e1' <> None && isInteger e2' <> None ->
+          (* LAnd of two nonzero constants is TRUE *)
+          one
       | LOr, _, _ when isZero e1' -> e2'
       | LOr, _, _ when isZero e2' -> e1'
+      | LOr, _, _ when isInteger e1' <> None || isInteger e2' <> None ->
+          (* One of e1' or e2' is a nonzero constant *)
+          one
       | _ -> BinOp(bop, e1', e2', tres)
     in
     if debugConstFold then 
@@ -5361,16 +5427,8 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
   let doattr al = visitCilAttributes attrVisitor (doattr al) in
   match t with 
   | TInt (ik, al) -> 
-      let ik' = if ignoreSign then begin
-        match ik with
-          | ISChar | IChar -> IUChar
-          | IShort -> IUShort
-          | IInt -> IUInt
-          | ILong -> IULong
-          | ILongLong -> IULongLong
-          | _ -> ik          
-      end else
-        ik
+      let ik' = 
+        if ignoreSign then unsignedVersionOf ik  else ik
       in
       TSBase (TInt (ik', doattr al))
   | TFloat (fk, al) -> TSBase (TFloat (fk, doattr al))
