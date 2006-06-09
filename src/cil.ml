@@ -946,7 +946,10 @@ class type cilVisitor = object
                                                     Replaced in place. *)
   method vglob: global -> global list visitAction (** Global (vars, types,
                                                       etc.)  *)
-  method vinit: init -> init visitAction        (** Initializers for globals *)
+  method vinit: varinfo -> offset -> init -> init visitAction        
+                                                (** Initializers for globals, 
+                                                 * pass the global where this 
+                                                 * occurs, and the offset *)
   method vtype: typ -> typ visitAction          (** Use of some type. Note 
                                                  * that for structure/union 
                                                  * and enumeration types the 
@@ -984,7 +987,7 @@ class nopCilVisitor : cilVisitor = object
   method vblock (b: block) = DoChildren
   method vfunc (f:fundec) = DoChildren      (* function definition *)
   method vglob (g:global) = DoChildren      (* global (vars, types, etc.) *)
-  method vinit (i:init) = DoChildren        (* global initializers *)
+  method vinit (forg: varinfo) (off: offset) (i:init) = DoChildren  (* global initializers *)
   method vtype (t:typ) = DoChildren         (* use of some type *)
   method vattr (a: attribute) = DoChildren
   method vattrparam (a: attrparam) = DoChildren
@@ -4617,6 +4620,32 @@ let makeValidSymbolName (s: string) =
   done;
   s
 
+let rec addOffset (toadd: offset) (off: offset) : offset =
+  match off with
+    NoOffset -> toadd
+  | Field(fid', offset) -> Field(fid', addOffset toadd offset)
+  | Index(e, offset) -> Index(e, addOffset toadd offset)
+
+ (* Add an offset at the end of an lv *)      
+let addOffsetLval toadd (b, off) : lval =
+ b, addOffset toadd off
+
+let rec removeOffset (off: offset) : offset * offset = 
+  match off with 
+    NoOffset -> NoOffset, NoOffset
+  | Field(f, NoOffset) -> NoOffset, off
+  | Index(i, NoOffset) -> NoOffset, off
+  | Field(f, restoff) -> 
+      let off', last = removeOffset restoff in
+      Field(f, off'), last
+  | Index(i, restoff) -> 
+      let off', last = removeOffset restoff in
+      Index(i, off'), last
+
+let removeOffsetLval ((b, off): lval) : lval * offset = 
+  let off', last = removeOffset off in
+  (b, off'), last
+
 
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
@@ -4722,36 +4751,37 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
       let lv' = vLval lv in
       if lv' != lv then StartOf lv' else e
 
-and visitCilInit (vis: cilVisitor) (i: init) : init = 
-  doVisit vis vis#vinit childrenInit i
-and childrenInit (vis: cilVisitor) (i: init) : init = 
-  let fExp e = visitCilExpr vis e in
-  let fInit i = visitCilInit vis i in
-  let fTyp t = visitCilType vis t in
-  match i with
-  | SingleInit e -> 
-      let e' = fExp e in
-      if e' != e then SingleInit e' else i
-  | CompoundInit (t, initl) ->
-      let t' = fTyp t in
-      (* Collect the new initializer list, in reverse. We prefer two 
-       * traversals to ensure tail-recursion. *)
-      let newinitl : (offset * init) list ref = ref [] in
-      (* Keep track whether the list has changed *)
-      let hasChanged = ref false in
-      let doOneInit ((o, i) as oi) = 
-        let o' = visitCilInitOffset vis o in    (* use initializer version *)
-        let i' = fInit i in
-        let newio = 
-          if o' != o || i' != i then 
-            begin hasChanged := true; (o', i') end else oi 
+and visitCilInit (vis: cilVisitor) (forglob: varinfo) 
+                 (atoff: offset) (i: init) : init = 
+  let rec childrenInit (vis: cilVisitor) (i: init) : init = 
+    let fExp e = visitCilExpr vis e in
+    let fTyp t = visitCilType vis t in
+    match i with
+    | SingleInit e -> 
+        let e' = fExp e in
+        if e' != e then SingleInit e' else i
+    | CompoundInit (t, initl) ->
+        let t' = fTyp t in
+        (* Collect the new initializer list, in reverse. We prefer two 
+         * traversals to ensure tail-recursion. *)
+        let newinitl : (offset * init) list ref = ref [] in
+        (* Keep track whether the list has changed *)
+        let hasChanged = ref false in
+        let doOneInit ((o, i) as oi) = 
+          let o' = visitCilInitOffset vis o in    (* use initializer version *)
+          let i' = visitCilInit vis forglob (addOffset o' atoff) i in
+          let newio = 
+            if o' != o || i' != i then 
+              begin hasChanged := true; (o', i') end else oi 
+          in
+          newinitl := newio :: !newinitl
         in
-        newinitl := newio :: !newinitl
-      in
-      List.iter doOneInit initl;
-      let initl' = if !hasChanged then List.rev !newinitl else initl in
-      if t' != t || initl' != initl then CompoundInit (t', initl') else i
-  
+        List.iter doOneInit initl;
+        let initl' = if !hasChanged then List.rev !newinitl else initl in
+        if t' != t || initl' != initl then CompoundInit (t', initl') else i
+  in
+  doVisit vis (vis#vinit forglob atoff) childrenInit i
+          
 and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
   doVisit vis vis#vlval childrenLval lv
 and childrenLval (vis: cilVisitor) (lv: lval) : lval =  
@@ -5134,7 +5164,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       let v' = visitCilVarDecl vis v in
       (match inito.init with
         None -> ()
-      | Some i -> let i' = visitCilInit vis i in 
+      | Some i -> let i' = visitCilInit vis v NoOffset i in 
         if i' != i then inito.init <- Some i');
 
       if v' != v then GVar (v', inito, l) else g
@@ -5490,32 +5520,6 @@ let dInstr: doc -> location -> instr =
 
 let dGlobal: doc -> location -> global = 
   fun d l -> GAsm(sprint !lineLength d, l)
-
-let rec addOffset (toadd: offset) (off: offset) : offset =
-  match off with
-    NoOffset -> toadd
-  | Field(fid', offset) -> Field(fid', addOffset toadd offset)
-  | Index(e, offset) -> Index(e, addOffset toadd offset)
-
- (* Add an offset at the end of an lv *)      
-let addOffsetLval toadd (b, off) : lval =
- b, addOffset toadd off
-
-let rec removeOffset (off: offset) : offset * offset = 
-  match off with 
-    NoOffset -> NoOffset, NoOffset
-  | Field(f, NoOffset) -> NoOffset, off
-  | Index(i, NoOffset) -> NoOffset, off
-  | Field(f, restoff) -> 
-      let off', last = removeOffset restoff in
-      Field(f, off'), last
-  | Index(i, restoff) -> 
-      let off', last = removeOffset restoff in
-      Index(i, off'), last
-
-let removeOffsetLval ((b, off): lval) : lval * offset = 
-  let off', last = removeOffset off in
-  (b, off'), last
 
   (* Make an AddrOf. Given an lval of type T will give back an expression of 
    * type ptr(T)  *)

@@ -1222,10 +1222,13 @@ val makeZeroInit: typ -> init
 
 
 (** Fold over the list of initializers in a Compound. [doinit] is called on 
- * every present initializer, even if it is of compound type. In the case of 
- * arrays there might be missing zero-initializers at the end of the list. 
- * These are not scanned. This is much like [List.fold_left] except we also 
- * pass the type of the initializer *)
+ * every present initializer, even if it is of compound type. The parameters 
+ * of [doinit] are: the offset in the compound (this is [Field(f,NoOffset)] 
+ * or [Index(i,NoOffset)]), the initializer value, expected type of the 
+ * initializer value, accumulator. In the case of arrays there might be 
+ * missing zero-initializers at the end of the list. These are not scanned. 
+ * This is much like [List.fold_left] except we also pass the type of the 
+ * initializer. *)
 val foldLeftCompound: 
     doinit: (offset -> init -> typ -> 'a -> 'a) ->
     ct: typ ->
@@ -1801,7 +1804,10 @@ class type cilVisitor = object
                                                     Replaced in place. *)
   method vglob: global -> global list visitAction (** Global (vars, types,
                                                       etc.)  *)
-  method vinit: init -> init visitAction        (** Initializers for globals *)
+  method vinit: varinfo -> offset -> init -> init visitAction        
+                                                (** Initializers for globals, 
+                                                 * pass the global where this 
+                                                 * occurs, and the offset *)
   method vtype: typ -> typ visitAction          (** Use of some type. Note 
                                                  * that for structure/union 
                                                  * and enumeration types the 
@@ -1876,8 +1882,9 @@ val visitCilType: cilVisitor -> typ -> typ
 (** Visit a variable declaration *)
 val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
 
-(** Visit an initializer *)
-val visitCilInit: cilVisitor -> init -> init
+(** Visit an initializer, pass also the global to which this belongs and the 
+ * offset. *)
+val visitCilInit: cilVisitor -> varinfo -> offset -> init -> init
 
 
 (** Visit a list of attributes *)

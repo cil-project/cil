@@ -214,7 +214,7 @@ class canonicalizeVisitor = object(self)
     end
     | _ -> SkipChildren
 
-  method vinit i = 
+  method vinit (forg: varinfo) (off: offset) i = 
 (* #5. If an initializer uses expressions as enum values,
    add an explicit cast. *)
     match i with 
