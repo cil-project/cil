@@ -583,14 +583,17 @@ and exp =
 
   | AddrOf     of lval                 
     (** Always use {!Cil.mkAddrOf} to construct one of these. Apply to an 
-     * lvalue of type [T] yields an expression of type [TPtr(T)] *)
+     * lvalue of type [T] yields an expression of type [TPtr(T)]. Use 
+     * {!Cil.mkAddrOrStartOf} to make one of these if you are not sure which 
+     * one to use. *)
 
   | StartOf    of lval   
     (** Conversion from an array to a pointer to the beginning of the array. 
      * Given an lval of type [TArray(T)] produces an expression of type 
-     * [TPtr(T)]. In C this operation is implicit, the [StartOf] operator is 
-     * not printed. We have it in CIL because it makes the typing rules 
-     * simpler. *)
+     * [TPtr(T)]. Use {!Cil.mkAddrOrStartOf} to make one of these if you are 
+     * not sure which one to use. In C this operation is implicit, the 
+     * [StartOf] operator is not printed. We have it in CIL because it makes 
+     * the typing rules simpler. *)
 
 (** {b Constants.} *)
 
@@ -764,13 +767,12 @@ and offset =
                        * to be the type of the array element *)
 
 
-(** {b Initializers.} 
-A special kind of expressions are those that can appear as initializers for
-global variables (initialization of local variables is turned into
-assignments). The initializers are represented as type {!Cil.init}. You
-can create initializers with {!Cil.makeZeroInit} and you can conveniently
-scan compound initializers them with {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. 
-*)
+(** {b Initializers.} A special kind of expressions are those that can appear 
+ * as initializers for global variables (initialization of local variables is 
+ * turned into assignments). The initializers are represented as type 
+ * {!Cil.init}. You can create initializers with {!Cil.makeZeroInit} and you 
+ * can conveniently scan compound initializers them with 
+ * {!Cil.foldLeftCompound} or with {!Cil.foldLeftInitializer}. *)
 (** Initializers for global variables. *)
 and init = 
   | SingleInit   of exp   (** A single initializer *)
@@ -785,7 +787,7 @@ and init =
      * printed, so you better be on GCC since MSVC does not understand this. 
      * For arrays, however, we allow you to give only a prefix of the 
      * initializers. You can scan an initializer list with 
-     * {!Cil.foldLeftCompound} or with {!Cil.foldLeftCompoundAll}. *)
+     * {!Cil.foldLeftCompound} or with {!Cil.foldLeftInitializer}. *)
 
 
 (** We want to be able to update an initializer in a global variable, so we 
@@ -1221,30 +1223,35 @@ val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
 val makeZeroInit: typ -> init
 
 
-(** Fold over the list of initializers in a Compound. [doinit] is called on 
- * every present initializer, even if it is of compound type. The parameters 
- * of [doinit] are: the offset in the compound (this is [Field(f,NoOffset)] 
- * or [Index(i,NoOffset)]), the initializer value, expected type of the 
- * initializer value, accumulator. In the case of arrays there might be 
- * missing zero-initializers at the end of the list. These are not scanned. 
- * This is much like [List.fold_left] except we also pass the type of the 
- * initializer. *)
+(** Fold over the list of initializers in a Compound (not also the nested 
+ * ones). [doinit] is called on every present initializer, even if it is of 
+ * compound type. The parameters of [doinit] are: the offset in the compound 
+ * (this is [Field(f,NoOffset)] or [Index(i,NoOffset)]), the initializer 
+ * value, expected type of the initializer value, accumulator. In the case of 
+ * arrays there might be missing zero-initializers at the end of the list. 
+ * These are scanned only if [implicit] is true. This is much like 
+ * [List.fold_left] except we also pass the type of the initializer. 
+
+ * This is a good way to use it to scan even nested initializers :
+{v 
+  let rec myInit (lv: lval) (i: init) (acc: 'a) : 'a = 
+      match i with 
+        SingleInit e -> ... do something with lv and e and acc ...
+      | CompoundInit (ct, initl) ->  
+         foldLeftCompound ~implicit:false
+             ~doinit:(fun off' i' t' acc -> 
+                        myInit (addOffsetLval lv off') i' acc)
+             ~ct:ct
+             ~initl:initl
+             ~acc:acc
+} 
+*)
 val foldLeftCompound: 
+    implicit:bool ->
     doinit: (offset -> init -> typ -> 'a -> 'a) ->
     ct: typ ->
     initl: (offset * init) list ->
     acc: 'a -> 'a
-
-
-(** Fold over the list of initializers in a Compound, like 
- * {!Cil.foldLeftCompound} but in the case of an array it scans even missing 
- * zero initializers at the end of the array *)
-val foldLeftCompoundAll: 
-    doinit: (offset -> init -> typ -> 'a -> 'a) ->
-    ct: typ ->
-    initl: (offset * init) list ->
-    acc: 'a -> 'a
-
 
 
 (** {b Values for manipulating types} *)

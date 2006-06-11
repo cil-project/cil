@@ -5711,6 +5711,7 @@ and assignInit (lv: lval)
       acc +++ (Set(lv, e'', !currentLoc))
   | CompoundInit (t, initl) -> 
       foldLeftCompound
+        ~implicit:false
         ~doinit:(fun off i it acc -> 
           assignInit (addOffsetLval off lv) i it acc)
         ~ct:t

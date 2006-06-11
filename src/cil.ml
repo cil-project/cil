@@ -5742,43 +5742,28 @@ let rec makeZeroInit (t: typ) : init =
   | x -> E.s (unimp "Cannot initialize type: %a" d_type x)
 
 
-(**** Fold over the list of initializers in a Compound. In the case of an 
- * array initializer only the initializers present are scanned (a prefix of 
- * all initializers) *)
-let foldLeftCompound 
-    ~(doinit: offset -> init -> typ -> 'a -> 'a)
-    ~(ct: typ) 
-    ~(initl: (offset * init) list)
-    ~(acc: 'a) : 'a = 
-  match unrollType ct with
-    TArray(bt, _, _) -> 
-      List.fold_left (fun acc (o, i) -> doinit o i bt acc) acc initl
-
-  | TComp (comp, _) -> 
-      let getTypeOffset = function
-          Field(f, NoOffset) -> f.ftype
-        | _ -> E.s (bug "foldLeftCompound: malformed initializer")
-      in
-      List.fold_left 
-        (fun acc (o, i) -> doinit o i (getTypeOffset o) acc) acc initl
-
-  | _ -> E.s (unimp "Type of Compound is not array or struct or union")
-
-(**** Fold over the list of initializers in a Compound. Like foldLeftCompound 
- * but scans even the zero-initializers that are missing at the end of the 
- * array *)
-let foldLeftCompoundAll 
+(** Fold over the list of initializers in a Compound (not also the nested 
+ * ones). [doinit] is called on every present initializer, even if it is of 
+ * compound type. The parameters of [doinit] are: the offset in the compound 
+ * (this is [Field(f,NoOffset)] or [Index(i,NoOffset)]), the initializer 
+ * value, expected type of the initializer value, accumulator. In the case of 
+ * arrays there might be missing zero-initializers at the end of the list. 
+ * These are scanned only if [implicit] is true. This is much like 
+ * [List.fold_left] except we also pass the type of the initializer. *)
+let foldLeftCompound
+    ~(implicit: bool)
     ~(doinit: offset -> init -> typ -> 'a -> 'a)
     ~(ct: typ) 
     ~(initl: (offset * init) list)
     ~(acc: 'a) : 'a = 
   match unrollType ct with
     TArray(bt, leno, _) -> begin
+      (* Scan the existing initializer *)
       let part = 
         List.fold_left (fun acc (o, i) -> doinit o i bt acc) acc initl in
       (* See how many more we have to do *)
       match leno with 
-        Some lene -> begin
+        Some lene when implicit -> begin
           match constFold true lene with 
             Const(CInt64(i, _, _)) -> 
               let len_array = Int64.to_int i in
@@ -5797,8 +5782,11 @@ let foldLeftCompoundAll
           | _ -> E.s (unimp "foldLeftCompoundAll: array with initializer and non-constant length\n")
         end
           
+      | _ when not implicit -> part
+
       | _ -> E.s (unimp "foldLeftCompoundAll: TArray with initializer and no length")
     end
+
   | TComp (comp, _) -> 
       let getTypeOffset = function
           Field(f, NoOffset) -> f.ftype
@@ -5808,6 +5796,7 @@ let foldLeftCompoundAll
         (fun acc (o, i) -> doinit o i (getTypeOffset o) acc) acc initl
 
   | _ -> E.s (E.unimp "Type of Compound is not array or struct or union")
+
 
 
 
