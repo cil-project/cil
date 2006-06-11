@@ -5721,7 +5721,7 @@ let rec makeZeroInit (t: typ) : init =
                         makeZeroInit fieldToInit.ftype)])
 
   | TArray(bt, Some len, _) as t' -> 
-      let n = 
+      let n =  
         match constFold true len with
           Const(CInt64(n, _, _)) -> Int64.to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
@@ -5738,7 +5738,8 @@ let rec makeZeroInit (t: typ) : init =
        * (see cabs2cil.ml, collectInitializer) *)
       CompoundInit (t', [])
 
-  | TPtr _ as t -> SingleInit(CastE(t, zero))
+  | TPtr _ as t -> 
+      SingleInit(if !insertImplicitCasts then mkCast zero t else zero)
   | x -> E.s (unimp "Cannot initialize type: %a" d_type x)
 
 
