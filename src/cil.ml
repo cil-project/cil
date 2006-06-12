@@ -2339,7 +2339,10 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
 
 
 
-(*** Constant folding. If machdep is true then fold even sizeof operations ***)
+(** Do constant folding on an expression. If the first argument is true then 
+    will also compute compiler-dependent expressions such as sizeof.
+    See also {!Cil.constFoldVisitor}, which will run constFold on all
+    expressions in a given AST node.*)    
 and constFold (machdep: bool) (e: exp) : exp = 
   match e with
     BinOp(bop, e1, e2, tres) -> constFoldBinOp machdep bop e1 e2 tres
@@ -2404,26 +2407,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       | e', _ -> CastE (t, e')
   end
 
-  | Lval lv -> Lval (constFoldLval machdep lv)
-  | AddrOf lv -> AddrOf (constFoldLval machdep lv)
-  | StartOf lv -> StartOf (constFoldLval machdep lv)
-
   | _ -> e
-
-and constFoldLval machdep (host,offset) =
-  let newhost = 
-    match host with
-    | Mem e -> Mem (constFold machdep e)
-    | Var _ -> host
-  in
-  let rec constFoldOffset machdep = function
-    | NoOffset -> NoOffset
-    | Field (fi,offset) -> Field (fi, constFoldOffset machdep offset)
-    | Index (exp,offset) -> Index (constFold machdep exp,
-                                   constFoldOffset machdep offset)
-  in
-  (newhost, constFoldOffset machdep offset)
-
 
 and constFoldBinOp (machdep: bool) bop e1 e2 tres = 
   let e1' = constFold machdep e1 in
@@ -2883,9 +2867,8 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 
       (voidType, [ TBuiltin_va_list [] ], false);
-    (* When we parse builtin_stdarg_start, we drop the second argument *)
+    (* When we parse builtin_{va,stdarg}_start, we drop the second argument *)
     H.add h "__builtin_va_start" (voidType, [ TBuiltin_va_list [] ], false);
-    (* When we parse builtin_stdarg_start, we drop the second argument *)
     H.add h "__builtin_stdarg_start" (voidType, [ TBuiltin_va_list []; ],
                                       false);
     (* When we parse builtin_va_arg we change its interface *)
@@ -3254,7 +3237,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       (* In cabs2cil we have turned the call to builtin_va_arg into a 
        * three-argument call: the last argument is the address of the 
        * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; _destsize; adest], l) 
+    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
           let destlv = match stripCasts adest with 
             AddrOf destlv -> destlv
@@ -3269,7 +3252,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                               (* Now the arguments *)
                               ++ self#pExp () dest 
                               ++ chr ',' ++ break 
-                              ++ self#pType None () (typeOfLval destlv)
+                              ++ self#pType None () t
                               ++ unalign)
             ++ text (")" ^ printInstrTerminator)
 

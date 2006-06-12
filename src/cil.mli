@@ -1565,7 +1565,9 @@ val isZero: exp -> bool
 val charConstToInt: char -> constant
 
 (** Do constant folding on an expression. If the first argument is true then 
-    will also compute compiler-dependent expressions such as sizeof *)    
+    will also compute compiler-dependent expressions such as sizeof.
+    See also {!Cil.constFoldVisitor}, which will run constFold on all
+    expressions in a given AST node.*)    
 val constFold: bool -> exp -> exp
 
 (** Do constant folding on a binary operation. The bulk of the work done by 
