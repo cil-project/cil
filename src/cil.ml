@@ -1188,6 +1188,13 @@ let rec isInteger = function
   | _ -> None
         
 
+(** Convert a 64-bit int to an OCaml int, or raise an exception if that
+    can't be done. *)
+let i64_to_int (i: int64) : int = 
+  let i': int = Int64.to_int i in (* i.e. i' = i mod 2^31 *)
+  if i = Int64.of_int i' then i'
+  else E.s (E.error "Int constant too large: %Ld\n" i)
+
 
 let rec isZero (e: exp) : bool = isInteger e = Some Int64.zero
 

@@ -1551,6 +1551,10 @@ val integer: int -> exp
     character or an integer constant *)
 val isInteger: exp -> int64 option
 
+(** Convert a 64-bit int to an OCaml int, or raise an exception if that
+    can't be done. *)
+val i64_to_int: int64 -> int
+
 (** True if the expression is a compile-time constant *)
 val isConstant: exp -> bool
 

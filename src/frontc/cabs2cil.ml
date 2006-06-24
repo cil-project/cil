@@ -2413,7 +2413,13 @@ and doAttr (a: A.attribute) : attribute list =
             with Not_found -> ACons(n', [])
           end
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
-        | A.CONSTANT (A.CONST_INT str) -> AInt (int_of_string str)
+        | A.CONSTANT (A.CONST_INT str) -> begin
+            match parseInt str with
+              Const (CInt64 (v64,_,_)) -> 
+                AInt (i64_to_int v64)
+            | _ -> 
+                E.s (error "Invalid attribute constant: %s")
+          end
         | A.CALL(A.VARIABLE n, args) -> begin
             let n' = if strip then stripUnderscore n else n in
             let ae' = List.map ae args in
