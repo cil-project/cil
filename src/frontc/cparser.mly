@@ -1509,14 +1509,19 @@ asmoperandsne:
 |    asmoperandsne COMMA asmoperand     { $3 :: $1 }
 ;
 asmoperand:
-     string_constant LPAREN expression RPAREN    { (fst $1, fst $3) }
-|    string_constant LPAREN error RPAREN         { (fst $1, NOTHING ) } 
+     asmopname string_constant LPAREN expression RPAREN    { ($1, fst $2, fst $4) }
+|    asmopname string_constant LPAREN error RPAREN         { ($1, fst $2, NOTHING ) } 
 ; 
 asminputs: 
   /* empty */                { ([], []) }
 | COLON asmoperands asmclobber
                         { ($2, $3) }
 ;
+asmopname:
+    /* empty */                         { None }
+|   LBRACKET IDENT RBRACKET             { Some (fst $2) }
+;
+
 asmclobber:
     /* empty */                         { [] }
 | COLON asmcloberlst_ne                 { $2 }

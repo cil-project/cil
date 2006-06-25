@@ -86,7 +86,7 @@ class useDefVisitorClass : cilVisitor = object (self)
         varDefs := VS.union !varDefs def;
         DoChildren;
       end
-    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (s,lv) ->
+    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
 	  if s.[0] = '+' then
 	    varUsed := VS.add v !varUsed;

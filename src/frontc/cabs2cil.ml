@@ -5980,7 +5980,7 @@ and doStatement (s : A.statement) : chunk =
 	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
               let outs' =
 		List.map
-		  (fun (c, e) ->
+		  (fun (id, c, e) ->
 		    let (se, e', t) = doExp false e (AExp None) in
 		    let lv =
                       match e' with
@@ -5989,15 +5989,15 @@ and doStatement (s : A.statement) : chunk =
                       | _ -> E.s (error "Expected lval for ASM outputs")
 		    in
 		    stmts := !stmts @@ se;
-		    (c, lv)) outs
+		    (id, c, lv)) outs
               in
 	      (* Get the side-effects out of expressions *)
               let ins' =
 		List.map
-		  (fun (c, e) ->
+		  (fun (id, c, e) ->
 		    let (se, e', et) = doExp false e (AExp None) in
 		    stmts := !stmts @@ se;
-		    (c, e'))
+		    (id, c, e'))
 		  ins
               in
 	      (tmpls, outs', ins', clobs)

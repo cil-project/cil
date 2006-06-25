@@ -295,6 +295,7 @@ addTest("testrun/cond1 _GNUCC=1");
 addTest("testrun/cond2 _GNUCC=1");
 addTest("testrun/initial _GNUCC=1");
 addTest("testrun/inline1 _GNUCC=1");
+addTest("testrun/inline2 _GNUCC=1");
 addTest("test/decl2 _GNUCC=1");
 addTest("test/jmp_buf");
 addTest("test/linux_atomic _GNUCC=1");

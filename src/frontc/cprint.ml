@@ -760,7 +760,11 @@ and print_statement stat =
       print_def d
   | ASM (attrs, tlist, details, loc) ->
       setLoc(loc);
-      let print_asm_operand (cnstr, e) =
+      let print_asm_operand (identop,cnstr, e) =
+        (match identop with
+            None -> ()
+          | Some id -> print_string ("[" ^ id ^ "] ")
+        );
         print_string cnstr; space (); print_expression_level 100 e
       in
       if !msvcMode then begin

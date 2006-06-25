@@ -871,7 +871,7 @@ class unusedRemoverClass : cilVisitor = object(self)
 	       None -> true | Some _ -> false)
 	   | Asm(_,_,slvlst,_,_,_) ->
 	       (* make sure the outputs are in the locals list *)
-	       List.iter (fun (s,lv) ->
+	       List.iter (fun (_,s,lv) ->
 		 match lv with (Var vi,_) ->
 		   if List.mem vi cur_func.slocals
 		   then ()

@@ -212,7 +212,7 @@ and typ =
            * purpose. *)
 
   | TNamed of typeinfo * attributes 
-          (* The use of a named type. Each such type name must be preceded 
+          (** The use of a named type. Each such type name must be preceded 
            * in the file by a [GType] global. This is printed as just the 
            * type name. The actual referred type is not printed here and is 
            * carried only to simplify processing. To see through a sequence 
@@ -606,13 +606,13 @@ and constant =
      * {!Cil.kinteger} to create these. Watch out for integers that cannot be 
      * represented on 64 bits. OCAML does not give Overflow exceptions. *)
   | CStr of string 
-    (* String constant. The escape characters inside the string have been 
+    (** String constant. The escape characters inside the string have been 
      * already interpreted. This constant has pointer to character type! The 
      * only case when you would like a string literal to have an array type 
      * is when it is an argument to sizeof. In that case you should use 
      * SizeOfStr. *)
   | CWStr of int64 list  
-    (* Wide character string constant. Note that the local interpretation
+    (** Wide character string constant. Note that the local interpretation
      * of such a literal depends on {!Cil.wcharType} and {!Cil.wcharKind}.
      * Such a constant has type pointer to {!Cil.wcharType}. The
      * escape characters in the string have not been "interpreted" in 
@@ -995,12 +995,15 @@ and instr =
   | Asm        of attributes * (* Really only const and volatile can appear 
                                * here *)
                   string list *         (* templates (CR-separated) *)
-                  (string * lval) list * (* outputs must be lvals with 
-                                          * constraints. I would like these 
-                                          * to be actually variables, but I 
-                                          * run into some trouble with ASMs 
-                                          * in the Linux sources  *)
-                  (string * exp) list * (* inputs with constraints *)
+                  (string option * string * lval) list * 
+                                          (* outputs must be lvals with 
+                                           * optional names and constraints. 
+                                           * I would like these 
+                                           * to be actually variables, but I 
+                                           * run into some trouble with ASMs 
+                                           * in the Linux sources  *)
+                  (string option * string * exp) list * 
+                                        (* inputs with optional names and constraints *)
                   string list *         (* register clobbers *)
                   location
     (** There are for storing inline assembly. They follow the GCC 
@@ -1041,6 +1044,16 @@ an example (from gcc manual):
                 : "g" (from), "g" (to), "g" (count)
                 : "r0", "r1", "r2", "r3", "r4", "r5");
  v}
+
+ Starting with gcc 3.1, the operands may have names:
+
+{v 
+  asm volatile ("movc3 %[in0],%1,%2"
+                : /* no outputs */
+                : [in0] "g" (from), "g" (to), "g" (count)
+                : "r0", "r1", "r2", "r3", "r4", "r5");
+ v}
+
 *)
 
 (** Describes a location in a source file. *)
@@ -1085,7 +1098,7 @@ type featureDescr = {
      * enable and disable the feature  *)
 
     fd_description: string; 
-    (* A longer name that can be used to document the new options  *)
+    (** A longer name that can be used to document the new options  *)
 
     fd_extraopt: (string * Arg.spec * string) list; 
     (** Additional command line options *)
@@ -1094,7 +1107,7 @@ type featureDescr = {
     (** This performs the transformation *)
 
     fd_post_check: bool; 
-    (* Whether to perform a CIL consistency checking after this stage, if 
+    (** Whether to perform a CIL consistency checking after this stage, if 
      * checking is enabled (--check is passed to cilly). Set this to true if 
      * your feature makes any changes for the program. *)
 }
@@ -1259,10 +1272,10 @@ val foldLeftCompound:
 (** void *)
 val voidType: typ
 
-(* is the given type "void"? *)
+(** is the given type "void"? *)
 val isVoidType: typ -> bool
 
-(* is the given type "void *"? *)
+(** is the given type "void *"? *)
 val isVoidPtrType: typ -> bool
 
 (** int *)
@@ -1303,11 +1316,11 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(* An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode} 
+(** An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode} 
  *  and is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
-(* An unsigned integer type that is the type of sizeof. Depends on 
+(** An unsigned integer type that is the type of sizeof. Depends on 
  * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
 
@@ -1396,9 +1409,9 @@ val getCompField: compinfo -> string -> fieldinfo
 
 (** A datatype to be used in conjunction with [existsType] *)
 type existsAction = 
-    ExistsTrue                          (* We have found it *)
-  | ExistsFalse                         (* Stop processing this branch *)
-  | ExistsMaybe                         (* This node is not what we are 
+    ExistsTrue                          (** We have found it *)
+  | ExistsFalse                         (** Stop processing this branch *)
+  | ExistsMaybe                         (** This node is not what we are 
                                          * looking for but maybe its 
                                          * successors are *)
 
@@ -1639,8 +1652,8 @@ val mkBlock: stmt list -> block
 (** Construct a statement consisting of just one instruction *)
 val mkStmtOneInstr: instr -> stmt
 
-(** Try to compress statements so as to get maximal basic blocks *)
-(* use this instead of List.@ because you get fewer basic blocks *)
+(** Try to compress statements so as to get maximal basic blocks.
+ * use this instead of List.@ because you get fewer basic blocks *)
 val compactStmts: stmt list -> stmt list
 
 (** Returns an empty statement (of kind [Instr]) *)
@@ -2083,7 +2096,7 @@ class type cilPrinter = object
     (** A field declaration *)
 
   method pType: Pretty.doc option -> unit -> typ -> Pretty.doc  
-  (* Use of some type in some declaration. The first argument is used to print 
+  (** Use of some type in some declaration. The first argument is used to print 
    * the declared element, or is None if we are just printing a type with no 
    * name being declared. Note that for structure/union and enumeration types 
    * the definition of the composite type is not visited. Use [vglob] to 
@@ -2133,7 +2146,7 @@ val defaultCilPrinter: cilPrinter
 class plainCilPrinterClass: cilPrinter
 val plainCilPrinter: cilPrinter
 
-(* zra: This is the pretty printer that Maincil will use.
+(** zra: This is the pretty printer that Maincil will use.
    by default it is set to defaultCilPrinter *)
 val printerForMaincil: cilPrinter ref
 
@@ -2269,7 +2282,7 @@ val dumpGlobal: cilPrinter -> out_channel -> global -> unit
 val dumpFile: cilPrinter -> out_channel -> string -> file -> unit
 
 
-(* the following error message producing functions also print a location in 
+(** the following error message producing functions also print a location in 
  * the code. use {!Errormsg.bug} and {!Errormsg.unimp} if you do not want 
  * that *)
 
@@ -2368,7 +2381,7 @@ exception SizeOfError of string * typ
  * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
-(* The size of a type, in bytes. Returns a constant expression or a "sizeof" 
+(** The size of a type, in bytes. Returns a constant expression or a "sizeof" 
  * expression if it cannot compute the size. This function is architecture 
  * dependent, so you should only call this after you call {!Cil.initCIL}.  *)
 val sizeOf: typ -> exp

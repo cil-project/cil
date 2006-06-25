@@ -49,7 +49,7 @@ class usedDefsCollectorClass = object(self)
 
   method vinst i =
     let handle_inst iosh i = match i with
-    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (s,lv) ->
+    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
 	  if s.[0] = '+' then
 	    self#add_defids iosh (Lval(Var v, off)) (UD.VS.singleton v)

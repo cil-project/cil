@@ -347,7 +347,10 @@ class zraCilPrinterClass : cilPrinter = object (self)
                 else
                   (text ": "
                      ++ (docList ~sep:(chr ',' ++ break)
-                           (fun (c, lv) ->
+                           (fun (ido, c, lv) ->
+                             (match ido with 
+                               Some id -> text "[" ++ text id ++ text "] "
+                             | None -> nil) ++
                              text ("\"" ^ escape_string c ^ "\" (")
                                ++ self#pLval () lv
                                ++ text ")") () outs)))
@@ -357,7 +360,10 @@ class zraCilPrinterClass : cilPrinter = object (self)
                   else
                     (text ": "
                        ++ (docList ~sep:(chr ',' ++ break)
-                             (fun (c, e) ->
+                             (fun (ido,c, e) ->
+                               (match ido with 
+                                 Some id -> text "[" ++ text id ++ text "] "
+                               | None -> nil) ++
                                text ("\"" ^ escape_string c ^ "\" (")
                                  ++ self#pExp () e
                                  ++ text ")") () ins)))

@@ -436,15 +436,15 @@ and childrenStatement vis s =
           BLOCK ({blabels = []; battrs = []; bstmts = dl' }, l)
     end
   | ASM (sl, b, details, l) -> 
-      let childrenStringExp ((s, e) as input) = 
+      let childrenIdentStringExp ((i,s, e) as input) = 
         let e' = ve e in
-        if e' != e then (s, e') else input
+        if e' != e then (i,s, e') else input
       in
       let details' = match details with
       | None -> details
       | Some { aoutputs = outl; ainputs = inl; aclobbers = clobs } ->
-	  let outl' = mapNoCopy childrenStringExp outl in
-	  let inl' = mapNoCopy childrenStringExp inl in
+	  let outl' = mapNoCopy childrenIdentStringExp outl in
+	  let inl' = mapNoCopy childrenIdentStringExp inl in
 	  if outl' == outl && inl' == inl then
 	    details
 	  else

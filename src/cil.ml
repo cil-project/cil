@@ -778,12 +778,15 @@ and instr =
   | Asm        of attributes * (* Really only const and volatile can appear 
                                * here *)
                   string list *         (* templates (CR-separated) *)
-                  (string * lval) list * (* outputs must be lvals with 
-                                          * constraints. I would like these 
-                                          * to be actually variables, but I 
-                                          * run into some trouble with ASMs 
-                                          * in the Linux sources  *)
-                  (string * exp) list * (* inputs with constraints *)
+                  (string option * string * lval) list * 
+                                          (* outputs must be lvals with 
+                                           * optional names and constraints. 
+                                           * I would like these 
+                                           * to be actually variables, but I 
+                                           * run into some trouble with ASMs 
+                                           * in the Linux sources  *)
+                  (string option * string * exp) list * 
+                                        (* inputs with optional names and constraints *)
                   string list *         (* register clobbers *)
                   location
         (** An inline assembly instruction. The arguments are (1) a list of 
@@ -3350,7 +3353,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 else
                   (text ": "
                      ++ (docList ~sep:(chr ',' ++ break)
-                           (fun (c, lv) ->
+                           (fun (idopt, c, lv) ->
+                            text(match idopt with 
+                                 None -> "" 
+                               | Some id -> "[" ^ id ^ "] "
+                            ) ++
                              text ("\"" ^ escape_string c ^ "\" (")
                                ++ self#pLval () lv
                                ++ text ")") () outs)))
@@ -3360,7 +3367,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                   else
                     (text ": "
                        ++ (docList ~sep:(chr ',' ++ break)
-                             (fun (c, e) ->
+                             (fun (idopt, c, e) ->
+                                text(match idopt with 
+                                     None -> "" 
+                                   | Some id -> "[" ^ id ^ "] "
+                                ) ++
                                text ("\"" ^ escape_string c ^ "\" (")
                                  ++ self#pExp () e
                                  ++ text ")") () ins)))
@@ -4837,12 +4848,12 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
       then Call(Some lv', fn', args', l) else i
 
   | Asm(sl,isvol,outs,ins,clobs,l) -> 
-      let outs' = mapNoCopy (fun ((s,lv) as pair) -> 
+      let outs' = mapNoCopy (fun ((id,s,lv) as pair) -> 
                                let lv' = fLval lv in
-                               if lv' != lv then (s,lv') else pair) outs in
-      let ins'  = mapNoCopy (fun ((s,e) as pair) -> 
+                               if lv' != lv then (id,s,lv') else pair) outs in
+      let ins'  = mapNoCopy (fun ((id,s,e) as pair) -> 
                                let e' = fExp e in
-                               if e' != e then (s,e') else pair) ins in
+                               if e' != e then (id,s,e') else pair) ins in
       if outs' != outs || ins' != ins then
         Asm(sl,isvol,outs',ins',clobs,l) else i
 
