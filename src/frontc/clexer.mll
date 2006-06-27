@@ -146,7 +146,11 @@ let init_lexicon _ =
       ("__inline__", fun loc -> INLINE loc);
       ("inline", fun loc -> INLINE loc); 
       ("__inline", fun loc -> INLINE loc);
-      ("_inline", fun loc -> INLINE loc);
+      ("_inline", fun loc ->
+                      if !Cprint.msvcMode then 
+                        INLINE loc
+                      else 
+                        IDENT ("_inline", loc));
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*
