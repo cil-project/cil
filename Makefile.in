@@ -243,9 +243,10 @@ ifdef USE_ZRAPP
 	echo "   Zrapp.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
-	echo -ne \
+	echo -n " (* EXTRAFEATURES: *)" >> $@  
+	echo -e \
           $(foreach f,@EXTRAFEATURES@, \
-             `echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;\n") >> $@
+             "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") >> $@
 	echo "]"   >>$@ 
 # Must delete main.d and remake it, because it may have been made
 # before feature_config existed.

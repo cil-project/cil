@@ -1177,6 +1177,16 @@ val foldGlobals: file -> ('a -> global -> 'a) -> 'a -> 'a
     in place *)
 val mapGlobals: file -> (global -> global) -> unit
 
+(** Find a function or function prototype with the given name in the file.
+  * If it does not exist, create a prototype with the given type, and return
+  * the new varinfo.  This is useful when you need to call a libc function
+  * whose prototype may or may not already exist in the file.
+  *
+  * Because the new prototype is added to the start of the file, you shouldn't
+  * refer to any struct or union types in the function type.*)
+val findOrCreateFunc: file -> string -> typ -> varinfo
+
+
 val new_sid : unit -> int
 
 (** Prepare a function for CFG information computation by

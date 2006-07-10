@@ -5224,6 +5224,31 @@ let foldGlobals (fl: file)
     None -> acc'
   | Some g -> doone' acc' (GFun(g, locUnknown)))
 
+(** Find a function or function prototype with the given name in the file.
+  * If it does not exist, create a prototype with the given type, and return
+  * the new varinfo.  This is useful when you need to call a libc function
+  * whose prototype may or may not already exist in the file.
+  *
+  * Because the new prototype is added to the start of the file, you shouldn't
+  * refer to any struct or union types in the function type.*)
+let findOrCreateFunc (f:file) (name:string) (t:typ) : varinfo = 
+  let rec search glist = 
+    match glist with
+	GVarDecl(vi,_) :: rest when vi.vname = name -> 
+          if not (isFunctionType vi.vtype) then 
+            E.s (error ("findOrCreateFunc: can't create %s because another "
+                        ^^"global exists with that name.") name);
+          vi
+      | _ :: rest -> search rest (* tail recursive *)
+      | [] -> (*not found, so create one *)
+          let t' = unrollTypeDeep t in
+	  let new_decl = makeGlobalVar name t' in
+	  f.globals <- GVarDecl(new_decl, locUnknown) :: f.globals;
+	  new_decl
+  in
+  search f.globals
+
+
 
 (* A visitor for the whole file that does not change the globals *)
 let visitCilFileSameGlobals (vis : cilVisitor) (f : file) : unit =

@@ -3104,8 +3104,13 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf July 10, 2006}: Fix Makefile problem for FreeBSD.  Thanks
+  to Joseph Koshy for the patch.
 \item {\bf June 25, 2006}: Extended the inline assembly to support named
-arguments, as added in gcc 3.0.
+  arguments, as added in gcc 3.0.  This changes the types of the input
+  and output lists from ``\t{(string * lval) list}'' to 
+  ``\t{(string option * string * lval) list}''.  Some existing code
+  will need to be modified accordingly.
 \item {\bf June 11, 2006}: Removed the function \t{Cil.foldLeftCompoundAll}.
 Use instead \cilvalref{foldLeftCompound} with \t{~implicit:true}. 
 \item {\bf June 9, 2006}: Extended the definition of the cilVisitor for
