@@ -204,6 +204,21 @@ let eh_kill_lval eh lv =
     then IH.remove eh vid)
     eh
 
+let has_volatile = ref false
+let volatileFinderClass = object(self)
+  inherit nopCilVisitor
+
+  method vexpr e =
+    if (hasAttribute "volatile" (typeAttrs (typeOf e))) 
+    then (has_volatile := true; SkipChildren)
+    else DoChildren
+end
+
+let exp_is_volatile e : bool =
+  has_volatile := false;
+  ignore(visitCilExpr volatileFinderClass e);
+  !has_volatile
+
 let varHash = IH.create 32
 
 let eh_kill_addrof_or_global eh =
@@ -236,7 +251,7 @@ let eh_handle_inst i eh =
 	(eh_kill_mem eh; 
 	 eh_kill_addrof_or_global eh;
 	 eh)
-    | (Var vi, NoOffset) -> 
+    | (Var vi, NoOffset) when not (exp_is_volatile e) -> 
 	(match e with
 	  Lval(Var vi', NoOffset) -> (* ignore x = x *)
 	    if vi'.vid = vi.vid then eh else
