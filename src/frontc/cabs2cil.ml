@@ -590,7 +590,7 @@ end
 let constFoldType (t:typ) : typ =
   visitCilType constFoldTypeVisitor t
 
-
+let typeSigNoAttrs: typ -> typsig = typeSigWithAttrs (fun _ -> [])
 
 (* Create a new temporary variable *)
 let newTempVar typ = 
@@ -4448,9 +4448,17 @@ and doInit
        * appears as a single initializer. Ignore the cast  *)
   let initl2 = 
     match initl1 with
-      (what, 
-       A.SINGLE_INIT (A.CAST (_, A.COMPOUND_INIT ci))) :: rest -> 
-         (what, A.COMPOUND_INIT ci) :: rest
+      (what,
+       A.SINGLE_INIT (A.CAST ((specs, dt), A.COMPOUND_INIT ci))) :: rest ->
+        let s', dt', ie' = preprocessCast specs dt (A.COMPOUND_INIT ci) in
+        let typ = doOnlyType s' dt' in
+        if (typeSigNoAttrs typ) = (typeSigNoAttrs so.soTyp) then
+          (* Drop the cast *)
+          (what, A.COMPOUND_INIT ci) :: rest
+        else
+          (* Keep the cast.  A new var will be created to hold
+             the intermediate value.  *)
+          initl1
     | _ -> initl1
   in
   let allinitl = initl2 in
@@ -4664,11 +4672,11 @@ and doInit
                       when not ci.cstruct -> 
       (* Do the expression to find its type *)
       let _, _, t' = doExp isconst oneinit (AExp None) in
-      let tsig = typeSigWithAttrs (fun _ -> []) t' in
+      let tsig = typeSigNoAttrs t' in
       let rec findField = function
           [] -> E.s (error "Cannot find matching union field in cast")
         | fi :: rest 
-           when Util.equals (typeSigWithAttrs (fun _ -> []) fi.ftype) tsig 
+           when Util.equals (typeSigNoAttrs fi.ftype) tsig 
            -> fi
         | _ :: rest -> findField rest
       in
