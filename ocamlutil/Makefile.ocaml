@@ -370,11 +370,13 @@ FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]*/% %g; s%[^/\\ :]+\\% %g; s%([-a-zA-Z
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
 $(DEPENDDIR)/%.d: %.ml
 	@$(NARRATIVE) Generating dependency information for $<
+	$(ECHO)if ! [ -d $(DEPENDDIR) ]; then mkdir -p $(DEPENDDIR) ; fi
 	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
 $(DEPENDDIR)/%.di: %.mli
 	@$(NARRATIVE) Generating dependency information for $<
+	$(ECHO)if ! [ -d $(DEPENDDIR) ]; then mkdir -p $(DEPENDDIR) ; fi
 	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 

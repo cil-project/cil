@@ -197,7 +197,7 @@ let localVarAnn label func v typ: instr =
   else
     (Var v, NoOffset)
   in
-  Asm([], [annstr], ["=m", lv], 
+  Asm([], [annstr], [None, "=m", lv], 
       (* ["0", Lval(lv)] *)
       [], [], !currentLoc)
 
