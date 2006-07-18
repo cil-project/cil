@@ -1042,7 +1042,10 @@ field_decl_list: /* (* ISO 6.7.2 *) */
 ;
 field_decl: /* (* ISO 6.7.2. Except that we allow unnamed fields. *) */
 |   declarator                      { ($1, None) }
-|   declarator COLON expression     { ($1, Some (fst $3)) }    
+|   declarator COLON expression attributes
+                                    { let (n,decl,al,loc) = $1 in
+                                      let al' = al @ $4 in
+                                     ((n,decl,al',loc), Some (fst $3)) }    
 |              COLON expression     { (missingFieldDecl, Some (fst $2)) }
 ;
 
@@ -1059,8 +1062,8 @@ enumerator:
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
    pointer_opt direct_decl attributes_with_asm
-                                         { let (n, decl) = $2 in
-                                           (n, applyPointer (fst $1) decl, $3, (*(*handleLoc*)*)(snd $1)) }
+                               { let (n, decl) = $2 in
+                                (n, applyPointer (fst $1) decl, $3, (snd $1)) }
 ;
 
 
