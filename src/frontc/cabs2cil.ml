@@ -2390,6 +2390,7 @@ and doAttr (a: A.attribute) : attribute list =
     String.sub n st (fin - st + 1)
   in
   match a with
+  | ("__attribute__", []) -> []  (* An empty list of gcc attributes *)
   | (s, []) -> [Attr (stripUnderscore s, [])]
   | (s, el) -> 
       

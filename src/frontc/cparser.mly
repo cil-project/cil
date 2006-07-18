@@ -1296,7 +1296,7 @@ attributes_with_asm:
 
 /* things like __attribute__, but no const/volatile */
 attribute_nocv:
-    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN	
+    ATTRIBUTE LPAREN paren_attr_list RPAREN	
                                         { ("__attribute__", $3), $1 }
 /*(*
 |   ATTRIBUTE_USED                      { ("__attribute__", 
@@ -1320,7 +1320,7 @@ attribute:
  *  to support them appearing between the 'struct' keyword and the type name. 
  * Actually, a declspec can appear there as well (on MSVC) *)  */
 just_attribute:
-    ATTRIBUTE LPAREN paren_attr_list_ne RPAREN
+    ATTRIBUTE LPAREN paren_attr_list RPAREN
                                         { ("__attribute__", $3) }
 |   DECLSPEC paren_attr_list_ne         { ("__declspec", $2) }
 ;
@@ -1480,8 +1480,16 @@ attr_list_ne:
 |  attr COMMA attr_list_ne               { $1 :: $3 }
 |  error COMMA attr_list_ne              { $3 }
 ;
+attr_list:
+  /* empty */                            { [] }
+| attr_list_ne                           { $1 }
+;
 paren_attr_list_ne: 
    LPAREN attr_list_ne RPAREN            { $2 }
+|  LPAREN error RPAREN                   { [] }
+;
+paren_attr_list: 
+   LPAREN attr_list RPAREN               { $2 }
 |  LPAREN error RPAREN                   { [] }
 ;
 /*** GCC ASM instructions ***/
