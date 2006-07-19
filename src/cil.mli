@@ -2491,3 +2491,6 @@ val d_formatarg: unit -> formatArg -> Pretty.doc
 
 val lowerConstants: bool ref
  (** Do lower constant expressions into constants (default true) *)
+
+(** Emit warnings when truncating integer constants (default true) *)
+val warnTruncate: bool ref

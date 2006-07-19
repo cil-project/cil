@@ -101,6 +101,8 @@ let print_CIL_Input = ref false
 let printCilAsIs = ref false
 
 let lineLength = ref 80
+
+let warnTruncate = ref true
                       
 (* sm: return the string 's' if we're printing output for gcc, suppres
  * it if we're printing for CIL to parse back in.  the purpose is to
@@ -1967,7 +1969,7 @@ let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp = 
   let i', truncated = truncateInteger64 k i in
-  if truncated then 
+  if truncated && !warnTruncate then 
     ignore (warnOpt "Truncating integer %s to %s\n" 
               (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
   Const (CInt64(i', k,  None))

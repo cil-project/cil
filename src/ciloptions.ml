@@ -194,6 +194,8 @@ let options : (string * Arg.spec * string) list =
                "do not try to simplify the CIL when printing.  Without this flag, CIL will attempt to produce prettier output by e.g. changing while(1) into more meaningful loops.";
     "--noWrap", Arg.Unit (fun _ -> Cil.lineLength := 100000),
                "do not wrap long lines when printing";
+    "--noTruncateWarning", Arg.Unit (fun _ -> Cil.warnTruncate := false),
+               "suppress warning about truncating integer constants";
 
   ]
     
