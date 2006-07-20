@@ -111,6 +111,11 @@ module type BackwardsTransfer = sig
   (** For each block id, the data at the start. This data structure must be 
    * initialized with the initial data for each block *)
 
+  val funcExitData: t
+  (** The data at function exit.  Used for statements with no successors.
+      This is usually bottom, since we'll also use doStmt on Return 
+      statements. *)
+
   val combineStmtStartData: Cil.stmt -> old:t -> t -> t option
   (** When the analysis reaches the start of a block, combine the old data 
    * with the one we have just computed. Return None if the combination is 
@@ -147,5 +152,15 @@ module BackwardsDataFlow (T : BackwardsTransfer) : sig
   (** Fill in the T.stmtStartData, given a number of initial statements to 
    * start from (the sinks for the backwards data flow). All of the statements
    * (not just the initial ones!) must have some entry in T.stmtStartData 
-   * (i.e., the initial data should not be bottom) *)
+   * If you want to use bottom for the initial data, you should pass the
+   * complete list of statements to {!compute}, so that everything is visited.
+   * {!find_stmts} may be useful here. *)
 end
+
+
+(** Returns (all_stmts, sink_stmts), where all_stmts is a list of the 
+  statements in a function, and sink_stmts is a list of the return statments
+  (including statements that fall through the end of a void function).  
+  Useful when you need an initial set of statements for
+  BackwardsDataFlow.compute. *)
+val find_stmts: Cil.fundec -> (Cil.stmt list * Cil.stmt list)

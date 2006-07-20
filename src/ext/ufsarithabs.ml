@@ -218,7 +218,7 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
   (* For functions, we use the transitively computed set of globals and 
    * locals as the use/def *)
   Usedef.getUseDefFunctionRef := 
-    (fun f ->
+    (fun f args ->
       match f with 
         Lval (Var fv, NoOffset) -> 
           let varDefs = ref VS.empty in 
@@ -236,9 +236,9 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
               (fun _ g -> varUsed := VS.add g !varUsed) gr
           with Not_found -> ());
 
-          !varUsed, !varDefs
+          !varUsed, !varDefs, args
 
-      | _ -> VS.empty, VS.empty);
+      | _ -> VS.empty, VS.empty, args);
 
 
   Usedef.considerVariableUse := 

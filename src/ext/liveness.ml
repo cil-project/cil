@@ -47,6 +47,8 @@ module LiveFlow = struct
     
   let stmtStartData = IH.create 32
 
+  let funcExitData = VS.empty
+
   let combineStmtStartData (stm:stmt) ~(old:t) (now:t) =
     if not(VS.compare old now = 0)
     then Some(VS.union old now)
@@ -80,24 +82,6 @@ module LiveFlow = struct
 end
 
 module L = DF.BackwardsDataFlow(LiveFlow)
-
-let sink_stmts = ref []
-class sinkFinderClass = object(self)
-  inherit nopCilVisitor
-
-  method vstmt s = match s.succs with
-    [] -> (sink_stmts := s :: (!sink_stmts);
-	   DoChildren)
-  | _ -> DoChildren
-
-end
-
-(* gives list of return statements from a function *)
-(* fundec -> stm list *)
-let find_sinks fdec =
-  sink_stmts := [];
-  ignore(visitCilFunction (new sinkFinderClass) fdec);
-  !sink_stmts
 
 (* XXX: This does not compute the best ordering to
  * give to the work-list algorithm.

@@ -317,6 +317,11 @@ module type BackwardsTransfer = sig
   (** For each block id, the data at the start. This data structure must be 
    * initialized with the initial data for each block *)
 
+  val funcExitData: t
+  (** The data at function exit.  Used for statements with no successors.
+      This is usually bottom, since we'll also use doStmt on Return 
+      statements. *)
+
   val combineStmtStartData: Cil.stmt -> old:t -> t -> t option
   (** When the analysis reaches the start of a block, combine the old data 
    * with the one we have just computed. Return None if the combination is 
@@ -374,7 +379,7 @@ module BackwardsDataFlow =
              (* Do the default one. Combine the successors *)
              let res = 
                match s.succs with 
-                 [] -> E.s (E.bug "You must doStmt for the statements with no successors")
+                 [] -> T.funcExitData
                | fst :: rest -> 
                    List.fold_left (fun acc succ -> 
                      T.combineSuccessors acc (getStmtStartData succ))
@@ -461,4 +466,31 @@ module BackwardsDataFlow =
           
   end
 
+
+(** Helper utility that finds all of the statements of a function. 
+  It also lists the return statments (including statements that
+  fall through the end of a void function).  Useful when you need an
+  initial set of statements for BackwardsDataFlow.compute. *)
+let sink_stmts = ref []
+let all_stmts = ref []
+let sinkFinder = object(self)
+  inherit nopCilVisitor
+
+  method vstmt s =
+    all_stmts := s ::(!all_stmts);
+    match s.succs with
+      [] -> (sink_stmts := s :: (!sink_stmts);
+	     DoChildren)
+    | _ -> DoChildren
+
+end
+
+(* returns (all_stmts, return_stmts).   *)
+let find_stmts (fdec:fundec) : (stmt list * stmt list) =
+  ignore(visitCilFunction (sinkFinder) fdec);
+  let all = !all_stmts in
+  let ret = !sink_stmts in
+  all_stmts := [];
+  sink_stmts := [];
+  all, ret
 

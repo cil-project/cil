@@ -6,12 +6,16 @@ open Pretty
 
 module VS = Set.Make (struct 
                         type t = Cil.varinfo
-                        let compare v1 v2 = Pervasives.compare v1.vid v2.vid
+                        (* Subtraction is safe since vids are always positive*)
+                        let compare v1 v2 = v1.vid - v2.vid
                       end)
 
-(** Set this global to how you want to handle function calls *)
-let getUseDefFunctionRef: (exp -> VS.t * VS.t) ref = 
-  ref (fun _ -> (VS.empty, VS.empty))
+(** Set this global to how you want to handle function calls.
+    This also returns a modified argument list which will be used for the
+    purpose of Use analysis, in case you have a function that needs special
+    treatment of its args. *)
+let getUseDefFunctionRef: (exp -> exp list -> VS.t * VS.t * exp list) ref = 
+  ref (fun f args -> (VS.empty, VS.empty, args))
 
 (** Say if you want to consider a variable use *)
 let considerVariableUse: (varinfo -> bool) ref = 
@@ -22,9 +26,15 @@ let considerVariableUse: (varinfo -> bool) ref =
 let considerVariableDef: (varinfo -> bool) ref = 
   ref (fun _ -> true)
 
-(** Save if you want to consider a variable addrof as a use *)
+(** Say if you want to consider a variable addrof as a use *)
 let considerVariableAddrOfAsUse: (varinfo -> bool) ref = 
   ref (fun _ -> true)
+
+(** Return any vars that should be considered "used" by an expression,
+    other than the ones it refers to directly.  Deputy uses this for
+    variables in Cast annotations. *)
+let extraUsesOfExpr: (exp -> VS.t) ref =
+  ref (fun _ -> VS.empty)
 
 (* When this is true, only definitions of a variable without
    an offset are counted as definitions. So:
@@ -59,7 +69,11 @@ class useDefVisitorClass : cilVisitor = object (self)
       | _ -> DoChildren
     else DoChildren
 
-  method vexpr = function
+  method vexpr (e:exp) =
+    let extra = (!extraUsesOfExpr) e in
+    if not (VS.is_empty extra) then 
+      varUsed := VS.union extra !varUsed;
+    match e with
       Lval (Var v, off) -> 
         ignore (visitCilOffset (self :> cilVisitor) off);
         if (!considerVariableUse) v then
@@ -77,14 +91,21 @@ class useDefVisitorClass : cilVisitor = object (self)
 
   (* For function calls, do the transitive variable read/defs *)
   method vinst = function
-      Call (_, f, _, _) -> begin
-        (* we will call DoChildren to compute the use and def that appear in 
+      Call (lvo, f, args, _) -> begin
+        (* we will compute the use and def that appear in 
          * this instruction. We also add in the stuff computed by 
          * getUseDefFunctionRef *)
-        let use, def = !getUseDefFunctionRef f in
+        let use, def, args' = !getUseDefFunctionRef f args in
         varUsed := VS.union !varUsed use;
         varDefs := VS.union !varDefs def;
-        DoChildren;
+        
+        (* Now visit the children of  "Call (lvo, f, args', _)" *)
+        let self: cilVisitor = (self :> cilVisitor) in
+        (match lvo with None -> ()
+         | Some lv -> ignore (visitCilLval self lv));
+        ignore (visitCilExpr self f);
+        List.iter (fun arg -> ignore (visitCilExpr self arg)) args';
+        SkipChildren;
       end
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
