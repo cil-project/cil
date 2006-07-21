@@ -105,6 +105,8 @@ MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
 MODULES     += $(CILLY_MODULES) libmaincil
 
+BEFOREDEPS += $(OBJDIR)/machdep.ml
+BEFOREDEPS += $(OBJDIR)/cilversion.ml
 
 
     # Include now the common set of rules for OCAML
@@ -177,7 +179,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	echo "  little_endian: bool; (* whether the machine is little endian *)">>$@
 	echo "}" >> $@ 	
 	if gcc -D_GNUCC $< -o $(OBJDIR)/machdep.exe ;then \
-	    echo "machdep.exe created succesfull." \
+	    echo "machdep.exe created succesfully." \
 	;else \
             rm -f $@; exit 1 \
         ;fi 
@@ -527,7 +529,7 @@ cleancheck:
 	rm -f test/small1/wchar1
 
 clean: cleancaml cleancheck
-	rm -f $(OBJDIR)/machdep.ml
+
 
 # Now include the compiler specific stuff
 ifdef _MSVC

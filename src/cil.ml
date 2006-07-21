@@ -3214,21 +3214,21 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'), Const(CInt64(one,_,_)),_)
             when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
-                ++ self#pLval () lv
+                ++ self#pLvalPrec indexLevel () lv
                 ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
                 Const(CInt64(one,_,_)), _) 
             when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
                   self#pLineDirective l
-                    ++ self#pLval () lv
+                    ++ self#pLvalPrec indexLevel () lv
                     ++ text (" --" ^ printInstrTerminator) 
 
         | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
             when Util.equals lv lv' && mone = Int64.minus_one 
                 && not !printCilAsIs ->
               self#pLineDirective l
-                ++ self#pLval () lv
+                ++ self#pLvalPrec indexLevel () lv
                 ++ text (" --" ^ printInstrTerminator)
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|

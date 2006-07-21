@@ -83,7 +83,13 @@
   # CAML_CFLAGS   - flags used only for the compilation of C files.
   #                 e.g. '-ccopt <gcc flag>'
   #
-  #
+  # BEFOREDEPS  - must list the ML files that must be created before computing 
+  #               dependencies. If you do not do this, then ocamldep will not
+  #               record a dependency on the missing ML files. 
+  #               The files obtained from MLYS and MLLS are 
+  #               handled automatically. This must be set before including this
+  #               Makefile.ocaml
+  # 
   # After you set all of the above you must do the following for EACH separate 
   # executable that you want to build.
   #
@@ -260,8 +266,11 @@ vpath %.c   $(SOURCEDIRS)
 #  Secondaries are intermediates that we don't want make to delete
 #  By giving the right names to secondary files we tell make where to make
 #  them if they are not already made. VERY USEFUL!!
-.SECONDARY : $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.ml) \
-             $(MLYS:%.mly=$(OBJDIR)/%.mli)
+
+MLL_LYS:= $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLLS:%.mll=$(OBJDIR)/%.mli) \
+          $(MLYS:%.mly=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.mli)
+
+.SECONDARY : $(MLL_LYS)
 
              # Run the lexer generator
              # Move the result to the OBJDIR directory
@@ -348,6 +357,11 @@ cleancaml:
                $(MLYS:%.mly=$(OBJDIR)/%.mli)
 
 
+# Before we generate the dependencies, we must make sure to create all the 
+# ML files that we need. Otherwise, the ocamldep will not point out a 
+# dependency to a missing file
+BEFOREDEPS += $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.ml)
+
 # Automatic dependency generation (see GNU info for details)
 #
 # Each .ml file has a .d (dependency file) which is automatically
@@ -368,14 +382,14 @@ FIXDEPEND:=perl -e 'while(<>) { s%[^/\\ :]*/% %g; s%[^/\\ :]+\\% %g; s%([-a-zA-Z
 # FIXDEPEND:=cat
 
 DEPINCLUDES= -I $(OBJDIR) $(SOURCEDIRS:%=-I %)
-$(DEPENDDIR)/%.d: %.ml
-	@$(NARRATIVE) Generating dependency information for $<
+$(DEPENDDIR)/%.d: %.ml $(BEFOREDEPS)
+	@$(NARRATIVE) "Generating dependency information for $<"
 	$(ECHO)if ! [ -d $(DEPENDDIR) ]; then mkdir -p $(DEPENDDIR) ; fi
 	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
 
-$(DEPENDDIR)/%.di: %.mli
-	@$(NARRATIVE) Generating dependency information for $<
+$(DEPENDDIR)/%.di: %.mli $(BEFOREDEPS)
+	@$(NARRATIVE) "Generating dependency information for $<"
 	$(ECHO)if ! [ -d $(DEPENDDIR) ]; then mkdir -p $(DEPENDDIR) ; fi
 	@$(COMMAND) $(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $<
 	$(ECHO)$(CAMLDEP) $(DEPFLAGS) $(DEPINCLUDES) $< | $(FIXDEPEND) > $@
