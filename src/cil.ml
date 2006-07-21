@@ -1698,12 +1698,11 @@ let d_const () c =
   | CEnum(_, s, ei) -> text s
 
 
-(* Parentheses level. An expression "a op b" is printed parenthesized if its 
- * parentheses level is >= that that of its context. Identifiers have the 
- * lowest level and weakly binding operators (e.g. |) have the largest level. 
- * The correctness criterion is that a smaller level MUST correspond to a 
- * stronger precedence!
- *)
+(* Parentheses/precedence level. An expression "a op b" is printed 
+ * parenthesized if its parentheses level is >= that that of its context. 
+ * Identifiers have the lowest level and weakly binding operators (e.g. |) 
+ * have the largest level. The correctness criterion is that a smaller level 
+ * MUST correspond to a stronger precedence! *)
 let derefStarLevel = 20
 let indexLevel = 20
 let arrowLevel = 20
@@ -3032,6 +3031,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Mem e, Field(fi, o) ->
         self#pOffset
           ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
+    | Mem e, NoOffset -> 
+        text "*" ++ self#pExpPrec derefStarLevel () e
     | Mem e, o ->
         self#pOffset
           (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
@@ -3091,6 +3092,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           
     | StartOf(lv) -> self#pLval () lv
 
+  (* Print an expression, given the precedence of the context in which it 
+   * appears. *)
   method private pExpPrec (contextprec: int) () (e: exp) = 
     let thisLevel = getParenthLevel e in
     let needParens =
