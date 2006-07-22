@@ -267,7 +267,7 @@ vpath %.c   $(SOURCEDIRS)
 #  By giving the right names to secondary files we tell make where to make
 #  them if they are not already made. VERY USEFUL!!
 
-MLL_LYS:= $(MLLS:%.mll=$(OBJDIR)/%.ml) $(MLLS:%.mll=$(OBJDIR)/%.mli) \
+MLL_LYS:= $(MLLS:%.mll=$(OBJDIR)/%.ml)  \
           $(MLYS:%.mly=$(OBJDIR)/%.ml) $(MLYS:%.mly=$(OBJDIR)/%.mli)
 
 .SECONDARY : $(MLL_LYS)

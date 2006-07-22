@@ -1737,8 +1737,8 @@ let getParenthLevel (e: exp) =
   | UnOp((Neg|BNot|LNot),_,_) -> 30
 
                                         (* Lvals *)
-  | Lval(Mem _ , _) -> 20                   
-  | Lval(Var _, (Field _|Index _)) -> 20
+  | Lval(Mem _ , _) -> derefStarLevel (* 20 *)                   
+  | Lval(Var _, (Field _|Index _)) -> indexLevel (* 20 *)
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> 20
   | AlignOf _ | AlignOfE _ -> 20
 

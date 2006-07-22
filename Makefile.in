@@ -107,7 +107,7 @@ MODULES     += $(CILLY_MODULES) libmaincil
 
 BEFOREDEPS += $(OBJDIR)/machdep.ml
 BEFOREDEPS += $(OBJDIR)/cilversion.ml
-
+BEFOREDEPS += $(OBJDIR)/feature_config.ml
 
     # Include now the common set of rules for OCAML
 include ocamlutil/Makefile.ocaml
@@ -250,10 +250,6 @@ endif
           $(foreach f,@EXTRAFEATURES@, \
              "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") >> $@
 	echo "]"   >>$@ 
-# Must delete main.d and remake it, because it may have been made
-# before feature_config existed.
-	rm -f $(DEPENDDIR)/main.d
-	$(MAKE) $(DEPENDDIR)/main.d
 
 
 
