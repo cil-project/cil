@@ -17,7 +17,8 @@ module VS = Set.Make (struct
 let getUseDefFunctionRef: (exp -> exp list -> VS.t * VS.t * exp list) ref = 
   ref (fun f args -> (VS.empty, VS.empty, args))
 
-(** Say if you want to consider a variable use *)
+(** Say if you want to consider a variable use.  This applies to
+  variable reads only; see also considerVariableAddrOfAsUse *)
 let considerVariableUse: (varinfo -> bool) ref = 
   ref (fun _ -> true)
 
@@ -41,6 +42,9 @@ let extraUsesOfExpr: (exp -> VS.t) ref =
    a = 5; would be a definition, but
    a[1] = 5; would not *)
 let onlyNoOffsetsAreDefs: bool ref = ref false
+
+(** Should we ignore the contents of sizeof and alignof? *)
+let ignoreSizeof: bool ref = ref true
 
 let varUsed: VS.t ref = ref VS.empty
 let varDefs: VS.t ref = ref VS.empty
@@ -86,6 +90,9 @@ class useDefVisitorClass : cilVisitor = object (self)
         if (!considerVariableAddrOfAsUse) v then 
           varUsed := VS.add v !varUsed;
         SkipChildren
+
+    | SizeOfE _
+    | AlignOfE _ when !ignoreSizeof -> SkipChildren
 
     | _ -> DoChildren
 
