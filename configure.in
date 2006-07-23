@@ -15,10 +15,6 @@
 # just as good (since this becomes an 'sh' script)
 
 
-# We must put these AC_SUBST very early, and in this order. See below where we
-# define NEWLINE
-AC_SUBST(CIL_FEATURES_DEFINES) 
-AC_SUBST(NEWLINE)
 
 
 # -------------- usual initial stuff -------------
@@ -448,24 +444,10 @@ rm -f obj/$ARCHOS/feature_config.ml
 rm -f obj/.depend/feature_config.d
 AC_MSG_RESULT([done])
 
-# We will use substitution variables whose definition contains newlines. The
-# problem is that when config.status runs, it wants to break the series of
-# substitution commands for sed into fragments based on line count. We could
-# be unlucky and have config.status break the series of substitution in the
-# middle of a variable that contains newlines. So, we first create a single
-# variable called NEWLINE whose definition is a carriage return. This means
-# that there will be exactly one opportunity for this error to happen (in the
-# definition of NEWLINE). The occurrence of AC_SUBST for NEWLINE must occur
-# after those of the variables that use it! And we want to put all of these
-# very early on, to make sure that they are not around the place when the file
-# bets broken.
-
-NEWLINE="\\
-"
 
 
 #
-# CIL/CCured features
+# CIL features
 #
 #
    
@@ -498,6 +480,11 @@ features="$features cqualann=no"
 
 features="$features $EXTRAFEATURES"
 
+rm -f Makefile.features
+echo "# -*- Mode: makefile -*-">Makefile.features
+echo "# This file was generated automatically by ./configure.in">>Makefile.features
+echo "# We will not need this once configure supports multiline variables">>Makefile.features
+
 for f_val in $features
 do
    # If there is no =, then we default to yes
@@ -513,16 +500,11 @@ do
    AC_MSG_RESULT($curval)
    if test $curval = yes ;then
       CIL_FEATURES="$CIL_FEATURES $f"
+      f_up=`echo $f | tr a-z A-Z`
+      echo "export USE_$f_up=yes">>Makefile.features
    fi
 done
-
-## Now produce the CIL_FEATURES_DEFINES
-CIL_FEATURES_DEFINES=""
-# Convert to upper case
-for f in `echo $CIL_FEATURES | tr a-z A-Z`
-do
-   CIL_FEATURES_DEFINES="${CIL_FEATURES_DEFINES}@NEWLINE@export USE_$f=yes"
-done
+chmod -w Makefile.features
 
 
 # ----------------- finish up -------------------

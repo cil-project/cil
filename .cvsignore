@@ -20,8 +20,8 @@ tmp*
 make.out*
 odoc
 Makefile
+Makefile.features
 config.status
-Makefile.cil
 *.tar.gz
 .ccuredrc
 allsrcs

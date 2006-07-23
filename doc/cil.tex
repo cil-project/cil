@@ -3104,6 +3104,14 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf July 23, 2006}: Changed the way ./configure works. We now generate
+  the file Makefile.features to record the configuration features. This is
+  because autoconf does not work properly with multiline substitutions.
+\item {\bf July 21, 2006}: Cleaned up the printing of some Lvals. Things that
+  were printed as ``(*i)'' before are now printed simply as ``*i'' (no
+  parentheses). However, this means that when you use pLval to print lvalues
+  inside expressions, you must take care about parentheses yourself. Thanks to
+  Benjamin Monate for pointing this out. 
 \item {\bf July 17, 2006}: Fix parsing of attributes on bitfields and
   empty attribute lists.  Thanks to Peter Hawkins.
 \item {\bf July 10, 2006}: Fix Makefile problem for FreeBSD.  Thanks
