@@ -115,12 +115,14 @@ include ocamlutil/Makefile.ocaml
 
    # Now the rule to make cilly
 
-PROJECT_EXECUTABLE = $(OBJDIR)/cilly$(EXE)
-PROJECT_MODULES    = $(CILLY_MODULES)
-PROJECT_CMODULES   = perfcount $(CILLY_CMODULES)
-PROJECT_LIBS       = $(CILLY_LIBS)
-cilly: $(PROJECT_EXECUTABLE)
-include ocamlutil/Makefile.ocaml.build
+cilly: $(OBJDIR)/cilly$(EXE)
+$(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
+                        $(perfcount $(CILLY_CMODULES):%=$(OBJDIR)/%.$(CMC))
+	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
+	$(AT)$(CAMLLINK) -verbose -o $@ \
+                    $(CILLY_LIBS:%=%.$(CMXA)) \
+                    $(CILLY_LIBS:%=-cclib -l%) \
+                    $^
 
 
 quickbuild: cilversion machdep cilly

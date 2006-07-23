@@ -2417,8 +2417,24 @@ and constFold (machdep: bool) (e: exp) : exp =
           Const(CInt64(i', nk, None))
       | e', _ -> CastE (t, e')
   end
-
+  | Lval lv -> Lval (constFoldLval machdep lv)
+  | AddrOf lv -> AddrOf (constFoldLval machdep lv)
+  | StartOf lv -> StartOf (constFoldLval machdep lv)
   | _ -> e
+
+and constFoldLval machdep (host,offset) =
+  let newhost = 
+    match host with
+    | Mem e -> Mem (constFold machdep e)
+    | Var _ -> host
+  in
+  let rec constFoldOffset machdep = function
+    | NoOffset -> NoOffset
+    | Field (fi,offset) -> Field (fi, constFoldOffset machdep offset)
+    | Index (exp,offset) -> Index (constFold machdep exp,
+                                   constFoldOffset machdep offset)
+  in
+  (newhost, constFoldOffset machdep offset)
 
 and constFoldBinOp (machdep: bool) bop e1 e2 tres = 
   let e1' = constFold machdep e1 in
@@ -3211,7 +3227,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Set(lv,e,l) -> begin
         (* Be nice to some special cases *)
         match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'), Const(CInt64(one,_,_)),_)
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
             when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
