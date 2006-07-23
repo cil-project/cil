@@ -4227,7 +4227,10 @@ echo "${ECHO_T}configuring for Cygwin on win32/x86" >&6
     # override CILHOME; even on cygwin we want forward slashes
     # sm: I folded this into what I hope will be the only
     # case-analysis of machine type
-    CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
+    #CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
+    # Try to use the Unix paths even on cygwin. The newest versions of make
+    #  do not like colons in file names
+    CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;

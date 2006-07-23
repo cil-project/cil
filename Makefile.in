@@ -97,7 +97,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 # otherwise every program that links against that library will get
 # main's argument checking and whatnot ...
 CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
-CILLY_CMODULES =
+CILLY_CMODULES = perfcount
 CILLY_LIBS     = unix str
 
 SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
@@ -117,7 +117,7 @@ include ocamlutil/Makefile.ocaml
 
 cilly: $(OBJDIR)/cilly$(EXE)
 $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
-                        $(perfcount $(CILLY_CMODULES):%=$(OBJDIR)/%.$(CMC))
+                        $(CILLY_CMODULES:%=$(OBJDIR)/%.$(CMC))
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
 	$(AT)$(CAMLLINK) -verbose -o $@ \
                     $(CILLY_LIBS:%=%.$(CMXA)) \
