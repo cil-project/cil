@@ -130,8 +130,20 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       [] -> addOptionSucc next
     | hd::_ -> addSucc hd
   in
+  let instrFallsThrough (i : instr) : bool = match i with
+      Call (_, Lval (Var vf, NoOffset), _, _) -> 
+        (* See if this has the noreturn attribute *)
+        not (hasAttribute "noreturn" vf.vattr)
+    | Call (_, f, _, _) -> 
+        not (hasAttribute "noreturn" (typeAttrs (typeOf f)))
+    | _ -> true
+  in
   match s.skind with
-    Instr _  -> addOptionSucc next
+    Instr il  -> 
+      if List.for_all instrFallsThrough il then
+        addOptionSucc next
+      else
+        ()
   | Return _  -> ()
   | Goto (p,_) -> addSucc !p
   | Break _ -> addOptionSucc break

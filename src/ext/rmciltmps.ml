@@ -730,16 +730,14 @@ end
 (* Remove local declarations that aren't set or used *)
 (* fundec -> unit *)
 let rm_unused_locals fd =
+  let oldIgnoreSizeof = !UD.ignoreSizeof in
+  UD.ignoreSizeof := false;
   let used = List.fold_left (fun u s ->
     let u', d' = UD.computeDeepUseDefStmtKind s.skind in
     UD.VS.union u (UD.VS.union u' d')) UD.VS.empty fd.sbody.bstmts in
+  UD.ignoreSizeof := oldIgnoreSizeof;
 
-  let unused = List.fold_left (fun un vi ->
-    if UD.VS.mem vi used
-    then un
-    else UD.VS.add vi un) UD.VS.empty fd.slocals in
-
-  let good_var vi = not(UD.VS.mem vi unused) in
+  let good_var vi = UD.VS.mem vi used in
   let good_locals = List.filter good_var fd.slocals in
   fd.slocals <- good_locals
 

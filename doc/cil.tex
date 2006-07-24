@@ -3112,6 +3112,10 @@ as it will ensure your message is viewed by a broad audience.
   parentheses). However, this means that when you use pLval to print lvalues
   inside expressions, you must take care about parentheses yourself. Thanks to
   Benjamin Monate for pointing this out. 
+\item {\bf July 21, 2006}: Added new hooks to the Usedef and 
+  Dataflow.BackwardsTransfer APIs.  Code that uses these will need to
+  be changed slightly.  Also, updated the \moduleref{Cfg} code to
+  handle noreturn functions.
 \item {\bf July 17, 2006}: Fix parsing of attributes on bitfields and
   empty attribute lists.  Thanks to Peter Hawkins.
 \item {\bf July 10, 2006}: Fix Makefile problem for FreeBSD.  Thanks
