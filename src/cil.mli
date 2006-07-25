@@ -1267,7 +1267,7 @@ val makeZeroInit: typ -> init
              ~ct:ct
              ~initl:initl
              ~acc:acc
-} 
+v}
 *)
 val foldLeftCompound: 
     implicit:bool ->

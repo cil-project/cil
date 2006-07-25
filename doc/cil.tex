@@ -213,11 +213,28 @@ cygwin version of ocaml (preferred) and with the Win32 version of ocaml.
 \end{itemize}
 
 \begin{enumerate}
+\item Get the source code.
+\begin{itemize}
+\item {\em Official distribution} (Recommended):
+\begin{enumerate}
 \item Download the CIL \ahref{distrib}{distribution} (latest version is
 \ahrefurl{distrib/cil-\cilversion.tar.gz}). See the \secref{changes} for recent changes to the CIL distribution.
 \item Unzip and untar the source distribution. This will create a directory
       called \t{cil} whose structure is explained below. \\
-      \t{tar xvfz cil-\cilversion.tar.gz}
+      \t{~~~~tar xvfz cil-\cilversion.tar.gz}
+\end{enumerate}
+\item {\em CVS Repository}: \\
+  Alternately, you can download an up to the minute version of CIL
+  from our CVS repository at:
+\begin{verbatim}
+    cvs -d :pserver:cvs@manju.cs.berkeley.edu:/home/cvs-repository co cil
+\end{verbatim}
+However, the CVS version may be less stable than the released
+version.  See the Changes section of doc/cil.tex to see what's
+changed since the last release.  There may be changes that aren't yet
+documented in the .tex file or this website.
+
+\end{itemize}
 \item Enter the \t{cil} directory and run the \t{configure} script and then 
       GNU make to build the distribution. If you are on Windows, at least the
       \t{configure} step must be run from within \t{bash}. \\
