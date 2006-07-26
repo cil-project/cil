@@ -3272,7 +3272,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
           let destlv = match stripCasts adest with 
             AddrOf destlv -> destlv
-          | _ -> E.s (E.error "Encountered unexpected call to %s\n" vi.vname)
+              (* If this fails, it's likely that an extension interfered
+                 with the AddrOf *)
+          | _ -> E.s (E.bug 
+                        "%a: Encountered unexpected call to %s with dest %a\n" 
+                        d_loc l vi.vname self#pExp adest)
           in
           self#pLineDirective l
 	    ++ self#pLval () destlv ++ text " = "
