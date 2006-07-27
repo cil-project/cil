@@ -342,7 +342,7 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
 	CCURED_NO_SIGABRT=1 \
-	COMMAND="$(CILLY) --allowInlineAssembly \
+	COMMAND="$(CILLY) \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe" \
 	COMMENT="//" \
@@ -352,7 +352,7 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small2; \
 	CCURED_NO_SIGABRT=1 \
-	COMMAND="$(CILLY) --allowInlineAssembly \
+	COMMAND="$(CILLY) \
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
 	COMMENT="//" \

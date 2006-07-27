@@ -605,7 +605,7 @@ addTest("scott/volatilestruct");
 addTest("scott/sizeofchar");
 addTest("scott/initedextern");
 addTest("scott/arrayinit");
-addTest("scott/structattr2");
+addTest("runall/structattr2");
 addTest("scott/structattr3");
 addTest("scott/enumerator_sizeof");
 addTest("testrun/decl_mix_stmt");
