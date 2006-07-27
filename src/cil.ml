@@ -1765,7 +1765,7 @@ let separateStorageModifiers (al: attribute list) =
     try 
       match H.find attributeHash an with
         AttrName issm -> issm
-      | _ -> E.s (E.bug "separateStorageModifier: %s is not a name attribute" an)
+      | _ -> false
     with Not_found -> false
   in
     let stom, rest = List.partition isstoragemod al in
