@@ -1134,18 +1134,19 @@ let rec castTo ?(fromsource=false)
      * source. *)
     (ot, e) 
   else begin
-    let result = (nt, 
-                  if !insertImplicitCasts || fromsource then mkCastT e ot nt else e) in
+    let nt' = unrollType nt in
+    let result = (nt', 
+                  if !insertImplicitCasts || fromsource then mkCastT e ot nt' else e) in
 
     if debugCast then 
       ignore (E.log "castTo: ot=%a nt=%a\n  result is %a\n" 
-                d_type ot d_type nt
+                d_type ot d_type nt'
                 d_plainexp (snd result));
 
     (* Now see if we can have a cast here *)
-    match ot, nt with
-      TNamed(r, _), _ -> castTo ~fromsource:fromsource r.ttype nt e
-    | _, TNamed(r, _) -> castTo ~fromsource:fromsource ot r.ttype e
+    match unrollType ot, nt' with
+      TNamed _, _ 
+    | _, TNamed _ -> E.s (bug "unrollType failed in castTo")
     | TInt(ikindo,_), TInt(ikindn,_) -> 
         (* We used to ignore attributes on integer-integer casts. Not anymore *)
         (* if ikindo = ikindn then (nt, e) else *) 
@@ -1159,9 +1160,9 @@ let rec castTo ?(fromsource=false)
           
     | TArray _, TPtr _ -> result
           
-    | TArray(t1,_,_), TArray(t2,None,_) when Util.equals (typeSig t1) (typeSig t2) -> (nt, e)
+    | TArray(t1,_,_), TArray(t2,None,_) when Util.equals (typeSig t1) (typeSig t2) -> (nt', e)
           
-    | TPtr _, TArray(_,_,_) -> (nt, e)
+    | TPtr _, TArray(_,_,_) -> (nt', e)
           
     | TEnum _, TInt _ -> result
     | TFloat _, (TInt _|TEnum _) -> result
@@ -1189,7 +1190,7 @@ let rec castTo ?(fromsource=false)
           (* Even casts between structs are allowed when we are only 
            * modifying some attributes *)
     | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> 
-        (nt, e)
+        (nt', e)
           
           (** If we try to pass a transparent union value to a function 
            * expecting a transparent union argument, the argument type would 
@@ -1198,7 +1199,7 @@ let rec castTo ?(fromsource=false)
            * that into a field access *)
     | TComp(tunion, a1), nt -> begin
         match isTransparentUnion ot with 
-          None -> E.s (error "castTo %a -> %a@!" d_type ot d_type nt)
+          None -> E.s (error "castTo %a -> %a@!" d_type ot d_type nt')
         | Some fstfield -> begin
             (* We do it now only if the expression is an lval *)
             let e' = 
@@ -1208,10 +1209,10 @@ let rec castTo ?(fromsource=false)
               | _ -> E.s (unimp "castTo: transparent union expression is not an lval: %a\n" d_exp e)
             in
             (* Continue casting *)
-            castTo ~fromsource:fromsource fstfield.ftype nt e'
+            castTo ~fromsource:fromsource fstfield.ftype nt' e'
         end
     end
-    | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt)
+    | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt')
   end
 
 
