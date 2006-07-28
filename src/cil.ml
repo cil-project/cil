@@ -2412,7 +2412,10 @@ and constFold (machdep: bool) (e: exp) : exp =
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 
         (* Might truncate silently *)
-        Const(CInt64(i,k,_)), TInt(nk,_) -> 
+        Const(CInt64(i,k,_)), TInt(nk,a)
+          (* It's okay to drop a cast to const.
+             If the cast has any other attributes, leave the cast alone. *)
+          when (dropAttributes ["const"] a) = [] -> 
           let i', _ = truncateInteger64 nk i in
           Const(CInt64(i', nk, None))
       | e', _ -> CastE (t, e')
