@@ -588,8 +588,16 @@ and hash = parse
 | blank		{ hash lexbuf}
 | intnum	{ (* We are seeing a line number. This is the number for the 
                    * next line *)
-                  E.setCurrentLine (int_of_string (Lexing.lexeme lexbuf) - 1);
-                  (* A file name must follow *)
+                 let s = Lexing.lexeme lexbuf in
+                 let lineno = try
+                   int_of_string s
+                 with Failure ("int_of_string") ->
+                   (* the int is too big. *)
+                   E.warn "Bad line number in preprocessed file: %s" s;
+                   (-1)
+                 in
+                  E.setCurrentLine (lineno - 1);
+                  (* A file name may follow *)
 		  file lexbuf }
 | "line"        { hash lexbuf } (* MSVC line number info *)
                 (* For pragmas with irregular syntax, like #pragma warning, 

@@ -305,6 +305,7 @@ addTest("test/jmp_buf");
 addTest("test/linux_atomic _GNUCC=1");
 addTest("testrun/linux_signal _GNUCC=1");
 addTest("test/li");
+addTest("test_i/lineno");
 addTest("test/list");
 addTest("testrun/localinit ");
 
