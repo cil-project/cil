@@ -2920,6 +2920,11 @@ let msvcBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__annotation" (voidType, [ ], true);
   h
 
+(** This is used as the location of the prototypes of builtin functions. *)
+let builtinLoc: location = { line = 1; 
+                             file = "<compiler builtins>"; 
+                             byte = 0;}
+
 
 
 let pTypeSig : (typ -> typsig) ref =
@@ -3752,9 +3757,18 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       
     (* print global variable 'extern' declarations, and function prototypes *)    
     | GVarDecl (vi, l) ->
-        self#pLineDirective l ++
-          (self#pVDecl () vi)
-          ++ text ";\n"
+        let builtins = if !msvcMode then msvcBuiltins else gccBuiltins in
+        if not !printCilAsIs && H.mem builtins vi.vname then begin
+          (* Compiler builtins need no prototypes. Just print them in
+             comments. *)
+          text "/* compiler builtin: \n   " ++
+            (self#pVDecl () vi)
+            ++ text ";  */\n"
+          
+        end else
+          self#pLineDirective l ++
+            (self#pVDecl () vi)
+            ++ text ";\n"
 
     | GAsm (s, l) ->
         self#pLineDirective l ++

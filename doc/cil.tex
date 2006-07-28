@@ -3121,6 +3121,11 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf July 27, 2006}: CIL files now include the prototypes of
+  builtin functions (such as \t{\_\_builtin\_va\_arg}).  This
+  preserves the invariant that every function call has a corresponding
+  function or function prototype in the file.  However, the prototypes
+  of builtins are not printed in the output files.
 \item {\bf July 23, 2006}: Incorporated some fixes for the constant folding
  for lvalues, and fixed grammatical errors. Thanks to Christian Stork.
 \item {\bf July 23, 2006}: Changed the way ./configure works. We now generate

@@ -1239,8 +1239,12 @@ val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
  * argument types, and whether it is vararg *)
 val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
  
-(** {b Values for manipulating initializers} *)
+(** This is used as the location of the prototypes of builtin functions. *)
+val builtinLoc: location
 
+
+
+(** {b Values for manipulating initializers} *)
 
 (** Make a initializer for zero-ing a data type *)
 val makeZeroInit: typ -> init

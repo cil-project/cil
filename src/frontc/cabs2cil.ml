@@ -6078,7 +6078,9 @@ let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
                                Some (List.map (fun at -> ("", at, [])) 
                                        argTypes),
                                isva, [])) in
-    ignore (alphaConvertVarAndAddToEnv true v)
+    ignore (alphaConvertVarAndAddToEnv true v);
+    (* Add it to the file as well *)
+    cabsPushGlobal (GVarDecl (v, Cil.builtinLoc))
   in
   H.iter setupBuiltin (if !msvcMode then msvcBuiltins else gccBuiltins);
 
