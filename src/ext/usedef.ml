@@ -15,7 +15,7 @@ module VS = Set.Make (struct
     purpose of Use analysis, in case you have a function that needs special
     treatment of its args. *)
 let getUseDefFunctionRef: (exp -> exp list -> VS.t * VS.t * exp list) ref = 
-  ref (fun f args -> (VS.empty, VS.empty, args))
+  ref (fun func args -> (VS.empty, VS.empty, args))
 
 (** Say if you want to consider a variable use.  This applies to
   variable reads only; see also considerVariableAddrOfAsUse *)
@@ -40,7 +40,9 @@ let extraUsesOfExpr: (exp -> VS.t) ref =
 (* When this is true, only definitions of a variable without
    an offset are counted as definitions. So:
    a = 5; would be a definition, but
-   a[1] = 5; would not *)
+   a[1] = 5; would not.
+   Exception: writing to a union field is considered to be a definition of
+   the union even if this is set to true.*)
 let onlyNoOffsetsAreDefs: bool ref = ref false
 
 (** Should we ignore the contents of sizeof and alignof? *)
@@ -67,6 +69,12 @@ class useDefVisitorClass : cilVisitor = object (self)
     if !onlyNoOffsetsAreDefs then
       match l with
 	(Var vi, NoOffset) ->
+	  if (!considerVariableDef) vi then
+	    varDefs := VS.add vi !varDefs;
+	  SkipChildren
+      | (Var vi, Field(fi, NoOffset)) when not fi.fcomp.cstruct ->
+          (* If we are writing to a union field, treat that the same
+             as a write to a union. *)
 	  if (!considerVariableDef) vi then
 	    varDefs := VS.add vi !varDefs;
 	  SkipChildren
