@@ -51,4 +51,9 @@ val allowDuplication: bool ref
 (** A hook into the code that creates temporary local vars.  By default this
   is the identity function, but you can overwrite it if you need to change the
   types of cabs2cil-introduced temp variables. *)
-val typeForTempVar: (Cil.typ -> Cil.typ) ref
+val typeForInsertedVar: (Cil.typ -> Cil.typ) ref
+
+(** Like [typeForInsertedVar], but for casts.  
+  * Casts in the source code are exempt from this hook. *)
+val typeForInsertedCast: (Cil.typ -> Cil.typ) ref
+
