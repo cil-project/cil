@@ -47,3 +47,8 @@ val nocil: int ref
 
 (* Indicates whether we're allowed to duplicate small chunks of code. *)
 val allowDuplication: bool ref
+
+(** A hook into the code that creates temporary local vars.  By default this
+  is the identity function, but you can overwrite it if you need to change the
+  types of cabs2cil-introduced temp variables. *)
+val typeForTempVar: (Cil.typ -> Cil.typ) ref

@@ -67,6 +67,11 @@ let nocil: int ref = ref (-1)
 (* Indicates whether we're allowed to duplicate small chunks. *)
 let allowDuplication: bool ref = ref true
 
+(** A hook into the code that creates temporary local vars.  By default this
+  is the identity function, but you can overwrite it if you need to change the
+  types of cabs2cil-introduced temp variables. *)
+let typeForTempVar: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
+
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
 let cabslu = {lineno = -10; 
@@ -597,7 +602,7 @@ let newTempVar typ =
   if !currentFunctionFDEC == dummyFunDec then 
     E.s (bug "newTempVar called outside a function");
 (*  ignore (E.log "stripConstLocalType(%a) for temporary\n" d_type typ); *)
-  let t' = stripConstLocalType typ in
+  let t' = (!typeForTempVar) (stripConstLocalType typ) in
   (* Start with the name "tmp". The alpha converter will fix it *)
   let vi = makeVarinfo false "tmp" t' in
   alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
