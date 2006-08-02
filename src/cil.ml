@@ -4158,6 +4158,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           let dx, ina = self#pAttr x in
           if ina then 
             loop (dx :: in__attr__) rest
+          else if dx = nil then
+            loop in__attr__ rest
           else
             dx ++ text " " ++ loop in__attr__ rest
     in
