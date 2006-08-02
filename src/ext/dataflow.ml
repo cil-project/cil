@@ -442,25 +442,30 @@ module BackwardsDataFlow =
                     (docList (fun s -> num s.sid)) 
                     (List.rev
                        (Queue.fold (fun acc s -> s :: acc) [] worklist)));
-        try 
-          let s = Queue.take worklist in 
-          let changes = processStmt s in 
-          if changes then begin
-            (* We must add all predecessors of block b, only if not already 
-             * in and if the filter accepts them. *)
-            List.iter 
-              (fun p ->
-                if not (Queue.fold (fun exists s' -> exists || p.sid = s'.sid) 
-                          false worklist) &&
-                  T.filterStmt p s then 
-                  Queue.add p worklist)
-              s.preds;
-          end;
-          fixedpoint ();
+        let keepgoing = 
+          try 
+            let s = Queue.take worklist in 
+            let changes = processStmt s in 
+            if changes then begin
+              (* We must add all predecessors of block b, only if not already 
+               * in and if the filter accepts them. *)
+              List.iter 
+                (fun p ->
+                   if not (Queue.fold (fun exists s' -> exists || p.sid = s'.sid) 
+                             false worklist) &&
+                     T.filterStmt p s then 
+                       Queue.add p worklist)
+                s.preds;
+            end;
+            true
 
-        with Queue.Empty -> 
-          if !T.debug then 
-            ignore (E.log "BF(%s): done\n\n" T.name)
+          with Queue.Empty -> 
+            if !T.debug then 
+              ignore (E.log "BF(%s): done\n\n" T.name);
+            false
+        in
+        if keepgoing then
+          fixedpoint ();
       in
       fixedpoint ();
           
