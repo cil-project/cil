@@ -61,6 +61,9 @@ val repeattime : float -> string -> ('a -> 'b) -> 'a -> 'b
 (** Print the current stats preceeded by a message *)
 val print : out_channel -> string -> unit
 
+(** Return the cumulative time of all calls to {!Stats.time} and
+  {!Stats.repeattime} with the given label. *)
+val lookupTime: string -> float
 
 
 (** Time a function and set lastTime to the time it took *)

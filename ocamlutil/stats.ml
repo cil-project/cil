@@ -94,7 +94,7 @@ let get_current_time () : float =
 let repeattime limit str f arg = 
                                         (* Find the right stat *)
   let stat : t = 
-    let curr = match !current with h :: _ -> h | _ -> assert false in
+    let curr = match !current with h :: _ -> h | [] -> assert false in
     let rec loop = function
         h :: _ when h.name = str -> h
       | _ :: rest -> loop rest
@@ -132,7 +132,18 @@ let timethis (f: 'a -> 'b) (arg: 'a) : 'b =
   lastTime := get_current_time () -. start; 
   res
   
-
+(** Return the cumulative time of all calls to {!Stats.time} and
+  {!Stats.repeattime} with the given label. *)
+(* Usually there will be only one occurence in the tree, but summing them all
+   makes more sense than choosing one arbitrarily *)
+let lookupTime (label:string) : float =
+  let time : float ref = ref 0.0 in
+  let rec search (x:t) : unit = 
+    if x.name = label then time := !time +. x.time;
+    List.iter search x.sub
+  in
+  search top;
+  !time
 
 
 
