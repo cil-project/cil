@@ -4201,15 +4201,42 @@ done
 # ----------- platform-specific code -------------
 # $target is typically processor-vendor-os
 case "$target" in
-  # linux
-  *86*linux*|*86*freebsd*|*86*openbsd*|*86*darwin*)
+
+  *86*linux*)
     echo "$as_me:$LINENO: result: configuring for linux/x86" >&5
 echo "${ECHO_T}configuring for linux/x86" >&6
 
     ARCHOS=x86_LINUX
     ;;
 
+  *86*openbsd*)
+    echo "$as_me:$LINENO: result: configuring for OpenBSD/x86" >&5
+echo "${ECHO_T}configuring for OpenBSD/x86" >&6
+
+    ARCHOS=x86_OPENBSD
+    ;;
+
+  *i386*freebsd*|*amd64*freebsd*)
+
+    if test x"${ARCH}" = x""; then
+       ARCH=`uname -p`
+    fi
+
+    echo "$as_me:$LINENO: result: configuring for freebsd/${ARCH}" >&5
+echo "${ECHO_T}configuring for freebsd/${ARCH}" >&6
+
+    ARCHOS=${ARCH}_FREEBSD
+    ;;
+
+
   # Mac OS X
+  *86*darwin*)
+    echo "$as_me:$LINENO: result: configuring for darwin/x86" >&5
+echo "${ECHO_T}configuring for darwin/x86" >&6
+
+    ARCHOS=x86_DARWIN
+    ;;
+
   *powerpc*darwin*)
     echo "$as_me:$LINENO: result: configuring for powerpc/darwin" >&5
 echo "${ECHO_T}configuring for powerpc/darwin" >&6
@@ -4247,14 +4274,16 @@ echo "${ECHO_T}configuring for SPARC/Solaris" >&6
     { { echo "$as_me:$LINENO: error:
       Unsupported platform $target -- sorry.
       ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), freeBSD, openBSD, and Mac OS X
+         on x86:     Linux, Win32(with Cygwin), FreeBSD, OpenBSD, and Mac OS X
+         on amd64:   FreeBSD
          on PowerPC: Mac OS X
          on SPARC:   Solaris
     " >&5
 echo "$as_me: error:
       Unsupported platform $target -- sorry.
       ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), freeBSD, openBSD, and Mac OS X
+         on x86:     Linux, Win32(with Cygwin), FreeBSD, OpenBSD, and Mac OS X
+         on amd64:   FreeBSD
          on PowerPC: Mac OS X
          on SPARC:   Solaris
     " >&2;}

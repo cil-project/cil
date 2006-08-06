@@ -456,8 +456,6 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
               $(TOP_DIR)/obj/.depend \
               $(TOP_DIR)/obj/x86_WIN32 \
               $(TOP_DIR)/obj/x86_LINUX \
-              $(TOP_DIR)/obj/ppc_DARWIN \
-              $(TOP_DIR)/obj/sparc_SOLARIS \
               $(TOP_DIR)/test \
               $(TOP_DIR)/test/small1 \
               $(TOP_DIR)/ocamlutil

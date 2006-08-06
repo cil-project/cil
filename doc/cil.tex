@@ -282,9 +282,11 @@ We have tested CIL on the following compilers:
 \item On Linux, using \t{gcc} version 2.95.3, 3.0, 3.2, 3.3, and 4.0.
 \end{itemize}
 
-Others have successfully used CIL with Mac OS X (on both PowerPC and
-x86), Solaris, and *BSD.  If you make any changes to the build
-system in order to run CIL on your platform, please send us a patch.
+Others have successfully used CIL on x86 processors with Mac OS X,
+FreeBSD and OpenBSD; on amd64 processors with FreeBSD; on SPARC
+processors with Solaris; and on PowerPC processors with Mac OS X.  If
+you make any changes to the build system in order to run CIL on your
+platform, please send us a patch.
 
   \subsection{Building CIL on Windows with Microsoft Visual C}
 
@@ -3121,6 +3123,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf August 6, 2006}: Joseph Koshy patched \t{./configure} for
+  FreeBSD on amd64.
 \item {\bf July 27, 2006}: CIL files now include the prototypes of
   builtin functions (such as \t{\_\_builtin\_va\_arg}).  This
   preserves the invariant that every function call has a corresponding

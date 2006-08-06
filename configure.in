@@ -384,14 +384,38 @@ AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 # ----------- platform-specific code -------------
 # $target is typically processor-vendor-os
 case "$target" in
-  # linux
-  *86*linux*|*86*freebsd*|*86*openbsd*|*86*darwin*)
+
+  *86*linux*)
     AC_MSG_RESULT(configuring for linux/x86)
 
     ARCHOS=x86_LINUX
     ;;
 
+  *86*openbsd*)
+    AC_MSG_RESULT(configuring for OpenBSD/x86)
+
+    ARCHOS=x86_OPENBSD
+    ;;
+
+  *i386*freebsd*|*amd64*freebsd*)
+
+    if test x"${ARCH}" = x""; then
+       ARCH=`uname -p`
+    fi
+
+    AC_MSG_RESULT(configuring for freebsd/${ARCH})
+
+    ARCHOS=${ARCH}_FREEBSD
+    ;;
+
+
   # Mac OS X
+  *86*darwin*)
+    AC_MSG_RESULT(configuring for darwin/x86)
+
+    ARCHOS=x86_DARWIN
+    ;;
+
   *powerpc*darwin*)
     AC_MSG_RESULT(configuring for powerpc/darwin, which we treat like linux/x86)
 
@@ -426,7 +450,8 @@ case "$target" in
     AC_MSG_ERROR([
       Unsupported platform $target -- sorry.
       ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), freeBSD, openBSD, and Mac OS X
+         on x86:     Linux, Win32(with Cygwin), FreeBSD, OpenBSD, and Mac OS X
+         on amd64:   FreeBSD
          on PowerPC: Mac OS X 
          on SPARC:   Solaris
     ])
