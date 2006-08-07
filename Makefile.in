@@ -382,7 +382,7 @@ TEMP_DIR = TEMP_cil-distrib
 TOP_DIR = $(TEMP_DIR)/cil
 
 DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
-               config.h.in Makefile.gcc Makefile.msvc \
+               config.h.in config.mk.in Makefile.gcc Makefile.msvc \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in
 
