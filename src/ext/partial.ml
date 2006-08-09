@@ -227,7 +227,7 @@ module NeculaFolding = functor (A : AliasInfo) ->
     class findLval lv contains = object
       inherit nopCilVisitor 
       method vlval l = 
-        if l = lv then 
+        if Util.equals l lv then 
           (contains := true ; SkipChildren)
         else
           DoChildren
@@ -277,7 +277,7 @@ module NeculaFolding = functor (A : AliasInfo) ->
       IntMap.iter (fun id reg -> 
         try 
           let reg' = IntMap.find id r2 in
-          if reg'.rval = reg.rval && reg'.rmem = reg.rmem then 
+          if Util.equals reg'.rval reg.rval && reg'.rmem = reg.rmem then 
             keep := (id,reg) :: !keep 
         with _ -> ()
       ) r1 ;

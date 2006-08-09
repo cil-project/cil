@@ -240,10 +240,10 @@ sub lineDirective {
     if($::iswin32) {
         $fileName =~ s|\\|/|g;
     }
-    if($option{mode} eq "MSVC") {
+    if($option{mode} eq "GNUCC" || $option{mode} eq "MSVC") {
         return "#line $lineno \"$fileName\"\n";
     }
-    if($option{mode} eq "GNUCC" || $option{mode} eq "EDG") {
+    if($option{mode} eq "EDG") {
         return "# $lineno \"$fileName\"\n";
     }
     die "lineDirective: invalid mode";

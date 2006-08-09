@@ -91,8 +91,8 @@ type lineDirectiveStyle =
                                 * visual inspection *)
   | LineCommentSparse          (** Like LineComment but only print a line 
                                 * directive for a new source line *)
-  | LinePreprocessorInput      (** Use # nnn directives (in gcc mode) *)
-  | LinePreprocessorOutput     (** Use #line directives *)
+  | LinePreprocessorInput      (** Use #line directives *)
+  | LinePreprocessorOutput     (** Use # nnn directives (in gcc mode) *)
 
 let lineDirectiveStyle = ref (Some LinePreprocessorInput)
  
@@ -3492,7 +3492,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	  match style with
 	  | LineComment | LineCommentSparse -> text "//#line "
 	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
-	  | _ -> text "#line"
+	  | LinePreprocessorOutput | LinePreprocessorInput -> text "#line"
 	in
         lastLineNumber <- l.line; 
 	let filename =
