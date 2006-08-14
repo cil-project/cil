@@ -1613,6 +1613,11 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     in
     oldvi.vinline <- oldvi.vinline || vi.vinline;
     oldvi.vstorage <- newstorage;
+    (* If the new declaration has a section attribute, remove any
+     * preexisting section attribute. This mimics behavior of gcc that is
+     * required to compile the Linux kernel properly. *)
+    if hasAttribute "section" vi.vattr then
+      oldvi.vattr <- dropAttribute "section" oldvi.vattr;
     (* Union the attributes *)
     oldvi.vattr <- cabsAddAttributes oldvi.vattr vi.vattr;
     begin 
