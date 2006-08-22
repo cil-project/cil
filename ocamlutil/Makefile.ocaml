@@ -61,6 +61,8 @@
   #              (NATIVECAML mode only)
   # PREPROC    - the preprocessor command
 
+  # WIN32      - means that we are using the Windows native tools
+
   # MODULES    - a list of all modules for all projects defined in the 
   #              Makefile. Give only the basenames (no directory, 
   #              no extension).  This is used to create the dependencies.
