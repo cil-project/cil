@@ -281,13 +281,18 @@ module ForwardsDataFlow =
                     (docList (fun s -> num s.sid)) 
                     (List.rev
                        (Queue.fold (fun acc s -> s :: acc) [] worklist)));
-        try 
-          let s = Queue.take worklist in 
-          processStmt s;
-          fixedpoint ();
-        with Queue.Empty -> 
-          if !T.debug then 
-            ignore (E.log "FF(%s): done\n\n" T.name)
+        let keepgoing = 
+          try 
+            let s = Queue.take worklist in 
+            processStmt s;
+            true
+          with Queue.Empty -> 
+            if !T.debug then 
+              ignore (E.log "FF(%s): done\n\n" T.name);
+            false
+        in
+        if keepgoing then
+          fixedpoint ()
       in
       fixedpoint ()
           
