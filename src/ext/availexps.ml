@@ -122,8 +122,8 @@ let eh_combine eh1 eh2 =
 			  eh_pretty eh');
   eh'
 
-(* On a memory write, kill expressions containing memory writes
- * variables whose address has been taken, and globals. *)
+(* On a memory write, kill expressions containing memory reads
+   variables whose address has been taken, and globals. *)
 let exp_ok = ref false
 class memReadOrAddrOfFinderClass = object(self)
   inherit nopCilVisitor

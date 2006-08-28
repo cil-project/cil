@@ -459,12 +459,18 @@ let iosh_get_useful_def iosh vi =
 let ae_tmp_to_exp_change = ref false
 let ae_tmp_to_exp eh sid vi fd nofrm =
   if nofrm || (check_forms vi.vname forms)
-  then try 
-    begin let e = IH.find eh vi.vid in
+  then try begin
+    let e = IH.find eh vi.vid in
     if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n"
 			    vi.vname d_plainexp e);
-    ae_tmp_to_exp_change := true;
-    Some e end
+    match e with
+    | Const(CStr _)
+    | Const(CWStr _) -> None (* don't fwd subst str lits *)
+    | _ -> begin
+	ae_tmp_to_exp_change := true;
+	Some e 
+    end
+  end
   with Not_found -> None
   else None
 
@@ -488,8 +494,13 @@ let rd_tmp_to_exp iosh sid vi fd nofrm =
 	if S.time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
-	   rd_tmp_to_exp_change := true;
-	   Some e)
+	   match e with
+	   | Const(CStr _)
+	   | Const(CWStr _) -> None
+	   | _ -> begin
+	       rd_tmp_to_exp_change := true;
+	       Some e
+	   end)
 	else 
 	  (if !debug then ignore(E.log "tmp_to_exp: not ok to replace %s\n" vi.vname);
 	   None)
