@@ -262,8 +262,12 @@ let eh_handle_inst i eh =
 	    (IH.replace eh vi.vid e;
 	     eh_kill_vi eh vi;
 	     eh))
-    | _ -> (eh_kill_lval eh lv;
-	    eh))
+    | (Var vi, _ ) -> begin
+	(* must remove mapping for vi *)
+	IH.remove eh vi.vid;
+	eh_kill_lval eh lv;
+	eh
+    end)
   | Call(Some(Var vi,NoOffset),_,_,_) ->
       (IH.remove eh vi.vid;
        eh_kill_vi eh vi;
