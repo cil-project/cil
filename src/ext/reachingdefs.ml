@@ -241,33 +241,35 @@ let getDefRhs didstmh stmdat defId =
     Instr il ->
       let ivihl = instrRDs il stm.sid ((),s,iosh) true in (* defs that reach out of each instr *)
       let ivihl_in = instrRDs il stm.sid ((),s,iosh) false in (* defs that reach into each instr *)
-      let iihl = List.combine (List.combine il ivihl) ivihl_in in
-      (try let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.find (fun ((i,(_,_,iosh')),_) ->
-	match S.time "iosh_defId_find" (iosh_defId_find iosh') defId with
-	  Some vid -> 
-	    (match i with
-	      Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
-	    | Call(Some(Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
-	    | Call(None,_,_,_) -> false
-	    | Asm(_,_,sll,_,_,_) -> List.exists 
-		  (function (_,_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
-	    | _ -> false)
-	| None -> false) iihl in
-      (match i with
-	Set((lh,_),e,_) ->
-	  (match lh with
-	    Var(vi') -> 
-	      (IH.add rhsHtbl defId (Some(RDExp(e),stm.sid,iosh_in));
-	       Some(RDExp(e), stm.sid, iosh_in))
-	  | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
-      | Call(lvo,e,el,_) -> 
-	  (IH.add rhsHtbl defId (Some(RDCall(i),stm.sid,iosh_in));
-	   Some(RDCall(i), stm.sid, iosh_in))
-      | Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
-      with Not_found ->
-	(if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
-	 IH.add rhsHtbl defId None;
-	 None))
+      begin try
+	let iihl = List.combine (List.combine il ivihl) ivihl_in in
+	(try let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.find (fun ((i,(_,_,iosh')),_) ->
+	  match S.time "iosh_defId_find" (iosh_defId_find iosh') defId with
+	    Some vid -> 
+	      (match i with
+		Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
+	      | Call(Some(Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
+	      | Call(None,_,_,_) -> false
+	      | Asm(_,_,sll,_,_,_) -> List.exists 
+		    (function (_,_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
+	      | _ -> false)
+	  | None -> false) iihl in
+	(match i with
+	  Set((lh,_),e,_) ->
+	    (match lh with
+	      Var(vi') -> 
+		(IH.add rhsHtbl defId (Some(RDExp(e),stm.sid,iosh_in));
+		 Some(RDExp(e), stm.sid, iosh_in))
+	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
+	| Call(lvo,e,el,_) -> 
+	    (IH.add rhsHtbl defId (Some(RDCall(i),stm.sid,iosh_in));
+	     Some(RDCall(i), stm.sid, iosh_in))
+	| Asm(a,sl,slvl,sel,sl',_) -> None) (* ? *)
+	with Not_found ->
+	  (if !debug then ignore (E.log "getDefRhs: No instruction defines %d\n" defId);
+	   IH.add rhsHtbl defId None;
+	   None))
+      with Invalid_argument _ -> None end
   | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
 	(*None*)
 

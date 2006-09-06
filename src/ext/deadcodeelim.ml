@@ -19,11 +19,34 @@ module IS = Set.Make(
 let debug = RD.debug
 
 
+
+(* This function should be set by the client if it
+ * knows of functions returning a result that have
+ * no side effects. If the result is not used, then
+ * the call will be eliminated. *)
+let callHasNoSideEffects : (instr -> bool) ref = 
+  ref (fun _ -> false)
+
+
+(* the set of used definition ids *)
 let usedDefsSet = ref IS.empty
+
+(* a mapping d -> {u_1,...,u_n} where d is a
+ * definition id, and the u's are definition
+ * ids corresponding to definitions in which
+ * d was used *)
+let defUseSetHash = IH.create 100
+
+(* a mapping d -> {sid_1,...,sid_n} where d is
+ * a definition id and the sids are statement ids
+ * corresponding to non-Instr statements where d
+ * was used *)
+let sidUseSetHash = IH.create 100
+
 (* put used def ids into usedDefsSet *)
 (* assumes reaching definitions have already been computed *)
 class usedDefsCollectorClass = object(self)
-    inherit RD.rdVisitorClass
+    inherit RD.rdVisitorClass as super
 
   method add_defids iosh e u =
     UD.VS.iter (fun vi ->
@@ -47,6 +70,30 @@ class usedDefsCollectorClass = object(self)
 	if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
 	DoChildren
 
+  method vstmt s =
+    ignore(super#vstmt s);
+    match s.skind with
+    | Instr _ -> DoChildren
+    | _ -> begin
+	let u,d = UD.computeUseDefStmtKind s.skind in
+	match self#get_cur_iosh() with
+	| Some iosh ->
+	    UD.VS.iter (fun vi ->
+	      if IH.mem iosh vi.vid then
+		let ios = IH.find iosh vi.vid in
+		RD.IOS.iter (function
+		  | Some i -> begin (* add s.sid to set for i *)
+		      try
+			let set = IH.find sidUseSetHash i in
+			IH.replace sidUseSetHash i (IS.add s.sid set)
+		      with Not_found ->
+			IH.add sidUseSetHash i (IS.singleton s.sid)
+		  end
+		  | None -> ()) ios) u;
+	    DoChildren
+	| None -> DoChildren
+    end
+
   method vinst i =
     let handle_inst iosh i = match i with
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
@@ -54,16 +101,55 @@ class usedDefsCollectorClass = object(self)
 	  if s.[0] = '+' then
 	    self#add_defids iosh (Lval(Var v, off)) (UD.VS.singleton v)
 	| _ -> ()) slvl
+    | Call(_,ce,el,_) when not (!callHasNoSideEffects i) ->
+	List.iter (fun e ->
+	  let u = UD.computeUseExp e in
+	  UD.VS.iter (fun vi ->
+	    if IH.mem iosh vi.vid then
+	      let ios = IH.find iosh vi.vid in
+	      RD.IOS.iter (function
+		| Some i -> begin (* add sid to set for i *)
+		    try
+		      let set = IH.find sidUseSetHash i in
+		      IH.replace sidUseSetHash i (IS.add sid set)
+		    with Not_found ->
+		      IH.add sidUseSetHash i (IS.singleton sid)  
+		end
+		| None -> ()) ios) u) (ce::el)
     | _ -> ()
     in
-    begin try
-      cur_rd_dat <- Some(List.hd rd_dat_lst);
-      rd_dat_lst <- List.tl rd_dat_lst
-    with Failure "hd" -> ()
-    end;
-    match self#get_cur_iosh() with
-      Some iosh -> handle_inst iosh i; DoChildren
-    | None -> DoChildren
+    ignore(super#vinst i);
+    match cur_rd_dat with
+    | None -> begin 
+	if !debug then ignore(E.log "DCE: instr with no cur_rd_dat\n");
+	(* handle_inst *)
+	DoChildren
+    end
+    | Some(_,s,iosh) -> begin
+	let u,d = UD.computeUseDefInstr i in
+	(* add things in d to the U sets for things in u *)
+	let rec loop n =
+	  if n < 0 then () else begin
+	    UD.VS.iter (fun vi ->
+	      if IH.mem iosh vi.vid then
+		let ios = IH.find iosh vi.vid in
+		RD.IOS.iter (function
+		  | Some i -> begin (* add n + s to set for i *)
+		      try 
+			let set = IH.find defUseSetHash i in
+			IH.replace defUseSetHash i (IS.add (n+s) set)
+		      with Not_found ->
+			IH.add defUseSetHash i (IS.singleton (n+s))
+		  end
+		  | None -> ()) ios
+	      else ()) u;
+	    loop (n-1)
+	  end
+	in
+	loop (UD.VS.cardinal d - 1);
+	handle_inst iosh i;
+	DoChildren
+    end
 
 end
 
@@ -89,6 +175,10 @@ let exp_has_volatile e =
   let flag = ref false in
   ignore (visitCilExpr (new hasVolatile flag) e);
   !flag
+
+let el_has_volatile =
+  List.fold_left (fun b e ->
+    b || (exp_has_volatile e)) false
  (***************************************************)
 
 let removedCount = ref 0
@@ -99,21 +189,79 @@ class uselessInstrElim : cilVisitor = object(self)
 
   method vstmt stm =
 
+    (* give a set of varinfos and an iosh and get
+     * the set of definition ids definining the vars *)
+    let viSetToDefIdSet iosh vis =
+      UD.VS.fold (fun vi s ->
+	if IH.mem iosh vi.vid then
+	  let ios = IH.find iosh vi.vid in
+	  RD.IOS.fold (fun io s ->
+	    match io with None -> s
+	    | Some i -> IS.add i s) ios s
+	else s) vis IS.empty
+    in
+
+    (* false when U(defid)\subeq instruses and SU(d) = empty *)
+    let check_defid i instruses iosh defid =
+      IS.mem defid (!usedDefsSet) &&
+      try
+	let defuses = IH.find defUseSetHash defid in
+	(*let siduses = IH.find sidUseSetHash defid in*)
+	if IH.mem sidUseSetHash defid then begin
+	  if !debug then ignore(E.log "siduses not empty: %a\n" d_instr i);
+	  true
+	end else begin
+	  (* true if there is something in defuses not in instruses or when
+	   * something from defuses is in instruses and is also used somewhere else *)
+	  let instruses = viSetToDefIdSet iosh instruses in
+	  IS.fold (fun i' b -> 
+	    if not(IS.mem i' instruses) then begin
+	      if !debug then ignore(E.log "i not in instruses: %a\n" d_instr i);
+	      true
+	    end else
+	      (* can only use the definition i' at the definition defid *)
+	      let i'_uses = IH.find defUseSetHash i' in
+	      IH.mem sidUseSetHash i' ||
+	      if not(IS.equal i'_uses (IS.singleton defid)) then begin
+		IS.iter (fun iu -> match RD.getSimpRhs iu with
+		| Some(RD.RDExp e) -> 
+		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n" 
+			     (IS.cardinal i'_uses) d_exp e)
+		| Some(RD.RDCall i) ->
+		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n" 
+			     (IS.cardinal i'_uses) d_instr i)
+		| None -> ()) i'_uses;
+		true
+	      end else b) defuses false
+	end
+      with Not_found -> true
+    in
+
     let test (i,(_,s,iosh)) =
       match i with 
-	Call _ -> true 
+      | Call(Some(Var vi,NoOffset),Lval(Var vf,NoOffset),el,l) ->
+	  if not(!callHasNoSideEffects i) then begin
+	    if !debug then ignore(E.log "found call w/ side effects: %a\n" d_instr i);
+	    true
+	  end else begin
+	    if !debug then ignore(E.log "found call w/o side effects: %a\n" d_instr i);
+	    (vi.vglob || (Ciltools.is_volatile_vi vi) || (el_has_volatile el) ||
+	    let uses, defd = UD.computeUseDefInstr i in
+	    let rec loop n =
+	      n >= 0 &&
+	      (check_defid i uses iosh (n+s) || loop (n-1))
+	    in
+	    loop (UD.VS.cardinal defd - 1) || (incr removedCount; false))
+	  end
+      |	Call _ -> true 
       | Set((Var vi,NoOffset),e,_) ->
-	  if vi.vglob || (Ciltools.is_volatile_vi vi) || (exp_has_volatile e) then true else
-	  let _, defd = UD.computeUseDefInstr i in
+	  vi.vglob || (Ciltools.is_volatile_vi vi) || (exp_has_volatile e) ||
+	  let uses, defd = UD.computeUseDefInstr i in
 	  let rec loop n =
-	    if n < 0 then false else
-	    if IS.mem (n+s) (!usedDefsSet)
-	    then true
-	    else loop (n-1)
+	    n >= 0 &&
+	    (check_defid i uses iosh (n+s) || loop (n-1))
 	  in
-	  if loop (UD.VS.cardinal defd - 1)
-	  then true
-	  else (incr removedCount; false)
+	  loop (UD.VS.cardinal defd - 1) || (incr removedCount; false)
       | _ -> true
     in
 
@@ -141,6 +289,8 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
   (* fundec -> fundec *)
   let rec loop fd =
     usedDefsSet := IS.empty;
+    IH.clear defUseSetHash;
+    IH.clear sidUseSetHash;
     removedCount := 0;
     S.time "reaching definitions" RD.computeRDs fd;
     ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
@@ -153,9 +303,13 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
 let elim_dead_code (fd : fundec) :  fundec =
   (* fundec -> fundec *)
   usedDefsSet := IS.empty;
+  IH.clear defUseSetHash;
+  IH.clear sidUseSetHash;
   removedCount := 0;
   S.time "reaching definitions" RD.computeRDs fd;
+  if !debug then ignore(E.log "DCE: collecting used definitions\n");
   ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+  if !debug then ignore(E.log "DCE: eliminating useless instructions\n");
   let fd' = visitCilFunction (new uselessInstrElim) fd in
   fd'
 
@@ -163,7 +317,7 @@ class deadCodeElimClass : cilVisitor = object(self)
     inherit nopCilVisitor
 
   method vfunc fd =
-    let fd' = elim_dead_code fd in
+    let fd' = elim_dead_code_fp fd in
     ChangeTo(fd')
 
 end
