@@ -259,7 +259,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	  let uses, defd = UD.computeUseDefInstr i in
 	  let rec loop n =
 	    n >= 0 &&
-	    (check_defid i uses iosh (n+s) || loop (n-1))
+	    (IS.mem (n+s) (!usedDefsSet)(*check_defid i uses iosh (n+s)*) || loop (n-1))
 	  in
 	  loop (UD.VS.cardinal defd - 1) || (incr removedCount; false)
       | _ -> true
