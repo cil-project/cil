@@ -116,6 +116,21 @@ class usedDefsCollectorClass = object(self)
 		      IH.add sidUseSetHash i (IS.singleton sid)  
 		end
 		| None -> ()) ios) u) (ce::el)
+    | Set((Mem _,_) as lh, rhs,l) ->
+	List.iter (fun e ->
+	  let u = UD.computeUseExp e in
+	  UD.VS.iter (fun vi ->
+	    if IH.mem iosh vi.vid then
+	      let ios = IH.find iosh vi.vid in
+	      RD.IOS.iter (function
+		| Some i -> begin (* add sid to set for i *)
+		    try
+		      let set = IH.find sidUseSetHash i in
+		      IH.replace sidUseSetHash i (IS.add sid set)
+		    with Not_found ->
+		      IH.add sidUseSetHash i (IS.singleton sid)  
+		end
+		| None -> ()) ios) u) ([Lval(lh);rhs])
     | _ -> ()
     in
     ignore(super#vinst i);
@@ -259,7 +274,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	  let uses, defd = UD.computeUseDefInstr i in
 	  let rec loop n =
 	    n >= 0 &&
-	    (IS.mem (n+s) (!usedDefsSet)(*check_defid i uses iosh (n+s)*) || loop (n-1))
+	    (check_defid i uses iosh (n+s) || loop (n-1))
 	  in
 	  loop (UD.VS.cardinal defd - 1) || (incr removedCount; false)
       | _ -> true
