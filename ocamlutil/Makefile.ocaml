@@ -54,6 +54,8 @@
   #              must exist.  (default obj/.depend)
   # NATIVECAML - if set then will use the native compiler
   # UNSAFE     - if set then will turn off safety checks (only with NATIVECAML)
+  # CAML_NOOPT - if set then it will not optimizer (default is to optimize when 
+  #              NATIVECAML is used, and not optimize in bytecode mode)
   # PROFILE    - if set then it will compile and link with "gprof" profiling
   #              support (NATIVECAML mode only)
   # ASSEMBLY   - if set then it will keep assembly files
@@ -214,11 +216,6 @@ ifdef NATIVECAML
    LINKFLAGS      += -ccopt -static
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- ifdef WIN32
-   COMPILEFLAGS    += -ccopt /Ox
- else
-   COMPILEFLAGS    += -ccopt -O3
- endif
  CAMLC          = $(CAMLDIR)ocamlopt  $(COMPILEFLAGS)
  CAMLLINK       = $(CAMLDIR)ocamlopt  $(LINKFLAGS)
  CMO            = cmx
@@ -231,13 +228,26 @@ ifdef NATIVECAML
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
  CAMLDEP        = $(CAMLDIR)ocamldep -native
+ # CAML_NOOPT maintains its value on entry (default, missing)
 else 
+ # Bytecode mode
  CMO            = cmo
  CMXA           = cma
  CMC            = $(OBJ)
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
+ CAMLC          = $(CAMLDIR)ocamlc $(COMPILEFLAGS)
+ CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINKFLAGS)
+ CAML_NOOPT     = 1
+endif
+
+
+ifdef UNSAFE 
+ CAMLC          := $(CAMLC) -unsafe -noassert
+endif
+
+ifdef CAML_NOOPT
  ifdef WIN32
    COMPILEFLAGS += -ccopt /Zi -ccopt /Od
    LINKFLAGS    += -ccopt /Zi -ccopt /Od
@@ -245,13 +255,12 @@ else
    COMPILEFLAGS += -g -ccopt -g
    LINKFLAGS    += -g -ccopt -g
  endif
- CAMLC          = $(CAMLDIR)ocamlc -g $(COMPILEFLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINKFLAGS)
-endif
-
-
-ifdef UNSAFE 
- CAMLC          := $(CAMLC) -unsafe -noassert
+else
+  ifdef WIN32
+    COMPILEFLAGS    += -ccopt /Ox
+  else
+    COMPILEFLAGS    += -ccopt -O3
+  endif
 endif
 
 
