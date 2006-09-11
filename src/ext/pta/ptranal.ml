@@ -112,6 +112,13 @@ let alloc_names = [
   "kmalloc"
 ]
 
+(* This function should be set by the client if it
+ * knows of functions returning a result that have
+ * no side effects. If the result is not used, then
+ * the call will be eliminated. *)
+let callHasNoSideEffects : (exp -> bool) ref =
+  ref (fun _ -> false)
+
 let all_globals : varinfo list ref = ref []
 let all_functions : fundec list ref = ref []
 
@@ -153,7 +160,8 @@ let is_effect_free_fun = function
         match lh with
             Var v ->
               begin
-                try ("CHECK_" = String.sub v.vname 0 6)
+                try ("CHECK_" = String.sub v.vname 0 6 ||
+		!callHasNoSideEffects (Lval(lh,o)))
                 with Invalid_argument _ -> false
               end
           | _ -> false
