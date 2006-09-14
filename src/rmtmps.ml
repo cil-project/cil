@@ -283,10 +283,11 @@ let isPragmaRoot keepers = function
   | GCompTagDecl ({cname = name; cstruct = structure}, _) ->
       let collection = if structure then keepers.structs else keepers.unions in
       H.mem collection name
-  | GVar ({vname = name}, _, _)
-  | GVarDecl ({vname = name}, _)
-  | GFun ({svar = {vname = name}}, _) ->
-      H.mem keepers.defines name
+  | GVar ({vname = name; vattr = attrs}, _, _)
+  | GVarDecl ({vname = name; vattr = attrs}, _)
+  | GFun ({svar = {vname = name; vattr = attrs}}, _) ->
+      H.mem keepers.defines name ||
+      hasAttribute "used" attrs
   | _ ->
       false
 
