@@ -15,6 +15,11 @@ module S = Stats
 
 let debug = ref false
 
+
+(* TODO: Don't kill expressions containing
+   vi on a memory write if vi.vaddr is true
+   and vi is in an AddrOf *)
+
 (*
  * When ignore_inst returns true, then
  * the instruction in question has no
@@ -122,6 +127,7 @@ let eh_combine eh1 eh2 =
 			  eh_pretty eh');
   eh'
 
+
 (* On a memory write, kill expressions containing memory reads
    variables whose address has been taken, and globals. *)
 let exp_ok = ref false
@@ -150,6 +156,7 @@ let exp_has_mem_read e =
   ignore(visitCilExpr memReadOrAddrOfFinder e);
   !exp_ok
 
+   
 let eh_kill_mem eh =
   IH.iter (fun vid e ->
     if exp_has_mem_read e
