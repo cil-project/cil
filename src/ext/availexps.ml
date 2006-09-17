@@ -130,31 +130,33 @@ let eh_combine eh1 eh2 =
 
 (* On a memory write, kill expressions containing memory reads
    variables whose address has been taken, and globals. *)
-let exp_ok = ref false
-class memReadOrAddrOfFinderClass = object(self)
+class memReadOrAddrOfFinderClass br = object(self)
   inherit nopCilVisitor
 
   method vexpr e = match e with
-    Lval(Mem _, _) -> 
-      exp_ok := true;
+  | Lval(Mem _, _) -> begin
+      br := true;
+      SkipChildren
+  end
+  | AddrOf(Var vi, NoOffset) ->
+      (* Writing to memory won't change the address of something *)
       SkipChildren
   | _ -> DoChildren
 
   method vvrbl vi =
     if vi.vaddrof || vi.vglob then
-      (exp_ok := true;
+      (br := true;
        SkipChildren)
     else DoChildren
 
 end
 
-let memReadOrAddrOfFinder = new memReadOrAddrOfFinderClass
-
 (* exp -> bool *)
 let exp_has_mem_read e =
-  exp_ok := false;
-  ignore(visitCilExpr memReadOrAddrOfFinder e);
-  !exp_ok
+  let br = ref false in
+  let vis = new memReadOrAddrOfFinderClass br in
+  ignore(visitCilExpr vis e);
+  !br
 
    
 let eh_kill_mem eh =
@@ -164,22 +166,21 @@ let eh_kill_mem eh =
     eh
 
 (* need to kill exps containing a particular vi sometimes *)
-let has_vi = ref false
-class viFinderClass vi = object(self)
+class viFinderClass vi br = object(self)
   inherit nopCilVisitor
       
   method vvrbl vi' = 
     if vi.vid = vi'.vid
-    then (has_vi := true; SkipChildren)
+    then (br := true; SkipChildren)
     else DoChildren
 
 end
 
 let exp_has_vi vi e =
-  let vis = new viFinderClass vi in
-  has_vi := false;
+  let br = ref false in
+  let vis = new viFinderClass vi br in
   ignore(visitCilExpr vis e);
-  !has_vi
+  !br
 
 let eh_kill_vi eh vi =
   IH.iter (fun vid e ->
@@ -188,22 +189,21 @@ let eh_kill_vi eh vi =
     eh
 
 (* need to kill exps containing a particular lval sometimes *)
-let has_lval = ref false
-class lvalFinderClass lv = object(self)
+class lvalFinderClass lv br = object(self)
   inherit nopCilVisitor
 
   method vlval l =
     if compareLval l lv
-    then (has_lval := true; SkipChildren)
+    then (br := true; SkipChildren)
     else DoChildren
 
 end
 
 let exp_has_lval lv e =
-  let vis = new lvalFinderClass lv in
-  has_lval := false;
+  let br = ref false in
+  let vis = new lvalFinderClass lv br in
   ignore(visitCilExpr vis e);
-  !has_lval
+  !br
 
 let eh_kill_lval eh lv =
   IH.iter (fun vid e ->
@@ -211,20 +211,21 @@ let eh_kill_lval eh lv =
     then IH.remove eh vid)
     eh
 
-let has_volatile = ref false
-let volatileFinderClass = object(self)
+
+class volatileFinderClass br = object(self)
   inherit nopCilVisitor
 
   method vexpr e =
     if (hasAttribute "volatile" (typeAttrs (typeOf e))) 
-    then (has_volatile := true; SkipChildren)
+    then (br := true; SkipChildren)
     else DoChildren
 end
 
 let exp_is_volatile e : bool =
-  has_volatile := false;
-  ignore(visitCilExpr volatileFinderClass e);
-  !has_volatile
+  let br = ref false in
+  let vis = new volatileFinderClass br in
+  ignore(visitCilExpr vis e);
+  !br
 
 let varHash = IH.create 32
 
