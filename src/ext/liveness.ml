@@ -108,6 +108,10 @@ let computeLiveness fdec =
   let a = null_adder fdec in
   L.compute a
 
+let getLiveSet sid =
+  try Some(IH.find LiveFlow.stmtStartData sid)
+  with Not_found -> None
+
 let print_everything () =
   let d = IH.fold (fun i vs d -> 
     d ++ num i ++ text ": " ++ LiveFlow.pretty () vs) 

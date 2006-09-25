@@ -14,11 +14,13 @@ module U = Util
 module S = Stats
 
 let debug = ref false
+let doTime = ref false
 
 
-(* TODO: Don't kill expressions containing
-   vi on a memory write if vi.vaddr is true
-   and vi is in an AddrOf *)
+let time s f a = 
+  if !doTime then
+    S.time s f a
+  else f a
 
 (*
  * When ignore_inst returns true, then
@@ -313,8 +315,8 @@ module AvailableExps =
     let computeFirstPredecessor stm eh = eh
 
     let combinePredecessors (stm:stmt) ~(old:t) (eh:t) =
-      if S.time "eh_equals" (eh_equals old) eh then None else
-      Some(S.time "eh_combine" (eh_combine old) eh)
+      if time "eh_equals" (eh_equals old) eh then None else
+      Some(time "eh_combine" (eh_combine old) eh)
 
     let doInstr i eh = 
       let action = eh_handle_inst i in
@@ -360,10 +362,10 @@ let make_var_hash fd =
 let computeAEs fd =
   try let slst = fd.sbody.bstmts in
   let first_stm = List.hd slst in
-  S.time "make_var_hash" make_var_hash fd;
+  time "make_var_hash" make_var_hash fd;
   IH.clear AvailableExps.stmtStartData;
   IH.add AvailableExps.stmtStartData first_stm.sid (IH.create 4);
-  S.time "compute" AE.compute [first_stm]
+  time "compute" AE.compute [first_stm]
   with Failure "hd" -> if !debug then ignore(E.log "fn w/ no stmts?\n")
   | Not_found -> if !debug then ignore(E.log "no data for first_stm?\n")
 
@@ -409,7 +411,7 @@ class aeVisitorClass = object(self)
 	match stm.skind with
 	  Instr il ->
 	    if !debug then ignore(E.log "aeVist: visit il\n");
-	    ae_dat_lst <- S.time "instrAEs" (instrAEs il stm.sid eh) false;
+	    ae_dat_lst <- time "instrAEs" (instrAEs il stm.sid eh) false;
 	    DoChildren
 	| _ ->
 	    if !debug then ignore(E.log "aeVisit: visit non-il\n");

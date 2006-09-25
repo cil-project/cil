@@ -22,11 +22,19 @@ open Pretty
 module E = Errormsg
 module DF = Dataflow
 module UD = Usedef
+module L = Liveness
 module IH = Inthash
 module U = Util
 module S = Stats
 
 let debug_fn = ref ""
+
+let doTime = ref true
+
+let time s f a =
+  if !doTime then
+    S.time s f a
+  else f a
 
 module IOS = 
   Set.Make(struct
@@ -109,9 +117,11 @@ let iosh_combine iosh1 iosh2 =
       let newset = IOS.add None ios1 in
       IH.replace iosh' id newset) iosh1;
   IH.iter (fun id ios2 ->
-    if not(IH.mem iosh1 id) then
+    try ignore(IH.find iosh1 id)
+    with Not_found -> begin
+    (*if not(IH.mem iosh1 id) then*)
       let newset = IOS.add None ios2 in
-      IH.add iosh' id newset) iosh2;
+      IH.add iosh' id newset end) iosh2;
   iosh'
 
 
@@ -145,6 +155,14 @@ let iosh_replace iosh i vi =
   else
     let newset = IOS.singleton (Some i) in
     IH.add iosh vi.vid newset
+
+
+let iosh_filter_dead iosh vs =
+  IH.iter (fun vid _ ->
+    if not(UD.VS.exists (fun vi -> vid = vi.vid) vs)
+    then IH.remove iosh vid)
+    iosh
+
 
 (* remove definitions that are killed.
    add definitions that are gend *)
@@ -244,7 +262,7 @@ let getDefRhs didstmh stmdat defId =
       begin try
 	let iihl = List.combine (List.combine il ivihl) ivihl_in in
 	(try let ((i,(_,_,diosh)),(_,_,iosh_in)) = List.find (fun ((i,(_,_,iosh')),_) ->
-	  match S.time "iosh_defId_find" (iosh_defId_find iosh') defId with
+	  match time "iosh_defId_find" (iosh_defId_find iosh') defId with
 	    Some vid -> 
 	      (match i with
 		Set((Var vi',NoOffset),_,_) -> vi'.vid = vid (* _ -> NoOffset *)
@@ -362,9 +380,12 @@ module ReachingDef =
 
      
     let combinePredecessors (stm:stmt) ~(old:t) ((_, s, iosh):t) =
-      match old with (_, os, oiosh) ->
-	if S.time "iosh_equals" (iosh_equals oiosh) iosh then None else
-	Some((), os, S.time "iosh_combine" (iosh_combine oiosh) iosh)
+      match old with (_, os, oiosh) -> begin
+	if time "iosh_equals" (iosh_equals oiosh) iosh 
+	then None 
+	else
+	  Some((), os, time "iosh_combine" (iosh_combine oiosh) iosh)
+      end
 
     (* return an action that removes things that
        are redefinied and adds the generated defs *)
@@ -381,7 +402,13 @@ module ReachingDef =
       if not(IH.mem sidStmtHash stm.sid) then 
 	IH.add sidStmtHash stm.sid stm;
       if !debug then ignore(E.log "RD: looking at %a\n" d_stmt stm);
-      DF.SDefault
+      match L.getLiveSet stm.sid with
+      | None -> DF.SDefault
+      | Some vs -> begin
+	  iosh_filter_dead iosh vs;
+	  DF.SDefault
+      end
+
 
     let doGuard condition _ = DF.GDefault
 
@@ -409,17 +436,17 @@ let computeRDs fdec =
        ignore (E.log "%s =\n%a\n" (!debug_fn) d_block fdec.sbody));
     let bdy = fdec.sbody in
     let slst = bdy.bstmts in
-    let _ = IH.clear ReachingDef.stmtStartData in
-    let _ = IH.clear ReachingDef.defIdStmtHash in
-    let _ = IH.clear rhsHtbl in
-    let _ = Hashtbl.clear iRDsHtbl in
-    let _ = ReachingDef.nextDefId := 0 in
+    IH.clear ReachingDef.stmtStartData;
+    IH.clear ReachingDef.defIdStmtHash;
+    IH.clear rhsHtbl;
+    Hashtbl.clear iRDsHtbl;
+    ReachingDef.nextDefId := 0;
     let fst_stm = List.hd slst in
     let fst_iosh = IH.create 32 in
-    let _ = UD.onlyNoOffsetsAreDefs := false in
-    (*let _ = iosh_none_fill fst_iosh fdec.sformals in*)
-    let _ = IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh) in
-    let _ = ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh) in
+    UD.onlyNoOffsetsAreDefs := false;
+    IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh);
+    time "liveness" L.computeLiveness fdec;
+    ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh);
     if !debug then
       ignore (E.log "computeRDs: fst_stm.sid=%d\n" fst_stm.sid);
     RD.compute [fst_stm];

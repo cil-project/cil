@@ -19,6 +19,13 @@ module IS =
 
 let debug = RD.debug
 
+let doTime = ref false
+
+let time s f a =
+  if !doTime then
+    S.time s f a
+  else f a
+
 
 (* Type for the form of temporary variable names *)
 type nameform = Suffix of string | Prefix of string | Exact of string
@@ -118,7 +125,7 @@ let writes_between f dsid sid =
        if !debug && (not wh) then ignore(E.log "writes_between: start=goal and no write here\n");
        b || (find_write start))
     else 
-    (* if S.time "List.mem1" (List.mem start.sid) (!visited_sid_lr) then false else *)
+    (* if time "List.mem1" (List.mem start.sid) (!visited_sid_lr) then false else *)
     if IS.mem start.sid (!visited_sid_isr) then false else
     let w = find_write start in
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
@@ -225,7 +232,7 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
     true)
   else (if !debug then ignore(E.log "ok_to_replace: target %s does not have its address taken\n" vi.vname);
 	false) in
-  let writes = if safe && not(target_addrof) then false else (S.time "writes_between" (writes_between f dsid) sid) in
+  let writes = if safe && not(target_addrof) then false else (time "writes_between" (writes_between f dsid) sid) in
   if (not safe || target_addrof) && writes
   then
     (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
@@ -442,7 +449,7 @@ let iosh_get_useful_def iosh vi =
     let ios = IH.find iosh vi.vid in
     let ios' = RD.IOS.filter (fun ido  ->
       match ido with None -> true | Some(id) ->
-	match S.time "getDefRhs" getDefRhs id with
+	match time "getDefRhs" getDefRhs id with
 	  Some(RD.RDExp(Lval(Var vi',NoOffset)),_,_)
 	| Some(RD.RDExp(CastE(_,Lval(Var vi',NoOffset))),_,_) ->
 	    not(vi.vid = vi'.vid) (* false if they are the same *)
@@ -486,12 +493,12 @@ let rd_tmp_to_exp iosh sid vi fd nofrm =
   match ido with None -> 
     if !debug then ignore(E.log "tmp_to_exp: non-single def: %s\n" vi.vname);
     None
-  | Some(id) -> let defrhs = S.time "getDefRhs" getDefRhs id in
+  | Some(id) -> let defrhs = time "getDefRhs" getDefRhs id in
     match defrhs with None -> 
       if !debug then ignore(E.log "tmp_to_exp: no def of %s\n" vi.vname);
       None
     | Some(RD.RDExp(e) as r, dsid , defiosh) ->
-	if S.time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
+	if time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
 	then 
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
 	   match e with
@@ -548,7 +555,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 	  try RD.IOS.choose ios
 	  with Not_found -> None in
 	match defido with None -> None | Some defid ->
-	  match S.time "getDefRhs" getDefRhs defid with
+	  match time "getDefRhs" getDefRhs defid with
 	    None -> None
 	  | Some(RD.RDExp(Const c), _, defiosh) ->
 	      (match RD.getDefIdStmt defid with
@@ -556,7 +563,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c)) then
 		  let same = RD.IOS.for_all (fun defido ->
 		    match defido with None -> false | Some defid ->
-		      match S.time "getDefRhs" getDefRhs defid with
+		      match time "getDefRhs" getDefRhs defid with
 			None -> false
 		      | Some(RD.RDExp(Const c'),_,defiosh) ->
 			  if Util.equals c c' then

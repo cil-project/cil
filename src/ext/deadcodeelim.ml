@@ -18,7 +18,12 @@ module IS = Set.Make(
 
 let debug = RD.debug
 
+let doTime = ref true
 
+let time s f a =
+  if !doTime then
+    S.time s f a
+  else f a
 
 (* This function should be set by the client if it
  * knows of functions returning a result that have
@@ -362,9 +367,10 @@ let elim_dead_code_fp (fd : fundec) :  fundec =
     IH.clear defUseSetHash;
     IH.clear sidUseSetHash;
     removedCount := 0;
-    S.time "reaching definitions" RD.computeRDs fd;
-    ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
-    let fd' = visitCilFunction (new uselessInstrElim) fd in
+    time "reaching definitions" RD.computeRDs fd;
+    ignore(time "ud-collector"
+	     (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
+    let fd' = time "useless-elim" (visitCilFunction (new uselessInstrElim)) fd in
     if !removedCount = 0 then fd' else loop fd'
   in
   loop fd
@@ -376,18 +382,19 @@ let elim_dead_code (fd : fundec) :  fundec =
   IH.clear defUseSetHash;
   IH.clear sidUseSetHash;
   removedCount := 0;
-  S.time "reaching definitions" RD.computeRDs fd;
+  time "reaching definitions" RD.computeRDs fd;
   if !debug then ignore(E.log "DCE: collecting used definitions\n");
-  ignore(visitCilFunction (new usedDefsCollectorClass :> cilVisitor) fd);
+  ignore(time "ud-collector" 
+	   (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
   if !debug then ignore(E.log "DCE: eliminating useless instructions\n");
-  let fd' = visitCilFunction (new uselessInstrElim) fd in
+  let fd' = time "useless-elim" (visitCilFunction (new uselessInstrElim)) fd in
   fd'
 
 class deadCodeElimClass : cilVisitor = object(self)
     inherit nopCilVisitor
 
   method vfunc fd =
-    let fd' = elim_dead_code_fp fd in
+    let fd' = elim_dead_code(*_fp*) fd in
     ChangeTo(fd')
 
 end
