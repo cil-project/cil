@@ -36,13 +36,18 @@
   # the associated Makefile.ocaml for how to use this file.
   # Written by necula@cs.berkeley.edu
   # 
-$(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) \
-                        $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(CMC))
-	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
-	$(AT)$(CAMLLINK) -verbose -o $@ \
-                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-                    $(PROJECT_LIBS:%=-cclib -l%) \
-                    $^
+
+#
+# Do not use this file anymore because it leads to more trouble than it is worth it.
+# Just inline the code in the host file
+#
+#$(PROJECT_EXECUTABLE) : $(PROJECT_MODULES:%=$(OBJDIR)/%.$(CMO)) \
+#                        $(PROJECT_CMODULES:%=$(OBJDIR)/%.$(CMC))
+#	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
+#	$(AT)$(CAMLLINK) -verbose -o $@ \
+#                    $(PROJECT_LIBS:%=%.$(CMXA)) \
+#                    $(PROJECT_LIBS:%=-cclib -l%) \
+#                    $^
 
 
 
