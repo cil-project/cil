@@ -201,6 +201,8 @@ EXE		= $(EXEEXT).exe
 
 export EXE
 
+
+
 ifdef NATIVECAML
  ifdef PROFILE
    COMPILEFLAGS   += -p
@@ -265,7 +267,6 @@ endif
 
 
 
-
     # Allow searching for .ml and .mli
 vpath %.mll $(SOURCEDIRS)
 vpath %.mly $(SOURCEDIRS)
@@ -304,7 +305,7 @@ $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
          # Compile an MLI file. After compilation move the result to OBJDIR
 $(OBJDIR)/%.cmi: %.mli
 	@$(NARRATIVE) Compiling interface $<
-	$(AT)$(CAMLC) $(COMPILEFLAGS) -c $<
+	$(AT)$(CAMLC) -c $<
 	$(ECHO)if test $(OBJDIR) != $(<D) ;then \
                    $(COMMAND) mv -f $(basename $<).cmi $(OBJDIR)/; \
                    mv -f $(basename $<).cmi $(OBJDIR)/ \
@@ -318,8 +319,8 @@ $(OBJDIR)/%.$(CMO): %.ml
 #           $(COMMAND) mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
 #           mv -f $(OBJDIR)/$(basename $(<F)).cmi $(<D); \
 #        fi
-	@$(COMMAND) $(CAMLC) $(COMPILEFLAGS) -c $<
-	$(ECHO)$(CAMLC) $(COMPILEFLAGS) -c $< ; res=$$?; \
+	@$(COMMAND) $(CAMLC) -c $<
+	$(ECHO)$(CAMLC) -c $< ; res=$$?; \
 	   if test $(OBJDIR) != $(<D) ;then \
               for ext in $(MOVEAFTERCAMLC); do \
                 if test -f $(basename $<).$$ext ;then \
@@ -333,14 +334,14 @@ $(OBJDIR)/%.$(CMO): %.ml
              # They appear to be left in the current directory as .o files
 $(OBJDIR)/%.$(CMC): %.c
 	@$(NARRATIVE) "Compiling C file $< $(COMPILEMSG)"
-	$(AT)$(CAMLC) $(COMPILEFLAGS) $(CAML_CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
               # Special rule for profile.c
 CAMLC_NOPROF=$(subst -p,,$(CAMLC))
 $(OBJDIR)/profile.$(CMC): profile.c
 	@$(NARRATIVE) "Compiling C file $<"
-	$(AT)$(CAMLC_NOPROF) $(COMPILEFLAGS) $(CAML_CFLAGS) -c $< -o $@
+	$(AT)$(CAMLC_NOPROF) $(CAML_CFLAGS) -c $< -o $@
 	$(AT)mv -f $(basename $(notdir $<)).$(OBJ) $@
 
 

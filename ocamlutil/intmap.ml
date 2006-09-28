@@ -64,7 +64,7 @@ let is_empty = function Empty -> true | _ -> false
 let rec add x data = function
     Empty ->
       Node(Empty, x, data, Empty, 1)
-  | Node(l, v, d, r, h) as t ->
+  | Node(l, v, d, r, h) ->
       if x = v then
         Node(l, x, data, r, h)
       else if x < v then
@@ -106,7 +106,7 @@ let merge t1 t2 =
 let rec remove x = function
     Empty ->
       Empty
-  | Node(l, v, d, r, h) as t ->
+  | Node(l, v, d, r, h) ->
       if x = v then
         merge l r
       else if x < v then
