@@ -1691,6 +1691,8 @@ about.  The following options are supported:
   \item \t{-{}-nodebug=xxx} turns off debugging flag xxx
   \item \t{-{}-flush} Flush the output streams often (aids debugging).
   \item \t{-{}-check} Run a consistency check over the CIL after every operation.
+  \item \t{-{}-strictcheck} Same as \t{-{}-check}, but it treats
+    consistency problems as errors instead of warnings.
   \item \t{-{}-nocheck} turns off consistency checking of CIL.
   \item \t{-{}-noPrintLn} Don't output \#line directives in the output.
   \item \t{-{}-commPrintLn} Print \#line directives in the output, but
@@ -3123,6 +3125,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf September 29, 2006}: Benjamin Monate fixed a bug in compound
+  local initializers that was causing duplicate code to be added.
 \item {\bf August 9, 2006}: Changed the patcher to print ``\t{\#line
   nnn}'' directives instead of ``\t{\# nnn}''.
 \item {\bf August 6, 2006}: Joseph Koshy patched \t{./configure} for

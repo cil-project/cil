@@ -124,6 +124,9 @@ let options : (string * Arg.spec * string) list =
                      "Flush the output streams often (aids debugging)" ;
     "--check", Arg.Unit (fun _ -> Cilutil.doCheck := true),
                      "Run a consistency check over the CIL after every operation.";
+    "--strictcheck", Arg.Unit (fun _ -> Cilutil.doCheck := true;
+                                        Cilutil.strictChecking := true),
+                     "Same as --check, but treats problems as errors not warnings.";
     "--nocheck", Arg.Unit (fun _ -> Cilutil.doCheck := false),
                      "turns off consistency checking of CIL";
     "--noPrintLn", Arg.Unit (fun _ -> Cil.lineDirectiveStyle := None;

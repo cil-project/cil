@@ -97,45 +97,47 @@ else
 endif
 
 
-CILLY  += --mode=$(COMPILERNAME)
 CILLY += --mode=$(COMPILERNAME)
 
 export EXTRAARGS
 
 
-# CCURED contains arguments that are passed to ccured
+# CILLY contains arguments that are passed to cil
 # Pass such arguments in the command line as EXTRAARGS="..."
 # NOTE: you should *never* set EXTRAARGS within this Makefile,
 # because *any* such settings will be overridden if someone
 # specified EXTRAARGS on the command line
-CCURED+= --save-temps $(EXTRAARGS)
 CILLY+= --save-temps $(EXTRAARGS)
 
+ifndef NOCHECK
+  CILLY += --strictcheck
+endif
+
 ifdef OCAMLDEBUG
-  CCURED+= --ocamldebug
+  CILLY+= --ocamldebug
 endif
 
 ifdef NOLINES
-  CCURED+= --noPrintLn
+  CILLY+= --noPrintLn
 endif
 ifdef COMMLINES
-  CCURED+= --commPrintLn
+  CILLY+= --commPrintLn
 endif
 
 ifdef USECABS
-  CCURED+= --usecabs
+  CILLY+= --usecabs
 endif
 ifndef NATIVECAML
-  CCURED+= --bytecode
+  CILLY+= --bytecode
 endif
 ifdef VERBOSE
-  CCURED+= --verbose --warnall
+  CILLY+= --verbose --warnall
 endif
 ifdef KEEPMERGED
-  CCURED+= --keepmerged
+  CILLY+= --keepmerged
 endif
 ifdef MERGEONLY
-  CCURED+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
+  CILLY+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
 endif
 ifdef CABSONLY
   CILLY+= --cabsonly

@@ -292,6 +292,7 @@ addTest("testrun/init18 ");
 addTest("testrun/init19 WARNINGS_ARE_ERRORS=1");
 addTest("testrun/init20 _GNUCC=1");
 addTest("testrun/init21 _GNUCC=1");
+addTest("testrun/init22 ");
 addTest("test/array-size-trick ");
 addTest("testrun/logical ");
 addTest("testrun/cond1 _GNUCC=1");
