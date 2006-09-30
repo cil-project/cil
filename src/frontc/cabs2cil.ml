@@ -4823,7 +4823,7 @@ and doInit
 
         | A.NEXT_INIT -> (* We have not found any RANGE *) 
             let acc' = addressSubobj so what acc in
-            doInit isconst setone so (acc @@ acc') 
+            doInit isconst setone so acc'
               ((A.NEXT_INIT, ie) :: restil)
       in
       expandRange (fun x -> x) what
