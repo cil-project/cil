@@ -1029,16 +1029,18 @@ let lookupLabel (l: string) =
 
 (** ALLOCA ***)
 let allocaFun () = 
-  let name = 
-    if !msvcMode then "alloca"
-      (* Use __builtin_alloca where possible, because this can be used
-         even when gcc is invoked with -fno-builtin *)
-    else "__builtin_alloca"
-  in
-  let fdec = emptyFunction name in
-  fdec.svar.vtype <- 
-     TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
-  fdec.svar
+  if !msvcMode then begin
+    let name = "alloca" in
+    let fdec = emptyFunction name in
+    fdec.svar.vtype <- 
+      TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
+    fdec.svar
+  end
+  else
+    (* Use __builtin_alloca where possible, because this can be used
+       even when gcc is invoked with -fno-builtin *)
+    let alloca, _ = lookupGlobalVar "__builtin_alloca" in
+    alloca
   
 (* Maps local variables that are variable sized arrays to the expression that 
  * denotes their length *)
@@ -5035,7 +5037,7 @@ and createLocal ((_, sto, _, _) as specs)
                         ~isformal:false
                         ~isglobal:false 
 	                loc
-                        (TInt(IUInt, []), NoStorage, false, [])
+                        (uintType, NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
           in
           (* Register it *)
@@ -5050,7 +5052,7 @@ and createLocal ((_, sto, _, _) as specs)
           (* There can be no initializer for this *)
           if inite != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");
-          se0 +++ (Set(var savelen, len, !currentLoc)) 
+          se0 +++ (Set(var savelen, makeCast len uintType, !currentLoc)) 
             (* Initialize the variable *)
             +++ (Call(Some(var vi), Lval(var (allocaFun ())), 
                       [ sizeof  ], !currentLoc))
@@ -5954,13 +5956,13 @@ and doStatement (s : A.statement) : chunk =
         match !gotoTargetData with
           Some (switchv, switch) -> (* We have already generated this one  *)
             se 
-            @@ i2c(Set (var switchv, makeCast e' uintType, loc'))
+            @@ i2c(Set (var switchv, makeCast e' intType, loc'))
             @@ s2c(mkStmt(Goto (ref switch, loc')))
 
         | None -> begin
             (* Make a temporary variable *)
             let vchunk = createLocal 
-                (TInt(IUInt, []), NoStorage, false, [])
+                (intType, NoStorage, false, [])
                 (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT) 
             in
             if not (isEmpty vchunk) then 
@@ -5976,7 +5978,7 @@ and doStatement (s : A.statement) : chunk =
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);
-            se @@ i2c (Set(var switchv, makeCast e' uintType, loc')) @@
+            se @@ i2c (Set(var switchv, makeCast e' intType, loc')) @@
             s2c switch
         end
       end
