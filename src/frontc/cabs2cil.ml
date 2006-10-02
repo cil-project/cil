@@ -5887,9 +5887,11 @@ and doStatement (s : A.statement) : chunk =
           let (se, _, _) = doExp false e ADrop in
           se @@ returnChunk None loc'
         end else begin
-          let (se, e', et) = 
-            doExp false e (AExp (Some !currentReturnType)) in
-          let (et'', e'') = castTo et (!currentReturnType) e' in
+	  let rt =
+	    typeRemoveAttributes ["warn_unused_result"] !currentReturnType
+	  in
+          let (se, e', et) = doExp false e (AExp (Some rt)) in
+          let (et'', e'') = castTo et rt e' in
           se @@ (returnChunk (Some e'') loc')
         end
                
