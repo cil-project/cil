@@ -3754,7 +3754,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         in
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
-        let resType' = resType in 
+        let resType' = typeRemoveAttributes ["warn_unused_result"] resType in 
         (* Before we do the arguments we try to intercept a few builtins. For 
          * these we have defined then with a different type, so we do not 
          * want to give warnings. We'll just leave the arguments of these
