@@ -410,7 +410,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   astslicer.ml heap.ml partial.ml \
                   logwrites.ml heapify.ml callgraph.ml callgraph.mli \
                   epicenter.ml usedef.ml ciltools.ml \
-                  cfg.ml deadcodeelim.ml availexps.ml \
+                  deadcodeelim.ml availexps.ml \
                   dataflow.ml dataflow.mli \
 		  dominators.ml dominators.mli \
 		  bitmap.ml bitmap.mli \
@@ -423,7 +423,8 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 		  dataslicing.ml dataslicing.mli \
 		  reachingdefs.ml \
 		  cfg.ml cfg.mli \
-		  liveness.ml
+		  liveness.ml \
+		  predabst.ml
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
                       ptranal.ml ptranal.mli \
