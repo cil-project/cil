@@ -1759,6 +1759,12 @@ val typeAddAttributes: attribute list -> typ -> typ
 val typeRemoveAttributes: string list -> typ -> typ
 
 
+(** Convert an expression into an attrparam, if possible. Otherwise raise
+    NotAnAttrParam with the offending subexpression *)
+val expToAttrParam: exp -> attrparam
+
+exception NotAnAttrParam of exp
+
 (******************
  ******************  VISITOR
  ******************)

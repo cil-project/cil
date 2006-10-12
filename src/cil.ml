@@ -1185,7 +1185,7 @@ let charConstToInt (c: char) : constant =
   CInt64(value, IInt, None)
   
   
-let rec isInteger = function
+let rec isInteger : exp -> int64 option = function
   | Const(CInt64 (n,_,_)) -> Some n
   | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *) 
   | Const(CEnum(v, s, ei)) -> isInteger v
@@ -4075,6 +4075,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       -> text "/*mayPointToStack*/", false 
     *)
       -> text "", false
+    | "arraylen", [a] -> 
+        text "/*[" ++ self#pAttrParam () a ++ text "]*/", false
+
 
     | _ -> (* This is the dafault case *)
         (* Add underscores to the name *)
@@ -5435,7 +5438,27 @@ let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
  ******************
  ******************)
 
-
+(* Convert an expression into an attribute, if possible. Otherwise raise 
+ * NotAnAttrParam *)
+exception NotAnAttrParam of exp
+let rec expToAttrParam (e: exp) : attrparam = 
+  match e with 
+    Const(CInt64(i,k,_)) ->
+      let i', trunc = truncateInteger64 k i in
+      if trunc then 
+        raise (NotAnAttrParam e);
+      let i2 = Int64.to_int i' in 
+      if i' <> Int64.of_int i2 then 
+        raise (NotAnAttrParam e);
+      AInt i2
+  | Lval (Var v, NoOffset) -> ACons(v.vname, [])
+  | SizeOf t -> ASizeOf t
+  | SizeOfE e' -> ASizeOfE (expToAttrParam e')
+  
+  | UnOp(uo, e', _)  -> AUnOp (uo, expToAttrParam e')
+  | BinOp(bo, e1',e2', _)  -> ABinOp (bo, expToAttrParam e1', 
+                                      expToAttrParam e2')
+  | _ -> raise (NotAnAttrParam e)
 
 (******************** OPTIMIZATIONS *****)
 let rec peepHole1 (* Process one statement and possibly replace it *)

@@ -2704,12 +2704,32 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Turn [] types into pointers in the arguments and the result type. 
          * Turn function types into pointers to respective. This simplifies 
          * our life a lot, and is what the standard requires. *)
+        let turnArrayIntoPointer (bt: typ) 
+                                 (lo: exp option) (a: attributes) : typ = 
+          let a' : attributes = 
+            match lo with 
+              None -> a
+            | Some l -> begin 
+                 (* Transform the length into an attribute expression *)
+                try 
+                  let la : attrparam = expToAttrParam l in
+                  addAttribute (Attr("arraylen", [ la ])) a
+                with NotAnAttrParam _ -> begin
+                    ignore (warn "Cannot represent the length of array as an attribute");
+                  
+                      a (* Leave unchanged *)
+                end 
+            end
+          in
+          TPtr(bt, a')
+        in
         let rec fixupArgumentTypes (argidx: int) (args: varinfo list) : unit = 
           match args with
             [] -> ()
           | a :: args' -> 
               (match unrollType a.vtype with
-                TArray(t,_,attr) -> a.vtype <- TPtr(t, attr)
+                TArray(t,lo,attr) -> 
+                  a.vtype <- turnArrayIntoPointer t lo attr
               | TFun _ -> a.vtype <- TPtr(a.vtype, [])
               | TComp (comp, _) -> begin
                   match isTransparentUnion a.vtype with
@@ -2731,7 +2751,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         in
         let tres = 
           match unrollType bt with
-            TArray(t,_,attr) -> TPtr(t, attr)
+            TArray(t,lo,attr) -> turnArrayIntoPointer t lo attr
           | _ -> bt
         in
         doDeclType (TFun (tres, args, isva', [])) acc d
