@@ -446,7 +446,7 @@ let computeRDs fdec =
     UD.onlyNoOffsetsAreDefs := false;
     IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh);
     time "liveness" L.computeLiveness fdec;
-    ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh);
+    ignore(ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh));
     if !debug then
       ignore (E.log "computeRDs: fst_stm.sid=%d\n" fst_stm.sid);
     RD.compute [fst_stm];
