@@ -1,6 +1,6 @@
 (* compute available expressions, although in a somewhat
    non-traditional way. the abstract state is a mapping from
-   variable ids to expressions as opposed to a set of
+   lvalues to expressions as opposed to a set of
    expressions *)
 
 open Cil
@@ -11,6 +11,7 @@ module E = Errormsg
 module DF = Dataflow
 module UD = Usedef
 module IH = Inthash
+module H = Hashtbl
 module U = Util
 module S = Stats
 
@@ -43,42 +44,49 @@ let registerIgnoreCall (f : instr -> bool) : unit =
   ignore_call := (fun i -> (f i) || (f' i))
 
 
-(* exp IH.t -> exp IH.t -> bool *)
-let eh_equals eh1 eh2 =
-  if not(IH.length eh1 = IH.length eh2)
+module LvExpHash = 
+  H.Make(struct
+    type t = lval
+    let equal lv1 lv2 = compareLval lv1 lv2
+    let hash = H.hash
+  end)
+
+(* exp LvExpHash.t -> exp LvExpHash.t -> bool *)
+let lvh_equals lvh1 lvh2 =
+  if not(LvExpHash.length lvh1 = LvExpHash.length lvh2)
   then false
-  else IH.fold (fun vid e b ->
+  else LvExpHash.fold (fun lv e b ->
     if not b then b else
-    try let e2 = IH.find eh2 vid in
+    try let e2 = LvExpHash.find lvh2 lv in
     if not(compareExpStripCasts e e2)
     then false
     else true
     with Not_found -> false)
-      eh1 true
+      lvh1 true
 
-let eh_pretty () eh = line ++ seq line (fun (vid,e) ->
-  text "AE:vid:" ++ num vid ++ text ": " ++
-    (d_exp () e)) (IH.tolist eh)
+let lvh_pretty () lvh = text "" (*line ++ seq line (fun (lv,e) ->
+  text "AE-lv: lv:" ++ (d_lval () lv) ++ text ": " ++
+    (d_exp () e)) (LvExpHash.tolist lvh)*)
 
 (* the result must be the intersection of eh1 and eh2 *)
 (* exp IH.t -> exp IH.t -> exp IH.t *)
-let eh_combine eh1 eh2 =
-  if !debug then ignore(E.log "eh_combine: combining %a\n and\n %a\n"
-			  eh_pretty eh1 eh_pretty eh2);
-  let eh' = IH.copy eh1 in (* eh' gets all of eh1 *)
-  IH.iter (fun vid e1 ->
-    try let e2l = IH.find_all eh2 vid in
+let lvh_combine lvh1 lvh2 =
+  if !debug then ignore(E.log "lvh_combine: combining %a\n and\n %a\n"
+			  lvh_pretty lvh1 lvh_pretty lvh2);
+  let lvh' = LvExpHash.copy lvh1 in (* eh' gets all of eh1 *)
+  LvExpHash.iter (fun lv e1 ->
+    try let e2l = LvExpHash.find_all lvh2 lv in
     if not(List.exists (fun e2 -> compareExpStripCasts e1 e2) e2l)
     (* remove things from eh' that eh2 doesn't have *)
-    then let e1l = IH.find_all eh' vid in
+    then let e1l = LvExpHash.find_all lvh' lv in
     let e1l' = List.filter (fun e -> not(compareExpStripCasts e e1)) e1l in
-    IH.remove_all eh' vid;
-    List.iter (fun e -> IH.add eh' vid e) e1l'
+    LvExpHash.remove lvh' lv;
+    List.iter (fun e -> LvExpHash.add lvh' lv e) e1l'
     with Not_found ->
-      IH.remove_all eh' vid) eh1;
+      LvExpHash.remove lvh' lv) lvh1;
   if !debug then ignore(E.log "with result %a\n"
-			  eh_pretty eh');
-  eh'
+			  lvh_pretty lvh');
+  lvh'
 
 
 (* On a memory write, kill expressions containing memory reads
@@ -111,12 +119,17 @@ let exp_has_mem_read e =
   ignore(visitCilExpr vis e);
   !br
 
+let lval_has_mem_read lv =
+  let br = ref false in
+  let vis = new memReadOrAddrOfFinderClass br in
+  ignore(visitCilLval vis lv);
+  !br
    
-let eh_kill_mem eh =
-  IH.iter (fun vid e ->
-    if exp_has_mem_read e
-    then IH.remove eh vid)
-    eh
+let lvh_kill_mem lvh =
+  LvExpHash.iter (fun lv e ->
+    if exp_has_mem_read e || lval_has_mem_read lv
+    then LvExpHash.remove lvh lv)
+    lvh
 
 (* need to kill exps containing a particular vi sometimes *)
 class viFinderClass vi br = object(self)
@@ -135,11 +148,17 @@ let exp_has_vi vi e =
   ignore(visitCilExpr vis e);
   !br
 
-let eh_kill_vi eh vi =
-  IH.iter (fun vid e ->
-    if exp_has_vi vi e
-    then IH.remove eh vid)
-    eh
+let lval_has_vi vi lv =
+  let br = ref false in
+  let vis = new viFinderClass vi br in
+  ignore(visitCilLval vis lv);
+  !br
+
+let lvh_kill_vi lvh vi =
+  LvExpHash.iter (fun lv e ->
+    if exp_has_vi vi e || lval_has_vi vi lv
+    then LvExpHash.remove lvh lv)
+    lvh
 
 (* need to kill exps containing a particular lval sometimes *)
 class lvalFinderClass lv br = object(self)
@@ -158,11 +177,20 @@ let exp_has_lval lv e =
   ignore(visitCilExpr vis e);
   !br
 
-let eh_kill_lval eh lv =
-  IH.iter (fun vid e ->
-    if exp_has_lval lv e
-    then IH.remove eh vid)
-    eh
+let lval_has_lval lv (host,hostoff) =
+  let br = ref false in
+  let vis = new lvalFinderClass lv br in
+  (match host with
+  | Mem e -> ignore(visitCilExpr vis e)
+  | _ -> ());
+  ignore(visitCilOffset vis hostoff);
+  !br
+
+let lvh_kill_lval lvh lv =
+  LvExpHash.iter (fun lv' e ->
+    if exp_has_lval lv e || lval_has_lval lv lv'
+    then LvExpHash.remove lvh lv')
+    lvh
 
 
 class volatileFinderClass br = object(self)
@@ -180,72 +208,82 @@ let exp_is_volatile e : bool =
   ignore(visitCilExpr vis e);
   !br
 
-let varHash = IH.create 32
+(* let varHash = IH.create 32 *)
 
-let eh_kill_addrof_or_global eh =
-  if !debug then ignore(E.log "eh_kill: in eh_kill\n");
-  IH.iter (fun vid e ->
-    try let vi = IH.find varHash vid in
-    if vi.vaddrof
-    then begin
-      if !debug then ignore(E.log "eh_kill: %s has its address taken\n"
-			      vi.vname);
-      IH.remove eh vid
-    end
-    else if vi.vglob
-    then begin
-      if !debug then ignore(E.log "eh_kill: %s is global\n"
-			   vi.vname);
-      IH.remove eh vid
-    end
-    with Not_found -> ()) eh
+class addrOfOrGlobalFinderClass br = object(self)
+  inherit nopCilVisitor
 
-let eh_handle_inst i eh = 
-  if (!ignore_inst) i then eh else
+  method vvrbl vi =
+    if vi.vaddrof || vi.vglob
+    then (br := true; SkipChildren)
+    else DoChildren
+
+end
+
+let lval_has_addrof_or_global lv =
+  let br = ref false in
+  let vis = new addrOfOrGlobalFinderClass br in
+  ignore(visitCilLval vis lv);
+  !br
+
+let lvh_kill_addrof_or_global lvh =
+  LvExpHash.iter (fun lv e ->
+    if lval_has_addrof_or_global lv
+    then LvExpHash.remove lvh lv)
+    lvh
+
+
+let lvh_handle_inst i lvh = 
+  if (!ignore_inst) i then lvh else
   match i with
-    (* if a pointer write, kill things with read in them.
-       also kill mappings from vars that have had their address taken,
-       and globals.
-       otherwise kill things with lv in them and add e *)
-    Set(lv,e,_) -> (match lv with
-      (Mem _, _) -> 
-	(eh_kill_mem eh; 
-	 eh_kill_addrof_or_global eh;
-	 eh)
-    | (Var vi, NoOffset) when not (exp_is_volatile e) -> 
-	(match e with
-	  Lval(Var vi', NoOffset) -> (* ignore x = x *)
-	    if vi'.vid = vi.vid then eh else
-	    (IH.replace eh vi.vid e;
-	     eh_kill_vi eh vi;
-	     eh)
-	| _ ->
-	    (IH.replace eh vi.vid e;
-	     eh_kill_vi eh vi;
-	     eh))
-    | (Var vi, _ ) -> begin
-	(* must remove mapping for vi *)
-	IH.remove eh vi.vid;
-	eh_kill_lval eh lv;
-	eh
-    end)
-  | Call(Some(Var vi,NoOffset),_,_,_) ->
-      (IH.remove eh vi.vid;
-       eh_kill_vi eh vi;
-       if not((!ignore_call) i) then begin
-	 eh_kill_mem eh;
-	 eh_kill_addrof_or_global eh
-       end;
-       eh)
-  | Call(_,_,_,_) ->
-      (eh_kill_mem eh;
-       eh_kill_addrof_or_global eh;
-       eh)
-  | Asm(_,_,_,_,_,_) ->
+    Set(lv,e,_) -> begin 
+      match lv with
+      | (Mem _, _) -> begin
+	  lvh_kill_mem lvh;
+	  lvh_kill_addrof_or_global lvh;
+	  LvExpHash.replace lvh lv e;
+	  lvh
+      end
+      | _ when not (exp_is_volatile e) -> begin
+	  (* ignore x = x *)
+	  if compareExpStripCasts (Lval lv) e then lvh 
+	  else begin
+	    LvExpHash.replace lvh lv e;
+	    lvh_kill_lval lvh lv;
+	    lvh
+	  end
+      end
+      | _ -> begin (* e is volatile *)
+	  (* must remove mapping for lv *)
+	  ignore(E.log "lvh_handle_inst: %a is volatile. killing %a\n"
+		   d_exp e d_lval lv);
+	  LvExpHash.remove lvh lv;
+	  lvh_kill_lval lvh lv;
+	  lvh
+      end
+    end
+  | Call(Some lv,_,_,_) -> begin
+      LvExpHash.remove lvh lv;
+      lvh_kill_lval lvh lv;
+      if not((!ignore_call) i) then begin
+	lvh_kill_mem lvh;
+	lvh_kill_addrof_or_global lvh
+      end;
+      lvh
+  end
+  | Call(_,_,_,_) -> begin
+      if not((!ignore_call) i) then begin
+	lvh_kill_mem lvh;
+	lvh_kill_addrof_or_global lvh;
+      end;
+      lvh
+  end
+  | Asm(_,_,_,_,_,_) -> begin
       let _,d = UD.computeUseDefInstr i in
-      (UD.VS.iter (fun vi ->
-	eh_kill_vi eh vi) d;
-       eh)
+      UD.VS.iter (fun vi ->
+	lvh_kill_vi lvh vi) d;
+      lvh
+  end
 
 module AvailableExps =
   struct
@@ -255,22 +293,22 @@ module AvailableExps =
     let debug = debug
 
     (* mapping from var id to expression *)
-    type t = exp IH.t
+    type t = exp LvExpHash.t
 
-    let copy = IH.copy
+    let copy = LvExpHash.copy
 
     let stmtStartData = IH.create 64
 
-    let pretty = eh_pretty
+    let pretty = lvh_pretty
 
-    let computeFirstPredecessor stm eh = eh
+    let computeFirstPredecessor stm lvh = lvh
 
-    let combinePredecessors (stm:stmt) ~(old:t) (eh:t) =
-      if time "eh_equals" (eh_equals old) eh then None else
-      Some(time "eh_combine" (eh_combine old) eh)
+    let combinePredecessors (stm:stmt) ~(old:t) (lvh:t) =
+      if time "lvh_equals" (lvh_equals old) lvh then None else
+      Some(time "lvh_combine" (lvh_combine old) lvh)
 
-    let doInstr i eh = 
-      let action = eh_handle_inst i in
+    let doInstr i lvh = 
+      let action = lvh_handle_inst i in
       DF.Post(action)
 
     let doStmt stm astate = DF.SDefault
@@ -283,27 +321,6 @@ module AvailableExps =
 
 module AE = DF.ForwardsDataFlow(AvailableExps)
 
-(* make an exp IH.t with everything in it,
- * also, fill in varHash while we're here.
- *)
-class varHashMakerClass = object(self)
-  inherit nopCilVisitor
-
-  method vvrbl vi =
-    (if not(IH.mem varHash vi.vid)
-    then 
-      (if !debug && vi.vglob then ignore(E.log "%s is global\n" vi.vname);
-       if !debug && not(vi.vglob) then ignore(E.log "%s is not global\n" vi.vname);
-       IH.add varHash vi.vid vi));
-    DoChildren
-
-end
-
-let varHashMaker = new varHashMakerClass
-
-let make_var_hash fd =
-  IH.clear varHash;
-  ignore(visitCilFunction varHashMaker fd)
 
 (*
  * Computes AEs for function fd.
@@ -313,9 +330,9 @@ let make_var_hash fd =
 let computeAEs fd =
   try let slst = fd.sbody.bstmts in
   let first_stm = List.hd slst in
-  time "make_var_hash" make_var_hash fd;
+  (*time "make_var_hash" make_var_hash fd;*)
   IH.clear AvailableExps.stmtStartData;
-  IH.add AvailableExps.stmtStartData first_stm.sid (IH.create 4);
+  IH.add AvailableExps.stmtStartData first_stm.sid (LvExpHash.create 4);
   time "compute" AE.compute [first_stm]
   with Failure "hd" -> if !debug then ignore(E.log "fn w/ no stmts?\n")
   | Not_found -> if !debug then ignore(E.log "no data for first_stm?\n")
@@ -327,18 +344,18 @@ let getAEs sid =
   with Not_found -> None
 
 (* get the AE data for an instruction list *)
-let instrAEs il sid eh out =
+let instrAEs il sid lvh out =
   let proc_one hil i =
     match hil with
-      [] -> let eh' = IH.copy eh in
-      let eh'' = eh_handle_inst i eh' in
-       eh''::hil
-    | eh'::ehrst as l ->
-	let eh' = IH.copy eh' in
-	let eh'' = eh_handle_inst i eh' in
-	eh''::l
+      [] -> let lvh' = LvExpHash.copy lvh in
+      let lvh'' = lvh_handle_inst i lvh' in
+       lvh''::hil
+    | lvh'::ehrst as l ->
+	let lvh' = LvExpHash.copy lvh' in
+	let lvh'' = lvh_handle_inst i lvh' in
+	lvh''::l
   in
-  let folded = List.fold_left proc_one [eh] il in
+  let folded = List.fold_left proc_one [lvh] il in
   let foldednotout = List.rev (List.tl folded) in
   foldednotout
 
@@ -376,7 +393,7 @@ class aeVisitorClass = object(self)
       let data = List.hd ae_dat_lst in
       cur_ae_dat <- Some(data);
       ae_dat_lst <- List.tl ae_dat_lst;
-      if !debug then ignore(E.log "aeVisit: data is %a\n" eh_pretty data);
+      if !debug then ignore(E.log "aeVisit: data is %a\n" lvh_pretty data);
       DoChildren
     with Failure "hd" ->
       if !debug then ignore(E.log "aeVis: il ae_dat_lst mismatch\n");

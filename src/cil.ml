@@ -2934,6 +2934,12 @@ let pTypeSig : (typ -> typsig) ref =
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinter}. *)
 class type cilPrinter = object
+
+  method setCurrentFormals : varinfo list -> unit
+
+  method setPrintInstrTerminator : string -> unit
+  method getPrintInstrTerminator : unit -> string
+
   method pVDecl: unit -> varinfo -> doc
     (** Invoked for each variable declaration. Note that variable 
      * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] 
@@ -3032,6 +3038,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       f :: _ -> Lval (var f)
     | [] -> 
         E.s (warn "Cannot find the last named argument when printing call to %s\n" s)
+
+  method private setCurrentFormals (fms : varinfo list) =
+    currentFormals <- fms
 
   (*** VARIABLES ***)
   (* variable use *)
@@ -3228,6 +3237,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (** What terminator to print after an instruction. sometimes we want to 
    * print sequences of instructions separated by comma *)
   val mutable printInstrTerminator = ";"
+
+  method private setPrintInstrTerminator (term : string) =
+    printInstrTerminator <- term
+
+  method private getPrintInstrTerminator () = printInstrTerminator
 
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)

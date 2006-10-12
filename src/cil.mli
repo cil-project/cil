@@ -2058,6 +2058,12 @@ val getParenthLevel: exp -> int
 (** A printer interface for CIL trees. Create instantiations of 
  * this type by specializing the class {!Cil.defaultCilPrinterClass}. *)
 class type cilPrinter = object
+
+  method setCurrentFormals : varinfo list -> unit
+
+  method setPrintInstrTerminator : string -> unit
+  method getPrintInstrTerminator : unit -> string
+
   method pVDecl: unit -> varinfo -> Pretty.doc
     (** Invoked for each variable declaration. Note that variable 
      * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] 

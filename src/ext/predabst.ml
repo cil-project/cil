@@ -19,6 +19,7 @@
 
 open Cil
 open Pretty
+open Expcompare
 
 module E = Errormsg
 module P = Ptranal
@@ -51,61 +52,6 @@ let instrHasNoSideEffects = ref (fun (i:instr) -> false)
 (* (instr -> exp list) ref *)
 let getPredsFromInstr = ref (fun (i:instr) -> [])
 
-(* copy pasta *)
-let rec compareExp (e1: exp) (e2: exp) : bool =
-(*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
-  e1 == e2 ||
-  match e1, e2 with
-  | Lval lv1, Lval lv2
-  | StartOf lv1, StartOf lv2
-  | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
-  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) -> 
-      bop1 = bop2 && compareExp l1 l2 && compareExp r1 r2
-  | _ -> begin
-      match isInteger (constFold true e1), isInteger (constFold true e2) with
-        Some i1, Some i2 -> i1 = i2
-      | _ -> false
-    end
-
-(* copy pasta *)
-and compareLval (lv1: lval) (lv2: lval) : bool =
-  let rec compareOffset (off1: offset) (off2: offset) : bool =
-    match off1, off2 with
-    | Field (fld1, off1'), Field (fld2, off2') ->
-        fld1 == fld2 && compareOffset off1' off2'
-    | Index (e1, off1'), Index (e2, off2') ->
-        compareExp e1 e2 && compareOffset off1' off2'
-    | NoOffset, NoOffset -> true
-    | _ -> false
-  in
-  lv1 == lv2 ||
-  match lv1, lv2 with
-  | (Var vi1, off1), (Var vi2, off2) ->
-      vi1 == vi2 && compareOffset off1 off2
-  | (Mem e1, off1), (Mem e2, off2) ->
-      compareExp e1 e2 && compareOffset off1 off2
-  | _ -> false
-
-let rec stripNopCasts (e:exp): exp =
-  match e with
-    CastE(t, e') -> begin
-      match unrollType (typeOf e'), unrollType t  with
-        TPtr _, TPtr _ -> (* okay to strip *)
-          stripNopCasts e'
-      (* strip casts from pointers to unsigned int/long*)
-      | (TPtr _ as t1), (TInt(ik,_) as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 
-            && not (isSigned ik) ->
-          stripNopCasts e'
-      | (TInt _ as t1), (TInt _ as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
-          stripNopCasts e'
-      |  _ -> e
-    end
-  | _ -> e
-      
-let compareExpStripCasts (e1: exp) (e2: exp) : bool =
-  compareExp (stripNopCasts e1) (stripNopCasts e2)
 
 module ExpIntHash = 
   H.Make(struct

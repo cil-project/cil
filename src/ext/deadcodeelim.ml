@@ -18,7 +18,7 @@ module IS = Set.Make(
 
 let debug = RD.debug
 
-let doTime = ref true
+let doTime = ref false
 
 let time s f a =
   if !doTime then

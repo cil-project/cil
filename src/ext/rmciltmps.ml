@@ -4,9 +4,11 @@
 
 open Cil
 open Pretty
+open Expcompare
 
 module E = Errormsg
 module RD = Reachingdefs
+module AELV = Availexpslv
 module UD = Usedef
 module IH = Inthash
 module S = Stats
@@ -441,6 +443,48 @@ let varXformClass action data sid fd nofrm = object(self)
 
 end
 
+(* action: 'a -> lval -> fundec -> bool -> exp option
+ * lvh: 'a
+ * fd: fundec
+ * nofrm: bool
+ *
+ * Replace Lval(lv) with
+ * e where action lvh sid lv fd nofrm returns Some(e) *)
+let lvalXformClass action data sid fd nofrm = object(self)
+  inherit nopCilVisitor
+
+  method vexpr e =
+    let castrm e =
+      stripCastsDeepForPtrArith e
+    in
+    match e with
+    | Lval((Mem e', off) as lv)-> begin
+	match action data sid lv fd nofrm with
+	| None ->
+	    (* don't substitute constants in memory lvals *)
+	    let post e = 
+	      match e with
+	      | Lval(Mem(Const _),off') -> Lval(Mem e', off')
+	      | _ -> stripCastsDeepForPtrArith e
+	    in
+	    ChangeDoChildrenPost(Lval(Mem e', off), post)
+	| Some e' ->
+	    let e'' = mkCast ~e:e' ~newt:(typeOf(Lval lv)) in
+	    ChangeDoChildrenPost(e'', castrm)
+    end 
+    | Lval lv -> begin
+	match action data sid lv fd nofrm with
+	| None -> DoChildren
+	| Some e' -> begin
+            (* Cast e' to the correct type. *)
+            let e'' = mkCast ~e:e' ~newt:(typeOf(Lval lv)) in
+            ChangeDoChildrenPost(e'', castrm)
+	end
+    end
+    | e -> ChangeDoChildrenPost(castrm e, castrm)
+
+end
+
 (* Returns the set of definitions of vi in iosh that
    are not due to assignments of the form x = x *)
 (* IOS.t IH.t -> varinfo -> int option *)
@@ -480,6 +524,41 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
   end
   with Not_found -> None
   else None
+
+let ae_lval_to_exp_change = ref false
+let ae_lval_to_exp lvh sid lv fd nofrm =
+  match lv, nofrm with
+  | (Var vi, NoOffset), false ->
+      if check_forms vi.vname forms then begin
+	try
+	  let e = AELV.LvExpHash.find lvh lv in
+	  match e with
+	  | Const(CStr _)
+	  | Const(CWStr _) -> None
+	  | _ -> begin
+	      ae_lval_to_exp_change := true;
+	      ignore(E.log "ae: replacing %a with %a\n"
+		       d_lval lv d_exp e);
+	      Some e
+	  end
+	with Not_found -> None
+      end else None
+  | _, true -> begin
+      try
+	let e = AELV.LvExpHash.find lvh lv in
+	match e with
+	| Const(CStr _)
+	| Const(CWStr _) -> None
+	| _ -> begin
+	    ae_lval_to_exp_change := true;
+	    ignore(E.log "ae: replacing %a with %a\n"
+		     d_lval lv d_exp e);
+	    Some e
+	end
+      with Not_found -> None
+  end
+  | _, _ -> None
+
 
 (* if the temp with varinfo vi can be
    replaced by an expression then return
@@ -527,6 +606,11 @@ let ae_fwd_subst data sid e fd nofrm =
   ae_tmp_to_exp_change := false;
   let e' = visitCilExpr (varXformClass ae_tmp_to_exp data sid fd nofrm) e in
   (e', !ae_tmp_to_exp_change)
+
+let ae_lv_fwd_subst data sid e fd nofrm =
+  ae_lval_to_exp_change := false;
+  let e' = visitCilExpr (lvalXformClass ae_lval_to_exp data sid fd nofrm) e in
+  (e', !ae_lval_to_exp_change)
 
 let ae_simp_fwd_subst data e nofrm =
   ae_fwd_subst data (-1) e dummyFunDec nofrm
@@ -792,6 +876,7 @@ class unusedRemoverClass : cilVisitor = object(self)
     let used = List.fold_left (fun u s ->
       let u', _ = UD.computeDeepUseDefStmtKind s.skind in
       UD.VS.union u u') UD.VS.empty f.sbody.bstmts in
+    let used = UD.computeUseLocalTypes ~acc_used:used f in
 
     (* the set of unused locals *)
     let unused = List.fold_left (fun un vi ->
@@ -952,6 +1037,7 @@ let eliminate_temps f =
   ignore(visitCilFunction (new removeBrackets) f);
   Cfg.clearCFGinfo f;
   ignore(Cfg.cfgFun f);
+  UD.ignoreSizeof := false;
   RD.computeRDs f;
   IH.clear iioh;
   IH.clear incdecHash;

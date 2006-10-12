@@ -29,7 +29,7 @@ module S = Stats
 
 let debug_fn = ref ""
 
-let doTime = ref true
+let doTime = ref false
 
 let time s f a =
   if !doTime then

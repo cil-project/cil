@@ -212,3 +212,10 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
       !varUsed, !varDefs
   | TryExcept _ | TryFinally _ -> !varUsed, !varDefs
   | Block b -> handle_block b
+
+let computeUseLocalTypes ?(acc_used=VS.empty)
+                         (fd : fundec)
+    =
+  List.fold_left (fun u vi ->
+    ignore(visitCilType useDefVisitor vi.vtype);
+    VS.union u (!varUsed)) acc_used fd.slocals

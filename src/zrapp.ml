@@ -15,6 +15,7 @@ module A = Cabs
 module GA = GrowArray
 module RCT = Rmciltmps
 module DCE = Deadcodeelim
+module EC = Expcompare
 
 let doElimTemps = ref false
 let debug = ref false
@@ -69,17 +70,99 @@ let get_comments l =
   in
   List.rev (loop s [])
 
-class zraCilPrinterClass : cilPrinter = object (self)
-  inherit defaultCilPrinterClass
 
-  val mutable currentFormals : varinfo list = []
+(* the argument b is the body of a Loop *)
+(* returns the loop termination condition *)
+(* block -> exp option *)
+let get_loop_condition b =
+
+  (* returns the first non-empty
+   * statement of a statement list *)
+  (* stm list -> stm list *)
+  let rec skipEmpty = function
+    | [] -> []
+    | {skind = Instr []; labels = []}::rest ->
+	skipEmpty rest
+    | x -> x
+  in
+  (* stm -> exp option * instr list *)
+  let rec get_cond_from_if if_stm =
+    match if_stm.skind with
+      If(e,tb,fb,_) ->
+	let e = EC.stripNopCasts e in
+	RCT.fold_blocks tb;
+	RCT.fold_blocks fb;
+	let tsl = skipEmpty tb.bstmts in
+	let fsl = skipEmpty fb.bstmts in
+	(match tsl, fsl with
+	  {skind = Break _} :: _, [] -> Some e
+	| [], {skind = Break _} :: _ -> 
+	    Some(UnOp(LNot, e, intType))
+	| ({skind = If(_,_,_,_)} as s) :: _, [] ->
+	    let teo = get_cond_from_if s in
+	    (match teo with
+	      None -> None
+	    | Some te -> 
+		Some(BinOp(LAnd,e,EC.stripNopCasts te,intType)))
+	| [], ({skind = If(_,_,_,_)} as s) :: _ ->
+	    let feo = get_cond_from_if s in
+	    (match feo with
+	      None -> None
+	    | Some fe -> 
+		Some(BinOp(LAnd,UnOp(LNot,e,intType),
+			   EC.stripNopCasts fe,intType)))
+	| {skind = Break _} :: _, ({skind = If(_,_,_,_)} as s):: _ ->
+	    let feo = get_cond_from_if s in
+	    (match feo with
+	      None -> None
+	    | Some fe -> 
+		Some(BinOp(LOr,e,EC.stripNopCasts fe,intType)))
+	| ({skind = If(_,_,_,_)} as s) :: _, {skind = Break _} :: _ ->
+	    let teo = get_cond_from_if s in
+	    (match teo with
+	      None -> None
+	    | Some te -> 
+		Some(BinOp(LOr,UnOp(LNot,e,intType),
+			   EC.stripNopCasts te,intType)))
+	| ({skind = If(_,_,_,_)} as ts) :: _ , ({skind = If(_,_,_,_)} as fs) :: _ ->
+	    let teo = get_cond_from_if ts in
+	    let feo = get_cond_from_if fs in
+	    (match teo, feo with
+	      Some te, Some fe ->
+		Some(BinOp(LOr,BinOp(LAnd,e,EC.stripNopCasts te,intType),
+			   BinOp(LAnd,UnOp(LNot,e,intType),
+				 EC.stripNopCasts fe,intType),intType))
+	    | _,_ -> None)
+	| _, _ -> (if !debug then ignore(E.log "cond_finder: branches of %a not good\n"
+					   d_stmt if_stm);
+		   None))
+    | _ -> (if !debug then ignore(E.log "cond_finder: %a not an if\n" d_stmt if_stm);
+	    None)
+  in
+  let sl = skipEmpty b.bstmts in
+  match sl with
+    ({skind = If(_,_,_,_); labels=[]} as s) :: rest ->
+      get_cond_from_if s, rest
+  | s :: _ -> 
+      (if !debug then ignore(E.log "checkMover: %a is first, not an if\n"
+			       d_stmt s);
+       None, sl)
+  | [] ->
+      (if !debug then ignore(E.log "checkMover: no statements in loop block?\n");
+       None, sl)
+
+
+class zraCilPrinterClass : cilPrinter = object (self)
+  inherit defaultCilPrinterClass as super
+
+  (*val mutable currentFormals : varinfo list = []*)
   val genvHtbl : (string, varinfo) H.t = H.create 128
   val lenvHtbl : (string, varinfo) H.t = H.create 128
-  method private getLastNamedArgument (s: string) : exp =
+  (*method private getLastNamedArgument (s: string) : exp =
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s." s)
+        E.s (warn "Cannot find the last named argument when priting call to %s." s)*)
 
   (*** VARIABLES ***)
 
@@ -109,18 +192,16 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ignore (warn "mentioned variable %s and its entry in the current environment have different varinfo."
 		v.vname)
 
-  (** What terminator to print after an instruction. sometimes we want to 
-   * print sequences of instructions separated by comma *)
-  val mutable printInstrTerminator = ";"
 
   (** Get the comment out of a location if there is one *)
   method pLineDirective ?(forcefile=false) l =
-      if !printComments then
-	let c = String.concat "\n" (get_comments l) in
-	match c with
-	  "" -> nil
-	| _ -> line ++ text "/*" ++ text c ++ text "*/" ++ line
-      else nil
+    let ld = super#pLineDirective l in
+    if !printComments then
+      let c = String.concat "\n" (get_comments l) in
+      match c with
+	"" -> ld
+      | _ -> ld ++ line ++ text "/*" ++ text c ++ text "*/" ++ line
+    else ld
 
   (* variable use *)
   method pVar (v:varinfo) =
@@ -131,8 +212,8 @@ class zraCilPrinterClass : cilPrinter = object (self)
        match rhso with
 	 Some(Call(_,e,el,l)) ->
 	   (* print a call instead of a temp variable *)
-	   let oldpit = printInstrTerminator in
-	   let _ = printInstrTerminator <- "" in
+	   let oldpit = super#getPrintInstrTerminator() in
+	   let _ = super#setPrintInstrTerminator "" in
 	   let opc = !printComments in
 	   let _ = printComments := false in
 	   let c = match unrollType (typeOf e) with
@@ -140,7 +221,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	       text "(" ++ self#pType None () v.vtype ++ text ")"
 	   | _ -> nil in
 	   let d = self#pInstr () (Call(None,e,el,l)) in
-	   let _ = printInstrTerminator <- oldpit in
+	   let _ = super#setPrintInstrTerminator oldpit in
 	   let _ = printComments := opc in
 	   c ++ d
        | _ -> 
@@ -191,192 +272,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
       ++ self#pAttrs () rest
-
-    (*** INSTRUCTIONS ****)
-  method pInstr () (i:instr) =       (* imperative instruction *)
-    match i with
-    | Set(lv,e,l) -> begin
-        (* Be nice to some special cases *)
-        match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'), Const(CInt64(one,_,_)),_)
-            when lv == lv' && one = Int64.one && not !printCilAsIs ->
-              self#pLineDirective l
-                ++ self#pLval () lv
-                ++ text (" ++" ^ printInstrTerminator)
-
-        | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _) 
-            when lv == lv' && one = Int64.one && not !printCilAsIs ->
-                  self#pLineDirective l
-                    ++ self#pLval () lv
-                    ++ text (" --" ^ printInstrTerminator) 
-
-        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when lv == lv' && mone = Int64.minus_one && not !printCilAsIs ->
-              self#pLineDirective l
-                ++ self#pLval () lv
-                ++ text (" --" ^ printInstrTerminator)
-
-        | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
-          Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-                Lval(lv'),e,_) when lv == lv' ->
-                  self#pLineDirective l
-                    ++ self#pLval () lv
-                    ++ text " " ++ d_binop () bop
-                    ++ text "= "
-                    ++ self#pExp () e
-                    ++ text printInstrTerminator
-                    
-        | _ ->
-            self#pLineDirective l
-              ++ self#pLval () lv
-              ++ text " = "
-              ++ self#pExp () e
-              ++ text printInstrTerminator
-              
-    end
-      (* In cabs2cil we have turned the call to builtin_va_arg into a 
-       * three-argument call: the last argument is the address of the 
-       * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l) 
-        when vi.vname = "__builtin_va_arg" && not !printCilAsIs -> 
-          let destlv = match stripCasts adest with 
-            AddrOf destlv -> destlv
-          | _ -> E.s (E.error "Encountered unexpected call to %s\n" vi.vname)
-          in
-          self#pLineDirective l
-	    ++ self#pLval () destlv ++ text " = "
-                   
-            (* Now the function name *)
-            ++ text "__builtin_va_arg"
-            ++ text "(" ++ (align
-                              (* Now the arguments *)
-                              ++ self#pExp () dest 
-                              ++ chr ',' ++ break 
-                              ++ self#pType None () t
-                              ++ unalign)
-            ++ text (")" ^ printInstrTerminator)
-
-      (* In cabs2cil we have dropped the last argument in the call to 
-       * __builtin_stdarg_start. *)
-    | Call(None, Lval(Var vi, NoOffset), [marker], l) 
-        when vi.vname = "__builtin_stdarg_start" && not !printCilAsIs -> begin
-          let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
-        end
-
-      (* In cabs2cil we have dropped the last argument in the call to 
-       * __builtin_next_arg. *)
-    | Call(res, Lval(Var vi, NoOffset), [ ], l) 
-        when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> begin
-          let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
-        end
-
-      (* In cparser we have turned the call to 
-       * __builtin_types_compatible_p(t1, t2) into 
-       * __builtin_types_compatible_p(sizeof t1, sizeof t2), so that we can
-       * represent the types as expressions. 
-       * Remove the sizeofs when printing. *)
-    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l) 
-        when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs -> 
-        self#pLineDirective l
-          (* Print the destination *)
-        ++ (match dest with
-              None -> nil
-            | Some lv -> 
-                self#pLval () lv ++ text " = ")
-          (* Now the call itself *)
-        ++ dprintf "%s(%a, %a)" vi.vname
-             (self#pType None) t1  (self#pType None) t2
-        ++ text printInstrTerminator
-    | Call(_, Lval(Var vi, NoOffset), _, l) 
-        when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs -> 
-        E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
-          
-    | Call(dest,e,args,l) ->
-        self#pLineDirective l
-          ++ (match dest with
-            None -> nil
-          | Some lv -> 
-              self#pLval () lv ++ text " = " ++
-                (* Maybe we need to print a cast *)
-                (let destt = typeOfLval lv in
-                 let typeSig t = typeSigWithAttrs (fun al -> al) t in
-                 (* typeSigNoAttrs stands in for typeSig, which hasn't been 
-                    defined yet. *)
-                match unrollType (typeOf e) with
-                  TFun (rt, _, _, _) 
-                      when not (Util.equals (typeSig rt)
-                                            (typeSig destt)) ->
-                    text "(" ++ self#pType None () destt ++ text ")"
-                | _ -> nil))
-          (* Now the function name *)
-          ++ (let ed = self#pExp () e in
-              match e with 
-                Lval(Var _, _) -> ed
-              | _ -> text "(" ++ ed ++ text ")")
-          ++ text "(" ++ 
-          (align
-             (* Now the arguments *)
-             ++ (docList ~sep:(chr ',' ++ break) 
-                   (self#pExp ()) () args)
-             ++ unalign)
-        ++ text (")" ^ printInstrTerminator)
-
-    | Asm(attrs, tmpls, outs, ins, clobs, l) ->
-        if !msvcMode then
-          self#pLineDirective l
-            ++ text "__asm {"
-            ++ (align
-                  ++ (docList ~sep:line text () tmpls)
-                  ++ unalign)
-            ++ text ("}" ^ printInstrTerminator)
-        else
-          self#pLineDirective l
-            ++ text ("__asm__ ") 
-            ++ self#pAttrs () attrs 
-            ++ text " ("
-            ++ (align
-                  ++ (docList ~sep:line
-                        (fun x -> text ("\"" ^ escape_string x ^ "\""))
-                        () tmpls)
-                  ++
-                  (if outs = [] && ins = [] && clobs = [] then
-                    chr ':'
-                else
-                  (text ": "
-                     ++ (docList ~sep:(chr ',' ++ break)
-                           (fun (ido, c, lv) ->
-                             (match ido with 
-                               Some id -> text "[" ++ text id ++ text "] "
-                             | None -> nil) ++
-                             text ("\"" ^ escape_string c ^ "\" (")
-                               ++ self#pLval () lv
-                               ++ text ")") () outs)))
-                ++
-                  (if ins = [] && clobs = [] then
-                    nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun (ido,c, e) ->
-                               (match ido with 
-                                 Some id -> text "[" ++ text id ++ text "] "
-                               | None -> nil) ++
-                               text ("\"" ^ escape_string c ^ "\" (")
-                                 ++ self#pExp () e
-                                 ++ text ")") () ins)))
-                  ++
-                  (if clobs = [] then nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun c -> text ("\"" ^ escape_string c ^ "\""))
-                             ()
-                             clobs)))
-                  ++ unalign)
-            ++ text (")" ^ printInstrTerminator)
             
 
   (*** GLOBALS ***)
@@ -461,9 +356,18 @@ class zraCilPrinterClass : cilPrinter = object (self)
       
     (* print global variable 'extern' declarations, and function prototypes *)
     | GVarDecl (vi, l) ->
-        self#pLineDirective l ++
-          (self#pVDecl () vi)
-          ++ text ";\n"
+        let builtins = if !msvcMode then msvcBuiltins else gccBuiltins in
+        if not !printCilAsIs && H.mem builtins vi.vname then begin
+          (* Compiler builtins need no prototypes. Just print them in
+             comments. *)
+          text "/* compiler builtin: \n   " ++
+            (self#pVDecl () vi)
+            ++ text ";  */\n"
+          
+        end else
+          self#pLineDirective l ++
+            (self#pVDecl () vi)
+            ++ text ";\n"
 
     | GAsm (s, l) ->
         self#pLineDirective l ++
@@ -575,12 +479,32 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	    ++ decls
 	    ++ line ++ line
 	    (* the body *)
-	    ++ ((* remember the declaration *) currentFormals <- nf.sformals; 
+	    ++ ((* remember the declaration *) super#setCurrentFormals nf.sformals; 
           let body = self#pBlock () nf.sbody in
-          currentFormals <- [];
+          super#setCurrentFormals [];
           body))
       ++ line
       ++ text "}"
+
+  method private pStmtKind (next : stmt) () (sk : stmtkind) =
+    match sk with
+    | Loop(b,l,_,_) -> begin
+	(* See if we can turn this into a while(e) {} *)
+	(* TODO: See if we can turn this into a do { } while(e); *)
+	let co, bodystmts = get_loop_condition b in
+	match co with
+	| None -> super#pStmtKind next () sk
+	| Some c -> begin
+	    self#pLineDirective l
+	      ++ text "wh"
+	      ++ (align
+		    ++ text "ile ("
+		    ++ self#pExp () (UnOp(LNot,c,intType)) (* XXX: fix me *)
+		    ++ text ") "
+		    ++ self#pBlock () {bstmts=bodystmts; battrs=b.battrs})
+	end
+    end
+    | _ -> super#pStmtKind next () sk
 
 end (* class zraCilPrinterClass *)
 
