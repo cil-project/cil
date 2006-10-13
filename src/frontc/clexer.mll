@@ -62,6 +62,21 @@ let addComment c =
   let i = GrowArray.max_init_index Cabs.commentsGA in
   GrowArray.setg Cabs.commentsGA (i+1) (l,c,false)
 
+(* track whitespace for the current token *)
+let white = ref ""  
+let addWhite lexbuf =
+    let w = Lexing.lexeme lexbuf in 
+    white := !white ^ w
+let clear_white () = white := ""
+let get_white () = !white
+
+let lexeme = ref ""
+let addLexeme lexbuf =
+    let l = Lexing.lexeme lexbuf in
+    lexeme := !lexeme ^ l
+let clear_lexeme () = lexeme := ""
+let get_extra_lexeme () = !lexeme 
+
 let int64_to_char value =
   if (compare value (Int64.of_int 255) > 0) || (compare value Int64.zero < 0) then
     begin
@@ -434,31 +449,35 @@ rule initial =
 	parse 	"/*"			{ let il = comment lexbuf in
 	                                  let sl = intlist_to_string il in
 					  addComment sl;
+                                          addWhite lexbuf;
                                           initial lexbuf}
 |               "//"                    { let il = onelinecomment lexbuf in
                                           let sl = intlist_to_string il in
                                           addComment sl;
                                           E.newline();
+                                          addWhite lexbuf;
                                           initial lexbuf
                                            }
-|		blank			{initial lexbuf}
+|		blank			{ addWhite lexbuf; initial lexbuf}
 |               '\n'                    { E.newline ();
                                           if !pragmaLine then
                                             begin
                                               pragmaLine := false;
                                               PRAGMA_EOL
                                             end
-                                          else
-                                            initial lexbuf }
-|               '\\' '\r' * '\n'        {
+                                          else begin
+                                            addWhite lexbuf;
+                                            initial lexbuf
+                                          end}
+|               '\\' '\r' * '\n'        { addWhite lexbuf;
                                           E.newline ();
                                           initial lexbuf
                                         }
-|		'#'			{ hash lexbuf}
+|		'#'			{ addWhite lexbuf; hash lexbuf}
 |               "_Pragma" 	        { PRAGMA (currentLoc ()) }
 |		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
 |		"L'"			{ CST_WCHAR (chr lexbuf, currentLoc ()) }
-|		'"'			{ (* '"' *)
+|		'"'			{ addLexeme lexbuf; (* '"' *)
 (* matth: BUG:  this could be either a regular string or a wide string.
  *  e.g. if it's the "world" in 
  *     L"Hello, " "world"
@@ -535,6 +554,7 @@ rule initial =
 (* If we see __pragma we eat it and the matching parentheses as well *)
 |               "__pragma"              { matchingParsOpen := 0;
                                           let _ = matchingpars lexbuf in 
+                                          addWhite lexbuf;
                                           initial lexbuf 
                                         }
 
@@ -547,46 +567,46 @@ rule initial =
 
 (* __extension__ is a black. The parser runs into some conflicts if we let it
  * pass *)
-|               "__extension__"         {initial lexbuf }
+|               "__extension__"         {addWhite lexbuf; initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
 |		_			{E.parse_error "Invalid symbol"}
 and comment =
     parse 	
-      "*/"			        { [] }
+      "*/"			        { addWhite lexbuf; [] }
 (*|     '\n'                              { E.newline (); lex_unescaped comment lexbuf }*)
-| 		_ 			{ lex_comment comment lexbuf }
+| 		_ 			{ addWhite lexbuf; lex_comment comment lexbuf }
 
 
 and onelinecomment = parse
-    '\n'|eof    {[]}
-|   _           { lex_comment onelinecomment lexbuf }
+    '\n'|eof    {addWhite lexbuf; []}
+|   _           {addWhite lexbuf; lex_comment onelinecomment lexbuf }
 
 and matchingpars = parse
-  '\n'          { E.newline (); matchingpars lexbuf }
-| blank         { matchingpars lexbuf }
-| '('           { incr matchingParsOpen; matchingpars lexbuf }
-| ')'           { decr matchingParsOpen;
+  '\n'          { addWhite lexbuf; E.newline (); matchingpars lexbuf }
+| blank         { addWhite lexbuf; matchingpars lexbuf }
+| '('           { addWhite lexbuf; incr matchingParsOpen; matchingpars lexbuf }
+| ')'           { addWhite lexbuf; decr matchingParsOpen;
                   if !matchingParsOpen = 0 then 
                      ()
                   else 
                      matchingpars lexbuf
                 }
-|  "/*"		{ let il = comment lexbuf in
+|  "/*"		{ addWhite lexbuf; let il = comment lexbuf in
                   let sl = intlist_to_string il in
 		  addComment sl;
                   matchingpars lexbuf}
-|  '"'		{ (* '"' *)
+|  '"'		{ addWhite lexbuf; (* '"' *)
                   let _ = str lexbuf in 
                   matchingpars lexbuf
                  }
-| _              { matchingpars lexbuf }
+| _              { addWhite lexbuf; matchingpars lexbuf }
 
 (* # <line number> <file name> ... *)
 and hash = parse
-  '\n'		{ E.newline (); initial lexbuf}
-| blank		{ hash lexbuf}
-| intnum	{ (* We are seeing a line number. This is the number for the 
+  '\n'		{ addWhite lexbuf; E.newline (); initial lexbuf}
+| blank		{ addWhite lexbuf; hash lexbuf}
+| intnum	{ addWhite lexbuf; (* We are seeing a line number. This is the number for the 
                    * next line *)
                  let s = Lexing.lexeme lexbuf in
                  let lineno = try
@@ -599,7 +619,7 @@ and hash = parse
                   E.setCurrentLine (lineno - 1);
                   (* A file name may follow *)
 		  file lexbuf }
-| "line"        { hash lexbuf } (* MSVC line number info *)
+| "line"        { addWhite lexbuf; hash lexbuf } (* MSVC line number info *)
                 (* For pragmas with irregular syntax, like #pragma warning, 
                  * we parse them as a whole line. *)
 | "pragma" blank (no_parse_pragma as pragmaName)
@@ -607,24 +627,24 @@ and hash = parse
                   PRAGMA_LINE (pragmaName ^ pragma lexbuf, here)
                 }
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
-| _	        { endline lexbuf}
+| _	        { addWhite lexbuf; endline lexbuf}
 
 and file =  parse 
-        '\n'		        {E.newline (); initial lexbuf}
-|	blank			{file lexbuf}
-|	'"' [^ '\012' '\t' '"']* '"' 	{ (* '"' *)
+        '\n'		        {addWhite lexbuf; E.newline (); initial lexbuf}
+|	blank			{addWhite lexbuf; file lexbuf}
+|	'"' [^ '\012' '\t' '"']* '"' 	{ addWhite lexbuf;  (* '"' *)
                                    let n = Lexing.lexeme lexbuf in
                                    let n1 = String.sub n 1 
                                        ((String.length n) - 2) in
                                    E.setCurrentFile n1;
 				 endline lexbuf}
 
-|	_			{endline lexbuf}
+|	_			{addWhite lexbuf; endline lexbuf}
 
 and endline = parse 
-        '\n' 			{ E.newline (); initial lexbuf}
+        '\n' 			{ addWhite lexbuf; E.newline (); initial lexbuf}
 |   eof                         { EOF }
-|	_			{ endline lexbuf}
+|	_			{ addWhite lexbuf; endline lexbuf}
 
 and pragma = parse
    '\n'                 { E.newline (); "" }
@@ -633,10 +653,10 @@ and pragma = parse
 
 and str = parse
         '"'             {[]} (* no nul terminiation in CST_STRING '"' *)
-|	hex_escape	{lex_hex_escape str lexbuf}
-|	oct_escape	{lex_oct_escape str lexbuf}
-|	escape		{lex_simple_escape str lexbuf}
-|	_		{lex_unescaped str lexbuf}
+|	hex_escape	{addLexeme lexbuf; lex_hex_escape str lexbuf}
+|	oct_escape	{addLexeme lexbuf; lex_oct_escape str lexbuf}
+|	escape		{addLexeme lexbuf; lex_simple_escape str lexbuf}
+|	_		{addLexeme lexbuf; lex_unescaped str lexbuf}
 
 and chr =  parse
 	'\''	        {[]}

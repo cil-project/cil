@@ -60,6 +60,8 @@
 (* George Necula: I changed this pretty dramatically since CABS changed *)
 open Cabs
 open Escape
+open Whitetrack
+
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
 type loc = { line : int; file : string }
@@ -94,117 +96,21 @@ let current_len = ref 0
 let spaces = ref 0
 let follow = ref 0
 let roll = ref 0
-
-let print_tab size =
-	for i = 1 to size / 8 do
-		output_char !out '\t'
-	done;
-	for i  = 1 to size mod 8 do
-		output_char !out ' '
-	done
-
-let flush _ =
-	if !line <> "" then begin
-		print_tab (!spaces + !follow);
-		output_string !out !line;
-		line := "";
-		line_len := 0
-	end
-
-let commit _ =
-  if !current <> "" then begin
-    if !line = "" then begin
-      line := !current;
-      line_len := !current_len
-    end else begin
-      line := (!line ^ " " ^ !current);
-      line_len := !line_len + 1 + !current_len
-    end;
-    current := "";
-    current_len := 0
-  end
+    
 
 
-let addline () =
-  curLoc := {lineno = !curLoc.lineno+1;
-             filename = !curLoc.filename;
-             byteno = -1;} (*sfg: can we do better than this?*)
-       
-       
-let new_line _ =
-  commit ();
-  if !line <> "" then begin
-    flush ();
-    addline();
-    output_char !out '\n'
-  end;
-  follow := 0
-       
-let force_new_line _ =
-  commit ();
-  flush ();
-  addline();
-  output_char !out '\n';
-  follow := 0
-       
-let indent _ =
-  new_line ();
-  spaces := !spaces + !tab;
-  if !spaces >= !max_indent then begin
-    spaces := !tab;
-    roll := !roll + 1
-  end
-      
-let indentline _ =
-  new_line ();
-  if !spaces >= !max_indent then begin
-    spaces := !tab;
-    roll := !roll + 1
-  end
-      
-let unindent _ =
-  new_line ();
-  spaces := !spaces - !tab;
-  if (!spaces <= 0) && (!roll > 0) then begin
-    spaces := ((!max_indent - 1) / !tab) * !tab;
-    roll := !roll - 1
-  end
-      
-let space _ = commit ()
-
-let print str =
-  current := !current ^ str;
-  current_len := !current_len + (String.length str);
-  if (!spaces + !follow + !line_len + 1 + !current_len) > !width
-  then begin
-    if !line_len = 0 then commit ();
-    flush ();
-    addline();
-    output_char !out '\n';
-    if !follow = 0 then follow := !tab
-  end
+(* stub out the old-style manual space functions *)
+(* we may implement some of these later *)
+let new_line () = ()
+let space () = ()
+let indent () = ()
+let unindent () = ()
+let force_new_line () = ()
+let flush () = ()
+let commit () = ()
 
 (* sm: for some reason I couldn't just call print from frontc.... ? *)
 let print_unescaped_string str = print str
-
-let setLoc (l : cabsloc) =
-  if !printLn then  
-    if (l.lineno <> !curLoc.lineno) || l.filename <> !curLoc.filename then 
-      begin
-        let oldspaces = !spaces in
-        (* sm: below, we had '//#' instead of '#', which means printLnComment was disregarded *)
-        if !printLnComment then print "//" else print "#";
-        if !msvcMode then print "line";
-        print " ";
-        print (string_of_int l.lineno);
-        if (l.filename <> !curLoc.filename) then begin
-          print (" \"" ^ l.filename ^ "\"")
-        end;
-        spaces := oldspaces;
-        new_line();
-        curLoc := l
-      end
-
 
 
 (*
@@ -221,7 +127,8 @@ let print_list print_sep print_elt lst =
   ()
 
 let print_commas nl fct lst =
-  print_list (fun () -> print ","; if nl then new_line() else space()) fct lst
+  print_list (fun () -> print ","; if nl then new_line() else space()) fct lst;
+  print_maybe ","
 	
 let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
@@ -236,23 +143,23 @@ let print_wstring (s: int64 list ) =
 let rec print_specifiers (specs: spec_elem list) =
   comprint "specifier(";
   let print_spec_elem = function
-      SpecTypedef -> print "typedef "
-    | SpecInline -> print "__inline "
+      SpecTypedef -> print "typedef"
+    | SpecInline -> printu "inline"
     | SpecStorage sto ->
-        print (match sto with
+        printu (match sto with
           NO_STORAGE -> (comstring "/*no storage*/")
-        | AUTO -> "auto "
-        | STATIC -> "static "
-        | EXTERN -> "extern "
-        | REGISTER -> "register ")
+        | AUTO -> "auto"
+        | STATIC -> "static"
+        | EXTERN -> "extern"
+        | REGISTER -> "register")
     | SpecCV cv -> 
-        print (match cv with
-        | CV_CONST -> "const "
-        | CV_VOLATILE -> "volatile "
-        | CV_RESTRICT -> "restrict ")
+        printu (match cv with
+        | CV_CONST -> "const"
+        | CV_VOLATILE -> "volatile"
+        | CV_RESTRICT -> "restrict")
     | SpecAttr al -> print_attribute al; space ()
     | SpecType bt -> print_type_spec bt
-    | SpecPattern name -> print ("@specifier(" ^ name ^ ") ")
+    | SpecPattern name -> printl ["@specifier";"(";name;")"]
   in
   List.iter print_spec_elem specs
   ;comprint ")"
@@ -270,20 +177,20 @@ and print_type_spec = function
   | Tsigned -> print "signed "
   | Tunsigned -> print "unsigned "
   | Tnamed s -> comprint "tnamed"; print s; space ();
-  | Tstruct (n, None, _) -> print ("struct " ^ n ^ " ")
+  | Tstruct (n, None, _) -> printl ["struct";n]
   | Tstruct (n, Some flds, extraAttrs) ->
       (print_struct_name_attr "struct" n extraAttrs);
       (print_fields flds)
-  | Tunion (n, None, _) -> print ("union " ^ n ^ " ")
+  | Tunion (n, None, _) -> printl ["union";n;" "]
   | Tunion (n, Some flds, extraAttrs) ->
       (print_struct_name_attr "union" n extraAttrs);
       (print_fields flds)
-  | Tenum (n, None, _) -> print ("enum " ^ n ^ " ")
+  | Tenum (n, None, _) -> printl ["enum";n]
   | Tenum (n, Some enum_items, extraAttrs) ->
       (print_struct_name_attr "enum" n extraAttrs);
       (print_enum_items enum_items)
-  | TtypeofE e -> print "__typeof__("; print_expression e; print ") "
-  | TtypeofT (s,d) -> print "__typeof__("; print_onlytype (s, d); print ") "
+  | TtypeofE e -> printl ["__typeof__";"("]; print_expression e; print ") "
+  | TtypeofT (s,d) -> printl ["__typeof__";"("]; print_onlytype (s, d); print ") "
 
 
 (* print "struct foo", but with specified keyword and a list of
@@ -291,11 +198,11 @@ and print_type_spec = function
 and print_struct_name_attr (keyword: string) (name: string) (extraAttrs: attribute list) =
 begin
   if extraAttrs = [] then
-    print (keyword ^ " " ^ name)
+    printl [keyword;name]
   else begin
-    (print (keyword ^ " "));
-    (print_attributes extraAttrs);    (* prints a final space *)
-    (print name);
+    print keyword;
+    print_attributes extraAttrs;    (* prints a final space *)
+    print name;
   end
 end
 
@@ -405,11 +312,11 @@ and print_single_name (specs, name) =
 
 and print_params (pars : single_name list) (ell : bool) =
   print_commas false print_single_name pars;
-  if ell then print (if pars = [] then "..." else ", ...") else ()
+  if ell then printl (if pars = [] then ["..."] else [",";"..."]) else ()
     
 and print_old_params pars ell =
   print_commas false (fun id -> print id) pars;
-  if ell then print (if pars = [] then "..." else ", ...") else ()
+  if ell then printl (if pars = [] then ["..."] else [",";"..."]) else ()
     
 
 (*
@@ -436,6 +343,7 @@ and print_old_params pars ell =
 and get_operator exp =
   match exp with
     NOTHING -> ("", 16)
+  | PAREN exp -> ("", 16)
   | UNARY (op, _) ->
       (match op with
 	MINUS -> ("-", 13)
@@ -509,7 +417,7 @@ and print_init_expression (iexp: init_expression) : unit =
         | i, e -> 
             let rec doinit = function
                 NEXT_INIT -> ()
-              | INFIELD_INIT (fn, i) -> print ("." ^ fn); doinit i
+              | INFIELD_INIT (fn, i) -> printl [".";fn]; doinit i
               | ATINDEX_INIT (e, i) -> 
                   print "[";
                   print_expression e;
@@ -533,9 +441,9 @@ and print_expression (exp: expression) = print_expression_level 1 exp
 
 and print_expression_level (lvl: int) (exp : expression) =
   let (txt, lvl') = get_operator exp in
-  let _ = if lvl > lvl' then print "(" else () in
   let _ = match exp with
     NOTHING -> ()
+  | PAREN exp -> print "("; print_expression exp; print ")"
   | UNARY (op, exp') ->
       (match op with
 	POSINCR | POSDECR ->
@@ -544,7 +452,7 @@ and print_expression_level (lvl: int) (exp : expression) =
       | _ ->
 	  print txt; space (); (* Print the space to avoid --5 *)
 	  print_expression_level lvl' exp')
-  | LABELADDR l -> print ("&& " ^ l)
+  | LABELADDR l -> printl ["&&";l]
   | BINARY (op, exp1, exp2) ->
 			(*if (op = SUB) && (lvl <= lvl') then print "(";*)
       print_expression_level lvl' exp1;
@@ -602,19 +510,18 @@ and print_expression_level (lvl: int) (exp : expression) =
       comprint "variable";
       print name
   | EXPR_SIZEOF exp ->
-      print "sizeof(";
-      print_expression_level 0 exp;
-      print ")"
+      print "sizeof";
+      print_expression_level 0 exp
   | TYPE_SIZEOF (bt,dt) ->
-      print "sizeof(";
+      printl ["sizeof";"("];
       print_onlytype (bt, dt);
       print ")"
   | EXPR_ALIGNOF exp ->
-      print "__alignof__(";
+      printl ["__alignof__";"("];
       print_expression_level 0 exp;
       print ")"
   | TYPE_ALIGNOF (bt,dt) ->
-      print "__alignof__(";
+      printl ["__alignof__";"("];
       print_onlytype (bt, dt);
       print ")"
   | INDEX (exp, idx) ->
@@ -624,18 +531,18 @@ and print_expression_level (lvl: int) (exp : expression) =
       print "]"
   | MEMBEROF (exp, fld) ->
       print_expression_level 16 exp;
-      print ("." ^ fld)
+      printl [".";fld]
   | MEMBEROFPTR (exp, fld) ->
       print_expression_level 16 exp;
-      print ("->" ^ fld)
+      printl ["->";fld]
   | GNU_BODY (blk) ->
       print "(";
       print_block blk;
       print ")"
   | EXPR_PATTERN (name) ->
-      print ("@expr(" ^ name ^ ") ")
+      printl ["@expr";"(";name;")"]
   in
-  if lvl > lvl' then print ")" else ()
+  ()
     
 
 (*
@@ -660,7 +567,7 @@ and print_statement stat =
       print_statement s2;
   | IF (exp, s1, s2, loc) ->
       setLoc(loc);
-      print "if(";
+      printl ["if";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement s1;
@@ -672,7 +579,7 @@ and print_statement stat =
         end)
   | WHILE (exp, stat, loc) ->
       setLoc(loc);
-      print "while(";
+      printl ["while";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
@@ -680,13 +587,13 @@ and print_statement stat =
       setLoc(loc);
       print "do";
       print_substatement stat;
-      print "while(";
+      printl ["while";"("];
       print_expression_level 0 exp;
       print ");";
       new_line ();
   | FOR (fc1, exp2, exp3, stat, loc) ->
       setLoc(loc);
-      print "for(";
+      printl ["for";"("];
       (match fc1 with
         FC_EXP exp1 -> print_expression_level 0 exp1; print ";"
       | FC_DECL dec1 -> print_def dec1);
@@ -716,7 +623,7 @@ and print_statement stat =
       new_line ()
   | SWITCH (exp, stat, loc) ->
       setLoc(loc);
-      print "switch(";
+      printl ["switch";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
@@ -746,12 +653,12 @@ and print_statement stat =
       print_substatement stat
   | LABEL (name, stat, loc) ->
       setLoc(loc);
-      print (name ^ ":");
+      printl [name;":"];
       space ();
       print_substatement stat
   | GOTO (name, loc) ->
       setLoc(loc);
-      print ("goto " ^ name ^ ";");
+      printl ["goto";name;";"];
       new_line ()
   | COMPGOTO (exp, loc) -> 
       setLoc(loc);
@@ -761,10 +668,6 @@ and print_statement stat =
   | ASM (attrs, tlist, details, loc) ->
       setLoc(loc);
       let print_asm_operand (identop,cnstr, e) =
-        (match identop with
-            None -> ()
-          | Some id -> print_string ("[" ^ id ^ "] ")
-        );
         print_string cnstr; space (); print_expression_level 100 e
       in
       if !msvcMode then begin
@@ -805,7 +708,7 @@ and print_statement stat =
       setLoc loc;
       print "__try ";
       print_block b;
-      print "__except("; print_expression e; print ")";
+      printl ["__except";"("]; print_expression e; print ")";
       print_block h
       
 and print_block blk = 
@@ -851,19 +754,13 @@ and print_substatement stat =
 ** GCC Attributes
 *)
 and print_attribute (name,args) = 
-  if args = [] then print (
-    match name with 
-      "restrict" -> "__restrict" 
-      (* weimer: Fri Dec  7 17:12:35  2001
-       * must not print 'restrict' and the code below does allows some
-       * plain 'restrict's to slip though! *)
-    | x -> x)
+  if args = [] then printu name
   else begin
     print name;
     print "("; if name = "__attribute__" then print "(";
     (match args with
-      [VARIABLE "aconst"] -> print "const"
-    | [VARIABLE "restrict"] -> print "__restrict"
+      [VARIABLE "aconst"] -> printu "const"
+    | [VARIABLE "restrict"] -> printu "restrict"
     | _ -> print_commas false (fun e -> print_expression e) args);
     print ")"; if name = "__attribute__" then print ")"
   end
@@ -932,7 +829,7 @@ and print_def def =
 
   | GLOBASM (asm, loc) ->
       setLoc(loc);
-      print "__asm__ (";  print_string asm; print ");";
+      printl ["__asm__";"("];  print_string asm; print ");";
       new_line ();
       force_new_line ()
 
@@ -1011,6 +908,7 @@ end
 let printFile (result : out_channel) ((fname, defs) : file) =
   out := result;
   print_defs defs;
+  Whitetrack.printEOF ();
   flush ()     (* sm: should do this here *)
 
 let set_tab t = tab := t

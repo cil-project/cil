@@ -268,6 +268,7 @@ and expression =
   | CALL of expression * expression list
   | COMMA of expression list
   | CONSTANT of constant
+  | PAREN of expression
   | VARIABLE of string
   | EXPR_SIZEOF of expression
   | TYPE_SIZEOF of specifier * decl_type

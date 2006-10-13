@@ -2465,6 +2465,7 @@ and doAttr (a: A.attribute) : attribute list =
         | A.UNARY(A.BNOT, aa) -> AUnOp(BNot, ae aa)
         | A.UNARY(A.NOT, aa) -> AUnOp(LNot, ae aa)
         | A.MEMBEROF (e, s) -> ADot (ae e, s)
+        | A.PAREN(e) -> attrOfExp strip ~foldenum:foldenum e 
         | A.UNARY(A.MEMOF, aa) -> AStar (ae aa)
         | A.UNARY(A.ADDROF, aa) -> AAddrOf (ae aa)
         | A.MEMBEROFPTR (aa1, s) -> ADot(AStar(ae aa1), s)
@@ -3036,6 +3037,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
   in
   try
     match e with
+    | A.PAREN e -> doExp asconst e what 
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
         let res = Const(CStr "exp_nothing") in

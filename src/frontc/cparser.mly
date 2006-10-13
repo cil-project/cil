@@ -470,7 +470,7 @@ primary_expression:                     /*(* 6.5.1. *)*/
 |        	constant
 		        {CONSTANT (fst $1), snd $1}
 |		paren_comma_expression  
-		        {smooth_expression (fst $1), snd $1}
+		        {PAREN (smooth_expression (fst $1)), snd $1}
 |		LPAREN block RPAREN
 		        { GNU_BODY (fst3 $2), $1 }
 

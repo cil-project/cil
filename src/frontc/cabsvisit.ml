@@ -495,6 +495,9 @@ and childrenExpression vis e =
       let el' = mapNoCopy ve el in
       if el' != el then COMMA (el') else e
   | CONSTANT _ -> e
+  | PAREN e1 -> 
+      let e1' = ve e1 in
+      if e1' != e1 then PAREN e1 else e 
   | VARIABLE s -> 
       let s' = vis#vvar s in
       if s' != s then VARIABLE s' else e
