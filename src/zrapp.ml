@@ -70,6 +70,19 @@ let get_comments l =
   in
   List.rev (loop s [])
 
+(* clean up some of the mess made below *)
+let rec simpl_cond e =
+  match e with
+  | UnOp(LNot,BinOp(LAnd,e1,e2,t1),t2) ->
+      let e1 = simpl_cond (UnOp(LNot,e1,t1)) in
+      let e2 = simpl_cond (UnOp(LNot,e2,t1)) in
+      BinOp(LOr,e1,e2,t2)
+  | UnOp(LNot,BinOp(LOr,e1,e2,t1),t2) ->
+      let e1 = simpl_cond (UnOp(LNot,e1,t1)) in
+      let e2 = simpl_cond (UnOp(LNot,e2,t1)) in
+      BinOp(LAnd,e1,e2,t2)
+  | UnOp(LNot,UnOp(LNot,e,_),_) -> simpl_cond e
+  | _ -> e
 
 (* the argument b is the body of a Loop *)
 (* returns the loop termination condition *)
@@ -499,7 +512,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	      ++ text "wh"
 	      ++ (align
 		    ++ text "ile ("
-		    ++ self#pExp () (UnOp(LNot,c,intType)) (* XXX: fix me *)
+		    ++ self#pExp () (simpl_cond (UnOp(LNot,c,intType)))
 		    ++ text ") "
 		    ++ self#pBlock () {bstmts=bodystmts; battrs=b.battrs})
 	end
