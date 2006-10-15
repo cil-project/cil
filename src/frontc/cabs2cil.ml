@@ -2354,7 +2354,11 @@ and makeVarInfoCabs
                 (n,ndt,a) 
       : varinfo = 
   let vtype, nattr = 
-    doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
+    doType (AttrName false) 
+      ~allowVarSizeArrays:isformal  (* For locals we handle var-sized arrays
+                                       before makeVarInfoCabs; for formals
+                                       we do it afterwards *)
+      bt (A.PARENTYPE(attrs, ndt, a)) in
   if inline && not (isFunctionType vtype) then
     ignore (error "inline for a non-function: %s" n);
   let t = 
@@ -2526,6 +2530,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                                          * the type for a name, or AttrType 
                                          * if we are doing this type in a 
                                          * typedef *)
+           ?(allowVarSizeArrays=false)
            (bt: typ)                    (* The base type *)
            (dt: A.decl_type) 
   (* Returns the new type and the accumulated name (or type attribute 
@@ -2616,30 +2621,32 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           | _ -> 
               let len' = doPureExp len in
               let _, len'' = castTo (typeOf len') intType len' in
-              let elsz = 
-                try (bitsSizeOf bt + 7) / 8
-                with _ -> 1 (** We get this if we cannot compute the size of 
-                             * one element. This can happen, when we define 
-                             * an extern, for example. We use 1 for now *)
-              in 
-              (match constFold true len' with 
-                Const(CInt64(i, _, _)) ->
-                  if i < 0L then 
-                    E.s (error "Length of array is negative\n");
-                  if Int64.mul i (Int64.of_int elsz) >= 0x80000000L then 
-                    E.s (error "Length of array is too large\n")
-           
+              if not allowVarSizeArrays then begin
+                (* Assert that len' is a constant *)
+                let elsz = 
+                  try (bitsSizeOf bt + 7) / 8
+                  with _ -> 1 (** We get this if we cannot compute the size of 
+                                * one element. This can happen, when we define 
+                                * an extern, for example. We use 1 for now *)
+                in 
+                (match constFold true len' with 
+                   Const(CInt64(i, _, _)) ->
+                     if i < 0L then 
+                       E.s (error "Length of array is negative\n");
+                     if Int64.mul i (Int64.of_int elsz) >= 0x80000000L then 
+                       E.s (error "Length of array is too large\n")
 
-                | l -> 
-                    if isConstant l then 
-                      (* e.g., there may be a float constant involved. 
-                       * We'll leave it to the user to ensure the length is
-                       * non-negative, etc.*)
-                      ignore(warn "Unable to do constant-folding on array length %a.  Some CIL operations on this array may fail."
-                               d_exp l)
-                    else 
-                      E.s (error "Length of array is not a constant: %a\n"
-                             d_exp l));
+                 | l -> 
+                     if isConstant l then 
+                       (* e.g., there may be a float constant involved. 
+                        * We'll leave it to the user to ensure the length is
+                        * non-negative, etc.*)
+                       ignore(warn "Unable to do constant-folding on array length %a.  Some CIL operations on this array may fail."
+                                d_exp l)
+                     else 
+                       E.s (error "Length of array is not a constant: %a\n"
+                              d_exp l))
+              end;
               Some len''
         in
 	let al' = doAttributes al in
@@ -2675,19 +2682,8 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         (* Make the argument as for a formal *)
         let doOneArg (s, (n, ndt, a, cloc)) : varinfo = 
           let s' = doSpecList n s in
-          let ndt' =  match isVariableSizedArray ndt with
-              None -> ndt
-            | Some (ndt', se, len) -> 
-                (* If this is a variable-sized array, we replace the array
-                   type with a pointer type.  This is the defined behavior
-                   for array parameters, so we do not need to add this to
-                   varSizeArrays, fix sizeofs, etc. *)
-                if isNotEmpty se then
-                  E.s (error "array parameter: length not pure");
-                ndt'
-          in              
           let vi = makeVarInfoCabs ~isformal:true ~isglobal:false 
-                     (convLoc cloc) s' (n,ndt',a) in
+                     (convLoc cloc) s' (n,ndt,a) in
           (* Add the formal to the environment, so it can be referenced by
              other formals  (e.g. in an array type, although that will be
              changed to a pointer later, or though typeof).  *) 
@@ -2729,8 +2725,10 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             [] -> ()
           | a :: args' -> 
               (match unrollType a.vtype with
-                TArray(t,lo,attr) -> 
-                  a.vtype <- turnArrayIntoPointer t lo attr
+                TArray(bt,lo,attr) -> 
+                  (* Note that for multi-dimensional arrays we strip off only
+                     the first TArray and leave bt alone. *)
+                  a.vtype <- turnArrayIntoPointer bt lo attr
               | TFun _ -> a.vtype <- TPtr(a.vtype, [])
               | TComp (comp, _) -> begin
                   match isTransparentUnion a.vtype with

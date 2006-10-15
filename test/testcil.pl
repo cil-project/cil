@@ -206,6 +206,7 @@ addTest("test/array1");
 addTest("testrun/array4");
 addTest("test/array2");
 addTest("testrun/array_varsize");
+addTest("testrun/array_formal");
 addTest("testrun/formalscope");
 addTest("test/matrix");
 addTest("testrun/switch");
