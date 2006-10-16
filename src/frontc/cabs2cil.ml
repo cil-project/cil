@@ -3447,6 +3447,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             doExp false 
               (A.QUESTION (e1, A.UNARY(A.ADDROF, e2), A.UNARY(A.ADDROF, e3)))
               what
+        | A.PAREN e1 ->
+            doExp false (A.UNARY(A.ADDROF, e1)) what
         | A.VARIABLE s when 
             isOldStyleVarArgName s 
             && (match !currentFunctionFDEC.svar.vtype with 
@@ -3521,7 +3523,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               (A.QUESTION (e1, A.UNARY(uop, e2q), 
                            A.UNARY(uop, e3q)))
               what
-
+        | A.PAREN e1 ->
+            doExp asconst (A.UNARY(uop, e1)) what
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
            A.CAST _ (* A GCC extension *)) -> begin
@@ -3557,7 +3560,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             doExp asconst 
               (A.QUESTION (e1, A.UNARY(uop, e2q), A.UNARY(uop, e3q)))
               what
-
+        | A.PAREN e1 -> doExp asconst (A.UNARY(uop,e1)) what
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
            A.CAST _ (* A GCC extension *) ) -> begin
@@ -3610,7 +3613,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                        A.SINGLE_INIT (A.BINARY(A.ASSIGN, e, 
                                                A.CAST (t, A.SINGLE_INIT e2)))))
               what
-
+        | A.PAREN e1 -> doExp asconst (A.BINARY(A.ASSIGN,e1,e2)) what 
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ ) -> begin
              if asconst then ignore (warn "ASSIGN in constant");
@@ -3650,7 +3653,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               (A.QUESTION (e1, A.BINARY(bop, e2q, e2), 
                            A.BINARY(bop, e3q, e2)))
               what
-
+        | A.PAREN e1 -> doExp asconst (A.BINARY(bop,e1,e2)) what
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
            A.CAST _ (* GCC extension *) ) -> begin
