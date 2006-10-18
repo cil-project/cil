@@ -2,6 +2,8 @@
 open Cil
 open Pretty
 
+module E = Errormsg
+
 (** compute use/def information *)
 
 module VS = Set.Make (struct 
@@ -88,8 +90,9 @@ class useDefVisitorClass : cilVisitor = object (self)
     match e with
       Lval (Var v, off) -> 
         ignore (visitCilOffset (self :> cilVisitor) off);
-        if (!considerVariableUse) v then
-          varUsed := VS.add v !varUsed;
+        if (!considerVariableUse) v then begin
+          varUsed := VS.add v !varUsed
+	end;
         SkipChildren (* So that we do not see the v *)
 
     | AddrOf (Var v, off) 
@@ -105,7 +108,7 @@ class useDefVisitorClass : cilVisitor = object (self)
     | _ -> DoChildren
 
   (* For function calls, do the transitive variable read/defs *)
-  method vinst = function
+  method vinst i = match i with
       Call (lvo, f, args, _) -> begin
         (* we will compute the use and def that appear in 
          * this instruction. We also add in the stuff computed by 
@@ -117,10 +120,10 @@ class useDefVisitorClass : cilVisitor = object (self)
         (* Now visit the children of  "Call (lvo, f, args', _)" *)
         let self: cilVisitor = (self :> cilVisitor) in
         (match lvo with None -> ()
-         | Some lv -> ignore (visitCilLval self lv));
+        | Some lv -> ignore (visitCilLval self lv));
         ignore (visitCilExpr self f);
         List.iter (fun arg -> ignore (visitCilExpr self arg)) args';
-        SkipChildren;
+        SkipChildren
       end
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->

@@ -365,8 +365,8 @@ module BackwardsDataFlow =
     let getStmtStartData (s: stmt) : T.t = 
       try IH.find T.stmtStartData s.sid
       with Not_found -> 
-        E.s (E.bug "BF(%s): stmtStartData is not initialized for %d"
-               T.name s.sid)
+        E.s (E.bug "BF(%s): stmtStartData is not initialized for %d: %a"
+               T.name s.sid d_stmt s)
 
     (** Process a statement and return true if the set of live return 
      * addresses on its entry has changed. *)

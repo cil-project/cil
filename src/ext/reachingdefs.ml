@@ -426,6 +426,10 @@ let iosh_none_fill iosh vil =
     IH.add iosh vi.vid (IOS.singleton None))
     vil
 
+let clearMemos () =
+  IH.clear rhsHtbl;
+  Hashtbl.clear iRDsHtbl
+
 (* Computes the reaching definitions for a
    function. *)
 (* Cil.fundec -> unit *)

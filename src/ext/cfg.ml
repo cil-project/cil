@@ -262,6 +262,7 @@ let printCfgFilename (filename : string) (fd : fundec) =
 
 (**********************************************************************)
 
+
 let clearCFGinfo (fd : fundec) =
   let clear s =
     s.sid <- -1;
@@ -271,6 +272,7 @@ let clearCFGinfo (fd : fundec) =
   forallStmts clear fd
 
 let clearFileCFG (f : file) =
+  start_id := 0; numNodes := 0;
   iterGlobals f (fun g ->
     match g with GFun(fd,_) ->
       clearCFGinfo fd

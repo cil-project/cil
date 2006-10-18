@@ -106,7 +106,12 @@ let computeLiveness fdec =
   UD.onlyNoOffsetsAreDefs := false;
   all_stmts := [];
   let a = null_adder fdec in
-  L.compute a
+  try
+    L.compute a
+  with E.Error -> begin
+    ignore(E.log "Liveness failed on function:\n %a\n" d_global (GFun(fdec,locUnknown)));
+    E.s "Bug in Liveness compute"
+  end
 
 let getLiveSet sid =
   try Some(IH.find LiveFlow.stmtStartData sid)

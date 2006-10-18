@@ -251,15 +251,16 @@ class useListerClass (defid:int) (vi:varinfo) = object(self)
 
   method vexpr e =
     match e with
-      Lval(Var vi', off) ->
-	(match self#get_cur_iosh() with
+    | Lval(Var vi', off) -> begin
+	match self#get_cur_iosh() with
 	  Some iosh ->
 	    let vido = RD.iosh_defId_find iosh defid in
 	    let exists = match vido with Some _ -> true | None -> false in
 	    if Util.equals vi vi' && exists
 	    then (useList := sid::(!useList); DoChildren)
 	    else DoChildren
-	| _ -> E.s (E.error "useLister: no data for statement\n"))
+	| _ -> DoChildren (*E.s (E.error "useLister: no data for statement\n")*)
+    end
     | _ -> DoChildren
 
 end
@@ -537,8 +538,8 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	  | Const(CWStr _) -> None
 	  | _ -> begin
 	      ae_lval_to_exp_change := true;
-	      ignore(E.log "ae: replacing %a with %a\n"
-		       d_lval lv d_exp e);
+	      if !debug then ignore(E.log "ae: replacing %a with %a\n"
+				      d_lval lv d_exp e);
 	      Some e
 	  end
 	with Not_found -> None
@@ -864,12 +865,12 @@ let is_volatile vi =
    temps that can be eliminated during pretty printing
    are also considered *)
 class unusedRemoverClass : cilVisitor = object(self)
-    inherit nopCilVisitor
+  inherit nopCilVisitor
 
   val mutable unused_set = UD.VS.empty
   val mutable cur_func = dummyFunDec
 
-  (* figure out which locals aren't used *)
+      (* figure out which locals aren't used *)
   method vfunc f =	
     cur_func <- f;
     (* the set of used variables *)
@@ -883,17 +884,17 @@ class unusedRemoverClass : cilVisitor = object(self)
       if UD.VS.mem vi used
       then un
       else (if !debug then ignore (E.log "unusedRemoverClass: %s is unused\n" vi.vname);
-	    UD.VS.add vi un)) UD.VS.empty f.slocals in
+	UD.VS.add vi un)) UD.VS.empty f.slocals in
     
     (* a filter function for picking out
        the local variables that need to be kept *)
     let good_var vi =
-      (is_volatile vi) ||
-      (not(UD.VS.mem vi unused) &&
-      (not(IH.mem iioh vi.vid) ||
-      (match IH.find iioh vi.vid with
-	None -> true | Some _ -> false)) &&
-      not(IH.mem incdecHash vi.vid))
+      (is_volatile vi) || (* have to keep if it's volatile *)
+      (not(UD.VS.mem vi unused) && (* have to keep if it's used and if *)
+       (not(IH.mem iioh vi.vid) ||  (* it's not getting eliminated during pp *)
+       (match IH.find iioh vi.vid with (* getting eliminated *)
+	 None -> true | Some _ -> false)) &&
+       not(IH.mem incdecHash vi.vid))
     in
     let good_locals = List.filter good_var f.slocals in
     f.slocals <- good_locals;
@@ -930,11 +931,11 @@ class unusedRemoverClass : cilVisitor = object(self)
 	      | RD.RDExp e' -> 
 		  if Util.equals e e' then true
 		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
-					      redefid d_plainexp e' d_plainexp e);
+						 redefid d_plainexp e' d_plainexp e);
 			false)))
 	| [] -> (if !debug then ignore (E.log "check_incdec: current statement not in list: %d. %s = %a\n"
-					    stm.sid vi.vname d_exp e);
-		   false)
+					  stm.sid vi.vname d_exp e);
+		 false)
       else (if !debug then ignore (E.log "check_incdec: %s not in idDefHash\n" vi.vname);
 	    false)
     in
@@ -955,7 +956,7 @@ class unusedRemoverClass : cilVisitor = object(self)
     (* instr -> bool *)
     let good_instr i =
       match i with
-	Set((Var(vi),_),e,_) ->
+      | Set((Var(vi),_),e,_) -> begin
 	  if will_be_call e &&
 	    not(List.mem vi cur_func.slocals)
 	  then cur_func.slocals <- vi::cur_func.slocals;
@@ -964,22 +965,25 @@ class unusedRemoverClass : cilVisitor = object(self)
 	   not (IH.mem incdecHash vi.vid) &&
 	   not (check_incdec vi e)) ||
 	   will_be_call e
-	 | Call (Some(Var(vi),_),_,_,_) ->
+      end
+      | Call (Some(Var(vi),_),_,_,_) -> begin
 	     (* If not in the table or entry is None,
 		then it's good *)
-	     not (IH.mem iioh vi.vid) ||
-	     (match IH.find iioh vi.vid with
-	       None -> true | Some _ -> false)
-	   | Asm(_,_,slvlst,_,_,_) ->
-	       (* make sure the outputs are in the locals list *)
-	       List.iter (fun (_,s,lv) ->
-		 match lv with (Var vi,_) ->
-		   if List.mem vi cur_func.slocals
-		   then ()
-		   else cur_func.slocals <- vi::cur_func.slocals
-		 |_ -> ()) slvlst;
-	       true
-	   | _ -> true
+	  not (IH.mem iioh vi.vid) ||
+	  (match IH.find iioh vi.vid with
+	    None -> true | Some _ -> false)
+      end
+      | Asm(_,_,slvlst,_,_,_) -> begin
+	  (* make sure the outputs are in the locals list *)
+	  List.iter (fun (_,s,lv) ->
+	    match lv with (Var vi,_) ->
+	      if List.mem vi cur_func.slocals
+	      then ()
+	      else cur_func.slocals <- vi::cur_func.slocals
+	    |_ -> ()) slvlst;
+	  true
+      end
+      | _ -> true
     in
 
     (* If the result of a function call isn't used,
@@ -1044,8 +1048,10 @@ let eliminate_temps f =
   IH.clear idDefHash;
   let etec = new expTempElimClass f in
   let f' = visitCilFunction (etec :> cilVisitor) f in
+  RD.clearMemos (); (* we changed instructions and invalidated the "cache" *)
   let idtec = new incdecTempElimClass f' in
   let f' = visitCilFunction (idtec :> cilVisitor) f' in
   let ctec = new callTempElimClass f' in
   let f' = visitCilFunction (ctec :> cilVisitor) f' in
-  visitCilFunction (new unusedRemoverClass) f'
+  let f' = visitCilFunction (new unusedRemoverClass) f' in
+  f'
