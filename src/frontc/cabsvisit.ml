@@ -39,6 +39,7 @@
 (* tree visitor and rewriter for cabs *)
 
 open Cabs
+open Cabshelper
 open Trace
 open Pretty
 module E = Errormsg
@@ -94,7 +95,8 @@ end
     
 let visitorLocation = ref { filename = ""; 
 			    lineno = -1; 
-			    byteno = -1;}
+			    byteno = -1;
+                            ident = 0}
     
         (* a default visitor which does nothing to the tree *)
 class nopCabsVisitor : cabsVisitor = object

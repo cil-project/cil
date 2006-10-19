@@ -42,6 +42,7 @@
 */
 %{
 open Cabs
+open Cabshelper
 module E = Errormsg
 
 let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
@@ -60,15 +61,10 @@ let getComments () =
       r
 *)
 
-let currentLoc () = 
-  let l, f, c = E.getPosition () in
-  { lineno   = l; 
-    filename = f; 
-    byteno   = c;}
-
 let cabslu = {lineno = -10; 
 	      filename = "cabs loc unknown"; 
-	      byteno = -10;}
+	      byteno = -10;
+              ident = 0;}
 
 (* cabsloc -> cabsloc *)
 (*
@@ -736,9 +732,9 @@ wstring_list:
 
 one_string: 
     CST_STRING				{$1}
-|   FUNCTION__                          {(Cabs.explodeStringToInts 
+|   FUNCTION__                          {(Cabshelper.explodeStringToInts 
 					    !currentFunctionName), $1}
-|   PRETTY_FUNCTION__                   {(Cabs.explodeStringToInts 
+|   PRETTY_FUNCTION__                   {(Cabshelper.explodeStringToInts 
 					    !currentFunctionName), $1}
 ;    
 

@@ -50,17 +50,13 @@ module H = Hashtbl
 
 let matchingParsOpen = ref 0
 
-let currentLoc () = 
-  let l, f, c = E.getPosition () in
-  { Cabs.lineno   = l;
-    Cabs.filename = f;
-    Cabs.byteno   = c;}
+let currentLoc () = Cabshelper.currentLoc ()
 
 (* string -> unit *)
 let addComment c =
   let l = currentLoc() in
-  let i = GrowArray.max_init_index Cabs.commentsGA in
-  GrowArray.setg Cabs.commentsGA (i+1) (l,c,false)
+  let i = GrowArray.max_init_index Cabshelper.commentsGA in
+  GrowArray.setg Cabshelper.commentsGA (i+1) (l,c,false)
 
 (* track whitespace for the current token *)
 let white = ref ""  
@@ -314,7 +310,7 @@ let scan_hex_escape str =
   let the_value = ref Int64.zero in
   (* start at character 2 to skip the \x *)
   for i = 2 to (String.length str) - 1 do
-    let thisDigit = Cabs.valueOfDigit (String.get str i) in
+    let thisDigit = Cabshelper.valueOfDigit (String.get str i) in
     (* the_value := !the_value * 16 + thisDigit *)
     the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;
@@ -325,7 +321,7 @@ let scan_oct_escape str =
   let the_value = ref Int64.zero in
   (* start at character 1 to skip the \x *)
   for i = 1 to (String.length str) - 1 do
-    let thisDigit = Cabs.valueOfDigit (String.get str i) in
+    let thisDigit = Cabshelper.valueOfDigit (String.get str i) in
     (* the_value := !the_value * 8 + thisDigit *)
     the_value := Int64.add (Int64.mul !the_value radix) thisDigit
   done;

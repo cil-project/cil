@@ -79,7 +79,7 @@ CILLY_FEATURES += @EXTRAFEATURES@
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cilutil escape growArray\
-              cabs cabsvisit whitetrack cprint lexerhack machdep cparser clexer  \
+              cabs cabshelper cabsvisit whitetrack cprint lexerhack machdep cparser clexer  \
               cilversion cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
               dataflow dominators bitmap ssa ciltools \
@@ -401,7 +401,7 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     perfcount.c.in Makefile.ocaml Makefile.ocaml.build
 
 
-DISTRIB_SRC_FRONTC = cabs.ml cprint.ml clexer.mli clexer.mll \
+DISTRIB_SRC_FRONTC = cabs.ml cabshelper.ml cprint.ml clexer.mli clexer.mll \
 		     cparser.mly whitetrack.mli whitetrack.ml lexerhack.ml \
 		     cabs2cil.ml cabs2cil.mli frontc.ml frontc.mli \
 	             cabsvisit.mli cabsvisit.ml patch.mli patch.ml

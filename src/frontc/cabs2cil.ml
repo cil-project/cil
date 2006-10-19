@@ -39,12 +39,14 @@
 
 (* The references to ISO means ANSI/ISO 9899-1999 *)
 module A = Cabs
+module C = Cabshelper
 module E = Errormsg
 module H = Hashtbl
 module IH = Inthash
 module AL = Alpha
 
 open Cabs
+open Cabshelper
 open Pretty
 open Cil
 open Trace
@@ -80,7 +82,8 @@ let typeForInsertedCast: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
 let lu = locUnknown
 let cabslu = {lineno = -10; 
 	      filename = "cabs lu"; 
-	      byteno = -10;}
+	      byteno = -10;
+              ident = 0;}
 
 
 (** Interface to the Cprint printer *)
@@ -6098,7 +6101,7 @@ and doStatement (s : A.statement) : chunk =
 
   with e when continueOnError -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
-    consLabel "booo_statement" empty (convLoc (A.get_statementloc s)) false
+    consLabel "booo_statement" empty (convLoc (C.get_statementloc s)) false
   end
 
 
