@@ -409,6 +409,7 @@ addTest("combinelibrik ");
 addTest("combineenum1 ");
 addTest("combineenum2 ");
 addTest("combineenum3 ");
+addTest("combine_init ");
 addTest("combineinline1 ");
 addTest("combineinline2 ");
 addTest("combineinline3 ");

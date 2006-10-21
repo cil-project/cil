@@ -3372,7 +3372,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               let spec_res = doSpecList "" s' in
               let se1 = 
                 if !scopes == [] then begin
-                  ignore (createGlobal spec_res 
+                  (* This is a global.  Mark the new vars as static *)
+                  let spec_res' =
+                    let t, sto, inl, attrs = spec_res in
+                    t, Static, inl, attrs
+                  in
+                  ignore (createGlobal spec_res'
                             ((newvar, dt', [], cabslu), ie'));
                   empty
                 end else
