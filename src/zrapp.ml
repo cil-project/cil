@@ -20,6 +20,26 @@ module EC = Expcompare
 let doElimTemps = ref false
 let debug = ref false
 let printComments = ref false
+let envWarnings = ref false
+
+(* Stuff for Deputy support *)
+let deputyAttrs = ref false
+
+let thisKeyword = "__this"
+
+type paramkind =
+| PKNone
+| PKThis
+| PKOffset of attrparam
+
+let rec checkParam (ap: attrparam) : paramkind =
+  match ap with
+  | ACons (name, []) when name = thisKeyword -> PKThis
+  | ABinOp (PlusA, a1, a2) when checkParam a1 = PKThis ->
+      if a2 = AInt 0 then PKThis else PKOffset a2
+  | _ -> PKNone
+
+(* End stuff for Deputy support *)
 
 (* Some(-1) => l1 < l2
    Some(0)  => l1 = l2
@@ -168,14 +188,8 @@ let get_loop_condition b =
 class zraCilPrinterClass : cilPrinter = object (self)
   inherit defaultCilPrinterClass as super
 
-  (*val mutable currentFormals : varinfo list = []*)
   val genvHtbl : (string, varinfo) H.t = H.create 128
   val lenvHtbl : (string, varinfo) H.t = H.create 128
-  (*method private getLastNamedArgument (s: string) : exp =
-    match List.rev currentFormals with 
-      f :: _ -> Lval (var f)
-    | [] -> 
-        E.s (warn "Cannot find the last named argument when priting call to %s." s)*)
 
   (*** VARIABLES ***)
 
@@ -190,7 +204,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
       then H.find lenvHtbl v.vname
       else H.find genvHtbl v.vname
     with Not_found ->
-      ignore (warn "variable %s not in pp environment" v.vname);
+      if !envWarnings then ignore (warn "variable %s not in pp environment" v.vname);
       v
 
   (* True when v agrees with the entry in the environment for the name of v.
@@ -198,7 +212,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
   method private checkVi (v:varinfo) : bool =
     let v' = self#getEnvVi v in
     v.vid = v'.vid
-(*    U.equals v (self#getEnvVi v w)*)
 
   method private checkViAndWarn (v:varinfo) =
     if not (self#checkVi v) then
@@ -285,6 +298,67 @@ class zraCilPrinterClass : cilPrinter = object (self)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
       ++ self#pAttrs () rest
+
+  (* For printing deputy annotations *)
+  method pAttr (Attr (an, args) : attribute) : doc * bool =
+    if not (!deputyAttrs) then super#pAttr (Attr(an,args)) else
+    match an, args with 
+    | "fancybounds", [AInt i1; AInt i2] -> nil, false
+        (*if !showBounds then
+          dprintf "BND(%a, %a)" self#pExp (getBoundsExp i1)
+                                self#pExp (getBoundsExp i2), false
+        else
+          text "BND(...)", false*)
+    | "bounds", [a1; a2] ->
+        begin
+          match checkParam a1, checkParam a2 with
+          | PKThis, PKThis ->
+              text "COUNT(0)", false
+          | PKThis, PKOffset (AInt 1) ->
+              text "SAFE", false
+          | PKThis, PKOffset a -> nil, false
+              (*if !showBounds then
+                dprintf "COUNT(%a)" self#pAttrParam a, false
+              else
+                text "COUNT(...)", false*)
+          | _ -> nil, false
+             (* if !showBounds then
+                dprintf "BND(%a, %a)" self#pAttrParam a1
+                                      self#pAttrParam a2, false
+              else
+                text "BND(...)", false*)
+        end
+    | "fancysize", [AInt i] -> nil, false
+        (*dprintf "SIZE(%a)" self#pExp (getBoundsExp i), false*)
+    | "size", [a] ->
+        dprintf "SIZE(%a)" self#pAttrParam a, false
+    | "fancywhen", [AInt i] -> nil, false
+        (*dprintf "WHEN(%a)" self#pExp (getBoundsExp i), false*)
+    | "when", [a] ->
+        dprintf "WHEN(%a)" self#pAttrParam a, false
+    | "nullterm", [] ->
+        text "NT", false
+    | "assumeconst", [] ->
+        text "ASSUMECONST", false
+    | "trusted", [] ->
+        text "TRUSTED", false
+    | "poly", [a] ->
+        dprintf "POLY(%a)" self#pAttrParam a, false
+    | "poly", [] ->
+        text "POLY", false
+    | "sentinel", [] ->
+        text "SNT", false
+    | "nonnull", [] ->
+        text "NONNULL", false
+    | "_ptrnode", [AInt n] -> nil, false
+        (*if !Doptions.emitGraphDetailLevel >= 3 then
+          dprintf "NODE(%d)" n, false
+        else
+          nil, false*)
+    | "missing_annot", _->  (* Don't bother printing thess *)
+        nil, false
+    | _ ->
+        super#pAttr (Attr (an, args))
             
 
   (*** GLOBALS ***)
@@ -522,6 +596,14 @@ class zraCilPrinterClass : cilPrinter = object (self)
 end (* class zraCilPrinterClass *)
 
 let zraCilPrinter = new zraCilPrinterClass
+
+(* pretty print an expression *)
+let pp_exp (fd : fundec) () (e : exp) =
+  deputyAttrs := true;
+  ignore(RCT.eliminateTempsForExpPrinting fd);
+  let d = zraCilPrinter#pExp () e in
+  deputyAttrs := false;
+  d
 
 type outfile =
     { fname : string;

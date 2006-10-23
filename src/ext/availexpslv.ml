@@ -64,9 +64,10 @@ let lvh_equals lvh1 lvh2 =
     with Not_found -> false)
       lvh1 true
 
-let lvh_pretty () lvh = text "" (*line ++ seq line (fun (lv,e) ->
-  text "AE-lv: lv:" ++ (d_lval () lv) ++ text ": " ++
-    (d_exp () e)) (LvExpHash.tolist lvh)*)
+let lvh_pretty () lvh = LvExpHash.fold (fun lv e d ->
+  d ++ line ++ (d_lval () lv) ++ text " -> " ++ (d_exp () e))
+    lvh nil
+
 
 (* the result must be the intersection of eh1 and eh2 *)
 (* exp IH.t -> exp IH.t -> exp IH.t *)
@@ -239,9 +240,9 @@ let lvh_handle_inst i lvh =
     Set(lv,e,_) -> begin 
       match lv with
       | (Mem _, _) -> begin
+	  LvExpHash.replace lvh lv e;
 	  lvh_kill_mem lvh;
 	  lvh_kill_addrof_or_global lvh;
-	  LvExpHash.replace lvh lv e;
 	  lvh
       end
       | _ when not (exp_is_volatile e) -> begin
@@ -255,8 +256,8 @@ let lvh_handle_inst i lvh =
       end
       | _ -> begin (* e is volatile *)
 	  (* must remove mapping for lv *)
-	  ignore(E.log "lvh_handle_inst: %a is volatile. killing %a\n"
-		   d_exp e d_lval lv);
+	  if !debug then ignore(E.log "lvh_handle_inst: %a is volatile. killing %a\n"
+				  d_exp e d_lval lv);
 	  LvExpHash.remove lvh lv;
 	  lvh_kill_lval lvh lv;
 	  lvh
@@ -345,6 +346,7 @@ let getAEs sid =
 
 (* get the AE data for an instruction list *)
 let instrAEs il sid lvh out =
+  if !debug then ignore(E.log "instrAEs\n");
   let proc_one hil i =
     match hil with
       [] -> let lvh' = LvExpHash.copy lvh in

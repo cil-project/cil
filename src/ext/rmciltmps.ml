@@ -516,6 +516,16 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
     if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n"
 			    vi.vname d_plainexp e);
     match e with
+(*
+    | Lval(Var vi', NoOffset) ->
+	(* Don't replace a non-temp with a temp *)
+	if check_forms vi'.vname forms && not(check_forms vi.vname forms)
+	then None
+	else begin
+	  ae_tmp_to_exp_change := true;
+	  Some e
+	end
+*)
     | Const(CStr _)
     | Const(CWStr _) -> None (* don't fwd subst str lits *)
     | _ -> begin
@@ -529,7 +539,8 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
 let ae_lval_to_exp_change = ref false
 let ae_lval_to_exp lvh sid lv fd nofrm =
   match lv, nofrm with
-  | (Var vi, NoOffset), false ->
+  | (Var vi, NoOffset), false -> 
+      (* If the var is not a temp, then don't replace *)
       if check_forms vi.vname forms then begin
 	try
 	  let e = AELV.LvExpHash.find lvh lv in
@@ -544,7 +555,35 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	  end
 	with Not_found -> None
       end else None
+(*
+  | (Var vi, NoOffset), true -> begin
+      (* Replace everything, except don't replace non-temps with temps *)
+      try
+	let e = AELV.LvExpHash.find lvh lv in
+	match e with
+	| Lval(Var vi', NoOffset) ->
+	    (* Don't replace a non-temp with a temp *)
+	    if check_forms vi'.vname forms && not(check_forms vi.vname forms)
+	    then None
+	    else begin
+	      ae_lval_to_exp_change := true;
+	      if !debug then ignore(E.log "ae: replacing %a with %a\n"
+				      d_lval lv d_exp e);
+	      Some e
+	    end
+	| Const(CStr _)
+	| Const(CWStr _) -> None
+	| _ -> begin
+	    ae_lval_to_exp_change := true;
+	    if !debug then ignore(E.log "ae: replacing %a with %a\n"
+				    d_lval lv d_exp e);
+	    Some e
+	end
+      with Not_found -> None
+  end
+*)
   | _, true -> begin
+      (* replace everything *)
       try
 	let e = AELV.LvExpHash.find lvh lv in
 	match e with
@@ -552,8 +591,8 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	| Const(CWStr _) -> None
 	| _ -> begin
 	    ae_lval_to_exp_change := true;
-	    ignore(E.log "ae: replacing %a with %a\n"
-		     d_lval lv d_exp e);
+	    if !debug then ignore(E.log "ae: replacing %a with %a\n"
+				    d_lval lv d_exp e);
 	    Some e
 	end
       with Not_found -> None
@@ -1035,7 +1074,8 @@ class removeBrackets = object (self)
 end
 
 (* clean up the code and
-   eliminate some temporaries *)
+   eliminate some temporaries 
+   for pretty printing a whole function *)
 (* Cil.fundec -> Cil.fundec *)
 let eliminate_temps f =
   ignore(visitCilFunction (new removeBrackets) f);
@@ -1054,4 +1094,25 @@ let eliminate_temps f =
   let ctec = new callTempElimClass f' in
   let f' = visitCilFunction (ctec :> cilVisitor) f' in
   let f' = visitCilFunction (new unusedRemoverClass) f' in
+  f'
+
+(* same as above, but doesn't remove the 
+   obviated instructions and declarations.
+   Use this before using zrapp to print 
+   expressions without temps *)
+let eliminateTempsForExpPrinting f =
+  Cfg.clearCFGinfo f;
+  ignore(Cfg.cfgFun f);
+  UD.ignoreSizeof := false;
+  RD.computeRDs f;
+  IH.clear iioh;
+  IH.clear incdecHash;
+  IH.clear idDefHash;
+  let etec = new expTempElimClass f in
+  let f' = visitCilFunction (etec :> cilVisitor) f in
+  RD.clearMemos (); (* we changed instructions and invalidated the "cache" *)
+  let idtec = new incdecTempElimClass f' in
+  let f' = visitCilFunction (idtec :> cilVisitor) f' in
+  let ctec = new callTempElimClass f' in
+  let f' = visitCilFunction (ctec :> cilVisitor) f' in
   f'
