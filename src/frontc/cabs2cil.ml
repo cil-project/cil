@@ -162,6 +162,11 @@ let isOldStyleVarArgTypeName n =
   if !msvcMode then n = "va_list"  || n = "__ccured_va_list" 
   else n = "__builtin_va_alist_t"
 
+let isVariadicListType t =
+  match unrollType t with
+  | TBuiltin_va_list _ -> true
+  | _ -> false
+
 (* Weimer
  * multi-character character constants
  * In MSCV, this code works:
@@ -4293,6 +4298,12 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Eq|Ne) when isPointerType t2 && isZero e1 -> 
       pointerComparison (makeCastT zero !upointType t2) t2 e2 t2
 
+  | (Eq|Ne) when isVariadicListType t1 && isZero e2 -> 
+      ignore (warnOpt "Comparison of va_list and zero");
+      pointerComparison e1 t1 (makeCastT zero !upointType t1) t1
+  | (Eq|Ne) when isVariadicListType t2 && isZero e1 -> 
+      ignore (warnOpt "Comparison of zero and va_list");
+      pointerComparison (makeCastT zero !upointType t2) t2 e2 t2
 
   | (Eq|Ne|Le|Lt|Ge|Gt) when isPointerType t1 && isArithmeticType t2 ->
       ignore (warnOpt "Comparison of pointer and non-pointer");
