@@ -4076,7 +4076,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     *)
       -> text "", false
     | "arraylen", [a] -> 
-        text "/*[" ++ self#pAttrParam () a ++ text "]*/", false
+        (* text "/*[" ++ self#pAttrParam () a ++ text "]*/" *) nil, false
 
 
     | _ -> (* This is the dafault case *)
