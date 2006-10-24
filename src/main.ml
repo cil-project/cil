@@ -113,7 +113,7 @@ let rec processOneFile (cil: C.file) =
 
     if !Cilutil.doCheck then begin
       ignore (E.log "First CIL check\n");
-      if not (CK.checkFile [] cil) then begin
+      if not (CK.checkFile [] cil) && Cilutil.strictChecking then begin
         E.bug ("CIL's internal data structures are inconsistent "
                ^^"(see the warnings above).  This may be a bug "
                ^^"in CIL.\n")
@@ -134,7 +134,7 @@ let rec processOneFile (cil: C.file) =
           (* See if we need to do some checking *)
           if !Cilutil.doCheck && fdesc.C.fd_post_check then begin
             ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
-            if not (CK.checkFile [] cil) then begin
+            if not (CK.checkFile [] cil) && Cilutil.strictChecking then begin
               E.error ("Feature \"%s\" left CIL's internal data "
                        ^^"structures in an inconsistent state. "
                        ^^"(See the warnings above)\n") fdesc.C.fd_name
