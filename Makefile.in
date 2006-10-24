@@ -424,6 +424,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 		  reachingdefs.ml \
 		  cfg.ml cfg.mli \
 		  liveness.ml \
+		  expcompare.ml \
 		  predabst.ml
 
 DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
