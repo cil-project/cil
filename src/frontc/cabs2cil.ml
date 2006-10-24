@@ -4503,6 +4503,8 @@ and doInit
 
   let whoami () = d_lval () (Var so.host, so.soOff) in
   
+  let initl = stripParenEls initl in
+    
   let initl1 = 
     match initl with
     | (A.NEXT_INIT, 

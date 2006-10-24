@@ -86,6 +86,21 @@ begin
   | TRY_FINALLY(_, _, loc) -> loc
 end
 
+let rec stripParen (e : expression) : expression =
+match e with
+  | PAREN e2 -> stripParen e2
+  | CAST (typ,e2) -> CAST (typ, stripParenInit e2)
+  | _ -> e
+  
+and stripParenInit (ie : init_expression) : init_expression =
+match ie with
+  | SINGLE_INIT e -> SINGLE_INIT (stripParen e)
+  | COMPOUND_INIT els -> COMPOUND_INIT (stripParenEls els)
+  | NO_INIT -> NO_INIT
+  
+and stripParenEls (els : (initwhat * init_expression) list) : 
+        (initwhat *init_expression) list =
+    List.map (fun (w,ie) -> (w,stripParenInit ie)) els
 
 let explodeStringToInts (s: string) : int64 list =  
   let rec allChars i acc = 
