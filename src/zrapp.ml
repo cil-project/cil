@@ -12,6 +12,7 @@ module U = Util
 module RD = Reachingdefs
 module UD = Usedef
 module A = Cabs
+module CH = Cabshelper
 module GA = GrowArray
 module RCT = Rmciltmps
 module DCE = Deadcodeelim
@@ -59,10 +60,10 @@ let loc_comp l1 l2 =
   else Some(0)
 
 let simpleGaSearch l =
-  let hi = GA.max_init_index A.commentsGA in
+  let hi = GA.max_init_index CH.commentsGA in
   let rec loop i =
     if i < 0 then -1 else
-    let (l',_,_) = GA.get A.commentsGA i in
+    let (l',_,_) = GA.get CH.commentsGA i in
     match loc_comp l l' with
       None -> loop (i-1)
     | Some(0) -> i
@@ -76,16 +77,17 @@ let simpleGaSearch l =
 let get_comments l =
   let cabsl = {A.lineno = l.line; 
 	       A.filename = l.file;
-	       A.byteno = l.byte;} in
+	       A.byteno = l.byte;
+	       A.ident = 0;} in
   let s = simpleGaSearch cabsl in
 
   let rec loop i cl =
     if i < 0 then cl else
-    let (l',c,b) = GA.get A.commentsGA i in
+    let (l',c,b) = GA.get CH.commentsGA i in
     if String.compare cabsl.A.filename l'.A.filename != 0
     then loop (i - 1) cl
     else if b then cl
-    else let _ = GA.set A.commentsGA i (l',c,true) in
+    else let _ = GA.set CH.commentsGA i (l',c,true) in
     loop (i - 1) (c::cl)
   in
   List.rev (loop s [])
