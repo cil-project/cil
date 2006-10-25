@@ -756,6 +756,19 @@ class expTempElimClass (fd:fundec) = object (self)
 
 end
 
+class expLvTmpElimClass (fd : fundec) = object(self)
+  inherit AELV.aeVisitorClass
+
+  method vexpr e =
+    match self#get_cur_eh () with
+    | None -> DoChildren
+    | Some eh -> begin
+	let e', _ = ae_lv_fwd_subst eh sid e fd false in
+	ChangeTo e'
+    end
+
+end
+
 class incdecTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
 
@@ -1086,7 +1099,7 @@ let eliminate_temps f =
   IH.clear iioh;
   IH.clear incdecHash;
   IH.clear idDefHash;
-  let etec = new expTempElimClass f in
+  let etec = new expLvTmpElimClass f in
   let f' = visitCilFunction (etec :> cilVisitor) f in
   RD.clearMemos (); (* we changed instructions and invalidated the "cache" *)
   let idtec = new incdecTempElimClass f' in
@@ -1108,7 +1121,7 @@ let eliminateTempsForExpPrinting f =
   IH.clear iioh;
   IH.clear incdecHash;
   IH.clear idDefHash;
-  let etec = new expTempElimClass f in
+  let etec = new expLvTmpElimClass f in
   let f' = visitCilFunction (etec :> cilVisitor) f in
   RD.clearMemos (); (* we changed instructions and invalidated the "cache" *)
   let idtec = new incdecTempElimClass f' in
