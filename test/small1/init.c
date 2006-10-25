@@ -15,7 +15,7 @@ char *usagep = "Usage non-local";
 char *usagep1 = { "Usage in a brace" };
 int  g = { 6 } ;
 
-char usages[] = "Usage string";
+char usages[] = ("Usage string");
 char strange[] = { "several" };
 
 char *null = (void*)0;
@@ -120,6 +120,8 @@ char *nm[] = {
 // Test the initialization
 int main() {
   int i;
+
+  char localarrayinit = (("init with " "parens"));
 
   struct str1 astr = w[0];
     
