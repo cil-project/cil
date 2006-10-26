@@ -516,16 +516,6 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
     if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n"
 			    vi.vname d_plainexp e);
     match e with
-(*
-    | Lval(Var vi', NoOffset) ->
-	(* Don't replace a non-temp with a temp *)
-	if check_forms vi'.vname forms && not(check_forms vi.vname forms)
-	then None
-	else begin
-	  ae_tmp_to_exp_change := true;
-	  Some e
-	end
-*)
     | Const(CStr _)
     | Const(CWStr _) -> None (* don't fwd subst str lits *)
     | _ -> begin
@@ -555,33 +545,6 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	  end
 	with Not_found -> None
       end else None
-(*
-  | (Var vi, NoOffset), true -> begin
-      (* Replace everything, except don't replace non-temps with temps *)
-      try
-	let e = AELV.LvExpHash.find lvh lv in
-	match e with
-	| Lval(Var vi', NoOffset) ->
-	    (* Don't replace a non-temp with a temp *)
-	    if check_forms vi'.vname forms && not(check_forms vi.vname forms)
-	    then None
-	    else begin
-	      ae_lval_to_exp_change := true;
-	      if !debug then ignore(E.log "ae: replacing %a with %a\n"
-				      d_lval lv d_exp e);
-	      Some e
-	    end
-	| Const(CStr _)
-	| Const(CWStr _) -> None
-	| _ -> begin
-	    ae_lval_to_exp_change := true;
-	    if !debug then ignore(E.log "ae: replacing %a with %a\n"
-				    d_lval lv d_exp e);
-	    Some e
-	end
-      with Not_found -> None
-  end
-*)
   | _, true -> begin
       (* replace everything *)
       try
@@ -653,7 +616,7 @@ let ae_lv_fwd_subst data sid e fd nofrm =
   (e', !ae_lval_to_exp_change)
 
 let ae_simp_fwd_subst data e nofrm =
-  ae_fwd_subst data (-1) e dummyFunDec nofrm
+  ae_lv_fwd_subst data (-1) e dummyFunDec nofrm
 
 let ae_tmp_to_const_change = ref false
 let ae_tmp_to_const eh sid vi fd nofrm =

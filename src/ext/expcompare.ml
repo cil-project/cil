@@ -157,10 +157,29 @@ let compareTypesNoAttributes ?(ignoreSign=true) (t1 : typ) (t2 : typ) : bool =
   let typSig = typeSigWithAttrs ~ignoreSign:ignoreSign (fun _ -> []) in
   Util.equals (typSig t1) (typSig t2)
 
+class volatileFinderClass br = object(self)
+  inherit nopCilVisitor
+
+  method vtype (t : typ)  =
+    if hasAttribute "volatile" (typeAttrs t) then begin
+      br := true;
+      SkipChildren
+    end
+    else
+      DoChildren
+
+end
+
+let isTypeVolatile t =
+  let br = ref false in
+  let vis = new volatileFinderClass br in
+  ignore(visitCilType vis t);
+  !br
+
 (* strip every cast between equal pointer types *)
 let rec stripCastsDeepForPtrArith (e:exp): exp =
   match e with
-  | CastE(t, e') -> begin
+  | CastE(t, e') when not(isTypeVolatile t) -> begin
       let e' = stripCastsDeepForPtrArith e' in
       match unrollType (typeOf e'), unrollType t with
       | TPtr (bt1, _), TPtr (bt2, _) -> begin
