@@ -2405,6 +2405,8 @@ exception SizeOfError of string * typ
  * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
+val truncateInteger64: ikind -> int64 -> int64 * bool
+
 (** The size of a type, in bytes. Returns a constant expression or a "sizeof" 
  * expression if it cannot compute the size. This function is architecture 
  * dependent, so you should only call this after you call {!Cil.initCIL}.  *)
