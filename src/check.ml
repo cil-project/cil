@@ -212,8 +212,11 @@ let rec checkType (t: typ) (ctx: ctxType) =
     | TArray _ -> 
         (ctx = CTStruct || ctx = CTUnion 
          || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
-    | TComp _ -> ctx <> CTExp 
-    | TFun _ -> ctx = CTPtr || ctx = CTDecl
+    | TFun _ -> 
+        if ctx = CTSizeof && !msvcMode then
+          (ignore(warn "sizeof(function) is not defined in MSVC."); false)
+        else
+          ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
     | _ -> true
   in
   if not (checkContext t) then 
@@ -250,7 +253,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
         None -> ()
       | Some l -> begin
           let t = checkExp true l in
-          match t with 
+          match unrollType t with 
             TInt((IInt|IUInt), _) -> ()
           | _ -> E.s (bug "Type of array length is not integer")
       end)
@@ -346,7 +349,7 @@ and checkCompInfo (isadef: defuse) comp =
         (match unrollType f.ftype, f.fbitfield with
         | TInt (ik, a), Some w -> 
             checkAttributes a;
-            if w < 0 || w >= bitsSizeOf (TInt(ik, a)) then
+            if w < 0 || w > bitsSizeOf (TInt(ik, a)) then
               ignore (warn "Wrong width (%d) in bitfield" w)
         | _, Some w -> 
             ignore (E.error "Bitfield on a non integer type\n")
@@ -405,14 +408,14 @@ and checkTypeInfo (isadef: defuse) ti =
 (* Check an lvalue. If isconst then the lvalue appears in a context where 
  * only a compile-time constant can appear. Return the type of the lvalue. 
  * See the typing rule from cil.mli *)
-and checkLval (isconst: bool) (lv: lval) : typ = 
+and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ = 
   match lv with
     Var vi, off -> 
       checkVariable vi; 
       checkOffset vi.vtype off
 
   | Mem addr, off -> begin
-      if isconst then
+      if isconst && not forAddrof then
         ignore (warn "Memory operation in constant");
       let ta = checkExp false addr in
       match unrollType ta with
@@ -426,7 +429,7 @@ and checkLval (isconst: bool) (lv: lval) : typ =
 and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
   | Index (ei, o) -> 
-      checkExpType false ei intType; 
+      checkIntegralType (checkExp false ei);
       begin
         match unrollType basetyp with
           TArray (t, _, _) -> checkOffset t o
@@ -460,7 +463,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       | Lval(lv) -> 
           if isconst then
             ignore (warn "Lval in constant");
-          checkLval isconst lv
+          checkLval isconst false lv
 
       | SizeOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)
@@ -537,7 +540,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
               tres
       end
       | AddrOf (lv) -> begin
-          let tlv = checkLval isconst lv in
+          let tlv = checkLval isconst true lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
           | TVoid _ -> 
@@ -551,7 +554,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end
 
       | StartOf lv -> begin
-          let tlv = checkLval isconst lv in
+          let tlv = checkLval isconst true lv in
           match unrollType tlv with
             TArray (t,_, _) -> TPtr(t, [])
           | _ -> E.s (bug "StartOf on a non-array")
@@ -564,7 +567,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
           match unrollType et with
             TArray _ -> E.s (bug "Cast of an array type")
           | TFun _ -> E.s (bug "Cast of a function type")
-          | TComp _ -> E.s (bug "Cast of a composite type")
+          (* A TComp cast that changes the attributes is okay. *)
+          (* | TComp _ -> E.s (bug "Cast of a composite type") *)
           | TVoid _ -> E.s (bug "Cast of a void type")
           | _ -> tres
       end)
@@ -599,7 +603,7 @@ and checkInit  (i: init) : typ =
               in
               let rec loopIndex i = function
                   [] -> 
-                    if i <> len then 
+                    if i > len then 
                       ignore (warn "Wrong number of initializers in array")
 
                 | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest -> 
@@ -772,7 +776,7 @@ and checkInstr (i: instr) =
   match i with 
   | Set (dest, e, l) -> 
       currentLoc := l;
-      let t = checkLval false dest in
+      let t = checkLval false false dest in
       (* Not all types can be assigned to *)
       (match unrollType t with
         TFun _ -> ignore (warn "Assignment to a function type")
@@ -784,7 +788,7 @@ and checkInstr (i: instr) =
   | Call(dest, what, args, l) -> 
       currentLoc := l;
       let (rt, formals, isva, fnAttrs) = 
-        match checkExp false what with
+        match unrollType (checkExp false what) with
           TFun(rt, formals, isva, fnAttrs) -> rt, formals, isva, fnAttrs
         | _ -> E.s (bug "Call to a non-function")
       in
@@ -794,7 +798,7 @@ and checkInstr (i: instr) =
       | Some _, TVoid _ -> ignore (warn "void value is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
       | Some destlv, rt' -> 
-          let desttyp = checkLval false destlv in
+          let desttyp = checkLval false false destlv in
           if typeSig desttyp <> typeSig rt then begin
             (* Not all types can be assigned to *)
             (match unrollType desttyp with
@@ -803,7 +807,7 @@ and checkInstr (i: instr) =
             | TVoid _ -> ignore (warn "Assignment to a void type")
             | _ -> ());
             (* Not all types can be cast *)
-            (match rt' with
+            (match unrollType rt' with
               TArray _ -> ignore (warn "Cast of an array type")
             | TFun _ -> ignore (warn "Cast of a function type")
             | TComp _ -> ignore (warn "Cast of a composite type")
@@ -921,7 +925,7 @@ let rec checkGlobal = function
                 E.s (bug "Type has different number of formals for %s" 
                        fname)
           in
-          begin match vi.vtype with
+          begin match unrollType vi.vtype with
             TFun (rt, args, isva, a) -> begin
               currentReturnType := rt;
               loopArgs (argsToList args) fd.sformals

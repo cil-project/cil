@@ -5,7 +5,7 @@ struct bar {
   int x, y;
 };
 
-int (*pfoo)() = foo;
+int (*pfoo)() = (int (*)())foo;
 
 // Now the real declaration
 int foo(struct bar *a) {

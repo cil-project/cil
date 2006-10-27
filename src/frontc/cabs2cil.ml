@@ -1230,7 +1230,7 @@ let rec castTo ?(fromsource=false)
           (* Even casts between structs are allowed when we are only 
            * modifying some attributes *)
     | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey -> 
-        (nt', e)
+        result
           
           (** If we try to pass a transparent union value to a function 
            * expecting a transparent union argument, the argument type would 
@@ -3062,8 +3062,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     off
   in
   try
-    match e with
-    | A.PAREN e -> doExp asconst e what 
+    match stripParen e with
+    | A.PAREN e -> E.s (bug "stripParen")
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
         let res = Const(CStr "exp_nothing") in

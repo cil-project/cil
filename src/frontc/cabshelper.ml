@@ -90,6 +90,7 @@ let rec stripParen (e : expression) : expression =
 match e with
   | PAREN e2 -> stripParen e2
   | CAST (typ,e2) -> CAST (typ, stripParenInit e2)
+  | EXPR_SIZEOF(e2) -> EXPR_SIZEOF(stripParen e2)
   | _ -> e
   
 and stripParenInit (ie : init_expression) : init_expression =
