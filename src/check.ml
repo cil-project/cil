@@ -728,14 +728,16 @@ and checkStmt (s: stmt) =
           (* Remember the statements so far *)
           let prevStatements = !statements in
           checkBlock b;
-          (* Now make sure that all the cases do occur in that block *)
+          (* Now make sure that all the cases do occur in that block,
+             and that no case is listed twice. *)
+          let casesVisited : stmt list ref = ref [] in
           List.iter
             (fun c -> 
-               (* matth: CIL doesn't prevent this.  Possibly the code is
-                  reachable in some other way? *)
-(*               if not (List.exists (function Case _ -> true | _ -> false)  *)
-(*                         c.labels) then *)
-(*                 ignore (warn "Case in switch statment without a \"case\"\n"); *)
+               (if List.memq c !casesVisited then
+                  ignore (warnContext 
+                            "Duplicate stmt in \"cases\" list of Switch.")
+                else
+                  casesVisited := c::!casesVisited);
               (* Make sure it is in there *)
               let rec findCase = function
                 | l when l == prevStatements -> (* Not found *)

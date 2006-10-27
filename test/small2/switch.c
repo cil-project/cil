@@ -1,4 +1,7 @@
-#include "testharness.h"
+#include "../small1/testharness.h"
+
+//the file should compile without changes.
+TESTDEF baseline: success
 
 // Testing some ugly switch cases
 int foo(int x, int y) {
@@ -6,6 +9,7 @@ int foo(int x, int y) {
     y = "who runs this?"[3];
     exit(1);
   default:
+  default:                      //KEEP dupDefault1: error = duplicate default
     y ++;
     goto L1;
   case 1:
@@ -20,6 +24,7 @@ int foo(int x, int y) {
       x ++;
     } else {
       while(x < 33) {
+      default:                 //KEEP dupDefault2: error = duplicate default
       case 9:
         x ++;
         break;

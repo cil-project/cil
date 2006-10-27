@@ -753,9 +753,9 @@ module BlockChunk =
         postins: instr list;              (* Some instructions to append at 
                                            * the ends of statements (in 
                                            * reverse order)  *)
-                                        (* A list of case statements visible at the 
-                                         * outer level *)
-        cases: (label * stmt) list
+        cases: stmt list;                 (* A list of case statements 
+                                           * (statements with Case labels) 
+                                           * visible at the outer level *)
       } 
 
     let d_chunk () (c: chunk) = 
@@ -946,21 +946,41 @@ module BlockChunk =
     let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
       let labels = List.map (fun e -> Case (e, l)) el in
-      let cases  = List.map (fun l -> (l, fst)) labels in
       fst.labels <- labels @ fst.labels;
-      { next with stmts = stmts'; cases = cases @ next.cases}
+      { next with stmts = stmts'; cases = fst :: next.cases}
         
     let defaultChunk (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
       let lb = Default l in
       fst.labels <- lb :: fst.labels;
-      { next with stmts = stmts'; cases = (lb, fst) :: next.cases}
+      { next with stmts = stmts'; cases = fst :: next.cases}
 
         
     let switchChunk (e: exp) (body: chunk) (l: location) =
       (* Make the statement *)
+      let defaultSeen = ref false in
+      let checkForDefault lb : unit = 
+        match lb with
+          Default _ -> if !defaultSeen then
+            E.s (error "Switch statement at %a has duplicate default entries."
+                   d_loc l);
+            defaultSeen := true
+        | _ -> ()
+      in
+      let cases = (* eliminate duplicate entries from body.cases.
+                     A statement is added to body.cases for each case label
+                     it has. *)
+        List.fold_right (fun s acc ->
+                           if List.memq s acc then acc
+                           else begin
+                             List.iter checkForDefault s.labels;
+                             s::acc
+                           end) 
+          body.cases
+          []
+      in
       let switch = mkStmt (Switch (e, c2block body, 
-                                   List.map (fun (_, s) -> s) body.cases, 
+                                   cases, 
                                    l)) in
       { stmts = [ switch (* ; n *) ];
         postins = [];

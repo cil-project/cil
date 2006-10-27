@@ -209,7 +209,7 @@ addTest("testrun/array_varsize");
 addTest("testrun/array_formal");
 addTest("testrun/formalscope");
 addTest("test/matrix");
-addTest("testrun/switch");
+addTest("runall/switch");
 addTest("testrun/strloop");
 addTest("testrun/strloop3");
 addTest("testrun/percentm");
