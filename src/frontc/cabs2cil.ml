@@ -4356,7 +4356,7 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
     | CEAnd (ce1, ce2) | CEOr (ce1, ce2) -> canDropCE ce1 && canDropCE ce2
     | CENot (ce1) -> canDropCE ce1
   in
-  match e with 
+  match stripParen e with 
     A.BINARY (A.AND, e1, e2) -> begin
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
