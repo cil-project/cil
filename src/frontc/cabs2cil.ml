@@ -610,13 +610,14 @@ let constFoldType (t:typ) : typ =
 let typeSigNoAttrs: typ -> typsig = typeSigWithAttrs (fun _ -> [])
 
 (* Create a new temporary variable *)
-let newTempVar typ = 
+let newTempVar (descr:doc) typ = 
   if !currentFunctionFDEC == dummyFunDec then 
     E.s (bug "newTempVar called outside a function");
 (*  ignore (E.log "stripConstLocalType(%a) for temporary\n" d_type typ); *)
   let t' = (!typeForInsertedVar) (stripConstLocalType typ) in
   (* Start with the name "tmp". The alpha converter will fix it *)
   let vi = makeVarinfo false "tmp" t' in
+  vi.vdescr <- descr;
   alphaConvertVarAndAddToEnv false  vi (* Do not add to the environment *)
 (*
     { vname = "tmp";  (* addNewVar will make the name fresh *)
@@ -3614,7 +3615,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              let tresult, opresult = doBinOp uop' e' t one intType in
              let se', result = 
                if what <> ADrop && what <> AType then 
-                 let tmp = newTempVar t in
+                 let tmp = newTempVar (dd_exp () e') t in
                  se +++ (Set(var tmp, e', !currentLoc)), Lval(var tmp)
                else
                  se, e'
@@ -3745,7 +3746,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             in
             finishExp se e' intType
         | _ -> 
-            let tmp = var (newTempVar intType) in
+            let tmp = var (newTempVar (text "<boolean expression>") intType) in
             finishExp (compileCondExp ce
                          (empty +++ (Set(tmp, integer 1, 
                                          !currentLoc)))
@@ -3835,7 +3836,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           if (!forceRLArgEval && (not (isConstant e)) && 
 	      (not isSpecialBuiltin)) then 
 	    (* create a temporary *)
-	    let tmp = newTempVar t in
+	    let tmp = newTempVar (dd_exp () e) t in
 	    (* create an instruction to give the e to the temporary *)
 	    let i = Set(var tmp, e, !currentLoc) in 
 	    (* add the instruction to the chunk *)
@@ -3921,7 +3922,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   let destlv, destlvtyp = 
                     match !pwhat with 
                       ASet (lv, lvt) -> lv, lvt
-                    | _ -> var (newTempVar resTyp), resTyp
+                    | _ -> var (newTempVar nil resTyp), resTyp
                   in
                   pwhat := (ASet (destlv, destlvtyp));
                   pargs := [marker; SizeOf resTyp; 
@@ -4020,10 +4021,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 addCall (Some lv) (Lval(lv)) vtype
                   
           | _ -> begin
+              let descr = dprintf "%a(%a)" dd_exp !pf
+                            (docList ~sep:(text ", ") (dd_exp ())) !pargs in
               let tmp, restyp' = 
                 match !pwhat with
-                  AExp (Some t) -> newTempVar t, t
-                | _ -> newTempVar resType', resType'
+                  AExp (Some t) -> newTempVar descr t, t
+                | _ -> newTempVar descr resType', resType'
               in
               (* Remember that this variable has been created for this 
                * specific call. We will use this in collapseCallCast and 
@@ -4101,7 +4104,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | _ -> (* Use a conditional *) begin
             match e2 with 
               A.NOTHING -> 
-                let tmp = var (newTempVar tresult) in
+                let tmp = var (newTempVar nil tresult) in
                 let (se1, _, _) = doExp asconst e1 (ASet(tmp, tresult)) in
                 let (se3, _, _) = doExp asconst e3 (ASet(tmp, tresult)) in
                 finishExp (se1 @@ ifChunk (Lval(tmp)) lu
@@ -4113,7 +4116,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   match what with
                   | ASet (lv, lvt) -> lv, lvt
                   | _ -> 
-                      let tmp = newTempVar tresult in
+                      let tmp = newTempVar nil tresult in
                       var tmp, tresult
                 in
                 (* Now do e2 and e3 for real *)

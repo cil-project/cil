@@ -505,6 +505,11 @@ and varinfo = {
     mutable vreferenced: bool;          
     (** True if this variable is ever referenced. This is computed by 
      * [removeUnusedVars]. It is safe to just initialize this to False *)
+
+    mutable vdescr: Pretty.doc;
+    (** For most temporary variables, a description of what the var holds.
+     *  (e.g. for temporaries used for function call results, this string
+     *   is a representation of the function call.) *)
 }
 
 (** Storage-class information *)
@@ -1500,8 +1505,9 @@ val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
 
 (** Make a temporary variable and add it to a function's slocals. The name of 
     the temporary variable will be generated based on the given name hint so 
-    that to avoid conflicts with other locals.  *)
-val makeTempVar: fundec -> ?name: string -> typ -> varinfo
+    that to avoid conflicts with other locals.  
+    Optionally, you can give the variable a description of its contents. *)
+val makeTempVar: fundec -> ?name: string -> ?descr:Pretty.doc -> typ -> varinfo
 
 
 (** Make a global variable. Your responsibility to make sure that the name 
@@ -2170,6 +2176,13 @@ val defaultCilPrinter: cilPrinter
 class plainCilPrinterClass: cilPrinter
 val plainCilPrinter: cilPrinter
 
+class descriptiveCilPrinterClass : cilPrinter
+  (** Like defaultCilPrinterClass, but instead of temporary variable
+      names it prints the description that was provided when the temp was
+      created.  This is usually better for messages that are printed for end
+      users, although you may want the temporary names for debugging.  *)
+val descriptiveCilPrinter: cilPrinter
+
 (** zra: This is the pretty printer that Maincil will use.
    by default it is set to defaultCilPrinter *)
 val printerForMaincil: cilPrinter ref
@@ -2362,6 +2375,11 @@ val d_plainoffset: unit -> offset -> Pretty.doc *)
 
 (** Pretty-print the internal representation of a type *)
 val d_plaintype: unit -> typ -> Pretty.doc
+
+
+(** Pretty-print an expression while printing descriptions rather than names
+  of temporaries. *)
+val dd_exp: unit -> exp -> Pretty.doc
 
 
 

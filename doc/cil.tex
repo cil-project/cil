@@ -3125,6 +3125,16 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf October 28, 2006}: Added the field \t{vdescr} to the
+  \ciltyperef{varinfo} struct to remember what value is stored in
+  certain CIL-introduced temporary variables.  For example, if CIL
+  adds a temporary to store the result of \t{foo(a,b)}, then the
+  description will be ``foo(a,b)''.  The new printer
+  \cilvalref{descriptiveCilPrinter} will substitute descriptions for
+  the names of temporaries.  The result is not necessarily valid C,
+  but it may let you produce more helpful error messages in your
+  analysis tools: ``The value foo(a,b) may be tainted'' vs. ``The
+  value __cil_tmp29 may be tainted.''
 \item {\bf October 27, 2006}: Fixed a bug with duplicate entries in
   the statement list of Switch nodes, and forbade duplicate
   \t{default} cases.

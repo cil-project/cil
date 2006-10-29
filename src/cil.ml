@@ -419,6 +419,14 @@ and varinfo = {
                                             referenced. This is computed by 
                                             [removeUnusedVars]. It is safe to 
                                             just initialize this to False *)
+
+    mutable vdescr:doc;                 (** For most temporary variables, a
+                                            description of what the var holds.
+                                           (e.g. for temporaries used for
+                                            function call results, this string
+                                            is a representation of the function
+                                            call.) *)
+                                            
 }
 
 (** Storage-class information *)
@@ -4468,6 +4476,36 @@ let d_plaintype () t = plainCilPrinter#pType None () t
 let d_plaininit () i = plainCilPrinter#pInit () i
 let d_plainlval () l = plainCilPrinter#pLval () l
 
+class descriptiveCilPrinterClass : cilPrinter = object (self)
+  (** Like defaultCilPrinterClass, but instead of temporary variable
+      names it prints the description that was provided when the temp was
+      created.  This is usually better for messages that are printed for end
+      users, although you may want the temporary names for debugging.  *)
+  inherit defaultCilPrinterClass as super
+
+  method private pVarDescriptive (vi: varinfo) : doc =
+    if vi.vdescr <> nil then vi.vdescr
+    else super#pVar vi
+
+  (* Only substitute temp vars that appear in expressions.
+     (Other occurrences of lvalues are the left-hand sides of assignments, 
+      but we shouldn't substitute there since "foo(a,b) = foo(a,b)"
+      would make no sense to the user.)  *)
+  method pExp () (e:exp) : doc =
+    match e with
+      Lval (Var vi, o)
+    | StartOf (Var vi, o) -> 
+        self#pOffset (self#pVarDescriptive vi) o
+    | AddrOf (Var vi, o) -> 
+        (* No parens needed, since offsets have higher precedence than & *)
+        text "& " ++ self#pOffset (self#pVarDescriptive vi) o
+    | _ -> super#pExp () e
+end
+let descriptiveCilPrinter: cilPrinter = 
+  ((new descriptiveCilPrinterClass) :> cilPrinter)
+
+let dd_exp = descriptiveCilPrinter#pExp
+
 (* zra: this allows pretty printers not in cil.ml to
    be exposed to cilmain.ml *)
 let printerForMaincil = ref defaultCilPrinter
@@ -4515,7 +4553,8 @@ let makeVarinfo global name typ =
       vattr = [];
       vstorage = NoStorage;
       vaddrof = false;
-      vreferenced = false;    (* sm *)
+      vreferenced = false;
+      vdescr = nil;
     } in
   vi
       
@@ -4535,9 +4574,11 @@ let makeLocalVar fdec ?(insert = true) name typ =
   vi
 
 
-let makeTempVar fdec ?(name = "__cil_tmp") typ : varinfo =
+let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) typ : varinfo =
   let name = name ^ (string_of_int (1 + fdec.smaxid)) in
-  makeLocalVar fdec name typ
+  let vi = makeLocalVar fdec name typ in
+  vi.vdescr <- descr;
+  vi
 
  
   (* Set the formals and re-create the function name based on the information*)
