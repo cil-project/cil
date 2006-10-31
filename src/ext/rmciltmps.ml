@@ -527,7 +527,7 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
   else None
 
 let ae_lval_to_exp_change = ref false
-let ae_lval_to_exp lvh sid lv fd nofrm =
+let ae_lval_to_exp ?(propStrings:bool = false) lvh sid lv fd nofrm =
   match lv, nofrm with
   | (Var vi, NoOffset), false -> 
       (* If the var is not a temp, then don't replace *)
@@ -536,7 +536,8 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	  let e = AELV.LvExpHash.find lvh lv in
 	  match e with
 	  | Const(CStr _)
-	  | Const(CWStr _) -> None
+	  | Const(CWStr _) ->
+	      if propStrings then (Some e) else None
 	  | _ -> begin
 	      ae_lval_to_exp_change := true;
 	      if !debug then ignore(E.log "ae: replacing %a with %a\n"
@@ -551,7 +552,8 @@ let ae_lval_to_exp lvh sid lv fd nofrm =
 	let e = AELV.LvExpHash.find lvh lv in
 	match e with
 	| Const(CStr _)
-	| Const(CWStr _) -> None
+	| Const(CWStr _) ->
+	    if propStrings then (Some e) else None
 	| _ -> begin
 	    ae_lval_to_exp_change := true;
 	    if !debug then ignore(E.log "ae: replacing %a with %a\n"
@@ -610,9 +612,11 @@ let ae_fwd_subst data sid e fd nofrm =
   let e' = visitCilExpr (varXformClass ae_tmp_to_exp data sid fd nofrm) e in
   (e', !ae_tmp_to_exp_change)
 
-let ae_lv_fwd_subst data sid e fd nofrm =
+let ae_lv_fwd_subst ?(propStrings:bool = false) data sid e fd nofrm =
   ae_lval_to_exp_change := false;
-  let e' = visitCilExpr (lvalXformClass ae_lval_to_exp data sid fd nofrm) e in
+  let e' = visitCilExpr (lvalXformClass (ae_lval_to_exp ~propStrings:propStrings)
+			   data sid fd nofrm) e 
+  in
   (e', !ae_lval_to_exp_change)
 
 let ae_simp_fwd_subst data e nofrm =
@@ -726,7 +730,7 @@ class expLvTmpElimClass (fd : fundec) = object(self)
     match self#get_cur_eh () with
     | None -> DoChildren
     | Some eh -> begin
-	let e', _ = ae_lv_fwd_subst eh sid e fd false in
+	let e', _ = ae_lv_fwd_subst ~propStrings:true eh sid e fd false in
 	ChangeTo e'
     end
 
@@ -973,7 +977,8 @@ class unusedRemoverClass : cilVisitor = object(self)
       match i with
       | Set((Var(vi),_),e,_) -> begin
 	  if will_be_call e &&
-	    not(List.mem vi cur_func.slocals)
+	    not(List.mem vi cur_func.slocals) &&
+	    not vi.vglob
 	  then cur_func.slocals <- vi::cur_func.slocals;
 	  is_volatile vi ||
 	  (not (UD.VS.mem vi unused_set) &&
