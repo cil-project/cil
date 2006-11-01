@@ -281,7 +281,7 @@ $(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.$(CMC))
 ifeq ($(NATIVECAML),1)
 $(OBJDIR)/libcil.a: $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
                     $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-	ocamlopt -output-obj -o $@ unix.cmxa str.cmxa $^
+	ocamlopt -output-obj -o $@ $(CILLY_LIBS:%=%.cmxa) $^
 else
 $(OBJDIR)/libcil.a:
 	@echo "Can only build $@ when NATIVECAML is 1."
