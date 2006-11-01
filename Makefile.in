@@ -398,7 +398,7 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     inthash.ml inthash.mli alpha.ml alpha.mli \
 		    intmap.ml intmap.mli clist.ml clist.mli \
                     growArray.ml growArray.mli \
-                    perfcount.c.in Makefile.ocaml Makefile.ocaml.build
+                    perfcount.c.in Makefile.ocaml
 
 
 DISTRIB_SRC_FRONTC = cabs.ml cabshelper.ml cprint.ml clexer.mli clexer.mll \
