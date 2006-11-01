@@ -37,6 +37,7 @@
   # Written by necula@cs.berkeley.edu
   # 
 
+$(error "Makefile.ocaml.build is deprecated.  Just inline the code for the execuable target.")
 #
 # Do not use this file anymore because it leads to more trouble than it is worth it.
 # Just inline the code in the host file
