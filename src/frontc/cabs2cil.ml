@@ -3621,7 +3621,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                  se, e'
              in
              finishExp 
-               (se' +++ (Set(lv, makeCastT opresult tresult t, 
+               (se' +++ (Set(lv, makeCastT opresult tresult (typeOfLval lv), 
                              !currentLoc)))
                result
                tresult   (* Should this be t instead ??? *)

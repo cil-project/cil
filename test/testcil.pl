@@ -186,6 +186,7 @@ addTest("test/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("testrun/warnings-noreturn WARNINGS_ARE_ERRORS=1");
 addTest("testrun/warnings-unused-label WARNINGS_ARE_ERRORS=1");
 addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
+addTest("testrun/castincr WARNINGS_ARE_ERRORS=1");
 
 addTest("test/apachebits");
 addTest("testrun/apachebuf");
