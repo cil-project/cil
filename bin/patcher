@@ -77,6 +77,7 @@ options:
   --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
  
   --clean       Remove all files in the destination directory
+  --skipmissing Skip patches for files whose original cannot be found
   --stdoutpp    For MSVC only, use the "preprocess to stdout" mode. This 
                 is for some versions of MSVC that do not support 
                 well the /P file
@@ -103,6 +104,7 @@ my %option;
      "--ufile=s@",         # User include files
      "--sfile=s@",         # System include files
      "--stdoutpp",        # pp to stdout
+     "--skipmissing",
      "--dumpversion",
      "--clean",
      );
@@ -291,11 +293,28 @@ sub patchOneFile {
         }
     }
     close(PPOUT);
-    if($absname eq "") {
-        die "Cannot find the absolute name of $fname1 in $preprocfile.i\n";
-    }
     unlink "$preprocfile.c";
     unlink "$preprocfile.i";
+
+    # Did we find the original file?
+    if($absname eq "") {
+        if($option{skipmissing}) {
+            # Skip this file, mkaing all relevant patches optional
+            print "   Original header file not found; skipping...\n";
+            foreach my $patch (@patches) {
+                my $infile = $patch->{FLAGS}->{file};
+                print "checking $infile vs $fname\n";
+                if(defined $infile && $fname =~ m|$infile$|) {
+                print "found\n";
+                    $patch->{FLAGS}->{optional} = 1;
+                }
+            }
+            return;
+        } else {
+            die "Cannot find the absolute name of $fname1 in $preprocfile.i\n";
+        }
+    }
+
     # If we fail then maybe we are using cygwin paths in a Win32 system
     if($option{mode} eq "GNUCC" && $::iswin32) {
         open(WINNAME, "cygpath -w $absname|")
