@@ -143,6 +143,12 @@ class viFinderClass vi br = object(self)
 
 end
 
+let instr_has_vi vi i =
+  let br = ref false in
+  let vis = new viFinderClass vi br in
+  ignore(visitCilInstr vis i);
+  !br
+
 let exp_has_vi vi e =
   let br = ref false in
   let vis = new viFinderClass vi br in

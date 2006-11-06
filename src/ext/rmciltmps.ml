@@ -620,6 +620,9 @@ let ae_lv_fwd_subst ?(propStrings:bool = false) data sid e fd nofrm =
   (e', !ae_lval_to_exp_change)
 
 let ae_simp_fwd_subst data e nofrm =
+  ae_fwd_subst data (-1) e dummyFunDec nofrm
+
+let ae_lv_simp_fwd_subst data e nofrm =
   ae_lv_fwd_subst data (-1) e dummyFunDec nofrm
 
 let ae_tmp_to_const_change = ref false
