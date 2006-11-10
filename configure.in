@@ -495,12 +495,6 @@ AC_ARG_WITH(zrapp,
     AC_HELP_STRING([--with-zrapp],
                    [enable the zrapp pretty-printer]))
 
-# Smalloc.ml is distributed by {matth,nks}@cs.berkeley.edu as part of Scrash.
-features="$features smalloc=no"
-
-# cqualann.ml is used by Matt Harren.  Please ignore.
-features="$features cqualann=no"
-
 # Now add any features specified in the command-line
 
 features="$features $EXTRAFEATURES"

@@ -64,12 +64,6 @@ endif
 ifdef USE_ARITHABS
   CILLY_FEATURES += arithabs
 endif
-ifdef USE_SMALLOC
-  CILLY_FEATURES += smalloc
-endif
-ifdef USE_CQUALANN
-  CILLY_FEATURES += cqualann
-endif
 ifdef USE_ZRAPP
   CILLY_FEATURES += rmciltmps zrapp
 endif
@@ -236,12 +230,6 @@ ifdef USE_RAND
 endif
 ifdef USE_ARITHABS
 	echo "   Arithabs.feature;" >>$@
-endif
-ifdef USE_SMALLOC
-	echo "   Smalloc.feature;" >> $@  
-endif
-ifdef USE_CQUALANN
-	echo "   Cqualann.feature;" >> $@  
 endif
 ifdef USE_ZRAPP
 	echo "   Zrapp.feature;" >> $@  
