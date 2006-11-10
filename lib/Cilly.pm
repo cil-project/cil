@@ -1916,6 +1916,8 @@ sub new {
 		      RUN => sub { $stub->{TRACE_COMMANDS} = 1; } },
             "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
             "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-T(bss|data|text)\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-N\$" => { TYPE => 'LINK' },
              # GCC defines some more macros if the optimization is On so pass
              # the -O to the preprocessor and the compiler
             '-O' => { TYPE => 'ALLARGS' },
@@ -1928,7 +1930,7 @@ sub new {
             "-pedantic\$" => { TYPE => 'ALLARGS' },
             "-Wall" => { TYPE => 'CC', 
 			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
-            "-W[-a-z]*\$" => { TYPE => 'CC' },
+            "-W[-a-z0-9]*\$" => { TYPE => 'CC' },
             '-g' => { TYPE => 'ALLARGS' },
 	    "-save-temps" => { TYPE => 'ALLARGS',
 			       RUN => sub { if(! defined $stub->{SAVE_TEMPS}) {
