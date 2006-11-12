@@ -105,6 +105,10 @@ let find_all h key =
       if k = key then d :: find_in_bucket rest else find_in_bucket rest in
   find_in_bucket h.data.((hash key) mod (Array.length h.data))
 
+let tryfind h key =
+  try Some(find h key)
+  with Not_found -> None
+
 let replace h key info =
   let rec replace_bucket = function
       Empty ->

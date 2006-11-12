@@ -124,11 +124,12 @@ let rec dominates (idomInfo: stmt option IH.t) (s1: stmt) (s2: stmt) =
 
 
 
-let computeIDom (f: fundec) : stmt option IH.t = 
+let computeIDom ?(doCFG:bool=true) (f: fundec) : stmt option IH.t = 
   (* We must prepare the CFG info first *)
-  prepareCFG f;
-  computeCFGInfo f false;
-
+  if doCFG then begin
+    prepareCFG f;
+    computeCFGInfo f false
+  end;
   IH.clear DT.stmtStartData;
   let idomData: stmt option IH.t = IH.create 13 in
 
@@ -196,7 +197,125 @@ let computeIDom (f: fundec) : stmt option IH.t =
   in
   idomData
 
+type tree = stmt option * BS.t IH.t
 
+(* returns the IDoms and a map from statement ids to 
+   the set of statements that are dominated *)
+let computeDomTree ?(doCFG:bool=true) (f: fundec) 
+    : stmt option IH.t * tree = 
+  (* We must prepare the CFG info first *)
+  if doCFG then begin
+    prepareCFG f;
+    computeCFGInfo f false
+  end;
+  IH.clear DT.stmtStartData;
+  let treeData: BS.t IH.t = IH.create 64 in
+  let idomData: stmt option IH.t = IH.create 64 in
+
+  let _ = 
+    match f.sbody.bstmts with 
+      [] -> () (* function has no body *)
+    | start :: _ -> begin
+        (* We start with only the start block *)
+        IH.add DT.stmtStartData start.sid (BS.singleton start);
+        
+        Dom.compute [start];
+        
+        (* Dump the dominators information *)
+         if debug then 
+           List.iter
+             (fun s -> 
+               let sdoms = getStmtDominators DT.stmtStartData s in
+               if not (BS.mem s sdoms) then begin
+                 (* It can be that the block is not reachable *)
+                 if s.preds <> [] then 
+                   E.s (E.bug "Statement %d is not in its list of dominators"
+                          s.sid);
+               end;
+               ignore (E.log "Dominators for %d: %a\n" s.sid
+                         DT.pretty (BS.remove s sdoms)))
+             f.sallstmts;
+        
+        (* Now fill the immediate dominators for all nodes *)
+        let rec fillOneIdom (s: stmt) = 
+          try 
+            ignore (IH.find idomData s.sid)
+              (* Already set *)
+          with Not_found -> begin
+            (* Get the dominators *)
+            let sdoms = getStmtDominators DT.stmtStartData s in 
+            (* Fill the idom for the dominators first *)
+            let idom = 
+              BS.fold 
+                (fun d (sofar: stmt option) -> 
+                  if d.sid = s.sid then 
+                    sofar (* Ignore the block itself *)
+                  else begin
+                    (* fill the idom information recursively *)
+                    fillOneIdom d;
+                    match sofar with 
+                      None -> Some d
+                    | Some sofar' ->
+                        (* See if d is dominated by sofar. We know that the 
+                         * idom information has been computed for both sofar 
+                         * and for d*)
+                        if dominates idomData sofar' d then 
+                          Some d
+                        else
+                          sofar
+                  end)
+                sdoms
+                None
+            in
+            IH.replace idomData s.sid idom;
+	    match idom with
+	    | None -> ()
+	    | Some d -> begin
+		match IH.tryfind treeData d.sid with
+		| None -> IH.add treeData d.sid (BS.singleton s)
+		| Some bs -> IH.replace treeData d.sid (BS.add s bs)
+	    end 
+          end
+        in
+        (* Scan all blocks and compute the idom *)
+        List.iter fillOneIdom f.sallstmts
+    end
+  in
+  try idomData, (Some(List.hd f.sbody.bstmts), treeData)
+  with Failure "hd" -> idomData, (None, treeData)
+
+type order = PreOrder | PostOrder
+
+let rec domTreeIter (f: stmt -> unit) 
+                    (o : order) 
+                    (t: tree) 
+    : unit
+    =
+  let doChildren s =
+    match IH.tryfind (snd t) s.sid with
+    | None -> () (* No children *)
+    | Some bs -> begin
+	BS.iter (fun s -> domTreeIter f o (Some s, snd t)) bs
+    end
+  in
+  match fst t with
+  | None -> ()
+  | Some s -> begin (* s is the current root *)
+      match o with
+      | PreOrder -> begin (* do s first *)
+	  f s;
+	  doChildren s
+      end
+      | PostOrder -> begin (* do s's children first *)
+	  doChildren s;
+	  f s
+      end
+  end
+
+let children (t: tree) (s: stmt) : stmt list =
+  match IH.tryfind (snd t) s.sid with
+  | None -> []
+  | Some bs -> BS.elements bs
 
 (** Compute the start of the natural loops. For each start, keep a list of 
  * origin of a back edge. The loop consists of the loop start and all 

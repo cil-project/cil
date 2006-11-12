@@ -18,6 +18,7 @@ val remove_all: 'a t -> int -> unit
 val mem: 'a t -> int -> bool
 val find: 'a t -> int -> 'a
 val find_all: 'a t -> int -> 'a list
+val tryfind: 'a t -> int -> 'a option
 
 val iter: (int -> 'a -> unit) -> 'a t -> unit
 val fold: (int -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b

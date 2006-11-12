@@ -96,6 +96,8 @@ class memReadOrAddrOfFinderClass br = object(self)
   inherit nopCilVisitor
 
   method vexpr e = match e with
+  | AddrOf(Mem _, _)
+  | StartOf(Mem _, _)
   | Lval(Mem _, _) -> begin
       br := true;
       SkipChildren
