@@ -43,14 +43,16 @@ module E = Errormsg
 (* Expression/type comparison *)
 
 let rec compareExp (e1: exp) (e2: exp) : bool =
-(*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
+  (*log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
   e1 == e2 ||
   match e1, e2 with
   | Lval lv1, Lval lv2
   | StartOf lv1, StartOf lv2
   | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
-  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) -> 
+  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) ->
       bop1 = bop2 && compareExp l1 l2 && compareExp r1 r2
+  | CastE(t1, e1), CastE(t2, e2) ->
+      t1 == t2 && compareExp e1 e2
   | _ -> begin
       match isInteger (constFold true e1), isInteger (constFold true e2) with
         Some i1, Some i2 -> i1 = i2
