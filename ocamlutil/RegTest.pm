@@ -180,7 +180,9 @@ sub new {
     $self->{gory}       = $option{gory};
     $self->{verbose}    = $option{verbose};
     $self->{regrtest}   = $option{regrtest};
-    $self->{timeout}    = (defined($option{timeout}) ? $option{timeout} : 60);
+    $self->{timeout}    = (defined($option{timeout}) ? $option{timeout} 
+                          : (defined($self->{DefaultTimeout}) 
+                             ? $self->{DefaultTimeout} : 60));
 
     # Initialize the list of tests
     my %tests = ();
