@@ -4573,15 +4573,26 @@ let makeLocalVar fdec ?(insert = true) name typ =
   if insert then fdec.slocals <- fdec.slocals @ [vi];
   vi
 
-
 let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) typ : varinfo =
-  let name = name ^ (string_of_int (1 + fdec.smaxid)) in
+  let rec findUniqueName () : string=
+    let n = name ^ (string_of_int (1 + fdec.smaxid)) in
+    (* Is this check a performance problem?  We could bring the old
+       unchecked makeTempVar back as a separate function that assumes
+       the prefix name does not occur in the original program. *)
+    if (List.exists (fun vi -> vi.vname = n) fdec.slocals)
+      || (List.exists (fun vi -> vi.vname = n) fdec.sformals) then begin
+        fdec.smaxid <- 1 + fdec.smaxid;
+        findUniqueName ()
+      end else
+        n
+  in
+  let name = findUniqueName () in
   let vi = makeLocalVar fdec name typ in
   vi.vdescr <- descr;
   vi
 
- 
-  (* Set the formals and re-create the function name based on the information*)
+    
+(* Set the formals and re-create the function name based on the information*)
 let setFormals (f: fundec) (forms: varinfo list) = 
   f.sformals <- forms; (* Set the formals *)
   match unrollType f.svar.vtype with

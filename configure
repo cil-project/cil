@@ -9,7 +9,6 @@
 ## M4sh Initialization.  ##
 ## --------------------- ##
 
-
 # Be Bourne compatible
 if test -n "${ZSH_VERSION+set}" && (emulate sh) >/dev/null 2>&1; then
   emulate sh
@@ -4366,12 +4365,6 @@ if test "${with_zrapp+set}" = set; then
   withval="$with_zrapp"
 
 fi;
-
-# Smalloc.ml is distributed by {matth,nks}@cs.berkeley.edu as part of Scrash.
-features="$features smalloc=no"
-
-# cqualann.ml is used by Matt Harren.  Please ignore.
-features="$features cqualann=no"
 
 # Now add any features specified in the command-line
 
