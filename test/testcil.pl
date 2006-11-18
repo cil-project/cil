@@ -79,7 +79,7 @@ my %commonerrors =
              $_[1]->{ErrorCode} = $_[1]->{instage};
          }},
     
-    "[sS]yntax error" => sub { $_[1]->{ErrorCode} = 1000; },
+    #"[sS]yntax error" => sub { $_[1]->{ErrorCode} = 1000; },
     
          # Collect some more parameters
          # Now error messages
@@ -571,6 +571,7 @@ addTest("mergestruct");
 
 # a few things that should fail
 addTest("test-bad/trivial-tb");
+addTest("runall/runall_misc");
 
 
 # simple test of combiner

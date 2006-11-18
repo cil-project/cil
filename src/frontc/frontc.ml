@@ -189,7 +189,7 @@ and parse_to_cabs_inner (fname : string) =
     flush !E.logChannel;
     E.hadErrors := false;
     let lexbuf = Clexer.init fname in
-    let cabs = Stats.time "parse" (Cparser.file (Whitetrack.wraplexer clexer)) lexbuf in
+    let cabs = Stats.time "parse" (Cparser.interpret (Whitetrack.wraplexer clexer)) lexbuf in
     Whitetrack.setFinalWhite (Clexer.get_white ());
     Clexer.finish ();
     (fname, cabs)
