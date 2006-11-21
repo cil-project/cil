@@ -2718,15 +2718,28 @@ let d_binop () b =
 let invalidStmt = mkStmt (Instr [])
 
 (** Construct a hash with the builtins *)
-let gccBuiltins : (string, typ * typ list * bool) H.t = 
-  let h = H.create 17 in
+let builtinFunctions : (string, typ * typ list * bool) H.t = 
+  H.create 49
+
+(** Deprecated.  For compatibility with older programs, these are
+  aliases for {!Cil.builtinFunctions} *)
+let gccBuiltins = builtinFunctions
+let msvcBuiltins = builtinFunctions
+
+(* Initialize the builtin functions after the machine has been initialized. *)
+let initGccBuiltins () : unit =
+  if not !initCIL_called then
+    E.s (bug "Call initCIL before initGccBuiltins");
+  if H.length builtinFunctions <> 0 then 
+    E.s (bug "builtins already initialized.");
+  let h = builtinFunctions in
   (* See if we have builtin_va_list *)
   let hasbva = M.gccHas__builtin_va_list in
   let ulongLongType = TInt(IULongLong, []) in
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
-  let sizeType = uintType in
+  let sizeType = !upointType in
 
   H.add h "__builtin___fprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType ], true) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
   H.add h "__builtin___memcpy_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
@@ -2812,6 +2825,8 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_infl" (longDoubleType, [], false);
   H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; uintType ], false);
   H.add h "__builtin_mempcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
+  H.add h "__builtin_memset" (voidPtrType, 
+                              [ voidPtrType; intType; intType ], false);
 
   H.add h "__builtin_fmod" (doubleType, [ doubleType ], false);
   H.add h "__builtin_fmodf" (floatType, [ floatType ], false);
@@ -2889,8 +2904,8 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
   H.add h "__builtin_strpbrk" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   (* When we parse builtin_types_compatible_p, we change its interface *)
   H.add h "__builtin_types_compatible_p"
-                              (intType, [ uintType; (* Sizeof the type *)
-                                          uintType  (* Sizeof the type *) ],
+                            (intType, [ !typeOfSizeOf;(* Sizeof the type *)
+                                        !typeOfSizeOf (* Sizeof the type *) ],
                                false);
   H.add h "__builtin_tan" (doubleType, [ doubleType ], false);
   H.add h "__builtin_tanf" (floatType, [ floatType ], false);
@@ -2911,22 +2926,25 @@ let gccBuiltins : (string, typ * typ list * bool) H.t =
                                       false);
     (* When we parse builtin_va_arg we change its interface *)
     H.add h "__builtin_va_arg" (voidType, [ TBuiltin_va_list [];
-                                            uintType; (* Sizeof the type *)
+                                            !typeOfSizeOf;(* Sizeof the type *)
                                             voidPtrType; (* Ptr to res *) ],
                                false);
     H.add h "__builtin_va_copy" (voidType, [ TBuiltin_va_list [];
 					     TBuiltin_va_list [] ],
                                 false);
   end;
-  h
+  ()
 
 (** Construct a hash with the builtins *)
-let msvcBuiltins : (string, typ * typ list * bool) H.t = 
-  (* These are empty for now but can be added to depending on the application*)
-  let h = H.create 17 in
+let initMsvcBuiltins () : unit =
+  if not !initCIL_called then
+    E.s (bug "Call initCIL before initGccBuiltins");
+  if H.length builtinFunctions <> 0 then 
+    E.s (bug "builtins already initialized.");
+  let h = builtinFunctions in
   (** Take a number of wide string literals *)
   H.add h "__annotation" (voidType, [ ], true);
-  h
+  ()
 
 (** This is used as the location of the prototypes of builtin functions. *)
 let builtinLoc: location = { line = 1; 
@@ -3779,8 +3797,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       
     (* print global variable 'extern' declarations, and function prototypes *)    
     | GVarDecl (vi, l) ->
-        let builtins = if !msvcMode then msvcBuiltins else gccBuiltins in
-        if not !printCilAsIs && H.mem builtins vi.vname then begin
+        if not !printCilAsIs && H.mem builtinFunctions vi.vname then begin
           (* Compiler builtins need no prototypes. Just print them in
              comments. *)
           text "/* compiler builtin: \n   " ++
@@ -6423,8 +6440,6 @@ let initCIL () =
     upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
     kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
     typeOfSizeOf := TInt(!kindOfSizeOf, []);
-    H.add gccBuiltins "__builtin_memset" 
-      (voidPtrType, [ voidPtrType; intType; intType ], false);
     wcharKind := findIkind false !theMachine.M.sizeof_wchar;
     wcharType := TInt(!wcharKind, []);
     char_is_unsigned := !theMachine.M.char_is_unsigned;
@@ -6432,7 +6447,13 @@ let initCIL () =
     underscore_name := !theMachine.M.underscore_name;
     nextGlobalVID := 1;
     nextCompinfoKey := 1;
-    initCIL_called := true
+
+    initCIL_called := true;
+    if !msvcMode then
+      initMsvcBuiltins ()
+    else
+      initGccBuiltins ();
+    ()
   end
     
 

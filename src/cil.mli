@@ -1235,15 +1235,23 @@ val pushGlobal: global -> types: global list ref
 (** An empty statement. Used in pretty printing *)
 val invalidStmt: stmt
 
-(** A list of the GCC built-in functions. Maps the name to the result and 
-  * argument types, and whether it is vararg *)
+
+(** A list of the built-in functions for the current compiler (GCC or
+  * MSVC, depending on [!msvcMode].  Maps the name to the
+  * result and argument types, and whether it is vararg.
+  * Initialized by {!Cil.initCIL}
+  *
+  * This map replaces [gccBuiltins] and [msvcBuiltins] in previous
+  * versions of CIL.*)
+val builtinFunctions : (string, typ * typ list * bool) Hashtbl.t
+
+(** @deprecated.  For compatibility with older programs, these are
+  aliases for {!Cil.builtinFunctions} *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
-
-
-(** A list of the MSVC built-in functions. Maps the name to the result and 
- * argument types, and whether it is vararg *)
+(** @deprecated.  For compatibility with older programs, these are
+  aliases for {!Cil.builtinFunctions} *)
 val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
- 
+  
 (** This is used as the location of the prototypes of builtin functions. *)
 val builtinLoc: location
 
