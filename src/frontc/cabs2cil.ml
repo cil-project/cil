@@ -3917,7 +3917,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           Lval(Var fv, NoOffset) -> begin
             if fv.vname = "__builtin_va_arg" then begin
               match !pargs with 
-                marker :: SizeOf resTyp :: _ -> begin
+                marker :: SizeOf resTyp :: _
+              | marker :: CastE(_, SizeOf resTyp) :: _ -> begin
                   (* Make a variable of the desired type *)
                   let destlv, destlvtyp = 
                     match !pwhat with 
