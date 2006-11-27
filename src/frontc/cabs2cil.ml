@@ -4935,8 +4935,11 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
         None
       else 
         let se, ie', et = doInitializer vi inite in
-        (* Maybe we now have a better type *)
-        vi.vtype <- et;
+        (* Maybe we now have a better type?  Use the type of the
+         * initializer only if it really differs from the type of
+         * the variable. *)
+        if unrollType vi.vtype != unrollType et then
+          vi.vtype <- et;
         if isNotEmpty se then 
           E.s (error "global initializer");
         Some ie'
@@ -5066,8 +5069,11 @@ and createLocal ((_, sto, _, _) as specs)
           None
         else begin 
           let se, ie', et = doInitializer vi inite in
-          (* Maybe we now have a better type *)
-          vi.vtype <- et;
+          (* Maybe we now have a better type?  Use the type of the
+           * initializer only if it really differs from the type of
+           * the variable. *)
+          if unrollType vi.vtype != unrollType et then
+            vi.vtype <- et;
           if isNotEmpty se then 
             E.s (error "global static initializer");
           (* Maybe the initializer refers to the function itself. 
