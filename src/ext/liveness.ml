@@ -171,13 +171,13 @@ let feature =
    fd_extraopt = [
    "--live_label",
    Arg.String (fun s -> live_label := s),
-   "Output the variables live at this label";
+   " Output the variables live at this label";
    "--live_func",
    Arg.String (fun s -> live_func := s),
-   "Output the variables live at each statement in this function.";
+   " Output the variables live at each statement in this function.";
    "--live_debug",
    Arg.Unit (fun n -> debug := true),
-   "Print lots of debugging info";];
+   " Print lots of debugging info";];
    fd_doit = do_live_feature;
    fd_post_check = false
  }

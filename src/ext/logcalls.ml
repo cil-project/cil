@@ -222,9 +222,9 @@ let feature : featureDescr =
     fd_description = "generation of code to log function calls";
     fd_extraopt = [
       ("--logcallprintf", Arg.String (fun s -> printFunctionName := s), 
-       "the name of the printf function to use");
+       " the name of the printf function to use");
       ("--logcalladdproto", Arg.Unit (fun s -> addProto := true), 
-       "whether to add the prototype for the printf function")
+       " whether to add the prototype for the printf function")
     ];
     fd_doit = logCalls;
     fd_post_check = true

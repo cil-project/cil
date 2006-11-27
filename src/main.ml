@@ -196,17 +196,17 @@ let rec theMain () =
       [blankLine]
   in
   let featureArgs = 
-    ("", Arg.Unit (fun () -> ()), "\n\t\tCIL Features") :: featureArgs 
+    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs 
   in
     
   let argDescr = Ciloptions.options @ 
         [ 
           "--out", Arg.String (openFile "output" 
                                  (fun oc -> outChannel := Some oc)),
-              "the name of the output CIL file.  The cilly script sets this for you.";
+              " the name of the output CIL file.  The cilly script sets this for you.";
           "--mergedout", Arg.String (openFile "merged output"
                                        (fun oc -> mergedChannel := Some oc)),
-              "specify the name of the merged file";
+              " specify the name of the merged file";
         ]
         @ F.args @ featureArgs in
   begin
@@ -215,7 +215,7 @@ let rec theMain () =
     Stats.reset (Stats.has_performance_counters ());
 
     (* parse the command-line arguments *)
-    Arg.parse argDescr Ciloptions.recordFile usageMsg;
+    Arg.parse (Arg.align argDescr) Ciloptions.recordFile usageMsg;
     Cil.initCIL ();
 
     Ciloptions.fileNames := List.rev !Ciloptions.fileNames;

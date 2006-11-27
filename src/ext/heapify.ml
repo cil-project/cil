@@ -226,7 +226,7 @@ void * stackguard_pop() {
 let feature1 : featureDescr = 
   { fd_name = "stackGuard";
     fd_enabled = Cilutil.doStackGuard;
-    fd_description = "instrument function calls and returns to maintain a separate stack for return addresses" ;
+    fd_description = "instrument function calls and returns to maintain a\n\t\t\t\tseparate stack for return addresses" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> default_stackguard f);
     fd_post_check = true;
@@ -237,7 +237,7 @@ let feature2 : featureDescr =
     fd_description = "move stack-allocated arrays to the heap" ;
     fd_extraopt = [
       "--heapifyAll", Arg.Set heapifyNonArrays,
-      "When using heapify, move all local vars whose address is taken, not just arrays.";
+      " When using heapify, move all local vars whose address is taken,\n\t\t\t\tnot just arrays.";
     ];
     fd_doit = (function (f: file) -> default_heapify f);
     fd_post_check = true;

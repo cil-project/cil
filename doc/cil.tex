@@ -1679,7 +1679,9 @@ program.
  All of the options that start with \t{-{}-} and are not understood by
 \t{cilly} are passed on to \t{cilly.asm}.   \t{cilly} also passes along to
 \t{cilly.asm} flags such as \t{-{}-MSVC} that both need to know
-about.  The following options are supported:
+about.  The following options are supported.  Many of these flags also
+have corresponding ``\t{-{}-no}*'' versions if you need to go back to
+the default, as in ``\t{-{}-nowarnall}''.
 
 \hspace*{2cm} {\bf General Options:}
 \begin{itemize}
@@ -3125,6 +3127,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf November 26, 2006}: Christoph Spiel added ``\t{-{}-no}''
+  options to many of CIL's command-line flags.
 \item {\bf November 21, 2006}: Merged \t{gccBuiltins} and
   \t{msvcBuiltins} into a single table \Cilvalref{builtinFunctions}
   that is initialized by \Cilvalref{initCIL}.

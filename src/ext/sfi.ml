@@ -328,8 +328,8 @@ let feature : featureDescr =
     fd_enabled = doSfi;
     fd_description = "instrument memory operations";
     fd_extraopt = [
-    "--sfireads", Arg.Set doSfiReads, "SFI for reads";
-    "--sfiwrites", Arg.Set doSfiWrites, "SFI for writes";
+    "--sfireads", Arg.Set doSfiReads, " SFI for reads";
+    "--sfiwrites", Arg.Set doSfiWrites, " SFI for writes";
     ];
     fd_doit = doit;
     fd_post_check = true;

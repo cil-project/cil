@@ -93,17 +93,17 @@ let printNotice = ref false
 *)
 let args : (string * Arg.spec * string) list =
 [
-  "--cabsonly", Arg.String set_output, "<fname>: CABS output file name";
+  "--cabsonly", Arg.String set_output, "<fname> CABS output file name";
   "--printComments", Arg.Unit (fun _ -> Cprint.printComments := true),
-             ": print cabs tree structure in comments in cabs output";
+             " print cabs tree structure in comments in cabs output";
   "--patchFile", Arg.String (fun pf -> patchFileName := pf),
-             "<fname>: name the file containing patching transformations";
+             "<fname> name the file containing patching transformations";
   "--printPatched", Arg.Unit (fun _ -> printPatchedFiles := true),
-             ": print patched CABS files after patching, to *.patched";
+             " print patched CABS files after patching, to *.patched";
   "--printProtos", Arg.Unit (fun _ -> doPrintProtos := true),
-             ": print prototypes to safec.proto.h after parsing";
+             " print prototypes to safec.proto.h after parsing";
   "--printNotice", Arg.Set printNotice,
-             ": include a comment saying printed by FrontC";
+             " include a comment saying printed by FrontC";
 ]
 
 exception ParseError of string

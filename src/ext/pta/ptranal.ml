@@ -572,20 +572,20 @@ let feature : featureDescr = {
   fd_extraopt = [
     ("--ptr_may_aliases",
      Arg.Unit (fun _ -> debug_may_aliases := true),
-     "Print out results of may alias queries");
+     " Print out results of may alias queries");
     ("--ptr_unify", Arg.Unit (fun _ -> no_sub := true),
-     "Make the alias analysis unification-based");
+     " Make the alias analysis unification-based");
     ("--ptr_model_strings", Arg.Unit (fun _ -> model_strings := true),
-     "Make the alias analysis model string constants");
+     " Make the alias analysis model string constants");
     ("--ptr_conservative",
      Arg.Unit (fun _ -> conservative_undefineds := true),
-     "Treat undefineds conservatively in alias analysis");
+     " Treat undefineds conservatively in alias analysis");
     ("--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
-     "print the results of the alias analysis");
+     " print the results of the alias analysis");
     ("--ptr_mono", Arg.Unit (fun _ -> analyze_mono := true),
-     "run alias analysis monomorphically");
+     " run alias analysis monomorphically");
     ("--ptr_types",Arg.Unit (fun _ -> ptrTypes := true),
-     "print inferred points-to analysis types")
+     " print inferred points-to analysis types")
   ];
   fd_doit = (function (f: file) ->
                analyze_file f;

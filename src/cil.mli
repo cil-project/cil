@@ -1106,7 +1106,8 @@ type featureDescr = {
     (** A longer name that can be used to document the new options  *)
 
     fd_extraopt: (string * Arg.spec * string) list; 
-    (** Additional command line options *)
+    (** Additional command line options.  The description strings should
+        usually start with a space for Arg.align to print the --help nicely. *)
 
     fd_doit: (file -> unit);
     (** This performs the transformation *)

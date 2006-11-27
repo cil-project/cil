@@ -61,15 +61,15 @@ let epicenterHops = ref 0
 let feature : featureDescr = 
   { fd_name = "epicenter";
     fd_enabled = doEpicenter;
-    fd_description = "remove all functions except those within some number " ^
-                     "of hops (in the call graph) from a given function";
+    fd_description = "remove all functions except those within some number" ^
+                "\n\t\t\t\tof hops (in the call graph) from a given function";
     fd_extraopt = 
     [
     ("--epicenter-name", 
      Arg.String (fun s -> epicenterName := s),
-               "<name>: do an epicenter slice starting from function <name>");
+               "<name> do an epicenter slice starting from function <name>");
     ("--epicenter-hops", Arg.Int (fun n -> epicenterHops := n),
-     "<n>: specify max # of hops for epicenter slice");
+     "<n> specify max # of hops for epicenter slice");
     ];
 
     fd_doit =

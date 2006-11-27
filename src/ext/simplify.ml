@@ -846,7 +846,7 @@ let feature : featureDescr =
     fd_description = "compiles CIL to 3-address code";
     fd_extraopt = [
       ("--no-split-structs", Arg.Unit (fun _ -> splitStructs := false),
-                    "do not split structured variables"); 
+                    " do not split structured variables"); 
     ];
     fd_doit = (function f -> iterGlobals f doGlobal);
     fd_post_check = true;
