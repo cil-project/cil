@@ -1238,7 +1238,7 @@ val invalidStmt: stmt
 
 
 (** A list of the built-in functions for the current compiler (GCC or
-  * MSVC, depending on [!msvcMode].  Maps the name to the
+  * MSVC, depending on [!msvcMode]).  Maps the name to the
   * result and argument types, and whether it is vararg.
   * Initialized by {!Cil.initCIL}
   *
@@ -1249,6 +1249,7 @@ val builtinFunctions : (string, typ * typ list * bool) Hashtbl.t
 (** @deprecated.  For compatibility with older programs, these are
   aliases for {!Cil.builtinFunctions} *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
+
 (** @deprecated.  For compatibility with older programs, these are
   aliases for {!Cil.builtinFunctions} *)
 val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
