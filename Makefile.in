@@ -72,7 +72,7 @@ CILLY_FEATURES += @EXTRAFEATURES@
 
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
-              cilutil escape growArray\
+              cilutil escape longarray growArray\
               cabs cabshelper cabsvisit whitetrack cprint lexerhack machdep cparser clexer  \
               cilversion cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
@@ -385,6 +385,7 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
                     inthash.ml inthash.mli alpha.ml alpha.mli \
 		    intmap.ml intmap.mli clist.ml clist.mli \
+                    longarray.ml longarray.mli \
                     growArray.ml growArray.mli \
                     perfcount.c.in Makefile.ocaml
 

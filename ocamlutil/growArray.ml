@@ -1,5 +1,7 @@
 (** Growable Arrays *)
 
+module LA = Longarray
+
 type 'a fill =
     Elem of 'a
   | Susp of (int -> 'a)
@@ -12,7 +14,7 @@ type 'a t = {
             (** Maximum index that was written to. -1 if no writes have 
              * been made.  *)
 
-    mutable gaData: 'a array;
+    mutable gaData: 'a LA.t;
   } 
 
 let growTheArray (ga: 'a t) (len: int) 
@@ -25,11 +27,11 @@ let growTheArray (ga: 'a t) (len: int)
 *)
     let data' = begin match ga.gaFill with
       Elem x ->
-	let data'' = Array.create newlen x in
-	Array.blit ga.gaData 0 data'' 0 len;
+	let data'' = LA.create newlen x in
+	LA.blit ga.gaData 0 data'' 0 len;
 	data''
-    | Susp f -> Array.init newlen
-	  (fun i -> if i < len then ga.gaData.(i) else f i)
+    | Susp f -> LA.init newlen
+	  (fun i -> if i < len then LA.get ga.gaData i else f i)
     end
     in
     ga.gaData <- data'
@@ -39,37 +41,37 @@ let max_init_index (ga: 'a t) : int =
   ga.gaMaxInitIndex
 
 let num_alloc_index (ga: 'a t) : int = 
-  Array.length ga.gaData
+  LA.length ga.gaData
 
 let reset_max_init_index (ga: 'a t) : unit =
   ga.gaMaxInitIndex <- -1
 
 let getg (ga: 'a t) (r: int) : 'a = 
-  let len = Array.length ga.gaData in
+  let len = LA.length ga.gaData in
   if r >= len then 
     growTheArray ga len r "getg";
 
-  ga.gaData.(r)
+  LA.get ga.gaData r
 
 let setg (ga: 'a t) (r: int) (what: 'a) : unit = 
-  let len = Array.length ga.gaData in
+  let len = LA.length ga.gaData in
   if r >= len then 
     growTheArray ga len r "setg";
   if r > max_init_index ga then ga.gaMaxInitIndex <- r;
-  ga.gaData.(r) <- what
+  LA.set ga.gaData r what
 
-let get (ga: 'a t) (r: int) : 'a = Array.get ga.gaData r
+let get (ga: 'a t) (r: int) : 'a = LA.get ga.gaData r
 
 let set (ga: 'a t) (r: int) (what: 'a) : unit = 
   if r > max_init_index ga then ga.gaMaxInitIndex <- r;
-  Array.set ga.gaData r what
+  LA.set ga.gaData r what
 
 let make (initsz: int) (fill: 'a fill) : 'a t = 
   { gaFill = fill;
     gaMaxInitIndex = -1;
     gaData = begin match fill with
-      Elem x -> Array.create initsz x
-    | Susp f -> Array.init initsz f
+      Elem x -> LA.create initsz x
+    | Susp f -> LA.init initsz f
     end; }
 
 let clear (ga: 'a t) : unit =
@@ -77,20 +79,20 @@ let clear (ga: 'a t) : unit =
      max_init_index.  Maybe we shouldn't trust max_init_index here?? *) 
   if ga.gaMaxInitIndex >= 0 then begin
     begin match ga.gaFill with 
-        Elem x -> Array.fill ga.gaData 0 (ga.gaMaxInitIndex+1) x
+        Elem x -> LA.fill ga.gaData 0 (ga.gaMaxInitIndex+1) x
       | Susp f -> 
           for i = 0 to ga.gaMaxInitIndex do 
-            Array.set ga.gaData i (f i)
+            LA.set ga.gaData i (f i)
           done
     end;
     ga.gaMaxInitIndex <- -1
   end
 
 let copy (ga: 'a t) : 'a t = 
-  { ga with gaData = Array.copy ga.gaData } 
+  { ga with gaData = LA.copy ga.gaData } 
 
 let deep_copy (ga: 'a t) (copy: 'a -> 'a): 'a t = 
-  { ga with gaData = Array.map copy ga.gaData } 
+  { ga with gaData = LA.map copy ga.gaData } 
 
 (* An accumulating for loop. Used internally. *)
 let fold_for ~(init: 'a) ~(lo: int) ~(hi: int) (f: int -> 'a -> 'a) =
@@ -103,13 +105,13 @@ let fold_for ~(init: 'a) ~(lo: int) ~(hi: int) (f: int -> 'a -> 'a) =
 (** Iterate over the initialized elements of the array *)
 let iter (f: 'a -> unit) (ga: 'a t) = 
   for i = 0 to max_init_index ga do 
-    f ga.gaData.(i)
+    f (LA.get ga.gaData i)
   done
 
 (** Iterate over the initialized elements of the array *)
 let iteri  (f: int -> 'a -> unit) (ga: 'a t) = 
   for i = 0 to max_init_index ga do 
-    f i ga.gaData.(i)
+    f i (LA.get ga.gaData i)
   done
 
 (** Iterate over the elements of 2 arrays *)
@@ -125,7 +127,7 @@ let iter2  (f: int -> 'a -> 'b -> unit) (ga1: 'a t) (ga2: 'b t) =
                   len2
               end in
     for i = 0 to max do 
-      f i ga1.gaData.(i) ga2.gaData.(i)
+      f i (LA.get ga1.gaData i) (LA.get ga2.gaData i)
     done
   end
 
@@ -135,7 +137,7 @@ let fold_left (f: 'acc -> 'a -> 'acc) (acc: 'acc) (ga: 'a t) : 'acc =
     if idx > max_init_index ga then 
       acc
     else
-      loop (f acc ga.gaData.(idx)) (idx + 1)
+      loop (f acc (LA.get ga.gaData idx)) (idx + 1)
   in
   loop acc 0
 
@@ -146,7 +148,7 @@ let fold_lefti (f: 'acc -> int -> 'a -> 'acc) (acc: 'acc) (ga: 'a t) : 'acc =
     if idx > max_init_index ga then 
       acc
     else
-      loop (f acc idx ga.gaData.(idx)) (idx + 1)
+      loop (f acc idx (LA.get ga.gaData idx)) (idx + 1)
   in
   loop acc 0
 
@@ -156,7 +158,7 @@ let fold_right (f: 'a -> 'acc -> 'acc) (ga: 'a t) (acc: 'acc) : 'acc =
     if idx < 0 then 
       acc
     else
-      loop (f ga.gaData.(idx) acc) (idx - 1)
+      loop (f (LA.get ga.gaData idx) acc) (idx - 1)
   in
   loop acc (max_init_index ga)
 
@@ -165,7 +167,7 @@ let d_growarray (sep: Pretty.doc)
                 (doit:int -> 'a -> Pretty.doc)
                 ()
                 (elements: 'a t) =
-  Pretty.docArray ~sep:sep doit () elements.gaData
+  LA.docArray ~sep:sep doit () elements.gaData
 
 let restoreGA ?deepCopy (ga: 'a t) : (unit -> unit) = 
   let old = 
