@@ -115,7 +115,13 @@ let rec stripCastsForPtrArith (e:exp): exp =
   match e with
   | CastE(t, e') -> begin
       match unrollType (typeOf e'), unrollType t with
-        TPtr (bt1, _), TPtr (bt2, _) -> begin
+      (* Keep casts from void to something else.  Among other things,
+       * we keep casts from void* to char* that would otherwise be
+       * eliminated. *)
+      | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
+          e
+      (* Remove casts between pointers with equal-sized base types. *)
+      | TPtr (bt1, _), TPtr (bt2, _) -> begin
           try
             if bitsSizeOf bt1 = bitsSizeOf bt2 then (* Okay to strip *)
               stripCastsForPtrArith e'
@@ -184,6 +190,12 @@ let rec stripCastsDeepForPtrArith (e:exp): exp =
   | CastE(t, e') when not(isTypeVolatile t) -> begin
       let e' = stripCastsDeepForPtrArith e' in
       match unrollType (typeOf e'), unrollType t with
+      (* Keep casts from void to something else.  Among other things,
+       * we keep casts from void* to char* that would otherwise be
+       * eliminated. *)
+      | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
+          e
+      (* Remove casts between pointers with equal-sized base types. *)
       | TPtr (bt1, _), TPtr (bt2, _) -> begin
           try
             if bitsSizeOf bt1 = bitsSizeOf bt2 then (* Okay to strip *)
