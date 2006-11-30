@@ -1,5 +1,6 @@
 
 open Cabs
+open Cabshelper
 
 (* This isn't the most efficient way to do things.
  * It would probably be better to not reparse rather
@@ -12,17 +13,21 @@ open Cabs
 
 (* TODO: gather until end of line, then decide where to split *)
 
-let tokenmap : (cabsloc,int) Hashtbl.t = Hashtbl.create 1000
+let tokenmap : ((string * int),int) Hashtbl.t = Hashtbl.create 1000
 let nextidx = ref 0
 
 (* array of tokens and whitespace *)
 let tokens = GrowArray.make 0 (GrowArray.Elem  ("",""))
 
+let cabsloc_to_str cabsloc =
+    cabsloc.filename ^ ":" ^ string_of_int cabsloc.lineno ^ ":" ^ 
+    string_of_int cabsloc.byteno ^ ":" ^ 
+    string_of_int cabsloc.ident
+
 let wraplexer lexer lexbuf =
     let white,lexeme,token,cabsloc = lexer lexbuf in
-  (*  let lexeme = Lexing.lexeme lexbuf in *)
     GrowArray.setg tokens !nextidx (white,lexeme);
-    Hashtbl.add tokenmap cabsloc !nextidx;
+    Hashtbl.add tokenmap (cabsloc.filename,cabsloc.byteno) !nextidx;
     nextidx := !nextidx + 1;
     token
     
@@ -30,11 +35,19 @@ let finalwhite = ref "\n"
     
 let setFinalWhite w = finalwhite := w 
     
-let curidx = ref 0    
+let curidx = ref 0  
+let noidx = -1  
 let out = ref stdout
     
 let setLoc cabsloc =
-    curidx := Hashtbl.find tokenmap cabsloc
+    if cabsloc != cabslu then begin
+        try 
+            curidx := Hashtbl.find tokenmap (cabsloc.filename,cabsloc.byteno)
+        with
+            Not_found -> Errormsg.s 
+                (Errormsg.error "setLoc with location for non-lexed token: %s"
+                    (cabsloc_to_str cabsloc)) 
+    end else begin curidx := noidx; () end
     
 let setOutput out_chan = 
     out := out_chan
@@ -55,13 +68,15 @@ let last_str = ref ""
     
 let print str =
     let str = chopwhite str in
-    if str = "" then () else begin
+    if str = "" then ()
+    else if !curidx == noidx then output_string !out (invent_white() ^ str) 
+    else begin
         let srcwhite,srctok = GrowArray.getg tokens !curidx in
         let white = if str = srctok 
             then srcwhite
             else begin
-                print_endline ("nomatch:["^String.escaped str^"] expected:["^String.escaped srctok ^ 
-                    "] - NOTE: cpp not supported"); 
+                ignore (Errormsg.warnOpt "%s" ("nomatch:["^String.escaped str^"] expected:["^String.escaped srctok ^ 
+                    "] - NOTE: cpp not supported"));
                 invent_white ()
             end in
         if !last_was_maybe && str = !last_str then () else begin
