@@ -2509,6 +2509,11 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           try kinteger64 tk (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
+      | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_))
+        when bitsSizeOfInt ik1 = bitsSizeOfInt ik2 -> begin
+          try kinteger64 tk (Int64.div i1 i2)
+          with Division_by_zero -> BinOp(bop, e1', e2', tres)
+      end
       | Div, e1'', Const(CInt64(1L,_,_)) -> e1''
 
       | Mod, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_)) when ik1 = ik2 -> begin
