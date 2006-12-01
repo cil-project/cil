@@ -252,7 +252,7 @@ end
 
 
 
-let parse fname =
+let parse_helper fname =
   (trace "sm" (dprintf "parsing %s to Cabs\n" fname));
   let cabs = parse_to_cabs fname in
   (* Now (return a function that will) convert to CIL *)
@@ -260,12 +260,8 @@ let parse fname =
     (trace "sm" (dprintf "converting %s from Cabs to CIL\n" fname));
     let cil = Stats.time "conv" Cabs2cil.convFile cabs in
     if !doPrintProtos then (printPrototypes cabs);
-    cil
+    cabs, cil
 
+let parse fname = (fun () -> snd(parse_helper fname ()))
 
-
-
-
-
-
-
+let parse_with_cabs fname = (fun () -> parse_helper fname ())
