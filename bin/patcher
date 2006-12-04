@@ -303,9 +303,7 @@ sub patchOneFile {
             print "   Original header file not found; skipping...\n";
             foreach my $patch (@patches) {
                 my $infile = $patch->{FLAGS}->{file};
-                print "checking $infile vs $fname\n";
                 if(defined $infile && $fname =~ m|$infile$|) {
-                print "found\n";
                     $patch->{FLAGS}->{optional} = 1;
                 }
             }
