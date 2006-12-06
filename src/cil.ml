@@ -2899,7 +2899,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_sqrtl" (longDoubleType, [ longDoubleType ], false);
 
   H.add h "__builtin_stpcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
-  H.add h "__builtin_strchr" (charPtrType, [ charPtrType; charType ], false);
+  H.add h "__builtin_strchr" (charPtrType, [ charPtrType; intType ], false);
   H.add h "__builtin_strcmp" (intType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
   H.add h "__builtin_strcspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
