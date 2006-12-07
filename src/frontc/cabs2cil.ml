@@ -78,6 +78,10 @@ let typeForInsertedVar: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
   * Casts in the source code are exempt from this hook. *)
 let typeForInsertedCast: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
 
+(** A hook into the code that merges arguments in function types. *)
+let typeForCombinedArg: ((string, string) H.t -> Cil.typ -> Cil.typ) ref =
+  ref (fun _ t -> t)
+
 (* ---------- source error message handling ------------- *)
 let lu = locUnknown
 let cabslu = {lineno = -10; 
@@ -1549,8 +1553,13 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         if List.length oldargslist <> List.length argslist then 
           raise (Failure "different number of arguments")
         else begin
+          (* Construct a mapping between old and new argument names. *)
+          let map = H.create 5 in
+          List.iter2
+            (fun (on, _, _) (an, _, _) -> H.replace map on an)
+            oldargslist argslist;
           (* Go over the arguments and update the old ones with the 
-          * adjusted types *)
+           * adjusted types *)
           Some 
             (List.map2 
                (fun (on, ot, oa) (an, at, aa) -> 
@@ -1558,11 +1567,14 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                   * very important if the prototype uses different names than 
                   * the function definition. *)
                  let n = if an <> "" then an else on in
+                 (* Adjust the old type. This hook allows Deputy to do
+                  * alpha renaming of dependent attributes. *)
+                 let ot' = !typeForCombinedArg map ot in
                  let t = 
                    combineTypes 
                      (if what = CombineFundef then 
                        CombineFunarg else CombineOther) 
-                     ot at
+                     ot' at
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
