@@ -444,6 +444,7 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
               $(TOP_DIR)/doc \
 	      $(TOP_DIR)/lib \
 	      $(TOP_DIR)/bin \
+	      $(TOP_DIR)/debian \
 	      $(TOP_DIR)/doc/api \
               $(TOP_DIR)/obj/.depend \
               $(TOP_DIR)/obj/x86_WIN32 \
@@ -466,9 +467,11 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
 	cp $(patsubst %,test/small1/%,$(DISTRIB_SMALL1)) $(TOP_DIR)/test/small1
 
 	cp -r doc/html/cil/* $(TOP_DIR)/doc
-# Delete all CVS directories
-	if find $(TEMP_DIR) -name CVS -print >cvss.txt ; then \
-            rm -rf `cat cvss.txt` ;fi
+	cp debian/* $(TOP_DIR)/debian
+
+# Delete all Subversion metadata directories
+	find $(TEMP_DIR) -name .svn -print0 | xargs --null --no-run-if-empty rm -rf
+
 # Now make the TAR ball
 	cd $(TEMP_DIR); tar cfz $(CIL_TAR_GZ) cil
 	mv $(TEMP_DIR)/$(CIL_TAR_GZ) .
