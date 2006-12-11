@@ -40,6 +40,12 @@ open Pretty
 module E = Errormsg
 
 (**************************************************************************)
+(* Helpers *)
+
+let isConstType (t: typ) : bool =
+  hasAttribute "const" (typeAttrs t)
+
+(**************************************************************************)
 (* Expression/type comparison *)
 
 let rec compareExp (e1: exp) (e2: exp) : bool =
@@ -91,7 +97,8 @@ let rec stripNopCasts (e:exp): exp =
   match e with
     CastE(t, e') -> begin
       match unrollType (typeOf e'), unrollType t  with
-        TPtr _, TPtr _ -> (* okay to strip *)
+        TPtr (bt1, a1), TPtr (bt2, a2)
+          when isConstType bt1 = isConstType bt2 ->
           stripNopCasts e'
       (* strip casts from pointers to unsigned int/long*)
       | (TPtr _ as t1), (TInt(ik,_) as t2) 
@@ -121,9 +128,10 @@ let rec stripCastsForPtrArith (e:exp): exp =
       | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
           e
       (* Remove casts between pointers with equal-sized base types. *)
-      | TPtr (bt1, _), TPtr (bt2, _) -> begin
+      | TPtr (bt1, a1), TPtr (bt2, a2) -> begin
           try
-            if bitsSizeOf bt1 = bitsSizeOf bt2 then (* Okay to strip *)
+            if bitsSizeOf bt1 = bitsSizeOf bt2 &&
+               isConstType bt1 = isConstType bt2 then
               stripCastsForPtrArith e'
             else 
               e
@@ -196,9 +204,10 @@ let rec stripCastsDeepForPtrArith (e:exp): exp =
       | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
           e
       (* Remove casts between pointers with equal-sized base types. *)
-      | TPtr (bt1, _), TPtr (bt2, _) -> begin
+      | TPtr (bt1, a1), TPtr (bt2, a2) -> begin
           try
-            if bitsSizeOf bt1 = bitsSizeOf bt2 then (* Okay to strip *)
+            if bitsSizeOf bt1 = bitsSizeOf bt2 &&
+               isConstType bt1 = isConstType bt2 then
               e'
             else 
               CastE(t,e')
