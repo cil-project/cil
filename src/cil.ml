@@ -2483,10 +2483,15 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
         else i1 >= i2
       in
       let shiftInBounds i2 =
-        (* We only try to fold shifts if the second arg is positive and 
-           less than 64.  Otherwise, the semantics are processor-dependent,
-           so let the compiler sort it out. *)
-        i2 >= Int64.zero && i2 < (Int64.of_int 64)
+         (* We only try to fold shifts if the second arg is positive and
+            less than the size of the type of the first argument.
+            Otherwise, the semantics are processor-dependent, so let the 
+            compiler sort it out. *)
+        if machdep then
+          try
+            i2 >= Int64.zero && i2 < (Int64.of_int (bitsSizeOf (typeOf e1')))
+          with SizeOfError _ -> false
+        else false
       in
       (* Assume that the necessary promotions have been done *)
       match bop, mkInt e1', mkInt e2' with
