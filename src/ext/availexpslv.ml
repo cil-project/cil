@@ -130,8 +130,11 @@ let lval_has_mem_read lv =
    
 let lvh_kill_mem lvh =
   LvExpHash.iter (fun lv e ->
-    if exp_has_mem_read e || lval_has_mem_read lv
-    then LvExpHash.remove lvh lv)
+    match lv with
+    | (Mem _, _) -> LvExpHash.remove lvh lv
+    | _ ->
+        if exp_has_mem_read e || lval_has_mem_read lv
+        then LvExpHash.remove lvh lv)
     lvh
 
 (* need to kill exps containing a particular vi sometimes *)
@@ -263,20 +266,20 @@ let lvh_handle_inst i lvh =
 	  end
       end
       | _ -> begin (* e is volatile *)
-	  (* must remove mapping for lv *)
-	  if !debug then ignore(E.log "lvh_handle_inst: %a is volatile. killing %a\n"
-				  d_exp e d_lval lv);
-	  LvExpHash.remove lvh lv;
-	  lvh_kill_lval lvh lv;
-	  lvh
+        (* must remove mapping for lv *)
+	    if !debug then ignore(E.log "lvh_handle_inst: %a is volatile. killing %a\n"
+		    d_exp e d_lval lv);
+	    LvExpHash.remove lvh lv;
+	    lvh_kill_lval lvh lv;
+	    lvh
       end
     end
   | Call(Some lv,_,_,_) -> begin
       LvExpHash.remove lvh lv;
       lvh_kill_lval lvh lv;
       if not((!ignore_call) i) then begin
-	lvh_kill_mem lvh;
-	lvh_kill_addrof_or_global lvh
+        lvh_kill_mem lvh;
+	    lvh_kill_addrof_or_global lvh
       end;
       lvh
   end
