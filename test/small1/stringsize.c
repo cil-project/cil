@@ -22,7 +22,7 @@ int main()
   if( sizeof("Hello, world.") != 14 )  E(4);
 
   //This fails because the CIL conversion drops the char* cast.
-  if( sizeof((char*)"Hello, world.") != 4 )  E(5);
+  if( sizeof((char*)"Hello, world.") != sizeof(void*) )  E(5);
 
   printf("%d\n", sizeof("ertewrtert"));
   

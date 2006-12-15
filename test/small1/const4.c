@@ -15,10 +15,10 @@ int main() {
 
   char another[somefunction()];
   
-  printf("Sizeof empty_dir=%d\n", sizeof(empty_dir));
+  printf("Sizeof empty_dir=%d\n", (int)sizeof(empty_dir));
   if(sizeof(empty_dir) != 32) E(1);
 
-  printf("Sizeof another=%d\n", sizeof(another));
+  printf("Sizeof another=%d\n", (int)sizeof(another));
   if(sizeof(another) != 8) E(2);
 
   

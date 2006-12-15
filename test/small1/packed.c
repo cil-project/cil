@@ -10,7 +10,7 @@ typedef struct s {
 s foo;
 
 int main() {
-  printf("sizeof(foo) = %d.\n", sizeof(foo));
+  printf("sizeof(foo) = %d.\n", (int)sizeof(foo));
   if (sizeof(foo) != 12) E(1);
   return 0;
 }

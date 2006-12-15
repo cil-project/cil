@@ -253,9 +253,8 @@ let rec checkType (t: typ) (ctx: ctxType) =
         None -> ()
       | Some l -> begin
           let t = checkExp true l in
-          match unrollType t with 
-            TInt((IInt|IUInt), _) -> ()
-          | _ -> E.s (bug "Type of array length is not integer")
+          if not (isIntegralType t) then
+            E.s (bug "Type of array length is not integer")
       end)
 
   | TFun (rt, targs, isva, a) -> 

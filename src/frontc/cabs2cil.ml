@@ -2660,8 +2660,12 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           match len with 
             A.NOTHING -> None 
           | _ -> 
+              (* Check that len is a constant expression.
+                 We used to also cast the length to int here, but that's 
+                 theoretically too restrictive on 64-bit machines. *)
               let len' = doPureExp len in
-              let _, len'' = castTo (typeOf len') intType len' in
+              if not (isIntegralType (typeOf len')) then
+                E.s (error "Array length %a does not have an integral type.");
               if not allowVarSizeArrays then begin
                 (* Assert that len' is a constant *)
                 let elsz = 
@@ -2688,7 +2692,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                        E.s (error "Length of array is not a constant: %a\n"
                               d_exp l))
               end;
-              Some len''
+              Some len'
         in
 	let al' = doAttributes al in
         doDeclType (TArray(bt, lo, al')) acc d
@@ -5122,7 +5126,7 @@ and createLocal ((_, sto, _, _) as specs)
                         ~isformal:false
                         ~isglobal:false 
 	                loc
-                        (uintType, NoStorage, false, [])
+                        (!typeOfSizeOf, NoStorage, false, [])
                         ("__lengthof" ^ vi.vname,JUSTBASE, []) 
           in
           (* Register it *)
@@ -5137,7 +5141,7 @@ and createLocal ((_, sto, _, _) as specs)
           (* There can be no initializer for this *)
           if inite != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");
-          se0 +++ (Set(var savelen, makeCast len uintType, !currentLoc)) 
+          se0 +++ (Set(var savelen, makeCast len savelen.vtype, !currentLoc)) 
             (* Initialize the variable *)
             +++ (Call(Some(var vi), Lval(var (allocaFun ())), 
                       [ sizeof  ], !currentLoc))

@@ -2774,7 +2774,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_acosf" (floatType, [ floatType ], false);
   H.add h "__builtin_acosl" (longDoubleType, [ longDoubleType ], false);
 
-  H.add h "__builtin_alloca" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_alloca" (voidPtrType, [ sizeType ], false);
   
   H.add h "__builtin_asin" (doubleType, [ doubleType ], false);
   H.add h "__builtin_asinf" (floatType, [ floatType ], false);
@@ -2834,7 +2834,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_inf" (doubleType, [], false);
   H.add h "__builtin_inff" (floatType, [], false);
   H.add h "__builtin_infl" (longDoubleType, [], false);
-  H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; uintType ], false);
+  H.add h "__builtin_memcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
   H.add h "__builtin_mempcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
   H.add h "__builtin_memset" (voidPtrType, 
                               [ voidPtrType; intType; intType ], false);
@@ -2907,11 +2907,11 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_strchr" (charPtrType, [ charPtrType; intType ], false);
   H.add h "__builtin_strcmp" (intType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strcpy" (charPtrType, [ charPtrType; charConstPtrType ], false);
-  H.add h "__builtin_strcspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strcspn" (sizeType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strncat" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
-  H.add h "__builtin_strspn" (uintType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strspn" (sizeType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strpbrk" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   (* When we parse builtin_types_compatible_p, we change its interface *)
   H.add h "__builtin_types_compatible_p"
