@@ -204,7 +204,6 @@ addTest("testrun/offsetof2");
 addTest("testrun/question");
 addTest("test/argcast");
 addTest("test/array1");
-addTest("testrun/array4");
 addTest("test/array2");
 addTest("testrun/array_varsize");
 addTest("testrun/array_formal");
