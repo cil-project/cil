@@ -372,16 +372,16 @@ struct
       (List.rev !new_arg_list), final_r
 
   let return r fd =
-    let regFile =
-      List.fold_left (fun r vi -> IntMap.remove vi.vid r) r fd.sformals in
-      (* Get a list of all globals *)
-    let depids = ref [] in
-      IntMap.iter
-        (fun vid reg ->
-           if reg.rvi.vglob || reg.rvi.vaddrof then depids := vid :: !depids)
-        regFile;
-      (* And remove them from the register file *)
-      List.fold_left (fun acc id -> IntMap.remove id acc) regFile !depids
+    let filter_out a_predicate a_map =
+      IntMap.fold
+        (fun k v a -> if a_predicate k v then a else IntMap.add k v a)
+        IntMap.empty
+        a_map
+    and formals_and_locals = fd.sformals @ fd.slocals
+    in
+      filter_out
+        (fun k v -> List.mem v.rvi formals_and_locals)
+        r
 
   let call_to_unknown_function r =
     setMemory r
@@ -484,6 +484,17 @@ module MakePartial =
       functor (A : AliasInfo) ->
 struct
   let debug = false
+
+  (* Sets of {c goto}-targets *)
+  module LabelSet =
+    Set.Make (struct
+                type t = label
+                let compare x y =
+                  match x, y with
+                      Label (name1, _, _), Label (name2, _, _) ->
+                        String.compare name1 name2
+                    | _, _ -> 0
+              end)
 
   (* We keep this information about every statement. Ideally this should
    * be put in the stmt itself, but CIL doesn't give us space. *)
@@ -662,8 +673,71 @@ struct
                 !state
 
           | If (e, b1, b2, loc) ->
-              (* helper function to remove an "if"-branch *)
-              let remove b _remains =
+              (* Answer whether block [b] contains labels that are
+                 alive.  "Live" labels are actually targets of
+                 [goto]-instructions {b outside} of [b]. *)
+              let has_live_labels b =
+                let gather_labels acc stmt =
+                  List.fold_left (fun a x -> LabelSet.add x a) acc stmt.labels in
+                let rec visit_block stmt_fun acc blk =
+                  List.fold_left
+                    (fun a x ->
+                      let y = stmt_fun a x in
+                        match x.skind with
+                            Instr _
+                          | Return _ | Goto _ | Break _ | Continue _ -> y
+                          | If (_expr, then_block, else_block, _loc) ->
+                              visit_block
+                                stmt_fun
+                                (visit_block stmt_fun y then_block)
+                                else_block
+                          | Switch (_expr, block, _stmt_list, _loc) ->
+                              visit_block stmt_fun y block
+                          | Loop (block, _loc, _opt_stmt1, _opt_stmt2) ->
+                              visit_block stmt_fun y block
+                          | Block block ->
+                              visit_block stmt_fun y block
+                          | TryFinally (block1, block2, _loc)
+                          | TryExcept (block1, _, block2, _loc) ->
+                              visit_block
+                                stmt_fun
+                                (visit_block stmt_fun y block1)
+                                block2)
+                    acc
+                    blk.bstmts
+                and gather_gotos acc stmt =
+                  match stmt.skind with
+                      Goto (stmt_ref, _loc) -> gather_labels acc !stmt_ref
+                    | _ -> acc
+                and transitive_closure ini_stmt =
+                  let rec iter trace acc stmt =
+                    List.fold_left
+                      (fun (a_trace, a_stmt) s ->
+                        if List.mem s.sid a_trace then (a_trace, a_stmt)
+                        else iter (s.sid :: a_trace) (s :: a_stmt) s)
+                      (trace, acc) (stmt.preds @ stmt.succs) in
+                    List.sort (* sorting is unnecessary, but nice *)
+                      (fun a b -> a.sid - b.sid)
+                      (snd (iter [] [] ini_stmt)) in
+                let block_labels = visit_block gather_labels LabelSet.empty b
+                and block_gotos = visit_block gather_gotos LabelSet.empty b
+                and all_gotos =
+                  List.fold_left
+                    (fun a x ->
+                      match x.skind with
+                          Goto (stmt_ref, _loc) -> gather_labels a !stmt_ref
+                        | Block block -> visit_block gather_gotos a block
+                        | _ -> a)
+                    LabelSet.empty
+                    (if b.bstmts = [] then []
+                      else transitive_closure (List.hd b.bstmts))
+                in
+                  not (LabelSet.is_empty
+                          (LabelSet.inter
+                              (LabelSet.diff all_gotos block_gotos)
+                              block_labels)) in
+              (* helper function to remove "if"-branch [b] *)
+              let remove stmt b =
                 changed_cfg := true;
                 match b.bstmts with
                     [] -> ()
@@ -672,35 +746,58 @@ struct
                                       (fun succ -> succ.sid <> hd.sid)
                                       stmt.succs
               (* helper function to make a simplified "if"-statement block *)
-              and mk_if_block e b1' b2' loc' =
-                Block {bstmts = [mkStmt (Block b1')];
-                       battrs = []} in
+              and mk_if_block b =
+                let stmt = mkStmt (Block b) in
+                  stmt.sid <- new_sid ();
+                  Block {bstmts = [stmt]; battrs = []}
+              (* logical falseness in C expressed in cilly's terms *)
+              and is_false e = isZero e
+              (* logical truth in C expressed in cilly's terms *)
+              and is_true e =
+                match isInteger e with
+                    Some x -> x <> Int64.zero
+                  | None -> false in
+              (* evaluate expression and eliminate branches *)
               let e' = S.evaluate state e in
                 if debug then
                   ignore (Pretty.printf "%a evals to %a\n" d_exp e d_exp e');
-                if e' = one then
+                if is_true e' then
                   begin
-                    if b2.bstmts = [] && b2.battrs = [] then
+                    if has_live_labels b2 then
                       begin
-                        stmt.skind <- Block b1;
-                        match b1.bstmts with
-                            [] -> ()
-                          | hd :: _tl -> stmt.succs <- [hd]
+                        () (* leave block alone *)
                       end
-                    else stmt.skind <- mk_if_block e b1 b2 loc;
-                    remove b2 b1
+                    else
+                      begin
+                        if b2.bstmts = [] && b2.battrs = [] then
+                          begin
+                            stmt.skind <- Block b1;
+                            match b1.bstmts with
+                                [] -> ()
+                              | hd :: _tl -> stmt.succs <- [hd]
+                          end
+                        else stmt.skind <- mk_if_block b1;
+                        remove stmt b2
+                      end
                   end
-                else if e' = zero then
+                else if is_false e' then
                   begin
-                    if b1.bstmts = [] && b1.battrs = [] then
+                    if has_live_labels b1 then
                       begin
-                        stmt.skind <- Block b2;
-                        match b2.bstmts with
-                            [] -> ()
-                          | hd :: _tl -> stmt.succs <- [hd]
+                        () (* leave block alone *)
                       end
-                    else stmt.skind <- mk_if_block e b2 b1 loc;
-                    remove b1 b2
+                    else
+                      begin
+                        if b1.bstmts = [] && b1.battrs = [] then
+                          begin
+                            stmt.skind <- Block b2;
+                            match b2.bstmts with
+                                [] -> ()
+                              | hd :: _tl -> stmt.succs <- [hd]
+                          end
+                        else stmt.skind <- mk_if_block b2;
+                        remove stmt b1
+                      end
                   end
                 else stmt.skind <- If (e', b1, b2, loc);
                 state
@@ -1046,7 +1143,7 @@ let feature : featureDescr = {
 
 (*
  *
- * Copyright (c) 2001-2006,
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
