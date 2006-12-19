@@ -212,7 +212,7 @@ let rec theMain () =
   begin
     (* this point in the code is the program entry point *)
 
-    Stats.reset (Stats.has_performance_counters ());
+    Stats.reset Stats.HardwareIfAvail;
 
     (* parse the command-line arguments *)
     Arg.parse (Arg.align argDescr) Ciloptions.recordFile usageMsg;

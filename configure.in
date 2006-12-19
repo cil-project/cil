@@ -293,6 +293,10 @@ fi
 # 
 # Now setup the performance counters
 #
+# At runtime, we'll try to get the cycle speed from /proc/cpuinfo
+# or FreeBSD sysctl.  This means binaries can be moved to different computers.
+# CYCLES_PER_USEC is only a backup in case these aren't available.
+# (See the subversion history for the old code that read /proc/cpuinfo here.)
 AC_MSG_CHECKING(if performance counters are usable)
 # Create a C file from src/perfcount.c.in
 rm -f ./cycles.exe
@@ -312,26 +316,7 @@ else
 fi
 rm -f ./cycles.exe
 
-# If we are on Linux and we use performance counters try to get
-# the processor speed from /proc/cpuinfo
 if test "$CYCLES_PER_USEC" != "0" ;then
-     case "$target" in
-        # linux
-        *86*linux*)
-             AC_MSG_CHECKING(if /proc/cpuinfo has processor speed)
-             cpuinfo=`cat /proc/cpuinfo 2>/dev/null | grep "cpu MHz"`
-             [procspeed=`echo $cpuinfo | sed 's/^.*[^0-9]\([0-9]\+\.[0-9]\+\).*$/\1/g'`]
-             if test "$procspeed"!="" ;then
-                CYCLES_PER_USEC=$procspeed
-                AC_MSG_RESULT([got $CYCLES_PER_USEC cycles per us])
-             else
-                AC_MSG_RESULT(no)
-             fi   
-             ;;
-        *)      
-             ;;
-      esac
-      # Now set HAS_PERFCOUNT
       HAS_PERFCOUNT=1
 else
       HAS_PERFCOUNT=0
