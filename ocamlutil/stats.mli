@@ -32,10 +32,19 @@
 
 (** Utilities for maintaining timing statistics *)
 
-(** Resets all the timings. Invoke with "true" if you want to switch to using 
- * the hardware performance counters from now on. You get an exception if 
- * there are not performance counters available *)
-val reset: bool -> unit
+(** Whether to use the performance counters (on Pentium only) *)
+type timerModeEnum =
+  | Disabled      (** Do not collect timing information *)
+  | SoftwareTimer (** Use OCaml's [Unix.time] for timing information *)
+  | HardwareTimer (** Use the Pentium's cycle counter to time code *)
+  | HardwareIfAvail (** Use the hardware cycle counter if availible; 
+                        otherwise use SoftwareTimer *)
+
+(** Resets all the timings and specifies the method to use for future timings.
+ *  Call this before doing any timing.
+ * You will get an exception if you pass HardwareTimer to reset and the
+ * hardware counters are not available *)
+val reset: timerModeEnum -> unit
 exception NoPerfCount
 
 (** Check if we have performance counters *)

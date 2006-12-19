@@ -93,23 +93,94 @@ inline static unsigned long sample_ppc_10()
 #include <caml/alloc.h>
 #include <caml/memory.h>
 
-#define CYCLES_PER_USEC @CYCLES_PER_USEC@
-value read_pentium_perfcount()
-{
-  double counter = (double)read_ppc() / (1000000.0 * CYCLES_PER_USEC);
-  return copy_double(counter);
-}
+// At configuration time, we estimated the cycles per microsecond as
+// @CYCLES_PER_USEC@.  But if we can get the cycle counts directly from the OS,
+// do that instead, since it's more reliable and it lets us move programs
+// to different machines without recompiling.
+double cycles_per_usec = @CYCLES_PER_USEC@;
 
-/* The Ocaml system can use this function to figure out if there are
- * performance counters available */
+#if defined(__FreeBSD__) 
+#define CAN_GET_SPEED_FROM_OS
+
+  // Get the CPU speed from the sysctl machdep.tsc_freq
+  // This only works on FreeBSD
+
+  #include <sys/types.h>
+  #include <sys/param.h>
+  #include <sys/sysctl.h>
+
+  double getSpeedFromOS() {
+    unsigned long tscfreq;
+    size_t tflen = sizeof(tscfreq);
+    
+    if (sysctlbyname("machdep.tsc_freq", (void *) &tscfreq,
+                     &tflen, NULL, 0) < 0) {
+      perror("sysctl failed");
+      return @CYCLES_PER_USEC@;
+    }
+    return (double)tscfreq / 1000000; // We care about cycles per microsecond
+  }
+#elif defined(__CYGWIN__) || defined(__linux__)
+#define CAN_GET_SPEED_FROM_OS
+
+  // Get the CPU speed from /proc/cpuinfo
+
+  #define CPUINFO_KEY "cpu MHz"
+  #include <errno.h>
+
+  double getSpeedFromOS(){ 
+    char buffer[100];
+    FILE* cpuinfo = fopen("/proc/cpuinfo", "r");
+    if (!cpuinfo) {
+      printf("Error: could not open /proc/cpuinfo: %s",  strerror(errno));
+      exit(1);
+    }
+    while(fgets(buffer, 100, cpuinfo)) {
+      if (0 == strncasecmp(buffer, CPUINFO_KEY, sizeof(CPUINFO_KEY)-1)) {
+        char* speed = buffer + sizeof(CPUINFO_KEY)-1;
+        double result;
+        while (*speed == ' ' || *speed == '\t' || *speed == ':') { 
+          speed++; 
+        }
+        result = atof(speed);
+        if (result != 0.0) {
+          return result;
+        }
+      }
+    }
+    // Reading /proc/cpuinfo failed to find "cpu MHz"
+    return @CYCLES_PER_USEC@;
+  }
+#endif
+
+
+/* Returns false if hardware counters are not availible.  */
 value has_performance_counters() {
+
   // HAS_PERFCOUNT is set by the configuration code at the end of
   // this file, during ./configure
-#if @HAS_PERFCOUNT@ != 0
-  return Val_true;
-#else
-  return Val_false;
+  if ((@HAS_PERFCOUNT@) && (cycles_per_usec > 0.0)) {
+    return Val_true;
+  } else {
+    return Val_false;
+  }
+}
+
+/* The Ocaml system can use this function to set cycles_per_usec.  
+   Returns false if hardware counters are not availible.  */
+value reset_performance_counters() {
+
+#ifdef CAN_GET_SPEED_FROM_OS
+  cycles_per_usec = getSpeedFromOS();
 #endif
+
+  return has_performance_counters();
+}
+
+value read_pentium_perfcount()
+{
+  double counter = (double)read_ppc() / (1000000.0 * cycles_per_usec);
+  return copy_double(counter);
 }
 
 /* sm: interface to above from Ocaml */

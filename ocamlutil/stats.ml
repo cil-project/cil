@@ -1,7 +1,11 @@
 (* The following functions are implemented in perfcount.c *) 
 
-(* Returns true is we have the performance counters *)
+(* Returns true if we have the performance counters *)
 external has_performance_counters: unit -> bool = "has_performance_counters"
+
+(* Initializes the CPU speed and returns true if we have
+   the performance counters *)
+external reset_performance_counters: unit -> bool = "reset_performance_counters"
 
 (* Returns number of seconds since the first read *)
 external read_pentium_perfcount : unit -> float = "read_pentium_perfcount"
@@ -13,10 +17,18 @@ external sample_pentium_perfcount_20 : unit -> int = "sample_pentium_perfcount_2
 external sample_pentium_perfcount_10 : unit -> int = "sample_pentium_perfcount_10"
 
 
-(* Whether to use the performance counters (on Pentium only) *)
+(** Whether to use the performance counters (on Pentium only) *)
+type timerModeEnum =
+  | Disabled      (** Do not collect timing information *)
+  | SoftwareTimer (** Use OCaml's [Unix.time] for timing information *)
+  | HardwareTimer (** Use the Pentium's cycle counter to time code *)
+  | HardwareIfAvail (** Use the hardware cycle counter if availible; 
+                        otherwise use SoftwareTimer *)
 
-(* The performance counters are disabled by default. *)
-let do_use_performance_counters = ref false
+(* The performance counters are disabled by default.
+   This will always be one of Disabled | SoftwareTimer | HardwareTimer.
+   HardwareIfAvail is handled in reset. *)
+let timerMode = ref Disabled
 
                                         (* A hierarchy of timings *)
 
@@ -35,14 +47,22 @@ let top = { name = "TOTAL";
 let current : t list ref = ref [top]
 
 exception NoPerfCount
-let reset (perfcount: bool) = 
+let reset (mode: timerModeEnum) : unit = 
   top.sub <- [];
-  if perfcount then begin
-    if not (has_performance_counters ()) then begin
-      raise NoPerfCount
-    end
-  end;
-  do_use_performance_counters := perfcount
+  match mode with
+    Disabled
+  | SoftwareTimer -> timerMode := mode
+  | HardwareTimer -> 
+      if not (reset_performance_counters ()) then begin
+        timerMode := SoftwareTimer;
+        raise NoPerfCount
+      end;
+      timerMode := mode
+  | HardwareIfAvail ->
+      if (reset_performance_counters ()) then
+        timerMode := HardwareTimer
+      else
+        timerMode := SoftwareTimer
 
 
 
@@ -50,7 +70,7 @@ let print chn msg =
   (* Total up *)
   top.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 top.sub;
   let rec prTree ind node = 
-    if !do_use_performance_counters then 
+    if !timerMode = HardwareTimer then 
       (Printf.fprintf chn "%s%-20s          %8.5f s\n" 
          (String.make ind ' ') node.name node.time)
     else
@@ -62,7 +82,7 @@ let print chn msg =
   Printf.fprintf chn "%s" msg; 
   List.iter (prTree 0) [ top ];
   Printf.fprintf chn "Timing used %s\n"
-    (if !do_use_performance_counters then "Pentium performance counters"
+    (if !timerMode = HardwareTimer then "Pentium performance counters"
      else "Unix.time");
   let gc = Gc.quick_stat () in 
   let printM (w: float) : string = 
@@ -86,7 +106,7 @@ let print chn msg =
 
 (* Get the current time, in seconds *)
 let get_current_time () : float = 
-  if !do_use_performance_counters then 
+  if !timerMode = HardwareTimer then
     read_pentium_perfcount ()
   else
     (Unix.times ()).Unix.tms_utime
@@ -122,7 +142,11 @@ let repeattime limit str f arg =
   repeatf 1
 
 
-let time str f arg = repeattime 0.0 str f arg
+let time str f arg =
+  if !timerMode = Disabled then
+    f arg
+  else
+    repeattime 0.0 str f arg
     
 
 let lastTime = ref 0.0
