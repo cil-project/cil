@@ -455,8 +455,8 @@ let lvalXformClass action data sid fd nofrm = object(self)
   inherit nopCilVisitor
 
   method vexpr e =
-    let castrm e =
-      stripCastsDeepForPtrArith e
+    let castrm e = e
+      (*stripCastsForPtrArith e*)
     in
     match e with
     | Lval((Mem e', off) as lv)-> begin
@@ -466,7 +466,7 @@ let lvalXformClass action data sid fd nofrm = object(self)
 	    let post e = 
 	      match e with
 	      | Lval(Mem(Const _),off') -> Lval(Mem e', off')
-	      | _ -> stripCastsDeepForPtrArith e
+	      | _ -> castrm e
 	    in
 	    ChangeDoChildrenPost(Lval(Mem e', off), post)
 	| Some e' ->
