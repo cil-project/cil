@@ -1720,7 +1720,7 @@ the default, as in ``\t{-{}-nowarnall}''.
     If available, CIL uses the x86 performance counters for these
     stats.  This is very precise, but results in ``wall-clock time.''
     To report only user-mode time, find the call to \t{Stats.reset} in
-    \t{main.ml}, and change it to \t{Stats.reset false}.
+    \t{main.ml}, and change it to \t{Stats.reset Stats.SoftwareTimer}.
   
    {\bf Lowering Options}
   \item \t{-{}-noLowerConstants} do not lower constant expressions.
@@ -3166,6 +3166,9 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf December 18, 2006}: The \t{-{}-stats} flag now gets the CPU
+  speed at runtime rather than configure-timer, so binary executables
+  can be moved to different computers.
 \item {\bf December 14, 2006}: Fixed various warnings and errors on
   64-bit architectures.
 \item {\bf November 26, 2006}: Christoph Spiel added ``\t{-{}-no}''
