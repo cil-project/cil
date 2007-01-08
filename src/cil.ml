@@ -1843,7 +1843,7 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, _) -> TPtr(t, [])
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
-      
+
 and typeOfInit (i: init) : typ = 
   match i with 
     SingleInit e -> typeOf e
@@ -1854,6 +1854,7 @@ and typeOfLval = function
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
+      | TArray(t,_,_) -> typeOffset t off
       | _ -> E.s (bug "typeOfLval: Mem on a non-pointer (%a)" !pd_exp addr)
   end
 
