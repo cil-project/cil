@@ -1854,7 +1854,6 @@ and typeOfLval = function
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
-      | TArray(t,_,_) -> typeOffset t off
       | _ -> E.s (bug "typeOfLval: Mem on a non-pointer (%a)" !pd_exp addr)
   end
 
