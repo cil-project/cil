@@ -86,12 +86,7 @@ sub new {
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
 
-    bless $ref, $class;
-}
-
-sub processArguments {
-    my ($self) = @_;
-    my @args = @{$self->{ARGV}};
+    my $self = bless $ref, $class;
 
     if(! @args) {
         print "No arguments passed\n";
@@ -115,38 +110,44 @@ sub processArguments {
     if(defined $self->{MODENAME} && $self->{MODENAME} ne $mode) {
         die "Cannot re-specify the compiler";
     }
-    {
-        my $compiler;
-        if($mode eq "MSVC") {
-            unshift @Cilly::ISA, qw(MSVC);
-            $compiler = MSVC->new($self);
-        } elsif($mode eq "GNUCC") {
-            unshift @Cilly::ISA, qw(GNUCC);
-            $compiler = GNUCC->new($self);
-        } elsif($mode eq "MSLINK") {
-            unshift @Cilly::ISA, qw(MSLINK);
-            $compiler = MSLINK->new($self);
-        } elsif($mode eq "MSLIB") {
-            unshift @Cilly::ISA, qw(MSLIB);
-            $compiler = MSLIB->new($self);
-        } elsif($mode eq "AR") {
-            unshift @Cilly::ISA, qw(AR);
-            $compiler = AR->new($self);
-        } else {
-            die "Don't know about compiler $mode\n";
-        }
-        # Now grab the fields from the compiler and put them inside self
-        my $key;
-        foreach $key (keys %{$compiler}) {
-            $self->{$key} = $compiler->{$key};
-        }
 
-        # For MSVC we have to use --save-temps because otherwise the 
-        # temporary files get deleted somehow before CL gets at them !
-        if($mode ne "GNUCC" && $mode ne "AR") {
-            $self->{SAVE_TEMPS} = '.';
-        }
+    my $compiler;
+    if($mode eq "MSVC") {
+        unshift @Cilly::ISA, qw(MSVC);
+        $compiler = MSVC->new($self);
+    } elsif($mode eq "GNUCC") {
+        unshift @Cilly::ISA, qw(GNUCC);
+        $compiler = GNUCC->new($self);
+    } elsif($mode eq "MSLINK") {
+        unshift @Cilly::ISA, qw(MSLINK);
+        $compiler = MSLINK->new($self);
+    } elsif($mode eq "MSLIB") {
+        unshift @Cilly::ISA, qw(MSLIB);
+        $compiler = MSLIB->new($self);
+    } elsif($mode eq "AR") {
+        unshift @Cilly::ISA, qw(AR);
+        $compiler = AR->new($self);
+    } else {
+        die "Don't know about compiler $mode\n";
     }
+    # Now grab the fields from the compiler and put them inside self
+    my $key;
+    foreach $key (keys %{$compiler}) {
+        $self->{$key} = $compiler->{$key};
+    }
+
+    # For MSVC we have to use --save-temps because otherwise the 
+    # temporary files get deleted somehow before CL gets at them !
+    if($mode ne "GNUCC" && $mode ne "AR") {
+        $self->{SAVE_TEMPS} = '.';
+    }
+
+    return $self;
+}
+
+sub processArguments {
+    my ($self) = @_;
+    my @args = @{$self->{ARGV}};
 
     # Scan and process the arguments
     $self->setDefaultArguments;
