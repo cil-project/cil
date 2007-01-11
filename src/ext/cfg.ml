@@ -88,6 +88,11 @@ let rec cfgFun (fd : fundec): int =
     nodeList := [];
 
     cfgBlock fd.sbody None None None;
+
+    fd.smaxstmtid <- Some(!numNodes);
+    fd.sallstmts <- List.rev !nodeList;
+    nodeList := [];
+
     !numNodes - !start_id
   end
 
