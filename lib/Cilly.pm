@@ -63,11 +63,11 @@ $Cilly::savedSourceExt = "_saved.c";
 # Pass to new a list of command arguments
 sub new {
     my ($proto, @args) = @_;
-
     my $class = ref($proto) || $proto;
 
     my $ref =
-    { CFILES => [],    # C input files
+    { ARGV => \@args,  # Arguments
+      CFILES => [],    # C input files
       SFILES => [],    # Assembly language files
       OFILES => [],    # Other input files
       IFILES => [],    # Already preprocessed files
@@ -85,7 +85,13 @@ sub new {
       LIBDIR => [],
       OPERATION => 'TOEXE', # This is the default for all compilers
     };
-    my $self = bless $ref, $class;
+
+    bless $ref, $class;
+}
+
+sub processArguments {
+    my ($self) = @_;
+    my @args = @{$self->{ARGV}};
 
     if(! @args) {
         print "No arguments passed\n";
@@ -1039,6 +1045,8 @@ sub doit {
     my ($self) = @_;
     my $file;
     my $out;
+
+    $self->processArguments();
 
 #    print Dumper($self);
 
