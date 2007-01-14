@@ -78,8 +78,15 @@ let typeForInsertedVar: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
   * Casts in the source code are exempt from this hook. *)
 let typeForInsertedCast: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
 
-(** A hook into the code that merges arguments in function types. *)
-let typeForCombinedArg: ((string, string) H.t -> Cil.typ -> Cil.typ) ref =
+(** A hook into the code that remaps argument names in the appropriate
+  * attributes. *)
+let typeForCombinedArg: ((string, string) H.t -> typ -> typ) ref =
+  ref (fun _ t -> t)
+
+(** A hook into the code that remaps argument names in the appropriate
+  * attributes. *)
+let attrsForCombinedArg: ((string, string) H.t ->
+                          attributes -> attributes) ref =
   ref (fun _ t -> t)
 
 (* ---------- source error message handling ------------- *)
@@ -1545,9 +1552,9 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         raise (Failure "diferent vararg specifiers");
       (* If one does not have arguments, believe the one with the 
       * arguments *)
-      let newargs = 
-        if oldargs = None then args else
-        if args = None then oldargs else
+      let newargs, olda' = 
+        if oldargs = None then args, olda else
+        if args = None then oldargs, olda else
         let oldargslist = argsToList oldargs in
         let argslist = argsToList args in
         if List.length oldargslist <> List.length argslist then 
@@ -1578,10 +1585,11 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
-               oldargslist argslist)
+               oldargslist argslist),
+          !attrsForCombinedArg map olda
         end
       in
-      TFun (newrt, newargs, oldva, cabsAddAttributes olda a)
+      TFun (newrt, newargs, oldva, cabsAddAttributes olda' a)
         
   | TNamed (oldt, olda), TNamed (t, a) when oldt.tname = t.tname ->
       TNamed (oldt, cabsAddAttributes olda a)

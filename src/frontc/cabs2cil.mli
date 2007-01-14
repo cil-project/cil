@@ -59,3 +59,7 @@ val typeForInsertedCast: (Cil.typ -> Cil.typ) ref
 
 (** A hook into the code that merges arguments in function types. *)
 val typeForCombinedArg: ((string, string) Hashtbl.t -> Cil.typ -> Cil.typ) ref
+
+(** A hook into the code that merges arguments in function attributes. *)
+val attrsForCombinedArg: ((string, string) Hashtbl.t ->
+                          Cil.attributes -> Cil.attributes) ref
