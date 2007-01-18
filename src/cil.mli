@@ -1165,7 +1165,8 @@ val saveBinaryFileChannel : file -> out_channel -> unit
 
 (** Read a {!Cil.file} in binary form from the filesystem. The first
  * argument is the name of a file previously created by
- * {!Cil.saveBinaryFile}. *)
+ * {!Cil.saveBinaryFile}. Because this also reads some global state,
+ * this should be called before any other CIL code is parsed or generated. *)
 val loadBinaryFile : string -> file 
 
 (** Get the global initializer and create one if it does not already exist. 

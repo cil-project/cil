@@ -4721,7 +4721,6 @@ let emptyFunction name =
   } 
 
 
-
     (* A dummy function declaration handy for initialization *)
 let dummyFunDec = emptyFunction "@dummy"
 let dummyFile = 
@@ -4730,19 +4729,43 @@ let dummyFile =
     globinit = None;
     globinitcalled = false;}
 
-let saveBinaryFile (cil_file : file) (filename : string) =
-  let outchan = open_out_bin filename in
-  Marshal.to_channel outchan cil_file [] ;
-  close_out outchan 
+(***** Load and store files as unmarshalled Ocaml binary data. ****)
+type savedFile = 
+    { savedFile: file;
+      savedNextVID: int;
+      savedNextCompinfoKey: int}
 
 let saveBinaryFileChannel (cil_file : file) (outchan : out_channel) =
-  Marshal.to_channel outchan cil_file [] 
+  let save = {savedFile = cil_file; 
+              savedNextVID = !nextGlobalVID;
+              savedNextCompinfoKey = !nextCompinfoKey} in
+  Marshal.to_channel outchan save [] 
 
+let saveBinaryFile (cil_file : file) (filename : string) =
+  let outchan = open_out_bin filename in
+  saveBinaryFileChannel cil_file outchan;
+  close_out outchan 
+
+(** Read a {!Cil.file} in binary form from the filesystem. The first
+ * argument is the name of a file previously created by
+ * {!Cil.saveBinaryFile}. Because this also reads some global state,
+ * this should be called before any other CIL code is parsed or generated. *)
 let loadBinaryFile (filename : string) : file = 
   let inchan = open_in_bin filename in
-  let cil_file = (Marshal.from_channel inchan : file) in
+  let loaded : savedFile = (Marshal.from_channel inchan : savedFile) in
   close_in inchan ;
-  cil_file
+  if !nextGlobalVID = 1 && !nextCompinfoKey = 1 then begin
+    nextGlobalVID := loaded.savedNextVID;
+    nextCompinfoKey := loaded.savedNextCompinfoKey;
+  end
+  else begin
+    (* In this case, we should change all of the varinfo and compinfo
+       keys in loaded.savedFile to prevent conflicts.  But since that hasn't
+       been implemented yet, just print a warning.  If you do implement this,
+       please send it to the CIL maintainers. *)
+    ignore (E.log "CIL error: you loading a binary file after another file has been loaded.  This isn't currently supported, so varinfo and compinfo id numbers may conflict.")
+  end;
+  loaded.savedFile
 
 
 (* Take the name of a file and make a valid symbol name out of it. There are 

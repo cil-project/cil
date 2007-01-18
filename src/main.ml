@@ -155,7 +155,7 @@ let rec processOneFile (cil: C.file) =
   end
         
 (***** MAIN *****)  
-let rec theMain () =
+let theMain () =
   let usageMsg = "Usage: cilly [options] source-files" in
   (* Processign of output file arguments *)
   let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 

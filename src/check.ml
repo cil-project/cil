@@ -116,8 +116,14 @@ let defineVariable vi =
 let checkVariable vi = 
   try
     (* Check in the current scope only *)
-    if vi != H.find varIdsEnv vi.vid then
-      ignore (warnContext "varinfos for %s not shared\n" vi.vname);
+    let old = H.find varIdsEnv vi.vid in
+    if vi != old then begin
+      if vi.vname = old.vname then
+        ignore (warnContext "varinfos for %s not shared\n" vi.vname)
+      else
+        ignore (warnContext "variables %s and %s share id %d\n"
+                  vi.vname old.vname vi.vid )
+    end
   with Not_found -> 
     ignore (warn "Unknown id (%d) for %s\n" vi.vid vi.vname)
 

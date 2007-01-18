@@ -3116,7 +3116,7 @@ reflect the views of the National Science Foundation or the other sponsors.
 
 \section{License}
 
-Copyright (c) 2001-2005, 
+Copyright (c) 2001-2007, 
 \begin{itemize}
 \item George C. Necula    <necula@cs.berkeley.edu>
 \item Scott McPeak        <smcpeak@cs.berkeley.edu>
@@ -3166,6 +3166,11 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf January 17, 2007}: Fixed \cilvalref{loadBinaryFile}
+  (Sourceforge bug #1548894).
+  You should only use loadBinaryFile if no other code has been loaded
+  or generated in the current CIL process, since loadBinaryFile needs
+  to load some global state.
 \item {\bf December 18, 2006}: The \t{-{}-stats} flag now gets the CPU
   speed at runtime rather than configure-timer, so binary executables
   can be moved to different computers.
