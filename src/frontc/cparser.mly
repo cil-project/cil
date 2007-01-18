@@ -492,7 +492,7 @@ postfix_expression:                     /*(* 6.5.2 *)*/
                           CALL (VARIABLE "__builtin_types_compatible_p", 
                                 [TYPE_SIZEOF(b1,d1); TYPE_SIZEOF(b2,d2)]), $1 }
 |               BUILTIN_OFFSETOF LPAREN type_name COMMA offsetof_member_designator RPAREN
-                        { transformOffsetOf $3 (fst $5), $1 }
+                        { transformOffsetOf $3 $5, $1 }
 |		postfix_expression DOT id_or_typename
 		        {MEMBEROF (fst $1, $3), snd $1}
 |		postfix_expression ARROW id_or_typename   
@@ -507,12 +507,12 @@ postfix_expression:                     /*(* 6.5.2 *)*/
 ;
 
 offsetof_member_designator:	/* GCC extension for __builtin_offsetof */
-|		IDENT
-		        { VARIABLE (fst $1), snd $1 }
+|		id_or_typename
+		        { VARIABLE ($1) }
 |		offsetof_member_designator DOT IDENT
-			{ MEMBEROF (fst $1, fst $3), snd $1 }
+			{ MEMBEROF ($1, fst $3) }
 |		offsetof_member_designator bracket_comma_expression
-			{ INDEX (fst $1, smooth_expression $2), snd $1 }
+			{ INDEX ($1, smooth_expression $2) }
 ;
 
 unary_expression:   /*(* 6.5.3 *)*/

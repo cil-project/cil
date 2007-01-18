@@ -11,6 +11,9 @@ struct foo {
   } f2[2];
 };
 
+//Make "f2" a typedef as well as a field, and make sure that doesn't break 
+// anything.
+typedef struct foo f2;
 
 int main() {
   if(offsetof(struct foo, f1.b) != 8 * sizeof(int)) E(1);
@@ -20,6 +23,7 @@ int main() {
   if(offsetof(struct foo, f2[1].c[3])
      != sizeof(struct bar) + sizeof(struct baz) + 3 * sizeof(int)) E(3);
 
-  // Now do the same with WILD pointers
+  if(offsetof(f2, f2) != sizeof(struct bar)) E(4);
+
   SUCCESS;
 }

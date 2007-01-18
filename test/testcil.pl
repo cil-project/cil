@@ -201,6 +201,7 @@ addTest("testobj/asm5 _GNUCC=1");
 addTest("testrun/offsetof");
 addTest("testrun/offsetof1");
 addTest("testrun/offsetof2");
+addTest("testrun/offsetof3");
 addTest("testrun/question");
 addTest("test/argcast");
 addTest("test/array1");
