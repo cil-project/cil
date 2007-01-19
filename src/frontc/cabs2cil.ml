@@ -4050,22 +4050,24 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match !pwhat with 
             ADrop | AType -> addCall None zero intType
                 
-                (* Set to a variable of corresponding type *)
-          | ASet(lv, vtype) -> 
+          | ASet(lv, vtype) when !pis__builtin_va_arg -> 
               (* Make an exception here for __builtin_va_arg *)
-              if !pis__builtin_va_arg then 
-                addCall None (Lval(lv)) vtype
-              else
-                addCall (Some lv) (Lval(lv)) vtype
+              addCall None (Lval(lv)) vtype
+                  
+          | ASet(lv, vtype) when !doCollapseCallCast || 
+              (Util.equals (typeSig vtype) (typeSig resType'))
+              ->
+              (* We can assign the result directly to lv *)
+              addCall (Some lv) (Lval(lv)) vtype
                   
           | _ -> begin
-              let descr = dprintf "%a(%a)" dd_exp !pf
-                            (docList ~sep:(text ", ") (dd_exp ())) !pargs in
               let restype'' = 
                 match !pwhat with
                   AExp (Some t) when !doCollapseCallCast -> t
                 | _ -> resType'
               in
+              let descr = dprintf "%a(%a)" dd_exp !pf
+                            (docList ~sep:(text ", ") (dd_exp ())) !pargs in
               let tmp = newTempVar descr restype'' in
               (* Remember that this variable has been created for this 
                * specific call. We will use this in collapseCallCast. *)
@@ -5163,10 +5165,24 @@ and createLocal ((_, sto, _, _) as specs)
           (* There can be no initializer for this *)
           if inite != A.NO_INIT then 
             E.s (error "Variable-sized array cannot have initializer");
-          se0 +++ (Set(var savelen, makeCast len savelen.vtype, !currentLoc)) 
-            (* Initialize the variable *)
-            +++ (Call(Some(var vi), Lval(var (allocaFun ())), 
+          let setlen =  se0 +++ 
+              (Set(var savelen, makeCast len savelen.vtype, !currentLoc)) in
+          (* Initialize the variable *)
+          let alloca: varinfo = allocaFun () in
+          if !doCollapseCallCast then
+            (* do it in one step *)
+            setlen +++ (Call(Some(var vi), Lval(var alloca), 
+                             [ sizeof  ], !currentLoc))
+          else begin
+            (* do it in two *)
+            let rt, _, _, _ = splitFunctionType alloca.vtype in
+            let tmp = newTempVar (dprintf "alloca(%a)" d_exp sizeof) rt in
+            setlen
+            +++ (Call(Some(var tmp), Lval(var alloca), 
                       [ sizeof  ], !currentLoc))
+            +++ (Set((var vi), 
+                     makeCast (Lval(var tmp)) vi.vtype, !currentLoc))
+           end
         end else empty
       in
       if inite = A.NO_INIT then
