@@ -4061,16 +4061,16 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> begin
               let descr = dprintf "%a(%a)" dd_exp !pf
                             (docList ~sep:(text ", ") (dd_exp ())) !pargs in
-              let tmp, restyp' = 
+              let restype'' = 
                 match !pwhat with
-                  AExp (Some t) -> newTempVar descr t, t
-                | _ -> newTempVar descr resType', resType'
+                  AExp (Some t) when !doCollapseCallCast -> t
+                | _ -> resType'
               in
+              let tmp = newTempVar descr restype'' in
               (* Remember that this variable has been created for this 
-               * specific call. We will use this in collapseCallCast and 
-               * above in finishCall. *)
+               * specific call. We will use this in collapseCallCast. *)
               IH.add callTempVars tmp.vid ();
-              addCall (Some (var tmp)) (Lval(var tmp)) restyp'
+              addCall (Some (var tmp)) (Lval(var tmp)) restype''
           end
         end;
               
