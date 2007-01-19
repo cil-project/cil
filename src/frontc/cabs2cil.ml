@@ -59,15 +59,28 @@ let debugGlobal = false
 
 let continueOnError = true
 
-(** NDC added command line parameter **)
-(* Turn on tranformation that forces correct parameter evaluation order *)
+(** Turn on tranformation that forces correct parameter evaluation order *)
 let forceRLArgEval = ref false
 
-(* Leave a certain global alone. Use a negative number to disable. *)
+(** Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
 
-(* Indicates whether we're allowed to duplicate small chunks. *)
+(** Indicates whether we're allowed to duplicate small chunks. *)
 let allowDuplication: bool ref = ref true
+
+(** If false, the destination of a Call instruction should always have the
+    same type as the function's return type.  Where needed, CIL will insert
+    a temporary to make this happen.
+
+    If true, the destination type may differ from the return type, so there
+    is an implicit cast.  This is useful for analyses involving [malloc],
+    because the instruction "T* x = malloc(...);" won't be broken into
+    two instructions, so it's easy to find the allocation type.
+
+    This is false by default.  Set to true to replicate the behavior
+    of CIL 1.3.5 and earlier.
+*)
+let doCollapseCallCast: bool ref = ref false
 
 (** A hook into the code that creates temporary local vars.  By default this
   is the identity function, but you can overwrite it if you need to change the
@@ -2093,7 +2106,8 @@ let afterConversion (c: chunk) : chunk =
   in
   (* First add in the postins *)
   let sl = pushPostIns c in
-  peepHole2 collapseCallCast sl;
+  if !doCollapseCallCast then
+    peepHole2 collapseCallCast sl;
   { c with stmts = sl; postins = [] }
 
 (***** Try to suggest a name for the anonymous structures *)

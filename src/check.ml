@@ -805,6 +805,9 @@ and checkInstr (i: instr) =
       | Some destlv, rt' -> 
           let desttyp = checkLval false false destlv in
           if typeSig desttyp <> typeSig rt then begin
+            if not !Cabs2cil.doCollapseCallCast then
+              ignore (warn
+                        "Destination of Call does not match the return type.");
             (* Not all types can be assigned to *)
             (match unrollType desttyp with
               TFun _ -> ignore (warn "Assignment to a function type")
