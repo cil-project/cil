@@ -1929,13 +1929,13 @@ let rec alignOf_int = function
   | TVoid _ as t -> raise (SizeOfError ("void", t))
       
 
-let bitsSizeOfInt (ik: ikind): int = 
+let bytesSizeOfInt (ik: ikind): int = 
   match ik with 
-  | IChar | ISChar | IUChar -> 8 
-  | IInt | IUInt -> 8 * !theMachine.M.sizeof_int
-  | IShort | IUShort -> 8 * !theMachine.M.sizeof_short
-  | ILong | IULong -> 8 * !theMachine.M.sizeof_long
-  | ILongLong | IULongLong -> 8 * !theMachine.M.sizeof_longlong
+  | IChar | ISChar | IUChar -> 1
+  | IInt | IUInt -> !theMachine.M.sizeof_int
+  | IShort | IUShort -> !theMachine.M.sizeof_short
+  | ILong | IULong -> !theMachine.M.sizeof_long
+  | ILongLong | IULongLong -> !theMachine.M.sizeof_longlong
 
 let unsignedVersionOf (ik:ikind): ikind =
   match ik with
@@ -1950,7 +1950,7 @@ let unsignedVersionOf (ik:ikind): ikind =
    Returns a flag saying whether the value was changed
    during truncation (because it was too large to fit in k). *)
 let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
-  let nrBits = bitsSizeOfInt k in
+  let nrBits = 8 * (bytesSizeOfInt k) in
   let signed = isSigned k in
   if nrBits = 64 then 
     i, false
@@ -2016,7 +2016,7 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
            (unsigned short + long) is converted to signed long,
            but (unsigned int + long) is converted to unsigned long.*)
         if unsignedRank >= signedRank then unsignedKind
-        else if (bitsSizeOfInt signedKind) > (bitsSizeOfInt unsignedKind) then
+        else if (bytesSizeOfInt signedKind) > (bytesSizeOfInt unsignedKind) then
           signedKind
         else 
           unsignedVersionOf signedKind
@@ -2224,13 +2224,13 @@ and offsetOfFieldAcc ~(fi: fieldinfo)
   if !msvcMode then offsetOfFieldAcc_MSVC fi sofar
   else offsetOfFieldAcc_GCC fi sofar
 
-(* The size of a type, in bits. If struct or array then trailing padding is 
+(* The size of a type, in bits. If a struct or array, then trailing padding is 
  * added *)
 and bitsSizeOf t = 
   if not !initCIL_called then 
     E.s (E.error "You did not call Cil.initCIL before using the CIL library");
   match t with 
-  | TInt (ik,_) -> bitsSizeOfInt ik
+  | TInt (ik,_) -> 8 * (bytesSizeOfInt ik)
   | TFloat(FDouble, _) -> 8 * !theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !theMachine.M.sizeof_longdouble
   | TFloat _ -> 8 * !theMachine.M.sizeof_float
@@ -2281,10 +2281,19 @@ and bitsSizeOf t =
         (* Add trailing by simulating adding an extra field *)
       addTrailing max (8 * alignOf_int t)
 
-  | TArray(t, Some len, _) -> begin
+  | TArray(bt, Some len, _) -> begin
       match constFold true len with 
         Const(CInt64(l,_,_)) -> 
-          addTrailing ((bitsSizeOf t) * (Int64.to_int l)) (8 * alignOf_int t)
+          let sz = Int64.mul (Int64.of_int (bitsSizeOf bt)) l in
+          let sz' = Int64.to_int sz in
+          (* Check for overflow.
+             There are other places in these cil.ml that overflow can occur,
+             but this multiplication is the most likely to be a problem. *)
+          if (Int64.of_int sz') <> sz then
+            raise (SizeOfError ("Array is so long that its size can't be "
+                                  ^"represented with an OCaml int.", t))
+          else
+            addTrailing sz' (8 * alignOf_int t)
       | _ -> raise (SizeOfError ("array non-constant length", t))
   end
 
@@ -2515,7 +2524,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end
       | Div, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,ik2,_))
-        when bitsSizeOfInt ik1 = bitsSizeOfInt ik2 -> begin
+        when bytesSizeOfInt ik1 = bytesSizeOfInt ik2 -> begin
           try kinteger64 tk (Int64.div i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
       end

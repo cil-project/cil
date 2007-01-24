@@ -504,6 +504,7 @@ addTest("merge-ar ");
 
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
+addTest("runall/sizeof3");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
