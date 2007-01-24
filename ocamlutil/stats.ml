@@ -71,10 +71,10 @@ let print chn msg =
   top.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 top.sub;
   let rec prTree ind node = 
     if !timerMode = HardwareTimer then 
-      (Printf.fprintf chn "%s%-20s          %8.5f s\n" 
+      (Printf.fprintf chn "%s%-25s      %8.5f s\n" 
          (String.make ind ' ') node.name node.time)
     else
-      (Printf.fprintf chn "%s%-20s          %6.3f s\n" 
+      (Printf.fprintf chn "%s%-25s      %6.3f s\n" 
          (String.make ind ' ') node.name node.time);
 
    List.iter (prTree (ind + 2)) (List.rev node.sub)
