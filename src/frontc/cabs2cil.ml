@@ -40,6 +40,7 @@
 (* The references to ISO means ANSI/ISO 9899-1999 *)
 module A = Cabs
 module C = Cabshelper
+module V = Cabsvisit
 module E = Errormsg
 module H = Hashtbl
 module IH = Inthash
@@ -3101,7 +3102,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     off
   in
   try
-    match stripParen e with
+    match e with
     | A.PAREN e -> E.s (bug "stripParen")
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
@@ -4399,7 +4400,7 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
     | CEAnd (ce1, ce2) | CEOr (ce1, ce2) -> canDropCE ce1 && canDropCE ce2
     | CENot (ce1) -> canDropCE ce1
   in
-  match stripParen e with 
+  match e with 
     A.BINARY (A.AND, e1, e2) -> begin
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
@@ -4565,9 +4566,7 @@ and doInit
   : chunk * (A.initwhat * A.init_expression) list = 
 
   let whoami () = d_lval () (Var so.host, so.soOff) in
-  
-  let initl = stripParenEls initl in
-    
+      
   let initl1 = 
     match initl with
     | (A.NEXT_INIT, 
@@ -6206,9 +6205,28 @@ and doStatement (s : A.statement) : chunk =
   end
 
 
+let rec stripParenLocal e = match e with
+  | A.PAREN e2 -> stripParenLocal e2
+  | _ -> e
+
+class stripParenClass : V.cabsVisitor = object (self)
+  inherit V.nopCabsVisitor as super
+  
+  method vexpr e = match e with
+  | A.PAREN e2 ->
+        V.ChangeDoChildrenPost (stripParenLocal e2,stripParenLocal)
+  | _ -> V.DoChildren
+end
+
+let stripParenFile file = V.visitCabsFile (new stripParenClass) file
+
+
 (* Translate a file *)
-let convFile ((fname : string), (dl : Cabs.definition list)) : Cil.file =
+let convFile (f : A.file) : Cil.file =
   Cil.initCIL (); (* make sure we have initialized CIL *)
+  (* remove parentheses from the Cabs *)
+  let fname,dl = stripParenFile f in
+    
   (* Clean up the global types *)
   E.hadErrors := false;
   initGlobals();

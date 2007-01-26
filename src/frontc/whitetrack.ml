@@ -24,12 +24,24 @@ let cabsloc_to_str cabsloc =
     string_of_int cabsloc.byteno ^ ":" ^ 
     string_of_int cabsloc.ident
 
-let wraplexer lexer lexbuf =
+let lastline = ref 0
+
+let wraplexer_enabled lexer lexbuf = 
     let white,lexeme,token,cabsloc = lexer lexbuf in
     GrowArray.setg tokens !nextidx (white,lexeme);
     Hashtbl.add tokenmap (cabsloc.filename,cabsloc.byteno) !nextidx;
     nextidx := !nextidx + 1;
     token
+
+let wraplexer_disabled lexer lexbuf = 
+    let white,lexeme,token,cabsloc = lexer lexbuf in
+    token
+
+let enabled = ref true
+
+let wraplexer lexer =
+    if !enabled then wraplexer_enabled lexer 
+    else wraplexer_disabled lexer
     
 let finalwhite = ref "\n"    
     
@@ -40,7 +52,7 @@ let noidx = -1
 let out = ref stdout
     
 let setLoc cabsloc =
-    if cabsloc != cabslu then begin
+    if cabsloc != cabslu && !enabled then begin
         try 
             curidx := Hashtbl.find tokenmap (cabsloc.filename,cabsloc.byteno)
         with
@@ -69,7 +81,8 @@ let last_str = ref ""
 let print str =
     let str = chopwhite str in
     if str = "" then ()
-    else if !curidx == noidx then output_string !out (invent_white() ^ str) 
+    else if !curidx == noidx || not !enabled then 
+        output_string !out (invent_white() ^ str) 
     else begin
         let srcwhite,srctok = GrowArray.getg tokens !curidx in
         let white = if str = srctok 
