@@ -499,7 +499,7 @@ and childrenExpression vis e =
   | CONSTANT _ -> e
   | PAREN e1 -> 
       let e1' = ve e1 in
-      if e1' != e1 then PAREN e1 else e 
+      if e1' != e1 then PAREN (e1') else e 
   | VARIABLE s -> 
       let s' = vis#vvar s in
       if s' != s then VARIABLE s' else e
@@ -548,7 +548,7 @@ and childrenInitExpression vis ie =
     | ATINDEXRANGE_INIT (e1, e2) -> 
         let e1' = visitCabsExpression vis e1 in
         let e2' = visitCabsExpression vis e2 in
-        if e1' != e1 || e2' != e2 then ATINDEXRANGE_INIT (e1, e2) else iw
+        if e1' != e1 || e2' != e2 then ATINDEXRANGE_INIT (e1', e2') else iw
   in
   match ie with 
     NO_INIT -> ie
