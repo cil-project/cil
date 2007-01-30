@@ -322,13 +322,13 @@ let restoreIntHash ?deepCopy (h: 'a IH.t) : (unit -> unit) =
     match deepCopy with 
       None -> IH.copy h 
     | Some f -> 
-        let old = IH.create 13 in 
+        let old = IH.create (IH.length h) in 
         IH.iter (fun k d -> IH.add old k (f d)) h;
         old
   in
   (fun () -> 
-    IH.clear old;
-    IH.iter (fun i k -> IH.add old i k) h)
+    IH.clear h;
+    IH.iter (fun i k -> IH.add h i k) old)
 
 let restoreArray ?deepCopy (a: 'a array) : (unit -> unit) = 
   let old = Array.copy a in
