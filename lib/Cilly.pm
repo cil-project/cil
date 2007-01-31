@@ -1913,7 +1913,7 @@ sub new {
 	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
 	    '-MQ$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
-	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
+	    '.*-MD.*' => { TYPE => 'EARLY_PREPROC' },
 	    '-MMD$' => { TYPE => 'EARLY_PREPROC' }, 
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
             "-iwithprefix" => { ONEMORE => 1, TYPE => "PREPROC" },
