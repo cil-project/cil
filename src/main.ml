@@ -40,7 +40,6 @@
 (* which reads a C program file, parses it, translates it to the CIL *)
 (* intermediate language, and then renders that back into C *)
 
-
 module F = Frontc
 module C = Cil
 module CK = Check
