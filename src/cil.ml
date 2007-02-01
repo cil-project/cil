@@ -420,13 +420,18 @@ and varinfo = {
                                             [removeUnusedVars]. It is safe to 
                                             just initialize this to False *)
 
-    mutable vdescr:doc;                 (** For most temporary variables, a
+    mutable vdescr: doc;                (** For most temporary variables, a
                                             description of what the var holds.
-                                           (e.g. for temporaries used for
+                                            (e.g. for temporaries used for
                                             function call results, this string
                                             is a representation of the function
                                             call.) *)
-                                            
+
+    mutable vdescrpure: bool;           (** Indicates whether the vdescr above
+                                            is a pure expression or call.
+                                            Printing a non-pure vdescr more
+                                            than once may yield incorrect
+                                            results. *)
 }
 
 (** Storage-class information *)
@@ -4513,16 +4518,56 @@ let d_plaintype () t = plainCilPrinter#pType None () t
 let d_plaininit () i = plainCilPrinter#pInit () i
 let d_plainlval () l = plainCilPrinter#pLval () l
 
-class descriptiveCilPrinterClass : cilPrinter = object (self)
+class type descriptiveCilPrinter = object
+  inherit cilPrinter
+
+  method startTemps: unit -> unit
+  method stopTemps: unit -> unit
+  method pTemps: unit -> Pretty.doc
+end
+
+class descriptiveCilPrinterClass : descriptiveCilPrinter = object (self)
   (** Like defaultCilPrinterClass, but instead of temporary variable
       names it prints the description that was provided when the temp was
       created.  This is usually better for messages that are printed for end
       users, although you may want the temporary names for debugging.  *)
   inherit defaultCilPrinterClass as super
 
+  val mutable temps: (varinfo * string * doc) list = []
+  val mutable useTemps: bool = false
+
+  method startTemps () : unit =
+    temps <- [];
+    useTemps <- true
+
+  method stopTemps () : unit =
+    temps <- [];
+    useTemps <- false
+
+  method pTemps () : doc =
+    if temps = [] then
+      nil
+    else
+      text "\nWhere:\n  " ++
+      docList ~sep:(text "\n  ")
+              (fun (_, s, d) -> dprintf "%s = %a" s insert d) ()
+              (List.rev temps)
+
   method private pVarDescriptive (vi: varinfo) : doc =
-    if vi.vdescr <> nil then vi.vdescr
-    else super#pVar vi
+    if vi.vdescr <> nil then begin
+      if vi.vdescrpure || not useTemps then
+        vi.vdescr
+      else begin
+        try
+          let _, name, _ = List.find (fun (vi', _, _) -> vi == vi') temps in
+          text name
+        with Not_found ->
+          let name = "tmp" ^ string_of_int (List.length temps) in
+          temps <- (vi, name, vi.vdescr) :: temps;
+          text name
+      end
+    end else
+      super#pVar vi
 
   (* Only substitute temp vars that appear in expressions.
      (Other occurrences of lvalues are the left-hand sides of assignments, 
@@ -4538,8 +4583,9 @@ class descriptiveCilPrinterClass : cilPrinter = object (self)
         text "& " ++ self#pOffset (self#pVarDescriptive vi) o
     | _ -> super#pExp () e
 end
-let descriptiveCilPrinter: cilPrinter = 
-  ((new descriptiveCilPrinterClass) :> cilPrinter)
+
+let descriptiveCilPrinter: descriptiveCilPrinter = 
+  ((new descriptiveCilPrinterClass) :> descriptiveCilPrinter)
 
 let dd_exp = descriptiveCilPrinter#pExp
 
@@ -4592,6 +4638,7 @@ let makeVarinfo global name typ =
       vaddrof = false;
       vreferenced = false;
       vdescr = nil;
+      vdescrpure = true;
     } in
   vi
       
@@ -4610,7 +4657,8 @@ let makeLocalVar fdec ?(insert = true) name typ =
   if insert then fdec.slocals <- fdec.slocals @ [vi];
   vi
 
-let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) typ : varinfo =
+let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) ?(descrpure = true)
+                typ : varinfo =
   let rec findUniqueName () : string=
     let n = name ^ (string_of_int (1 + fdec.smaxid)) in
     (* Is this check a performance problem?  We could bring the old
@@ -4626,6 +4674,7 @@ let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) typ : varinfo =
   let name = findUniqueName () in
   let vi = makeLocalVar fdec name typ in
   vi.vdescr <- descr;
+  vi.vdescrpure <- descrpure;
   vi
 
     
