@@ -155,10 +155,10 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	echo "  sizeof_float: int;      (* Size of \"float\" *)"       >> $@
 	echo "  sizeof_double: int;     (* Size of \"double\" *)"      >> $@
 	echo "  sizeof_longdouble: int; (* Size of \"long double\" *)" >> $@
-	echo "  sizeof_sizeof: int;     (* Size of \"sizeof(T)\" *)"   >> $@
-	echo "  sizeof_wchar: int;      (* Size of \"wchar_t\" *)"     >> $@ 
 	echo "  sizeof_void: int;       (* Size of \"void\" *)"        >> $@
 	echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
+	echo "  size_t: string;         (* Type of \"sizeof(T)\" *)"   >> $@
+	echo "  wchar_t: string;        (* Type of \"wchar_t\" *)"     >> $@ 
 	echo "  alignof_short: int;     (* Alignment of \"short\" *)"  >> $@
 	echo "  alignof_int: int;       (* Alignment of \"int\" *)"    >> $@
 	echo "  alignof_long: int;      (* Alignment of \"long\" *)"   >> $@
@@ -193,6 +193,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	echo "}"          >>$@
 	echo "let gccHas__builtin_va_list = @HAVE_BUILTIN_VA_LIST@" >>$@
 	echo "let __thread_is_keyword = @THREAD_IS_KEYWORD@"  >>$@
+
 
 #
 # Create the version information module

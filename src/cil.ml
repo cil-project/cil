@@ -6514,7 +6514,7 @@ let initCIL () =
     else
       charPtrType;
     (* Find the right ikind given the size *)
-    let findIkind (unsigned: bool) (sz: int) : ikind = 
+    let findIkindSz (unsigned: bool) (sz: int) : ikind = 
       (* Test the most common sizes first *)
       if sz = !theMachine.M.sizeof_int then 
         if unsigned then IUInt else IInt 
@@ -6529,10 +6529,23 @@ let initCIL () =
       else 
         E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
     in      
-    upointType := TInt(findIkind true !theMachine.M.sizeof_ptr, []);
-    kindOfSizeOf := findIkind true !theMachine.M.sizeof_sizeof;
+    (* Find the right ikind given the name *)
+    let findIkindName (name: string) : ikind = 
+      (* Test the most common sizes first *)
+      if name = "int" then IInt
+      else if name = "unsigned int" then IUInt
+      else if name = "long" then ILong
+      else if name = "unsigned long" then IULong
+      else if name = "short" then IShort
+      else if name = "unsigned short" then IUShort
+      else if name = "char" then IChar
+      else if name = "unsigned char" then IUChar
+      else E.s(E.unimp "initCIL: cannot find the right ikind for type %s\n" name)
+    in      
+    upointType := TInt(findIkindSz true !theMachine.M.sizeof_ptr, []);
+    kindOfSizeOf := findIkindName !theMachine.M.size_t;
     typeOfSizeOf := TInt(!kindOfSizeOf, []);
-    wcharKind := findIkind false !theMachine.M.sizeof_wchar;
+    wcharKind := findIkindName !theMachine.M.wchar_t;
     wcharType := TInt(!wcharKind, []);
     char_is_unsigned := !theMachine.M.char_is_unsigned;
     little_endian := !theMachine.M.little_endian;

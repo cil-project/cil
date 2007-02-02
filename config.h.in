@@ -21,3 +21,7 @@
 #undef HAVE_SELECT
 
 #undef HAVE_SOCKET
+
+#undef TYPE_SIZE_T
+
+#undef TYPE_WCHAR_T
