@@ -139,6 +139,7 @@ setup: cilversion machdep
 machdep: $(OBJDIR)/machdep.ml 
 $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	rm -f $@
+	mkdir -p $(OBJDIR)
 	echo "(* This module was generated automatically by code in Makefile and machdep.c *)" >$@
 # Now generate the type definition
 	echo "type mach = {" >> $@ 
@@ -201,6 +202,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 cilversion: $(OBJDIR)/cilversion.ml
 $(OBJDIR)/cilversion.ml: configure.in Makefile.in
 	rm -f $@
+	mkdir -p $(OBJDIR)
 	echo "(* This module was generated automatically by code in Makefile *)" >$@
 # Generate here the version information
 	echo "let cilVersionMajor = @CIL_VERSION_MAJOR@" >>$@
@@ -625,6 +627,7 @@ INSTALL_DATA = @INSTALL_DATA@
 
 prefix = @prefix@
 exec_prefix = @exec_prefix@
+datarootdir = @datarootdir@
 libdir = @libdir@
 pkglibdir = $(libdir)/cil
 datadir = @datadir@
