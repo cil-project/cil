@@ -1358,6 +1358,7 @@ val upointType: typ ref
 (** An unsigned integer type that is the type of sizeof. Depends on 
  * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
+val kindOfSizeOf: ikind ref
 
 (** Returns true if and only if the given integer type is signed. *)
 val isSigned: ikind -> bool
