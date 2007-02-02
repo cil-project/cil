@@ -223,16 +223,20 @@ cygwin version of ocaml (preferred) and with the Win32 version of ocaml.
       called \t{cil} whose structure is explained below. \\
       \t{~~~~tar xvfz cil-\cilversion.tar.gz}
 \end{enumerate}
-\item {\em CVS Repository}: \\
+\item {\em Subversion Repository}: \\
   Alternately, you can download an up to the minute version of CIL
-  from our CVS repository at:
+  from our Subversion repository at:
 \begin{verbatim}
-    cvs -d :pserver:cvs@manju.cs.berkeley.edu:/home/cvs-repository co cil
+    svn co svn://hal.cs.berkeley.edu/home/svn/projects/trunk/cil
 \end{verbatim}
-However, the CVS version may be less stable than the released
+However, the Subversion version may be less stable than the released
 version.  See the Changes section of doc/cil.tex to see what's
 changed since the last release.  There may be changes that aren't yet
 documented in the .tex file or this website.
+
+For those who were using the CVS server before we switched to
+Subversion, revision 8603 in Subversion corresponds to the last CVS
+version.
 
 \end{itemize}
 \item Enter the \t{cil} directory and run the \t{configure} script and then 
@@ -250,7 +254,7 @@ using instead the Perl wrapper \t{bin/cilly}). Note that we do not have an
 \t{install} make target and you should use Cil from the development directory.
 \item If you decide to use CIL, {\bf please}
 \ahref{mailto:necula@cs.berkeley.edu}{send us a note}. This will help recharge
-our batteries after a few years year of development. And of course, do send us
+our batteries after a few years of development. And of course, do send us
 your bug reports as well.
 \end{enumerate}
 
@@ -3236,6 +3240,8 @@ as it will ensure your message is viewed by a broad audience.
 \item {\bf October 27, 2006}: Fixed a bug with duplicate entries in
   the statement list of Switch nodes, and forbade duplicate
   \t{default} cases.
+%% October 26, 2006: Moved the CIL source repository from CVS
+%%  to Subversion.  Subversion revision 8603 is the switchover point.
 \item {\bf October 12, 2006}: Added a new function \cilvalref{expToAttrParam}
 that attempts to convert an expression into a attribute parameter. 
 \item {\bf October 12, 2006}: Added an attribute with the length of the array,
