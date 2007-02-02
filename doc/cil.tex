@@ -3205,6 +3205,10 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf February 1, 2007}: Fixed the parser to support the unused
+  attribute on labels.  For now, we just drop this attribute since
+  Rmtmps will remove unused labels anyways.  Thanks to Peter Hawkins
+  for the patch.
 \item {\bf January 18, 2007}: Require the destination of a \t{Call} to
   have the same type as the function's return type, even if it means
   inserting a temporary.  To get the old behavior, set

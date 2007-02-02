@@ -876,8 +876,12 @@ statement:
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement
 	                         {FOR ($3, $4, $6, $8, (*handleLoc*) $1)}
-|   IDENT COLON statement
-		                 {LABEL (fst $1, $3, (*handleLoc*) (snd $1))}
+|   IDENT COLON attribute_nocv_list statement
+		                 {(* The only attribute that should appear here
+                                     is "unused". For now, we drop this on the
+                                     floor, since unused labels are usually
+                                     removed anyways by Rmtmps. *)
+                                  LABEL (fst $1, $4, (snd $1))}
 |   CASE expression COLON statement
 	                         {CASE (fst $2, $4, (*handleLoc*) $1)}
 |   CASE expression ELLIPSIS expression COLON statement
@@ -1305,6 +1309,11 @@ attribute_nocv:
 |   MSATTR                              { (fst $1, []), snd $1 }
                                         /* ISO 6.7.3 */
 |   THREAD                              { ("__thread",[]), $1 }
+;
+
+attribute_nocv_list:
+    /* empty */				{ []}
+|   attribute_nocv attribute_nocv_list  { fst $1 :: $2 }
 ;
 
 /* __attribute__ plus const/volatile */

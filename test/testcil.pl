@@ -371,6 +371,7 @@ addTest("testrun/label1");
 addTest("testrun/label2");
 addTest("testrun/label3");
 addTest("testrun/label4 _GNUCC=1");
+addTest("test/label5");
 addTest("testrun/wchar1");
 addTest("testrun/wchar2");
 addTest("testrun/wchar3");
