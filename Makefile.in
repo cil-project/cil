@@ -440,19 +440,17 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
 
 	rm -rf $(CIL_TAR_GZ)
 	mkdir $(TOP_DIR) \
-	      $(TOP_DIR)/src \
+              $(TOP_DIR)/bin \
+              $(TOP_DIR)/doc \
+              $(TOP_DIR)/doc/api \
+              $(TOP_DIR)/debian \
+              $(TOP_DIR)/lib \
+              $(TOP_DIR)/obj \
+              $(TOP_DIR)/obj/.depend \
+              $(TOP_DIR)/src \
               $(TOP_DIR)/src/frontc \
               $(TOP_DIR)/src/ext \
               $(TOP_DIR)/src/ext/pta \
-              $(TOP_DIR)/obj \
-              $(TOP_DIR)/doc \
-	      $(TOP_DIR)/lib \
-	      $(TOP_DIR)/bin \
-	      $(TOP_DIR)/debian \
-	      $(TOP_DIR)/doc/api \
-              $(TOP_DIR)/obj/.depend \
-              $(TOP_DIR)/obj/x86_WIN32 \
-              $(TOP_DIR)/obj/x86_LINUX \
               $(TOP_DIR)/test \
               $(TOP_DIR)/test/small1 \
               $(TOP_DIR)/ocamlutil

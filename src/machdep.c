@@ -58,9 +58,9 @@
 #ifdef _MSVC
 #define LONGLONG __int64
 #define CONST_STRING_LITERALS "false"
-#define VERSION "0"
-#define VERSION_MAJOR 0
-#define VERSION_MINOR 0
+#define VERSION "Microsoft C"
+#define VERSION_MAJOR (_MSC_VER / 100)
+#define VERSION_MINOR (_MSC_VER % 100)
 #endif
 
 /* The type for the machine dependency structure is generated from the

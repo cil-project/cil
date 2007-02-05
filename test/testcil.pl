@@ -510,6 +510,7 @@ addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
+addTest("testrun/builtin_choose_expr");
 addTest("testrun/comparisons");
     
 

@@ -782,7 +782,7 @@ and offset =
  * turned into assignments). The initializers are represented as type 
  * {!Cil.init}. You can create initializers with {!Cil.makeZeroInit} and you 
  * can conveniently scan compound initializers them with 
- * {!Cil.foldLeftCompound} or with {!Cil.foldLeftInitializer}. *)
+ * {!Cil.foldLeftCompound}. *)
 (** Initializers for global variables. *)
 and init = 
   | SingleInit   of exp   (** A single initializer *)
@@ -797,7 +797,7 @@ and init =
      * printed, so you better be on GCC since MSVC does not understand this. 
      * For arrays, however, we allow you to give only a prefix of the 
      * initializers. You can scan an initializer list with 
-     * {!Cil.foldLeftCompound} or with {!Cil.foldLeftInitializer}. *)
+     * {!Cil.foldLeftCompound}. *)
 
 
 (** We want to be able to update an initializer in a global variable, so we 
