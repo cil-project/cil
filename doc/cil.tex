@@ -1821,7 +1821,7 @@ control-flow information: the predecessor and successor statements of
 the current statement.  This information is not computed by default.
 If you want to use the control-flow graph, or any of the extensions in
 this section that require it, you have to explicitly ask CIL to
-compute the CFG.
+compute the CFG using one of these two methods:
 
 \subsubsection{The CFG module (new in CIL 1.3.5)}
 
@@ -3205,6 +3205,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf February 5, 2007}:  {\bf Released version 1.3.6} (Subversion
+  revision 9211)
 \item {\bf February 2, 2007}: Improved the way CIL gets configured for the
   actual definitions of \t{size\_t} and \t{wchar\_t}. 
 \item {\bf February 1, 2007}: Fixed the parser to support the unused

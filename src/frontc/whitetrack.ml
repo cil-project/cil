@@ -37,7 +37,7 @@ let wraplexer_disabled lexer lexbuf =
     let white,lexeme,token,cabsloc = lexer lexbuf in
     token
 
-let enabled = ref true
+let enabled = ref false
 
 let wraplexer lexer =
     if !enabled then wraplexer_enabled lexer 

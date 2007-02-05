@@ -42,8 +42,8 @@
  *
  *)
 
-(** CIL API Documentation. An html version of this document can be found at 
- * http://manju.cs.berkeley.edu/cil. *)
+(** {b CIL API Documentation.}  An html version of this document 
+ *  can be found at http://hal.cs.berkeley.edu/cil *)
 
 (** Call this function to perform some initialization. Call if after you have 
  * set {!Cil.msvcMode}.  *)
@@ -1358,6 +1358,9 @@ val upointType: typ ref
 (** An unsigned integer type that is the type of sizeof. Depends on 
  * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
+
+(** The integer kind of {!Cil.typeOfSizeOf}. 
+ *  Set when you call {!Cil.initCIL}.  *)
 val kindOfSizeOf: ikind ref
 
 (** Returns true if and only if the given integer type is signed. *)
@@ -2128,8 +2131,6 @@ class type cilPrinter = object
      * This is used by {!Cil.dumpGlobal}. *)
 
   method pBlock: unit -> block -> Pretty.doc
-
-  method pBlock: unit -> block -> Pretty.doc
     (** Print a block. *)
 
   method pGlobal: unit -> global -> Pretty.doc
@@ -2550,9 +2551,6 @@ type formatArg =
 
 (** Pretty-prints a format arg *)
 val d_formatarg: unit -> formatArg -> Pretty.doc
-
-val lowerConstants: bool ref
- (** Do lower constant expressions into constants (default true) *)
 
 (** Emit warnings when truncating integer constants (default true) *)
 val warnTruncate: bool ref

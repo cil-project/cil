@@ -1724,7 +1724,7 @@ ac_config_headers="$ac_config_headers config.h"
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=3
-CIL_VERSION_REV=5
+CIL_VERSION_REV=6
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 
