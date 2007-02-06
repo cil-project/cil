@@ -1,4 +1,4 @@
-(** {b ALPHA conversion} *)
+(** ALPHA conversion *)
 
 (** This is the type of the elements that are recorded by the alpha 
  * conversion functions in order to be able to undo changes to the tables 
