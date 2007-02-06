@@ -2,7 +2,7 @@ Name: cil
 Version: @CIL_VERSION@
 Release: 1
 License: BSD
-URL: http://manju.cs.berkeley.edu/cil/
+URL: http://hal.cs.berkeley.edu/cil/
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: gcc
