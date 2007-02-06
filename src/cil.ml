@@ -38,7 +38,7 @@
 
 open Escape
 open Pretty
-open Trace      (* sm: 'trace' function *)
+(* open Trace      (\* sm: 'trace' function *\) *)
 module E = Errormsg
 module H = Hashtbl
 module IH = Inthash
@@ -46,7 +46,6 @@ module IH = Inthash
 (*
  * CIL: An intermediate language for analyzing C progams.
  *
- * Version Tue Dec 12 15:21:52 PST 2000 
  * Scott McPeak, George Necula, Wes Weimer
  *
  *)
@@ -2670,46 +2669,47 @@ let parseInt (str: string) : exp =
         E.s (bug "Invalid integer constant: %s (char %c at idx=%d)" 
                str ch idx)
   in
-  try
-    let i = 
-      if octalhex then
-        if l >= 2 && 
-          (let c = String.get str 1 in c = 'x' || c = 'X') then
+  let i = 
+    if octalhex then
+      if l >= 2 && 
+        (let c = String.get str 1 in c = 'x' || c = 'X') then
           toInt (Int64.of_int 16) Int64.zero 2
-        else
-          toInt (Int64.of_int 8) Int64.zero 1
       else
-        toInt (Int64.of_int 10) Int64.zero 0
-    in
-    (* Construct an integer of the first kinds that fits. i must be 
-    * POSITIVE  *)
-    let res = 
-      let rec loop = function
-        | ((IInt | ILong) as k) :: _ 
-                  when i < Int64.shift_left (Int64.of_int 1) 31 ->
-                    kinteger64 k i
-        | ((IUInt | IULong) as k) :: _ 
-                  when i < Int64.shift_left (Int64.of_int 1) 32
-          ->  kinteger64 k i
-        | (ILongLong as k) :: _ 
-                 when i <= Int64.sub (Int64.shift_left 
-                                              (Int64.of_int 1) 63) 
-                                          (Int64.of_int 1) 
-          -> 
+        toInt (Int64.of_int 8) Int64.zero 1
+    else
+      toInt (Int64.of_int 10) Int64.zero 0
+  in
+  (* Construct an integer of the first kinds that fits. i must be 
+   * POSITIVE  *)
+  let res = 
+    let rec loop = function
+        k::rest ->
+          let nrBits = 
+            let unsignedbits = 8 * (bytesSizeOfInt k) in
+            if isSigned k then
+              unsignedbits-1
+            else
+              unsignedbits
+          in
+          (* Will i fit in nrBits bits? *)
+          let bound : int64 = Int64.sub (Int64.shift_left 1L nrBits) 1L in
+          (* toInt has ensured that 0 <= i < 2^64.  
+             So if nrBits >= 64, i fits *)
+          if (nrBits >= 64) || (i <= bound) then
             kinteger64 k i
-        | (IULongLong as k) :: _ -> kinteger64 k i
-        | _ :: rest -> loop rest
+          else
+            loop rest
         | [] -> E.s (E.unimp "Cannot represent the integer %s\n" 
                        (Int64.to_string i))
-      in
-      loop kinds 
     in
-    res
-  with e -> begin
-    ignore (E.log "int_of_string %s (%s)\n" str 
-              (Printexc.to_string e));
-    zero
-  end
+    loop kinds 
+    in
+  res
+(* with e -> begin *)
+(*   ignore (E.log "int_of_string %s (%s)\n" str  *)
+(*             (Printexc.to_string e)); *)
+(*     zero *)
+(*   end *)
 
 
 
@@ -5362,7 +5362,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 
   | GEnumTagDecl _ | GCompTagDecl _ -> g (* Nothing to visit *)
   | GEnumTag (enum, _) ->
-      (trace "visit" (dprintf "visiting global enum %s\n" enum.ename));
+      (* (trace "visit" (dprintf "visiting global enum %s\n" enum.ename)); *)
       (* Do the values and attributes of the enumerated items *)
       let itemVisit (name, exp, loc) = (name, visitCilExpr vis exp, loc) in
       enum.eitems <- mapNoCopy itemVisit enum.eitems;
@@ -5370,7 +5370,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       g
 
   | GCompTag (comp, _) ->
-      (trace "visit" (dprintf "visiting global comp %s\n" comp.cname));
+      (* (trace "visit" (dprintf "visiting global comp %s\n" comp.cname)); *)
       (* Do the types and attirbutes of the fields *)
       let fieldVisit = fun fi -> 
         fi.ftype <- visitCilType vis fi.ftype;

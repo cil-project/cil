@@ -3655,7 +3655,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              let tresult, opresult = doBinOp uop' e' t one intType in
              let se', result = 
                if what <> ADrop && what <> AType then 
-                 let tmp = newTempVar (dd_exp () e') true t in
+                 let descr = (dd_exp () e') 
+                             ++ (if uop = A.POSINCR then text "++" else text "--") in
+                 let tmp = newTempVar descr true t in
                  se +++ (Set(var tmp, e', !currentLoc)), Lval(var tmp)
                else
                  se, e'

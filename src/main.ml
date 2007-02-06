@@ -36,7 +36,7 @@
  *)
 
 
-(* maincil *)
+(* main.ml *)
 (* this module is the program entry point for the 'cilly' program, *)
 (* which reads a C program file, parses it, translates it to the CIL *)
 (* intermediate language, and then renders that back into C *)
@@ -46,7 +46,6 @@ module C = Cil
 module CK = Check
 module E = Errormsg
 open Pretty
-open Trace
 
 type outfile = 
     { fname: string;
@@ -63,7 +62,7 @@ let parseOneFile (fname: string) : C.file =
   if (not !Epicenter.doEpicenter) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
-    (trace "sm" (dprintf "removing unused temporaries\n"));
+    (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
     (Rmtmps.removeUnusedTemps cil)
   );
   cil

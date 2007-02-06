@@ -145,7 +145,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	echo "type mach = {" >> $@ 
 	echo "  version_major: int;     (* Major version number *)"    >> $@
 	echo "  version_minor: int;     (* Minor version number *)"    >> $@
-	echo "  version: string;        (* version number *)"          >> $@
+	echo "  version: string;        (* gcc version string *)"      >> $@
 	echo "  underscore_name: bool;  (* If assembly names have leading underscore *)" >> $@
 	echo "  sizeof_short: int;      (* Size of \"short\" *)"       >> $@
 	echo "  sizeof_int: int;        (* Size of \"int\" *)"         >> $@
