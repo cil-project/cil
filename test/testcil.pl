@@ -204,6 +204,8 @@ addTest("testrun/offsetof2");
 addTest("testrun/offsetof3");
 addTest("testrun/question");
 addTest("test/argcast");
+addBadComment("test/argcast", 
+                        "Fails --check because of mismatched prototypes.");
 addTest("test/array1");
 addTest("test/array2");
 addTest("testrun/array_varsize");
@@ -304,6 +306,8 @@ addTest("testrun/inline1 _GNUCC=1");
 addTest("testrun/inline2 _GNUCC=1");
 addTest("test/inline3 _GNUCC=1");
 addTest("test/decl2 _GNUCC=1");
+addBadComment("test/decl2", 
+                        "Fails --check because of mismatched prototypes.");
 addTest("test/jmp_buf");
 addTest("test/linux_atomic _GNUCC=1");
 addTest("testrun/linux_signal _GNUCC=1");
@@ -441,6 +445,8 @@ addTest("test/restrict1 _GNUCC=1");
 addTest("testrun/rmtmps1 ");
 addTest("testrun/rmtmps2 _GNUCC=1");
 addTest("test/proto1 ");
+addBadComment("test/proto1", 
+                        "Fails --check because of mismatched prototypes.");
 addTest("test/proto2 ");
 addBadComment("test/proto2", 
                         "Bug in parser (precedences)");
