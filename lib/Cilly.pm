@@ -276,9 +276,6 @@ sub collectOneArgument {
     if($arg eq "--bytecode") {
         $self->{NATIVECAML} = 0; return 1;
     }
-#     if($arg eq "--no-idashi") {
-#         $self->{IDASHI} = 0; return 1;
-#     }
     if($arg eq "--no-idashdot") {
         $self->{IDASHDOT} = 0; return 1;
     }
@@ -355,6 +352,13 @@ sub printVersion {
 sub printHelp {
     my($self) = @_;
     $self->usage();
+    my $nomergeisDefault = "";
+    my $mergeisDefault = "";
+    if ($::default_is_merge) {
+        $mergeisDefault = "\n               This is the default.";
+    } else {
+        $nomergeisDefault = "\n               This is the default.";
+    }
     print <<EOF;
 
 Options:
@@ -371,9 +375,8 @@ Options:
   --save-temps Keep temporary files in the current directory.
   --save-temps=xxx Keep temporary files in the given directory.
   
-  --nomerge    Apply CIL separately to each source file as they are compiled. 
-               By default CIL is applied to the whole program during linking.
-  --merge      Apply CIL to the merged program.
+  --nomerge    Apply CIL separately to each source file as they are compiled.$nomergeisDefault
+  --merge      Apply CIL to the merged program.$mergeisDefault
   --keepmerged  Save the merged file. Only useful if --nomerge is not given.
   --trueobj          Do not write preprocessed sources in .obj/.o files but
                      create some other files (e.g. foo.o_saved.c).
@@ -389,7 +392,6 @@ Options:
                      well the /P file
 
 EOF
-#   --no-idashi        Do not use '-I-' with the gcc preprocessor.
     $self->helpMessage();
 }
 
