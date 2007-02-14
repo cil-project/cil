@@ -14,6 +14,7 @@ module IH = Inthash
 module H = Hashtbl
 module U = Util
 module S = Stats
+module P = Ptranal
 
 let debug = ref false
 let doTime = ref false
@@ -115,6 +116,47 @@ class memReadOrAddrOfFinderClass br = object(self)
 
 end
 
+class aliasReadFinderClass (br : bool ref) (ee : exp) = object(self)
+    inherit nopCilVisitor
+    
+    method vexpr e = match e with
+    | AddrOf(Mem e, _)
+    | StartOf(Mem e, _)
+    | Lval(Mem e, _) -> begin
+        try
+            if P.may_alias ee e then begin
+                br := true;
+                SkipChildren
+            end else DoChildren
+        with
+        | P.UnknownLocation
+        | Not_found -> begin
+            (*br := true;*)
+            DoChildren
+        end
+    end
+    | AddrOf(Var vi, NoOffset) ->
+        SkipChildren
+    | Lval(Var vi, _ )
+    | StartOf(Var vi, _) -> begin
+        try
+            if vi.vaddrof || vi.vglob then begin
+                if P.may_alias ee e then begin
+                    br := true;
+                    SkipChildren
+                end else DoChildren
+            end else DoChildren
+        with
+        | P.UnknownLocation
+        | Not_found -> begin
+            (*br := true;*)
+            DoChildren
+        end
+    end
+    | _ -> DoChildren
+
+end
+
 (* exp -> bool *)
 let exp_has_mem_read e =
   let br = ref false in
@@ -127,7 +169,19 @@ let lval_has_mem_read lv =
   let vis = new memReadOrAddrOfFinderClass br in
   ignore(visitCilLval vis lv);
   !br
-   
+
+let exp_has_alias_read ee e =
+    let br = ref false in
+    let vis = new aliasReadFinderClass br ee in
+    ignore(visitCilExpr vis e);
+    !br
+
+let lval_has_alias_read ee lv =
+    let br = ref false in
+    let vis = new aliasReadFinderClass br ee in
+    ignore(visitCilLval vis lv);
+    !br
+
 let lvh_kill_mem lvh =
   LvExpHash.iter (fun lv e ->
     match lv with
