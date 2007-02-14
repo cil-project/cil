@@ -42,6 +42,7 @@ type timerModeEnum =
 
 (** Resets all the timings and specifies the method to use for future timings.
  *  Call this before doing any timing.
+
  * You will get an exception if you pass HardwareTimer to reset and the
  * hardware counters are not available *)
 val reset: timerModeEnum -> unit
@@ -76,8 +77,8 @@ val lookupTime: string -> float
 
 
 (** Time a function and set lastTime to the time it took *)
-val lastTime: float ref
 val timethis: ('a -> 'b) -> 'a -> 'b
+val lastTime: float ref
 
 
 
