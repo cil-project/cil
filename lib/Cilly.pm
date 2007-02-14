@@ -77,7 +77,6 @@ sub new {
       LINKARGS => [],  # Linker args
       NATIVECAML => 1, # this causes the native code boxer to be used
       RELEASELIB => 0, # if true, use the release runtime library (if any)
-      # IDASHI => 1,     # if true, pass "-I-" to gcc's preprocessor
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
       TRACE_COMMANDS => 1, # when true, echo commands being run
@@ -1915,11 +1914,15 @@ sub new {
 	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
 	    '-MQ$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
-	    '.*-MD.*' => { TYPE => 'EARLY_PREPROC' },
+	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
 	    '-MMD$' => { TYPE => 'EARLY_PREPROC' }, 
             "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
             "-iwithprefix" => { ONEMORE => 1, TYPE => "PREPROC" },
-	    '-Wp,' => { TYPE => 'PREPROC' },
+            #matth: the handling of -Wp may be wrong.  We may need to
+            # break up the argument list and invoke the map on each argument,
+            # so that some are classified as PREPROC and others as
+            # EARLY_PREPROC
+	    '-Wp,' => { TYPE => 'EARLY_PREPROC' },
             "-ansi" => { TYPE => 'ALLARGS' },
             "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
             "-x" => { ONEMORE => 1, TYPE => "CC" },
