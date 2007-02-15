@@ -12,8 +12,8 @@ type 'a alphaTableData
 
 
 (** Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name by stripping a suffix consisting of _ 
- * followed by only digits), followed by a special separator and then by a 
+ * prefix (obtained from the given name by stripping a suffix consisting of ___
+ * followed by up to 9 digits), followed by a special separator and then by a 
  * positive integer suffix. The first argument is a table mapping name 
  * prefixes to some data that specifies what suffixes have been used and how 
  * to create the new one. This function updates the table with the new 

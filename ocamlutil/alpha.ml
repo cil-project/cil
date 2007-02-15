@@ -19,13 +19,23 @@ type 'a undoAlphaElement =
   | AlphaAddedSuffix of string          (* We added this new entry to the 
                                          * table *)
 
-(* Create a new name based on a given name. The new name is formed from a 
- * prefix (obtained from the given name by stripping a suffix consisting of 
- * the alphaSeparator followed by only digits), followed by alphaSeparator 
- * and then by a positive integer suffix. The first argument is a table 
- * mapping name prefixes to the largest suffix used so far for that 
- * prefix. The largest suffix is one when only the version without suffix has 
- * been used. *)
+(* The number of decimal digits that can fit in a 31-bit signed int *)
+let maxSuffixLength = 9
+let maxSuffix = (* "999999999" *)
+  try
+    let maxSuffixStr = String.make maxSuffixLength '9' in
+    int_of_string maxSuffixStr
+  with Failure _ ->
+    E.s (E.bug "You appear to be using the Alpha module on a computer where int is represented with fewer than 31 bits.  Go to alpha.ml and change maxSuffixLength to a smaller number.")
+  
+
+(* Create a new name based on a given name. The new name is formed
+ * from a prefix (obtained from the given name by stripping a suffix
+ * consisting of the alphaSeparator followed by up to maxSuffixLength
+ * digits), followed by alphaSeparator and then by a positive integer
+ * suffix. The first argument is a table mapping name prefixes to the
+ * largest suffix used so far for that prefix. The largest suffix is
+ * one when only the version without suffix has been used. *)
 let rec newAlphaName ~(alphaTable: (string, 'a alphaTableData ref) H.t)
                      ~(undolist: 'a undoAlphaElement list ref option)
                      ~(lookupname: string) 
@@ -76,12 +86,11 @@ and alphaWorker      ~(alphaTable: (string, 'a alphaTableData ref) H.t)
               max, suffix, data, (suffix, data) :: suffixes
           | [(_, l) ] -> 
               (* We have seen this exact suffix before *)
-              if make_new then 
-                let newsuffix = alphaSeparator ^ (string_of_int (max + 1)) in
+              if make_new then
                 max + 1, newsuffix, l, (newsuffix, data) :: suffixes
               else
                 max, suffix, data, suffixes
-          |  _ -> E.s (E.bug "Cil.alphaWorker")
+          |  _ -> E.s (E.bug "Alpha.alphaWorker")
         end
       in
       rc := (newmax, newsuffixes);
@@ -116,6 +125,10 @@ and splitNameForAlpha ~(lookupname: string) : (string * string * int) =
   let startSuffix = skipSuffix (len - 1) in
 
   if startSuffix >= len (* No digits at all at the end *) ||
+     (* If the suffix has length >= maxSuffixLength, treat it as no suffix
+        at all.  This ensures we only call int_of_string with values that
+        will fit in an int. *)
+     (len - startSuffix > maxSuffixLength) ||
      startSuffix <= alphaSeparatorLen     (* Not enough room for a prefix and 
                                            * the separator before suffix *) ||
      (* Suffix starts with a 0 and has more characters after that *) 
