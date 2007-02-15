@@ -175,7 +175,7 @@ and print_type_spec = function
   | Tint64 -> print "__int64 "
   | Tfloat -> print "float "
   | Tdouble -> print "double "
-  | Tsigned -> print "signed "
+  | Tsigned -> printu "signed"
   | Tunsigned -> print "unsigned "
   | Tnamed s -> comprint "tnamed"; print s; space ();
   | Tstruct (n, None, _) -> printl ["struct";n]
@@ -908,6 +908,7 @@ end
 *)
 let printFile (result : out_channel) ((fname, defs) : file) =
   out := result;
+  Whitetrack.setOutput result;
   print_defs defs;
   Whitetrack.printEOF ();
   flush ()     (* sm: should do this here *)

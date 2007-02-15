@@ -13,8 +13,14 @@ open Cabshelper
 
 (* TODO: gather until end of line, then decide where to split *)
 
+(* NOTE: If you find yourself getting lots of nomatch errors with
+ * parens in them, then that may mean you are printing 
+ * a cabs file that has had it's parens removed *)
+
 let tokenmap : ((string * int),int) Hashtbl.t = Hashtbl.create 1000
 let nextidx = ref 0
+
+let gonebad = ref false
 
 (* array of tokens and whitespace *)
 let tokens = GrowArray.make 0 (GrowArray.Elem  ("",""))
@@ -87,9 +93,11 @@ let print str =
         let srcwhite,srctok = GrowArray.getg tokens !curidx in
         let white = if str = srctok 
             then srcwhite
-            else begin
+            else if !gonebad then invent_white ()
+            else begin                
                 ignore (Errormsg.warnOpt "%s" ("nomatch:["^String.escaped str^"] expected:["^String.escaped srctok ^ 
                     "] - NOTE: cpp not supported"));
+                gonebad := true;
                 invent_white ()
             end in
         if !last_was_maybe && str = !last_str then () else begin
@@ -103,22 +111,26 @@ let printl strs =
     List.iter print strs   
     
 let printu str =
-    let srcwhite,srctok = GrowArray.getg tokens !curidx in
-    if chopwhite str = "" then () 
-    else if srctok = str 
-        || srctok = str ^ "__" 
-        || srctok = "__" ^ str
-        || srctok = "__" ^ str ^ "__"
-        then
-        print srctok
-    else (print_endline ("u-nomatch:["^str^"]"); print str)
+    if not !enabled then print str
+    else
+        let srcwhite,srctok = GrowArray.getg tokens !curidx in
+        if chopwhite str = "" then () 
+        else if srctok = str 
+          || srctok = str ^ "__" 
+          || srctok = "__" ^ str
+          || srctok = "__" ^ str ^ "__"
+          then
+          print srctok
+        else (print_endline ("u-nomatch:["^str^"]"); print str)
                 
 let print_maybe str =
-    let srcwhite,srctok = GrowArray.getg tokens !curidx in
-    if str = srctok then begin 
-        print str;
-        last_was_maybe := true;
-        last_str := str
+    if not !enabled then print str
+    else
+        let srcwhite,srctok = GrowArray.getg tokens !curidx in
+        if str = srctok then begin 
+            print str;
+            last_was_maybe := true;
+            last_str := str
         end else ()
 
 

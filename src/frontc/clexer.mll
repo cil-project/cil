@@ -60,7 +60,7 @@ let addComment c =
 
 (* track whitespace for the current token *)
 let white = ref ""  
-let addWhite lexbuf =
+let addWhite lexbuf = if not !Whitetrack.enabled then
     let w = Lexing.lexeme lexbuf in 
     white := !white ^ w
 let clear_white () = white := ""
