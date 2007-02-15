@@ -86,9 +86,14 @@ and alphaWorker      ~(alphaTable: (string, 'a alphaTableData ref) H.t)
               max, suffix, data, (suffix, data) :: suffixes
           | [(_, l) ] -> 
               (* We have seen this exact suffix before *)
-              if make_new then
+              if make_new then begin
+                if max >= maxSuffix then
+                  E.s (E.unimp ("Encountered a variable name containing ___ "
+                    ^^"and many digits.  This could cause overflow "
+                    ^^"in the Alpha renaming module."));
+                let newsuffix = alphaSeparator ^ (string_of_int (max + 1)) in
                 max + 1, newsuffix, l, (newsuffix, data) :: suffixes
-              else
+              end else
                 max, suffix, data, suffixes
           |  _ -> E.s (E.bug "Alpha.alphaWorker")
         end

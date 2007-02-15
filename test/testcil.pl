@@ -627,6 +627,7 @@ addTest("scott/structattr3");
 addTest("scott/enumerator_sizeof");
 addTest("testrun/decl_mix_stmt");
 addTest("scott/enumattr");
+addTest("runall/alpha");
 
 
 
