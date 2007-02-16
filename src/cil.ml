@@ -4526,7 +4526,8 @@ class type descriptiveCilPrinter = object
   method pTemps: unit -> Pretty.doc
 end
 
-class descriptiveCilPrinterClass : descriptiveCilPrinter = object (self)
+class descriptiveCilPrinterClass (enable: bool) : descriptiveCilPrinter =
+object (self)
   (** Like defaultCilPrinterClass, but instead of temporary variable
       names it prints the description that was provided when the temp was
       created.  This is usually better for messages that are printed for end
@@ -4574,18 +4575,21 @@ class descriptiveCilPrinterClass : descriptiveCilPrinter = object (self)
       but we shouldn't substitute there since "foo(a,b) = foo(a,b)"
       would make no sense to the user.)  *)
   method pExp () (e:exp) : doc =
-    match e with
-      Lval (Var vi, o)
-    | StartOf (Var vi, o) -> 
-        self#pOffset (self#pVarDescriptive vi) o
-    | AddrOf (Var vi, o) -> 
-        (* No parens needed, since offsets have higher precedence than & *)
-        text "& " ++ self#pOffset (self#pVarDescriptive vi) o
-    | _ -> super#pExp () e
+    if enable then
+      match e with
+        Lval (Var vi, o)
+      | StartOf (Var vi, o) -> 
+          self#pOffset (self#pVarDescriptive vi) o
+      | AddrOf (Var vi, o) -> 
+          (* No parens needed, since offsets have higher precedence than & *)
+          text "& " ++ self#pOffset (self#pVarDescriptive vi) o
+      | _ -> super#pExp () e
+    else
+      super#pExp () e
 end
 
 let descriptiveCilPrinter: descriptiveCilPrinter = 
-  ((new descriptiveCilPrinterClass) :> descriptiveCilPrinter)
+  ((new descriptiveCilPrinterClass true) :> descriptiveCilPrinter)
 
 let dd_exp = descriptiveCilPrinter#pExp
 

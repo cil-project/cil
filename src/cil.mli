@@ -2203,7 +2203,9 @@ class type descriptiveCilPrinter = object
   method pTemps: unit -> Pretty.doc
 end
 
-class descriptiveCilPrinterClass : descriptiveCilPrinter
+(** The boolean here enables or disables descriptive printing, allowing
+    subclasses to turn it on/off. *)
+class descriptiveCilPrinterClass : bool -> descriptiveCilPrinter
   (** Like defaultCilPrinterClass, but instead of temporary variable
       names it prints the description that was provided when the temp was
       created.  This is usually better for messages that are printed for end
