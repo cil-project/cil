@@ -2203,13 +2203,17 @@ class type descriptiveCilPrinter = object
   method pTemps: unit -> Pretty.doc
 end
 
-(** The boolean here enables or disables descriptive printing, allowing
-    subclasses to turn it on/off. *)
 class descriptiveCilPrinterClass : bool -> descriptiveCilPrinter
   (** Like defaultCilPrinterClass, but instead of temporary variable
       names it prints the description that was provided when the temp was
       created.  This is usually better for messages that are printed for end
-      users, although you may want the temporary names for debugging.  *)
+      users, although you may want the temporary names for debugging.
+    
+      The boolean here enables descriptive printing.  Usually use true
+      here, but you can set enable to false to make this class behave
+      like defaultCilPrinterClass. This allows subclasses to turn the
+      feature off. *)
+
 val descriptiveCilPrinter: descriptiveCilPrinter
 
 (** zra: This is the pretty printer that Maincil will use.
