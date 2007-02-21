@@ -1770,7 +1770,7 @@ let rec setOneInit (this: preInit)
       let idx, (* Index in the current comp *)
           restoff (* Rest offset *) =
         match o with 
-        | Index(Const(CInt64(i,_,_)), off) -> Int64.to_int i, off
+        | Index(Const(CInt64(i,_,_)), off) -> i64_to_int i, off
         | Field (f, off) -> 
             (* Find the index of the field *)
             let rec loop (idx: int) = function
@@ -1826,7 +1826,7 @@ let rec collectInitializer
             Some len -> begin
               match constFold true len with 
                 Const(CInt64(ni, _, _)) when ni >= 0L -> 
-                  (Int64.to_int ni), TArray(bt,leno,at)
+                  (i64_to_int ni), TArray(bt,leno,at)
 
               | _ -> E.s (error "Array length is not a constant expression %a"
                             d_exp len)
@@ -2500,7 +2500,7 @@ and doAttr (a: A.attribute) : attribute list =
               match H.find env n' with 
                 EnvEnum (tag, _), _ -> begin
                   match isInteger (constFold true tag) with 
-                    Some i64 when !lowerConstants -> AInt (Int64.to_int i64)
+                    Some i64 when !lowerConstants -> AInt (i64_to_int i64)
                   |  _ -> ACons(n', [])
                 end
               | _ -> ACons (n', [])
@@ -3021,8 +3021,8 @@ and getIntConstExp (aexp) : exp =
 and isIntegerConstant (aexp) : int option =
   match doExp true aexp (AExp None) with
     (c, e, _) when isEmpty c -> begin
-      match isInteger e with 
-        Some i64 -> Some (Int64.to_int i64)
+      match isInteger (Cil.constFold true e) with
+        Some i64 -> Some (i64_to_int i64)
       | _ -> None
     end
   | _ -> None
@@ -4881,7 +4881,7 @@ and doInit
                     let (doidx, idxe', _) = 
                       doExp true idx (AExp(Some intType)) in
                     match constFold true idxe', isNotEmpty doidx with
-                      Const(CInt64(x, _, _)), false -> Int64.to_int x, doidx
+                      Const(CInt64(x, _, _)), false -> i64_to_int x, doidx
                     | _ -> E.s (error 
                       "INDEX initialization designator is not a constant")
                   in
@@ -4918,7 +4918,7 @@ and doInit
               match constFold true idxs', constFold true idxe' with
                 Const(CInt64(s, _, _)), 
                 Const(CInt64(e, _, _)) -> 
-                  Int64.to_int s, Int64.to_int e
+                  i64_to_int s, i64_to_int e
               | _ -> E.s (error 
                  "INDEX_RANGE initialization designator is not a constant")
             in
@@ -6053,7 +6053,7 @@ and doStatement (s : A.statement) : chunk =
         let il, ih = 
           match constFold true el', constFold true eh' with
             Const(CInt64(il, _, _)), Const(CInt64(ih, _, _)) -> 
-              Int64.to_int il, Int64.to_int ih
+              i64_to_int il, i64_to_int ih
           | _ -> E.s (unimp "Cannot understand the constants in case range")
         in
         if il > ih then 

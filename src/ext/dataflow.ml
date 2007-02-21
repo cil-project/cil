@@ -102,7 +102,9 @@ module ForwardsDataFlow =
     (** We call this function when we have encountered a statement, with some 
      * state. *)
     let reachedStatement (s: stmt) (d: T.t) : unit = 
-      currentLoc := get_stmtLoc s.skind;
+      let loc = get_stmtLoc s.skind in
+      if loc != locUnknown then 
+        currentLoc := get_stmtLoc s.skind;
       (** see if we know about it already *)
       E.pushContext (fun _ -> dprintf "Reached statement %d with %a" 
           s.sid T.pretty d);

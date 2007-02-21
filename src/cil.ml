@@ -2289,7 +2289,7 @@ and bitsSizeOf t =
       match constFold true len with 
         Const(CInt64(l,_,_)) -> 
           let sz = Int64.mul (Int64.of_int (bitsSizeOf bt)) l in
-          let sz' = Int64.to_int sz in
+          let sz' = i64_to_int sz in
           (* Check for overflow.
              There are other places in these cil.ml that overflow can occur,
              but this multiplication is the most likely to be a problem. *)
@@ -2328,7 +2328,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
     | Index(e, off) -> begin
         let ei = 
           match isInteger e with
-            Some i64 -> Int64.to_int i64
+            Some i64 -> i64_to_int i64
           | None -> raise (SizeOfError ("index not constant", baset))
         in
         let bt = 
@@ -2550,15 +2550,15 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           kinteger64 tk (Int64.logxor i1 i2)
 
       | Shiftlt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
-          kinteger64 tk (Int64.shift_left i1 (Int64.to_int i2))
+          kinteger64 tk (Int64.shift_left i1 (i64_to_int i2))
       | Shiftlt, Const(CInt64(0L,_,_)), _ -> zero
       | Shiftlt, e1'', Const(CInt64(0L,_,_)) -> e1''
 
       | Shiftrt, Const(CInt64(i1,ik1,_)),Const(CInt64(i2,_,_)) when shiftInBounds i2 -> 
           if isunsigned ik1 then 
-            kinteger64 tk (Int64.shift_right_logical i1 (Int64.to_int i2))
+            kinteger64 tk (Int64.shift_right_logical i1 (i64_to_int i2))
           else
-            kinteger64 tk (Int64.shift_right i1 (Int64.to_int i2))
+            kinteger64 tk (Int64.shift_right i1 (i64_to_int i2))
       | Shiftrt, Const(CInt64(0L,_,_)), _ -> zero
       | Shiftrt, e1'', Const(CInt64(0L,_,_)) -> e1''
 
@@ -5939,7 +5939,7 @@ let lenOfArray (eo: exp option) : int =
   | Some e -> begin
       match constFold true e with
       | Const(CInt64(ni, _, _)) when ni >= Int64.zero -> 
-          Int64.to_int ni
+          i64_to_int ni
       | e -> raise LenOfArray
   end
   
@@ -6000,7 +6000,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' -> 
       let n =  
         match constFold true len with
-          Const(CInt64(n, _, _)) -> Int64.to_int n
+          Const(CInt64(n, _, _)) -> i64_to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -6044,7 +6044,7 @@ let foldLeftCompound
         Some lene when implicit -> begin
           match constFold true lene with 
             Const(CInt64(i, _, _)) -> 
-              let len_array = Int64.to_int i in
+              let len_array = i64_to_int i in
               let len_init = List.length initl in
               if len_array > len_init then 
                 let zi = makeZeroInit bt in

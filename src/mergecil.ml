@@ -1222,9 +1222,7 @@ begin
     (
       (* CIL changes (unsigned)0 into 0U during printing.. *)
       match xc,yc with
-      | CInt64(xv,_,_),CInt64(yv,_,_) ->
-          (Int64.to_int xv) = 0   &&     (* ok if they're both 0 *)
-          (Int64.to_int yv) = 0
+      | CInt64(0L,_,_),CInt64(0L,_,_) -> true  (* ok if they're both 0 *)
       | _,_ -> false
     )
   | Lval(xl), Lval(yl) ->          (equalLvals xl yl)
