@@ -1277,8 +1277,6 @@ Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-blockinggraph    enable the blocking graph feature
-  --with-rand             enable the randomized value numbering
-  --with-arithabs         enable the arithmetic abstraction
   --with-zrapp            enable the zrapp pretty-printer
 
 Some influential environment variables:
@@ -4958,24 +4956,12 @@ echo "${ECHO_T}done" >&6; }
 
 
 # Give a space-separated list of features with the defaults
-features="blockinggraph=no rand=no arithabs=no zrapp=no"
+features="blockinggraph=no zrapp=no"
 
 
 # Check whether --with-blockinggraph was given.
 if test "${with_blockinggraph+set}" = set; then
   withval=$with_blockinggraph;
-fi
-
-
-# Check whether --with-rand was given.
-if test "${with_rand+set}" = set; then
-  withval=$with_rand;
-fi
-
-
-# Check whether --with-arithabs was given.
-if test "${with_arithabs+set}" = set; then
-  withval=$with_arithabs;
 fi
 
 

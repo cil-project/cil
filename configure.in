@@ -501,17 +501,11 @@ AC_MSG_RESULT([done])
 
 
 # Give a space-separated list of features with the defaults
-features="blockinggraph=no rand=no arithabs=no zrapp=no"
+features="blockinggraph=no zrapp=no"
 
 AC_ARG_WITH(blockinggraph,
     AC_HELP_STRING([--with-blockinggraph],
                    [enable the blocking graph feature]))
-AC_ARG_WITH(rand,
-    AC_HELP_STRING([--with-rand],
-                   [enable the randomized value numbering]))
-AC_ARG_WITH(arithabs,
-    AC_HELP_STRING([--with-arithabs],
-                   [enable the arithmetic abstraction]))
 AC_ARG_WITH(zrapp,
     AC_HELP_STRING([--with-zrapp],
                    [enable the zrapp pretty-printer]))

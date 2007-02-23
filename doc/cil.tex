@@ -1832,6 +1832,10 @@ describes the rest of actions you can take with this module, including
 computing the CFG for one function at a time, or printing the CFG in
 \t{dot} form.
 
+\subsubsection{Inliner}
+
+ The file ext/inliner.ml contains a function inliner. 
+
 \subsubsection{Simplified control flow}
 
 CIL can reduce high-level C control-flow constructs like \t{switch} and
@@ -3206,6 +3210,7 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf February 22, 2007}: Added an inliner (ext/inliner.ml)
 \item {\bf February 21, 2007}:  We now constant-fold bitfield
   expressions.  Thanks to Virgile Prevosto for the patch.
 \item {\bf February 13, 2007}:  gcc preprocessor arguments passed

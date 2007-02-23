@@ -58,12 +58,6 @@ CILLY_FEATURES :=
 ifdef USE_BLOCKINGGRAPH
   CILLY_FEATURES += blockinggraph
 endif
-ifdef USE_RAND
-  CILLY_FEATURES += rand
-endif
-ifdef USE_ARITHABS
-  CILLY_FEATURES += arithabs
-endif
 ifdef USE_ZRAPP
   CILLY_FEATURES += rmciltmps zrapp
 endif
