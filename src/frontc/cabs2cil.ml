@@ -3013,15 +3013,10 @@ and getIntConstExp (aexp) : exp =
        the various sizeof and alignof expression kinds *)
   | _ -> e
 
-(* this is like 'isIntConstExp', but retrieves the actual integer
- * the expression denotes; I have not extended it to work with
- * sizeof/alignof since (for CCured) we can't const-eval those,
- * and it's not clear whether they can be bitfield width specifiers
- * anyway (since that's where this function is used) *)
 and isIntegerConstant (aexp) : int option =
   match doExp true aexp (AExp None) with
     (c, e, _) when isEmpty c -> begin
-      match isInteger (Cil.constFold true e) with
+      match isInteger (constFold true e) with
         Some i64 -> Some (i64_to_int i64)
       | _ -> None
     end
