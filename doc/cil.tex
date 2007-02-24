@@ -2454,7 +2454,109 @@ local variables cannot have the \t{const} qualifier.
  
 \section{Known Bugs and Limitations}
 
+\subsection{Code that CIL won't compile}
 \begin{itemize}
+\item We do not support tri-graph sequences (ISO 5.2.1.1).
+
+\item CIL cannot parse arbitrary \t{\#pragma} directives.  Their
+  syntax must follow gcc's attribute syntax to be understood.  If you
+  need a pragma that does not follow gcc syntax, add that pragma's name
+  to \t{no\_parse\_pragma} in \t{src/frontc/clexer.mll} to indicate that
+  CIL should treat that pragma as a monolithic string rather than try
+  to parse its arguments.
+
+  CIL cannot parse a line containing an empty \t{\#pragma}.
+
+\item CIL only parses \t{\#pragma} directives at the "top level", this is,
+  outside of any enum, structure, union, or function definitions.
+
+  If your compiler uses pragmas in places other than the top-level,
+  you may have to preprocess the sources in a special way (sed, perl,
+  etc.) to remove pragmas from these locations.
+
+\item CIL cannot parse the following code (fixing this problem would require
+  extensive hacking of the LALR grammar):
+\begin{code}
+int bar(int ()); // This prototype cannot be parsed
+int bar(int x()); // If you add a name to the function, it works
+int bar(int (*)()); // This also works (and it is more appropriate)
+\end{verbatim}\end{code}
+
+\item CIL also cannot parse certain K\&R old-style prototypes with missing
+  return type:
+\begin{code}
+g(); // This cannot be parsed
+int g(); // This is Ok
+\end{verbatim}\end{code}
+
+\item CIL does not understand some obscure combinations of type
+  specifiers (``signed'' and ``unsigned'' applied to typedefs that
+  themselves contain a sign specification; you could argue that this
+  should not be allowed anyway):
+\begin{code}
+typedef signed char __s8;
+__s8 unsigned uchartest; // This is unsigned char for gcc
+\end{verbatim}\end{code}
+
+\item CIL does not support constant-folding of floating-point values,
+  because it is difficult to simulate the behavior of various
+  C floating-point implementations in Ocaml.  Therefore, code such as
+  \t{int globalArray[(1.2 < 2.0) ? 5 : 6]} will not compile.
+
+\item CIL uses Ocaml ints to represent the size of an object.
+  Therefore, it can't compute the size of any object that is larger
+  than $2^{30}$ bits (134 MB) on 32-bit computers, or $2^{62}$ bits on
+  64-bit computers.
+
+\end{itemize}
+
+\subsection{Code that behaves differently under CIL}
+
+\begin{itemize}
+\item GCC has a strange feature called ``extern inline''. Such a function can
+be defined twice: first with the ``extern inline'' specifier and the second
+time without it. If optimizations are turned off then the ``extern inline''
+definition is considered a prototype (its body is ignored). If optimizations
+are turned on then the extern inline function is inlined at all of its
+occurrences from the point of its definition all the way to the point where the
+(optional) second definition appears. No body is generated for an extern
+inline function. A body is generated for the real definition and that one is
+used in the rest of the file. 
+
+CIL will assume optimizations are on, and rename your extern inline
+function (and its uses) with the suffix
+\t{\_\_extinline}. This means that if you have two such definition, that do
+different things and the optimizations are not on, then the CIL version might
+compute a different answer !
+
+Also, if you have multiple extern inline declarations then CIL will ignore
+but the first one. This is not so bad because GCC itself would not like it. 
+
+\item The implementation of \t{bitsSizeOf} does not take into account the
+  packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
+  Linux/gcc-2.95.3 and on Windows/MSVC.
+
+\item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
+  before the assignment, while \t{gcc} delays the increment after the
+  assignment. It turned out that this behavior is much easier to implement
+  than gcc's one, and either way is correct (since the behavior is unspecified
+  in this case). Similarly, if you write \t{x = x ++;} then CIL will perform
+  the increment before the assignment, whereas GCC and MSVC will perform it
+  after the assignment. 
+
+\item Because CIL uses 64-bit floating point numbers in its internal
+  representation of floating point numbers, \t{long double} constants
+  are parsed as if they were \t{double} constants.
+
+\end{itemize}
+
+\subsection{Effects of the CIL translation}
+\begin{itemize}
+\item When you use variable-length arrays, CIL turns them into
+calls to \t{alloca}. This means that they are deallocated when the function
+returns and not when the local scope ends. 
+
+Variable-length arrays are not supported as fields of a struct or union.
 
 \item In the new versions of \t{glibc} there is a function
   \t{\_\_builtin\_va\_arg} that takes a type as its second argument. CIL
@@ -2477,84 +2579,11 @@ local variables cannot have the \t{const} qualifier.
  \t{\_\_builtin\_types\_compatible\_p(sizeof t1, sizeof t2)}, but the
  sizeofs are removed when printing.
 
-\item The implementation of \t{bitsSizeOf} does not take into account the
-packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
-Linux/gcc-2.95.3 and on Windows/MSVC.
-
-\item We do not support tri-graph sequences (ISO 5.2.1.1).
-
-\item GCC has a strange feature called ``extern inline''. Such a function can
-be defined twice: first with the ``extern inline'' specifier and the second
-time without it. If optimizations are turned off then the ``extern inline''
-definition is considered a prototype (its body is ignored). If optimizations
-are turned on then the extern inline function is inlined at all of its
-occurrences from the point of its definition all the way to the point where the
-(optional) second definition appears. No body is generated for an extern
-inline function. A body is generated for the real definition and that one is
-used in the rest of the file. 
-
- CIL will rename your extern inline function (and its uses) with the suffix
- \t{\_\_extinline}. This means that if you have two such definition, that do
- different things and the optimizations are not on, then the CIL version might
- compute a different answer !
-
- Also, if you have multiple extern inline declarations then CIL will ignore
-but the first one. This is not so bad because GCC itself would not like it. 
-
-\item There are still a number of bugs in handling some obscure features of
-GCC. For example, when you use variable-length arrays, CIL turns them into
-calls to \t{alloca}. This means that they are deallocated when the function
-returns and not when the local scope ends. 
-
-Variable-length arrays are not supported as fields of a struct or union.
-
-\item CIL cannot parse arbitrary \t{\#pragma} directives.  Their
-  syntax must follow gcc's attribute syntax to be understood.  If you
-  need a pragma that does not follow gcc syntax, add that pragma's name
-  to \t{no\_parse\_pragma} in \t{src/frontc/clexer.mll} to indicate that
-  CIL should treat that pragma as a monolithic string rather than try
-  to parse its arguments.
-
-  CIL cannot parse a line containing an empty \t{\#pragma}.
-
-\item CIL only parses \t{\#pragma} directives at the "top level", this is,
-  outside of any enum, structure, union, or function definitions.
-
-  If your compiler uses pragmas in places other than the top-level,
-  you may have to preprocess the sources in a special way (sed, perl,
-  etc.) to remove pragmas from these locations.
-
-\item CIL cannot parse the following code (fixing this problem would require
-extensive hacking of the LALR grammar):
-\begin{code}
-int bar(int ()); // This prototype cannot be parsed
-int bar(int x()); // If you add a name to the function, it works
-int bar(int (*)()); // This also works (and it is more appropriate)
-\end{verbatim}\end{code}
-
-\item CIL also cannot parse certain K\&R old-style prototypes with missing
-return type:
-\begin{code}
-g(); // This cannot be parsed
-int g(); // This is Ok
-\end{verbatim}\end{code}
-
-\item CIL does not understand some obscure combinations of type specifiers
-(``signed'' and ``unsigned'' applied to typedefs that themselves contain a
-sign specification; you could argue that this should not be allowed anyway):
-\begin{code}
-typedef signed char __s8;
-__s8 unsigned uchartest; // This is unsigned char for gcc
-\end{verbatim}\end{code}
-
-\item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
-  before the assignment, while \t{gcc} delays the increment after the
-  assignment. It turned out that this behavior is much easier to implement
-  than gcc's one, and either way is correct (since the behavior is unspecified
-  in this case). Similarly, if you write \t{x = x ++;} then CIL will perform
-  the increment before the assignment, whereas GCC and MSVC will perform it
-  after the assignment. 
 \end{itemize}
+
+
+
+
 
   \section{Using the merger}\label{sec-merger}\cutname{merger.html}
 
