@@ -78,6 +78,25 @@ let numNodes = ref 0 (* number of nodes in the CFG *)
 let nodeList : stmt list ref = ref [] (* All the nodes in a flat list *) (* ab: Added to change dfs from quadratic to linear *)
 let start_id = ref 0 (* for unique ids across many functions *)
 
+class caseLabeledStmtFinder slr = object(self)
+    inherit nopCilVisitor
+    
+    method vstmt s =
+        if List.exists (fun l ->
+            match l with | Case(_, _) | Default _ -> true | _ -> false)
+            s.labels
+        then begin
+            slr := s :: (!slr);
+            DoChildren
+        end else DoChildren
+end
+
+let findCaseLabeledStmts (b : block) : stmt list =
+    let slr = ref [] in
+    let vis = new caseLabeledStmtFinder slr in
+    ignore(visitCilBlock vis b);
+    !slr
+
 (* entry point *)
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
@@ -109,6 +128,7 @@ and cfgStmts (ss: stmt list)
 and cfgBlock  (blk: block) 
               (next:stmt option) (break:stmt option) (cont:stmt option) = 
    cfgStmts blk.bstmts next break cont
+
 
 (* Fill in the CFG info for a stmt
    Meaning of next, break, cont should be clear from earlier comment
@@ -162,14 +182,15 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
   | Block b -> 
       addBlockSucc b;
       cfgBlock b next break cont
-  | Switch(_,blk,l,_) -> 
-      List.iter addSucc (List.rev l); (* Add successors in order *)
+  | Switch(_,blk,l,_) ->
+      let bl = findCaseLabeledStmts blk in
+      List.iter addSucc (List.rev bl(*l*)); (* Add successors in order *)
       (* sfg: if there's no default, need to connect s->next *)
       if not (List.exists 
                 (fun stmt -> List.exists 
                    (function Default _ -> true | _ -> false)
                    stmt.labels) 
-                l) 
+                bl) 
       then 
         addOptionSucc next;
       cfgBlock blk next next cont
