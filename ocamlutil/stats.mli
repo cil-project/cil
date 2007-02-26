@@ -48,6 +48,11 @@ type timerModeEnum =
 val reset: timerModeEnum -> unit
 exception NoPerfCount
 
+(** Flag to indicate whether or not to count the number of calls of
+    to {!Stats.repeattime} or {!Stats.time} for each label.
+    (default: false) *)
+val countCalls: bool ref
+
 (** Check if we have performance counters *)
 val has_performance_counters: unit -> bool
                            

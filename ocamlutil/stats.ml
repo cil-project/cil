@@ -30,15 +30,20 @@ type timerModeEnum =
    HardwareIfAvail is handled in reset. *)
 let timerMode = ref Disabled
 
+(* Flag for counting number of calls *)
+let countCalls = ref false
+
                                         (* A hierarchy of timings *)
 
 type t = { name : string;
            mutable time : float; (* In seconds *)
+	   mutable ncalls : int;
            mutable sub  : t list}
 
                                         (* Create the top level *)
 let top = { name = "TOTAL";
             time = 0.0;
+	    ncalls = 0;
             sub  = []; }
 
                                         (* The stack of current path through 
@@ -70,14 +75,23 @@ let print chn msg =
   (* Total up *)
   top.time <- List.fold_left (fun sum f -> sum +. f.time) 0.0 top.sub;
   let rec prTree ind node = 
-    if !timerMode = HardwareTimer then 
-      (Printf.fprintf chn "%s%-25s      %8.5f s\n" 
-         (String.make ind ' ') node.name node.time)
-    else
-      (Printf.fprintf chn "%s%-25s      %6.3f s\n" 
-         (String.make ind ' ') node.name node.time);
-
-   List.iter (prTree (ind + 2)) (List.rev node.sub)
+    begin
+      if !timerMode = HardwareTimer then 
+	(Printf.fprintf chn "%s%-25s      %8.5f s" 
+           (String.make ind ' ') node.name node.time)
+      else
+	(Printf.fprintf chn "%s%-25s      %6.3f s" 
+           (String.make ind ' ') node.name node.time)
+    end;
+    begin
+      if node.ncalls <= 0 then
+	output_string chn "\n" 
+      else if node.ncalls = 1 then
+	output_string chn "  (1 call)\n"
+      else
+	(Printf.fprintf chn "  (%d calls)\n" node.ncalls)
+    end;
+    List.iter (prTree (ind + 2)) (List.rev node.sub)
   in
   Printf.fprintf chn "%s" msg; 
   List.iter (prTree 0) [ top ];
@@ -119,7 +133,7 @@ let repeattime limit str f arg =
         h :: _ when h.name = str -> h
       | _ :: rest -> loop rest
       | [] -> 
-          let nw = {name = str; time = 0.0; sub = []} in
+          let nw = {name = str; time = 0.0; ncalls = 0; sub = []} in
           curr.sub <- nw :: curr.sub;
           nw
     in
@@ -129,13 +143,25 @@ let repeattime limit str f arg =
   current := stat :: oldcurrent;
   let start = get_current_time () in
   let rec repeatf count = 
-    let res   = f arg in
+    let finish diff =
+      (* count each call to repeattime once *)
+      if !countCalls then stat.ncalls <- stat.ncalls + 1;
+      stat.time <- stat.time +. (diff /. float(count));
+      current := oldcurrent;                (* Pop the current stat *)
+      ()
+    in
+    let res   =
+      try f arg
+      with e ->
+	let diff = get_current_time () -. start in
+	finish diff;
+	raise e
+    in
     let diff = get_current_time () -. start in
     if diff < limit then
       repeatf (count + 1)
     else begin
-      stat.time <- stat.time +. (diff /. float(count));
-      current := oldcurrent;                (* Pop the current stat *)
+      finish diff;
       res                                   (* Return the function result *)
     end
   in
