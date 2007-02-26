@@ -87,8 +87,12 @@ class caseLabeledStmtFinder slr = object(self)
             s.labels
         then begin
             slr := s :: (!slr);
-            DoChildren
-        end else DoChildren
+            match s.skind with
+            | Switch(_,_,_,_) -> SkipChildren
+            | _ -> DoChildren
+        end else match s.skind with
+        | Switch(_,_,_,_) -> SkipChildren
+        | _ -> DoChildren
 end
 
 let findCaseLabeledStmts (b : block) : stmt list =
