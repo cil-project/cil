@@ -301,17 +301,16 @@ and checkPointerType (t: typ) =
 
 
 and typeMatch (t1: typ) (t2: typ) = 
-  ()
   (* Allow mismatches in const-ness, so that string literals can be used
      as char*s *)
-(*   if typeSigIgnoreConst t1 <> typeSigIgnoreConst t2 then *)
-(*     match unrollType t1, unrollType t2 with *)
-(*     (\* Allow free interchange of TInt and TEnum *\) *)
-(*       TInt (IInt, _), TEnum _ -> () *)
-(*     | TEnum _, TInt (IInt, _) -> () *)
+  if typeSigIgnoreConst t1 <> typeSigIgnoreConst t2 then
+    match unrollType t1, unrollType t2 with
+    (* Allow free interchange of TInt and TEnum *)
+      TInt (IInt, _), TEnum _ -> ()
+    | TEnum _, TInt (IInt, _) -> ()
 
-(*     | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!"  *)
-(*                         d_type t1 d_type t2) *)
+    | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!"
+                        d_type t1 d_type t2)
 
 and checkCompInfo (isadef: defuse) comp = 
   let fullname = compFullName comp in
