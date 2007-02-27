@@ -46,8 +46,10 @@ open Pretty
 type checkFlags = 
     NoCheckGlobalIds   (* Do not check that the global ids have the proper 
                         * hash value *)
-
+    | IgnoreInstructions of (instr -> bool) (* Ignore the specified instructions *)
+        
 let checkGlobalIds = ref true
+let ignoreInstr = ref (fun i -> false)
 
   (* Attributes must be sorted *)
 type ctxAttr = 
@@ -274,44 +276,42 @@ let rec checkType (t: typ) (ctx: ctxType) =
 (* Check that a type is a promoted integral type *)
 and checkIntegralType (t: typ) = 
   checkType t CTExp;
-  match unrollType t with
-    TInt _ -> ()
-  | _ -> ignore (warn "Non-integral type")
+  if not (isIntegralType t) then
+    ignore (warn "Non-integral type")
 
 (* Check that a type is a promoted arithmetic type *)
 and checkArithmeticType (t: typ) = 
   checkType t CTExp;
-  match unrollType t with
-    TInt _ | TFloat _ -> ()
-  | _ -> ignore (warn "Non-arithmetic type")
+  if not (isArithmeticType t) then
+    ignore (warn "Non-arithmetic type")
 
 (* Check that a type is a promoted boolean type *)
 and checkBooleanType (t: typ) = 
   checkType t CTExp;
   match unrollType t with
-    TInt _ | TFloat _ | TPtr _ -> ()
+    TInt _ | TEnum _ | TFloat _ | TPtr _ -> ()
   | _ -> ignore (warn "Non-boolean type")
 
 
 (* Check that a type is a pointer type *)
 and checkPointerType (t: typ) = 
   checkType t CTExp;
-  match unrollType t with
-    TPtr _ -> ()
-  | _ -> ignore (warn "Non-pointer type")
+  if not (isPointerType t) then
+    ignore (warn "Non-pointer type")
 
 
 and typeMatch (t1: typ) (t2: typ) = 
+  ()
   (* Allow mismatches in const-ness, so that string literals can be used
      as char*s *)
-  if typeSigIgnoreConst t1 <> typeSigIgnoreConst t2 then
-    match unrollType t1, unrollType t2 with
-    (* Allow free interchange of TInt and TEnum *)
-      TInt (IInt, _), TEnum _ -> ()
-    | TEnum _, TInt (IInt, _) -> ()
+(*   if typeSigIgnoreConst t1 <> typeSigIgnoreConst t2 then *)
+(*     match unrollType t1, unrollType t2 with *)
+(*     (\* Allow free interchange of TInt and TEnum *\) *)
+(*       TInt (IInt, _), TEnum _ -> () *)
+(*     | TEnum _, TInt (IInt, _) -> () *)
 
-    | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!" 
-                        d_type t1 d_type t2)
+(*     | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!"  *)
+(*                         d_type t1 d_type t2) *)
 
 and checkCompInfo (isadef: defuse) comp = 
   let fullname = compFullName comp in
@@ -778,6 +778,8 @@ and checkBlock (b: block) : unit =
 
 
 and checkInstr (i: instr) = 
+  if !ignoreInstr i then ()
+  else
   match i with 
   | Set (dest, e, l) -> 
       currentLoc := l;
@@ -988,7 +990,9 @@ let checkFile flags fl =
   valid := true;
   List.iter 
     (function
-        NoCheckGlobalIds -> checkGlobalIds := false)
+        NoCheckGlobalIds -> checkGlobalIds := false
+      | IgnoreInstructions f -> ignoreInstr := f
+    )
     flags;
   iterGlobals fl (fun g -> try checkGlobal g with _ -> ());
   (* Check that for all struct/union tags there is a definition *)

@@ -6559,8 +6559,8 @@ let initCIL () =
     char_is_unsigned := !theMachine.M.char_is_unsigned;
     little_endian := !theMachine.M.little_endian;
     underscore_name := !theMachine.M.underscore_name;
-    nextGlobalVID := 1;
-    nextCompinfoKey := 1;
+(*     nextGlobalVID := 1; *)
+(*     nextCompinfoKey := 1; *)
 
     initCIL_called := true;
     if !msvcMode then

@@ -2501,7 +2501,10 @@ __s8 unsigned uchartest; // This is unsigned char for gcc
 \item CIL does not support constant-folding of floating-point values,
   because it is difficult to simulate the behavior of various
   C floating-point implementations in Ocaml.  Therefore, code such as
-  \t{int globalArray[(1.2 < 2.0) ? 5 : 6]} will not compile.
+\begin{code}
+  int globalArray[(1.0 < 2.0) ? 5 : 50]
+\end{verbatim}\end{code}
+  will not compile.
 
 \item CIL uses Ocaml ints to represent the size of an object.
   Therefore, it can't compute the size of any object that is larger
