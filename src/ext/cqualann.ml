@@ -183,15 +183,15 @@ let globalAnn label args:  global =
   let annstr = "#ANN(" ^ label ^", " ^ args ^")" in
   GAsm(annstr, !currentLoc)
   
-let localAnn label args: instr =
-  let annstr = "#ANN(" ^ label ^", " ^ args ^ ") " in
-  Asm([], [annstr], [], [], [], !currentLoc)
+(* let localAnn label args: instr = *)
+(*   let annstr = "#ANN(" ^ label ^", " ^ args ^ ") " in *)
+(*   Asm([], [annstr], [], [], [], !currentLoc) *)
 
-let localVarAnn label func v typ: instr =
+let localVarAnn label func v typ sz: instr =
   (*combine the function name and the var name *)
   let vname = quotedLabel (func.svar.vname ^ ":" ^ v.vname) in
   (* FIXME: are the input/outputs right? *)
-  let annstr = "#ANN(" ^ label ^", " ^ vname ^ ", \"%0\", " ^ typ ^ ") " in
+  let annstr = "#ANN(" ^ label ^", " ^ vname ^ ", " ^ typ ^ ", " ^ sz ^ ", %0) " in
   let lv = if isArrayType v.vtype then
     (Var v, Index(Cil.zero, NoOffset))
   else
@@ -212,7 +212,7 @@ let globalarrayANN = "ANN_GLOBALARRAY"
 
 let allocANN = "ANN_ALLOC"
 let localANN = "ANN_LOCAL"
-let localarrayANN = "ANN_LOCALARRAY"
+(* let localarrayANN = "ANN_LOCALARRAY" *)
   
 
 (*******   Strings  *******)
@@ -317,11 +317,12 @@ class annotationVisitor
           TArray (bt, Some size, a) ->
             let size' = isInteger (constFold true size) in
             if size' = None then E.s (error "Non-constant array size");
-            let size'' = Int64.to_int (Util.valOf size') in
+            let size'' = (Int64.to_int (Util.valOf size'))
+                         * (bitsSizeOf bt / 8) in
             let t = encodeType bt in
             self#queueInstr 
-              [localVarAnn localarrayANN currentFunction v 
-                 ((quoted t) ^ ", " ^ (stringOf size''))];
+              [localVarAnn localANN currentFunction v 
+                 (quoted t) (stringOf size'')];
             ()
         | TArray _ -> E.s (unimp "array without a size")
         | _ -> ()
@@ -363,7 +364,6 @@ class annotationVisitor
             else if ci.cstruct then begin
               (* ignore (E.log "printing struct \"%s\"\n" ci.cname ); *)
               let annstr = ref (quoted ci.cname) in
-              let isMetaStruct = Util.hasPrefix "meta_" ci.cname in
               List.iter
                 (fun fi ->
                    if fi.fname = Cil.missingFieldName then
