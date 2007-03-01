@@ -3322,6 +3322,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               else
                 str, FDouble
             in
+            if kind = FLongDouble then
+              (* We only have 64-bit values in Ocaml *)
+              E.log "treating long double constant %s as double constant."
+                str;
             try
               finishExp empty 
                 (Const(CReal(float_of_string baseint, kind,
@@ -3330,6 +3334,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str 
                         (Printexc.to_string e));
+              E.hadErrors := true;
               let res = Const(CStr "booo CONS_FLOAT") in
               finishExp empty res (typeOf res)
             end

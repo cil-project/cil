@@ -2501,10 +2501,10 @@ __s8 unsigned uchartest; // This is unsigned char for gcc
 \item CIL does not support constant-folding of floating-point values,
   because it is difficult to simulate the behavior of various
   C floating-point implementations in Ocaml.  Therefore, code such as
+  this will not compile:
 \begin{code}
-  int globalArray[(1.0 < 2.0) ? 5 : 50]
+int globalArray[(1.0 < 2.0) ? 5 : 50]
 \end{verbatim}\end{code}
-  will not compile.
 
 \item CIL uses Ocaml ints to represent the size of an object.
   Therefore, it can't compute the size of any object that is larger
@@ -2539,6 +2539,9 @@ but the first one. This is not so bad because GCC itself would not like it.
   packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
   Linux/gcc-2.95.3 and on Windows/MSVC.
 
+\item \t{-malign-double} is ignored, as are \t{gcc}'s attributes for
+  packing and alignment.
+
 \item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
   before the assignment, while \t{gcc} delays the increment after the
   assignment. It turned out that this behavior is much easier to implement
@@ -2555,11 +2558,20 @@ but the first one. This is not so bad because GCC itself would not like it.
 
 \subsection{Effects of the CIL translation}
 \begin{itemize}
-\item When you use variable-length arrays, CIL turns them into
-calls to \t{alloca}. This means that they are deallocated when the function
-returns and not when the local scope ends. 
+\item CIL cleans up C code in various ways that may suppress compiler
+  warnings.  For example, CIL will add casts where they are needed
+  while \t{gcc} might print a warning for the missing cast.  It is
+  not a goal of CIL to emit such warnings --- we support several
+  versions of several different compilers, and mimicking the warnings
+  of each is simply not possible.  If you want to see compiler
+  warnings, compile your program with your favorite compiler before
+  using CIL.
 
-Variable-length arrays are not supported as fields of a struct or union.
+\item When you use variable-length arrays, CIL turns them into calls
+  to \t{alloca}. This means that they are deallocated when the
+  function returns and not when the local scope ends.
+
+  Variable-length arrays are not supported as fields of a struct or union.
 
 \item In the new versions of \t{glibc} there is a function
   \t{\_\_builtin\_va\_arg} that takes a type as its second argument. CIL
