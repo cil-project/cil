@@ -183,9 +183,11 @@ let globalAnn label args:  global =
   let annstr = "#ANN(" ^ label ^", " ^ args ^")" in
   GAsm(annstr, !currentLoc)
   
-(* let localAnn label args: instr = *)
-(*   let annstr = "#ANN(" ^ label ^", " ^ args ^ ") " in *)
-(*   Asm([], [annstr], [], [], [], !currentLoc) *)
+let volatile = [Attr("volatile", [])]
+
+let isAllocFun (vf:varinfo) : bool =
+  vf.vname = "malloc" || vf.vname = "calloc" || vf.vname = "realloc"
+
 
 let localVarAnn label func v typ sz: instr =
   (*combine the function name and the var name *)
@@ -214,6 +216,9 @@ let allocANN = "ANN_ALLOC"
 let localANN = "ANN_LOCAL"
 (* let localarrayANN = "ANN_LOCALARRAY" *)
   
+let allocAnn typeStr: instr =
+  let annstr = "#ANN(" ^ allocANN ^", " ^ (quoted typeStr) ^ ") " in
+  Asm(volatile, [annstr], [], [], [], !currentLoc)
 
 (*******   Strings  *******)
 
@@ -328,6 +333,18 @@ class annotationVisitor
         | _ -> ()
     end;
     DoChildren
+  end
+
+  method vinst i = begin
+    match i with 
+        Call (Some dest, Lval(Var vf, NoOffset), _, _) when (isAllocFun vf) 
+          && not (isVoidPtrType (typeOfLval dest)) ->
+          begin
+            let t = encodeType (typeOfLval dest) in
+            self#queueInstr [allocAnn t];
+            DoChildren
+          end
+      | _ -> DoChildren
   end
 
   method vglob g = begin
@@ -455,7 +472,9 @@ let feature : featureDescr =
   { fd_name = "CqualAnn";
     fd_enabled = enableAnn;
     fd_description = "adding assembly annotations for Cqual qualifiers." ;
-    fd_extraopt = [];
+    fd_extraopt = [ "--doCollapseCallCast", 
+                    Arg.Set Cabs2cil.doCollapseCallCast,
+                    "use this flag to improve handling of malloc" ];
     fd_doit = entry_point;
     fd_post_check = true
   } 
