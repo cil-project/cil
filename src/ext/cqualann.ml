@@ -40,7 +40,8 @@ let const_attribute      = "const"
 let tainted_attribute    = "EQ_tainted"
 let poly_taint_attribute = "Poly_tainted"
 
-let builtinLongLong = "builtinLongLong"
+let builtinTLongLong = "builtinTaintedLongLong"
+let builtinULongLong = "builtinUntaintedLongLong"
 
 (* Checks whether the given type has a the "tainted" attribute.
  *)
@@ -119,37 +120,64 @@ let unimplementedT t =
             d_type t d_attrlist (typeAttrs t));
 (*   raise Unimp *)
   incr uniqueUnimplLabel;
-  "unimplemented"^(stringOf !uniqueUnimplLabel)
+  text "unimplemented" ++ num !uniqueUnimplLabel
 
-let rec encodeType (t:typ):string = 
+let rec encodeType (t:typ): doc = 
   let unimplemented () = unimplementedT t in
-  let taint =
-    let a = typeAttrs t in
-    if hasAttribute tainted_attribute a then
-      "T" 
-    else begin
-      match filterAttributes poly_taint_attribute a with
-          [] -> "U"
-        | [Attr(s, [AStr varname])] -> "P("^varname^")"
-        | _ -> E.s (error "bad attributesin %a." d_plaintype t)
-    end
+  let makeType str ty: doc =
+    chr '(' ++ text str ++ chr ' ' ++ ty ++ chr ')' 
   in
-  match unrollType t with
+  let a = typeAttrs t in
+  let t' = 
+    match unrollType t with
       TInt _ as t' when bitsSizeOf t' = 32 -> (*int, uint, long, ulong*)
-         taint^"int"
-    | TInt _ as t' when bitsSizeOf t' = 8 -> taint^"char"
-    | TInt _ as t' when bitsSizeOf t' = 16 -> taint^"short"
+        text "int"
+    | TInt _ as t' when bitsSizeOf t' = 8 ->  text "char"
+    | TInt _ as t' when bitsSizeOf t' = 16 -> text "short"
     | TInt _ as t' when bitsSizeOf t' = 64 ->  (* long long *)
-        "_"^taint^builtinLongLong
+        if hasAttribute tainted_attribute a then
+          text builtinTLongLong
+        else
+          text builtinULongLong
+    | TComp(ci, _) when ci.cstruct ->
+        text ci.cname
+    | TFun _ -> encodeFuncType t
+    | TVoid _ -> text "void"
     | TPtr(bt, _) -> begin
         let bt' = encodeType bt in
-        taint^"*" ^ bt'
+        makeType "ptr" bt'
       end
-    | TComp(ci, _) when ci.cstruct ->
-        "_" ^ ci.cname
-    | TVoid _ -> taint^"void"
     | _ -> 
-        taint^(unimplemented ())
+        unimplemented ()
+  in
+  if isVoidType t || isFunctionType t then
+    t'
+  else if hasAttribute tainted_attribute a then
+    makeType "tainted" t'
+  else begin
+    match filterAttributes poly_taint_attribute a with
+      [] -> makeType "untainted" t'
+    | [Attr(s, [AStr varname])] -> 
+        text "(poly " ++ text varname ++ chr ' ' ++ t' ++ chr ')' 
+    | _ ->
+        E.s (error "bad attributes in %a." d_plaintype t)
+  end
+
+and encodeFuncType = function
+    TFun(rt, args, va, a) -> 
+      (* FIXME: varargs *)
+      if va then
+        ignore (warn "vararg functions unimplemented.");
+      if a <> [] then
+        ignore (warn "function attributes unimplemented.");
+      let params: doc = 
+        docList ~sep:(chr ' ') (fun (_, t, _) ->
+                                  encodeType t)
+          () (argsToList args)
+      in
+      text "(func " ++ encodeType rt ++ chr ' ' ++ params ++ chr ')'
+  | _ ->
+      E.s (bug "nonfunc in encodeFuncType")
 
 
 (* For arrays inside structs, unroll them into "len" different fields *)
@@ -161,10 +189,10 @@ let encodeArrayType (fieldName:string) (t:typ) =
   let acc: doc list ref = ref [] in
   let typestr = encodeType bt in
   for i = len - 1 downto 0 do
-    let d = dprintf ", \"%s%d\", \"%s\"" fieldName i typestr in
+    let d = dprintf " \"%s%d\" %a" fieldName i insert typestr in
     acc := d::!acc
   done;
-  Pretty.sprint 10000 (docList ~sep:nil (fun x -> x) () !acc)
+  (docList ~sep:nil (fun x -> x) () !acc)
 
 
 (*******  Annotation macros  *****************************************)
@@ -172,15 +200,22 @@ let encodeArrayType (fieldName:string) (t:typ) =
 let quoted s: string =
   "\"" ^ s ^ "\""
 
+let quotedDoc d: doc =
+  text "\"" ++ d ++ text "\""
+
 (* Like quoted, but prepends _ to identifiers if Cil.underscore_name is true.*)
-let quotedLabel s: string = 
+let quotedLabel s: doc = 
   if !Cil.underscore_name then
-    "\"_" ^ s ^ "\""
+    text ("\"_" ^ s ^ "\"")
   else 
-    "\"" ^ s ^ "\""
+     text ("\"" ^ s ^ "\"")
     
+let strOf (d:doc):string = 
+  sprint 1024 d
+
+
 let globalAnn label args:  global =
-  let annstr = "#ANN(" ^ label ^", " ^ args ^")" in
+  let annstr = "#ANN(" ^ label ^", " ^ (strOf args) ^")" in
   GAsm(annstr, !currentLoc)
   
 let volatile = [Attr("volatile", [])]
@@ -193,13 +228,15 @@ let localVarAnn label func v typ sz: instr =
   (*combine the function name and the var name *)
   let vname = quotedLabel (func.svar.vname ^ ":" ^ v.vname) in
   (* FIXME: are the input/outputs right? *)
-  let annstr = "#ANN(" ^ label ^", " ^ vname ^ ", " ^ typ ^ ", " ^ sz ^ ", %0) " in
+  let annstr = dprintf "#ANN(%s, %a, %a, %d, %%0)"
+                 label  insert vname insert typ  sz 
+  in
   let lv = if isArrayType v.vtype then
     (Var v, Index(Cil.zero, NoOffset))
   else
     (Var v, NoOffset)
   in
-  Asm([], [annstr], [None, "=m", lv], 
+  Asm([], [strOf annstr], [None, "=m", lv], 
       (* ["0", Lval(lv)] *)
       [], [], !currentLoc)
 
@@ -217,8 +254,8 @@ let localANN = "ANN_LOCAL"
 (* let localarrayANN = "ANN_LOCALARRAY" *)
   
 let allocAnn typeStr: instr =
-  let annstr = "#ANN(" ^ allocANN ^", " ^ (quoted typeStr) ^ ") " in
-  Asm(volatile, [annstr], [], [], [], !currentLoc)
+  let annstr = dprintf "#ANN(%s, %a)" allocANN insert (quotedDoc typeStr) in
+  Asm(volatile, [strOf annstr], [], [], [], !currentLoc)
 
 (*******   Strings  *******)
 
@@ -285,16 +322,8 @@ let annotateFundec fv =
   else begin
     H.add annotatedFunctions fv ();
     let fname = fv.vname in
-    let rt, args, _, _ = splitFunctionType fv.vtype in
-    let rec doParams = function
-      | (_, t, _)::rest ->
-          let t' = encodeType t in
-          ", " ^ quoted t' ^ (doParams rest)
-      | [] -> ""
-    in
-    let typestr = quotedLabel fname ^ ", "
-                  ^ quoted (encodeType rt)
-                  ^ doParams (argsToList args) in
+    let ftype = encodeFuncType fv.vtype in
+    let typestr = quotedLabel fname ++ text ", " ++ ftype in
     let ann = globalAnn funcANN typestr in
     Some ann
   end
@@ -327,7 +356,7 @@ class annotationVisitor
             let t = encodeType bt in
             self#queueInstr 
               [localVarAnn localANN currentFunction v 
-                 (quoted t) (stringOf size'')];
+                 (quotedDoc t) size''];
             ()
         | TArray _ -> E.s (unimp "array without a size")
         | _ -> ()
@@ -380,17 +409,17 @@ class annotationVisitor
             end
             else if ci.cstruct then begin
               (* ignore (E.log "printing struct \"%s\"\n" ci.cname ); *)
-              let annstr = ref (quoted ci.cname) in
+              let annstr = ref (text (quoted ci.cname)) in
               List.iter
                 (fun fi ->
                    if fi.fname = Cil.missingFieldName then
                      E.s (unimp "not a real field? in %a" d_global g);
                    if isArrayType fi.ftype then 
-                     annstr := !annstr ^ encodeArrayType fi.fname fi.ftype
+                     annstr := !annstr ++ encodeArrayType fi.fname fi.ftype
                    else begin
                      let typestr = encodeType fi.ftype in
-                     annstr := !annstr ^ ", " ^ quoted fi.fname 
-                                       ^ ", " ^ quoted typestr
+                     annstr := !annstr ++ text ", " ++ text (quoted fi.fname)
+                                       ++ text ", " ++ typestr
                    end)
                 ci.cfields;
               let ann = globalAnn structANN !annstr in
@@ -419,15 +448,14 @@ class annotationVisitor
                   TArray _ ->
                     let size, bt = getSize vi.vtype in
                     globalAnn globalarrayANN
-                      (quotedLabel vi.vname
-                       ^ ", " 
-                       ^ quoted (encodeType bt)
-                       ^ ", " 
-                       ^ (stringOf size))
+                      (dprintf "%a, %a, %d" 
+                         insert (quotedLabel vi.vname)
+                         insert (encodeType bt)
+                         size)
                 | TFun _ -> E.s (bug "Use GVarDecl for function prototypes.")
                 | _ -> globalAnn globalANN (quotedLabel vi.vname
-                                            ^ ", " 
-                                            ^ quoted (encodeType vi.vtype))
+                                            ++ text ", " 
+                                            ++ encodeType vi.vtype)
             in
             ChangeDoChildrenPost( 
               [ann; g],
@@ -449,10 +477,10 @@ let entry_point (f : file) =
   ignore (E.log "Annotating function parameters.\n");
   let longlongU =
     globalAnn structANN 
-      ("\"UbuiltinLongLong\", \"q1\", \"Uint\", \"q2\", \"Uint\"") in
+      (text "\"builtinUntaintedLongLong\", \"q1\", (untainted int), \"q2\", (untainted int)") in
   let longlongT =
     globalAnn structANN 
-      ("\"TbuiltinLongLong\", \"q1\", \"Tint\", \"q2\", \"Tint\"") in
+      (text "\"builtinTaintedLongLong\", \"q1\", (tainted int), \"q2\", (tainted int)") in
   newGlobals := [longlongU; longlongT];
   visitCilFileSameGlobals (new stringVisitor :>cilVisitor) f;
   f.globals <- Util.list_append !newGlobals f.globals;
