@@ -128,40 +128,38 @@ let rec encodeType (t:typ): doc =
     chr '(' ++ text str ++ chr ' ' ++ ty ++ chr ')' 
   in
   let a = typeAttrs t in
-  let t' = 
-    match unrollType t with
-      TInt _ as t' when bitsSizeOf t' = 32 -> (*int, uint, long, ulong*)
-        text "int"
-    | TInt _ as t' when bitsSizeOf t' = 8 ->  text "char"
-    | TInt _ as t' when bitsSizeOf t' = 16 -> text "short"
-    | TInt _ as t' when bitsSizeOf t' = 64 ->  (* long long *)
-        if hasAttribute tainted_attribute a then
-          text builtinTLongLong
-        else
-          text builtinULongLong
-    | TComp(ci, _) when ci.cstruct ->
-        text ci.cname
-    | TFun _ -> encodeFuncType t
-    | TVoid _ -> text "void"
-    | TPtr(bt, _) -> begin
-        let bt' = encodeType bt in
-        makeType "ptr" bt'
-      end
-    | _ -> 
-        unimplemented ()
+  let addTaint t' = 
+    if hasAttribute tainted_attribute a then
+      makeType "tainted" t'
+    else begin
+      match filterAttributes poly_taint_attribute a with
+        [] -> makeType "untainted" t'
+      | [Attr(s, [AStr varname])] -> 
+          text "(poly " ++ text varname ++ chr ' ' ++ t' ++ chr ')' 
+      | _ ->
+          E.s (error "bad attributes in %a." d_plaintype t)
+    end
   in
-  if isVoidType t || isFunctionType t then
-    t'
-  else if hasAttribute tainted_attribute a then
-    makeType "tainted" t'
-  else begin
-    match filterAttributes poly_taint_attribute a with
-      [] -> makeType "untainted" t'
-    | [Attr(s, [AStr varname])] -> 
-        text "(poly " ++ text varname ++ chr ' ' ++ t' ++ chr ')' 
-    | _ ->
-        E.s (error "bad attributes in %a." d_plaintype t)
-  end
+  match unrollType t with
+    TInt _ as t' when bitsSizeOf t' = 32 -> (*int, uint, long, ulong*)
+      addTaint (text "int")
+  | TInt _ as t' when bitsSizeOf t' = 8 ->  addTaint (text "char")
+  | TInt _ as t' when bitsSizeOf t' = 16 -> addTaint (text "short")
+  | TInt _ as t' when bitsSizeOf t' = 64 ->  (* long long *)
+      if hasAttribute tainted_attribute a then
+        text builtinTLongLong
+      else
+        text builtinULongLong
+  | TComp(ci, _) when ci.cstruct ->
+      text ci.cname
+  | TFun _ -> encodeFuncType t
+  | TVoid _ -> text "void"
+  | TPtr(bt, _) -> begin
+      let bt' = encodeType bt in
+      addTaint (makeType "ptr" bt')
+    end
+  | _ -> 
+      unimplemented ()
 
 and encodeFuncType = function
     TFun(rt, args, va, a) -> 
@@ -175,7 +173,14 @@ and encodeFuncType = function
                                   encodeType t)
           () (argsToList args)
       in
-      text "(func " ++ encodeType rt ++ chr ' ' ++ params ++ chr ')'
+      let rt' =
+        if bitsSizeOf rt > 32 then begin
+          E.log "The Cqual verifier doesn't currently support multi-word return values.";
+          unimplementedT rt
+        end
+        else encodeType rt
+      in
+      text "(func " ++ rt' ++ chr ' ' ++ params ++ chr ')'
   | _ ->
       E.s (bug "nonfunc in encodeFuncType")
 
@@ -189,7 +194,7 @@ let encodeArrayType (fieldName:string) (t:typ) =
   let acc: doc list ref = ref [] in
   let typestr = encodeType bt in
   for i = len - 1 downto 0 do
-    let d = dprintf " \"%s%d\" %a" fieldName i insert typestr in
+    let d = dprintf ", \"%s%d\", %a" fieldName i insert typestr in
     acc := d::!acc
   done;
   (docList ~sep:nil (fun x -> x) () !acc)
@@ -199,9 +204,6 @@ let encodeArrayType (fieldName:string) (t:typ) =
 
 let quoted s: string =
   "\"" ^ s ^ "\""
-
-let quotedDoc d: doc =
-  text "\"" ++ d ++ text "\""
 
 (* Like quoted, but prepends _ to identifiers if Cil.underscore_name is true.*)
 let quotedLabel s: doc = 
@@ -254,7 +256,7 @@ let localANN = "ANN_LOCAL"
 (* let localarrayANN = "ANN_LOCALARRAY" *)
   
 let allocAnn typeStr: instr =
-  let annstr = dprintf "#ANN(%s, %a)" allocANN insert (quotedDoc typeStr) in
+  let annstr = dprintf "#ANN(%s, %a)" allocANN insert typeStr in
   Asm(volatile, [strOf annstr], [], [], [], !currentLoc)
 
 (*******   Strings  *******)
@@ -346,20 +348,27 @@ class annotationVisitor
 (*       () *)
 (*     end *)
 (*     else *)
-      if not v.vglob then begin
-      match v.vtype with
+    if not v.vglob then begin
+      if isArrayType v.vtype || v.vaddrof then begin
+        match v.vtype with
           TArray (bt, Some size, a) ->
             let size' = isInteger (constFold true size) in
             if size' = None then E.s (error "Non-constant array size");
             let size'' = (Int64.to_int (Util.valOf size'))
-                         * (bitsSizeOf bt / 8) in
-            let t = encodeType bt in
+                  
+                        * (bitsSizeOf bt / 8) in
+            let typestr = encodeType bt in
             self#queueInstr 
-              [localVarAnn localANN currentFunction v 
-                 (quotedDoc t) size''];
+              [localVarAnn localANN currentFunction v typestr size''];
             ()
         | TArray _ -> E.s (unimp "array without a size")
-        | _ -> ()
+        | _ ->
+            let size = (bitsSizeOf v.vtype) / 8 in
+            let typestr = encodeType v.vtype in
+            self#queueInstr 
+              [localVarAnn localANN currentFunction v typestr size];
+            ()
+      end
     end;
     DoChildren
   end
