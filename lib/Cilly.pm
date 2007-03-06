@@ -533,7 +533,7 @@ sub preprocess_compile {
         if($self->leaveAlone($src)) {
             print "Leaving alone $src\n";
             # We leave this alone. So just compile as usual
-            return $self->straight_compile($src, $dest, $early_ppargs, $ppargs, $ccargs);
+            return $self->straight_compile($src, $dest, [@{$early_ppargs}, @{$ppargs}], $ccargs);
         }
         my $out    = $self->preprocessOutputFile($src);
         $out = $self->preprocess($src, $out, 
@@ -1106,7 +1106,9 @@ sub doit {
     # Now do the assembly language file
     foreach $file (@{$self->{SFILES}}) {
         $out = $self->assembleOutputFile($file);
-        $self->assemble($file, $out, $self->{PPARGS}, $self->{CCARGS});
+        $self->assemble($file, $out, 
+                        $self->{EARLY_PPARGS}, 
+                        $self->{PPARGS}, $self->{CCARGS});
         push @tolink, $out;
     }
     # Now add the original object files. Put them last because libraries like
