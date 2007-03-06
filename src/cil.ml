@@ -1972,8 +1972,13 @@ let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
          *   e.g. casting the constant 0x80000000 to int makes it
          *        0xffffffff80000000.
          * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right_logical i (64 - nrBits)
-        in chopped <> Int64.zero
+        let chopped = Int64.shift_right i (64 - nrBits) in
+        chopped <> Int64.zero
+          (* matth: also suppress the warning if we only chop off 1s.
+             This is probably due to a negative number being cast to an 
+             unsigned value.  While potentially a bug, this is almost
+             always what the programmer intended. *)
+        && chopped <> Int64.minus_one
     in
     i2, truncated
   end

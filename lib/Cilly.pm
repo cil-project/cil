@@ -1992,7 +1992,12 @@ sub new {
 	    "-static-libgcc" => { TYPE => 'LINK' },
 	    "-shared-libgcc" => { TYPE => 'LINK' },
 	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
-	    '-Wl,' => { TYPE => 'LINK' },
+            '-Wl,' =>
+            { RUN => sub { 
+                my ($linkargs) = ($_[1] =~ m|-Wl,(.*)$|);
+                #Split up the args
+                push @{$stub->{LINKARGS}}, split(/,/, $linkargs);
+            }},
             "-traditional" => { TYPE => 'PREPROC' },
             '-std=' => { TYPE => 'ALLARGS' },
             "--start-group" => { RUN => sub { } },
