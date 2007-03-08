@@ -1844,7 +1844,7 @@ let rec typeOf (e: exp) : typ =
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
-        TArray (t,_, _) -> TPtr(t, [])
+        TArray (t,_, a) -> TPtr(t, a)
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
 
