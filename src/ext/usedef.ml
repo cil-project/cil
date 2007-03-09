@@ -64,7 +64,10 @@ class useDefVisitorClass : cilVisitor = object (self)
       varDefs := VS.add v !varDefs;
     SkipChildren
 
-  (** If onlyNoOffsetsAreDefs is true, then we need to see the
+  (** If l is a variable, this means we are in a def, not a use!
+   *  Other cases are handled by vexpr.
+   *  
+   *  If onlyNoOffsetsAreDefs is true, then we need to see the
    *  varinfo in an lval along with the offset. Otherwise just
    *  DoChildren *)
   method vlval (l: lval) =
@@ -108,23 +111,38 @@ class useDefVisitorClass : cilVisitor = object (self)
     | _ -> DoChildren
 
   (* For function calls, do the transitive variable read/defs *)
-  method vinst i = match i with
-      Call (lvo, f, args, _) -> begin
-        (* we will compute the use and def that appear in 
-         * this instruction. We also add in the stuff computed by 
-         * getUseDefFunctionRef *)
-        let use, def, args' = !getUseDefFunctionRef f args in
-        varUsed := VS.union !varUsed use;
-        varDefs := VS.union !varDefs def;
-        
-        (* Now visit the children of  "Call (lvo, f, args', _)" *)
-        let self: cilVisitor = (self :> cilVisitor) in
-        (match lvo with None -> ()
-        | Some lv -> ignore (visitCilLval self lv));
-        ignore (visitCilExpr self f);
-        List.iter (fun arg -> ignore (visitCilExpr self arg)) args';
-        SkipChildren
-      end
+  method vinst i =
+    let doCall f desto args =
+      (* we will compute the use and def that appear in 
+       * this instruction. We also add in the stuff computed by 
+       * getUseDefFunctionRef *)
+      let use, def, args' = !getUseDefFunctionRef f args in
+      varUsed := VS.union !varUsed use;
+      varDefs := VS.union !varDefs def;
+      
+      (* Now visit the children of  "Call (lvo, f, args', _)" *)
+      let self: cilVisitor = (self :> cilVisitor) in
+      (match desto with None -> ()
+       | Some lv -> ignore (visitCilLval self lv));
+      ignore (visitCilExpr self f);
+      List.iter (fun arg -> ignore (visitCilExpr self arg)) args';
+      SkipChildren
+    in
+    match i with
+      Call (None, (Lval(Var vi, NoOffset) as f), [valist; SizeOf t; adest], _) 
+        (* __builtin_va_arg is special:  in CIL, the left hand side is stored
+           as the last argument. *)
+        when vi.vname = "__builtin_va_arg" ->
+          let dest' = match stripCasts adest with
+              AddrOf lv -> lv
+            | _ -> E.s (bug "bad call to %s" vi.vname)
+          in
+          doCall f (Some dest') [valist; SizeOf t]
+    | Call (_, Lval(Var vi, _), _, _) 
+        when vi.vname = "__builtin_va_arg" ->
+        E.s (bug "bad call to %s" vi.vname)
+    | Call (lvo, f, args, _) -> 
+        doCall f lvo args
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
 	  if s.[0] = '+' then
