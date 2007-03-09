@@ -6206,6 +6206,7 @@ and doStatement (s : A.statement) : chunk =
 
   with e when continueOnError -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));
+    E.hadErrors := true;
     consLabel "booo_statement" empty (convLoc (C.get_statementloc s)) false
   end
 
@@ -6234,7 +6235,6 @@ let convFile (f : A.file) : Cil.file =
   let fname,dl = stripParenFile f in 
     
   (* Clean up the global types *)
-  E.hadErrors := false;
   initGlobals();
   startFile ();
   IH.clear noProtoFunctions;
