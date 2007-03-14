@@ -2892,7 +2892,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_nans" (doubleType, [ charConstPtrType ], false);
   H.add h "__builtin_nansf" (floatType, [ charConstPtrType ], false);
   H.add h "__builtin_nansl" (longDoubleType, [ charConstPtrType ], false);
-  H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false) (* When we parse builtin_next_arg we drop the second argument *);
+  H.add h "__builtin_next_arg" ((if hasbva then TBuiltin_va_list [] else voidPtrType), [], false) (* When we parse builtin_next_arg we drop the argument *);
   H.add h "__builtin_object_size" (sizeType, [ voidPtrType; intType ], false);
 
   H.add h "__builtin_parity" (intType, [ uintType ], false);
@@ -3089,11 +3089,11 @@ end
 
 class defaultCilPrinterClass : cilPrinter = object (self)
   val mutable currentFormals : varinfo list = []
-  method private getLastNamedArgument (s: string) : exp =
+  method private getLastNamedArgument (s:string) : exp =
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
     | [] -> 
-        E.s (warn "Cannot find the last named argument when printing call to %s\n" s)
+        E.s (bug "Cannot find the last named argument when printing call to %s\n" s)
 
   method private setCurrentFormals (fms : varinfo list) =
     currentFormals <- fms
@@ -3373,11 +3373,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * __builtin_va_start and __builtin_stdarg_start. *)
     | Call(None, Lval(Var vi, NoOffset), [marker], l) 
         when ((vi.vname = "__builtin_stdarg_start" ||
-              vi.vname = "__builtin_va_start") && not !printCilAsIs) -> begin
+               vi.vname = "__builtin_va_start") && not !printCilAsIs) -> 
+        if currentFormals <> [] then begin
           let last = self#getLastNamedArgument vi.vname in
           self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
         end
-
+        else begin
+          (* We can't print this call because someone called pInstr outside 
+             of a pFunDecl, so we don't know what the formals of the current
+             function are.  Just put in a placeholder for now; this isn't 
+             valid C. *)
+          self#pLineDirective l
+          ++ dprintf 
+            "%s(%a, /* last named argument of the function calling %s */)"
+            vi.vname self#pExp marker vi.vname
+          ++ text printInstrTerminator
+        end
       (* In cabs2cil we have dropped the last argument in the call to 
        * __builtin_next_arg. *)
     | Call(res, Lval(Var vi, NoOffset), [ ], l) 
