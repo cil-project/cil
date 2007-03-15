@@ -1925,13 +1925,20 @@ let rec alignOf_int = function
           (* Bitfields with zero width do not contribute to the alignment in 
            * GCC *)
           if not !msvcMode && f.fbitfield = Some 0 then sofar else
-          max sofar (alignOf_int f.ftype)) 1 fields
+          max sofar (alignOfField f)) 1 fields
         (* These are some error cases *)
   | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
       
   | TFun _ as t -> raise (SizeOfError ("function", t))
   | TVoid _ as t -> raise (SizeOfError ("void", t))
-      
+
+(* alignment of a possibly-packed struct field. *)
+and alignOfField (fi: fieldinfo) =
+  let fieldIsPacked = hasAttribute "packed" fi.fattr 
+                      || hasAttribute "packed" fi.fcomp.cattr in
+  if fieldIsPacked then 1
+  else alignOf_int fi.ftype
+    
 
 let bytesSizeOfInt (ik: ikind): int = 
   match ik with 
@@ -2058,7 +2065,7 @@ let rec offsetOfFieldAcc_GCC (fi: fieldinfo)
                              (sofar: offsetAcc) : offsetAcc = 
   (* field type *)
   let ftype = unrollType fi.ftype in
-  let ftypeAlign = 8 * alignOf_int ftype in
+  let ftypeAlign = 8 * alignOfField fi in
   let ftypeBits = bitsSizeOf ftype in
 (*
   if fi.fcomp.cname = "comp2468" ||

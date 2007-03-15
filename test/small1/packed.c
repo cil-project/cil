@@ -3,15 +3,18 @@
 struct __attribute__ ((__packed__)) abstract_struct;
 
 typedef struct s {
-   int x1;
+  char x1;
   double d;
 } __attribute__ ((__packed__)) s;
 
 s foo;
 
+extern int x9[9U];
+extern int x9[sizeof(foo)];
+
 int main() {
   printf("sizeof(foo) = %d.\n", (int)sizeof(foo));
-  if (sizeof(foo) != 12) E(1);
+  if (sizeof(foo) != 9) E(1);
   return 0;
 }
 

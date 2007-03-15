@@ -2539,8 +2539,7 @@ but the first one. This is not so bad because GCC itself would not like it.
   packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
   Linux/gcc-2.95.3 and on Windows/MSVC.
 
-\item \t{-malign-double} is ignored, as are \t{gcc}'s attributes for
-  packing and alignment.
+\item \t{-malign-double} is ignored, as are \t{gcc}'s alignment attributes.
 
 \item The statement \t{x = 3 + x ++} will perform the increment of \t{x}
   before the assignment, while \t{gcc} delays the increment after the
@@ -3254,6 +3253,8 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf March 15, 2007}: Added support for
+  \t{\_\_attribute\_\_((packed))} on fields and structs.
 \item {\bf March 7, 2007}: \t{typeOf(StartOf \_)} now preserves the
   attributes of the array.
 \item {\bf February 22, 2007}: Added an inliner (ext/inliner.ml)
