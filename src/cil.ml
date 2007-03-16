@@ -1953,7 +1953,8 @@ let rec alignOf_int t =
                   (!pd_type) t);
        !theMachine.M.alignof_aligned
   | _ ->
-      E.s (unimp "aligned attribute not understood: %a" (!pd_type) t)
+      ignore (warn "aligned attribute not understood: %a" (!pd_type) t);
+      alignOfType ()
 
 (* alignment of a possibly-packed struct field. *)
 and alignOfField (fi: fieldinfo) =
