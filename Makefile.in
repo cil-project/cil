@@ -234,7 +234,7 @@ ifdef USE_ZRAPP
 endif
 # Now the extra features, with the first letter capitalized
 	echo -n " (* EXTRAFEATURES: *)" >> $@  
-	echo \
+	echo -e \
           $(foreach f,@EXTRAFEATURES@, \
              "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") \
 	| perl -pe 's/\\n/\n/g' >> $@
