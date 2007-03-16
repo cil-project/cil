@@ -353,6 +353,7 @@ addTest("test/struct_init");
 addTest("test/structassign");
 addTest("testrun/align1 _GNUCC=1");
 addTest("testrun/align2 _GNUCC=1 EXTRAARGS=-O2");
+addTest("test/align3 _GNUCC=1");
 addTest("test/tags");
 addTest("test/task _GNUCC=1");
 addTest("test/power1");

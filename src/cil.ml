@@ -887,6 +887,8 @@ let argsToList : (string * typ * attributes) list option
 (* A hack to allow forward reference of d_exp *)
 let pd_exp : (unit -> exp -> doc) ref = 
   ref (fun _ -> E.s (E.bug "pd_exp not initialized"))
+let pd_type : (unit -> typ -> doc) ref = 
+  ref (fun _ -> E.s (E.bug "pd_type not initialized"))
 
 (** Different visiting actions. 'a will be instantiated with [exp], [instr],
     etc. *)
@@ -1893,44 +1895,65 @@ exception SizeOfError of string * typ
 
         
 (* Get the minimum aligment in bytes for a given type *)
-let rec alignOf_int = function
-  | TInt((IChar|ISChar|IUChar), _) -> 1
-  | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
-  | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
-  | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
-  | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
-  | TEnum _ -> !theMachine.M.alignof_enum
-  | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
-  | TFloat(FDouble, _) -> !theMachine.M.alignof_double
-  | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
-  | TNamed (t, _) -> alignOf_int t.ttype
-  | TArray (t, _, _) -> alignOf_int t
-  | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
-
-        (* For composite types get the maximum alignment of any field inside *)
-  | TComp (c, _) ->
-      (* On GCC the zero-width fields do not contribute to the alignment. On 
-       * MSVC only those zero-width that _do_ appear after other 
-       * bitfields contribute to the alignment. So we drop those that 
-       * do not occur after othe bitfields *)
-      let rec dropZeros (afterbitfield: bool) = function
-        | f :: rest when f.fbitfield = Some 0 && not afterbitfield -> 
-            dropZeros afterbitfield rest
-        | f :: rest -> f :: dropZeros (f.fbitfield <> None) rest
-        | [] -> []
-      in
-      let fields = dropZeros false c.cfields in
-      List.fold_left 
-        (fun sofar f -> 
-          (* Bitfields with zero width do not contribute to the alignment in 
-           * GCC *)
-          if not !msvcMode && f.fbitfield = Some 0 then sofar else
-          max sofar (alignOfField f)) 1 fields
-        (* These are some error cases *)
-  | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
-      
-  | TFun _ as t -> raise (SizeOfError ("function", t))
-  | TVoid _ as t -> raise (SizeOfError ("void", t))
+let rec alignOf_int t = 
+  let alignOfType () =
+    match t with
+    | TInt((IChar|ISChar|IUChar), _) -> 1
+    | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
+    | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
+    | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
+    | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
+    | TEnum _ -> !theMachine.M.alignof_enum
+    | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
+    | TFloat(FDouble, _) -> !theMachine.M.alignof_double
+    | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
+    | TNamed (t, _) -> alignOf_int t.ttype
+    | TArray (t, _, _) -> alignOf_int t
+    | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
+        
+    (* For composite types get the maximum alignment of any field inside *)
+    | TComp (c, _) ->
+        (* On GCC the zero-width fields do not contribute to the alignment.
+         * On MSVC only those zero-width that _do_ appear after other 
+         * bitfields contribute to the alignment. So we drop those that 
+         * do not occur after othe bitfields *)
+        let rec dropZeros (afterbitfield: bool) = function
+          | f :: rest when f.fbitfield = Some 0 && not afterbitfield -> 
+              dropZeros afterbitfield rest
+          | f :: rest -> f :: dropZeros (f.fbitfield <> None) rest
+          | [] -> []
+        in
+        let fields = dropZeros false c.cfields in
+        List.fold_left 
+          (fun sofar f -> 
+             (* Bitfields with zero width do not contribute to the alignment in 
+              * GCC *)
+             if not !msvcMode && f.fbitfield = Some 0 then sofar else
+               max sofar (alignOfField f)) 1 fields
+          (* These are some error cases *)
+    | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
+        
+    | TFun _ as t -> raise (SizeOfError ("function", t))
+    | TVoid _ as t -> raise (SizeOfError ("void", t))
+  in
+  match filterAttributes "aligned" (typeAttrs t) with
+    [] -> 
+      (* no __aligned__ attribute, so get the default alignment *)
+      alignOfType ()
+  | Attr(_, [AInt a])::rest ->
+      if rest <> [] then
+        ignore (warn "ignoring duplicate align attributes on %a\n" 
+                  (!pd_type) t);
+      a
+   | Attr(_, [])::rest ->
+       (* aligned with no arg means a power of two at least as large as
+          any alignment on the system.*)
+       if rest <> [] then
+         ignore(warn "ignoring duplicate align attributes on %a\n" 
+                  (!pd_type) t);
+       !theMachine.M.alignof_aligned
+  | _ ->
+      E.s (unimp "aligned attribute not understood: %a" (!pd_type) t)
 
 (* alignment of a possibly-packed struct field. *)
 and alignOfField (fi: fieldinfo) =
@@ -2278,8 +2301,12 @@ and bitsSizeOf t =
           (* On MSVC if we have just a zero-width bitfields then the length 
            * is 32 and is not padded  *)
         32
-      else
-        addTrailing lastoff.oaFirstFree (8 * alignOf_int t)
+      else begin
+        (* Drop e.g. the align attribute from t.  For this purpose,
+           consider only the attributes on comp itself.*)
+        let structAlign = 8 * alignOf_int (TComp (comp, [])) in
+        addTrailing lastoff.oaFirstFree structAlign
+      end
         
   | TComp (comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
@@ -4314,6 +4341,7 @@ let d_lval () lv = printLval defaultCilPrinter () lv
 let d_offset base () off = defaultCilPrinter#pOffset base off
 let d_init () i = printInit defaultCilPrinter () i
 let d_type () t = printType defaultCilPrinter () t
+let _ = pd_type := d_type
 let d_global () g = printGlobal defaultCilPrinter () g
 let d_attrlist () a = printAttrs defaultCilPrinter () a 
 let d_attr () a = printAttr defaultCilPrinter () a

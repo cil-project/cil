@@ -165,6 +165,7 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 	echo "  alignof_longdouble: int;  (* Alignment of \"long double\" *)" >> $@
 	echo "  alignof_str: int;       (* Alignment of strings *)" >> $@
 	echo "  alignof_fun: int;       (* Alignment of function *)" >> $@
+	echo "  alignof_aligned: int;   (* Alignment of anything with the \"aligned\" attribute *)" >> $@
 	echo "  char_is_unsigned: bool; (* Whether \"char\" is unsigned *)">> $@
 	echo "  const_string_literals: bool; (* Whether string literals have const chars *)">> $@
 	echo "  little_endian: bool; (* whether the machine is little endian *)">>$@

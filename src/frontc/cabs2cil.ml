@@ -1538,8 +1538,16 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
             (* They are not structurally equal. But perhaps they are equal if 
              * we evaluate them. Check first machine independent comparison  *)
            let checkEqualSize (machdep: bool) = 
-              Util.equals (constFold machdep oldsz') 
-                          (constFold machdep sz') 
+             let oldsz'', sz''=
+               (* cast both to the same type.  This prevents complaints such as
+                  "((int)1) <> ((char)1)" *)
+               if machdep then 
+                 mkCast oldsz' !typeOfSizeOf,  mkCast sz' !typeOfSizeOf
+               else
+                 oldsz', sz'
+             in
+             Util.equals (constFold machdep oldsz'') 
+                         (constFold machdep sz'') 
            in
            if checkEqualSize false then 
               oldsz

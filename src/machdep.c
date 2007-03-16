@@ -203,6 +203,21 @@ int main() {
 #endif
          );
 
+// The alignment of anything with __attribute__((aligned))
+#ifdef __GNUC__
+  {
+    char __attribute__((aligned)) c;
+    long double  __attribute__((aligned)) ld;
+    if (__alignof(c) != __alignof(ld)) {
+      fprintf(stderr, "__attribute__((aligned)) has a different effect on different types.  alignments may be computed incorrectly.\n");
+    }
+    printf("\t alignof_aligned = %d;\n", __alignof(c));
+  }
+#else
+  printf("\t alignof_aligned = 0;\n");
+#endif
+
+
   // Whether char is unsigned
   printf("\t char_is_unsigned = %s;\n", 
          ((char)0xff) > 0 ? "true" : "false");
