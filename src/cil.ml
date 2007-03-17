@@ -889,6 +889,8 @@ let pd_exp : (unit -> exp -> doc) ref =
   ref (fun _ -> E.s (E.bug "pd_exp not initialized"))
 let pd_type : (unit -> typ -> doc) ref = 
   ref (fun _ -> E.s (E.bug "pd_type not initialized"))
+let pd_attr : (unit -> attribute -> doc) ref = 
+  ref (fun _ -> E.s (E.bug "pd_attr not initialized"))
 
 (** Different visiting actions. 'a will be instantiated with [exp], [instr],
     etc. *)
@@ -1893,76 +1895,6 @@ and typeOffset basetyp =
  **)
 exception SizeOfError of string * typ
 
-        
-(* Get the minimum aligment in bytes for a given type *)
-let rec alignOf_int t = 
-  let alignOfType () =
-    match t with
-    | TInt((IChar|ISChar|IUChar), _) -> 1
-    | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
-    | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
-    | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
-    | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
-    | TEnum _ -> !theMachine.M.alignof_enum
-    | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
-    | TFloat(FDouble, _) -> !theMachine.M.alignof_double
-    | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
-    | TNamed (t, _) -> alignOf_int t.ttype
-    | TArray (t, _, _) -> alignOf_int t
-    | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
-        
-    (* For composite types get the maximum alignment of any field inside *)
-    | TComp (c, _) ->
-        (* On GCC the zero-width fields do not contribute to the alignment.
-         * On MSVC only those zero-width that _do_ appear after other 
-         * bitfields contribute to the alignment. So we drop those that 
-         * do not occur after othe bitfields *)
-        let rec dropZeros (afterbitfield: bool) = function
-          | f :: rest when f.fbitfield = Some 0 && not afterbitfield -> 
-              dropZeros afterbitfield rest
-          | f :: rest -> f :: dropZeros (f.fbitfield <> None) rest
-          | [] -> []
-        in
-        let fields = dropZeros false c.cfields in
-        List.fold_left 
-          (fun sofar f -> 
-             (* Bitfields with zero width do not contribute to the alignment in 
-              * GCC *)
-             if not !msvcMode && f.fbitfield = Some 0 then sofar else
-               max sofar (alignOfField f)) 1 fields
-          (* These are some error cases *)
-    | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
-        
-    | TFun _ as t -> raise (SizeOfError ("function", t))
-    | TVoid _ as t -> raise (SizeOfError ("void", t))
-  in
-  match filterAttributes "aligned" (typeAttrs t) with
-    [] -> 
-      (* no __aligned__ attribute, so get the default alignment *)
-      alignOfType ()
-  | Attr(_, [AInt a])::rest ->
-      if rest <> [] then
-        ignore (warn "ignoring duplicate align attributes on %a\n" 
-                  (!pd_type) t);
-      a
-   | Attr(_, [])::rest ->
-       (* aligned with no arg means a power of two at least as large as
-          any alignment on the system.*)
-       if rest <> [] then
-         ignore(warn "ignoring duplicate align attributes on %a\n" 
-                  (!pd_type) t);
-       !theMachine.M.alignof_aligned
-  | _ ->
-      ignore (warn "aligned attribute not understood: %a" (!pd_type) t);
-      alignOfType ()
-
-(* alignment of a possibly-packed struct field. *)
-and alignOfField (fi: fieldinfo) =
-  let fieldIsPacked = hasAttribute "packed" fi.fattr 
-                      || hasAttribute "packed" fi.fcomp.cattr in
-  if fieldIsPacked then 1
-  else alignOf_int fi.ftype
-    
 
 let bytesSizeOfInt (ik: ikind): int = 
   match ik with 
@@ -2082,43 +2014,127 @@ type offsetAcc =
                                                    * width of the ikind *)
     } 
 
+(* Hack to prevent infinite recursion in alignments *)
+let ignoreAlignmentAttrs = ref false
+        
+(* Get the minimum aligment in bytes for a given type *)
+let rec alignOf_int t = 
+  let alignOfType () =
+    match t with
+    | TInt((IChar|ISChar|IUChar), _) -> 1
+    | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
+    | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
+    | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
+    | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
+    | TEnum _ -> !theMachine.M.alignof_enum
+    | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
+    | TFloat(FDouble, _) -> !theMachine.M.alignof_double
+    | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
+    | TNamed (t, _) -> alignOf_int t.ttype
+    | TArray (t, _, _) -> alignOf_int t
+    | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
+        
+    (* For composite types get the maximum alignment of any field inside *)
+    | TComp (c, _) ->
+        (* On GCC the zero-width fields do not contribute to the alignment.
+         * On MSVC only those zero-width that _do_ appear after other 
+         * bitfields contribute to the alignment. So we drop those that 
+         * do not occur after othe bitfields *)
+        let rec dropZeros (afterbitfield: bool) = function
+          | f :: rest when f.fbitfield = Some 0 && not afterbitfield -> 
+              dropZeros afterbitfield rest
+          | f :: rest -> f :: dropZeros (f.fbitfield <> None) rest
+          | [] -> []
+        in
+        let fields = dropZeros false c.cfields in
+        List.fold_left 
+          (fun sofar f -> 
+             (* Bitfields with zero width do not contribute to the alignment in 
+              * GCC *)
+             if not !msvcMode && f.fbitfield = Some 0 then sofar else
+               max sofar (alignOfField f)) 1 fields
+          (* These are some error cases *)
+    | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
+        
+    | TFun _ as t -> raise (SizeOfError ("function", t))
+    | TVoid _ as t -> raise (SizeOfError ("void", t))
+  in
+  match filterAttributes "aligned" (typeAttrs t) with
+    [] -> 
+      (* no __aligned__ attribute, so get the default alignment *)
+      alignOfType ()
+  | _ when !ignoreAlignmentAttrs -> 
+      ignore (warn "ignoring recursive align attributes on %a\n" 
+                (!pd_type) t);
+      alignOfType ()
+  | (Attr(_, [a]) as at)::rest -> begin
+      if rest <> [] then
+        ignore (warn "ignoring duplicate align attributes on %a\n" 
+                  (!pd_type) t);
+      match intOfAttrparam a with
+        Some n -> n
+      | None -> 
+          ignore (warn "alignment attribute \"%a\" not understood on %a" 
+                    (!pd_attr) at (!pd_type) t);
+          alignOfType ()
+    end
+   | Attr(_, [])::rest ->
+       (* aligned with no arg means a power of two at least as large as
+          any alignment on the system.*)
+       if rest <> [] then
+         ignore(warn "ignoring duplicate align attributes on %a\n" 
+                  (!pd_type) t);
+       !theMachine.M.alignof_aligned
+  | at::_ ->
+      ignore (warn "alignment attribute \"%a\" not understood on %a" 
+                (!pd_attr) at (!pd_type) t);
+      alignOfType ()
+
+(* alignment of a possibly-packed struct field. *)
+and alignOfField (fi: fieldinfo) =
+  let fieldIsPacked = hasAttribute "packed" fi.fattr 
+                      || hasAttribute "packed" fi.fcomp.cattr in
+  if fieldIsPacked then 1
+  else alignOf_int fi.ftype
+    
+and intOfAttrparam (a:attrparam) : int option = 
+  let rec doit a : int =
+    match a with
+      AInt(n) -> n
+    | ABinOp(Shiftlt, a1, a2) -> (doit a1) lsl (doit a2)
+    | ABinOp(Div, a1, a2) -> (doit a1) / (doit a2)
+    | ASizeOf(t) ->
+        let bs = bitsSizeOf t in
+        bs / 8
+    | AAlignOf(t) ->
+        alignOf_int t
+    | _ -> raise (SizeOfError ("", voidType))
+  in
+  (* Use ignoreAlignmentAttrs here to prevent stack overflow if a buggy
+     program does something like 
+             struct s {...} __attribute__((aligned(sizeof(struct s))))
+     This is too conservative, but it's often enough.
+  *)
+  assert (not !ignoreAlignmentAttrs);
+  ignoreAlignmentAttrs := true;
+  try
+    let n = doit a in
+    ignoreAlignmentAttrs := false;
+    Some n
+  with SizeOfError _ -> (* Can't compile *)
+    ignoreAlignmentAttrs := false;
+    None
+
 
 (* GCC version *)
 (* Does not use the sofar.oaPrevBitPack *)
-let rec offsetOfFieldAcc_GCC (fi: fieldinfo) 
-                             (sofar: offsetAcc) : offsetAcc = 
+and offsetOfFieldAcc_GCC
+                         (fi: fieldinfo) 
+                         (sofar: offsetAcc) : offsetAcc = 
   (* field type *)
   let ftype = unrollType fi.ftype in
   let ftypeAlign = 8 * alignOfField fi in
   let ftypeBits = bitsSizeOf ftype in
-(*
-  if fi.fcomp.cname = "comp2468" ||
-     fi.fcomp.cname = "comp2469" ||
-     fi.fcomp.cname = "comp2470" ||
-     fi.fcomp.cname = "comp2471" ||
-     fi.fcomp.cname = "comp2472" ||
-     fi.fcomp.cname = "comp2473" ||
-     fi.fcomp.cname = "comp2474" ||
-     fi.fcomp.cname = "comp2475" ||
-     fi.fcomp.cname = "comp2476" ||
-     fi.fcomp.cname = "comp2477" ||
-     fi.fcomp.cname = "comp2478" then
-
-    ignore (E.log "offsetOfFieldAcc_GCC(%s of %s:%a%a,firstFree=%d,pack=%a)\n" 
-              fi.fname fi.fcomp.cname 
-              d_type ftype
-              insert
-              (match fi.fbitfield with
-                None -> nil
-              | Some wdthis -> dprintf ":%d" wdthis)
-              sofar.oaFirstFree 
-              insert
-              (match sofar.oaPrevBitPack with 
-                None -> text "None"
-              | Some (packstart, _, wdpack) -> 
-                  dprintf "Some(packstart=%d,wd=%d)"
-                    packstart wdpack));
-*)
   match ftype, fi.fbitfield with
     (* A width of 0 means that we must end the current packing. It seems that 
      * GCC pads only up to the alignment boundary for the type of this field. 
@@ -2305,7 +2321,8 @@ and bitsSizeOf t =
       else begin
         (* Drop e.g. the align attribute from t.  For this purpose,
            consider only the attributes on comp itself.*)
-        let structAlign = 8 * alignOf_int (TComp (comp, [])) in
+        let structAlign = 8 * alignOf_int 
+                            (TComp (comp, [])) in
         addTrailing lastoff.oaFirstFree structAlign
       end
         
@@ -4346,6 +4363,7 @@ let _ = pd_type := d_type
 let d_global () g = printGlobal defaultCilPrinter () g
 let d_attrlist () a = printAttrs defaultCilPrinter () a 
 let d_attr () a = printAttr defaultCilPrinter () a
+let _ = pd_attr := d_attr
 let d_attrparam () e = defaultCilPrinter#pAttrParam () e
 let d_label () l = defaultCilPrinter#pLabel () l
 let d_stmt () s = printStmt defaultCilPrinter () s
@@ -6109,12 +6127,12 @@ let foldLeftCompound
                 loop part (len_init + 1)
               else
                 part
-          | _ -> E.s (unimp "foldLeftCompoundAll: array with initializer and non-constant length\n")
+          | _ -> E.s (unimp "foldLeftCompound: array with initializer and non-constant length\n")
         end
           
       | _ when not implicit -> part
 
-      | _ -> E.s (unimp "foldLeftCompoundAll: TArray with initializer and no length")
+      | _ -> E.s (unimp "foldLeftCompound: TArray with initializer and no length")
     end
 
   | TComp (comp, _) -> 

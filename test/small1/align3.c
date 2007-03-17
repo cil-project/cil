@@ -43,11 +43,31 @@ struct s3 {
 extern int size3[sizeof(struct s3)];
 extern int size1[__alignof(struct s3)];
 
-//The alignment is the result of rounding the size up to the nearest power of 
-//two
-struct s3 __attribute__((aligned)) s3_4; //alignment 16
-extern int size3[sizeof(s3_4)];
-extern int size16[__alignof(s3_4)];
+
+struct s4 {
+  short a;
+  char b;
+};
+//The alignment is the result of rounding the size up to some system-defined
+// power of two (16)
+struct s4 __attribute__((aligned)) s4_4; //alignment 16
+extern int size4[sizeof(struct s4)];
+extern int size2[__alignof(struct s4)];
+extern int size4[sizeof(s4_4)];
+extern int size16[__alignof(s4_4)];
+
+struct s4 __attribute__((aligned(sizeof(int)))) s4_int;
+extern int size4[__alignof(s4_int)];
+struct s4 __attribute__((aligned(__alignof(double)/2))) s4_db;
+extern int size4[__alignof(s4_db)];
+
+struct s5 {
+  short a;
+  char b;
+} __attribute__((aligned)) foo;
+struct s5 s5_4; //alignment 16
+extern int size16[sizeof(s5_4)];
+extern int size16[__alignof(s5_4)];
 
 int i;
 int __attribute__((__aligned__(1)))i_1;
@@ -55,6 +75,6 @@ int __attribute__((__aligned__(1)))i_1;
 int main() {
   printf("%d, %d\n", sizeof(i), __alignof(i));
   printf("%d, %d\n", sizeof(i_1), __alignof(i_1));
-  printf("%d, %d\n", sizeof(s3_4), __alignof(s3_4));
+  printf("%d, %d\n", sizeof(s4_4), __alignof(s4_4));
   return 0;
 }
