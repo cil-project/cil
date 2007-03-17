@@ -56,9 +56,9 @@ extern int size2[__alignof(struct s4)];
 extern int size4[sizeof(s4_4)];
 extern int size16[__alignof(s4_4)];
 
-struct s4 __attribute__((aligned(sizeof(int)))) s4_int;
+struct s4 __attribute__((aligned(sizeof(double)/2))) s4_int;
 extern int size4[__alignof(s4_int)];
-struct s4 __attribute__((aligned(__alignof(double)/2))) s4_db;
+struct s4 __attribute__((aligned(__alignof(int)))) s4_db;
 extern int size4[__alignof(s4_db)];
 
 struct s5 {
