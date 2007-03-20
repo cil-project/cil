@@ -83,6 +83,9 @@ let allowDuplication: bool ref = ref true
 *)
 let doCollapseCallCast: bool ref = ref false
 
+(** A hook into the code for processing typeof. *)
+let typeForTypeof: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
+
 (** A hook into the code that creates temporary local vars.  By default this
   is the identity function, but you can overwrite it if you need to change the
   types of cabs2cil-introduced temp variables. *)
@@ -98,7 +101,7 @@ let typeForCombinedArg: ((string, string) H.t -> typ -> typ) ref =
   ref (fun _ t -> t)
 
 (** A hook into the code that remaps argument names in the appropriate
-  * attributes. *)
+   * attributes. *)
 let attrsForCombinedArg: ((string, string) H.t ->
                           attributes -> attributes) ref =
   ref (fun _ t -> t)
@@ -2398,7 +2401,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 (*
         ignore (E.log "typeof(%a) = %a\n" d_exp e' d_plaintype t');
 *)
-        t'
+        !typeForTypeof t'
 
     | [A.TtypeofT (specs, dt)] -> 
         let typ = doOnlyType specs dt in
