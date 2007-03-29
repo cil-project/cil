@@ -1269,7 +1269,8 @@ let rec castTo ?(fromsource=false)
            * that into a field access *)
     | TComp(tunion, a1), nt -> begin
         match isTransparentUnion ot with 
-          None -> E.s (error "castTo %a -> %a@!" d_type ot d_type nt')
+          None -> E.s (error "cabs2cil/castTo: illegal cast  %a -> %a@!"
+                         d_type ot d_type nt')
         | Some fstfield -> begin
             (* We do it now only if the expression is an lval *)
             let e' = 
@@ -1282,7 +1283,12 @@ let rec castTo ?(fromsource=false)
             castTo ~fromsource:fromsource fstfield.ftype nt' e'
         end
     end
-    | _ -> E.s (error "cabs2cil: castTo %a -> %a@!" d_type ot d_type nt')
+    | _ -> 
+        (* strip attributes for a cleaner error message *)
+        let ot'' = setTypeAttrs ot [] in
+        let nt'' = setTypeAttrs nt' [] in
+        E.s (error "cabs2cil/castTo: illegal cast  %a -> %a@!" 
+                  d_type ot'' d_type nt'')
   end
 
 (* Like Cil.mkCastT, but it calls typeForInsertedCast *)
