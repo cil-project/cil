@@ -305,6 +305,8 @@ vpath %.mly $(SOURCEDIRS)
 vpath %.ml  $(SOURCEDIRS) $(OBJDIR)
 vpath %.mli $(SOURCEDIRS) $(OBJDIR)
 vpath %.c   $(SOURCEDIRS)
+vpath %.p4  $(SOURCEDIRS)
+
 
 
 #  Secondaries are intermediates that we don't want make to delete
@@ -337,7 +339,6 @@ $(OBJDIR)/%.ml $(OBJDIR)/%.mli: %.mly
 
 $(OBJDIR)/%.ml: %.p4
 	$(CAMLP4) -impl $< > $@
-	$(AT)mv -f $(basename $<).ml $(OBJDIR)/
 	$(ECHO)if test -f $(basename $<).mli ;then \
 		$(COMMAND) cp -f $(basename $<).mli $(OBJDIR); \
 		cp -f $(basename $<).mli $(OBJDIR) \
