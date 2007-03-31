@@ -1981,6 +1981,7 @@ sub new {
             "-f" => { TYPE => 'LINKCC' },
             "-r\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
             "-i\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
+            "-m\$" => { TYPE => 'LINK', ONEMORE => 1 },
             "-m" => { TYPE => 'LINKCC', ONEMORE => 1 },
             "-s\$" => { TYPE => 'LINKCC' },
             "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
