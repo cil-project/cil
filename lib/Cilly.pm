@@ -1997,7 +1997,7 @@ sub new {
                 push @{$stub->{LIBDIR}}, $dir;
                 push @{$stub->{LINKARGS}}, $_[1];
             }},
-            "-f" => { TYPE => 'LINKCC' },
+            "-f" => { TYPE => 'CC' },
             "-r\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
             "-i\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
             "-m\$" => { TYPE => 'LINK', ONEMORE => 1 },
