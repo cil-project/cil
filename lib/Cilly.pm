@@ -890,8 +890,9 @@ sub link {
           return 0;   # sm: is this value used??
         }
     }
-    my $mergedobj = new OutputFile($destname, 
-                                   "${destname}_comb.$self->{OBJEXT}");
+    my $outname = ($self->{OPERATION}="TOASM") ? $destname 
+        : "${destname}_comb.$self->{OBJEXT}";
+    my $mergedobj = new OutputFile($destname, $outname);
 
     # We must merge
     if($self->{VERBOSE}) { 
@@ -930,6 +931,16 @@ sub link {
       DoMerge:
         $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs);
     }
+    
+    if ($self->{OPERATION}="TOASM") {
+        if (@{$trueobjs} != ()) {
+            die "Error: binary file passed as input when assembly desired".
+                " for the output."
+        }
+        # Don't use ld on assembly files.  The -S in CCARGS has already
+        # generated the right format of output.
+	return;
+     }
 
     # Put the merged OBJ at the beginning because maybe some of the trueobjs
     # are libraries which like to be at the end
@@ -1119,6 +1130,9 @@ sub doit {
     if($self->{OPERATION} eq "TOOBJ") {
         return;
     }
+    if(($self->{OPERATION} eq "TOASM") && $self->{SEPARATE}) {
+        return;
+    }
 
     # See if we must create a library only
     if($self->{OPERATION} eq "TOLIB") {
@@ -1146,7 +1160,7 @@ sub doit {
     }
 
     # Now link all of the files into an executable
-    if($self->{OPERATION} eq "TOEXE") {
+    if($self->{OPERATION} eq "TOEXE" || $self->{OPERATION} eq "TOASM") {
         $out = $self->linkOutputFile(@tolink);
         $self->link(\@tolink,  $out, 
                     $self->{PPARGS}, $self->{CCARGS}, $self->{LINKARGS});
@@ -1937,7 +1951,12 @@ sub new {
              # GCC defines some more macros if the optimization is On so pass
              # the -O to the preprocessor and the compiler
             '-O' => { TYPE => 'ALLARGS' },
-            "-S" => { RUN => sub { $stub->{OPERATION} = "TOOBJ";
+            # TOASM is mostly like TOEXE, and forces all inputs to be
+            # compiled.  A better solution when merging would be to
+            # be more like TOOBJ, and store preprocessed source in .s
+            # files like we do with .o files.  This requires a little
+            # rejiggering of how we handle .o files, though.
+            "-S" => { RUN => sub { $stub->{OPERATION} = "TOASM";
                                    push @{$stub->{CCARGS}}, $_[1]; }},
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
             "-p\$" => { TYPE => 'LINKCC' },
@@ -2113,7 +2132,8 @@ sub compileOutputFile {
     die "objectOutputFile: not a C source file: $src\n"
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|s|S)$/;
     
-    if ($self->{OPERATION} eq 'TOOBJ') {
+    if ($self->{OPERATION} eq 'TOOBJ'
+        || ($self->{OPERATION} eq 'TOASM')) {
 	if (defined $self->{OUTARG} 
             && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
 	    return new OutputFile($src, $1);
