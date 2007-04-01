@@ -890,7 +890,7 @@ sub link {
           return 0;   # sm: is this value used??
         }
     }
-    my $outname = ($self->{OPERATION}="TOASM") ? $destname 
+    my $outname = ($self->{OPERATION} eq "TOASM") ? $destname 
         : "${destname}_comb.$self->{OBJEXT}";
     my $mergedobj = new OutputFile($destname, $outname);
 
@@ -932,7 +932,7 @@ sub link {
         $self->applyCilAndCompile($tomerge, $mergedobj, $ppargs, $ccargs);
     }
     
-    if ($self->{OPERATION}="TOASM") {
+    if ($self->{OPERATION} eq "TOASM") {
         if (@{$trueobjs} != ()) {
             die "Error: binary file passed as input when assembly desired".
                 " for the output."
