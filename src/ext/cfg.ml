@@ -154,9 +154,11 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       None -> ()
     | Some n' -> addSucc n'
   in
-  let addBlockSucc (b: block) =
+  let addBlockSucc (b: block) (n: stmt option) =
+    (* Add the first statement in b as a successor to the current stmt.
+       Or, if b is empty, add n as a successor *)
     match b.bstmts with
-      [] -> addOptionSucc next
+      [] -> addOptionSucc n
     | hd::_ -> addSucc hd
   in
   let instrFallsThrough (i : instr) : bool = match i with
@@ -179,12 +181,12 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
   | Continue _ -> addOptionSucc cont
   | If (_, blk1, blk2, _) ->
       (* The succs of If is [true branch;false branch] *)
-      addBlockSucc blk2;
-      addBlockSucc blk1;
+      addBlockSucc blk2 next;
+      addBlockSucc blk1 next;
       cfgBlock blk1 next break cont;
       cfgBlock blk2 next break cont
   | Block b -> 
-      addBlockSucc b;
+      addBlockSucc b next;
       cfgBlock b next break cont
   | Switch(_,blk,l,_) ->
       let bl = findCaseLabeledStmts blk in
@@ -199,7 +201,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
         addOptionSucc next;
       cfgBlock blk next next cont
   | Loop(blk,_,_,_) ->
-      addBlockSucc blk;
+      addBlockSucc blk (Some s);
       cfgBlock blk (Some s) next (Some s)
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
