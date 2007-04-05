@@ -131,7 +131,8 @@ let iosh_equals iosh1 iosh2 =
   IH.length iosh2 = 0 && not(IH.length iosh1 = 0)*)
   if not(IH.length iosh1 = IH.length iosh2)
   then 
-    (if !debug then ignore(E.log "iosh_equals: length not same\n");
+    (if !debug then ignore(E.log "iosh_equals: length not same: %d %d\n"
+            (IH.length iosh1) (IH.length iosh2));
     false)
   else
     IH.fold (fun vid ios b ->
@@ -157,11 +158,12 @@ let iosh_replace iosh i vi =
     IH.add iosh vi.vid newset
 
 
-let iosh_filter_dead iosh vs =
-  IH.iter (fun vid _ ->
+let iosh_filter_dead iosh vs = iosh
+(*  IH.iter (fun vid _ ->
     if not(UD.VS.exists (fun vi -> vid = vi.vid) vs)
     then IH.remove iosh vid)
-    iosh
+    iosh;
+  iosh*)
 
 
 (* remove definitions that are killed.
@@ -291,13 +293,13 @@ let getDefRhs didstmh stmdat defId =
   | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
 	(*None*)
 
-let prettyprint didstmh stmdat () (_,s,iosh) = text ""
-  (*seq line (fun (vid,ios) ->
+let prettyprint didstmh stmdat () (_,s,iosh) = (*text ""*)
+  seq line (fun (vid,ios) ->
     num vid ++ text ": " ++
       IOS.fold (fun io d -> match io with
 	None -> d ++ text "None "
       | Some i ->
-	  let stm = IH.find didstmh i in
+	  (*let stm = IH.find didstmh i in*)
 	  match getDefRhs didstmh stmdat i with
 	    None -> d ++ num i
 	  | Some(RDExp(e),_,_) ->
@@ -305,7 +307,7 @@ let prettyprint didstmh stmdat () (_,s,iosh) = text ""
 	  | Some(RDCall(c),_,_) ->
 	      d ++ num i ++ text " " ++ (d_instr () c))
       ios nil)
-    (IH.tolist iosh)*)
+    (IH.tolist iosh)
 
 module ReachingDef =
   struct
@@ -376,15 +378,18 @@ module ReachingDef =
       in
       loop (numds - 1);
       nextDefId := startDefId + numds;
-      ((), startDefId, IH.copy iosh)
+      match L.getLiveSet stm.sid with
+      | None -> ((), startDefId, IH.copy iosh)
+      | Some vs -> ((), startDefId, iosh_filter_dead (IH.copy iosh) vs)
 
      
     let combinePredecessors (stm:stmt) ~(old:t) ((_, s, iosh):t) =
       match old with (_, os, oiosh) -> begin
-	if time "iosh_equals" (iosh_equals oiosh) iosh 
-	then None 
-	else
-	  Some((), os, time "iosh_combine" (iosh_combine oiosh) iosh)
+        if time "iosh_equals" (iosh_equals oiosh) iosh 
+        then None 
+        else begin
+            Some((), os, time "iosh_combine" (iosh_combine oiosh) iosh)
+        end
       end
 
     (* return an action that removes things that
@@ -405,8 +410,8 @@ module ReachingDef =
       match L.getLiveSet stm.sid with
       | None -> DF.SDefault
       | Some vs -> begin
-	  iosh_filter_dead iosh vs;
-	  DF.SDefault
+	  DF.SUse((),s,iosh_filter_dead iosh vs)
+	  (*DF.SDefault*)
       end
 
 
@@ -451,6 +456,9 @@ let computeRDs fdec =
     IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh);
     time "liveness" L.computeLiveness fdec;
     ignore(ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh));
+    (match L.getLiveSet fst_stm.sid with
+    | None -> if !debug then ignore(E.log "Nothing live at fst_stm\n")
+    | Some vs -> ignore(iosh_filter_dead fst_iosh vs));
     if !debug then
       ignore (E.log "computeRDs: fst_stm.sid=%d\n" fst_stm.sid);
     RD.compute [fst_stm];
