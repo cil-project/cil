@@ -19,6 +19,11 @@ __typeof(arr) barr = { 0, 1, 2, 3 } ;
 
 __typeof("a long string") str; // Str should have type array, not pointer !
 
+struct foo { int a; int b; };
+struct foo returnsAStruct(int a) 
+      { return (struct foo){a,2}; }
+__typeof(returnsAStruct(42)) a_struct;
+
 #endif
 
 
@@ -72,5 +77,10 @@ int main(void)
   if(sizeof(carr) != sizeof(ARRAY)) {
     exit(8);
   }
+  if (  (sizeof(a_struct) != sizeof(struct foo))
+      ||(__alignof(a_struct) != __alignof(struct foo))) {
+    exit(9);
+  }
+
   return fptr(1);
 }

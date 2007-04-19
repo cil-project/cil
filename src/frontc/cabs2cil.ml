@@ -4071,7 +4071,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             prestype := t
           in
           match !pwhat with 
-            ADrop | AType -> addCall None zero intType
+            ADrop -> addCall None zero intType
+
+          | AType -> prestype := resType'
                 
           | ASet(lv, vtype) when !pis__builtin_va_arg -> 
               (* Make an exception here for __builtin_va_arg *)
