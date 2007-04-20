@@ -772,7 +772,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
                visitCilType (self : #cilVisitor :> cilVisitor) form.vtype;
             let form' = 
               splitOneVar form 
-                          (fun s t -> makeLocalVar func ~insert:false s t)
+                          (fun s t -> makeTempVar func ~insert:false ~name:s t)
             in
             (* Now it is a good time to check if we actually can split this 
              * one *)

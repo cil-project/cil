@@ -4736,8 +4736,8 @@ let makeLocalVar fdec ?(insert = true) name typ =
   if insert then fdec.slocals <- fdec.slocals @ [vi];
   vi
 
-let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) ?(descrpure = true)
-                typ : varinfo =
+let makeTempVar fdec ?(insert = true) ?(name = "__cil_tmp")
+                ?(descr = nil) ?(descrpure = true) typ : varinfo =
   let rec findUniqueName () : string=
     let n = name ^ (string_of_int (1 + fdec.smaxid)) in
     (* Is this check a performance problem?  We could bring the old
@@ -4751,7 +4751,7 @@ let makeTempVar fdec ?(name = "__cil_tmp") ?(descr = nil) ?(descrpure = true)
         n
   in
   let name = findUniqueName () in
-  let vi = makeLocalVar fdec name typ in
+  let vi = makeLocalVar fdec ~insert name typ in
   vi.vdescr <- descr;
   vi.vdescrpure <- descrpure;
   vi

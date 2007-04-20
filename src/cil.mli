@@ -1523,12 +1523,20 @@ val makeFormalVar: fundec -> ?where:string -> string -> typ -> varinfo
     set insert=false.  *)
 val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
 
-(** Make a temporary variable and add it to a function's slocals. The name of 
-    the temporary variable will be generated based on the given name hint so 
-    that to avoid conflicts with other locals.  
-    Optionally, you can give the variable a description of its contents. *)
-val makeTempVar: fundec -> ?name: string -> ?descr:Pretty.doc ->
-                 ?descrpure:bool -> typ -> varinfo
+(** Make a temporary variable and add it to a function's slocals. CIL will
+    ensure that the name of the new variable is unique in this function, and
+    will generate this name by appending a number to the specified string
+    ("__cil_tmp" by default).
+
+    The variable will be added to the function's slocals unless you explicitly
+    set insert=false.  (Make sure you know what you are doing if you set
+    insert=false.)
+
+    Optionally, you can give the variable a description of its contents
+    that will be printed by descriptiveCilPrinter.
+*)
+val makeTempVar: fundec -> ?insert:bool -> ?name: string ->
+                 ?descr:Pretty.doc -> ?descrpure:bool -> typ -> varinfo
 
 
 (** Make a global variable. Your responsibility to make sure that the name 
