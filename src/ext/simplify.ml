@@ -276,160 +276,6 @@ class threeAddressVisitor (fi: fundec) = object (self)
     ChangeTo (simplifyLval self#makeTemp lv)
 end
 
-(********************
-  Next is an old version of the code that was splitting structs into 
- * variables. It was not working on variables that are arguments or returns 
- * of function calls. 
-(** This is a visitor that splits structured variables into separate 
- * variables. *)
-let isStructType (t: typ): bool = 
-  match unrollType t with
-    TComp (ci, _)  -> ci.cstruct
-  | _ -> false
-
-(* Keep track of how we change the variables. For each variable id we keep a 
- * hash table that maps an offset (a sequence of fieldinfo) into a 
- * replacement variable. We also keep track of the splittable vars: those 
- * with structure type but whose address is not take and which do not appear 
- * as the argument to a Return *)
-let splittableVars: (int, unit) H.t = H.create 13
-let replacementVars: (int * offset, varinfo) H.t = H.create 13
-
-let findReplacement (fi: fundec) (v: varinfo) (off: offset) : varinfo = 
-  try
-    H.find replacementVars (v.vid, off)
-  with Not_found -> begin
-    let t = typeOfLval (Var v, off) in
-    (* make a name for this variable *)
-    let rec mkName = function
-      | Field(fi, off) -> "_" ^ fi.fname ^ mkName off
-      | _ -> ""
-    in
-    let v' = makeTempVar fi ~name:(v.vname ^ mkName off ^ "_") t in
-    H.add replacementVars (v.vid, off) v';
-    if debug then
-      ignore (E.log "Simplify: %s (%a) replace %a with %s\n"
-                fi.svar.vname
-                d_loc !currentLoc
-                d_lval (Var v, off)
-                v'.vname);
-    v'
-  end
-
-      (* Now separate the offset into a sequence of field accesses and the 
-      * rest of the offset *)
-let rec separateOffset (off: offset): offset * offset = 
-  match off with
-    NoOffset -> NoOffset, NoOffset
-  | Field(fi, off') when fi.fcomp.cstruct -> 
-      let off1, off2 = separateOffset off' in
-      Field(fi, off1), off2
-  | _ -> NoOffset, off
-
-
-class splitStructVisitor (fi: fundec) = object (self) 
-  inherit nopCilVisitor
-
-  method vlval (lv: lval) = 
-    match lv with 
-      Var v, off when H.mem splittableVars v.vid ->
-        (* The type of this lval better not be a struct *)
-        if isStructType (typeOfLval lv) then 
-          E.s (unimp "Simplify: found lval of struct type %a : %a\n"
-                 d_lval lv d_type (typeOfLval lv));
-        let off1, restoff = separateOffset off in
-        let lv' = 
-          if off1 <> NoOffset then begin
-            (* This is a splittable variable and we have an offset that makes 
-            * it a scalar. Find the replacement variable for this *)
-            let v' = findReplacement fi v off1 in
-            if restoff = NoOffset then 
-              Var v', NoOffset
-            else (* We have some more stuff. Use Mem *)
-              Mem (mkAddrOrStartOf (Var v', NoOffset)), restoff
-          end else begin (* off1 = NoOffset *)
-            if restoff = NoOffset then 
-              E.s (bug "Simplify: splitStructVisitor:lval")
-            else
-              simplifyLval 
-                (fun e1 -> 
-                  let t = makeTempVar fi (typeOf e1) in
-                  (* Add this instruction before the current statement *)
-                  self#queueInstr [Set(var t, e1, !currentLoc)];
-                  Lval(var t)) 
-                (Mem (mkAddrOrStartOf (Var v, NoOffset)), restoff)
-          end
-        in
-        ChangeTo lv'
-
-    | _ -> DoChildren
-
-  method vinst (i: instr) = 
-    (* Accumulate to the list of instructions a number of assignments of 
-     * non-splittable lvalues *)
-    let rec accAssignment (ci: compinfo) (dest: lval) (what: lval) 
-                         (acc: instr list) : instr list = 
-      List.fold_left
-        (fun acc f -> 
-          let dest' = addOffsetLval (Field(f, NoOffset)) dest in
-          let what' = addOffsetLval (Field(f, NoOffset)) what in
-          match unrollType f.ftype with 
-            TComp(ci, _) when ci.cstruct -> 
-              accAssignment ci dest' what' acc
-          | TArray _ -> (* We must copy the array *)
-              (Set((Mem (AddrOf dest'), NoOffset),
-                   Lval (Mem (AddrOf what'), NoOffset), !currentLoc)) :: acc
-          | _ -> (* If the type of f is not a struct then leave this alone *)
-              (Set(dest', Lval what', !currentLoc)) :: acc)
-        acc
-        ci.cfields
-    in
-    let doAssignment (ci: compinfo) (dest: lval) (what: lval) : instr list = 
-      let il' = accAssignment ci dest what [] in
-      List.concat (List.map (visitCilInstr (self :> cilVisitor)) il')
-    in
-    match i with 
-      Set(((Var v, off) as lv), what, _) when H.mem splittableVars v.vid ->
-        let off1, restoff = separateOffset off in
-        if restoff <> NoOffset then (* This means that we are only assigning 
-                                     * part of a replacement variable. Leave 
-                                     * this alone because the vlval will take 
-                                     * care of it *)
-          DoChildren
-        else begin
-          (* The type of the replacement has to be a structure *)
-          match unrollType (typeOfLval lv) with
-            TComp (ci, _) when ci.cstruct -> 
-              (* The assigned thing better be an lvalue *)
-              let whatlv = 
-                match what with 
-                  Lval lv -> lv
-                | _ -> E.s (unimp "Simplify: assigned struct is not lval")
-              in
-              ChangeTo (doAssignment ci (Var v, off) whatlv)
-              
-          | _ -> (* vlval will take care of it *)
-              DoChildren
-        end
-
-    | Set(dest, Lval (Var v, off), _) when H.mem splittableVars v.vid -> 
-        let off1, restoff = separateOffset off in
-        if restoff <> NoOffset then (* vlval will do this *)
-          DoChildren
-        else begin
-          (* The type of the replacement has to be a structure *)
-          match unrollType (typeOfLval dest) with
-            TComp (ci, _) when ci.cstruct -> 
-              ChangeTo (doAssignment ci dest (Var v, off))
-              
-          | _ -> (* vlval will take care of it *)
-              DoChildren
-        end
-          
-    | _ -> DoChildren
-        
-end
-*)
 
 (* Whether to split the arguments of functions *)
 let splitArguments = true
@@ -458,7 +304,16 @@ let rec foldRightStructFields
       let off' = addOffset (Field(f, NoOffset)) off in 
       match unrollType f.ftype with 
         TComp (comp, _) when comp.cstruct -> (* struct type: recurse *)
-          foldRightStructFields doit off' post comp.cfields
+          if (List.exists (fun f -> isArrayType f.ftype) comp.cfields) then
+            begin
+              E.log ("%a:  Simplify: Not splitting struct %s because one"
+                     ^^" of its fields is an array.\n") 
+                d_loc (List.hd comp.cfields).floc
+                comp.cname;
+              (doit off' f.fname f.ftype) :: post
+            end
+          else
+            foldRightStructFields doit off' post comp.cfields
       | _ -> 
           (doit off' f.fname f.ftype) :: post)
     fields
@@ -845,7 +700,7 @@ let feature : featureDescr =
     fd_enabled = ref false;
     fd_description = "compiles CIL to 3-address code";
     fd_extraopt = [
-      ("--no-split-structs", Arg.Unit (fun _ -> splitStructs := false),
+      ("--no-split-structs", Arg.Clear splitStructs,
                     " do not split structured variables"); 
     ];
     fd_doit = (function f -> iterGlobals f doGlobal);

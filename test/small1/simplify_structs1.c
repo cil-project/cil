@@ -4,13 +4,20 @@ struct two {
   int i_2;
 };
 
+struct nosplit {
+  // Don't split this struct.  
+  // (Or if you do, handle the array assignment correctly.)
+  int i_5;
+  int i_6[10];
+};
+
 struct three {
   int i_0;
   struct two i_1and2;
+  struct nosplit i_56;
 };
 
 struct three global = { 0, {10, 20}};
-
 //Try an external declaration:
 extern struct three bar(struct three arg);
 extern void barvoid(struct three arg);
