@@ -1832,9 +1832,6 @@ describes the rest of actions you can take with this module, including
 computing the CFG for one function at a time, or printing the CFG in
 \t{dot} form.
 
-\subsubsection{Inliner}
-
- The file ext/inliner.ml contains a function inliner. 
 
 \subsubsection{Simplified control flow}
 
@@ -1873,6 +1870,11 @@ parameterized framework for forward and backward data flow
 analyses. You provide the transfer functions and this module does the
 analysis.  You must compute control-flow information (\secref{cfg})
 before invoking the Dataflow module.
+
+
+\subsection{Inliner}
+
+ The file ext/inliner.ml contains a function inliner. 
 
 \subsection{Dominators} 
  

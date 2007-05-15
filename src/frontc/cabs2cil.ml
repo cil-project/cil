@@ -4404,7 +4404,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       doBinOp bop (makeCastT e1 t1 !upointType) !upointType 
                   (makeCastT e2 t2 !upointType) !upointType
 
-  | _ -> E.s (error "doBinOp: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
+  | _ -> E.s (error "Invalid operands to binary operator: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* Constant fold a conditional. This is because we want to avoid having 
  * conditionals in the initializers. So, we try very hard to avoid creating 

@@ -623,7 +623,7 @@ let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
 let feature : featureDescr = 
   { fd_name = "zrapp";              
     fd_enabled = ref false;
-    fd_description = "pretty printing with checks for name conflicts and temp variable elimination";
+    fd_description = "pretty printing with checks for name conflicts and\n\t\t\t\ttemp variable elimination";
     fd_extraopt = [
     "--zrapp_elim_temps",
     Arg.Unit (fun n -> doElimTemps := true),
