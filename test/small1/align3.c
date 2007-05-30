@@ -11,6 +11,7 @@ extern int size5[5];
 extern int size6[6];
 extern int size8[8];
 extern int size16[16];
+extern int size128[128];
 
 //has size 6, alignment 2
 struct s1 {
@@ -23,9 +24,12 @@ struct s1 __attribute__((__aligned__(1))) s1_1; //alignment 1
 struct s1 s1_2;                                 //alignment 2
 struct s1 __attribute__((__aligned__(4))) s1_4; //alignment 4
 struct s1 __attribute__((__aligned__(4))) s1_4; //alignment 4
+struct s1 __attribute__((__aligned__(1 << 7)))
+                                          s1_128;//alignment 128
 extern int size1[__alignof(s1_1)];
 extern int size2[__alignof(s1_2)];
 extern int size4[__alignof(s1_4)];
+extern int size128[__alignof(s1_128)];
 
 //has size 8, alignment 4
 struct s2 {

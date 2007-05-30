@@ -4167,16 +4167,17 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
            end
 
         | _ -> (* Use a conditional *) begin
-            match e2 with 
-              A.NOTHING -> 
+            match e2'o with 
+              None -> (* has form "e1 ? : e3"  *)
                 let tmp = var (newTempVar nil true tresult) in
                 let (se1, _, _) = doExp asconst e1 (ASet(tmp, tresult)) in
-                let (se3, _, _) = doExp asconst e3 (ASet(tmp, tresult)) in
-                finishExp (se1 @@ ifChunk (Lval(tmp)) lu
+                let (se3, _, _) = finishExp ~newWhat:(ASet(tmp, tresult)) 
+                                    se3 e3' t3 in
+                finishExp (se1 @@ ifChunk (Lval(tmp)) !currentLoc
                                     skipChunk se3)
                   (Lval(tmp))
                   tresult
-            | _ -> 
+            | Some e2' -> 
                 let lv, lvt = 
                   match what with
                   | ASet (lv, lvt) -> lv, lvt
@@ -4184,9 +4185,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                       let tmp = newTempVar nil true tresult in
                       var tmp, tresult
                 in
-                (* Now do e2 and e3 for real *)
-                let (se2, _, _) = doExp asconst e2 (ASet(lv, lvt)) in
-                let (se3, _, _) = doExp asconst e3 (ASet(lv, lvt)) in
+                (* Now add the stmts lv:=e2 and lv:=e3 to se2 and se3 *)
+                let (se2, _, _) = finishExp ~newWhat:(ASet(lv,lvt)) 
+                                    se2 e2' t2 in
+                let (se3, _, _) = finishExp ~newWhat:(ASet(lv,lvt)) 
+                                    se3 e3' t3 in
                 finishExp (doCondition asconst e1 se2 se3) (Lval(lv)) tresult
         end
 

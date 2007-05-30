@@ -203,6 +203,7 @@ addTest("testrun/offsetof1");
 addTest("testrun/offsetof2");
 addTest("testrun/offsetof3");
 addTest("testrun/question");
+addTest("testrun/question2");
 addTest("test/argcast");
 addBadComment("test/argcast", 
                         "Fails --check because of mismatched prototypes.");
