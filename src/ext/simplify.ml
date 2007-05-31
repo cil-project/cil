@@ -81,6 +81,10 @@ let debug = true
 (* Whether to split structs *)
 let splitStructs = ref true
 
+(* Whether to simplify inside of Mem *)
+let simpleMem = ref true
+let simplAddrOf = ref true
+
 let onlyVariableBasics = ref false
 let noStringConstantsBasics = ref false
 
@@ -105,8 +109,9 @@ let rec makeThreeAddress
   | CastE(t, e) -> 
       CastE(t, makeBasic setTemp e)
   | AddrOf lv -> begin
+      if not(!simplAddrOf) then e else
       match simplifyLval setTemp lv with 
-        Mem a, NoOffset -> a
+        Mem a, NoOffset -> if !simpleMem then a else AddrOf(Mem a, NoOffset)
       | _ -> (* This is impossible, because we are taking the address 
           * of v and simplifyLval should turn it into a Mem, except if the 
           * sizeof has failed.  *)
@@ -143,7 +148,12 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
       let a' = makeBasic setTemp a in
       Lval (Mem a', NoOffset)
 
-  | _ -> setTemp e' (* Put it into a temporary otherwise *)
+  | AddrOf lv when not(!simplAddrOf) -> e'
+
+  | _ -> begin
+    if dump then ignore (E.log "Placing %a into a temporary\n" d_plainexp e');
+    setTemp e' (* Put it into a temporary otherwise *)
+  end
 
 
 and simplifyLval 
@@ -208,7 +218,7 @@ and simplifyLval
         else
           a
       in
-      let a' = makeBasic setTemp a' in
+      let a' = if !simpleMem then makeBasic setTemp a' else a' in
       Mem (mkCast a' (typeForCast restoff)), restoff
 
   | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
@@ -217,10 +227,12 @@ and simplifyLval
        * ourselves *)
       let a = mkAddrOrStartOf (Var v, NoOffset) in
       let a' = 
-        if offidx = zero then a else 
-        add (mkCast a !upointType) (makeBasic setTemp offidx) 
+        if offidx = zero then a else
+        if !simpleMem then
+	        add (mkCast a !upointType) (makeBasic setTemp offidx)
+	    else add (mkCast a !upointType) offidx
       in
-      let a' = setTemp a' in
+      let a' = if !simpleMem then setTemp a' else a' in
       Mem (mkCast a' (typeForCast restoff)), restoff
 
   | Var v, off -> 
