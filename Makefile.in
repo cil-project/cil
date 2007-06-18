@@ -627,7 +627,11 @@ pkglibdir = $(libdir)/cil
 datadir = @datadir@
 pkgdatadir = $(datadir)/cil
 
-all_mli := $(filter %.mli, $(DISTRIB_OCAMLUTIL) $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA))
+distrib := $(DISTRIB_OCAMLUTIL) $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA)
+all_ml  := $(filter %.ml,  $(DISTRIB))
+all_mli := $(filter %.mli, $(DISTRIB))
+install_ml  := $(filter $(OCAML_CIL_LIB_MODULES:=.ml), $(all_ml))
+install_cmx := $(install_ml:%.ml=$(OBJDIR)/%.cmx)
 install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
 install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
 install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
@@ -637,6 +641,7 @@ install: $(install_cmi) $(install_cma) $(install_lib)
 	$(INSTALL) -d $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cma) $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cmi) $(DESTDIR)$(pkglibdir)
+	$(INSTALL_DATA) $(install_cmx) $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_lib) $(DESTDIR)$(pkglibdir)
 	$(INSTALL) -d $(DESTDIR)$(pkgdatadir)
 	$(INSTALL_DATA) $(addprefix lib/, $(filter %.pm, $(DISTRIB_LIB))) $(DESTDIR)$(pkgdatadir)
