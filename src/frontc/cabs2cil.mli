@@ -62,6 +62,10 @@ val allowDuplication: bool ref
 *)
 val doCollapseCallCast: bool ref
 
+(** Disables caching of globals during parsing.  This is handy when we want
+  * to parse additional source files without hearing about confclits. *)
+val cacheGlobals: bool ref
+
 (** A hook into the code for processing typeof. *)
 val typeForTypeof: (Cil.typ -> Cil.typ) ref
 

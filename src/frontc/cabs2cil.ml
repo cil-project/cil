@@ -83,6 +83,10 @@ let allowDuplication: bool ref = ref true
 *)
 let doCollapseCallCast: bool ref = ref false
 
+(** Disables caching of globals during parsing.  This is handy when we want
+  * to parse additional source files without hearing about confclits. *)
+let cacheGlobals: bool ref = ref true
+
 (** A hook into the code for processing typeof. *)
 let typeForTypeof: (Cil.typ -> Cil.typ) ref = ref (fun t -> t)
 
@@ -1343,12 +1347,7 @@ let cabsAddAttributes al0 (al: attributes) : attributes =
           if Util.equals a a' then 
             acc (* Already in *)
           else begin
-            ignore (warnOpt 
-                      "Duplicate attribute %a along with %a"
-                      d_attr a d_attr a');
-            (* let acc' = dropAttribute an acc in *)
-            (** Keep both attributes *)
-            addAttribute a acc
+            addAttribute a acc (* Keep both attributes *)
           end)
     al
     al0
@@ -1650,6 +1649,7 @@ let extInlineSuffRe = Str.regexp "\\(.+\\)__extinline"
  * whether the variable exists already in the environment *)
 let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
   let debug = false in
+  if not !cacheGlobals then vi, false else
   try (* See if already defined, in the global environment. We could also 
        * look it up in the whole environment but in that case we might see a 
        * local. This can happen when we declare an extern variable with 
