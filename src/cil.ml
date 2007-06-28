@@ -2821,7 +2821,7 @@ let initGccBuiltins () : unit =
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
-  let sizeType = !upointType in
+  let sizeType = TInt(IULong, []) in
 
   H.add h "__builtin___fprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType ], true) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
   H.add h "__builtin___memcpy_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
