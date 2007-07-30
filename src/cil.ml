@@ -3379,7 +3379,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
         | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
-                Lval(lv'),e,_) when Util.equals lv lv' ->
+                Lval(lv'),e,_) when Util.equals lv lv' 
+                && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLval () lv
                     ++ text " " ++ d_binop () bop
