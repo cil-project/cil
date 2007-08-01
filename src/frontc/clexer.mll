@@ -256,7 +256,9 @@ let scan_ident id =
   let here = currentLoc () in
   try (H.find lexicon id) here
   (* default to variable name, as opposed to type *)
-  with Not_found -> dbgToken (IDENT (id, here))
+  with Not_found ->
+    if id.[0] = '$' then QUALIFIER(id,here) else
+    dbgToken (IDENT (id, here))
 
 
 (*

@@ -14,7 +14,6 @@ module IH = Inthash
 module H = Hashtbl
 module U = Util
 module S = Stats
-module P = Ptranal
 
 let debug = ref false
 let doTime = ref false

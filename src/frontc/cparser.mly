@@ -242,6 +242,7 @@ let transformOffsetOf (speclist, dtype) member =
 %}
 
 %token <string * Cabs.cabsloc> IDENT
+%token <string * Cabs.cabsloc> QUALIFIER
 %token <int64 list * Cabs.cabsloc> CST_CHAR
 %token <int64 list * Cabs.cabsloc> CST_WCHAR
 %token <string * Cabs.cabsloc> CST_INT
@@ -1309,6 +1310,7 @@ attribute_nocv:
 |   MSATTR                              { (fst $1, []), snd $1 }
                                         /* ISO 6.7.3 */
 |   THREAD                              { ("__thread",[]), $1 }
+|   QUALIFIER                     {("__attribute__",[VARIABLE(fst $1)]),snd $1}
 ;
 
 attribute_nocv_list:
