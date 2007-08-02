@@ -58,17 +58,12 @@ module LiveFlow = struct
 
   let doStmt stmt =
     if !debug then ignore(E.log "looking at: %a\n" d_stmt stmt);
-    match stmt.succs with
-      [] -> let u,d = UD.computeUseDefStmtKind stmt.skind in
-      if !debug then ignore(E.log "doStmt: no succs %d\n" stmt.sid);
-      DF.Done u
-    | _ ->
-	let handle_stm vs = match stmt.skind with
-	  Instr _ -> vs
-	| s -> let u, d = UD.computeUseDefStmtKind s in
-	  VS.union u (VS.diff vs d)
-	in
-	DF.Post handle_stm
+    let handle_stm vs = match stmt.skind with
+      Instr _ -> vs
+    | s -> let u, d = UD.computeUseDefStmtKind s in
+      VS.union u (VS.diff vs d)
+    in
+    DF.Post handle_stm
 
   let doInstr i vs =
     let transform vs' =
