@@ -200,7 +200,8 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option) 
       then 
         addOptionSucc next;
       cfgBlock blk next next cont
-  | Loop(blk,_,_,_) ->
+  | Loop(blk, loc, s1, s2) ->
+      s.skind <- Loop(blk, loc, (Some s), next);
       addBlockSucc blk (Some s);
       cfgBlock blk (Some s) next (Some s)
       (* Since all loops have terminating condition true, we don't put
