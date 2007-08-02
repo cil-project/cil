@@ -2909,6 +2909,9 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_mempcpy" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType ], false);
   H.add h "__builtin_memset" (voidPtrType, 
                               [ voidPtrType; intType; intType ], false);
+  H.add h "__builtin_bcopy" (voidType, [ voidConstPtrType; voidPtrType; sizeType ], false);
+  H.add h "__builtin_bzero" (voidType, 
+                              [ voidPtrType; sizeType ], false);
 
   H.add h "__builtin_fmod" (doubleType, [ doubleType ], false);
   H.add h "__builtin_fmodf" (floatType, [ floatType ], false);
