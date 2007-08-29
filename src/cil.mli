@@ -1607,8 +1607,9 @@ val kinteger: ikind -> int -> exp
 val integer: int -> exp
 
 
-(** True if the given expression is a (possibly cast'ed) 
-    character or an integer constant *)
+(** If the given expression is a (possibly cast'ed) 
+    character or an integer constant, return that integer.
+    Otherwise, return None. *)
 val isInteger: exp -> int64 option
 
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
