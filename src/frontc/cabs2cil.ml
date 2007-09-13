@@ -617,7 +617,8 @@ let rec stripConstLocalType (t: typ) : typ =
 
     (* We never assign functions either *)
   | TFun(rt, args, va, a) -> t
-  | TVoid _ -> E.s (bug "cabs2cil: stripConstLocalType: void")
+  | TVoid a -> 
+      let a' = dc a in if a != a' then TVoid a' else t
   | TBuiltin_va_list a -> 
       let a' = dc a in if a != a' then TBuiltin_va_list a' else t
 
