@@ -112,6 +112,71 @@ let getLiveSet sid =
   try Some(IH.find LiveFlow.stmtStartData sid)
   with Not_found -> None
 
+let getLiveness (s:stmt) = Inthash.find LiveFlow.stmtStartData s.sid
+
+let getPostLiveness (s:stmt) : LiveFlow.t = 
+  let foldLiveness live s = VS.union live (getLiveness s) in
+  List.fold_left foldLiveness VS.empty s.succs
+
+let instrLiveness (il : instr list) (stm : stmt) (vs : VS.t) (out: bool) : VS.t list =
+    let proc_one vsl i =
+        match vsl with
+        | [] ->
+            let u,d = UD.computeUseDefInstr i in
+            (VS.union u (VS.diff vs d))::vsl
+        | vs'::rst ->
+            let u,d = UD.computeUseDefInstr i in
+            (VS.union u (VS.diff vs' d))::vsl
+    in
+    let liveout = getPostLiveness stm in
+    let folded = List.fold_left proc_one [liveout] (List.rev il) in
+    if out then List.tl folded else folded
+
+(* Inherit from this to visit with liveness info at instructions.
+   If out is true, then gives liveness after instructions.
+   If out is false, then gives liveness before instructions. *)
+class livenessVisitorClass (out : bool) = object(self)
+    inherit nopCilVisitor
+
+    val mutable sid = -1
+
+    val mutable liv_dat_lst = []
+
+    val mutable cur_liv_dat = None
+
+    method vstmt stm =
+        sid <- stm.sid;
+        match getLiveSet sid with
+        | None -> begin
+            if !debug then E.log "livVis: stm %d has no data\n" sid;
+            cur_liv_dat <- None;
+            DoChildren
+        end
+        | Some vs -> begin
+            match stm.skind with
+            | Instr il -> begin
+                liv_dat_lst <- instrLiveness il stm vs out;
+                DoChildren
+            end
+            | _ -> begin
+                cur_liv_dat <- None;
+                DoChildren
+            end
+        end
+
+    method vinst i =
+        try
+            let data = List.hd liv_dat_lst in
+            cur_liv_dat <- Some(data);
+            liv_dat_lst <- List.tl liv_dat_lst;
+            if !debug then E.log "livVis: at %a, data is %a\n"
+                d_instr i debug_print data;
+            DoChildren
+        with Failure "hd" ->
+            if !debug then E.log "livnessVisitor: il liv_dat_lst mismatch\n";
+            DoChildren
+end
+
 let print_everything () =
   let d = IH.fold (fun i vs d -> 
     d ++ num i ++ text ": " ++ LiveFlow.pretty () vs) 
