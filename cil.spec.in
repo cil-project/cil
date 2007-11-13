@@ -79,7 +79,7 @@ make cillib NATIVECAML=1
 
 %install
 rm -rf $RPM_BUILD_ROOT
-%makeinstall
+make DESTDIR=%buildroot install
 
 %clean
 rm -rf $RPM_BUILD_ROOT
