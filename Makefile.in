@@ -387,6 +387,7 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
 		    intmap.ml intmap.mli clist.ml clist.mli \
                     longarray.ml longarray.mli \
                     growArray.ml growArray.mli \
+                    bitmap.ml bitmap.mli \
                     perfcount.c.in Makefile.ocaml
 
 
@@ -402,7 +403,6 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
                   deadcodeelim.ml availexps.ml \
                   dataflow.ml dataflow.mli \
 		  dominators.ml dominators.mli \
-		  bitmap.ml bitmap.mli \
 		  ssa.ml ssa.mli \
 	          stackoverflow.mli stackoverflow.ml \
 	          canonicalize.ml canonicalize.mli \
