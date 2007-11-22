@@ -367,7 +367,11 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
                config.h.in config.mk.in Makefile.gcc Makefile.msvc \
 	       configure configure.in install-sh config.guess config.sub \
 	       cil.spec cil.spec.in \
-           aclocal.m4
+	       _tags \
+	       aclocal.m4 \
+	       cil.itarget \
+	       cil.odocl \
+	       myocamlbuild.ml
 
 DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
@@ -375,6 +379,8 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      mergecil.ml mergecil.mli main.ml machdep-ml.c \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
 	      escape.ml escape.mli cillower.mli cillower.ml \
+	      _tags \
+	      cil.mllib \
 	      cilversion.ml.in
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
@@ -384,7 +390,8 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     longarray.ml longarray.mli \
                     growArray.ml growArray.mli \
                     bitmap.ml bitmap.mli \
-                    perfcount.c.in Makefile.ocaml
+                    perfcount.c.in Makefile.ocaml \
+                    _tags
 
 
 DISTRIB_SRC_FRONTC = cabs.ml cabshelper.ml cprint.ml clexer.mli clexer.mll \
@@ -406,6 +413,7 @@ DISTRIB_SRC_EXT = logcalls.ml logcalls.mli \
 	          simplemem.ml simplify.ml \
 	          blockinggraph.ml blockinggraph.mli \
 		  dataslicing.ml dataslicing.mli \
+		  _tags \
 		  reachingdefs.ml \
 		  cfg.ml cfg.mli \
 		  liveness.ml \
