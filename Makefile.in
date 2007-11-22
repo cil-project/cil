@@ -193,17 +193,11 @@ $(OBJDIR)/machdep.ml : src/machdep.c configure.in Makefile.in
 
 #
 # Create the version information module
-.PHONY: cilversion 
+.PHONY: cilversion
 cilversion: $(OBJDIR)/cilversion.ml
-$(OBJDIR)/cilversion.ml: configure.in Makefile.in
+$(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
 	rm -f $@
-	mkdir -p $(OBJDIR)
-	echo "(* This module was generated automatically by code in Makefile *)" >$@
-# Generate here the version information
-	echo "let cilVersionMajor = @CIL_VERSION_MAJOR@" >>$@
-	echo "let cilVersionMinor = @CIL_VERSION_MINOR@" >>$@
-	echo "let cilVersionRev   = @CIL_VERSION_REV@"   >>$@
-	echo "let cilVersion      = \"@CIL_VERSION@\""  >>$@ 
+	./config.status --file=$@:$<
 
 # build two libraries
 .PHONY: cillib libcil
@@ -380,7 +374,8 @@ DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      formatcil.mli formatcil.ml testcil.ml \
 	      mergecil.ml mergecil.mli main.ml machdep.c \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
-	      escape.ml escape.mli cillower.mli cillower.ml
+	      escape.ml escape.mli cillower.mli cillower.ml \
+	      cilversion.ml.in
 
 DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     trace.ml trace.mli stats.ml stats.mli util.ml util.mli \
