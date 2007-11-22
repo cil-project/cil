@@ -364,42 +364,8 @@ AC_FUNC_MEMCMP
 AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 
 # Find out the true definitions of some integer types
-# checkIntegerType(size_t) will echo "int" or "long"
-checkIntegerType() {
-  fn="testtype.c"
-  for t in "int" "unsigned int" "long" "unsigned long" "short" "unsigned short" "char" "unsigned  char" ;do
-     echo "#include <stddef.h>" >$fn
-     echo "#include <wchar.h>" >>$fn
-     # We define a prototype with one type and the function with 
-     # another type. This will result in compilation error
-     # unless the types are really identical
-     echo "$t foo($t x);"      >>$fn
-     echo "$1 foo($1 x) { return x;}" >>$fn
-     if gcc -c $fn 2>/dev/null ;then 
-        # Found it
-        echo $t
-        rm -f $fn
-        return
-     fi
-  done
-  rm -f $fn
-}
-
-AC_MSG_CHECKING([definition of size_t])
-TYPE_SIZE_T=`checkIntegerType "size_t"`
-if test "x$TYPE_SIZE_T" = "x" ;then
-  AC_MSG_ERROR([Cannot find definition of size_t])
-fi
-AC_DEFINE_UNQUOTED(TYPE_SIZE_T, "$TYPE_SIZE_T")
-AC_MSG_RESULT([$TYPE_SIZE_T])
-
-AC_MSG_CHECKING([definition of wchar_t])
-TYPE_WCHAR_T=`checkIntegerType "wchar_t"`
-if test "x$TYPE_WCHAR_T" = "x" ;then
-  AC_MSG_ERROR([Cannot find definition of wchar_t])
-fi
-AC_DEFINE_UNQUOTED(TYPE_WCHAR_T, "$TYPE_WCHAR_T")
-AC_MSG_RESULT([$TYPE_WCHAR_T])
+CIL_CHECK_INTEGER_TYPE(size_t, TYPE_SIZE_T)
+CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
 
 
 # ----------- platform-specific code -------------
@@ -618,4 +584,3 @@ CIL configuration:
   Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
   Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
-
