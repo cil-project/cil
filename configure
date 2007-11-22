@@ -5746,15 +5746,6 @@ chmod -w Makefile.features
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
-# I find it useful to mark generated files as read-only so I don't
-# accidentally edit them (and them lose my changes when ./configure
-# runs again); I had originally done the chmod after AC_OUTPUT, but
-# the problem is then the chmod doesn't run inside ./config.status
-
-# MY_AC_CONFIG_FILES(filename)
-# do AC_CONFIG_FILES(filename, chmod a-w filename)
-
-
 
 {
   if test -f Makefile.in; then

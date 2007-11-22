@@ -531,42 +531,17 @@ AC_SUBST(EXTRASRCDIRS)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
-# I find it useful to mark generated files as read-only so I don't
-# accidentally edit them (and them lose my changes when ./configure
-# runs again); I had originally done the chmod after AC_OUTPUT, but
-# the problem is then the chmod doesn't run inside ./config.status
 
-# MY_AC_CONFIG_FILES(filename)
-# do AC_CONFIG_FILES(filename, chmod a-w filename)
-define([MY_AC_CONFIG_FILES],
-[{
-  if test -f [$1].in; then
-    AC_CONFIG_FILES([$1], chmod a-w [$1])
-  else
-    true
-    #echo "skipping [$1] because it's not in this distribution"
-  fi
-}])
-define([MY_AC_CONFIG_EXE_FILES],
-[{
-  if test -f [$1].in; then
-    AC_CONFIG_FILES([$1], [chmod a-w,a+x $1])
-  else
-    true
-    #echo "skipping [$1] because it's not in this distribution"
-  fi
-}])
-
-MY_AC_CONFIG_FILES(Makefile)
-MY_AC_CONFIG_FILES(cil.spec)
-MY_AC_CONFIG_FILES(config.mk)
-MY_AC_CONFIG_FILES(test/Makefile)
-MY_AC_CONFIG_EXE_FILES(bin/cilly.bat)
-MY_AC_CONFIG_EXE_FILES(bin/patcher.bat)
-MY_AC_CONFIG_FILES(bin/CilConfig.pm)
-MY_AC_CONFIG_FILES(doc/index.html)
-MY_AC_CONFIG_FILES(doc/header.html)
-MY_AC_CONFIG_FILES(ocamlutil/perfcount.c)
+CIL_CONFIG_FILES(Makefile)
+CIL_CONFIG_FILES(cil.spec)
+CIL_CONFIG_FILES(config.mk)
+CIL_CONFIG_FILES(test/Makefile)
+CIL_CONFIG_EXE_FILES(bin/cilly.bat)
+CIL_CONFIG_EXE_FILES(bin/patcher.bat)
+CIL_CONFIG_FILES(bin/CilConfig.pm)
+CIL_CONFIG_FILES(doc/index.html)
+CIL_CONFIG_FILES(doc/header.html)
+CIL_CONFIG_FILES(ocamlutil/perfcount.c)
 
 AC_OUTPUT()
 

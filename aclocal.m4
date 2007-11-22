@@ -40,3 +40,30 @@ AC_DEFUN([CIL_CHECK_INTEGER_TYPE], [
   AC_DEFINE_UNQUOTED([$2], "[$real_type]")
   AC_MSG_RESULT([$real_type])
 ])
+
+
+# I find it useful to mark generated files as read-only so I don't
+# accidentally edit them (and them lose my changes when ./configure
+# runs again); I had originally done the chmod after AC_OUTPUT, but
+# the problem is then the chmod doesn't run inside ./config.status
+
+# CIL_CONFIG_FILES(filename)
+# do AC_CONFIG_FILES(filename, chmod a-w filename)
+define([CIL_CONFIG_FILES],
+[{
+  if test -f [$1].in; then
+    AC_CONFIG_FILES([$1], chmod a-w [$1])
+  else
+    true
+    #echo "skipping [$1] because it's not in this distribution"
+  fi
+}])
+define([CIL_CONFIG_EXE_FILES],
+[{
+  if test -f [$1].in; then
+    AC_CONFIG_FILES([$1], [chmod a-w,a+x $1])
+  else
+    true
+    #echo "skipping [$1] because it's not in this distribution"
+  fi
+}])
