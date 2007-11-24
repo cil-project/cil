@@ -6774,5 +6774,3 @@ let d_formatarg () = function
   | FS _ -> dprintf "FS"
 
   | FX _ -> dprintf "FX()"
-
-
