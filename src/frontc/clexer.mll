@@ -185,6 +185,7 @@ let init_lexicon _ =
       ("__label__", fun _ -> LABEL__);
       (*** weimer: GCC arcana ***)
       ("__restrict", fun loc -> RESTRICT loc);
+      ("__restrict__", fun loc -> RESTRICT loc);
       ("restrict", fun loc -> RESTRICT loc);
 (*      ("__extension__", EXTENSION); *)
       (**** MS VC ***)
