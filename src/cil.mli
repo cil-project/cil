@@ -1619,6 +1619,9 @@ val i64_to_int: int64 -> int
 (** True if the expression is a compile-time constant *)
 val isConstant: exp -> bool
 
+(** True if the given offset contains only field nanmes or constant indices. *)
+val isConstantOffset: offset -> bool
+
 (** True if the given expression is a (possibly cast'ed) integer or character 
     constant with value zero *)
 val isZero: exp -> bool
@@ -2422,6 +2425,12 @@ val d_plaintype: unit -> typ -> Pretty.doc
 (** Pretty-print an expression while printing descriptions rather than names
   of temporaries. *)
 val dd_exp: unit -> exp -> Pretty.doc
+(** Pretty-print an lvalue on the left side of an assignment.
+    If there is an offset or memory dereference, temporaries will
+    be replaced by descriptions as in dd_exp.  If the lval is a temp var,
+    that var will not be replaced by a description; use "dd_exp () (Lval lv)"
+    if that's what you want. *)
+val dd_lval: unit -> lval -> Pretty.doc
 
 
 

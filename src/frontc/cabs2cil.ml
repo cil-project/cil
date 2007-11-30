@@ -1117,7 +1117,12 @@ type expAction =
                                            is interesting.  *)
   | ASet of lval * typ                  (* Put the result in a given lval, 
                                          * provided it matches the type. The 
-                                         * type is the type of the lval. *)
+                                         * type is the type of the lval.
+                                         * The location of lval is guaranteed
+                                         * not to depend on its own value,
+                                         * e.g. p[p[0]] when p[0] is initially
+                                         * 0, so the location won't change
+                                         * after assignment. *)
   | AExp of typ option                  (* Return the exp as usual. 
                                          * Optionally we can specify an 
                                          * expected type. This is useful for 
@@ -3718,8 +3723,27 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                | _ -> E.s (error "Expected lval for assignment. Got %a\n"
                              d_plainexp e1')
              in
-             let (se2, e'', t'') = doExp false e2 (ASet(lv, lvt)) in
-             finishExp (se1 @@ se2) e1' lvt
+             (* Catch the case of an lval that might depend on itself,
+                e.g. p[p[0]] when p[0] == 0.  We need to use a temporary
+                here if the result of the expression will be used:
+                   tmp := e2; lv := tmp; use tmp as the result
+                Test: small1/assign.c *)
+             let needsTemp = match what, lv with
+                 (ADrop|AType), _ -> false
+               | _, (Mem e, off) -> not (isConstant e) 
+                                    || not (isConstantOffset off)
+               | _, (Var _, off) -> not (isConstantOffset off)
+             in
+             let tmplv, se3 = 
+               if needsTemp then
+                 let descr = (dd_lval () lv) in
+                 let tmp = newTempVar descr true lvt in
+                 var tmp, i2c (Set(lv, Lval(var tmp), !currentLoc))
+               else
+                 lv, empty
+             in
+             let (se2, e'', t'') = doExp false e2 (ASet(tmplv, lvt)) in
+             finishExp (se1 @@ se2 @@ se3) (Lval tmplv) lvt
            end
         | _ -> E.s (error "Invalid left operand for ASSIGN")
     end

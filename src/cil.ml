@@ -428,6 +428,9 @@ and varinfo = {
 
     mutable vdescrpure: bool;           (** Indicates whether the vdescr above
                                             is a pure expression or call.
+                                            True for all CIL expressions and
+                                            Lvals, but false for e.g. function
+                                            calls.
                                             Printing a non-pure vdescr more
                                             than once may yield incorrect
                                             results. *)
@@ -4671,6 +4674,7 @@ let descriptiveCilPrinter: descriptiveCilPrinter =
   ((new descriptiveCilPrinterClass true) :> descriptiveCilPrinter)
 
 let dd_exp = descriptiveCilPrinter#pExp
+let dd_lval = descriptiveCilPrinter#pLval
 
 (* zra: this allows pretty printers not in cil.ml to
    be exposed to cilmain.ml *)
@@ -5938,14 +5942,14 @@ let rec isConstant = function
   | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
   | CastE (_, e) -> isConstant e
   | AddrOf (Var vi, off) | StartOf (Var vi, off)
-        -> vi.vglob && isConstantOff off
+        -> vi.vglob && isConstantOffset off
   | AddrOf (Mem e, off) | StartOf(Mem e, off) 
-        -> isConstant e && isConstantOff off
+        -> isConstant e && isConstantOffset off
 
-and isConstantOff = function
+and isConstantOffset = function
     NoOffset -> true
-  | Field(fi, off) -> isConstantOff off
-  | Index(e, off) -> isConstant e && isConstantOff off
+  | Field(fi, off) -> isConstantOffset off
+  | Index(e, off) -> isConstant e && isConstantOffset off
 
 
 let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
