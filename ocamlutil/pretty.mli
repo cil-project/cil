@@ -83,6 +83,8 @@ val text         : string -> doc
 (** A document that prints an integer in decimal form *)
 val num          : int    -> doc
 
+(** A document that prints a 64-bit int in decimal form *)
+val num64        : int64  -> doc
 
 (** A document that prints a real number *)
 val real         : float  -> doc
