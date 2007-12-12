@@ -1632,6 +1632,8 @@ val isZero: exp -> bool
   Returns CInt64(sign-extened c, IInt, None) *)
 val charConstToInt: char -> constant
 
+val convertInts: int64 -> ikind -> int64 -> ikind -> int64 * int64 * ikind
+
 (** Do constant folding on an expression. If the first argument is true then 
     will also compute compiler-dependent expressions such as sizeof.
     See also {!Cil.constFoldVisitor}, which will run constFold on all
@@ -2467,6 +2469,9 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
  * not defined (e.g. TFun or an undefined compinfo). The string is an 
  * explanation of the error *)        
 exception SizeOfError of string * typ
+
+
+val bytesSizeOfInt: ikind -> int 
 
 (** The size of a type, in bits. Trailing padding is added for structs and 
  * arrays. Raises {!Cil.SizeOfError} when it cannot compute the size. This 
