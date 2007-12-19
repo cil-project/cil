@@ -18,6 +18,7 @@ module IS = Set.Make(
 
 let debug = RD.debug
 
+
 let doTime = ref false
 
 let time s f a =
@@ -61,7 +62,7 @@ class usedDefsCollectorClass = object(self)
 				vi.vname sid (RD.IOS.cardinal ios));
 	RD.IOS.iter (function
 	    Some(i) -> 
-	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_plainexp e);
+	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_exp e);
 	      usedDefsSet := IS.add i (!usedDefsSet)
 	  | None -> ()) ios
       else if !debug then ignore(E.log "DCE: vid %d:%s not in stm:%d iosh at %a\n"
@@ -287,6 +288,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	end else begin
 	  (* true if there is something in defuses not in instruses or when
 	   * something from defuses is in instruses and is also used somewhere else *)
+	  if UD.VS.exists (fun vi -> vi.vglob) instruses then true else
 	  let instruses = viSetToDefIdSet iosh instruses in
 	  IS.fold (fun i' b -> 
 	    if not(IS.mem i' instruses) then begin
