@@ -2707,7 +2707,7 @@ let parseInt (str: string) : exp =
     let doAcc (what: int) = 
       let acc' = 
         Int64.add (Int64.mul base acc)  (Int64.of_int what) in
-      if acc < Int64.zero || (* We clearly overflow since base >= 2 
+      if acc' < Int64.zero || (* We clearly overflow since base >= 2 
       * *)
       (acc' > Int64.zero && acc' < acc) then 
         E.s (unimp "Cannot represent on 64 bits the integer %s\n"
