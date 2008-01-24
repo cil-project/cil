@@ -105,8 +105,11 @@ let rec stripNopCasts (e:exp): exp =
           when bitsSizeOf t1 = bitsSizeOf t2 
             && not (isSigned ik) ->
           stripNopCasts e'
-      | (TInt _ as t1), (TInt _ as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
+      | (TInt(ik1,_) as t1), (TInt(ik2,_) as t2)
+          (* promotion when signedness is the same doesn't change value *)
+          when bitsSizeOf t1 = bitsSizeOf t2 ||
+               (isSigned ik1 = isSigned ik2 &&
+                bitsSizeOf t1 <= bitsSizeOf t2) -> (* Okay to strip.*)
           stripNopCasts e'
       |  _ -> e
     end
