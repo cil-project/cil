@@ -177,6 +177,58 @@ class livenessVisitorClass (out : bool) = object(self)
             DoChildren
 end
 
+(* Inherit from this to visit instructions with
+   data about which variables are newly dead after
+   the instruction in post_dead_vars *)
+class deadnessVisitorClass = object(self)
+    inherit nopCilVisitor
+
+    val mutable sid = -1
+
+    val mutable liv_dat_lst = []
+
+    val mutable cur_liv_dat = None
+
+    val mutable post_dead_vars = VS.empty
+
+    method vstmt stm =
+        sid <- stm.sid;
+        match getLiveSet sid with
+        | None -> begin
+            if !debug then E.log "deadVis: stm %d has no data\n" sid;
+            cur_liv_dat <- None;
+            post_dead_vars <- VS.empty;
+            DoChildren
+        end
+        | Some vs -> begin
+            match stm.skind with
+            | Instr il -> begin
+                liv_dat_lst <- instrLiveness il stm vs true;
+                DoChildren
+            end
+            | _ -> begin
+                cur_liv_dat <- None;
+                post_dead_vars <- VS.empty;
+                DoChildren
+            end
+        end
+
+    method vinst i =
+        try
+            let data = List.hd liv_dat_lst in
+            cur_liv_dat <- Some(data);
+            liv_dat_lst <- List.tl liv_dat_lst;
+            let u,d = UD.computeUseDefInstr i in
+            let inlive = VS.union u (VS.diff data d) in
+            post_dead_vars <- VS.diff inlive data;
+            if !debug then E.log "deadVis: at %a, post_dead_vars is %a\n"
+                d_instr i debug_print post_dead_vars;
+            DoChildren
+        with Failure "hd" ->
+            if !debug then E.log "deadnessVisitor: il liv_dat_lst mismatch\n";
+            DoChildren
+end
+
 let print_everything () =
   let d = IH.fold (fun i vs d -> 
     d ++ num i ++ text ": " ++ LiveFlow.pretty () vs) 
