@@ -150,8 +150,13 @@ let rec stripCastsForPtrArith (e:exp): exp =
           when bitsSizeOf t1 = bitsSizeOf t2 
             && not (isSigned ik) ->
           stripCastsForPtrArith e'
-      | (TInt _ as t1), (TInt _ as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
+      | (TInt(ik1,_) as t1), (TInt(ik2,_) as t2) 
+          (*when bitsSizeOf t1 = bitsSizeOf t2 ->*) (* Okay to strip.*)
+          when bitsSizeOf t1 = bitsSizeOf t2 ||
+               (isSigned ik1 = isSigned ik2 &&
+                bitsSizeOf t1 < bitsSizeOf t2) ||
+               (not(isSigned ik1) &&
+                bitsSizeOf t1 < bitsSizeOf t2) -> (* Okay to strip.*)
           stripCastsForPtrArith e'
       |  _ -> e
     end
