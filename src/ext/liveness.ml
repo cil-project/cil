@@ -179,7 +179,9 @@ end
 
 (* Inherit from this to visit instructions with
    data about which variables are newly dead after
-   the instruction in post_dead_vars *)
+   the instruction in post_dead_vars
+   (and which variables are dead *before* each statement,
+    also, confusingly, in post_dead_vars) *)
 class deadnessVisitorClass = object(self)
     inherit nopCilVisitor
 
@@ -208,7 +210,13 @@ class deadnessVisitorClass = object(self)
             end
             | _ -> begin
                 cur_liv_dat <- None;
-                post_dead_vars <- VS.empty;
+                let dead =
+                    List.fold_left (fun dead stm ->
+                        VS.union dead (VS.diff (getLiveness stm) vs))
+                        VS.empty
+                        stm.preds
+                in
+                post_dead_vars <- dead;
                 DoChildren
             end
         end
@@ -221,11 +229,12 @@ class deadnessVisitorClass = object(self)
             let u,d = UD.computeUseDefInstr i in
             let inlive = VS.union u (VS.diff data d) in
             post_dead_vars <- VS.diff inlive data;
-            if !debug then E.log "deadVis: at %a, post_dead_vars is %a\n"
-                d_instr i debug_print post_dead_vars;
+            if !debug then E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
+                d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
             DoChildren
         with Failure "hd" ->
             if !debug then E.log "deadnessVisitor: il liv_dat_lst mismatch\n";
+            post_dead_vars <- VS.empty;
             DoChildren
 end
 
