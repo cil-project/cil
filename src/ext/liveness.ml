@@ -14,7 +14,7 @@ module UD = Usedef
 module IH = Inthash
 module E = Errormsg
 
-let debug = ref true
+let debug = ref false
 
 let live_label = ref ""
 let live_func = ref ""
