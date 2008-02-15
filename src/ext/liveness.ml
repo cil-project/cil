@@ -14,7 +14,7 @@ module UD = Usedef
 module IH = Inthash
 module E = Errormsg
 
-let debug = ref false
+let debug = ref true
 
 let live_label = ref ""
 let live_func = ref ""
@@ -216,6 +216,8 @@ class deadnessVisitorClass = object(self)
                         VS.empty
                         stm.preds
                 in
+                if !debug then E.log "deadVis: before %a, %a die\n"
+                    d_stmt stm debug_print dead;
                 post_dead_vars <- dead;
                 DoChildren
             end
