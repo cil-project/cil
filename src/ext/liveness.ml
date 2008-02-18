@@ -180,8 +180,10 @@ end
 (* Inherit from this to visit instructions with
    data about which variables are newly dead after
    the instruction in post_dead_vars
-   (and which variables are dead *before* each statement,
-    also, confusingly, in post_dead_vars) *)
+   (and which variables are dead *before* each /statement/,
+    also, confusingly, in post_dead_vars).
+   post_live_vars contains vars that are newly live
+   after each instruction *)
 class deadnessVisitorClass = object(self)
     inherit nopCilVisitor
 
@@ -192,6 +194,7 @@ class deadnessVisitorClass = object(self)
     val mutable cur_liv_dat = None
 
     val mutable post_dead_vars = VS.empty
+    val mutable post_live_vars = VS.empty
 
     method vstmt stm =
         sid <- stm.sid;
@@ -200,9 +203,21 @@ class deadnessVisitorClass = object(self)
             if !debug then E.log "deadVis: stm %d has no data\n" sid;
             cur_liv_dat <- None;
             post_dead_vars <- VS.empty;
+            post_live_vars <- VS.empty;
             DoChildren
         end
         | Some vs -> begin
+            let (dead,live) =
+                List.fold_left (fun (dead,live) stm ->
+                    VS.union dead (VS.diff (getPostLiveness stm) vs),
+                    VS.union live (getPostLiveness stm))
+                    (VS.empty, VS.empty)
+                    stm.preds
+            in
+            if !debug then E.log "deadVis: before %a, %a die, %a come to live\n"
+                d_stmt stm debug_print dead debug_print live;
+            post_dead_vars <- dead;
+            post_live_vars <- VS.diff vs live;
             match stm.skind with
             | Instr il -> begin
                 liv_dat_lst <- instrLiveness il stm vs true;
@@ -210,15 +225,6 @@ class deadnessVisitorClass = object(self)
             end
             | _ -> begin
                 cur_liv_dat <- None;
-                let dead =
-                    List.fold_left (fun dead stm ->
-                        VS.union dead (VS.diff (getLiveness stm) vs))
-                        VS.empty
-                        stm.preds
-                in
-                if !debug then E.log "deadVis: before %a, %a die\n"
-                    d_stmt stm debug_print dead;
-                post_dead_vars <- dead;
                 DoChildren
             end
         end
@@ -231,12 +237,14 @@ class deadnessVisitorClass = object(self)
             let u,d = UD.computeUseDefInstr i in
             let inlive = VS.union u (VS.diff data d) in
             post_dead_vars <- VS.diff inlive data;
+            post_live_vars <- VS.diff data inlive;
             if !debug then E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
                 d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
             DoChildren
         with Failure "hd" ->
             if !debug then E.log "deadnessVisitor: il liv_dat_lst mismatch\n";
             post_dead_vars <- VS.empty;
+            post_live_vars <- VS.empty;
             DoChildren
 end
 
