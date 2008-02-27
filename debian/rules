@@ -7,8 +7,6 @@ DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 
 CFLAGS = -Wall -g
 
-MAKE.cil = $(MAKE) -f Makefile.cil
-
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CFLAGS += -O0
 else
@@ -28,11 +26,11 @@ build: debian/build-stamp
 debian/build-stamp:  config.status
 	dh_testdir
 	# Add here commands to compile the package.
-	$(MAKE) -f Makefile.cil setup #doc
+	$(MAKE) setup #doc
 	touch $@
 
 check:	build
-	$(MAKE) -f Makefile.cil check
+	$(MAKE) check
 
 
 clean:	config.status
@@ -40,7 +38,7 @@ clean:	config.status
 	dh_testroot
 	rm -f debian/build-stamp 
 	# Add here commands to clean up after the build process.
-	-$(MAKE) -f Makefile.cil distclean
+	-$(MAKE) distclean
 	rm -f config.status
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
 	cp -f /usr/share/misc/config.sub config.sub
@@ -55,8 +53,11 @@ install: build
 	dh_testroot
 	dh_clean -k 
 	dh_installdirs
-	$(MAKE) -f Makefile.cil install DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 	mkdir -p $(CURDIR)/debian/tmp/usr/share/doc/cil/html
+	mkdir -p $(CURDIR)/debian/tmp/usr/share/doc/cil-dev
+	cp LICENSE $(CURDIR)/debian/tmp/usr/share/doc/cil/
+	cp LICENSE $(CURDIR)/debian/tmp/usr/share/doc/cil-dev/
 	#cp -f doc/*.html $(CURDIR)/debian/tmp/usr/share/doc/cil/html
 	#cp -f doc/*.gif $(CURDIR)/debian/tmp/usr/share/doc/cil/html
 	#cp -a doc/api $(CURDIR)/debian/tmp/usr/share/doc/cil/html
