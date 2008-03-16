@@ -162,7 +162,9 @@ let rec stripCastsForPtrArith (e:exp): exp =
     end
   | _ -> e
 
-let compareTypes ?(ignoreSign=true) (t1 : typ) (t2 : typ) : bool =
+let compareTypes ?(ignoreSign=true)
+                 ?(importantAttr : attribute -> bool = (fun _ -> true))
+                 (t1 : typ) (t2 : typ) : bool =
   let typeSigNC (t : typ) : typsig =
     let attrFilter (attr : attribute) : bool =
       match attr with
@@ -175,7 +177,7 @@ let compareTypes ?(ignoreSign=true) (t1 : typ) (t2 : typ) : bool =
       | Attr ("volatile", [])
       | Attr ("deprecated", [])
       | Attr ("always_inline", []) -> false
-      | _ -> true
+      | _ -> importantAttr attr
     in
     typeSigWithAttrs ~ignoreSign (List.filter attrFilter) t
   in
