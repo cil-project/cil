@@ -69,7 +69,7 @@ module M = Machdep
 (* Cil.initCil will set this to the current machine description.
    Makefile.cil generates the file obj/@ARCHOS@/machdep.ml,
    which contains the descriptions of gcc and msvc. *)
-let theMachine : M.mach ref = ref M.gcc
+let envMachine : M.mach option ref = ref None
 
 
 let lowerConstants: bool ref = ref true
@@ -1270,7 +1270,7 @@ let isSigned = function
   | ILongLong ->
       true
   | IChar ->
-      not !theMachine.M.char_is_unsigned
+      not !M.theMachine.M.char_is_unsigned
 
 let mkStmt (sk: stmtkind) : stmt = 
   { skind = sk;
@@ -1902,10 +1902,10 @@ exception SizeOfError of string * typ
 let bytesSizeOfInt (ik: ikind): int = 
   match ik with 
   | IChar | ISChar | IUChar -> 1
-  | IInt | IUInt -> !theMachine.M.sizeof_int
-  | IShort | IUShort -> !theMachine.M.sizeof_short
-  | ILong | IULong -> !theMachine.M.sizeof_long
-  | ILongLong | IULongLong -> !theMachine.M.sizeof_longlong
+  | IInt | IUInt -> !M.theMachine.M.sizeof_int
+  | IShort | IUShort -> !M.theMachine.M.sizeof_short
+  | ILong | IULong -> !M.theMachine.M.sizeof_long
+  | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
 
 let unsignedVersionOf (ik:ikind): ikind =
   match ik with
@@ -2025,17 +2025,17 @@ let rec alignOf_int t =
   let alignOfType () =
     match t with
     | TInt((IChar|ISChar|IUChar), _) -> 1
-    | TInt((IShort|IUShort), _) -> !theMachine.M.alignof_short
-    | TInt((IInt|IUInt), _) -> !theMachine.M.alignof_int
-    | TInt((ILong|IULong), _) -> !theMachine.M.alignof_long
-    | TInt((ILongLong|IULongLong), _) -> !theMachine.M.alignof_longlong
-    | TEnum _ -> !theMachine.M.alignof_enum
-    | TFloat(FFloat, _) -> !theMachine.M.alignof_float 
-    | TFloat(FDouble, _) -> !theMachine.M.alignof_double
-    | TFloat(FLongDouble, _) -> !theMachine.M.alignof_longdouble
+    | TInt((IShort|IUShort), _) -> !M.theMachine.M.alignof_short
+    | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
+    | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
+    | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
+    | TEnum _ -> !M.theMachine.M.alignof_enum
+    | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float 
+    | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
+    | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
     | TNamed (t, _) -> alignOf_int t.ttype
     | TArray (t, _, _) -> alignOf_int t
-    | TPtr _ | TBuiltin_va_list _ -> !theMachine.M.alignof_ptr
+    | TPtr _ | TBuiltin_va_list _ -> !M.theMachine.M.alignof_ptr
         
     (* For composite types get the maximum alignment of any field inside *)
     | TComp (c, _) ->
@@ -2057,7 +2057,7 @@ let rec alignOf_int t =
              if not !msvcMode && f.fbitfield = Some 0 then sofar else
                max sofar (alignOfField f)) 1 fields
           (* These are some error cases *)
-    | TFun _ when not !msvcMode -> !theMachine.M.alignof_fun
+    | TFun _ when not !msvcMode -> !M.theMachine.M.alignof_fun
         
     | TFun _ as t -> raise (SizeOfError ("function", t))
     | TVoid _ as t -> raise (SizeOfError ("void", t))
@@ -2087,7 +2087,7 @@ let rec alignOf_int t =
        if rest <> [] then
          ignore(warn "ignoring duplicate align attributes on %a\n" 
                   (!pd_type) t);
-       !theMachine.M.alignof_aligned
+       !M.theMachine.M.alignof_aligned
   | at::_ ->
       ignore (warn "alignment attribute \"%a\" not understood on %a" 
                 (!pd_attr) at (!pd_type) t);
@@ -2290,12 +2290,12 @@ and bitsSizeOf t =
     E.s (E.error "You did not call Cil.initCIL before using the CIL library");
   match t with 
   | TInt (ik,_) -> 8 * (bytesSizeOfInt ik)
-  | TFloat(FDouble, _) -> 8 * !theMachine.M.sizeof_double
-  | TFloat(FLongDouble, _) -> 8 * !theMachine.M.sizeof_longdouble
-  | TFloat _ -> 8 * !theMachine.M.sizeof_float
-  | TEnum _ -> 8 * !theMachine.M.sizeof_enum
-  | TPtr _ -> 8 * !theMachine.M.sizeof_ptr
-  | TBuiltin_va_list _ -> 8 * !theMachine.M.sizeof_ptr
+  | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
+  | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
+  | TFloat _ -> 8 * !M.theMachine.M.sizeof_float
+  | TEnum _ -> 8 * !M.theMachine.M.sizeof_enum
+  | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
+  | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields == [] -> begin
       (* Empty structs are allowed in msvc mode *)
@@ -2362,9 +2362,9 @@ and bitsSizeOf t =
   end
 
 
-  | TVoid _ -> 8 * !theMachine.M.sizeof_void
+  | TVoid _ -> 8 * !M.theMachine.M.sizeof_void
   | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
-      8 * !theMachine.M.sizeof_fun
+      8 * !M.theMachine.M.sizeof_fun
 
   | TArray (_, None, _) -> (* it seems that on GCC the size of such an 
                             * array is 0 *) 
@@ -2474,7 +2474,7 @@ and constFold (machdep: bool) (e: exp) : exp =
        * type. I know that for strings this is not true *)
       match e with 
         Const (CStr _) when not !msvcMode -> 
-          kinteger !kindOfSizeOf !theMachine.M.alignof_str
+          kinteger !kindOfSizeOf !M.theMachine.M.alignof_str
             (* For an array, it is the alignment of the array ! *)
       | _ -> constFold machdep (AlignOf (typeOf e))
   end
@@ -2819,7 +2819,7 @@ let initGccBuiltins () : unit =
     E.s (bug "builtins already initialized.");
   let h = builtinFunctions in
   (* See if we have builtin_va_list *)
-  let hasbva = M.gccHas__builtin_va_list in
+  let hasbva = !M.theMachine.M.__builtin_va_list in
   let ulongLongType = TInt(IULongLong, []) in
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
@@ -6594,24 +6594,28 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
 let initCIL () = 
   if not !initCIL_called then begin 
     (* Set the machine *)
-    theMachine := if !msvcMode then M.msvc else M.gcc;
+    begin
+      match !envMachine with
+        Some machine -> M.theMachine := machine
+      | None -> M.theMachine := if !msvcMode then M.msvc else M.gcc
+    end;
     (* Pick type for string literals *)
-    stringLiteralType := if !theMachine.M.const_string_literals then
+    stringLiteralType := if !M.theMachine.M.const_string_literals then
       charConstPtrType
     else
       charPtrType;
     (* Find the right ikind given the size *)
     let findIkindSz (unsigned: bool) (sz: int) : ikind = 
       (* Test the most common sizes first *)
-      if sz = !theMachine.M.sizeof_int then 
+      if sz = !M.theMachine.M.sizeof_int then 
         if unsigned then IUInt else IInt 
-      else if sz = !theMachine.M.sizeof_long then 
+      else if sz = !M.theMachine.M.sizeof_long then 
         if unsigned then IULong else ILong
       else if sz = 1 then 
         if unsigned then IUChar else IChar 
-      else if sz = !theMachine.M.sizeof_short then
+      else if sz = !M.theMachine.M.sizeof_short then
         if unsigned then IUShort else IShort
-      else if sz = !theMachine.M.sizeof_longlong then
+      else if sz = !M.theMachine.M.sizeof_longlong then
         if unsigned then IULongLong else ILongLong
       else 
         E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
@@ -6629,14 +6633,14 @@ let initCIL () =
       else if name = "unsigned char" then IUChar
       else E.s(E.unimp "initCIL: cannot find the right ikind for type %s\n" name)
     in      
-    upointType := TInt(findIkindSz true !theMachine.M.sizeof_ptr, []);
-    kindOfSizeOf := findIkindName !theMachine.M.size_t;
+    upointType := TInt(findIkindSz true !M.theMachine.M.sizeof_ptr, []);
+    kindOfSizeOf := findIkindName !M.theMachine.M.size_t;
     typeOfSizeOf := TInt(!kindOfSizeOf, []);
-    wcharKind := findIkindName !theMachine.M.wchar_t;
+    wcharKind := findIkindName !M.theMachine.M.wchar_t;
     wcharType := TInt(!wcharKind, []);
-    char_is_unsigned := !theMachine.M.char_is_unsigned;
-    little_endian := !theMachine.M.little_endian;
-    underscore_name := !theMachine.M.underscore_name;
+    char_is_unsigned := !M.theMachine.M.char_is_unsigned;
+    little_endian := !M.theMachine.M.little_endian;
+    underscore_name := !M.theMachine.M.underscore_name;
 (*     nextGlobalVID := 1; *)
 (*     nextCompinfoKey := 1; *)
 

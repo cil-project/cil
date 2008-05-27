@@ -207,6 +207,18 @@ let options : (string * Arg.spec * string) list =
                   ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")),
     " Enable MSVC compatibility; default is GNU";
 
+   "--envmachine",
+   Arg.Unit (fun _ ->
+     try
+       let machineModel = Sys.getenv "CIL_MACHINE" in
+       Cil.envMachine := Some (Machdepenv.modelParse machineModel);
+     with 
+       Not_found ->
+	 ignore (E.error "CIL_MACHINE environment variable is not set")
+     | Failure msg ->
+	 ignore (E.error "CIL_MACHINE machine model is invalid: %s" msg)),
+   " Use machine model specified in CIL_MACHINE environment variable";
+
     "--testcil",
     Arg.String (fun s -> Cilutil.testcil := s),
     "<compiler> Test CIL using the given compiler";

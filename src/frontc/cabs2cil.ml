@@ -1147,8 +1147,11 @@ type condExpRes =
 (******** CASTS *********)
 let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
-          (* We assume that an IInt can hold even an IUShort *)
-    TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> TInt(IInt, a)
+    TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> 
+      if bitsSizeOf t < bitsSizeOf (TInt (IInt, [])) then
+	TInt(IInt, a)
+      else
+	TInt(IUInt, a)
   | TInt _ -> t
   | TEnum (_, a) -> TInt(IInt, a)
   | t -> E.s (error "integralPromotion: not expecting %a" d_type t)
@@ -2299,7 +2302,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
         if n = "__builtin_va_list" && 
-          Machdep.gccHas__builtin_va_list then begin
+          !Machdep.theMachine.Machdep.__builtin_va_list then begin
             TBuiltin_va_list []
         end else
           let t = 

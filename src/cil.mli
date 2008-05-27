@@ -2583,3 +2583,6 @@ val d_formatarg: unit -> formatArg -> Pretty.doc
 
 (** Emit warnings when truncating integer constants (default true) *)
 val warnTruncate: bool ref
+
+(** Machine model specified via CIL_MACHINE environment variable *)
+val envMachine : Machdep.mach option ref

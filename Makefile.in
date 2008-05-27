@@ -67,7 +67,7 @@ CILLY_FEATURES += @EXTRAFEATURES@
     # Now rules to make cilly
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cilutil escape longarray growArray\
-              cabs cabshelper cabsvisit whitetrack cprint lexerhack machdep cparser clexer  \
+              cabs cabshelper cabsvisit whitetrack cprint lexerhack machdep machdepenv cparser clexer  \
               cilversion cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
               dataflow dominators bitmap ssa ciltools \
@@ -169,6 +169,8 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "  char_is_unsigned: bool; (* Whether \"char\" is unsigned *)">> $@
 	echo "  const_string_literals: bool; (* Whether string literals have const chars *)">> $@
 	echo "  little_endian: bool; (* whether the machine is little endian *)">>$@
+	echo "  __thread_is_keyword: bool; (* whether __thread is a keyword *)">>$@
+	echo "  __builtin_va_list: bool; (* whether __builtin_va_list is builtin (gccism) *)">>$@
 	echo "}" >> $@ 	
 	if gcc -D_GNUCC $< -o $(OBJDIR)/machdep-ml.exe ;then \
 	    echo "machdep-ml.exe created succesfully." \
@@ -178,6 +180,8 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "let gcc = {" >>$@
 	$(OBJDIR)/machdep-ml.exe >>$@
 	echo "	 underscore_name = @UNDERSCORE_NAME@ ;" >> $@
+	echo "   __builtin_va_list = @HAVE_BUILTIN_VA_LIST@ ;" >>$@
+	echo "   __thread_is_keyword = @THREAD_IS_KEYWORD@ ;"  >>$@
 	echo "}"          >>$@
 	if cl /D_MSVC $< /Fe$(OBJDIR)/machdep-ml.exe /Fo$(OBJDIR)/machdep-ml.obj ;then \
            echo "let hasMSVC = true" >>$@ \
@@ -186,9 +190,10 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "let msvc = {" >>$@
 	$(OBJDIR)/machdep-ml.exe >>$@
 	echo "	 underscore_name = true ;" >> $@
+	echo "   __builtin_va_list = @HAVE_BUILTIN_VA_LIST@ ;" >>$@
+	echo "   __thread_is_keyword = @THREAD_IS_KEYWORD@ ;"  >>$@
 	echo "}"          >>$@
-	echo "let gccHas__builtin_va_list = @HAVE_BUILTIN_VA_LIST@" >>$@
-	echo "let __thread_is_keyword = @THREAD_IS_KEYWORD@"  >>$@
+	echo "let theMachine : mach ref = ref gcc" >>$@
 
 
 #

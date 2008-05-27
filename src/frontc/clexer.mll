@@ -213,7 +213,7 @@ let init_lexicon _ =
       ("__builtin_offsetof", fun loc -> BUILTIN_OFFSETOF loc);
       (* On some versions of GCC __thread is a regular identifier *)
       ("__thread", fun loc -> 
-                      if Machdep.__thread_is_keyword then 
+                      if !Machdep.theMachine.Machdep.__thread_is_keyword then 
                          THREAD loc
                        else 
                          IDENT ("__thread", loc));
