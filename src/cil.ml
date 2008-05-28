@@ -1048,6 +1048,17 @@ let startsWith (prefix: string) (s: string) : bool =
   (String.sub s 0 prefixLen) = prefix
 )
 
+let endsWith (suffix: string) (s: string) : bool = 
+  let suffixLen = String.length suffix in
+  let sLen = String.length s in
+  sLen >= suffixLen && 
+  (String.sub s (sLen - suffixLen) suffixLen) = suffix
+
+let stripUnderscores (s: string) : string = 
+  if (startsWith "__" s) && (endsWith "__" s) then
+    String.sub s 2 ((String.length s) - 4)
+  else
+    s
 
 let get_instrLoc (inst : instr) =
   match inst with
@@ -1915,6 +1926,21 @@ let unsignedVersionOf (ik:ikind): ikind =
   | ILong -> IULong
   | ILongLong -> IULongLong
   | _ -> ik          
+
+let intKindForSize (s:int) =
+  (* Test the most common sizes first *)
+  if s = 1 then ISChar
+  else if s = !M.theMachine.M.sizeof_int then IInt
+  else if s = !M.theMachine.M.sizeof_long then ILong
+  else if s = !M.theMachine.M.sizeof_short then IShort
+  else if s = !M.theMachine.M.sizeof_longlong then ILongLong
+  else raise Not_found
+
+let floatKindForSize (s:int) = 
+  if s = !M.theMachine.M.sizeof_double then FDouble
+  else if s = !M.theMachine.M.sizeof_float then FFloat
+  else if s = !M.theMachine.M.sizeof_longdouble then FLongDouble
+  else raise Not_found
 
 (* Represents an integer as for a given kind. 
    Returns a flag saying whether the value was changed
@@ -6605,19 +6631,11 @@ let initCIL () =
     else
       charPtrType;
     (* Find the right ikind given the size *)
-    let findIkindSz (unsigned: bool) (sz: int) : ikind = 
-      (* Test the most common sizes first *)
-      if sz = !M.theMachine.M.sizeof_int then 
-        if unsigned then IUInt else IInt 
-      else if sz = !M.theMachine.M.sizeof_long then 
-        if unsigned then IULong else ILong
-      else if sz = 1 then 
-        if unsigned then IUChar else IChar 
-      else if sz = !M.theMachine.M.sizeof_short then
-        if unsigned then IUShort else IShort
-      else if sz = !M.theMachine.M.sizeof_longlong then
-        if unsigned then IULongLong else ILongLong
-      else 
+    let findIkindSz (unsigned: bool) (sz: int) : ikind =
+      try
+	let kind = intKindForSize sz in
+	if unsigned then unsignedVersionOf kind else kind
+      with Not_found -> 
         E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
     in      
     (* Find the right ikind given the name *)

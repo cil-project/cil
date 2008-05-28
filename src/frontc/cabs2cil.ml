@@ -1360,6 +1360,8 @@ let cabsAddAttributes al0 (al: attributes) : attributes =
           end)
     al
     al0
+
+
       
 let cabsTypeAddAttributes a0 t =
   begin
@@ -1384,6 +1386,7 @@ let cabsTypeAddAttributes a0 t =
 (*                                                                        *)
 (* A consequence of this handling is that we throw away the mode          *)
 (* attribute, which we used to go out of our way to avoid printing anyway.*)  
+(* DG: Use machine model to pick correct type                             *)
               let ik', a0' = 
                 (* Go over the list of new attributes and come back with a 
                  * filtered list and a new integer kind *)
@@ -1393,30 +1396,26 @@ let cabsTypeAddAttributes a0 t =
                       Attr("mode", [ACons(mode,[])]) -> begin
                         (trace "gccwidth" (dprintf "I see mode %s applied to an int type\n"
                                              mode (* #$@!#@ ML! d_type t *) ));
-                        (* the cases below encode the 32-bit assumption.. *)
-                        match (ik', mode) with
-                        | (IInt, "__QI__")      -> (IChar, a0')
-                        | (IInt, "__byte__")    -> (IChar, a0')
-                        | (IInt, "__HI__")      -> (IShort,  a0')
-                        | (IInt, "__SI__")      -> (IInt, a0')   (* same as t *)
-                        | (IInt, "__word__")    -> (IInt, a0')
-                        | (IInt, "__pointer__") -> (IInt, a0')
-                        | (IInt, "__DI__")      -> (ILongLong, a0')
-                      
-                        | (IUInt, "__QI__")     -> (IUChar, a0')
-                        | (IUInt, "__byte__")   -> (IUChar, a0')
-                        | (IUInt, "__HI__")     -> (IUShort, a0')
-                        | (IUInt, "__SI__")     -> (IUInt, a0')
-                        | (IUInt, "__word__")   -> (IUInt, a0')
-                        | (IUInt, "__pointer__")-> (IUInt, a0')
-                        | (IUInt, "__DI__")     -> (IULongLong, a0')
-                              
-                        | _ -> 
+			(* assuming int is the word size *)
+			try
+			  let size = match stripUnderscores mode with
+			    "byte" -> 1
+			  | "word" -> !Machdep.theMachine.Machdep.sizeof_int
+			  | "pointer" -> !Machdep.theMachine.Machdep.sizeof_ptr
+			  | "QI" -> 1
+			  | "HI" -> 2
+			  | "SI" -> 4
+			  | "DI" -> 8
+			  | "TI" -> 16
+			  | "OI" -> 32
+			  | _ -> raise Not_found in 
+			  let nk = intKindForSize size in
+			  ((if isSigned ik' then nk else unsignedVersionOf nk), a0')
+			with Not_found ->
                             (ignore (error "GCC width mode %s applied to unexpected type, or unexpected mode"
                                        mode));
                             (ik', a0one :: a0')
- 
-                      end
+		      end
                     | _ -> (ik', a0one :: a0'))
                   (ik, [])
                   a0

@@ -14,6 +14,8 @@ typedef unsigned int u_int64_t __attribute__ ((__mode__ (  __DI__ ))) ;
 
 typedef int someInt;      // something I don't want to mess with
 
+typedef short x8_t __attribute__ ((__mode__ (  byte ))) ;
+
 // avoid pulling in conflicting definitions
 someInt printf(char const *fmt, ...);
 
@@ -33,6 +35,8 @@ int main()
   PRSIZE(u_int16_t, 2);
   PRSIZE(u_int32_t, 4);
   PRSIZE(u_int64_t, 8);
+
+  PRSIZE(x8_t, 1);
   #undef PRSIZE
 
   return ok? 0 : 1;

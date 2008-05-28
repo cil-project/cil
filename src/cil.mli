@@ -2470,6 +2470,16 @@ val peepHole1: (instr -> instr list option) -> stmt list -> unit
  * explanation of the error *)        
 exception SizeOfError of string * typ
 
+(** Give the unsigned kind corresponding to any integer kind *)
+val unsignedVersionOf : ikind -> ikind
+
+(** The signed integer kind for a given size. Raises Not_found
+ *  if no such kind exists *)
+val intKindForSize : int -> ikind
+
+(** The float kind for a given size. Raises Not_found
+ *  if no such kind exists *)
+val floatKindForSize : int-> fkind
 
 val bytesSizeOfInt: ikind -> int 
 
@@ -2541,6 +2551,12 @@ val mapNoCopyList: ('a -> 'a list) -> 'a list -> 'a list
 
 (** sm: return true if the first is a prefix of the second string *)
 val startsWith: string -> string -> bool
+
+(** return true if the first is a suffix of the second string *)
+val endsWith: string -> string -> bool
+
+(** If string has leading and trailing __, strip them. *)
+val stripUnderscores: string -> string
 
 
 (** {b An Interpreter for constructing CIL constructs} *)
