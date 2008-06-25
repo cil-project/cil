@@ -2023,6 +2023,7 @@ sub new {
             "--start-group" => { RUN => sub { } },
             "--end-group" => { RUN => sub { }},
 	    "-pthread\$" => { TYPE => 'ALLARGS' },
+	    "--param" => {TYPE => 'CC', ONEMORE => 1},
             ],
                                   
       };
