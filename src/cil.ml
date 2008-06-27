@@ -2851,6 +2851,7 @@ let initGccBuiltins () : unit =
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
   let sizeType = !upointType in
+  let v4sfType = TFloat (FFloat,[Attr("__vector_size__", [AInt 16])]) in
 
   H.add h "__builtin___fprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType ], true) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
   H.add h "__builtin___memcpy_chk" (voidPtrType, [ voidPtrType; voidConstPtrType; sizeType; sizeType ], false);
@@ -3029,6 +3030,13 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_tanhf" (floatType, [ floatType ], false);
   H.add h "__builtin_tanhl" (longDoubleType, [ longDoubleType ], false);
 
+  (* MMX Builtins *)
+  H.add h "__builtin_ia32_addps" (v4sfType, [v4sfType; v4sfType], false);
+  H.add h "__builtin_ia32_subps" (v4sfType, [v4sfType; v4sfType], false);
+  H.add h "__builtin_ia32_mulps" (v4sfType, [v4sfType; v4sfType], false);
+  H.add h "__builtin_ia32_unpckhps" (v4sfType, [v4sfType; v4sfType], false);
+  H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
+  H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
 
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
