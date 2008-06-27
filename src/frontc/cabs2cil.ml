@@ -1583,17 +1583,16 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
         
   | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
-      let newrt = combineTypes 
-          (if what = CombineFundef then CombineFunret else CombineOther) 
-          oldrt rt 
-      in
       if oldva != va then 
         raise (Failure "diferent vararg specifiers");
+      let defrt = combineTypes 
+          (if what = CombineFundef then CombineFunret else CombineOther) 
+          oldrt rt in
       (* If one does not have arguments, believe the one with the 
       * arguments *)
-      let newargs, olda' = 
-        if oldargs = None then args, olda else
-        if args = None then oldargs, olda else
+      let newargs, newrt, olda' = 
+        if oldargs = None then args, defrt, olda else
+        if args = None then oldargs, defrt, olda else
         let oldargslist = argsToList oldargs in
         let argslist = argsToList args in
         if List.length oldargslist <> List.length argslist then 
@@ -1625,7 +1624,11 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                  let a = addAttributes oa aa in
                  (n, t, a))
                oldargslist argslist),
-          !attrsForCombinedArg map olda
+	  (let oldrt' = !typeForCombinedArg map oldrt in
+	  combineTypes 
+            (if what = CombineFundef then CombineFunret else CombineOther) 
+            oldrt' rt),
+	  !attrsForCombinedArg map olda
         end
       in
       TFun (newrt, newargs, oldva, cabsAddAttributes olda' a)
