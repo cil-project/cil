@@ -1911,67 +1911,104 @@ sub new {
       LINEPATTERN => "^#\\s+(\\d+)\\s+\"(.+)\"",
       
       OPTIONS => 
-          [ "[^-].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
+          [ # Files
+            "[^-].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
+
+	    # Overall Options
+            "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
+            "-S" => { RUN => sub { $stub->{OPERATION} = "TOASM";
+                                   push @{$stub->{CCARGS}}, $_[1]; }},
             "-E"   => { RUN => sub { $stub->{OPERATION} = "TOI"; }},
+            "-o" => { ONEMORE => 1, TYPE => 'OUT' },
+	    "-combine\$" => { TYPE => 'ALLARGS' },
 	    "-pipe\$" => { TYPE => 'ALLARGS' },
-            "-[DIU]" => { ONEMORE => 1, TYPE => "PREPROC" },
-            "-isystem" => { ONEMORE => 1, TYPE => "PREPROC" },
-            '-undef$' => { TYPE => 'PREPROC' },
-            '-w$' => { TYPE => 'PREPROC' },
-	    '-M$' => { TYPE => 'SPECIAL' },
-	    '-MM$' => { TYPE => 'SPECIAL' },
-	    '-MF$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
-	    '-C$' =>  { TYPE => 'EARLY_PREPROC'}, # zra
-	    '-MG$' => { TYPE => 'EARLY_PREPROC' },
-	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
-	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
-	    '-MQ$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
-	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
-	    '-MMD$' => { TYPE => 'EARLY_PREPROC' }, 
-            "-include" => { ONEMORE => 1, TYPE => "PREPROC" },  # sm
-            "-iwithprefix" => { ONEMORE => 1, TYPE => "PREPROC" },
+            "-x" => { ONEMORE => 1, TYPE => "CC" },
+	    "-v" => { TYPE => 'ALLARGS',
+		      RUN => sub { $stub->{TRACE_COMMANDS} = 1; } },
+	    # skipping -###, --help, --target-help, --version
+	    
+	    # C Language Options
+            "-ansi" => { TYPE => 'ALLARGS' },
+            '-std=' => { TYPE => 'ALLARGS' },
+	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
+            "-f" => { TYPE => 'CC' },
+
+	    # -Wx,blah options (placed before general -W warning options)
             #matth: the handling of -Wp may be wrong.  We may need to
             # break up the argument list and invoke the map on each argument,
             # so that some are classified as PREPROC and others as
             # EARLY_PREPROC
 	    '-Wp,' => { TYPE => 'EARLY_PREPROC' },
-            "-ansi" => { TYPE => 'ALLARGS' },
-            "-c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
-            "-x" => { ONEMORE => 1, TYPE => "CC" },
-	    "-v" => { TYPE => 'ALLARGS',
-		      RUN => sub { $stub->{TRACE_COMMANDS} = 1; } },
-            "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
-            "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
-            "^-T(bss|data|text)\$" => { ONEMORE => 1, TYPE => 'LINK' },
-            "^-N\$" => { TYPE => 'LINK' },
-             # GCC defines some more macros if the optimization is On so pass
-             # the -O to the preprocessor and the compiler
-            '-O' => { TYPE => 'ALLARGS' },
-            # TOASM is mostly like TOEXE, and forces all inputs to be
-            # compiled.  A better solution when merging would be to
-            # be more like TOOBJ, and store preprocessed source in .s
-            # files like we do with .o files.  This requires a little
-            # rejiggering of how we handle .o files, though.
-            "-S" => { RUN => sub { $stub->{OPERATION} = "TOASM";
-                                   push @{$stub->{CCARGS}}, $_[1]; }},
-            "-o" => { ONEMORE => 1, TYPE => 'OUT' },
-            "-p\$" => { TYPE => 'LINKCC' },
-            "-pg" => { TYPE => 'LINKCC' },
-            "-a" => { TYPE => 'LINKCC' },
+	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
+            '-Wl,' =>
+            { RUN => sub { 
+                my ($linkargs) = ($_[1] =~ m|-Wl,(.*)$|);
+                #Split up the args
+                push @{$stub->{LINKARGS}}, split(/,/, $linkargs);
+            }},
+	    
+	    # Warning Options
             "-pedantic\$" => { TYPE => 'ALLARGS' },
+            "-pedantic-errors\$" => { TYPE => 'ALLARGS' },
             "-Wall" => { TYPE => 'CC', 
 			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
             "-W[-a-z0-9]*\$" => { TYPE => 'CC' },
+            "-w\$" => { TYPE => 'ALLARGS' },
+
+	    # Debugging Options
             '-g' => { TYPE => 'ALLARGS' },
 	    "-save-temps" => { TYPE => 'ALLARGS',
 			       RUN => sub { if(! defined $stub->{SAVE_TEMPS}) {
                                                 $stub->{SAVE_TEMPS} = '.'; } }},
 	    '--?print-' => { TYPE => 'SPECIAL' },
 	    '-dump' => { TYPE => 'SPECIAL' },
+            "-p\$" => { TYPE => 'LINKCC' },
+            "-pg" => { TYPE => 'LINKCC' },
+
+	    # Optimization Options
+             # GCC defines some more macros if the optimization is On so pass
+             # the -O to the preprocessor and the compiler
+            '-O' => { TYPE => 'ALLARGS' },
+	    '--param$' => { TYPE => 'CC', ONEMORE => 1 },
+
+	    # Preprocessor Options
+            "-A" => { ONEMORE => 1, TYPE => "PREPROC" },
+	    '-C$' =>  { TYPE => 'EARLY_PREPROC'}, # zra
+	    '-CC$' =>  { TYPE => 'EARLY_PREPROC'},
+	    '-d[DIMN]$' => { TYPE => 'EARLY_PREPROC' },
+            "-[DIU]" => { ONEMORE => 1, TYPE => "PREPROC" },
+	    '-H$' =>  { TYPE => 'EARLY_PREPROC'},
+            '-idirafter$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-include$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-imacros$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-iprefix$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-iquote$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-iwithprefix$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-iwithprefixbefore$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-isystem$' => { ONEMORE => 1, TYPE => "PREPROC" },
+	    '-M$' => { TYPE => 'SPECIAL' },
+	    '-MM$' => { TYPE => 'SPECIAL' },
+	    '-MF$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MG$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MP$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MT$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MQ$' => { TYPE => 'EARLY_PREPROC', ONEMORE => 1 },
+	    '-MD$' => { TYPE => 'EARLY_PREPROC' },
+	    '-MMD$' => { TYPE => 'EARLY_PREPROC' }, 
+	    '-P$' =>  { TYPE => 'EARLY_PREPROC'},
+            '-nostdinc$' => { TYPE => 'PREPROC' },
+            '-remap$' => { TYPE => 'PREPROC' },
+            '-traditional$' => { TYPE => 'PREPROC' },
+            '-tradtional-cpp$' => { TYPE => 'PREPROC' },
+            '-trigraphs$' => { TYPE => 'PREPROC' },
+            '-undef$' => { TYPE => 'PREPROC' },
+            '-Xpreprocessor$' => { ONEMORE => 1, TYPE => "PREPROC" },
+
+            # Linker Options
             "-l" => 
             { RUN => sub { 
                 my ($libname) = ($_[1] =~ m|-l(.+)$|);
@@ -1990,6 +2027,23 @@ sub new {
                 # We get here when we cannot find the library in the LIBDIR
                 push @{$stub->{LINKARGS}}, $_[1];
             }},
+            '-nostartfiles$' => { TYPE => 'LINK' },
+            '-nodefaultlibs$' => { TYPE => 'LINK' },
+            '-nostdlib$' => { TYPE => 'LINK' },
+            '-pie$' => { TYPE => 'LINK' },
+            '-s$' => { TYPE => 'LINKCC' },
+	    '-rdynamic$' => { TYPE => 'LINK' },
+	    '-static$' => { TYPE => 'LINK' },
+	    '-static-libgcc$' => { TYPE => 'LINK' },
+	    '-shared$' => { TYPE => 'LINK' },
+	    '-shared-libgcc$' => { TYPE => 'LINK' },
+	    '-symbolic$' => { TYPE => 'LINK' },
+	    '-u' => { TYPE => 'LINK', ONEMORE => 1 },
+            "-Xlinker\$" => { ONEMORE => 1, TYPE => 'LINK' },
+
+            # Directory Options
+	    "-B" => { ONEMORE => 1, TYPE => 'ALLARGS' },
+	    "-specs=" => { TYPE => 'ALLARGS' },
             "-L" => 
             { RUN => sub { 
                 # Remember these directories in LIBDIR
@@ -1997,33 +2051,26 @@ sub new {
                 push @{$stub->{LIBDIR}}, $dir;
                 push @{$stub->{LINKARGS}}, $_[1];
             }},
-            "-f" => { TYPE => 'CC' },
+
+	    # Target Options
+	    "-V" => { ONEMORE => 1, TYPE => 'ALLARGS' },
+	    "-b" => { ONEMORE => 1, TYPE => 'ALLARGS' },
+
+	    # Machine Dependent Options
+            "-m" => { TYPE => 'ALLARGS', ONEMORE => 1 },
+	    "-pthread\$" => { TYPE => 'ALLARGS' },
+
+	    # mysterious options
+            "^-e\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-T\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-T(bss|data|text)\$" => { ONEMORE => 1, TYPE => 'LINK' },
+            "^-N\$" => { TYPE => 'LINK' },
+            "-a" => { TYPE => 'LINKCC' },
             "-r\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
             "-i\$" => { RUN => sub { $stub->{OPERATION} = "TOLIB"; }},
-            "-m\$" => { TYPE => 'ALLARGS', ONEMORE => 1 },
-            "-m" => { TYPE => 'ALLARGS', ONEMORE => 1 },
-            "-s\$" => { TYPE => 'LINKCC' },
-            "-Xlinker" => { ONEMORE => 1, TYPE => 'LINK' },
-            "-nostdlib" => { TYPE => 'LINK' },
-            "-nostdinc" => { TYPE => 'PREPROC' },
-	    '-rdynamic$' => { TYPE => 'LINK' },
-	    "-static" => { TYPE => 'LINK' },
-	    "-shared" => { TYPE => 'LINK' },
-	    "-static-libgcc" => { TYPE => 'LINK' },
-	    "-shared-libgcc" => { TYPE => 'LINK' },
-	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
-            '-Wl,' =>
-            { RUN => sub { 
-                my ($linkargs) = ($_[1] =~ m|-Wl,(.*)$|);
-                #Split up the args
-                push @{$stub->{LINKARGS}}, split(/,/, $linkargs);
-            }},
-            "-traditional" => { TYPE => 'PREPROC' },
-            '-std=' => { TYPE => 'ALLARGS' },
+
             "--start-group" => { RUN => sub { } },
             "--end-group" => { RUN => sub { }},
-	    "-pthread\$" => { TYPE => 'ALLARGS' },
-	    "--param" => {TYPE => 'CC', ONEMORE => 1},
             ],
                                   
       };
