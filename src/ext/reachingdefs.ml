@@ -174,8 +174,8 @@ let iosh_filter_dead iosh vs = iosh
 let proc_defs vs iosh f = 
   let pd vi =
     let newi = f() in
-    (*if !debug then
-      ignore (E.log "proc_defs: genning %d\n" newi);*)
+    if !debug then
+      ignore (E.log "proc_defs: genning %d\n" newi);
     iosh_replace iosh newi vi
   in
   UD.VS.iter pd vs
@@ -395,6 +395,7 @@ module ReachingDef =
     (* return an action that removes things that
        are redefinied and adds the generated defs *)
     let doInstr inst (_, s, iosh) =
+      if !debug then E.log "RD: looking at %a\n" d_instr inst;
       let transform (_, s', iosh') =
 	let _, defd = UD.computeUseDefInstr inst in
 	proc_defs defd iosh' (idMaker () s');
@@ -452,9 +453,10 @@ let computeRDs fdec =
     ReachingDef.nextDefId := 0;
     let fst_stm = List.hd slst in
     let fst_iosh = IH.create 32 in
-    UD.onlyNoOffsetsAreDefs := false;
+    UD.onlyNoOffsetsAreDefs := true;
     IH.add ReachingDef.stmtStartData fst_stm.sid ((), 0, fst_iosh);
     time "liveness" L.computeLiveness fdec;
+    UD.onlyNoOffsetsAreDefs := true;
     ignore(ReachingDef.computeFirstPredecessor fst_stm ((), 0, fst_iosh));
     (match L.getLiveSet fst_stm.sid with
     | None -> if !debug then ignore(E.log "Nothing live at fst_stm\n")

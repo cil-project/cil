@@ -62,6 +62,9 @@ class useDefVisitorClass : cilVisitor = object (self)
     if (!considerVariableDef) v &&
       not(!onlyNoOffsetsAreDefs) then 
       varDefs := VS.add v !varDefs;
+    if (!considerVariableDef) v &&
+      !onlyNoOffsetsAreDefs then
+        varUsed := VS.add v !varUsed;
     SkipChildren
 
   (** If l is a variable, this means we are in a def, not a use!

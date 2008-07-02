@@ -3,6 +3,7 @@
 
 open Cil
 open Pretty
+open Expcompare
 
 module E = Errormsg
 module RD = Reachingdefs
@@ -202,6 +203,7 @@ let el_has_volatile =
     b || (exp_has_volatile e)) false
  (***************************************************)
 
+(*
 let rec compareExp (e1: exp) (e2: exp) : bool =
 (*   log "CompareExp %a and %a.\n" d_plainexp e1 d_plainexp e2; *)
   e1 == e2 ||
@@ -255,6 +257,7 @@ let rec stripNopCasts (e:exp): exp =
       
 let compareExpStripCasts (e1: exp) (e2: exp) : bool =
   compareExp (stripNopCasts e1) (stripNopCasts e2)
+*)
 
 let removedCount = ref 0
 (* Filter out instructions whose definition ids are not
