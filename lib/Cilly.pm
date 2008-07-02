@@ -93,12 +93,17 @@ sub new {
         exit 0;
     }
     # Look for the --mode argument first. If not found it is GCC
+    # Also parse the --gcc option which overrides the C compiler name
+    # (currently only used in the gcc case)
     my $mode = $::default_mode;
     {
         my @args1 = ();
         foreach my $arg (@args) {
             if($arg =~ m|--mode=(.+)$|) {
                 $mode = $1;
+	    }
+            elsif($arg =~ m|--gcc=(.+)$|) {
+                $::cc = $1;
             } else {
                 push @args1, $arg;
             }
