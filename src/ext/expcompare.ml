@@ -269,3 +269,31 @@ and stripCastsForPtrArithOff (off : offset ) : offset =
 let compareExpDeepStripCasts (e1 : exp) (e2 : exp) : bool =
   compareExp (stripCastsDeepForPtrArith e1) (stripCastsDeepForPtrArith e2)
 
+
+let rec compareAttrParam (ap1 : attrparam) (ap2 : attrparam) : bool =
+    ap1 == ap2 ||
+    match ap1, ap2 with
+    | AInt i1, AInt i2 -> i1 = i2
+    | AStr s1, AStr s2 -> s1 = s2
+    | ACons(s1,apl1), ACons(s2,apl2) -> s1 = s2 &&
+        List.length apl1 = List.length apl2 &&
+        not(List.exists2 (fun ap1 ap2 -> not(compareAttrParam ap1 ap2)) apl1 apl2)
+    | ASizeOf t1, ASizeOf t2 -> compareTypes t1 t2
+    | ASizeOfE ap1, ASizeOfE ap2 -> compareAttrParam ap1 ap2
+    | ASizeOfS ts1, ASizeOfS ts2 -> Util.equals ts1 ts2
+    | AAlignOf t1, AAlignOf t2 -> compareTypes t1 t2
+    | AAlignOfE ap1, AAlignOfE ap2 -> compareAttrParam ap1 ap2
+    | AAlignOfS ts1, AAlignOfS ts2 -> Util.equals ts1 ts2
+    | AUnOp(uop1,ap1), AUnOp(uop2,ap2) -> uop1 = uop2 && compareAttrParam ap1 ap2
+    | ABinOp(bop1,ap11,ap12), ABinOp(bop2,ap21,ap22) -> bop1 = bop2 &&
+        compareAttrParam ap11 ap21 && compareAttrParam ap12 ap22
+    | ADot(ap1,s1), ADot(ap2,s2) -> compareAttrParam ap1 ap2 && s1 = s2
+    | AStar ap1, AStar ap2 -> compareAttrParam ap1 ap2
+    | AAddrOf ap1, AAddrOf ap2 -> compareAttrParam ap1 ap2
+    | AIndex(ap11,ap12), AIndex(ap21,ap22) ->
+        compareAttrParam ap11 ap21 && compareAttrParam ap12 ap22
+    | AQuestion(ap11,ap12,ap13), AQuestion(ap21,ap22,ap23) ->
+        compareAttrParam ap11 ap21 && compareAttrParam ap12 ap22 &&
+        compareAttrParam ap13 ap23
+    | _, _ -> false
+

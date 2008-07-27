@@ -260,8 +260,9 @@ class deadnessVisitorClass = object(self)
             let inlive = VS.union u (VS.diff data d) in
             post_dead_vars <- VS.diff inlive data;
             post_live_vars <- VS.diff data inlive;
-            if !debug then E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
-                d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
+            if !debug then
+                E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
+                  d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
             DoChildren
         with Failure "hd" ->
             if !debug then E.log "deadnessVisitor: il liv_dat_lst mismatch\n";
