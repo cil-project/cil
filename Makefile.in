@@ -643,6 +643,7 @@ install_ml  := $(filter $(OCAML_CIL_LIB_MODULES:=.ml), $(all_ml))
 install_cmx := $(install_ml:%.ml=$(OBJDIR)/%.cmx)
 install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
 install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
+install_cmx := $(install_mli:%.mli=$(OBJDIR)/%.cmx)
 install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
 install_lib := $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a)
 
@@ -661,3 +662,8 @@ cil.spec: cil.spec.in
 rpms: distrib
 	rpmbuild -ta $(CIL_TAR_GZ)
 
+install-findlib: $(install_cmi) $(install_cma) $(install_cmx)
+	ocamlfind install cil META $(install_cma) $(install_cmi) $(install_cmx)
+
+uninstall-findlib:
+	ocamlfind remove cil
