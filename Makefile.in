@@ -232,7 +232,7 @@ ifdef USE_ZRAPP
 	echo "   Zrapp.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
-	echo -n " (* EXTRAFEATURES: *)" >> $@  
+	echo " (* EXTRAFEATURES: *)" >> $@  
 	echo \
           $(foreach f,@EXTRAFEATURES@, \
              "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") \
