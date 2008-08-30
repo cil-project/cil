@@ -5757,6 +5757,15 @@ chmod -w Makefile.features
   fi
 }
 {
+  if test -f META.in; then
+    ac_config_files="$ac_config_files META"
+
+  else
+    true
+    #echo "skipping [META] because it's not in this distribution"
+  fi
+}
+{
   if test -f cil.spec.in; then
     ac_config_files="$ac_config_files cil.spec"
 
@@ -6393,6 +6402,7 @@ do
   case $ac_config_target in
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "META") CONFIG_FILES="$CONFIG_FILES META" ;;
     "cil.spec") CONFIG_FILES="$CONFIG_FILES cil.spec" ;;
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
@@ -6947,6 +6957,7 @@ echo "$as_me: $ac_file is unchanged" >&6;}
 
   case $ac_file$ac_mode in
     "Makefile":F) chmod a-w Makefile ;;
+    "META":F) chmod a-w META ;;
     "cil.spec":F) chmod a-w cil.spec ;;
     "config.mk":F) chmod a-w config.mk ;;
     "test/Makefile":F) chmod a-w test/Makefile ;;
