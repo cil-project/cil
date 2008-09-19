@@ -136,7 +136,7 @@ let rec processOneFile (cil: C.file) =
             if not (CK.checkFile [] cil) && !Cilutil.strictChecking then begin
               E.error ("Feature \"%s\" left CIL's internal data "
                        ^^"structures in an inconsistent state. "
-                       ^^"(See the warnings above)\n") fdesc.C.fd_name
+                       ^^"(See the warnings above)") fdesc.C.fd_name
             end
           end
         end)
@@ -230,13 +230,13 @@ let theMain () =
       let one =
         match files with
           [one] -> one
-        | [] -> E.s (E.error "No arguments for CIL\n")
+        | [] -> E.s (E.error "No arguments for CIL")
         | _ ->
             let merged =
               Stats.time "merge" (Mergecil.merge files)
                 (if !outName = "" then "stdout" else !outName) in
             if !E.hadErrors then
-              E.s (E.error "There were errors during merging\n");
+              E.s (E.error "There were errors during merging");
             (* See if we must save the merged file *)
             (match !mergedChannel with
               None -> ()

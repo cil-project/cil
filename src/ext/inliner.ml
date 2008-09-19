@@ -316,7 +316,7 @@ let replaceStatement (host: fundec)                         (* The host *)
                  emptyPrevrinstr ();
                  prevrstmts := ret :: (mkStmt (Block body')) :: !prevrstmts
                with Recursion -> 
-                 ignore (warn "Encountered recursion in function %s\n" 
+                 ignore (warn "Encountered recursion in function %s" 
                            repl.svar.vname);
                  prevrinstr := i :: !prevrinstr);
 

@@ -501,7 +501,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
                       (* We found a match *)
                       (Var splitvar, off)
                   | NoOffset, restoff -> 
-                      ignore (warn "Found aggregate lval %a\n" 
+                      ignore (warn "Found aggregate lval %a" 
                                 d_lval (b, off));
                       find restsplits
 
@@ -645,7 +645,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
              * one *)
             if List.length form' > 1 &&
                H.mem dontSplitLocals form.vname then
-              ignore (warn "boxsplit: can't split formal \"%s\" in %s. Make sure you never take the address of a formal.\n"
+              ignore (warn "boxsplit: can't split formal \"%s\" in %s. Make sure you never take the address of a formal."
                      form.vname func.svar.vname);
             form' @ acc)
           func.sformals [] 

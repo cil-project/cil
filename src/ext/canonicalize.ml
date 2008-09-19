@@ -83,7 +83,7 @@ class canonicalizeVisitor = object(self)
     GVar(v, ({init = Some _} as inito), l) ->
       (* A definition.  May have been moved to an earlier position. *)
       if H.mem alreadyDefined v then begin
-	ignore (E.warn "Duplicate definition of %s at %a.\n" 
+	ignore (E.warn "Duplicate definition of %s at %a." 
 		        v.vname d_loc !currentLoc);
 	ChangeTo [] (* delete from here. *)
       end else begin
@@ -184,7 +184,7 @@ class canonicalizeVisitor = object(self)
 		  args
 		  formals' 	
 	      with Invalid_argument _ -> 
-		E.s (error "Number of arguments to %a doesn't match type.\n"
+		E.s (error "Number of arguments to %a doesn't match type."
 		       d_exp f)
 	      in	  
 	      let newI = Call(dest, f, newArgs, l) in

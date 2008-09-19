@@ -51,7 +51,7 @@ let getArg (argname: string) (args: (string * formatArg) list) =
   try 
     snd (List.find (fun (n, a) -> n = argname) args)
   with _ -> 
-    E.s (error "Pattern string %s does not have argument with name %s\n"
+    E.s (error "Pattern string %s does not have argument with name %s"
            !Lexerhack.currentPattern argname)
 
 let wrongArgType (which: string) (expected: string) (found: formatArg) = 

@@ -1111,7 +1111,7 @@ let d_thisloc (_: unit) : doc = d_loc () !currentLoc
 let error (fmt : ('a,unit,doc) format) : 'a = 
   let f d = 
     E.hadErrors := true; 
-    ignore (eprintf "@!%t: Error: %a@!" 
+    ignore (eprintf "%t: Error: %a@!" 
               d_thisloc insert d);
     nil
   in
@@ -1120,7 +1120,7 @@ let error (fmt : ('a,unit,doc) format) : 'a =
 let unimp (fmt : ('a,unit,doc) format) : 'a = 
   let f d = 
     E.hadErrors := true; 
-    ignore (eprintf "@!%t: Unimplemented: %a@!" 
+    ignore (eprintf "%t: Unimplemented: %a@!" 
               d_thisloc insert d);
     nil
   in
@@ -1129,7 +1129,7 @@ let unimp (fmt : ('a,unit,doc) format) : 'a =
 let bug (fmt : ('a,unit,doc) format) : 'a = 
   let f d = 
     E.hadErrors := true; 
-    ignore (eprintf "@!%t: Bug: %a@!" 
+    ignore (eprintf "%t: Bug: %a@!" 
               d_thisloc insert d);
     E.showContext ();
     nil
@@ -1139,7 +1139,7 @@ let bug (fmt : ('a,unit,doc) format) : 'a =
 let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
   let f d = 
     E.hadErrors := true; 
-    ignore (eprintf "@!%a: Error: %a@!" 
+    ignore (eprintf "%a: Error: %a@!" 
               d_loc loc insert d);
     E.showContext ();
     nil
@@ -1148,7 +1148,7 @@ let errorLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
 
 let warn (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
-    ignore (eprintf "@!%t: Warning: %a@!" 
+    ignore (eprintf "%t: Warning: %a@!" 
               d_thisloc insert d);
     nil
   in
@@ -1158,7 +1158,7 @@ let warn (fmt : ('a,unit,doc) format) : 'a =
 let warnOpt (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
     if !E.warnFlag then 
-      ignore (eprintf "@!%t: Warning: %a@!" 
+      ignore (eprintf "%t: Warning: %a@!" 
                 d_thisloc insert d);
     nil
   in
@@ -1166,7 +1166,7 @@ let warnOpt (fmt : ('a,unit,doc) format) : 'a =
 
 let warnContext (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
-    ignore (eprintf "@!%t: Warning: %a@!" 
+    ignore (eprintf "%t: Warning: %a@!" 
               d_thisloc insert d);
     E.showContext ();
     nil
@@ -1176,7 +1176,7 @@ let warnContext (fmt : ('a,unit,doc) format) : 'a =
 let warnContextOpt (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
     if !E.warnFlag then 
-      ignore (eprintf "@!%t: Warning: %a@!" 
+      ignore (eprintf "%t: Warning: %a@!" 
                 d_thisloc insert d);
     E.showContext ();
     nil
@@ -1185,7 +1185,7 @@ let warnContextOpt (fmt : ('a,unit,doc) format) : 'a =
 
 let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a = 
   let f d =
-    ignore (eprintf "@!%a: Warning: %a@!" 
+    ignore (eprintf "%a: Warning: %a@!" 
               d_loc loc insert d);
     E.showContext ();
     nil
@@ -1979,7 +1979,7 @@ let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
 let kinteger64 (k: ikind) (i: int64) : exp = 
   let i', truncated = truncateInteger64 k i in
   if truncated && !warnTruncate then 
-    ignore (warnOpt "Truncating integer %s to %s\n" 
+    ignore (warnOpt "Truncating integer %s to %s" 
               (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
   Const (CInt64(i', k,  None))
 
@@ -2093,12 +2093,12 @@ let rec alignOf_int t =
       (* no __aligned__ attribute, so get the default alignment *)
       alignOfType ()
   | _ when !ignoreAlignmentAttrs -> 
-      ignore (warn "ignoring recursive align attributes on %a\n" 
+      ignore (warn "ignoring recursive align attributes on %a" 
                 (!pd_type) t);
       alignOfType ()
   | (Attr(_, [a]) as at)::rest -> begin
       if rest <> [] then
-        ignore (warn "ignoring duplicate align attributes on %a\n" 
+        ignore (warn "ignoring duplicate align attributes on %a" 
                   (!pd_type) t);
       match intOfAttrparam a with
         Some n -> n
@@ -2111,7 +2111,7 @@ let rec alignOf_int t =
        (* aligned with no arg means a power of two at least as large as
           any alignment on the system.*)
        if rest <> [] then
-         ignore(warn "ignoring duplicate align attributes on %a\n" 
+         ignore(warn "ignoring duplicate align attributes on %a" 
                   (!pd_type) t);
        !M.theMachine.M.alignof_aligned
   | at::_ ->
@@ -2511,7 +2511,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       try 
         let start, width = bitsOffset bt off in
         if start mod 8 <> 0 then 
-          E.s (error "Using offset of bitfield\n");
+          E.s (error "Using offset of bitfield");
         constFold machdep (CastE(it, (integer (start / 8))))
       with SizeOfError _ -> e
   end
@@ -2850,7 +2850,7 @@ let initGccBuiltins () : unit =
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
   let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
-  let sizeType = !upointType in
+  let sizeType = !typeOfSizeOf in
   let v4sfType = TFloat (FFloat,[Attr("__vector_size__", [AInt 16])]) in
 
   H.add h "__builtin___fprintf_chk" (intType, [ voidPtrType; intType; charConstPtrType ], true) (* first argument is really FILE*, not void*, but we don't want to build in the definition for FILE *);
@@ -3702,7 +3702,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         match pickLabel !sref.labels with
           Some l -> text ("goto " ^ l ^ ";")
         | None -> 
-            ignore (error "Cannot find label for target of goto\n");
+            ignore (error "Cannot find label for target of goto");
             text "goto __invalid_label;"
     end
 
@@ -6249,7 +6249,7 @@ let uniqueVarNames (f: file) : unit =
                !currentLoc
             in
             if false && newname <> v.vname then (* Disable this warning *)
-              ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s (due to duplicate at %a)\n"
+              ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s (due to duplicate at %a)"
                         v.vname fdec.svar.vname newname d_loc oldloc);
             v.vname <- newname
           in

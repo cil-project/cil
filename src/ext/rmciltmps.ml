@@ -139,7 +139,7 @@ let writes_between f dsid sid =
   in
   match stmo, dstmo with
     None, _ | _, None -> 
-      E.s (E.error "writes_between: defining stmt not an instr\n")
+      E.s (E.error "writes_between: defining stmt not an instr")
   | Some stm, Some dstm ->
       let _ = visited_sid_isr := IS.singleton stm.sid in
       let from_stm = List.fold_left (dfs stm) false stm.succs in
@@ -259,7 +259,7 @@ class useListerClass (defid:int) (vi:varinfo) = object(self)
 	    if Util.equals vi vi' && exists
 	    then (useList := sid::(!useList); DoChildren)
 	    else DoChildren
-	| _ -> DoChildren (*E.s (E.error "useLister: no data for statement\n")*)
+	| _ -> DoChildren (*E.s (E.error "useLister: no data for statement")*)
     end
     | _ -> DoChildren
 
@@ -327,7 +327,7 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 		  else let redefios = try IH.find redefiosh rhsvi.vid 
 		  with Not_found -> RD.IOS.empty in
 		  let curdef_stmt = try IH.find RD.ReachingDef.defIdStmtHash curid
-		  with Not_found -> E.s (E.error "ok_to_replace: couldn't find statement defining %d\n" curid) in
+		  with Not_found -> E.s (E.error "ok_to_replace: couldn't find statement defining %d" curid) in
 		  if not (RD.IOS.compare defios redefios = 0) then
 		    (if !debug then ignore (E.log "ok_to_replace: different sets of definitions of %s reach the def of %s and the redef of %s\n"
 					      rhsvi.vname vi.vname rhsvi.vname);
@@ -653,7 +653,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 	    None -> None
 	  | Some(RD.RDExp(Const c), _, defiosh) ->
 	      (match RD.getDefIdStmt defid with
-		None -> E.s (E.error "tmp_to_const: defid has no statement\n")
+		None -> E.s (E.error "tmp_to_const: defid has no statement")
 	      | Some(stm) -> if ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c)) then
 		  let same = RD.IOS.for_all (fun defido ->
 		    match defido with None -> false | Some defid ->
@@ -662,7 +662,7 @@ let tmp_to_const iosh sid vi fd nofrm =
 		      | Some(RD.RDExp(Const c'),_,defiosh) ->
 			  if Util.equals c c' then
 			    match RD.getDefIdStmt defid with
-			      None -> E.s (E.error "tmp_to_const: defid has no statement\n")
+			      None -> E.s (E.error "tmp_to_const: defid has no statement")
 			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c')) 
 			  else false
 		      | _ -> false) ios

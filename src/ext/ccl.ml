@@ -760,7 +760,7 @@ class normVisitor = object
             in
             ChangeTo [ newAttr ]
           with Not_found ->
-            E.s (E.bug "error normalizing type\n")
+            E.s (E.bug "error normalizing type")
         end
     | _ ->
         DoChildren
@@ -798,7 +798,7 @@ class normVisitor2 subst = object
             in
             ChangeTo newAttr
           with Not_found -> begin
-            ignore (error "no substitution found for %s\n" s);
+            ignore (error "no substitution found for %s" s);
             DoChildren
           end
         end
@@ -825,13 +825,13 @@ let checkBaseTypes (toType : typ) (fromType : typ) : bool =
     | TVoid _, TVoid _ -> true
     | TPtr _, TInt _ ->
         ignore (warning ("unchecked integer to pointer cast\n" ^^
-                         "    to: %a\n  from: %a\n")
+                         "    to: %a\n  from: %a")
                          d_type t1 d_type t2);
         true (* TODO: improve this check *)
     | _, TVoid _
     | TVoid _, _ ->
         ignore (warning ("unchecked void cast\n" ^^
-                         "    to: %a\n  from: %a\n")
+                         "    to: %a\n  from: %a")
                          d_type t1 d_type t2);
         true (* TODO: improve this check *)
     | _, _ -> equalTypes t1 t2
@@ -1044,10 +1044,10 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       else begin
         if not (hasAnnot AIgn tFacts) then begin
           if not (checkBaseTypes t eType) then
-            ignore (error "cannot verify cast\n    to: %a\n  from: %a\n"
+            ignore (error "cannot verify cast\n    to: %a\n  from: %a"
                           d_type t d_type eType);
           if not (checkCast tFacts eFacts) then
-            ignore (error "cannot verify cast\n    to: %a\n  from: %a\n"
+            ignore (error "cannot verify cast\n    to: %a\n  from: %a"
                           d_facts tFacts d_facts eFacts)
         end;
         SFacts tFacts
@@ -1084,7 +1084,7 @@ and evaluateLval (lv : lval) (state : state) : summary =
       addVisited expStats e;
       let s = evaluateExp e state in
       if not (safeDeref (summaryToFacts s state)) then begin
-        ignore (error "cannot verify dereference of %a\n" d_exp e);
+        ignore (error "cannot verify dereference of %a" d_exp e);
         addFailed expStats e;
       end;
       begin
@@ -1335,7 +1335,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
              let lvSum = evaluateLval lv state in
              if not (checkBaseTypes lvType eType) then
                ignore (error ("assignment has incompatible types\n" ^^
-                              "    to: %a\n  from: %a\n")
+                              "    to: %a\n  from: %a")
                              d_type lvType d_type eType);
              begin
                match lvSum with
@@ -1351,7 +1351,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                    let lvFacts = summaryToFacts lvSum state in
                    if not (checkCast lvFacts facts) then
                      ignore (error ("assignment has incompatible facts\n" ^^
-                                    "    to: %a\n    from: %a\n")
+                                    "    to: %a\n    from: %a")
                                    d_facts lvFacts d_facts facts)
              end
            in
@@ -1375,7 +1375,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                             "to: %a\n  from: %a\n")
                            d_facts facts d_facts ptrFacts)
                end else
-                 ignore (error "cannot verify size of memset\n")
+                 ignore (error "cannot verify size of memset")
            | Call (ret, fn, actuals, l) ->
                let fnName =
                  match fn with
@@ -1402,11 +1402,11 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          | [], _ :: _ ->
                              if isVarArg then begin
                                if not !suppress then
-                                 ignore (warning "ignoring vararg args\n")
+                                 ignore (warning "ignoring vararg args")
                              end else
-                               ignore (error "too many actuals\n")
+                               ignore (error "too many actuals")
                          | _ :: _, [] ->
-                             ignore (error "too many formals\n")
+                             ignore (error "too many formals")
                        in
                        argIterRec 1 formals actuals
                      in
@@ -1545,13 +1545,13 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      if noReturn then
                        return := false
                  | _ ->
-                     ignore (error "function has non-function type\n")
+                     ignore (error "function has non-function type")
                end
            | Set (lv, e, l) ->
                doSet lv (typeOf e) (summaryToFacts (evaluateExp e state) state)
            | Asm (_, _, _, _, _, l) ->
                if not !suppress then
-                 ignore (warning "ignoring asm\n")
+                 ignore (warning "ignoring asm")
            end)
         instrs
   | Return (eo, l) ->
@@ -1570,13 +1570,13 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
             let eType = typeOf e in
             if not (checkBaseTypes fType eType) then
               ignore (error ("return has incompatible type\n" ^^
-                             "    to: %a\n  from: %a\n")
+                             "    to: %a\n  from: %a")
                             d_type fType d_type eType);
             let fFacts = typeToFacts "*" fType in
             let eFacts = summaryToFacts (evaluateExp e state) state in
             if not (checkCast fFacts eFacts) then
               ignore (error ("return has incompatible facts\n" ^^
-                             "    to: %a\n  from: %a\n")
+                             "    to: %a\n  from: %a")
                             d_facts fFacts d_facts eFacts)
         | None -> ()
       end
@@ -1928,7 +1928,7 @@ let analyzeFile (f : file) : unit =
     expStats.verified;
   *)
   if !E.hadErrors then
-    E.s (E.error "Verification failed\n")
+    E.s (E.error "Verification failed")
 
 let feature : featureDescr = 
   { fd_name = "CCL";

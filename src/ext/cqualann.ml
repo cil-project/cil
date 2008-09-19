@@ -64,7 +64,7 @@ let rec containsSmallocAttribute (t:typ): bool =
 let baseTypeContainsSmallocAttribute (t:typ): bool =
   match unrollType t with
     | TPtr(bt, _) -> containsSmallocAttribute bt
-    | _ ->E.s (error "Expecting a pointer type, got %a\n" d_type t)
+    | _ ->E.s (error "Expecting a pointer type, got %a" d_type t)
 
 
 
@@ -116,7 +116,7 @@ let rec getSize t: int * typ =
 (* exception Unimp *)
 let uniqueUnimplLabel = ref 0
 let unimplementedT t =  
-  ignore (warn "Can't annotate unimplemented type: %a  (Attrs: %a)\n" 
+  ignore (warn "Can't annotate unimplemented type: %a  (Attrs: %a)" 
             d_type t d_attrlist (typeAttrs t));
 (*   raise Unimp *)
   incr uniqueUnimplLabel;

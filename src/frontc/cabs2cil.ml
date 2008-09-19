@@ -588,7 +588,7 @@ let rec stripConstLocalType (t: typ) : typ =
       (* We must go and drop the consts from the typeinfo as well ! *)
       let t' = stripConstLocalType ti.ttype in
       if t != t' then begin
-        (* ignore (warn "Stripping \"const\" from typedef %s\n" ti.tname); *)
+        (* ignore (warn "Stripping \"const\" from typedef %s" ti.tname); *)
         ti.ttype <- t'
       end;
       let a' = dc a in if a != a' then TNamed(ti, a') else t
@@ -608,7 +608,7 @@ let rec stripConstLocalType (t: typ) : typ =
         (fun f -> 
           let t' = stripConstLocalType f.ftype in
           if t' != f.ftype then begin
-            ignore (warnOpt "Stripping \"const\" from field %s of %s\n" 
+            ignore (warnOpt "Stripping \"const\" from field %s of %s" 
                       f.fname (compFullName ci));
             f.ftype <- t'
           end)
@@ -702,7 +702,7 @@ let lookupType (kind: string)
   try
     lookupTypeNoError kind n
   with Not_found -> 
-    E.s (error "Cannot find type %s (kind:%s)\n" n kind)
+    E.s (error "Cannot find type %s (kind:%s)" n kind)
 
 (* Create the self ref cell and add it to the map. Return also an indication 
  * if this is a new one. *)
@@ -940,7 +940,7 @@ module BlockChunk =
             let dest = H.find labelStmt lname in
             List.iter (fun gref -> gref := dest) !gotos
           with Not_found -> begin
-            E.s (error "Label %s not found\n" lname)
+            E.s (error "Label %s not found" lname)
           end)
         backPatchGotos
 
@@ -1025,7 +1025,7 @@ module BlockChunk =
     let mkFunctionBody (c: chunk) : block = 
       resolveGotos (); initLabels ();
       if c.cases <> [] then
-        E.s (error "Switch cases not inside a switch statement\n");
+        E.s (error "Switch cases not inside a switch statement");
       c2block c
       
   end
@@ -1568,7 +1568,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
            if checkEqualSize false then 
               oldsz
            else if checkEqualSize true then begin
-              ignore (warn "Array type comparison succeeds only based on machine-dependent constant evaluation: %a and %a\n" 
+              ignore (warn "Array type comparison succeeds only based on machine-dependent constant evaluation: %a and %a" 
                        d_exp oldsz' d_exp sz');
               oldsz
            end else
@@ -2059,7 +2059,7 @@ let integerArrayLength (leno: exp option) : int =
   | Some len -> begin
       try lenOfArray leno 
       with LenOfArray -> 
-        E.s (error "Initializing non-constant-length array\n  length=%a\n"
+        E.s (error "Initializing non-constant-length array\n  length=%a"
                d_exp len)
   end
 
@@ -2310,7 +2310,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           let t = 
             match lookupType "type" n with 
               (TNamed _) as x, _ -> x
-            | typ -> E.s (error "Named type %s is not mapped correctly\n" n)
+            | typ -> E.s (error "Named type %s is not mapped correctly" n)
           in
           t
     end
@@ -2729,9 +2729,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                 (match constFold true len' with 
                    Const(CInt64(i, _, _)) ->
                      if i < 0L then 
-                       E.s (error "Length of array is negative\n");
+                       E.s (error "Length of array is negative");
                      if Int64.mul i (Int64.of_int elsz) >= 0x80000000L then 
-                       E.s (error "Length of array is too large\n")
+                       E.s (error "Length of array is too large")
 
                  | l -> 
                      if isConstant l then 
@@ -2741,7 +2741,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                        ignore(warn "Unable to do constant-folding on array length %a.  Some CIL operations on this array may fail."
                                 d_exp l)
                      else 
-                       E.s (error "Length of array is not a constant: %a\n"
+                       E.s (error "Length of array is not a constant: %a"
                               d_exp l))
               end;
               Some len'
@@ -2924,7 +2924,7 @@ and makeCompType (isstruct: bool)
        *)
       (match unrollType ftype with
          TComp (ci',_) when not ci'.cdefined ->
-           E.s (error "Type of field %s is an undefined struct.\n" n)
+           E.s (error "Type of field %s is an undefined struct." n)
        | _ -> ());
       let width = 
         match widtho with 
@@ -3160,9 +3160,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> raise Not_found
         with Not_found -> begin
           if isOldStyleVarArgName n then 
-            E.s (error "Cannot resolve variable %s. This could be a CIL bug due to the handling of old-style variable argument functions.\n" n)
+            E.s (error "Cannot resolve variable %s. This could be a CIL bug due to the handling of old-style variable argument functions." n)
           else 
-            E.s (error "Cannot resolve variable %s.\n" n)
+            E.s (error "Cannot resolve variable %s." n)
         end
     end
     | A.INDEX (e1, e2) -> begin
@@ -3393,7 +3393,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects 
         if isNotEmpty se then
-          ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF\n");
+          ignore (warn "Warning: Dropping side-effect in EXPR_SIZEOF");
 *)
         let size =
           match e' with                 (* If we are taking the sizeof an
@@ -3423,7 +3423,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* !!!! The book says that the expression is not evaluated, so we
            * drop the potential side-effects 
         if isNotEmpty se then
-          ignore (warn "Warning: Dropping side-effect in EXPR_ALIGNOF\n");
+          ignore (warn "Warning: Dropping side-effect in EXPR_ALIGNOF");
 *)
         let e'' =
           match e' with                 (* If we are taking the alignof an
@@ -3725,7 +3725,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              let lv = 
                match e1' with 
                  Lval x -> x
-               | _ -> E.s (error "Expected lval for assignment. Got %a\n"
+               | _ -> E.s (error "Expected lval for assignment. Got %a"
                              d_plainexp e1')
              in
              (* Catch the case of an lval that might depend on itself,
@@ -4021,7 +4021,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   pis__builtin_va_arg := true;
                 end
               | _ -> 
-                  ignore (warn "Invalid call to %s\n" fv.vname);
+                  ignore (warn "Invalid call to %s" fv.vname);
             end else if fv.vname = "__builtin_stdarg_start" ||
                         fv.vname = "__builtin_va_start" then begin
               match !pargs with 
@@ -4033,14 +4033,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                     | _ -> false
                   in
                   if not isOk then 
-                    ignore (warn "The second argument in call to %s should be the last formal argument\n" fv.vname);
+                    ignore (warn "The second argument in call to %s should be the last formal argument" fv.vname);
                   
                   (* Check that "lastv" is indeed the last variable in the 
                    * prototype and then drop it *)
                   pargs := [ marker ]
                 end
               | _ -> 
-                  ignore (warn "Invalid call to %s\n" fv.vname);
+                  ignore (warn "Invalid call to %s" fv.vname);
                   
                   (* We have to turn uses of __builtin_varargs_start into uses 
                    * of __builtin_stdarg_start (because we have dropped the 
@@ -4063,12 +4063,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                     | _ -> false
                   in
                   if not isOk then 
-                    ignore (warn "The argument in call to %s should be the last formal argument\n" fv.vname);
+                    ignore (warn "The argument in call to %s should be the last formal argument" fv.vname);
                   
                   pargs := [ ]
                 end
               | _ -> 
-                  ignore (warn "Invalid call to %s\n" fv.vname);
+                  ignore (warn "Invalid call to %s" fv.vname);
             end else if fv.vname = "__builtin_constant_p" then begin
               (* Drop the side-effects *)
               prechunk := empty;
@@ -4337,7 +4337,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
 
   with e when continueOnError -> begin
-    ignore (E.log "error in doExp (%s)@!" (Printexc.to_string e));
+    (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)
     E.hadErrors := true;
     (i2c (dInstr (dprintf "booo_exp(%t)" d_thisloc) !currentLoc),
      integer 0, intType)
@@ -4437,7 +4437,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
       doBinOp bop (makeCastT e1 t1 !upointType) !upointType 
                   (makeCastT e2 t2 !upointType) !upointType
 
-  | _ -> E.s (error "Invalid operands to binary operator: %a\n" d_plainexp (BinOp(bop,e1,e2,intType)))
+  | _ -> E.s (error "Invalid operands to binary operator: %a" d_plainexp (BinOp(bop,e1,e2,intType)))
 
 (* Constant fold a conditional. This is because we want to avoid having 
  * conditionals in the initializers. So, we try very hard to avoid creating 
@@ -4683,7 +4683,7 @@ and doInit
             TInt((IChar|IUChar|ISChar), _) -> true
           | TInt _ ->
               (*Base type is a scalar other than char. Maybe a wchar_t?*)
-	      E.s (error "Using a string literal to initialize something other than a character array.\n")
+	      E.s (error "Using a string literal to initialize something other than a character array.")
           | _ ->  false (* OK, this is probably an array of strings. Handle *)
          )              (* it with the other arrays below.*)
     ->
@@ -4737,7 +4737,7 @@ and doInit
 	   TInt _ when (bitsSizeOf bt') = (bitsSizeOf !wcharType) -> true
 	 | TInt _ ->
               (*Base type is a scalar other than wchar_t.  Maybe a char?*)
-	      E.s (error "Using a wide string literal to initialize something other than a wchar_t array.\n")
+	      E.s (error "Using a wide string literal to initialize something other than a wchar_t array.")
 	 | _ -> false (* OK, this is probably an array of strings. Handle *)
         )             (* it with the other arrays below.*)
     -> 
@@ -4965,7 +4965,7 @@ and doInit
             let (doidxe, idxe', _) = 
               doExp true idxe (AExp(Some intType)) in
             if isNotEmpty doidxs || isNotEmpty doidxe then 
-              E.s (error "Range designators are not constants\n");
+              E.s (error "Range designators are not constants");
             let first, last = 
               match constFold true idxs', constFold true idxe' with
                 Const(CInt64(s, _, _)), 
@@ -5011,7 +5011,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
      * because it might refer to the variable itself *)
     if isFunctionType vi.vtype then begin
       if inite != A.NO_INIT  then
-        E.s (error "Function declaration with initializer (%s)\n"
+        E.s (error "Function declaration with initializer (%s)"
                vi.vname);
       (* sm: if it's a function prototype, and the storage class *)
       (* isn't specified, make it 'extern'; this fixes a problem *)
@@ -5044,7 +5044,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
     try
       let oldloc = H.find alreadyDefined vi.vname in
       if init != None then begin
-        E.s (error "Global %s was already defined at %a\n" 
+        E.s (error "Global %s was already defined at %a" 
                vi.vname d_loc oldloc);
       end;
       if debugGlobal then 
@@ -5096,7 +5096,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
       end
     end
   with e when continueOnError -> begin
-    ignore (E.log "error in createGlobal(%s: %a): %s\n" n
+    ignore (E.log "error in createGlobal(%s: %a): %s" n
               d_loc !currentLoc
               (Printexc.to_string e));
     cabsPushGlobal (dGlobal (dprintf "booo - error in global %s (%t)" 
@@ -5793,10 +5793,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 match unrollType !currentReturnType with
                   TVoid _ -> None
                 | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
-                    ignore (warn "Body of function %s falls-through. Adding a return statement\n"  !currentFunctionFDEC.svar.vname);
+                    ignore (warn "Body of function %s falls-through. Adding a return statement"  !currentFunctionFDEC.svar.vname);
                     Some (makeCastT zero intType rt)
                 | _ ->
-                    ignore (warn "Body of function %s falls-through and cannot find an appropriate return value\n" !currentFunctionFDEC.svar.vname);
+                    ignore (warn "Body of function %s falls-through and cannot find an appropriate return value" !currentFunctionFDEC.svar.vname);
                     None
               in
               if not (hasAttribute "noreturn" 
@@ -5811,7 +5811,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             cabsPushGlobal (GFun (!currentFunctionFDEC, funloc));
             empty
           with e when continueOnError -> begin
-            ignore (E.log "error in collectFunction %s: %s\n"
+            ignore (E.log "error in collectFunction %s: %s"
                       n (Printexc.to_string e));
             cabsPushGlobal (GAsm("error in function " ^ n, !currentLoc));
             empty
@@ -5915,7 +5915,7 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
         end else
           cabsPushGlobal (GEnumTagDecl(ei, !currentLoc))
     | _ -> 
-        ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type\n")
+        ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type")
             
   with e -> begin
     ignore (E.log "Error on A.ONLYTYPEDEF (%s)\n"
@@ -6058,7 +6058,7 @@ and doStatement (s : A.statement) : chunk =
         let loc' = convLoc loc in
         currentLoc := loc';
         if not (isVoidType !currentReturnType) then
-          ignore (warn "Return statement without a value in function returning %a\n" d_type !currentReturnType);
+          ignore (warn "Return statement without a value in function returning %a" d_type !currentReturnType);
         returnChunk None loc'
 
     | A.RETURN (e, loc) ->

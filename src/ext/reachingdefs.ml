@@ -253,10 +253,10 @@ let getDefRhs didstmh stmdat defId =
   if IH.mem rhsHtbl defId then IH.find rhsHtbl defId else
   let stm =
     try IH.find didstmh defId 
-    with Not_found -> E.s (E.error "getDefRhs: defId %d not found\n" defId) in
+    with Not_found -> E.s (E.error "getDefRhs: defId %d not found" defId) in
   let (_,s,iosh) = 
     try IH.find stmdat stm.sid
-    with Not_found -> E.s (E.error "getDefRhs: sid %d not found \n" stm.sid) in
+    with Not_found -> E.s (E.error "getDefRhs: sid %d not found" stm.sid) in
   match stm.skind with
     Instr il ->
       let ivihl = instrRDs il stm.sid ((),s,iosh) true in (* defs that reach out of each instr *)
@@ -280,7 +280,7 @@ let getDefRhs didstmh stmdat defId =
 	      Var(vi') -> 
 		(IH.add rhsHtbl defId (Some(RDExp(e),stm.sid,iosh_in));
 		 Some(RDExp(e), stm.sid, iosh_in))
-	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first\n"))
+	    | _ -> E.s (E.error "Reaching Defs getDefRhs: right vi not first"))
 	| Call(lvo,e,el,_) -> 
 	    (IH.add rhsHtbl defId (Some(RDCall(i),stm.sid,iosh_in));
 	     Some(RDCall(i), stm.sid, iosh_in))
@@ -290,7 +290,7 @@ let getDefRhs didstmh stmdat defId =
 	   IH.add rhsHtbl defId None;
 	   None))
       with Invalid_argument _ -> None end
-  | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d\n" defId)
+  | _ -> E.s (E.error "getDefRhs: defining statement not an instruction list %d" defId)
 	(*None*)
 
 let prettyprint didstmh stmdat () (_,s,iosh) = (*text ""*)
@@ -477,7 +477,7 @@ let getRDs sid =
     Some (IH.find ReachingDef.stmtStartData sid)
   with Not_found ->
     None
-(*    E.s (E.error "getRDs: sid %d not found\n" sid) *)
+(*    E.s (E.error "getRDs: sid %d not found" sid) *)
 
 let getDefIdStmt defid =
   try

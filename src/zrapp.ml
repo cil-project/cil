@@ -69,7 +69,7 @@ let simpleGaSearch l =
     | Some(0) -> i
     | Some(-1) -> loop (i-1)
     | Some(1) -> i
-    | _ -> E.s (E.error "simpleGaSearch: unexpected return from loc_comp\n")
+    | _ -> E.s (E.error "simpleGaSearch: unexpected return from loc_comp")
   in
   loop hi
 
@@ -261,7 +261,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 		 text rhsvi.vname ++ text "++"
 	     | MinusA | MinusPI ->
 		 text rhsvi.vname ++ text "--"
-	     | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec\n")
+	     | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec")
 	   else (self#checkViAndWarn v;
 		 text v.vname)
      else if IH.mem RCT.incdecHash v.vid then
@@ -272,7 +272,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	   text rhsvi.vname ++ text "++"
        | MinusA | MinusPI ->
 	   text rhsvi.vname ++ text "--"
-       | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec\n")
+       | _ -> E.s (E.error "zraCilPrinterClass.pVar: unexpected op for inc/dec")
      else (self#checkViAndWarn v;
 	   text v.vname)
 
@@ -282,9 +282,9 @@ class zraCilPrinterClass : cilPrinter = object (self)
        different varinfo. If so, give a warning.
        If not, add the name to the environment *)
     let _ = if (H.mem lenvHtbl v.vname) && not(self#checkVi v) then
-      ignore( warn "name %s has already been declared locally with different varinfo\n" v.vname)
+      ignore( warn "name %s has already been declared locally with different varinfo" v.vname)
     else if (H.mem genvHtbl v.vname) && not(self#checkVi v) then
-      ignore( warn "name %s has already been declared globally with different varinfo\n" v.vname)
+      ignore( warn "name %s has already been declared globally with different varinfo" v.vname)
     else if not v.vglob then
       (if !debug then ignore(E.log "zrapp: adding %s to local pp environment\n" v.vname);
       H.add lenvHtbl v.vname v)

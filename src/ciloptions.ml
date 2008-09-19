@@ -94,7 +94,7 @@ let parseExtraFile (s: string) =
       in
         scan 0 (-1)
     done
-  with Sys_error _ -> E.s (E.error "Cannot find extra file: %s\n" s)
+  with Sys_error _ -> E.s (E.error "Cannot find extra file: %s" s)
   |  End_of_file -> () 
 
 
@@ -204,7 +204,7 @@ let options : (string * Arg.spec * string) list =
                 Cil.msvcMode := true;
                 Frontc.setMSVCMode ();
                 if not Machdep.hasMSVC then
-                  ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed\n")),
+                  ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed")),
     " Enable MSVC compatibility; default is GNU";
 
    "--envmachine",

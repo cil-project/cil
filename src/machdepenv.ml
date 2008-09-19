@@ -42,19 +42,7 @@ let getInt = getNthInt 0
 let getSizeof = getNthInt 0
 let getAlignof = getNthInt 1
 
-let typeLookup (model:mach) (size:int) : string =
-  if size = 1 then
-    "char"
-  else if size = model.sizeof_short then
-    "short"
-  else if size = model.sizeof_int then
-    "int"
-  else if size = model.sizeof_long then
-    "long"
-  else if size = model.sizeof_longlong then
-    "long long"
-  else
-    raise (Failure "invalid type size")
+let respace = Str.global_replace (Str.regexp "_") " "
 
 let modelParse (s:string) : mach = 
   let entries =
@@ -63,7 +51,7 @@ let modelParse (s:string) : mach =
     with Failure msg -> raise (Failure msg)
     | _ -> raise (Failure "invalid machine specification")
   in
-  let premodel =  {
+  {
     version_major = 0;
     version_minor = 0;
     version = "machine model " ^ s;
@@ -91,19 +79,11 @@ let modelParse (s:string) : mach =
     alignof_fun = getAlignof entries "fun";
     alignof_str = getInt entries "alignof_string";
     alignof_aligned = getInt entries "max_alignment";
-    size_t = "";
-    wchar_t = "";
-    char_is_unsigned = getNthBool 0 entries "char_wchar_signed";
+    size_t = respace (getNthString 0 entries "size_t");
+    wchar_t = respace (getNthString 0 entries "wchar_t");
+    char_is_unsigned = getBool entries "char_signed";
     const_string_literals = getBool entries "const_string_literals";
     little_endian = not (getBool entries "big_endian");
     __thread_is_keyword = getBool entries "__thread_is_keyword";
     __builtin_va_list = getBool entries "__builtin_va_list";
-  } in
-  let size_t_name = typeLookup premodel (getNthInt 1 entries "wchar_size_size") in
-  let wchar_t_name = typeLookup premodel (getNthInt 0 entries "wchar_size_size") in
-  let wchar_t_unsigned = 
-    if getNthBool 1 entries "char_wchar_signed" then "" else "unsigned "
-  in { 
-    premodel with 
-      size_t = size_t_name;
-      wchar_t = wchar_t_unsigned ^ wchar_t_name }
+  }
