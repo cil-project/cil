@@ -231,7 +231,14 @@ class deadnessVisitorClass = object(self)
         | Some vs -> begin
             let (dead,live) =
                 List.fold_left (fun (dead,live) stm ->
-                    VS.union dead (VS.diff (getPostLiveness stm) vs),
+                    let dvs = 
+                        (* things can die in non instr statemnts *)
+                        match stm.skind with
+                        | Instr _
+                        | Block _ -> VS.diff (getPostLiveness stm) vs
+                        | _ -> VS.diff (VS.union (getLiveness stm) (getPostLiveness stm)) vs
+                    in
+                    VS.union dead dvs,
                     VS.union live (getPostLiveness stm))
                     (VS.empty, VS.empty)
                     stm.preds
