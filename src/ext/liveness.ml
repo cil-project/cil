@@ -265,8 +265,10 @@ class deadnessVisitorClass = object(self)
             liv_dat_lst <- List.tl liv_dat_lst;
             let u,d = UD.computeUseDefInstr i in
             let inlive = VS.union u (VS.diff data d) in
-            post_dead_vars <- VS.diff inlive data;
-            post_live_vars <- VS.diff data inlive;
+            (* if both defined and used, then both dies and comes to life *)
+            let ud = VS.inter u d in
+            post_dead_vars <- VS.union (VS.diff inlive data) ud;
+            post_live_vars <- VS.union (VS.diff data inlive) ud;
             if !debug then
                 E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
                   d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
