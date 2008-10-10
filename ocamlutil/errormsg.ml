@@ -88,7 +88,7 @@ let showContext () =
   end
 
 let contextMessage (name: string) (d: doc) = 
-  ignore (eprintf "@!%s: %a@!" name insert d);
+  ignore (eprintf "%s: %a@!" name insert d);
   showContext ()
 
 let warnFlag = ref false
