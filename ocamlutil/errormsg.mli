@@ -44,6 +44,8 @@ val debugFlag  : bool ref
 
 val verboseFlag : bool ref
 
+(** Set to true if you want error and warning messages to be colored *)
+val colorFlag : bool ref
 
 (** Set to true if you want to see all warnings. *)
 val warnFlag: bool ref

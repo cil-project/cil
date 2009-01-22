@@ -42,6 +42,8 @@ open Pretty
 let debugFlag  = ref false              (* If set then print debugging info *)
 let verboseFlag = ref false
 
+let colorFlag = ref false
+
 (**** Error reporting ****)  
 exception Error
 let s (d : 'a) = raise Error
@@ -95,6 +97,13 @@ let warnFlag = ref false
 
 let logChannel : out_channel ref = ref stderr
 
+let redEscStr = "\027[31m"
+let greenEscStr = "\027[32m"
+let yellowEscStr = "\027[33m"
+let blueEscStr = "\027[34m"
+let purpleEscStr = "\027[35m"
+let cyanEscStr = "\027[36m"
+let whiteEscStr = "\027[37m"
 
 let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
   let f d =  
@@ -103,8 +112,12 @@ let bug (fmt : ('a,unit,doc,unit) format4) : 'a =
   in
   Pretty.gprintf f fmt
 
-let error (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d = hadErrors := true; contextMessage "Error" d; 
+let error (fmt : ('a,unit,doc,unit) format4) : 'a =
+  let f d =
+    hadErrors := true;
+    if !colorFlag then output_string !logChannel redEscStr;
+    contextMessage "Error" d;
+    if !colorFlag then output_string !logChannel whiteEscStr;
     flush !logChannel
   in
   Pretty.gprintf f fmt
@@ -116,7 +129,12 @@ let unimp (fmt : ('a,unit,doc,unit) format4) : 'a =
   Pretty.gprintf f fmt
 
 let warn (fmt : ('a,unit,doc,unit) format4) : 'a = 
-  let f d = contextMessage "Warning" d; flush !logChannel in
+  let f d =
+    if !colorFlag then output_string !logChannel yellowEscStr;
+    contextMessage "Warning" d;
+    if !colorFlag then output_string !logChannel whiteEscStr;
+    flush !logChannel
+  in
   Pretty.gprintf f fmt
 
 let warnOpt (fmt : ('a,unit,doc,unit) format4) : 'a = 
