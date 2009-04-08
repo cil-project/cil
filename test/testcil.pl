@@ -472,6 +472,20 @@ addBadComment("test/cpp-2",
                         "Bug in parser (empty pragmas)");
 addTest("test/cpp-3 _GNUCC=1");
 
+addTest("testrungcc/enum3 _GNUCC=1");
+addTest("testrungcc/enum3a _GNUCC=1");
+addTest("testrungcc/enum3b _GNUCC=1");
+addTest("testrungcc/enum3c _GNUCC=1");
+addBadComment("testrungcc/enum3c", 
+                        "CIL constant folder doesn't consider x << y constant if y is strange (negative or bigger than #bits in x's type)");
+addTest("testrungcc/enum3d _GNUCC=1");
+addTest("testrungcc/enum3e _GNUCC=1");
+addTest("testrungcc/enum3f _GNUCC=1");
+addTest("testrungcc/enum3g _GNUCC=1");
+addTest("testrungcc/enum3h _GNUCC=1");
+addTest("testrungcc/enum3i _GNUCC=1");
+addTest("testrungcc/enum3j _GNUCC=1");
+addTest("testrungcc/enum3k _GNUCC=1");
 
 
 if($win32) {

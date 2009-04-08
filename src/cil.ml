@@ -369,6 +369,9 @@ and enuminfo = {
                                                       constants. *) 
     mutable eattr: attributes;         (** Attributes *)
     mutable ereferenced: bool;         (** True if used. Initially set to false*)
+    mutable ekind: ikind;
+    (** The integer kind used to represent this enum. Per ANSI-C, this
+      * should always be IInt, but gcc allows other integer kinds *)
 }
 
 (** Information about a defined type *)
@@ -1851,7 +1854,7 @@ let rec typeOf (e: exp) : typ =
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
-  | Const(CEnum(_, _, ei)) -> TEnum(ei, [])
+  | Const(CEnum(tag, _, ei)) -> typeOf tag
 
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
@@ -2055,7 +2058,7 @@ let rec alignOf_int t =
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
     | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
-    | TEnum _ -> !M.theMachine.M.alignof_enum
+    | TEnum(ei, _) -> alignOf_int (TInt(ei.ekind, []))
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float 
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
     | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
@@ -2319,7 +2322,7 @@ and bitsSizeOf t =
   | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
   | TFloat _ -> 8 * !M.theMachine.M.sizeof_float
-  | TEnum _ -> 8 * !M.theMachine.M.sizeof_enum
+  | TEnum (ei, _) -> 8 * (bitsSizeOf (TInt(ei.ekind, [])))
   | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
@@ -2470,7 +2473,7 @@ and constFold (machdep: bool) (e: exp) : exp =
         let tk = 
           match unrollType tres with
             TInt(ik, _) -> ik
-          | TEnum _ -> IInt
+          | TEnum (ei, _) -> ei.ekind
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
@@ -2568,7 +2571,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       let tk = 
         match unrollType tres with
           TInt(ik, _) -> ik
-        | TEnum _ -> IInt
+        | TEnum (ei, _) -> ei.ekind
         | _ -> E.s (bug "constFoldBinOp")
       in
       (* See if the result is unsigned *)

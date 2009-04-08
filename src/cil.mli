@@ -422,6 +422,9 @@ and enuminfo = {
      * reference to this [enuminfo] using the [TEnum] type constructor. *)
     mutable ereferenced: bool;         
     (** True if used. Initially set to false*)
+    mutable ekind: ikind;
+    (** The integer kind used to represent this enum. Per ANSI-C, this
+      * should always be IInt, but gcc allows other integer kinds *)
 }
 
 (** {b Enumerations.} Information about an enumeration. This is shared by all 
@@ -2481,6 +2484,7 @@ val intKindForSize : int -> ikind
  *  if no such kind exists *)
 val floatKindForSize : int-> fkind
 
+(** The size in bytes of the given int kind. *)
 val bytesSizeOfInt: ikind -> int 
 
 (** The size of a type, in bits. Trailing padding is added for structs and 

@@ -14,8 +14,10 @@ TESTDIR := .
 
 ifneq ($(ARCHOS), x86_WIN32)
 ifneq ($(ARCHOS), x86_LINUX) 
+ifneq ($(ARCHOS), x86_DARWIN) 
 ifneq ($(ARCHOS), sparc_SOLARIS) 
-   $(error You must set the ARCHOS variable to x86_WIN32, x86_LINUX, or sparc_SOLARIS)
+   $(error You must set the ARCHOS variable to x86_WIN32, x86_LINUX, x86_DARWIN, or sparc_SOLARIS)
+endif
 endif
 endif
 endif
@@ -214,6 +216,12 @@ testobj/% : $(SMALL1)/%.c
 	       $(CONLY) $(CFLAGS) $(OBJOUT)$*.o $*.c 
 
 testrun/% : $(SMALL1)/%.c  
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
+	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
+testrungcc/% : $(SMALL1)/%.c mustbegcc
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe

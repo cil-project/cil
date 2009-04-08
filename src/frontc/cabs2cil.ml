@@ -727,7 +727,7 @@ let createEnumInfo (n: string) : enuminfo * bool =
   with Not_found -> begin
     (* Create a enuminfo *)
     let enum = { ename = n; eitems = []; 
-                 eattr = []; ereferenced = false; } in
+                 eattr = []; ereferenced = false; ekind = IInt; } in
     H.add enumInfoNameEnv n enum;
     enum, true
   end
@@ -1153,7 +1153,7 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
       else
 	TInt(IUInt, a)
   | TInt _ -> t
-  | TEnum (_, a) -> TInt(IInt, a)
+  | TEnum (ei, a) -> TInt(ei.ekind, a)
   | t -> E.s (error "integralPromotion: not expecting %a" d_type t)
   
 
@@ -2351,11 +2351,43 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let a = extraAttrs @ (getTypeAttrs ()) in 
         enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
+	let smallest = ref Int64.zero in
+	let largest = ref Int64.zero in
 
-        (* sm: start a scope for the enum tag values, since they *
-        * can refer to earlier tags *)
-        enterScope ();
-        
+	(* Life is fun here. ANSI says: enum constants are ints,
+	   and there's an implementation-dependent underlying integer
+	   type for the enum, which must be capable of holding all the
+	   enum's values.
+	   For MSVC, we follow these rules and assume the enum's 
+	   underlying type is int.
+	   GCC extends the rules for enum constants, allowing them to
+	   be long or long long if they don't fit in an int, though
+	   the constants remain signed. With GCC, the type of the
+	   underlying integer is unsigned if the enum has no negative
+	   constants (note that the constants themselves are still
+	   signed), signed otherwise.  The type of the enum is the
+	   smallest type >= int/unsigned int which will hold the
+	   enum's values (except if packed attribute or the
+	   -fshort-enums flag is used - again we'll ignore that) *)
+
+	let fits i ik = 
+	  let _, truncated = truncateInteger64 ik i in
+	  not truncated
+	in
+
+	let updateEnumKind (enum:enuminfo) (i:int64) =
+	  let ik = 
+	    if !msvcMode then IInt
+	    else if fits i IInt then IInt
+	    else if fits i ILong then ILong
+	    else ILongLong
+	   in
+	  if Int64.compare i !smallest < 0 then
+	    smallest := i;
+	  if Int64.compare i !largest > 0 then
+	    largest := i;
+	  ik
+	in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin
           (* add the name to the environment, but with a faked 'typ' field; 
@@ -2381,19 +2413,28 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
               let e' = getIntConstExp e in
               let e' = 
                 match isInteger (constFold true e') with 
-                  Some i -> if !lowerConstants then kinteger64 IInt i else e'
+                  Some i -> 
+		    let ik = updateEnumKind enum i in 
+		    if !lowerConstants then kinteger64 ik i else e'
                 | _ -> E.s (error "Constant initializer %a not an integer" d_exp e')
               in
               processName kname e' (convLoc cloc) rest
         in
         
-        (* sm: now throw away the environment we built for eval'ing the enum 
-        * tags, so we can add to the new one properly  *)
-        exitScope ();
-        
         let fields = loop zero eil in
         (* Now set the right set of items *)
         enum.eitems <- List.map (fun (_, x) -> x) fields;
+	(* Pick the enum's kind - see discussion above *)
+	if not !msvcMode then
+	  enum.ekind <- 
+	    if Int64.compare !smallest Int64.zero < 0 then
+	      if fits !smallest IInt && fits !largest IInt then IInt
+	      else if fits !smallest ILong && fits !largest ILong then ILong
+	      else ILongLong
+	    else
+	      if fits !largest IUInt then IUInt
+	      else if fits !largest IULong then IULong
+	      else IULongLong;
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
@@ -3147,14 +3188,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               finishExp empty (Lval(var vi)) vi.vtype
           | EnvEnum (tag, typ), _ ->
               if !Cil.lowerConstants then 
-                finishExp empty tag typ
+                finishExp empty tag (typeOf tag)
               else begin
                 let ei = 
                   match unrollType typ with 
                     TEnum(ei, _) -> ei
                   | _ -> assert false
                 in
-                finishExp empty (Const (CEnum(tag, n, ei))) typ
+                finishExp empty (Const (CEnum(tag, n, ei))) (typeOf tag)
               end
 
           | _ -> raise Not_found

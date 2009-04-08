@@ -419,6 +419,7 @@ let intEnumInfo =
     eitems = [];
     eattr = [];
     ereferenced = false;
+    ekind = IInt;
   }
 (* And add it to the equivalence graph *)
 let intEnumInfoNode =
