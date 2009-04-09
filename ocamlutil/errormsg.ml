@@ -97,13 +97,14 @@ let warnFlag = ref false
 
 let logChannel : out_channel ref = ref stderr
 
-let redEscStr = "\027[31m"
+let redEscStr = "\027[1;31m"
 let greenEscStr = "\027[32m"
-let yellowEscStr = "\027[33m"
+let yellowEscStr = "\027[1;33m"
 let blueEscStr = "\027[34m"
 let purpleEscStr = "\027[35m"
 let cyanEscStr = "\027[36m"
 let whiteEscStr = "\027[37m"
+let resetEscStr = "\027[m"
 
 let bug (fmt : ('a,unit,doc,unit) format4) : 'a = 
   let f d =  
@@ -117,7 +118,7 @@ let error (fmt : ('a,unit,doc,unit) format4) : 'a =
     hadErrors := true;
     if !colorFlag then output_string !logChannel redEscStr;
     contextMessage "Error" d;
-    if !colorFlag then output_string !logChannel whiteEscStr;
+    if !colorFlag then output_string !logChannel resetEscStr;
     flush !logChannel
   in
   Pretty.gprintf f fmt
@@ -132,7 +133,7 @@ let warn (fmt : ('a,unit,doc,unit) format4) : 'a =
   let f d =
     if !colorFlag then output_string !logChannel yellowEscStr;
     contextMessage "Warning" d;
-    if !colorFlag then output_string !logChannel whiteEscStr;
+    if !colorFlag then output_string !logChannel resetEscStr;
     flush !logChannel
   in
   Pretty.gprintf f fmt
