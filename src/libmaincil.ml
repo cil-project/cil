@@ -37,7 +37,7 @@
 
 (* libmaincil *)
 (* this is a replacement for maincil.ml, for the case when we're
- * creating a C-callable library (libcil.a); all it does is register
+ * creating a C-callable library (libcil.o); all it does is register
  * a couple of functions and initialize CIL *)
 
 
