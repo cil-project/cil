@@ -1930,14 +1930,23 @@ let unsignedVersionOf (ik:ikind): ikind =
   | ILongLong -> IULongLong
   | _ -> ik          
 
-let intKindForSize (s:int) =
-  (* Test the most common sizes first *)
-  if s = 1 then ISChar
-  else if s = !M.theMachine.M.sizeof_int then IInt
-  else if s = !M.theMachine.M.sizeof_long then ILong
-  else if s = !M.theMachine.M.sizeof_short then IShort
-  else if s = !M.theMachine.M.sizeof_longlong then ILongLong
-  else raise Not_found
+let intKindForSize (s:int) (unsigned:bool) : ikind =
+  if unsigned then 
+    (* Test the most common sizes first *)
+    if s = 1 then IUChar
+    else if s = !M.theMachine.M.sizeof_int then IUInt
+    else if s = !M.theMachine.M.sizeof_long then IULong
+    else if s = !M.theMachine.M.sizeof_short then IUShort
+    else if s = !M.theMachine.M.sizeof_longlong then IULongLong
+    else raise Not_found
+  else
+    (* Test the most common sizes first *)
+    if s = 1 then ISChar
+    else if s = !M.theMachine.M.sizeof_int then IInt
+    else if s = !M.theMachine.M.sizeof_long then ILong
+    else if s = !M.theMachine.M.sizeof_short then IShort
+    else if s = !M.theMachine.M.sizeof_longlong then ILongLong
+    else raise Not_found
 
 let floatKindForSize (s:int) = 
   if s = !M.theMachine.M.sizeof_double then FDouble
@@ -1967,7 +1976,7 @@ let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
          *   e.g. casting the constant 0x80000000 to int makes it
          *        0xffffffff80000000.
          * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right i (64 - nrBits) in
+        let chopped = Int64.shift_right i nrBits in
         chopped <> Int64.zero
           (* matth: also suppress the warning if we only chop off 1s.
              This is probably due to a negative number being cast to an 
@@ -1977,6 +1986,27 @@ let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
     in
     i2, truncated
   end
+
+(* True if the integer fits within the kind's range *)
+let fitsInInt (k: ikind) (i: int64) : bool = 
+  let _, truncated = truncateInteger64 k i in
+  not truncated
+
+(* Return the smallest kind that will hold the integer's value.
+   The kind will be unsigned if the 2nd argument is true *)
+let intKindForValue (i: int64) (unsigned: bool) = 
+  if unsigned then
+    if fitsInInt IUChar i then IUChar
+    else if fitsInInt IUShort i then IUShort
+    else if fitsInInt IUInt i then IUInt
+    else if fitsInInt IULong i then IULong
+    else IULongLong
+  else
+    if fitsInInt ISChar i then ISChar
+    else if fitsInInt IShort i then IShort
+    else if fitsInInt IInt i then IInt
+    else if fitsInInt ILong i then ILong
+    else ILongLong
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp = 
@@ -2739,7 +2769,7 @@ let parseInt (str: string) : exp =
       if acc' < Int64.zero || (* We clearly overflow since base >= 2 
       * *)
       (acc' > Int64.zero && acc' < acc) then 
-        E.s (unimp "Cannot represent on 64 bits the integer %s\n"
+        E.s (unimp "Cannot represent integer %s in 64 bits (signed)\n"
                str)
       else
         toInt base acc' (idx + 1)
@@ -6644,8 +6674,7 @@ let initCIL () =
     (* Find the right ikind given the size *)
     let findIkindSz (unsigned: bool) (sz: int) : ikind =
       try
-	let kind = intKindForSize sz in
-	if unsigned then unsignedVersionOf kind else kind
+	intKindForSize sz unsigned
       with Not_found -> 
         E.s(E.unimp "initCIL: cannot find the right ikind for size %d\n" sz)
     in      

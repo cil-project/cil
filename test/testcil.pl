@@ -1,5 +1,7 @@
 # A regression tester for CIL
 #
+# Note: comments now start with Bug/Notbug/Minor/Limitation to give some categorisation.
+
 require 5.000;
 
 
@@ -183,8 +185,10 @@ $TEST->newTest(
 addTest("testrun/const-array-init WARNINGS_ARE_ERRORS=1");
 addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("test/const-struct-init WARNINGS_ARE_ERRORS=1");
-addTest("testrun/warnings-noreturn WARNINGS_ARE_ERRORS=1");
+addTest("test/warnings-noreturn WARNINGS_ARE_ERRORS=1");
 addTest("testrun/warnings-unused-label WARNINGS_ARE_ERRORS=1");
+addBadComment("testrun/warnings-unused-label", 
+	      "Minor. We don't do a good enough job at eliminating unused labels");
 addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
 addTest("testrun/castincr WARNINGS_ARE_ERRORS=1");
 
@@ -196,6 +200,7 @@ addTest("testrun/asm1 _GNUCC=1");
 addTest("test/asm2 _GNUCC=1");
 addTest("test/asm3 _GNUCC=1");
 addTest("test/asm4 _GNUCC=1");
+addBadComment("test/asm4", "Limitation. See testrun/const1.");
 addTest("testobj/asm5 _GNUCC=1");
 
 addTest("testrun/offsetof");
@@ -206,7 +211,7 @@ addTest("testrun/question");
 addTest("testrun/question2");
 addTest("test/argcast");
 addBadComment("test/argcast", 
-                        "Fails --check because of mismatched prototypes.");
+	      "Notbug. CIL bases type for implicit functions based on first call's argument.");
 addTest("test/array1");
 addTest("test/array2");
 addTest("testrun/array_varsize");
@@ -245,6 +250,7 @@ addTest("test/cast4 _GNUCC=1");
 addTest("testrun/cast8 ");
 addTest("test/constprop");
 addTest("testrun/const1 _GNUCC=1");
+addBadComment("testrun/const1", "Limitation. CIL can't handle large 64-bit unsigned constants.");
 addTest("testrun/const2 ");
 addTest("testrun/const3 ");
 addTest("testrun/const4 _GNUCC=1");
@@ -262,17 +268,17 @@ addTest("testrun/enum2");
 addTest("test/func");
 addTest("test/funcarg ");
 addBadComment("test/funcarg", 
-                        "Bug in parser (argument of function type)");
+                        "Bug. In parser (argument of function type)");
 
 addTest("testrun/func2");
 addTest("testrun/func3");
 addTest("testrun/func4");
 addTest("test/func10 ");
 addBadComment("test/func10", 
-                     "Cil bug: Cannot parse some strange K&R function definition");
+                     "Bug. Cannot parse some strange K&R function definition");
 addTest("test/globals");
 addTest("test/globals2 ");
-addBadComment("test/globals2", "CIL bug: we print array size expressions that refer to variables that haven't been defined yet.");
+addBadComment("test/globals2", "Bug. we print array size expressions that refer to variables that haven't been defined yet.");
 addTest("testrun/float");
 addTest("testrun/float2 ");
 addTest("test/huff1");
@@ -295,6 +301,7 @@ addTest("testrun/init15 _GNUCC=1");
 addTest("testrun/init16 ");
 addTest("testrun/init17 ");
 addTest("testrun/init18 ");
+addBadComment("testrun/init18", "Bug. Outstanding since 1.3.6 at least");
 addTest("testrun/init19 WARNINGS_ARE_ERRORS=1");
 addTest("testrun/init20 _GNUCC=1");
 addTest("testrun/init21 _GNUCC=1");
@@ -309,7 +316,7 @@ addTest("testrun/inline2 _GNUCC=1");
 addTest("test/inline3 _GNUCC=1");
 addTest("test/decl2 _GNUCC=1");
 addBadComment("test/decl2", 
-                        "Fails --check because of mismatched prototypes.");
+	      "Bug. An old-style argument type should go through the default type conversion before being added to the function's type.");
 addTest("test/jmp_buf");
 addTest("test/linux_atomic _GNUCC=1");
 addTest("testrun/linux_signal _GNUCC=1");
@@ -324,7 +331,7 @@ addTest("testrun/perror1");
 addTest("test/pure");
 addTest("testrun/post-assign ");
 addBadComment("testrun/post-assign", 
-                        "CIL does not have the same evaluation order for ++ as gcc");
+                        "Minor. CIL does not have the same evaluation order for ++ as gcc");
 addTest("test/printf ");
 addTest("test/printf_const ");
 addTest("testrun/printf2");
@@ -361,6 +368,7 @@ addTest("test/power1");
 addTest("testrun/scope1");
 addTest("test/scope2");
 addTest("test/scope3");
+addBadComment("test/scope3", "Notbug. This failure is ok - enum's may be represented by a type other than int, even though enum constants are of type int...");
 addTest("test/scope4");
 addTest("testrun/scope5 _GNUCC=1");
 addTest("testrun/scope6");
@@ -390,8 +398,8 @@ addTest("testrun/escapes");
 addTest("test-bad1/wchar-bad ");
 addTest("testrun/addrof3 _GNUCC=1");
 addTest("testrun/lval1 _GNUCC=1");
-addTest("test/bind2 EXTRAARGS=--allowInlineAssembly");
-addToGroup("test/bind2", "slow");
+#MIA: addTest("test/bind2 EXTRAARGS=--allowInlineAssembly");
+#addToGroup("test/bind2", "slow");
 addTest("testrun/decl1 _GNUCC=1");
 addTest("testrun/addr-array");
 addTest("combine1 ");
@@ -413,6 +421,7 @@ addTest("combine18 ");
 addTest("combine20 ");
 addTest("combine21 ");
 addTest("combine22 ");
+addBadComment("combine22", "Bug. Outstanding since 1.3.6 at least");
 addTest("combinealias ");
 addTest("combinelibrik ");
 addTest("combineenum1 ");
@@ -420,9 +429,12 @@ addTest("combineenum2 ");
 addTest("combineenum3 ");
 addTest("combine_init ");
 addTest("combineinline1 ");
+addBadComment("combineinline1", "Bug. Outstanding since 1.3.6 at least");
 addTest("combineinline2 ");
 addTest("combineinline3 ");
+addBadComment("combineinline3", "Bug. Outstanding since 1.3.6 at least");
 addTest("combineinline4 ");
+addBadComment("combineinline4", "Bug. Outstanding since 1.3.6 at least");
 addTest("combineinline6 ");
 addTest("combinestruct1 ");
 addTest("mixedcomb ");
@@ -433,7 +445,7 @@ addTest("arcombine _GNUCC=1");
 addTest("testrun/funptr1");
 addTest("testrun/typespec1 _GNUCC=1");
 addBadComment("testrun/typespec1", 
-                        "Must emulate bug in GCC?");
+                        "Notbug. GCC 4 no longer allows this, so the error is fine.");
 addTest("testrun/returnvoid ");
 addTest("testrun/returnvoid1 ");
 addTest("testrun/return1 ");
@@ -442,17 +454,17 @@ addTest("testrun/void _GNUCC=1");
 addTest("test/voidtypedef ");
 addTest("testrun/wrongnumargs ");
 addBadComment("testrun/wrongnumargs", 
-                        "Should fail since we don't pad argument lists");
+                        "Notbug. Should fail since we don't pad argument lists");
 addTest("test/restrict EXTRAARGS=-std=c9x _GNUCC=1");
 addTest("test/restrict1 _GNUCC=1");
 addTest("testrun/rmtmps1 ");
 addTest("testrun/rmtmps2 _GNUCC=1");
 addTest("test/proto1 ");
 addBadComment("test/proto1", 
-                        "Fails --check because of mismatched prototypes.");
+	      "Bug. CIL doesn't like pointers to old-style functions...");
 addTest("test/proto2 ");
 addBadComment("test/proto2", 
-                        "Bug in parser (precedences)");
+                        "Bug. In parser (precedences)");
 addTest("testrun/struct1 ");
 addTest("testrun/voidarg ");
 addTest("testrun/union2 ");
@@ -463,13 +475,13 @@ addTest("runall/extinline ");
 
 addTest("testrun/rmtmps-attr ");
 addBadComment("testrun/rmtmps-attr", 
-                        "A limitation of our support for attributes");
+                        "Bug. A limitation of our support for attributes");
  
 addTest("testrun/vsp");
 
 addTest("test/cpp-2 ");
 addBadComment("test/cpp-2", 
-                        "Bug in parser (empty pragmas)");
+                        "Bug. In parser (empty pragmas)");
 addTest("test/cpp-3 _GNUCC=1");
 
 addTest("testrungcc/enum3 _GNUCC=1");
@@ -477,7 +489,7 @@ addTest("testrungcc/enum3a _GNUCC=1");
 addTest("testrungcc/enum3b _GNUCC=1");
 addTest("testrungcc/enum3c _GNUCC=1");
 addBadComment("testrungcc/enum3c", 
-                        "CIL constant folder doesn't consider x << y constant if y is strange (negative or bigger than #bits in x's type)");
+                        "Limitation. CIL constant folder doesn't consider x << y constant if y is strange (negative or bigger than #bits in x's type)");
 addTest("testrungcc/enum3d _GNUCC=1");
 addTest("testrungcc/enum3e _GNUCC=1");
 addTest("testrungcc/enum3f _GNUCC=1");
@@ -486,6 +498,7 @@ addTest("testrungcc/enum3h _GNUCC=1");
 addTest("testrungcc/enum3i _GNUCC=1");
 addTest("testrungcc/enum3j _GNUCC=1");
 addTest("testrungcc/enum3k _GNUCC=1");
+addTest("testrungcc/enum3l _GNUCC=1");
 
 
 if($win32) {
@@ -534,6 +547,7 @@ addTest("testrun/builtin ");
 addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
 addTest("testrun/builtin_choose_expr");
+addBadComment("testrun/builtin_choose_expr", "Limitation. gcc extension not implemented.");
 addTest("testrun/comparisons");
 addTest("testrun/assign");
     
@@ -568,6 +582,7 @@ addTest("scott/constdecl");
 addTest("scott/oldstyle");
 addTest("scott/typeof $gcc");
 addTest("scott/asmfndecl $gcc");
+addBadComment("scott/asmfndecl", "Notbug. Not a bug if fails on a non-Linux machine ;-)");
 addTest("scott/open $gcc");
 addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
@@ -580,7 +595,9 @@ addTest("scott/thing");
 addTest("mergeinline");
 addTest("scott/uninit_tmp");
 addTest("combine_samefn");
+addBadComment("combine_samefn", "Bug. Outstanding since 1.3.6 at least");
 addTest("combine_node_alloc");
+addBadComment("combine_node_alloc", "Bug. Outstanding since 1.3.6 at least");
 addTest("combine_sbump");
 addTest("combine_sbumpB");
 addTest("combine_sbumpB MERGEINLINES=1");
@@ -622,6 +639,7 @@ addTest("scott-nogcc/funcname $gcc");
 addTest("scott/litstruct $gcc");
 addTest("scott/main $gcc");
 addTest("scott/globalprob $gcc");
+addBadComment("scott/globalprob", "Notbug. Not a bug if fails on a non-Linux machine ;-)");
 addTest("scott/bisonerror $gcc");
 addTest("scott/cmpzero");
 addTest("scott/kernel1 $gcc");

@@ -2476,9 +2476,9 @@ exception SizeOfError of string * typ
 (** Give the unsigned kind corresponding to any integer kind *)
 val unsignedVersionOf : ikind -> ikind
 
-(** The signed integer kind for a given size. Raises Not_found
- *  if no such kind exists *)
-val intKindForSize : int -> ikind
+(** The signed integer kind for a given size (unsigned if second argument
+ * is true). Raises Not_found if no such kind exists *)
+val intKindForSize : int -> bool -> ikind
 
 (** The float kind for a given size. Raises Not_found
  *  if no such kind exists *)
@@ -2493,7 +2493,17 @@ val bytesSizeOfInt: ikind -> int
  * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
+(** Represents an integer as for a given kind. 
+ * Returns a flag saying whether the value was changed
+ * during truncation (because it was too large to fit in k). *)
 val truncateInteger64: ikind -> int64 -> int64 * bool
+
+(** True if the integer fits within the kind's range *)
+val fitsInInt: ikind -> int64 -> bool
+
+(** Return the smallest kind that will hold the integer's value.
+ *  The kind will be unsigned if the 2nd argument is true *)
+val intKindForValue: int64 -> bool -> ikind
 
 (** The size of a type, in bytes. Returns a constant expression or a "sizeof" 
  * expression if it cannot compute the size. This function is architecture 

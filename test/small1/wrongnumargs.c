@@ -9,5 +9,6 @@ int main(int argc, char** argv) {
   f("hello %S!\n", "wow");	  
   f("hello there: %s!\n", "wow");
   f("hello again!\n");
+  return 0;
 }
 

@@ -1145,7 +1145,7 @@ type condExpRes =
   | CENot of condExpRes
 
 (******** CASTS *********)
-let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
+let rec integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
     TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> 
       if bitsSizeOf t < bitsSizeOf (TInt (IInt, [])) then
@@ -1153,7 +1153,7 @@ let integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
       else
 	TInt(IUInt, a)
   | TInt _ -> t
-  | TEnum (ei, a) -> TInt(ei.ekind, a)
+  | TEnum (ei, a) -> integralPromotion (TInt(ei.ekind, a)) (* gcc packed enums can be < int *)
   | t -> E.s (error "integralPromotion: not expecting %a" d_type t)
   
 
@@ -1409,8 +1409,8 @@ let cabsTypeAddAttributes a0 t =
 			  | "TI" -> 16
 			  | "OI" -> 32
 			  | _ -> raise Not_found in 
-			  let nk = intKindForSize size in
-			  ((if isSigned ik' then nk else unsignedVersionOf nk), a0')
+			  let nk = intKindForSize size (not (isSigned ik')) in
+			  (nk, a0')
 			with Not_found ->
                             (ignore (error "GCC width mode %s applied to unexpected type, or unexpected mode"
                                        mode));
@@ -2360,33 +2360,29 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	   enum's values.
 	   For MSVC, we follow these rules and assume the enum's 
 	   underlying type is int.
-	   GCC extends the rules for enum constants, allowing them to
-	   be long or long long if they don't fit in an int, though
-	   the constants remain signed. With GCC, the type of the
-	   underlying integer is unsigned if the enum has no negative
-	   constants (note that the constants themselves are still
-	   signed), signed otherwise.  The type of the enum is the
-	   smallest type >= int/unsigned int which will hold the
-	   enum's values (except if packed attribute or the
-	   -fshort-enums flag is used - again we'll ignore that) *)
+	   GCC allows enum constants that don't fit in int: the enum
+	   constant's type is the smallest type (but at least int) that 
+	   will hold the value, with a preference for signed types. 
+	   The underlying type EI of the enum is picked as follows:
+	   - let T be the smallest integer type that holds all the enum's
+	     values; T is signed if any enum value is negative, unsigned otherwise
+	   - if the enum is packed or sizeof(T) >= sizeof(int), then EI = T
+	   - otherwise EI = int if T is signed and unsigned int otherwise
+	   Note that these rules make the enum unsigned if possible *)
 
-	let fits i ik = 
-	  let _, truncated = truncateInteger64 ik i in
-	  not truncated
-	in
-
-	let updateEnumKind (enum:enuminfo) (i:int64) =
-	  let ik = 
-	    if !msvcMode then IInt
-	    else if fits i IInt then IInt
-	    else if fits i ILong then ILong
-	    else ILongLong
-	   in
+	let updateEnum (i:int64) : ikind =
 	  if Int64.compare i !smallest < 0 then
 	    smallest := i;
 	  if Int64.compare i !largest > 0 then
 	    largest := i;
-	  ik
+	  if !msvcMode then 
+	    IInt
+	  else
+	    (* This matches gcc's behaviour *)
+	    if fitsInInt IInt i then IInt
+	    else if fitsInInt IUInt i then IUInt
+	    else if fitsInInt ILongLong i then ILongLong
+	    else IULongLong
 	in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin
@@ -2411,30 +2407,39 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           | (kname, e, cloc) :: rest ->
               (* constant-eval 'e' to determine tag value *)
               let e' = getIntConstExp e in
-              let e' = 
+              let e'' = 
                 match isInteger (constFold true e') with 
                   Some i -> 
-		    let ik = updateEnumKind enum i in 
+		    let ik = updateEnum i in 
 		    if !lowerConstants then kinteger64 ik i else e'
                 | _ -> E.s (error "Constant initializer %a not an integer" d_exp e')
               in
-              processName kname e' (convLoc cloc) rest
+              processName kname e'' (convLoc cloc) rest
         in
         
         let fields = loop zero eil in
         (* Now set the right set of items *)
         enum.eitems <- List.map (fun (_, x) -> x) fields;
 	(* Pick the enum's kind - see discussion above *)
-	if not !msvcMode then
-	  enum.ekind <- 
-	    if Int64.compare !smallest Int64.zero < 0 then
-	      if fits !smallest IInt && fits !largest IInt then IInt
-	      else if fits !smallest ILong && fits !largest ILong then ILong
-	      else ILongLong
+	if not !msvcMode then begin
+	  let unsigned = Int64.compare !smallest Int64.zero >= 0 in
+	  let smallKind = intKindForValue !smallest unsigned in
+	  let largeKind = intKindForValue !largest unsigned in
+	  let ekind = 
+	    if (bytesSizeOfInt smallKind) > (bytesSizeOfInt largeKind) then
+	      smallKind
 	    else
-	      if fits !largest IUInt then IUInt
-	      else if fits !largest IULong then IULong
-	      else IULongLong;
+	      largeKind
+	  in
+	  enum.ekind <-
+	    if bytesSizeOfInt ekind < bytesSizeOfInt IInt then
+	      if hasAttribute "packed" enum.eattr then
+		ekind
+	      else
+		if unsigned then IUInt else IInt
+	    else 
+	      ekind
+	end;
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
