@@ -1,0 +1,34 @@
+#!/bin/sh
+
+cilly=$1
+
+mkdir -p temp
+
+for test in *.c; do 
+    base=`basename $test .c`
+    echo -n "$base... "
+    gcc -o temp/$base.gcc $test
+    temp/$base.gcc >temp/$base.gcc.output
+    gcc -E $test -o temp/$base.i
+    $cilly --dollvm temp/$base.i >temp/$base.ll
+    if llvmc2 -o temp/$base.llvm temp/$base.ll >/dev/null 2>/dev/null && 
+        temp/$base.llvm >temp/$base.llvm.output; then
+      if cmp temp/$base.gcc.output temp/$base.llvm.output; then
+        echo PASS
+      else
+        failed="$failed $base"
+        echo RUN FAILED
+        diff temp/$base.gcc.output temp/$base.llvm.output
+      fi
+    else
+      failed="$failed $base"
+      echo COMPILE FAILED
+    fi
+done
+
+echo
+if [ -z "$failed" ]; then
+  echo ALL TESTS PASSED
+else
+  echo $failed FAILED
+fi

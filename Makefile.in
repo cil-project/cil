@@ -61,6 +61,9 @@ endif
 ifdef USE_ZRAPP
   CILLY_FEATURES += rmciltmps zrapp
 endif
+ifdef USE_LLVM
+  CILLY_FEATURES += llvmutils llvmgen llvmssa llvm
+endif
 # Add the EXTRAFEATURES
 CILLY_FEATURES += @EXTRAFEATURES@
 
@@ -230,6 +233,9 @@ ifdef USE_ARITHABS
 endif
 ifdef USE_ZRAPP
 	echo "   Zrapp.feature;" >> $@  
+endif
+ifdef USE_LLVM
+	echo "   Llvm.feature;" >> $@  
 endif
 # Now the extra features, with the first letter capitalized
 	echo " (* EXTRAFEATURES: *)" >> $@  
