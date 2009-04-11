@@ -14,7 +14,7 @@ endif
 
 LLCIL   = ../../../obj/$(ARCHOS)/cilly.byte.exe --dollvm
 LLCC    = llvm-as
-CC 	= llvm-gcc
+CC 	= gcc
 CFLAGS  = -g -DNOMEMOPT -O3 $(EXTRACFLAGS)
 
 BINSRC  = cfrac.c
@@ -45,7 +45,7 @@ cfrac:	$(OBJS)
 	llvm-link -f -o cfrac-all.bc $(OBJS)
 	#opt -f -std-compile-opts -o cfrac-opt.bc cfrac-all.bc
 	llc -f cfrac-all.bc
-	$(CC) -o cfrac cfrac-all.s
+	$(CC) -o cfrac cfrac-all.s -lm
 
 malloc:
 

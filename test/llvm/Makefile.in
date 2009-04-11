@@ -13,9 +13,11 @@ big: cfrac
 
 $(TESTS): %: %.c FORCE
 	@mkdir -p temp
-	gcc -E $< -o temp/$@.i
+	$(CC) -E $< -o temp/$@.i
 	$(CILLY) --dollvm temp/$@.i >temp/$@.ll
-	llvmc2 -o temp/$@.llvm temp/$@.ll
+	llvm-as -f temp/$@.ll
+	llc -f temp/$@.bc
+	$(CC) -o temp/$@.llvm temp/$@.s
 	temp/$@.llvm
 
 compare:

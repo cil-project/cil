@@ -11,8 +11,10 @@ for test in *.c; do
     temp/$base.gcc >temp/$base.gcc.output
     gcc -E $test -o temp/$base.i
     $cilly --dollvm temp/$base.i >temp/$base.ll
-    if llvmc2 -o temp/$base.llvm temp/$base.ll >/dev/null 2>/dev/null && 
-        temp/$base.llvm >temp/$base.llvm.output; then
+    if llvm-as -f temp/$base.ll >/dev/null 2>/dev/null && 
+       llc -f temp/$base.bc >/dev/null 2>/dev/null && 
+       gcc -o temp/$base.llvm temp/$base.s >/dev/null 2>/dev/null &&
+       temp/$base.llvm >temp/$base.llvm.output 2>/dev/null; then
       if cmp temp/$base.gcc.output temp/$base.llvm.output; then
         echo PASS
       else
