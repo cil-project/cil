@@ -1,6 +1,8 @@
 #!/bin/sh
 
-cilly=$1
+cilly=$1/cilly.byte.exe
+CIL_MACHINE=`$1/machdep-ml32.exe --env`
+export CIL_MACHINE
 
 mkdir -p temp
 
@@ -9,12 +11,12 @@ for test in *.c; do
     echo -n "$base... "
     gcc -o temp/$base.gcc $test
     temp/$base.gcc >temp/$base.gcc.output
-    gcc -E $test -o temp/$base.i
-    $cilly --dollvm temp/$base.i >temp/$base.ll
+    gcc -m32 -E $test -o temp/$base.i
+    $cilly --dollvm --envmachine temp/$base.i >temp/$base.ll
     if llvm-as -f temp/$base.ll >/dev/null 2>/dev/null && 
-       llc -f temp/$base.bc >/dev/null 2>/dev/null && 
-       gcc -o temp/$base.llvm temp/$base.s >/dev/null 2>/dev/null &&
-       temp/$base.llvm >temp/$base.llvm.output 2>/dev/null; then
+       llc -march=x86 -f temp/$base.bc >/dev/null 2>/dev/null &&
+       gcc -m32 -o temp/$base.llvm temp/$base.s >/dev/null 2>/dev/null &&
+       temp/$base.llvm >temp/$base.llvm.output; then
       if cmp temp/$base.gcc.output temp/$base.llvm.output; then
         echo PASS
       else

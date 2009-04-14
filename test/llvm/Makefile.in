@@ -5,7 +5,8 @@ ifndef ARCHOS
    ARCHOS = @ARCHOS@
 endif
 
-CILLY = ../../obj/$(ARCHOS)/cilly.byte.exe
+OBJ = ../../obj/$(ARCHOS)
+CILLY = $(OBJ)/cilly.byte.exe
 
 all: compare
 
@@ -13,21 +14,23 @@ big: cfrac
 
 $(TESTS): %: %.c FORCE
 	@mkdir -p temp
-	$(CC) -E $< -o temp/$@.i
-	$(CILLY) --dollvm temp/$@.i >temp/$@.ll
+	$(CC) -m32 -E $< -o temp/$@.i
+	CIL_MACHINE=`$(OBJ)/machdep-ml32.exe --env` \
+	  $(CILLY) --dollvm --envmachine temp/$@.i >temp/$@.ll
 	llvm-as -f temp/$@.ll
-	llc -f temp/$@.bc
-	$(CC) -o temp/$@.llvm temp/$@.s
+	llc -march=x86 -f temp/$@.bc
+	$(CC) -m32 -o temp/$@.llvm temp/$@.s
 	temp/$@.llvm
 
 compare:
-	@sh compare-with-gcc $(CILLY)
+	@sh compare-with-gcc $(OBJ)
 
 cfrac:
 	make -C cfrac.d ARCHOS=$(ARCHOS)
 
 clean:
 	rm -rf temp
+	make -C cfrac.d clean ARCHOS=$(ARCHOS)
 
 FORCE:
 .PHONY: FORCE big cfrac

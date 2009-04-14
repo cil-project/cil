@@ -60,6 +60,9 @@ use TempFile;
 
 $Cilly::savedSourceExt = "_saved.c";
 
+$Cilly::m32model = "nogcc32model";
+$Cilly::m64model = "nogcc64model";
+
 # Pass to new a list of command arguments
 sub new {
     my ($proto, @args) = @_;
@@ -2062,6 +2065,16 @@ sub new {
 	    "-b" => { ONEMORE => 1, TYPE => 'ALLARGS' },
 
 	    # Machine Dependent Options
+	    "-m32\$" => { TYPE => 'ALLARGS',
+			  RUN => sub {
+			      push @{$stub->{CILARGS}}, "--envmachine";
+			      $ENV{CIL_MACHINE} = $Cilly::m32model;
+			  }},
+	    "-m64\$" => { TYPE => 'ALLARGS',
+			  RUN => sub {
+			      push @{$stub->{CILARGS}}, "--envmachine";
+			      $ENV{CIL_MACHINE} = $Cilly::m64model;
+			  }},
             "-m" => { TYPE => 'ALLARGS', ONEMORE => 1 },
 	    "-pthread\$" => { TYPE => 'ALLARGS' },
 

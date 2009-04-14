@@ -122,7 +122,7 @@ ocamlDownloadInstructions="
 reqMaj=3
 reqMin=08
 knownMaj=3
-knownMin=10
+knownMin=11
 AC_MSG_CHECKING(ocaml version is at least $reqMaj.$reqMin)
 if binaryExists ocamlc; then
   # what version?
@@ -548,6 +548,7 @@ CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(ocamlutil/perfcount.c)
 CIL_CONFIG_FILES(test/llvm/Makefile)
+CIL_CONFIG_FILES(src/machdep-ml.c)
 
 AC_OUTPUT()
 
