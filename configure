@@ -2517,7 +2517,7 @@ ocamlDownloadInstructions="
 reqMaj=3
 reqMin=08
 knownMaj=3
-knownMin=10
+knownMin=11
 echo "$as_me:$LINENO: checking ocaml version is at least $reqMaj.$reqMin" >&5
 echo $ECHO_N "checking ocaml version is at least $reqMaj.$reqMin... $ECHO_C" >&6
 if binaryExists ocamlc; then
@@ -5324,6 +5324,15 @@ chmod -w Makefile.features
     #echo "skipping [test/llvm/Makefile] because it's not in this distribution"
   fi
 }
+{
+  if test -f src/machdep-ml.c.in; then
+              ac_config_files="$ac_config_files src/machdep-ml.c"
+
+  else
+    true
+    #echo "skipping [src/machdep-ml.c] because it's not in this distribution"
+  fi
+}
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -5862,6 +5871,7 @@ do
   "doc/header.html" ) CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
   "ocamlutil/perfcount.c" ) CONFIG_FILES="$CONFIG_FILES ocamlutil/perfcount.c" ;;
   "test/llvm/Makefile" ) CONFIG_FILES="$CONFIG_FILES test/llvm/Makefile" ;;
+  "src/machdep-ml.c" ) CONFIG_FILES="$CONFIG_FILES src/machdep-ml.c" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
@@ -6239,6 +6249,7 @@ s,@INSTALL@,$ac_INSTALL,;t t
     doc/header.html ) chmod a-w doc/header.html ;;
     ocamlutil/perfcount.c ) chmod a-w ocamlutil/perfcount.c ;;
     test/llvm/Makefile ) chmod a-w test/llvm/Makefile ;;
+    src/machdep-ml.c ) chmod a-w src/machdep-ml.c ;;
   esac
 done
 _ACEOF

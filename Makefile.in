@@ -116,7 +116,7 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
                     $^
 
 
-quickbuild: cilversion machdep cilly
+quickbuild: cilversion machdep cilly lib/Cilly.pm
 
 # Setup also makes the native code versions
 #

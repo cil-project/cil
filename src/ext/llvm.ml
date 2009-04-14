@@ -96,7 +96,7 @@ let generate (f:file) : doc =
     dprintf "@@%s =%s global %a\n" vi.vname (gLinkage vi " weak") dgType vi.vtype
 
   and gFunctionDecl (fi:varinfo) : doc = 
-    dprintf "declare %s%a\n" (fLinkage fi) dgFunctionSig fi
+    dprintf "declare %a\n" dgFunctionSig fi
 
   and gFunctionDef (f:fundec) : doc = 
     let hdr = dprintf "define %s%a " (fLinkage f.svar) dgFunctionSig f.svar in
