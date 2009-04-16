@@ -213,9 +213,9 @@ $(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
 # build two libraries
 .PHONY: cillib libcil
 ifeq ($(NATIVECAML),1)
-cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.o
+cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.o lib/Cilly.pm
 else
-cillib: $(OBJDIR)/cil.$(CMXA) 
+cillib: $(OBJDIR)/cil.$(CMXA) lib/Cilly.pm
 endif
 
 
@@ -440,7 +440,7 @@ DISTRIB_SRC_EXT_PTA = setp.ml setp.mli golf.ml golf.mli \
 	              steensgaard.mli steensgaard.ml \
                       uref.ml uref.mli olf.ml olf.mli
 
-DISTRIB_LIB = Cilly.pm KeptFile.pm OutputFile.pm TempFile.pm
+DISTRIB_LIB = Cilly.pm.in KeptFile.pm OutputFile.pm TempFile.pm
 
 DISTRIB_BIN = CilConfig.pm.in cilly cilly.bat.in \
               patcher patcher.bat.in test-bad teetwo

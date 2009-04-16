@@ -2343,6 +2343,24 @@ following changes to your program:
 \end{enumerate}
 
 
+\subsection{Generating LLVM code (new in 1.3.7)}
+
+The llvm.ml module generates LLVM (``Low Level Virtual Machine'',
+\ahreftop{http://llvm.org}{http://llvm.org}) code from a CIL file. The
+current version only targets 32-bit x86 code (as of version 2.5,
+LLVM's 64-bit x86 support is still incomplete), and has a few limitations:
+\begin{itemize}
+\item No support for bitfields.
+\item No support for inline assembly.
+\item Ignores gcc pragmas and attributes (except those explicitly handled by CIL).
+\item No support for variable-sized types.
+\end{itemize}
+
+LLVM support is enabled by running \t{configure} with the
+\t{--with-llvm} option before compiling CIL. You can then convert C
+code to LLVM assembly with \t{cilly --dollvm somefile.c}. Or you can
+call \t{Llvm.generate} on a CIL file to get LLVM assembly as a \t{doc}
+string.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Controlling CIL}
@@ -3261,7 +3279,8 @@ as it will ensure your message is viewed by a broad audience.
   between 32 and 64 bit targets.
 \item {\bf April 8, 2009}: Rename libcil.a to libcil.o (ocaml 3.11 forces
   us to use the correct extension).
-\item {\bf April 7, 2009}: Add LLVM bitcode generator (alpha state).
+\item {\bf April 7, 2009}: Add LLVM bitcode generator (partial C support, target
+  32-bit x86 only).
 \item {\bf April 7, 2009}: Support enums over greater-than-int types (gcc
   extension).
 \item {\bf September 19, 2008}: Remove excess newlines in warnings and errors.
