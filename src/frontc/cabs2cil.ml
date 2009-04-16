@@ -1147,8 +1147,8 @@ type condExpRes =
 (******** CASTS *********)
 let rec integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
-    TInt ((IShort|IUShort|IChar|ISChar|IUChar), a) -> 
-      if bitsSizeOf t < bitsSizeOf (TInt (IInt, [])) then
+    TInt ((IShort|IUShort|IChar|ISChar|IUChar) as ik, a) -> 
+      if bitsSizeOf t < bitsSizeOf (TInt (IInt, [])) || isSigned ik then
 	TInt(IInt, a)
       else
 	TInt(IUInt, a)
@@ -3562,8 +3562,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         if isIntegralType t then
           let tres = integralPromotion t in
           let e'' = 
-            match e' with
-            | Const(CInt64(i, ik, _)) -> kinteger64 ik (Int64.neg i)
+            match e', tres with
+            | Const(CInt64(i, _, _)), TInt(ik, _) -> kinteger64 ik (Int64.neg i)
             | _ -> UnOp(Neg, makeCastT e' t tres, tres)
           in
           finishExp se e'' tres
