@@ -318,6 +318,7 @@ the build process only. Here is how we do it
 \item Run \t{bash -c "./configure CC=cl"}.
 \item Run \t{bash -c "make WIN32=1 quickbuild"}
 \item Run \t{bash -c "make WIN32=1 NATIVECAML=1 cilly}
+\item Run \t{bash -c "make WIN32=1 doc}
 \item Run \t{bash -c "make WIN32=1 bindistrib-nocheck}
 \end{enumerate}
 
@@ -1548,9 +1549,12 @@ bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
  process which will make it understand the Microsoft Visual C extensions)
 
  \t{cilly} can also behave as the archiver \t{ar}, if it is passed an
-argument \t{-{}-mode=AR}. Note that only the \t{cr} mode is supported (create a
-new archive and replace all files in there).  Therefore the previous version of
-the archive is lost. 
+ argument \t{-{}-mode=AR}. Note that only the \t{cr} mode is supported
+ (create a new archive and replace all files in there).  Therefore the
+ previous version of the archive is lost. You will also need to remove
+ any other commands that operate on the generated library
+ (e.g. \t{ranlib}, \t{lorder}), as the .a file is no longer an actual
+ binary library.
 
  Furthermore, \t{cilly} allows you to pass some arguments on to the
 underlying \t{cilly.asm} process. As a general rule all arguments that start
@@ -3275,6 +3279,9 @@ as it will ensure your message is viewed by a broad audience.
 \begin{itemize}
 \item {\bf April ?, 2009}: {\bf Released version 1.3.7} (Subversion
   revision ?). Includes change below and other miscellaneous bug fixes.
+\item {\bf April 16, 2009}: Add allStmts function to cfg.ml, and
+  remove public visibility of nodeList and numNodes (Sourceforge bug
+  \#1819746).
 \item {\bf April 15, 2009}: Fix Sourceforge bugs \#2265867 (bad constant
   folding of unary minus), \#2134504 (truncation warning), \#1811676 (typo).
 \item {\bf April 13, 2009}: Recognize gcc's -m32 and -m64 flags that select
