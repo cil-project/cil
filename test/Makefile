@@ -99,7 +99,7 @@ else
 endif
 
 
-CILLY += --mode=$(COMPILERNAME)
+CILLY += --mode=$(COMPILERNAME) --decil
 
 export EXTRAARGS
 

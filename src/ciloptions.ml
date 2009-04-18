@@ -333,6 +333,10 @@ let options : (string * Arg.spec * string) list =
     ("<n> Set max print depth (default: " ^
        string_of_int !Pretty.printDepth ^ ")");
 
+    "--decil",
+    Arg.Clear Cil.print_CIL_Input,
+    " Don't print CIL specific-features like __blockattribute__";
+
     (* Don't just add new flags at the end ... place options
        in the correct category *)
   ]

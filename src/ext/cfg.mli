@@ -29,8 +29,5 @@ val printCfgFilename : string -> fundec -> unit
 (** Next statement id that will be assigned. *)
 val start_id: int ref
 
-(** All of the nodes in a file. *)
-val nodeList : stmt list ref
-
-(** number of nodes in the CFG *)
-val numNodes : int ref
+(** Return all statements in a file - valid after computeFileCfg only *)
+val allStmts : file -> stmt list

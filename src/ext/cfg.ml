@@ -317,3 +317,11 @@ let computeFileCFG (f : file) =
       numNodes := cfgFun fd;
       start_id := !start_id + !numNodes
     | _ -> ())
+
+let allStmts (f : file) : stmt list =
+  foldGlobals f
+    (fun accu g ->
+      match g with
+      | GFun (f,l) -> f.sallstmts @ accu
+      | _ -> accu
+    ) []

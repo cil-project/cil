@@ -589,6 +589,7 @@ addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 addTest("scott-nolink/brlock $gcc");
 addTest("scott/regparm0 $gcc");         # this works, unfortunately..
+addBadComment("scott/regparm0 $gcc", "Bug. Also gcc bug. regparm attribute not handled well, compounded by gcc treating multiple regparm attributes inconsistently between function declarations and definitions.");
 addTest("scott/unscomp");               # kernel/fs/buffer.c
 addTest("scott/thing");
 
