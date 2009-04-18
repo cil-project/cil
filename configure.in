@@ -211,6 +211,8 @@ AC_MSG_CHECKING([for Perl])
   case "$perlport" in
     cygwin)
         ;;
+    msys)
+        ;;
     MSWin32) # ActivePerl
         ;;
     linux)
@@ -424,6 +426,15 @@ case "$target" in
     CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
+    ;;
+
+  # MinGW
+  *86*mingw32*)
+    AC_MSG_RESULT(configuring for MinGW on win32/x86)
+
+    ARCHOS=x86_WIN32
+
+    CC=`which $CC`
     ;;
 
   # Solaris
