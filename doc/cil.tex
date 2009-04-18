@@ -2543,21 +2543,30 @@ int globalArray[(1.0 < 2.0) ? 5 : 50]
 \item GCC has a strange feature called ``extern inline''. Such a function can
 be defined twice: first with the ``extern inline'' specifier and the second
 time without it. If optimizations are turned off then the ``extern inline''
-definition is considered a prototype (its body is ignored). If optimizations
+definition is considered a prototype (its body is ignored). 
+
+With old versions of gcc, if optimizations
 are turned on then the extern inline function is inlined at all of its
 occurrences from the point of its definition all the way to the point where the
 (optional) second definition appears. No body is generated for an extern
 inline function. A body is generated for the real definition and that one is
 used in the rest of the file. 
 
-CIL will assume optimizations are on, and rename your extern inline
-function (and its uses) with the suffix
-\t{\_\_extinline}. This means that if you have two such definition, that do
-different things and the optimizations are not on, then the CIL version might
-compute a different answer !
+With new versions of gcc, the extern inline function is used only if there is no
+actual (non-extern) second definition (i.e. the second definition is used in the
+whole file, even for calls between the extern inline definition and the second
+definition).
 
-Also, if you have multiple extern inline declarations then CIL will ignore
-but the first one. This is not so bad because GCC itself would not like it. 
+By default, CIL follows the current gcc behavior for extern
+inline. However, if you set \t{oldstyleExternInline} to true, you will
+get an emulation of gcc's old behaviour (under the assumption that
+optimizations are enabled): CIL will rename your extern inline
+function (and its uses) with the suffix \t{\_\_extinline}. This means
+that if you have two such definition, that do different things and the
+optimizations are not on, then the CIL version might compute a
+different answer! Also, if you have multiple extern inline
+declarations then CIL will ignore but the first one. This is not so
+bad because GCC itself would not like it.
 
 \item The implementation of \t{bitsSizeOf} does not take into account the
   packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
@@ -3279,6 +3288,16 @@ as it will ensure your message is viewed by a broad audience.
 \begin{itemize}
 \item {\bf April ?, 2009}: {\bf Released version 1.3.7} (Subversion
   revision ?). Includes change below and other miscellaneous bug fixes.
+\item {\bf April 17, 2009}: Update extern inline handling to match
+  current gcc versions (Sourceforge bug #1689503): the actual
+  definition is always preferred over the extern inline one. CIL
+  handles this by suppressing the extern inline definition (replacing
+  it by a declaration) if it sees a real definition. However, if no
+  real definition exists, you will get a CIL varinfo for an inline
+  function with storage class extern\ldots
+
+  You can revert to CIL's previous handling of extern inline by setting
+  \t{oldstyleExternInline} to true.
 \item {\bf April 16, 2009}: Add allStmts function to cfg.ml, and
   remove public visibility of nodeList and numNodes (Sourceforge bug
   \#1819746).

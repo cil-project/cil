@@ -313,6 +313,7 @@ addTest("testrun/cond1 _GNUCC=1");
 addTest("testrun/cond2 _GNUCC=1");
 addTest("testrun/initial _GNUCC=1");
 addTest("testrun/inline1 _GNUCC=1");
+addBadComment("testrun/inline1", "Notbug. CIL now matches gcc's new behavior for extern inline, this test checks for the old behavior.");
 addTest("testrun/inline2 _GNUCC=1");
 addTest("test/inline3 _GNUCC=1");
 addTest("test/decl2 _GNUCC=1");
@@ -471,7 +472,6 @@ addTest("testrun/voidarg ");
 addTest("testrun/union2 ");
 addTest("testrun/union3 ");
 addTest("test/union5 ");
-addTest("testrun/inline1 ");
 addTest("runall/extinline ");
 
 addTest("testrun/rmtmps-attr ");
@@ -589,7 +589,7 @@ addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 addTest("scott-nolink/brlock $gcc");
 addTest("scott/regparm0 $gcc");         # this works, unfortunately..
-addBadComment("scott/regparm0 $gcc", "Bug. Also gcc bug. regparm attribute not handled well, compounded by gcc treating multiple regparm attributes inconsistently between function declarations and definitions.");
+addBadComment("scott/regparm0", "Bug. Also gcc bug. regparm attribute not handled well, compounded by gcc treating multiple regparm attributes inconsistently between function declarations and definitions.");
 addTest("scott/unscomp");               # kernel/fs/buffer.c
 addTest("scott/thing");
 
@@ -666,7 +666,9 @@ addTest("scott/enumerator_sizeof");
 addTest("testrun/decl_mix_stmt");
 addTest("scott/enumattr");
 addTest("runall/alpha");
-
+addTest("testrun/blockattr2");
+addTest("testrun/extinline2");
+addTest("test/extinline3");
 
 
 # ---------------- c-torture -------------

@@ -49,7 +49,6 @@
  * set {!Cil.msvcMode}.  *)
 val initCIL: unit -> unit
 
-
 (** This are the CIL version numbers. A CIL version is a number of the form 
  * M.m.r (major, minor and release) *)
 val cilVersion: string
@@ -1993,6 +1992,13 @@ val msvcMode: bool ref
  * their operands *)
 val useLogicalOperators: bool ref
 
+(** Set this to true to get old-style handling of gcc's extern inline C extension:
+   old-style: the extern inline definition is used until the actual definition is
+     seen (as long as optimization is enabled)
+   new-style: the extern inline definition is used only if there is no actual
+     definition (as long as optimization is enabled)
+   Note that CIL assumes that optimization is always enabled ;-) *)
+val oldstyleExternInline : bool ref
 
 (** A visitor that does constant folding. Pass as argument whether you want 
  * machine specific simplifications to be done, or not. *)
