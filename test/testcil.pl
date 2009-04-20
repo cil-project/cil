@@ -549,6 +549,7 @@ addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
 addTest("testrun/builtin_choose_expr");
 addBadComment("testrun/builtin_choose_expr", "Limitation. gcc extension not implemented.");
+addTest("testrun/builtin4 ");
 addTest("testrun/comparisons");
 addTest("testrun/assign");
     
