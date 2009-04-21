@@ -97,7 +97,7 @@ function loadTop(url) {
 
 \section{Introduction}
 
- New: CIL now has a Source Forge page: 
+CIL has a Source Forge page: 
    \ahreftop{http://sourceforge.net/projects/cil}
             {http://sourceforge.net/projects/cil}. 
 
@@ -887,7 +887,7 @@ or a union
 \item \ciltyperef{varinfo} is the representation of a variable 
 \item \ciltyperef{fundec} is the representation of a function
 \item \ciltyperef{lval} is the representation of an lvalue.
-Values for \ahref{api/Cil.html\#VALmakeVarInfo}{operating on lvalues}.
+Values for \ahref{api/Cil.html\#VALmakeVarinfo}{operating on lvalues}.
 \item \ciltyperef{exp} is the representation of an expression without
 side-effects. 
 Values for \ahref{api/Cil.html\#VALzero}{operating on expressions}.
@@ -3290,16 +3290,18 @@ as it will ensure your message is viewed by a broad audience.
   revision ?). Includes change below and other miscellaneous bug fixes.
 \item {\bf April 20, 2009}: Update builtin support, including
   \_\_builtin\_strlen (Sourceforge bug \#1873374), \_\_builtin\_choose\_expr,
-  \_\_builtin\_types\_compatible\_p (Sourceforge buf #1852730).
+  \_\_builtin\_types\_compatible\_p (Sourceforge bug \#1852730).
   For the latter two, we evaluate them in CIL (in line with the earlier handling
   of \_\_builtin\_constant\_p).
 
   Note that as part of these fixes, mkAddrOf no longer replaces
   \t{\&a[0]} with \t{a}, as this can break \t{typeof} (Sourceforge bug
-  #1852730 involves a use of \t{typeof(\&a[0])}).
+  \#1852730 involves a use of \t{typeof(\&a[0])}).
+
+  Typo fixes from Gabriel Kerneis.
   
 \item {\bf April 17, 2009}: Update extern inline handling to match
-  current gcc versions (Sourceforge bug #1689503): the actual
+  current gcc versions (Sourceforge bug \#1689503): the actual
   definition is always preferred over the extern inline one. CIL
   handles this by suppressing the extern inline definition (replacing
   it by a declaration) if it sees a real definition. However, if no

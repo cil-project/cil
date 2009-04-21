@@ -1504,7 +1504,7 @@ val setTypeSigAttrs: attributes -> typsig -> typsig
 val typeSigAttrs: typsig -> attributes
 
 (*********************************************************)
-(**  LVALUES *)
+(**  {b Lvalues} *)
 
 (** Make a varinfo. Use this (rarely) to make a raw varinfo. Use other 
  * functions to make locals ({!Cil.makeLocalVar} or {!Cil.makeFormalVar} or 
