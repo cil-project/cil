@@ -50,6 +50,10 @@ ifndef ARCHOS
    ARCHOS=@ARCHOS@
 endif
 
+ifndef MINGW
+   MINGW=@MINGW@
+endif
+
 # Put here all the byproducts of make
 OBJDIR      := obj/$(ARCHOS)
 DEPENDDIR   := obj/.depend

@@ -433,6 +433,7 @@ case "$target" in
     AC_MSG_RESULT(configuring for MinGW on win32/x86)
 
     ARCHOS=x86_WIN32
+    MINGW=yes
 
     CC=`which $CC`
     ;;
@@ -528,6 +529,7 @@ chmod -w Makefile.features
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
 AC_SUBST(ARCHOS)
+AC_SUBST(MINGW)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)

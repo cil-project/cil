@@ -651,6 +651,7 @@ DEFAULT_CIL_MODE
 DEFAULT_COMPILER
 HAS_MSVC
 CILHOME
+MINGW
 ARCHOS
 LIBOBJS
 EGREP
@@ -5798,6 +5799,7 @@ $as_echo "configuring for Cygwin on win32/x86" >&6; }
 $as_echo "configuring for MinGW on win32/x86" >&6; }
 
     ARCHOS=x86_WIN32
+    MINGW=yes
 
     CC=`which $CC`
     ;;
@@ -5943,6 +5945,7 @@ chmod -w Makefile.features
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
+
 
 
 
