@@ -5961,7 +5961,10 @@ let mkAddrOf ((b, off) as lval) : exp =
   | _ -> ()); 
   match lval with
     Mem e, NoOffset -> e
-  | b, Index(z, NoOffset) when isZero z -> StartOf (b, NoOffset)(* array *)
+  (* Don't do this: 
+    | b, Index(z, NoOffset) when isZero z -> StartOf (b, NoOffset)
+    &a[0] is not the same as a, e.g. within typeof and sizeof.
+    Code must be able to handle the results without this anyway... *)
   | _ -> AddrOf lval
 
 

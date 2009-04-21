@@ -3289,7 +3289,15 @@ as it will ensure your message is viewed by a broad audience.
 \item {\bf April ?, 2009}: {\bf Released version 1.3.7} (Subversion
   revision ?). Includes change below and other miscellaneous bug fixes.
 \item {\bf April 20, 2009}: Update builtin support, including
-  \_\_builtin\_strlen (Sourceforge bug \#1873374), __builtin_choose_expr.
+  \_\_builtin\_strlen (Sourceforge bug \#1873374), \_\_builtin\_choose\_expr,
+  \_\_builtin\_types\_compatible\_p (Sourceforge buf #1852730).
+  For the latter two, we evaluate them in CIL (in line with the earlier handling
+  of \_\_builtin\_constant\_p).
+
+  Note that as part of these fixes, mkAddrOf no longer replaces
+  \t{\&a[0]} with \t{a}, as this can break \t{typeof} (Sourceforge bug
+  #1852730 involves a use of \t{typeof(\&a[0])}).
+  
 \item {\bf April 17, 2009}: Update extern inline handling to match
   current gcc versions (Sourceforge bug #1689503): the actual
   definition is always preferred over the extern inline one. CIL

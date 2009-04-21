@@ -262,6 +262,7 @@ addTest("test/const9 ");
 addTest("testrun/const10 ");
 addTest("testrun/const11 ");
 addTest("testrun/const12 ");
+addTest("test/const13 WARNINGS_ARE_ERRORS=1");
 addTest("test/deref _GNUCC=1");
 addTest("test_i/empty");
 addTest("test/enum");
@@ -548,8 +549,8 @@ addTest("testrun/builtin ");
 addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
 addTest("testrun/builtin_choose_expr");
-addBadComment("testrun/builtin_choose_expr", "Limitation. gcc extension not implemented.");
 addTest("testrun/builtin4 ");
+addTest("test/builtin5 ");
 addTest("testrun/comparisons");
 addTest("testrun/assign");
     

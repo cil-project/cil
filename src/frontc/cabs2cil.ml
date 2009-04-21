@@ -4166,6 +4166,21 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to builtin_choose_expr"));
+            end else if fv.vname = "__builtin_types_compatible_p" then begin
+              (* Constant-fold the argument and see if it is a constant *)
+              (match !pargs with 
+                [ SizeOf t1; SizeOf t2 ] -> begin
+                  (* Drop the side-effects *)
+                  prechunk := (fun _ -> empty);
+	          piscall := false; 
+	          if Util.equals (typeSig t1) (typeSig t2) then
+	            pres := integer 1
+	          else
+                    pres := integer 0;
+                  prestype := intType
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to builtin_types_compatible_p"));
 	    end
           end
         | _ -> ());

@@ -2,6 +2,8 @@
 int a, b, c;
 int *chrdevs[] = { &a, &b, &c };
 
+struct { int z; } zz;
+
 void f(void)
 {
   int i;
