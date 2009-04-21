@@ -169,6 +169,7 @@ let rec print_specifiers (specs: spec_elem list) =
 and print_type_spec = function
     Tvoid -> print "void "
   | Tchar -> print "char "
+  | Tbool -> print "_Bool "
   | Tshort -> print "short "
   | Tint -> print "int "
   | Tlong -> print "long "

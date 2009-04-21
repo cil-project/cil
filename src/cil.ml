@@ -268,6 +268,7 @@ and ikind =
     IChar       (** [char] *)
   | ISChar      (** [signed char] *)
   | IUChar      (** [unsigned char] *)
+  | IBool       (** [_Bool (C99)] *)
   | IInt        (** [int] *)
   | IUInt       (** [unsigned int] *)
   | IShort      (** [short] *)
@@ -1251,6 +1252,7 @@ let uintType = TInt(IUInt,[])
 let longType = TInt(ILong,[])
 let ulongType = TInt(IULong,[])
 let charType = TInt(IChar, [])
+let boolType = TInt(IBool, [])
 
 let charPtrType = TPtr(charType,[])
 let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
@@ -1279,6 +1281,7 @@ let initCIL_called = ref false
 
 (** Returns true if and only if the given integer type is signed. *)
 let isSigned = function
+  | IBool
   | IUChar
   | IUShort
   | IUInt
@@ -1637,6 +1640,7 @@ let d_ikind () = function
     IChar -> text "char"
   | ISChar -> text "signed char"
   | IUChar -> text "unsigned char"
+  | IBool -> text "_Bool"
   | IInt -> text "int"
   | IUInt -> text "unsigned int"
   | IShort -> text "short"
@@ -1924,6 +1928,7 @@ exception SizeOfError of string * typ
 let bytesSizeOfInt (ik: ikind): int = 
   match ik with 
   | IChar | ISChar | IUChar -> 1
+  | IBool -> !M.theMachine.M.sizeof_bool
   | IInt | IUInt -> !M.theMachine.M.sizeof_int
   | IShort | IUShort -> !M.theMachine.M.sizeof_short
   | ILong | IULong -> !M.theMachine.M.sizeof_long
@@ -2037,6 +2042,7 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
     let rank : ikind -> int = function
         (* these are just unique numbers representing the integer 
            conversion rank. *)
+      | IBool -> 0
       | IChar | ISChar | IUChar -> 1
       | IShort | IUShort -> 2
       | IInt | IUInt -> 3
@@ -2092,6 +2098,7 @@ let rec alignOf_int t =
   let alignOfType () =
     match t with
     | TInt((IChar|ISChar|IUChar), _) -> 1
+    | TInt(IBool, _) -> !M.theMachine.M.alignof_bool
     | TInt((IShort|IUShort), _) -> !M.theMachine.M.alignof_short
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
@@ -2560,8 +2567,13 @@ and constFold (machdep: bool) (e: exp) : exp =
  
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 
+        (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
+	Const(CInt64(i,k,_)), TInt(IBool,a)
+        when (dropAttributes ["const"] a) = [] -> 
+	  let v = if i = Int64.zero then Int64.zero else Int64.one in
+	  Const(CInt64(v, IBool, None))
         (* Might truncate silently *)
-        Const(CInt64(i,k,_)), TInt(nk,a)
+      | Const(CInt64(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
           when (dropAttributes ["const"] a) = [] -> 
@@ -6042,7 +6054,11 @@ let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
   end else begin
     (* Watch out for constants *)
     match newt, e with 
-      TInt(newik, []), Const(CInt64(i, _, _)) -> kinteger64 newik i
+      (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
+      TInt(IBool, []), Const(CInt64(i, _, _)) -> 
+	let v = if i = Int64.zero then Int64.zero else Int64.one in
+	Const (CInt64(v, IBool,  None))
+    | TInt(newik, []), Const(CInt64(i, _, _)) -> kinteger64 newik i
     | _ -> CastE(newt,e)
   end
 

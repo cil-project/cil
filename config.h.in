@@ -8,6 +8,8 @@
 
 #undef HAVE_UNISTD_H
 
+#undef HAVE_STDBOOL_H
+
 #undef HAVE_CONST
 
 #undef HAVE_INLINE

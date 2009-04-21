@@ -131,6 +131,7 @@ let init_lexicon _ =
       ("__volatile", fun loc -> VOLATILE loc);
       (* WW: see /usr/include/sys/cdefs.h for why __signed and __volatile
        * are accepted GCC-isms *)
+      ("_Bool", fun loc -> BOOL loc);
       ("char", fun loc -> CHAR loc);
       ("int", fun loc -> INT loc);
       ("float", fun loc -> FLOAT loc);
@@ -442,6 +443,7 @@ let no_parse_pragma =
              | "ident" | "section" | "option" | "asm" | "use_section" | "weak"
              | "redefine_extname"
              | "TCS_align"
+	     | "mark"
 
 
 rule initial =

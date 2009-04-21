@@ -255,7 +255,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token <int64 list * Cabs.cabsloc> CST_WSTRING
 
 %token EOF
-%token<Cabs.cabsloc> CHAR INT DOUBLE FLOAT VOID INT64 INT32
+%token<Cabs.cabsloc> CHAR INT BOOL DOUBLE FLOAT VOID INT64 INT32
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
 %token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
@@ -973,6 +973,7 @@ decl_spec_list_opt_no_named:
 type_spec:   /* ISO 6.7.2 */
     VOID            { Tvoid, $1}
 |   CHAR            { Tchar, $1 }
+|   BOOL            { Tbool, $1 }
 |   SHORT           { Tshort, $1 }
 |   INT             { Tint, $1 }
 |   LONG            { Tlong, $1 }

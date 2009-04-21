@@ -1147,7 +1147,8 @@ type condExpRes =
 (******** CASTS *********)
 let rec integralPromotion (t : typ) : typ = (* c.f. ISO 6.3.1.1 *)
   match unrollType t with
-    TInt ((IShort|IUShort|IChar|ISChar|IUChar) as ik, a) -> 
+    TInt (IBool, a) -> TInt (IInt, a) (* _Bool can only be 0 or 1, irrespective of its size *)
+  | TInt ((IShort|IUShort|IChar|ISChar|IUChar) as ik, a) -> 
       if bitsSizeOf t < bitsSizeOf (TInt (IInt, [])) || isSigned ik then
 	TInt(IInt, a)
       else
@@ -2264,6 +2265,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     match sortedspecs with
       [A.Tvoid] -> TVoid []
     | [A.Tchar] -> TInt(IChar, [])
+    | [A.Tbool] -> TInt(IBool, [])
     | [A.Tsigned; A.Tchar] -> TInt(ISChar, [])
     | [A.Tunsigned; A.Tchar] -> TInt(IUChar, [])
 

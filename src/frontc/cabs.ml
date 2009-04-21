@@ -56,6 +56,7 @@ type cabsloc = {
 type typeSpecifier = (* Merge all specifiers into one type *)
     Tvoid                             (* Type specifier ISO 6.7.2 *)
   | Tchar
+  | Tbool
   | Tshort
   | Tint
   | Tlong

@@ -150,6 +150,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "  underscore_name: bool;  (* If assembly names have leading underscore *)" >> $@
 	echo "  sizeof_short: int;      (* Size of \"short\" *)"       >> $@
 	echo "  sizeof_int: int;        (* Size of \"int\" *)"         >> $@
+	echo "  sizeof_bool: int;       (* Size of \"_Bool\" *)"       >> $@
 	echo "  sizeof_long: int ;      (* Size of \"long\" *)"        >> $@
 	echo "  sizeof_longlong: int;   (* Size of \"long long\" *)"   >> $@
 	echo "  sizeof_ptr: int;        (* Size of pointers *)"        >> $@
@@ -163,6 +164,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "  wchar_t: string;        (* Type of \"wchar_t\" *)"     >> $@ 
 	echo "  alignof_short: int;     (* Alignment of \"short\" *)"  >> $@
 	echo "  alignof_int: int;       (* Alignment of \"int\" *)"    >> $@
+	echo "  alignof_bool: int;      (* Alignment of \"_Bool\" *)"    >> $@
 	echo "  alignof_long: int;      (* Alignment of \"long\" *)"   >> $@
 	echo "  alignof_longlong: int;  (* Alignment of \"long long\" *)" >> $@
 	echo "  alignof_ptr: int;       (* Alignment of pointers *)"   >> $@

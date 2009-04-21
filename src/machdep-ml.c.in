@@ -48,6 +48,12 @@
 #include <wchar.h>
 #endif
 
+#ifdef HAVE_STDBOOL_H
+#include <stdbool.h>
+#else
+typedef int bool;
+#endif
+
 #define THREAD_IS_KEYWORD "@THREAD_IS_KEYWORD@"
 #define HAVE_BUILTIN_VA_LIST "@HAVE_BUILTIN_VA_LIST@"
 
@@ -89,7 +95,7 @@ int main(int argc, char **argv)
   int alignof_short, alignof_int, alignof_long, alignof_ptr, alignof_enum,
     alignof_float, alignof_double, alignof_longdouble, sizeof_fun,
     alignof_fun, alignof_str, alignof_aligned, alignof_longlong, 
-    little_endian, char_is_unsigned;
+    little_endian, char_is_unsigned, alignof_bool;
 
   // The alignment of a short
   {
@@ -107,6 +113,15 @@ int main(int argc, char **argv)
       int i;
     };
     alignof_int = (int)(&((struct intstruct*)0)->i);
+  }
+  
+  // The alignment of a bool
+  {
+    struct boolstruct {
+      char c;
+      bool b;
+    };
+    alignof_bool = (int)(&((struct boolstruct*)0)->b);
   }
   
   // The alignment of a long
@@ -209,7 +224,7 @@ int main(int argc, char **argv)
       fprintf(stderr, "Generating CIL_MACHINE machine dependency information string (for CIL)\n");
       printf("short=%d,%d int=%d,%d long=%d,%d long_long=%d,%d pointer=%d,%d "
 	     "enum=%d,%d float=%d,%d double=%d,%d long_double=%d,%d void=%d "
-	     "fun=%d,%d alignof_string=%d max_alignment=%d size_t=%s "
+	     "bool=%d,%d fun=%d,%d alignof_string=%d max_alignment=%d size_t=%s "
 	     "wchar_t=%s char_signed=%s const_string_literals=%s "
 	     "big_endian=%s __thread_is_keyword=%s __builtin_va_list=%s "
 	     "underscore_name=%s\n",
@@ -218,6 +233,7 @@ int main(int argc, char **argv)
 	     (int)sizeof(int *), alignof_ptr, (int)sizeof(enum e { ONE, TWO }), alignof_enum,
 	     (int)sizeof(float), alignof_float, (int)sizeof(double), alignof_double, 
 	     (int)sizeof(long double), alignof_longdouble, (int)sizeof(void), 
+	     sizeof(bool), alignof_bool,
 	     sizeof_fun, alignof_fun, alignof_str, alignof_aligned, 
 	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T), 
 	     char_is_unsigned ? "false" : "true", CONST_STRING_LITERALS, 
@@ -236,6 +252,7 @@ int main(int argc, char **argv)
       // Size of certain types
       printf("\t sizeof_short          = %d;\n", (int)sizeof(short));
       printf("\t sizeof_int            = %d;\n", (int)sizeof(int));
+      printf("\t sizeof_bool           = %d;\n", (int)sizeof(bool));
       printf("\t sizeof_long           = %d;\n", (int)sizeof(long));
       printf("\t sizeof_longlong       = %d;\n", (int)sizeof(LONGLONG));
       printf("\t sizeof_ptr            = %d;\n", (int)sizeof(int *));
@@ -249,6 +266,7 @@ int main(int argc, char **argv)
       printf("\t wchar_t               = \"%s\";\n", TYPE_WCHAR_T);
       printf("\t alignof_short         = %d;\n", alignof_short);
       printf("\t alignof_int           = %d;\n", alignof_int);
+      printf("\t alignof_bool          = %d;\n", alignof_bool);
       printf("\t alignof_long          = %d;\n", alignof_long);
       printf("\t alignof_longlong      = %d;\n", alignof_longlong);
       printf("\t alignof_ptr           = %d;\n", alignof_ptr);

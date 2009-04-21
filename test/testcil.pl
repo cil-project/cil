@@ -263,6 +263,7 @@ addTest("testrun/const10 ");
 addTest("testrun/const11 ");
 addTest("testrun/const12 ");
 addTest("test/const13 WARNINGS_ARE_ERRORS=1");
+addBadComment("test/const13", "Minor. Const warnings from generated code - need more casts.");
 addTest("test/deref _GNUCC=1");
 addTest("test_i/empty");
 addTest("test/enum");
@@ -671,6 +672,7 @@ addTest("runall/alpha");
 addTest("testrun/blockattr2");
 addTest("testrun/extinline2");
 addTest("test/extinline3");
+addTest("testrun/bool");
 
 
 # ---------------- c-torture -------------

@@ -274,6 +274,7 @@ and ikind =
     IChar       (** [char] *)
   | ISChar      (** [signed char] *)
   | IUChar      (** [unsigned char] *)
+  | IBool       (** [_Bool (C99)] *)
   | IInt        (** [int] *)
   | IUInt       (** [unsigned int] *)
   | IShort      (** [short] *)
