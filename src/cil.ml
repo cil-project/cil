@@ -5785,7 +5785,7 @@ let rec expToAttrParam (e: exp) : attrparam =
   | _ -> raise (NotAnAttrParam e)
 
 (******************** OPTIMIZATIONS *****)
-let rec peepHole1 (* Process one statement and possibly replace it *)
+let rec peepHole1 (* Process one instruction and possibly replace it *)
                   (doone: instr -> instr list option)
                   (* Scan a block and recurse inside nested blocks *)
                   (ss: stmt list) : unit = 
@@ -5819,7 +5819,7 @@ let rec peepHole1 (* Process one statement and possibly replace it *)
       | Return _ | Goto _ | Break _ | Continue _ -> ())
     ss
 
-let rec peepHole2  (* Process two statements and possibly replace them both *)
+let rec peepHole2  (* Process two instructions and possibly replace them both *)
                    (dotwo: instr * instr -> instr list option)
                    (ss: stmt list) : unit = 
   let rec doInstrList (il: instr list) : instr list = 

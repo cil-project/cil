@@ -86,7 +86,7 @@ type file =
       mutable globinit: fundec option;  
       (** An optional global initializer function. This is a function where 
        * you can put stuff that must be executed before the program is 
-       * started. This function, is conceptually at the end of the file, 
+       * started. This function is conceptually at the end of the file, 
        * although it is not part of the globals list. Use {!Cil.getGlobInit} 
        * to create/get one. *)
       mutable globinitcalled: bool;     
@@ -506,7 +506,7 @@ and varinfo = {
 
     mutable vreferenced: bool;          
     (** True if this variable is ever referenced. This is computed by 
-     * [removeUnusedVars]. It is safe to just initialize this to False *)
+     * {!Rmtmps.removeUnusedTemps}. It is safe to just initialize this to False *)
 
     mutable vdescr: Pretty.doc;
     (** For most temporary variables, a description of what the var holds.
@@ -2026,7 +2026,7 @@ val print_CIL_Input: bool ref
 (** Whether to print the CIL as they are, without trying to be smart and 
   * print nicer code. Normally this is false, in which case the pretty 
   * printer will turn the while(1) loops of CIL into nicer loops, will not 
-  * print empty "else" blocks, etc. These is one case howewer in which if you 
+  * print empty "else" blocks, etc. There is one case howewer in which if you 
   * turn this on you will get code that does not compile: if you use varargs 
   * the __builtin_va_arg function will be printed in its internal form. *)
 val printCilAsIs: bool ref
@@ -2460,13 +2460,13 @@ val uniqueVarNames: file -> unit
 
 (** {b Optimization Passes} *)
 
-(** A peephole optimizer that processes two adjacent statements and possibly 
-    replaces them both. If some replacement happens, then the new statements 
+(** A peephole optimizer that processes two adjacent instructions and possibly 
+    replaces them both. If some replacement happens, then the new instructions
     are themselves subject to optimization *)
 val peepHole2: (instr * instr -> instr list option) -> stmt list -> unit
 
 (** Similar to [peepHole2] except that the optimization window consists of 
-    one statement, not two *)
+    one instruction, not two *)
 val peepHole1: (instr -> instr list option) -> stmt list -> unit
 
 (** {b Machine dependency} *)
