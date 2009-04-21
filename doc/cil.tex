@@ -1,25 +1,12 @@
-\documentclass{article} 
+\documentclass[letterpaper]{article} 
+
+\setlength{\pdfpagewidth}{\paperwidth}
+\setlength{\pdfpageheight}{\paperheight}
 
 \usepackage{hevea}
+\usepackage{fullpage}
+\usepackage{longtable}
 
-% ww: this gibberish is ignored by hevea but makes the PDF look better
-\begin{latexonly}
-\oddsidemargin 4.5pc
-\evensidemargin 4.5pc
-\advance\oddsidemargin by -1.2in
-\advance\evensidemargin by -1.2in
-\marginparwidth 0pt
-\marginparsep 11pt
-\topmargin 4.5pc
-\advance\topmargin by -1in
-\headheight 0pt
-\headsep 0pt
-\advance\topmargin by -37pt
-\headheight 12pt
-\headsep 25pt
-\textheight 666pt
-\textwidth 44pc
-\end{latexonly}
 
 % cilversion.tex is generated automatically to define \cilversion
 \include{cil.version}
@@ -335,18 +322,21 @@ The file \ahrefurl{distrib/cil-\cilversion.tar.gz}
 contains the complete source CIL distribution, 
 consisting of the following files:
 
-\begin{tabular}{ll}
-Filename   & Description \\
+\begin{longtable}{lp{4in}}
+\emph{Filename}   & \emph{Description} \\
+\endhead
+\endfoot
 \t{Makefile.in}                 & \t{configure} source for the 
-                                  Makefile that builds CIL \\
-\t{configure}                   & The configure script \\
-\t{configure.in}                & The \t{autoconf} source for \t{configure} \\
-\t{config.guess}, \t{config.sub}, \t{install-sh} & stuff required by
-                                \t{configure} \\
+                                  Makefile that builds CIL/ \\
+\t{configure}                   & The configure script. \\
+\t{configure.in}                & The \t{autoconf} source for \t{configure}. \\
+\t{config.guess} 		& Stuff required by \t{configure}. \\
+\t{config.sub} 			& idem \\
+\t{install-sh}	 		& idem \\
 \\
-\t{doc/}                        & HTML documentation of the CIL API \\
+\t{doc/}                        & HTML documentation of the CIL API. \\
 \t{obj/}                        & Directory that will contain the compiled
-                                   CIL modules and executables\\
+                                   CIL modules and executables.\\
 \t{bin/cilly.in}                & The \t{configure} source for a Perl script 
                                   that can be invoked with the 
                                   same arguments as either \t{gcc} or
@@ -364,50 +354,50 @@ Filename   & Description \\
 \t{bin/patcher.in}              & A Perl script that applies specified patches
                                   to standard include files.\\
 \\
-\t{src/check.ml,mli}            & Checks the well-formedness of a CIL file \\
+\t{src/check.ml,mli}            & Checks the well-formedness of a CIL file. \\
 \t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
-                                   utilities for manipulating it\\
+                                   utilities for manipulating it.\\
 \t{src/clist.ml,mli}            & Utilities for efficiently managing lists
-                                   that need to be concatenated often\\
-\t{src/errormsg.ml,mli}         & Utilities for error reporting \\
+                                   that need to be concatenated often.\\
+\t{src/errormsg.ml,mli}         & Utilities for error reporting. \\
 \t{src/ext/heapify.ml}          & A CIL transformation that moves array local
-                                   variables from the stack to the heap \\
+                                   variables from the stack to the heap. \\
 \t{src/ext/logcalls.ml,mli}     & A CIL transformation that logs every
-                                   function call \\
+                                   function call. \\
 \t{src/ext/sfi.ml}              & A CIL transformation that can log every
-                                   memory read and write \\
-\t{src/frontc/clexer.mll}       & The lexer \\
-\t{src/frontc/cparser.mly}      & The parser \\
-\t{src/frontc/cabs.ml}          & The abstract syntax \\
-\t{src/frontc/cprint.ml}        & The pretty printer for CABS \\
-\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL \\
-\t{src/main.ml}                 & The \t{cilly} application \\
-\t{src/pretty.ml,mli}           & Utilities for pretty printing \\
+                                   memory read and write. \\
+\t{src/frontc/clexer.mll}       & The lexer. \\
+\t{src/frontc/cparser.mly}      & The parser. \\
+\t{src/frontc/cabs.ml}          & The abstract syntax. \\
+\t{src/frontc/cprint.ml}        & The pretty printer for CABS. \\
+\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL. \\
+\t{src/main.ml}                 & The \t{cilly} application. \\
+\t{src/pretty.ml,mli}           & Utilities for pretty printing. \\
 \t{src/rmtmps.ml,mli}           & A CIL tranformation that removes unused
-                                  types, variables and inlined functions \\
-\t{src/stats.ml,mli}            & Utilities for maintaining timing statistics
+                                  types, variables and inlined functions. \\
+\t{src/stats.ml,mli}            & Utilities for maintaining timing statistics.
 \\
 \t{src/testcil.ml}              & A random test of CIL (against the resident 
-                                  C compiler)\\
+                                  C compiler).\\
 \t{src/trace.ml,mli}            & Utilities useful for printing debugging
-                                   information\\
+                                   information.\\
 \\
 \t{ocamlutil/}                  & Miscellaneous libraries that are not
                                   specific to CIL. \\
-\t{ocamlutil/Makefile.ocaml}    & A file that is included by \t{Makefile} \\
+\t{ocamlutil/Makefile.ocaml}    & A file that is included by \t{Makefile}. \\
 \t{ocamlutil/perfcount.c}       & C code that links with src/stats.ml
                                   and reads Intel performance
                                   counters. \\
 \\
 \t{obj/@ARCHOS@/feature\_config.ml}  & File generated by the Makefile
                                       describing which extra ``features''
-                                      to compile. See \secref{cil} \\
+                                      to compile. See \secref{cil}. \\
 \t{obj/@ARCHOS@/machdep.ml}     & File generated by the Makefile containing
                                   information about your architecture,
-                                  such as the size of a pointer \\
+                                  such as the size of a pointer. \\
 \t{src/machdep.c}               & C program that generates
-                                  \t{machdep.ml} files \\
-\end{tabular}
+                                  \t{machdep.ml} files. \\
+\end{longtable}
 
 
 \section{Compiling C to CIL}\label{sec-cabs2cil}
@@ -1960,8 +1950,13 @@ of several flags:
 \end{itemize}
 
 In practice, the best precision/efficiency tradeoff is achieved by
-setting \t{Ptranal.no\_sub} to \t{false}, \t{Ptranal.analyze\_mono} to
-\t{true}, and \t{Ptranal.smart\_aliases} to \t{false}.  These are the
+setting 
+\begin{verbatim}
+  Ptranal.no_sub = false
+  Ptranal.analyze_mono = true
+  Ptranal.smart_aliases = false
+\end{verbatim}
+These are the
 default values of the flags.
 
 %%% Debug output
@@ -2815,9 +2810,9 @@ Options:
 
  Based on the given \t{mode} and the current version of the compiler (which
 the patcher can print when given the \t{dumpversion} argument) the patcher
-will create a subdirectory of the \t{dest} directory (say \t{/usr/home/necula/cil/include}), such as:
+will create a subdirectory of the \t{dest} directory, such as:
 \begin{verbatim}
-/usr/home/necula/cil/include/gcc_2.95.3-5
+  /usr/home/necula/cil/include/gcc_2.95.3-5
 \end{verbatim}
 
  In that file the patcher will copy the modified versions of the include files
@@ -2828,11 +2823,11 @@ be specified multiple times.
 the Unix \t{patch} tool. The file has the following grammar:
 
 \begin{verbatim}
-<<< flags
-patterns
-===
-replacement
->>>
+  <<< flags
+  patterns
+  ===
+  replacement
+  >>>
 \end{verbatim}
 
  The flags are a comma separated, case-sensitive, sequence of keywords or

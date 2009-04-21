@@ -347,10 +347,12 @@ pdfdoc: doc/cilpp.tex $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
 	cd doc; echo "\def\ccuredversion{@CCURED_VERSION@}" >>cil.version.tex
 	cd doc; pdflatex cilpp.tex; pdflatex cilpp.tex
 	cd doc; mv cilpp.pdf html/cil/CIL.pdf
-	ocamldoc -o doc/cil-api.tex -v -stars \
+	ocamldoc -o doc/cil-api.tex.tmp -v -stars \
              -latex \
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) -hide Pervasives $(ODOC_FILES)
+	sed -e 's/\\usepackage\[T1\]{fontenc}/\\setlength{\\pdfpagewidth}{\\paperwidth} \\setlength{\\pdfpageheight}{\\paperheight}/' doc/cil-api.tex.tmp >doc/cil-api.tex
+	rm doc/cil-api.tex.tmp
 
 	cd doc ; TEXINPUTS="$$TEXINPUTS:/usr/local/lib/ocaml/ocamldoc:/usr/lib/ocaml/ocamldoc" pdflatex cil-api.tex
 	cd doc ; mv cil-api.pdf html/cil/CIL-API.pdf
