@@ -3994,15 +3994,15 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
         let rec loopArgs 
             : (string * typ * attributes) list * A.expression list 
-          -> (chunk * exp list) = function
-            | ([], []) -> (empty, [])
+          -> (chunk list * exp list) = function
+            | ([], []) -> ([], [])
 
             | args, [] -> 
                 if not isSpecialBuiltin then 
                   ignore (warnOpt 
                             "Too few arguments in call to %a."
                             d_exp f');
-		(empty, [])
+		([], [])
 
             | ((_, at, _) :: atypes, a :: args) -> 
                 let (ss, args') = loopArgs (atypes, args) in
@@ -4013,26 +4013,27 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 let (sa, a', att) = force_right_to_left_evaluation
                                       (doExp false a (AExp None)) in
                 let (_, a'') = castTo att at a' in
-                (ss @@ sa, a'' :: args')
+                (sa :: ss, a'' :: args')
                   
             | ([], args) -> (* No more types *)
                 if not isvar && argTypes != None && not isSpecialBuiltin then 
                   (* Do not give a warning for functions without a prototype*)
                   ignore (warnOpt "Too many arguments in call to %a" d_exp f');
                 let rec loop = function
-                    [] -> (empty, [])
+                    [] -> ([], [])
                   | a :: args -> 
                       let (ss, args') = loop args in
                       let (sa, a', at) = force_right_to_left_evaluation 
                           (doExp false a (AExp None)) in
-                      (ss @@ sa, a' :: args')
+                      (sa :: ss, a' :: args')
                 in
                 loop args
         in
-        let (sargs, args') = loopArgs (argTypesList, args) in
+        let (sargsl, args') = loopArgs (argTypesList, args) in
         (* Setup some pointer to the elements of the call. We may change 
          * these below *)
-        let prechunk: chunk ref = ref (sf @@ sargs) in (* comes before *)
+	let sideEffects () = sf @@ (List.fold_left (@@) empty (List.rev sargsl)) in
+        let prechunk: (unit -> chunk) ref = ref sideEffects in (* comes before *)
 
         (* Do we actually have a call, or an expression? *)
         let piscall: bool ref = ref true in 
@@ -4126,7 +4127,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   ignore (warn "Invalid call to %s" fv.vname);
             end else if fv.vname = "__builtin_constant_p" then begin
               (* Drop the side-effects *)
-              prechunk := empty;
+              prechunk := (fun _ -> empty);
 
               (* Constant-fold the argument and see if it is a constant *)
               (match !pargs with 
@@ -4142,7 +4143,30 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to builtin_constant_p"));
-            end
+            end else if fv.vname = "__builtin_choose_expr" then begin
+
+              (* Constant-fold the argument and see if it is a constant *)
+              (match !pargs with 
+                [ arg; e1; e2 ] -> begin 
+                  match constFold true arg with 
+                    (Const _) as x -> 
+	              piscall := false; 
+	              if isZero x then begin
+                        (* Keep only 3rd arg side effects *)
+	                prechunk := (fun _ -> sf @@ (List.nth sargsl 2));
+                        pres := e2;
+                        prestype := typeOf e2
+	              end else begin
+                        (* Keep only 2nd arg side effects *)
+	                prechunk := (fun _ -> sf @@ (List.nth sargsl 1));
+                        pres := e1;
+                        prestype := typeOf e1
+	              end
+                  | _ -> ignore (warn "builtin_choose_expr expects a constant first argument")
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to builtin_choose_expr"));
+	    end
           end
         | _ -> ());
 
@@ -4150,8 +4174,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Now we must finish the call *)
         if !piscall then begin 
           let addCall (calldest: lval option) (res: exp) (t: typ) = 
-            prechunk := !prechunk +++
-                (Call(calldest, !pf, !pargs, !currentLoc));
+	    let prev = !prechunk () in
+            prechunk := (fun _ -> prev +++ (Call(calldest, !pf, !pargs, !currentLoc)));
             pres := res;
             prestype := t
           in
@@ -4186,7 +4210,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           end
         end;
               
-        finishExp !prechunk !pres !prestype
+        finishExp (!prechunk ()) !pres !prestype
 
           
     | A.COMMA el -> 

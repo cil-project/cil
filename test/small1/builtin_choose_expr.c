@@ -15,5 +15,9 @@ int main() {
   c = __builtin_choose_expr(1, c, i++);
   if (i != 1) E(3)
 
+  //Do evaluate the i++
+  c = __builtin_choose_expr(0, c, i++);
+  if (i != 2) E(4)
+
   return __builtin_choose_expr(1, 0, 1);
 }
