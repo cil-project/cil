@@ -107,6 +107,11 @@ BEFOREDEPS += $(OBJDIR)/feature_config.ml
     # Include now the common set of rules for OCAML
 include ocamlutil/Makefile.ocaml
 
+OBEXEEXT = $(EXEEXT:asm=native)
+ocamlbuild:
+	ocamlbuild -X obj src/main$(OBEXEEXT) src/cil.$(CMXA)
+	cp _build/src/main$(OBEXEEXT) $(OBJDIR)/cilly$(EXE)
+	cp _build/src/cil.$(CMXA) $(OBJDIR)/
 
    # Now the rule to make cilly
 

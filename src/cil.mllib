@@ -39,6 +39,10 @@ Heapify
 Inthash
 Lexerhack
 Liveness
+Llvm
+Llvmgen
+Llvmssa
+Llvmutils
 Logcalls
 Logwrites
 Longarray
