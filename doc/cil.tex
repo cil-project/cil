@@ -1721,6 +1721,14 @@ the default, as in ``\t{-{}-nowarnall}''.
     To report only user-mode time, find the call to \t{Stats.reset} in
     \t{main.ml}, and change it to \t{Stats.reset Stats.SoftwareTimer}.
   
+  \item \t{-{}-envmachine}. Use machine model specified in
+    \t{CIL\_MACHINE} environment variable, rather than the one
+    compiled into CIL. Note that you should not pass gcc's 32/64-bit
+    \t{-m32} and \t{-m64} options to \t{cilly} if you use
+    \t{-{}-envmachine} (they use \t{-{}-envmachine} under the hood).
+    See \secref{cilmachine} for a description of \t{CIL\_MACHINE}'s
+    format.
+
    {\bf Lowering Options}
   \item \t{-{}-noLowerConstants} do not lower constant expressions.
   \item \t{-{}-noInsertImplicitCasts} do not insert implicit casts.
@@ -1798,6 +1806,68 @@ calls to \t{malloc}.
 
 \end{itemize}
 
+\subsection{Specifying a machine model}
+\label{sec-cilmachine}
+
+The \t{-{}-envmachine} option tells CIL to get its machine model from
+the \t{CIL\_MACHINE} environment variable, rather than use the model
+compiled in to CIL itself. This is necessary when using CIL as part of
+a cross-compilation setup, and to handle gcc's \t{-m32} and \t{-m64}
+which select between a 32-bit and 64-bit machine model.
+
+\t{CIL\_MACHINE} is a space-separated list of key=value pairs. Unknown
+keys are ignored. The following keys must be defined:
+\begin{center}
+  \begin{tabular}{|l|l|} \hline
+    Key & Value \\ \hline
+    bool            & sizeof(\_Bool),alignof(\_Bool) \\
+    short           & sizeof(short),alignof(short) \\
+    int             & sizeof(int),alignof(int) \\
+    long            & sizeof(long),alignof(long) \\
+    long\_long      & sizeof(long long),alignof(long long) \\
+    float           & sizeof(float),alignof(float) \\
+    double          & sizeof(double),alignof(double) \\
+    long\_double    & sizeof(long double),alignof(long double) \\
+    pointer         & sizeof(all pointers),alignof(all pointers) \\
+    enum            & sizeof(all enums),alignof(all enums) \\
+    fun             & sizeof(all fn ptrs),alignof(all fn ptrs) \\
+    alignof\_string & alignof(all string constants) \\
+    max\_alignment  & maximum alignment for any type \\
+    size\_t         & the definition of size\_t \\
+    wchar\_t        & the definition of wchar\_t \\
+    char\_signed    & true if char is signed \\
+    big\_endian     & true for big-endian machine models \\
+    const\_string\_literals & true if string constants are const \\
+    \_\_thread\_is\_keyword & true if \t{\_\_thread} is a keyword \\
+    \_\_builtin\_va\_list & true if \t{\_\_builtin\_va\_list} is a builtin type \\
+    underscore\_name & true if generated symbols preceded by \_ \\ \hline
+  \end{tabular}
+\end{center}
+
+Some notes:
+\begin{itemize}
+\item Values cannot contain spaces as spaces separate key/value pairs. 
+\item The value of size\_t is the text for the type defined as
+  size\_t, e.g. \t{unsigned long}. As spaces are not allowed in values,
+  CIL will replace underscores by spaces: \t{size\_t=unsigned\_long}.
+\item sizeof(t) and alignof(t) are respectively the size and alignment of
+  type t.
+\item The boolean-valued keys expect \t{true} for true, and \t{false}
+  for false.
+\item The \t{src/machdep-ml.c} program will print a \t{CIL\_MACHINE} value
+  when run with the \t{-{}-env} option.
+\end{itemize}
+
+As an example, here's the \t{CIL\_MACHINE} value for 64-bit targets on
+an x86-based Mac OS X machine:
+\begin{verbatim}
+  short=2,2 int=4,4 long=8,8 long_long=8,8 pointer=8,8 enum=4,4
+  float=4,4 double=8,8 long_double=16,16 void=1 bool=1,1 fun=1,1
+  alignof_string=1 max_alignment=16 size_t=unsigned_long 
+  wchar_t=int char_signed=true const_string_literals=true 
+  big_endian=false __thread_is_keyword=true 
+  __builtin_va_list=true underscore_name=true
+\end{verbatim}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3283,6 +3353,14 @@ as it will ensure your message is viewed by a broad audience.
 \begin{itemize}
 \item {\bf April ?, 2009}: {\bf Released version 1.3.7} (Subversion
   revision ?). Includes change below and other miscellaneous bug fixes.
+\item {\bf April 22, 2009}: \t{ocamlbuild} make target added (thanks
+  to Gabriel Kerneis).
+\item {\bf April 21, 2009}: \t{\_\_builtin\_va\_arg\_pack} support:
+  calls to this builtin need to remain as the last argument to a
+  function call. So to prevent CIL's usual rewriting, we internally
+  represent calls to \t{\_\_builtin\_va\_arg\_pack} as
+  \t{sizeof(\_\_builtin\_va\_arg\_pack)}\ldots
+  
 \item {\bf April 21, 2009}: \t{\_Bool} support, thanks to patches
   from Christopher Ian Stern (Sourceforge bug \#1497763).
 
@@ -3332,6 +3410,7 @@ as it will ensure your message is viewed by a broad audience.
   ocamlfind.  Thanks to ploc for the patch.
 \item {\bf May 28, 2008}: Cross-compilation support: ability to
   select a machine model specified in an environment variable (CIL\_MACHINE).
+  See \secref{cilmachine} for details.
 \item {\bf February 14, 2008}: Fixed a bug in temporary file
   creation.  Thanks to J. Aaron Pendergrass for the patch.
 \item {\bf November 30, 2007}: Fixed a bug in assignment to lvalues that

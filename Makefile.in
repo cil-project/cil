@@ -109,7 +109,7 @@ include ocamlutil/Makefile.ocaml
 
 OBEXEEXT = $(EXEEXT:asm=native)
 ocamlbuild:
-	ocamlbuild -X obj src/main$(OBEXEEXT) src/cil.$(CMXA)
+	ocamlbuild -X obj -X doc -X test src/main$(OBEXEEXT) src/cil.$(CMXA)
 	cp _build/src/main$(OBEXEEXT) $(OBJDIR)/cilly$(EXE)
 	cp _build/src/cil.$(CMXA) $(OBJDIR)/
 
