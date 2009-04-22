@@ -54,6 +54,7 @@ val blueEscStr : string
 val purpleEscStr : string
 val cyanEscStr : string
 val whiteEscStr : string
+val resetEscStr : string
 
 (** Set to true if you want to see all warnings. *)
 val warnFlag: bool ref
