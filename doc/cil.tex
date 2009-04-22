@@ -3283,6 +3283,15 @@ as it will ensure your message is viewed by a broad audience.
 \begin{itemize}
 \item {\bf April ?, 2009}: {\bf Released version 1.3.7} (Subversion
   revision ?). Includes change below and other miscellaneous bug fixes.
+\item {\bf April 21, 2009}: \t{\_Bool} support, thanks to patches
+  from Christopher Ian Stern (Sourceforge bug \#1497763).
+
+  Note that this leads to the addition of a new integer kind, \t{IBool} 
+  which you might have to handle in some of your patterns. Note also, for
+  those not familiar with \t{\_Bool}, that casts/conversion to \t{\_Bool}
+  give the value 1 for non-zero values, and 0 otherwise (i.e. 
+  \t{(\_Bool)x} behaves like \t{x $\!=$ 0}).
+  
 \item {\bf April 20, 2009}: Update builtin support, including
   \_\_builtin\_strlen (Sourceforge bug \#1873374), \_\_builtin\_choose\_expr,
   \_\_builtin\_types\_compatible\_p (Sourceforge bug \#1852730).

@@ -3109,6 +3109,12 @@ let initGccBuiltins () : unit =
 					     TBuiltin_va_list [] ],
                                 false);
   end;
+
+  H.add h "__builtin_apply_args" (voidPtrType, [ ], false);
+  let fnPtr = TPtr(TFun (voidType, None, false, []), []) in
+  H.add h "__builtin_apply" (voidPtrType, [fnPtr; voidPtrType; sizeType], false);
+  H.add h "__builtin_va_arg_pack" (intType, [ ], false);
+  H.add h "__builtin_va_arg_pack_len" (intType, [ ], false);
   ()
 
 (** Construct a hash with the builtins *)
@@ -3312,6 +3318,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | SizeOf (t) -> 
         text "sizeof(" ++ self#pType None () t ++ chr ')'
+    | SizeOfE (Lval (Var fv, NoOffset)) when fv.vname = "__builtin_va_arg_pack" && (not !printCilAsIs) -> 
+        text "__builtin_va_arg_pack()"
     | SizeOfE (e) ->  
         text "sizeof(" ++ self#pExp () e ++ chr ')'
 

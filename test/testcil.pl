@@ -673,6 +673,7 @@ addTest("testrun/blockattr2");
 addTest("testrun/extinline2");
 addTest("test/extinline3");
 addTest("testrun/bool");
+addTest("test/va_arg_pack");
 
 
 # ---------------- c-torture -------------
