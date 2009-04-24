@@ -90,6 +90,7 @@ let generate (f:file) : doc =
   and fLinkage (vi:varinfo) : string =
     match vi.vstorage with
     | Static -> "internal "
+    | Extern when vi.vinline -> "internal "
     | _ -> ""
 
   and gVarDecl (vi:varinfo) : doc = 

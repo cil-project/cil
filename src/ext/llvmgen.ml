@@ -267,7 +267,7 @@ let rec llvmTypeOf (v:llvmValue) : llvmType = match v with
 (* True if t can be the type of an LLVM local *)
 let llvmLocalType (t:typ) : bool = 
   match unrollType t with
-  | (TInt _ | TFloat _ | TPtr _ | TEnum _ ) -> true
+  | (TInt _ | TFloat _ | TPtr _ | TEnum _) -> true
   | _ -> false
 
 (* True if local variable 'vi' should be represented by an LLVM local *)
@@ -275,9 +275,13 @@ let llvmUseLocal (vi:varinfo) =
   not vi.vaddrof && llvmLocalType vi.vtype
 
 (* True if 'vi's address is taken, and it would've been represented by
-   an LLVM local if that had not been the case *)
+   an LLVM local if that had not been the case.
+   Include hack for __builtin_va_list... *)
 let llvmDoNotUseLocal (vi:varinfo) =
-  vi.vaddrof && llvmLocalType vi.vtype
+  vi.vaddrof && llvmLocalType vi.vtype || 
+  (match unrollType vi.vtype with
+   | TBuiltin_va_list _ -> true
+   | _ -> false)
 
 (* Returns the list of blocks that 'term' can branch to;
    'llvmDestinations b.lbterm' is the successors of LLVM block b *)

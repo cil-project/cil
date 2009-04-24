@@ -15,7 +15,7 @@ endif
 LLCIL   = ../../../obj/$(ARCHOS)/cilly.byte.exe --dollvm --envmachine
 LLCC    = llvm-as
 CC 	= gcc -m32
-CFLAGS  = -g -DNOMEMOPT -O3 $(EXTRACFLAGS)
+CFLAGS  = -g -DNOMEMOPT $(EXTRACFLAGS)
 
 BINSRC  = cfrac.c
 HDR	= primes.h seive.h pfactor.h
