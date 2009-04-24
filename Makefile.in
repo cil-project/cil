@@ -403,7 +403,7 @@ DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
 DISTRIB_SRC = cilutil.ml cil.ml cil.mli check.ml check.mli \
 	      rmtmps.ml rmtmps.mli formatlex.mll formatparse.mly \
 	      formatcil.mli formatcil.ml testcil.ml \
-	      mergecil.ml mergecil.mli main.ml machdep-ml.c machdepenv.ml \
+	      mergecil.ml mergecil.mli main.ml machdep-ml.c.in machdepenv.ml \
 	      ciloptions.ml ciloptions.mli libmaincil.ml \
 	      escape.ml escape.mli cillower.mli cillower.ml \
 	      _tags \
