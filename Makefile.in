@@ -388,7 +388,7 @@ distrib: distrib-nocheck checkdistrib
 TEMP_DIR = TEMP_cil-distrib
 
 # The tar archive members will be relative to this directory
-TOP_DIR = $(TEMP_DIR)/cil
+TOP_DIR = $(TEMP_DIR)/cil-@CIL_VERSION@
 
 DISTRIB_ROOT = README LICENSE INSTALL Makefile.in  \
                config.h.in config.mk.in Makefile.gcc Makefile.msvc \
@@ -503,7 +503,7 @@ distrib-nocheck: $(DISTRIB_ROOT) doc
 	find $(TEMP_DIR) -name .svn -print0 | xargs -0 rm -rf
 
 # Now make the TAR ball
-	cd $(TEMP_DIR); tar cfz $(CIL_TAR_GZ) cil
+	cd $(TEMP_DIR); tar cfz $(CIL_TAR_GZ) cil-@CIL_VERSION@
 	mv $(TEMP_DIR)/$(CIL_TAR_GZ) .
 
 #	rm -rf $(TEMP_DIR)
