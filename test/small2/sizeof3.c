@@ -8,7 +8,7 @@
 char tab[300000000]; // three hundred million times 8 bits = -947483648 mod 2**31
 
 //TODO: give somthing better than a warning here ...
-extern char foo[sizeof(tab)]; //KEEP folding: error = Int constant too large
+extern char foo[sizeof(tab)]; //KEEP folding: error = Unable to do constant-folding
 
 char foo[300000000];
 

@@ -1257,14 +1257,6 @@ val invalidStmt: stmt
   * versions of CIL.*)
 val builtinFunctions : (string, typ * typ list * bool) Hashtbl.t
 
-(** @deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
-val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
-
-(** @deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
-val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
-  
 (** This is used as the location of the prototypes of builtin functions. *)
 val builtinLoc: location
 
@@ -1616,12 +1608,6 @@ val kinteger: ikind -> int -> exp
     the integer may get truncated. *)
 val integer: int -> exp
 
-
-(** Deprecated (can't handle large 64-bit unsigned constants
-    correctly) - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-val isInteger: exp -> int64 option
 
 (** If the given expression is an integer constant or a CastE'd
     integer constant, return that constant's value. 
@@ -2525,11 +2511,6 @@ val bytesSizeOfInt: ikind -> int
  * call {!Cil.initCIL}. Remember that on GCC sizeof(void) is 1! *)
 val bitsSizeOf: typ -> int
 
-(** Represents an integer as for a given kind. 
- * Returns a flag saying whether the value was changed
- * during truncation (because it was too large to fit in k). *)
-val truncateInteger64: ikind -> int64 -> int64 * bool
-
 (** Represents an integer as for a given kind.  Returns a truncation
  * flag saying that the value fit in the kind (NoTruncation), didn't
  * fit but no "interesting" bits (all-0 or all-1) were lost
@@ -2666,3 +2647,31 @@ val warnTruncate: bool ref
 
 (** Machine model specified via CIL_MACHINE environment variable *)
 val envMachine : Machdep.mach option ref
+
+(* ------------------------------------------------------------------------- *)
+(*                            DEPRECATED FUNCTIONS                           *)
+(*                        These will eventually go away                      *)
+(* ------------------------------------------------------------------------- *)
+
+(** @deprecated. Convert two int64/kind pairs to a common int64/int64/kind triple. *)
+val convertInts: int64 -> ikind -> int64 -> ikind -> int64 * int64 * ikind
+
+(** @deprecated. Can't handle large 64-bit unsigned constants
+    correctly - use getInteger instead. If the given expression
+    is a (possibly cast'ed) character or an integer constant, return
+    that integer.  Otherwise, return None. *)
+val isInteger: exp -> int64 option
+
+(** @deprecated. Use truncateCilint instead. Represents an integer as
+ * for a given kind.  Returns a flag saying whether the value was
+ * changed during truncation (because it was too large to fit in k). *)
+val truncateInteger64: ikind -> int64 -> int64 * bool
+
+(** @deprecated.  For compatibility with older programs, these are
+    aliases for {!Cil.builtinFunctions} *)
+val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
+
+(** @deprecated.  For compatibility with older programs, these are
+  aliases for {!Cil.builtinFunctions} *)
+val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
+  

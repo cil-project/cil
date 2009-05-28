@@ -67,7 +67,7 @@ let compare_cilint (c1:cilint) (c2:cilint) : int =
   | Small i1, Small i2 -> compare i1 i2
   | _ -> compare_big_int (big_int_of_cilint c1) (big_int_of_cilint c2)
 
-let iszero_cilint (c:cilint) : bool = 
+let is_zero_cilint (c:cilint) : bool = 
   match c with
   | Small i -> i = 0
   | Big b -> sign_big_int b = 0
@@ -260,3 +260,7 @@ let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
 	  NoTruncation
       in cilint_of_big_int bits, trunc
 	
+let is_int_cilint (c:cilint) : bool = 
+  match c with
+  | Small _ -> true
+  | Big b -> is_int_big_int b

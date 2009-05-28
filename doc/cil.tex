@@ -3356,6 +3356,20 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf May 28, 2009}: Improved 64-bit int support (large constants
+  no longer cause a CIL failure). There's a new cilint type that
+  should be used to handle integer C values - cilint is essentially a
+  big_int so will be able to handle future expansion. To get the value
+  represented by a CInt64(n, ik, _) constant, call \t{mkCilint ik n}
+  --- this will give you the correct value for unsigned 64-bit C
+  constants stored in a signed OCaml int64.
+
+  In a related move, the already deprecated \t{unbox\_int\_exp},
+  \t{box\_int\_to\_exp} and \t{cil\_to\_ocaml\_int} functions have
+  been removed.  And \t{convertInts}, \t{isInteger},
+  \t{truncateInteger64} are now deprecated and will be removed in a
+  future release.
+
 \item {\bf April 24, 2009}: {\bf Released version 1.3.7} (Subversion
   revision 10727). Includes change below and other miscellaneous bug fixes.
 \item {\bf April 22, 2009}: \t{ocamlbuild} make target added (thanks

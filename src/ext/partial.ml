@@ -756,7 +756,7 @@ struct
               (* logical truth in C expressed in cilly's terms *)
               and is_true e =
                 match getInteger e with
-                    Some x -> not (iszero_cilint x)
+                    Some x -> not (is_zero_cilint x)
                   | None -> false in
               (* evaluate expression and eliminate branches *)
               let e' = S.evaluate state e in

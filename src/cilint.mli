@@ -103,8 +103,10 @@ val cilint_of_big_int : Big_int.big_int -> cilint
 val cilint_of_string : string -> cilint
 
 (** Return true if the cilint is 0 *)
-val iszero_cilint : cilint -> bool
+val is_zero_cilint : cilint -> bool
 
 (** ordering function for two cilints *)
 val compare_cilint : cilint -> cilint -> int
 
+(** Return true if the cilint's value is representable in an int *)
+val is_int_cilint : cilint -> bool

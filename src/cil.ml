@@ -1223,17 +1223,6 @@ let charConstToInt (c: char) : constant =
   CInt64(value, IInt, None)
   
   
-(** Deprecated (can't handle large 64-bit unsigned constants
-    correctly) - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-let rec isInteger : exp -> int64 option = function
-  | Const(CInt64 (n,_,_)) -> Some n
-  | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *) 
-  | Const(CEnum(v, s, ei)) -> isInteger v
-  | CastE(_, e) -> isInteger e
-  | _ -> None
-        
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
     can't be done. *)
 let i64_to_int (i: int64) : int = 
@@ -2007,39 +1996,6 @@ let floatKindForSize (s:int) =
   else if s = !M.theMachine.M.sizeof_longdouble then FLongDouble
   else raise Not_found
 
-(* Represents an integer as for a given kind. 
-   Returns a flag saying whether the value was changed
-   during truncation (because it was too large to fit in k). *)
-let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
-  let nrBits = 8 * (bytesSizeOfInt k) in
-  let signed = isSigned k in
-  if nrBits = 64 then 
-    i, false
-  else begin
-    let i1 = Int64.shift_left i (64 - nrBits) in
-    let i2 = 
-      if signed then Int64.shift_right i1 (64 - nrBits) 
-      else Int64.shift_right_logical i1 (64 - nrBits)
-    in
-    let truncated =
-      if i2 = i then false
-      else
-        (* Examine the bits that we chopped off.  If they are all zero, then
-         * any difference between i2 and i is due to a simple sign-extension.
-         *   e.g. casting the constant 0x80000000 to int makes it
-         *        0xffffffff80000000.
-         * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right i nrBits in
-        chopped <> Int64.zero
-          (* matth: also suppress the warning if we only chop off 1s.
-             This is probably due to a negative number being cast to an 
-             unsigned value.  While potentially a bug, this is almost
-             always what the programmer intended. *)
-        && chopped <> Int64.minus_one
-    in
-    i2, truncated
-  end
-
 (* Represents an integer as for a given kind.  Returns a flag saying
    whether any "interesting" bits were lost during truncation. By
    "interesting", we mean that the lost bits were not all-0 or all-1. *)
@@ -2047,7 +2003,7 @@ let truncateCilint (k: ikind) (i: cilint) : cilint * truncation =
   (* Truncations to _Bool are special: they behave like "!= 0" 
      ISO C99 6.3.1.2 *)
   if k = IBool then
-    if iszero_cilint i then
+    if is_zero_cilint i then
       zero_cilint, NoTruncation
     else
       one_cilint, NoTruncation
@@ -2069,6 +2025,21 @@ let kintegerCilint (k: ikind) (i: cilint) : exp =
               (string_of_cilint i) (string_of_cilint i'));
   Const (CInt64(int64_of_cilint i', k,  None))
 
+(* Construct an integer constant with possible truncation *)
+let kinteger64 (k: ikind) (i: int64) : exp = 
+  kintegerCilint k (cilint_of_int64 i)
+
+(* Construct an integer of a given kind. *)
+let kinteger (k: ikind) (i: int) = 
+  kintegerCilint k (cilint_of_int i)
+
+(** Construct an integer of kind IInt. On targets where C's 'int' is 16-bits,
+    the integer may get truncated. *)
+let integer (i: int) = kinteger IInt i
+            
+let one       = integer 1
+let mone      = integer (-1)
+     
 (* True if the integer fits within the kind's range *)
 let fitsInInt (k: ikind) (i: cilint) : bool = 
   let _, truncated = truncateCilint k i in
@@ -2093,24 +2064,6 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     else if fitsInInt ILong i then ILong
     else ILongLong
 
-(* Construct an integer constant with possible truncation *)
-let kinteger64 (k: ikind) (i: int64) : exp = 
-  let i', truncated = truncateInteger64 k i in
-  if truncated && !warnTruncate then 
-    ignore (warnOpt "Truncating integer %s to %s" 
-              (Int64.format "0x%x" i) (Int64.format "0x%x" i'));
-  Const (CInt64(i', k,  None))
-
-(* Construct an integer of a given kind. *)
-let kinteger (k: ikind) (i: int) = kinteger64 k (Int64.of_int i)
-
-(** Construct an integer of kind IInt. On targets where C's 'int' is 16-bits,
-    the integer may get truncated. *)
-let integer (i: int) = kinteger IInt i
-            
-let one       = integer 1
-let mone      = integer (-1)
-     
 (** If the given expression is an integer constant or a CastE'd
     integer constant, return that constant's value as an ikint, int64 pair. 
     Otherwise return None. *)
@@ -2138,7 +2091,7 @@ let rec getInteger (e:exp) : cilint option =
 
 let isZero (e: exp) : bool = 
   match getInteger e with
-  | Some n -> iszero_cilint n
+  | Some n -> is_zero_cilint n
   | _ -> false
 
 type offsetAcc = 
@@ -2486,17 +2439,16 @@ and bitsSizeOf t =
 
   | TArray(bt, Some len, _) -> begin
       match constFold true len with 
-        Const(CInt64(l,_,_)) -> 
-          let sz = Int64.mul (Int64.of_int (bitsSizeOf bt)) l in
-          let sz' = i64_to_int sz in
+        Const(CInt64(l,lk,_)) -> 
+	  let sz = mul_cilint (mkCilint lk l) (cilint_of_int  (bitsSizeOf bt)) in
           (* Check for overflow.
              There are other places in these cil.ml that overflow can occur,
              but this multiplication is the most likely to be a problem. *)
-          if (Int64.of_int sz') <> sz then
+          if not (is_int_cilint sz) then
             raise (SizeOfError ("Array is so long that its size can't be "
                                   ^"represented with an OCaml int.", t))
           else
-            addTrailing sz' (8 * alignOf_int t)
+            addTrailing (int_of_cilint sz) (8 * alignOf_int t)
       | _ -> raise (SizeOfError ("array non-constant length", t))
   end
 
@@ -2592,7 +2544,7 @@ and constFold (machdep: bool) (e: exp) : exp =
             match unop with 
               Neg -> kintegerCilint tk (neg_cilint ic)
             | BNot -> kintegerCilint tk (lognot_cilint ic)
-            | LNot -> if iszero_cilint ic then one else zero
+            | LNot -> if is_zero_cilint ic then one else zero
             end
         | e1c -> UnOp(unop, e1c, tres)
       with Not_found -> e
@@ -2633,18 +2585,13 @@ and constFold (machdep: bool) (e: exp) : exp =
  
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with 
-        (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
-	Const(CInt64(i,k,_)), TInt(IBool,a)
-        when (dropAttributes ["const"] a) = [] -> 
-	  let v = if i = Int64.zero then Int64.zero else Int64.one in
-	  Const(CInt64(v, IBool, None))
         (* Might truncate silently *)
       | Const(CInt64(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
           when (dropAttributes ["const"] a) = [] -> 
-          let i', _ = truncateInteger64 nk i in
-          Const(CInt64(i', nk, None))
+          let i', _ = truncateCilint nk (mkCilint k i) in
+          Const(CInt64(int64_of_cilint i', nk, None))
       | e', _ -> CastE (t, e')
   end
   | Lval lv -> Lval (constFoldLval machdep lv)
@@ -2694,13 +2641,13 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       (* Assume that the necessary promotions have been done *)
       match bop, getInteger e1', getInteger e2' with
       | PlusA, Some i1, Some i2 -> kintegerCilint tk (add_cilint i1 i2)
-      | PlusA, Some z, _ when iszero_cilint z -> collapse e2'
-      | PlusA, _, Some z when iszero_cilint z -> collapse e1'
+      | PlusA, Some z, _ when is_zero_cilint z -> collapse e2'
+      | PlusA, _, Some z when is_zero_cilint z -> collapse e1'
       | MinusA, Some i1, Some i2 -> kintegerCilint tk (sub_cilint i1 i2)
-      | MinusA, _, Some z when iszero_cilint z -> collapse e1'
+      | MinusA, _, Some z when is_zero_cilint z -> collapse e1'
       | Mult, Some i1, Some i2 -> kintegerCilint tk (mul_cilint i1 i2)
-      | Mult, Some z, _ when iszero_cilint z -> collapse0 ()
-      | Mult, _, Some z when iszero_cilint z -> collapse0 ()
+      | Mult, Some z, _ when is_zero_cilint z -> collapse0 ()
+      | Mult, _, Some z when is_zero_cilint z -> collapse0 ()
       | Mult, Some o, _ when compare_cilint o one_cilint = 0 -> collapse e2' 
       | Mult, _, Some o when compare_cilint o one_cilint = 0 -> collapse e1'
       | Div, Some i1, Some i2 -> begin
@@ -2715,23 +2662,23 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | Mod, _, Some o when compare_cilint o one_cilint = 0 -> collapse0 ()
 
       | BAnd, Some i1, Some i2 -> kintegerCilint tk (logand_cilint i1 i2)
-      | BAnd, Some z, _ when iszero_cilint z -> collapse0 ()
-      | BAnd, _, Some z when iszero_cilint z -> collapse0 ()
+      | BAnd, Some z, _ when is_zero_cilint z -> collapse0 ()
+      | BAnd, _, Some z when is_zero_cilint z -> collapse0 ()
       | BOr, Some i1, Some i2 -> kintegerCilint tk (logor_cilint i1 i2)
-      | BOr, Some z, _ when iszero_cilint z -> collapse e2' 
-      | BOr, _, Some z when iszero_cilint z -> collapse e1'
+      | BOr, Some z, _ when is_zero_cilint z -> collapse e2' 
+      | BOr, _, Some z when is_zero_cilint z -> collapse e1'
       | BXor, Some i1, Some i2 -> kintegerCilint tk (logxor_cilint i1 i2)
-      | BXor, Some z, _ when iszero_cilint z -> collapse e2' 
-      | BXor, _, Some z when iszero_cilint z -> collapse e1'
+      | BXor, Some z, _ when is_zero_cilint z -> collapse e2' 
+      | BXor, _, Some z when is_zero_cilint z -> collapse e1'
 
       | Shiftlt, Some i1, Some i2 when shiftInBounds i2 -> 
           kintegerCilint tk (shift_left_cilint i1 (int_of_cilint i2))
-      | Shiftlt, Some z, _ when iszero_cilint z -> collapse0 ()
-      | Shiftlt, _, Some z when iszero_cilint z -> collapse e1'
+      | Shiftlt, Some z, _ when is_zero_cilint z -> collapse0 ()
+      | Shiftlt, _, Some z when is_zero_cilint z -> collapse e1'
       | Shiftrt, Some i1, Some i2 when shiftInBounds i2 -> 
           kintegerCilint tk (shift_right_cilint i1 (int_of_cilint i2))
-      | Shiftrt, Some z, _ when iszero_cilint z -> collapse0 ()
-      | Shiftrt, _, Some z when iszero_cilint z -> collapse e1'
+      | Shiftrt, Some z, _ when is_zero_cilint z -> collapse0 ()
+      | Shiftrt, _, Some z when is_zero_cilint z -> collapse e1'
 
       | Eq, Some i1, Some i2 -> if compare_cilint i1 i2 = 0 then one else zero
       | Ne, Some i1, Some i2 -> if compare_cilint i1 i2 <> 0 then one else zero
@@ -2740,10 +2687,10 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | Lt, Some i1, Some i2 -> if compare_cilint i1 i2 < 0 then one else zero
       | Gt, Some i1, Some i2 -> if compare_cilint i1 i2 > 0 then one else zero
 
-      | LAnd, Some i1, _ -> if iszero_cilint i1 then collapse0 () else collapse e2'
-      | LAnd, _, Some i2 -> if iszero_cilint i2 then collapse0 () else collapse e1'
-      | LOr, Some i1, _ -> if iszero_cilint i1 then collapse e2' else one
-      | LOr, _, Some i2 -> if iszero_cilint i2 then collapse e1' else one
+      | LAnd, Some i1, _ -> if is_zero_cilint i1 then collapse0 () else collapse e2'
+      | LAnd, _, Some i2 -> if is_zero_cilint i2 then collapse0 () else collapse e1'
+      | LOr, Some i1, _ -> if is_zero_cilint i1 then collapse e2' else one
+      | LOr, _, Some i2 -> if is_zero_cilint i2 then collapse e1' else one
 
       | _ -> BinOp(bop, e1', e2', tres)
     in
@@ -2875,11 +2822,6 @@ let invalidStmt = mkStmt (Instr [])
 (** Construct a hash with the builtins *)
 let builtinFunctions : (string, typ * typ list * bool) H.t = 
   H.create 49
-
-(** Deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
-let gccBuiltins = builtinFunctions
-let msvcBuiltins = builtinFunctions
 
 (* Initialize the builtin functions after the machine has been initialized. *)
 let initGccBuiltins () : unit =
@@ -5780,13 +5722,10 @@ exception NotAnAttrParam of exp
 let rec expToAttrParam (e: exp) : attrparam = 
   match e with 
     Const(CInt64(i,k,_)) ->
-      let i', trunc = truncateInteger64 k i in
-      if trunc then 
+      let i' = mkCilint k i in
+      if not (is_int_cilint i') then
         raise (NotAnAttrParam e);
-      let i2 = Int64.to_int i' in 
-      if i' <> Int64.of_int i2 then 
-        raise (NotAnAttrParam e);
-      AInt i2
+      AInt (int_of_cilint i')
   | Lval (Var v, NoOffset) -> ACons(v.vname, [])
   | SizeOf t -> ASizeOf t
   | SizeOfE e' -> ASizeOfE (expToAttrParam e')
@@ -6868,3 +6807,101 @@ let d_formatarg () = function
   | FS _ -> dprintf "FS"
 
   | FX _ -> dprintf "FX()"
+
+(* ------------------------------------------------------------------------- *)
+(*                            DEPRECATED FUNCTIONS                           *)
+(*                        These will eventually go away                      *)
+(* ------------------------------------------------------------------------- *)
+
+(** Deprecated (can't handle large 64-bit unsigned constants
+    correctly) - use getInteger instead. If the given expression
+    is a (possibly cast'ed) character or an integer constant, return
+    that integer.  Otherwise, return None. *)
+let rec isInteger : exp -> int64 option = function
+  | Const(CInt64 (n,_,_)) -> Some n
+  | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *) 
+  | Const(CEnum(v, s, ei)) -> isInteger v
+  | CastE(_, e) -> isInteger e
+  | _ -> None
+        
+(** Deprecated.  For compatibility with older programs, these are
+  aliases for {!Cil.builtinFunctions} *)
+let gccBuiltins = builtinFunctions
+let msvcBuiltins = builtinFunctions
+
+(* Deprecated. Represents an integer as for a given kind. 
+   Returns a flag saying whether the value was changed
+   during truncation (because it was too large to fit in k). *)
+let truncateInteger64 (k: ikind) (i: int64) : int64 * bool = 
+  let nrBits = 8 * (bytesSizeOfInt k) in
+  let signed = isSigned k in
+  if nrBits = 64 then 
+    i, false
+  else begin
+    let i1 = Int64.shift_left i (64 - nrBits) in
+    let i2 = 
+      if signed then Int64.shift_right i1 (64 - nrBits) 
+      else Int64.shift_right_logical i1 (64 - nrBits)
+    in
+    let truncated =
+      if i2 = i then false
+      else
+        (* Examine the bits that we chopped off.  If they are all zero, then
+         * any difference between i2 and i is due to a simple sign-extension.
+         *   e.g. casting the constant 0x80000000 to int makes it
+         *        0xffffffff80000000.
+         * Suppress the truncation warning in this case.      *)
+        let chopped = Int64.shift_right i nrBits in
+        chopped <> Int64.zero
+          (* matth: also suppress the warning if we only chop off 1s.
+             This is probably due to a negative number being cast to an 
+             unsigned value.  While potentially a bug, this is almost
+             always what the programmer intended. *)
+        && chopped <> Int64.minus_one
+    in
+    i2, truncated
+  end
+
+(* Convert 2 integer constants to integers with the same type, in preparation
+   for a binary operation.   See ISO C 6.3.1.8p1 *)
+let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
+  : int64 * int64 * ikind =
+  if ik1 = ik2 then (* nothing to do *)
+    i1, i2, ik1
+  else begin
+    let rank : ikind -> int = function
+        (* these are just unique numbers representing the integer 
+           conversion rank. *)
+      | IBool -> 0
+      | IChar | ISChar | IUChar -> 1
+      | IShort | IUShort -> 2
+      | IInt | IUInt -> 3
+      | ILong | IULong -> 4
+      | ILongLong | IULongLong -> 5
+    in
+    let r1 = rank ik1 in
+    let r2 = rank ik2 in
+    let ik' = 
+      if (isSigned ik1) = (isSigned ik2) then begin
+        (* Both signed or both unsigned. *)
+        if r1 > r2 then ik1 else ik2
+      end
+      else begin
+        let signedKind, unsignedKind, signedRank, unsignedRank = 
+          if isSigned ik1 then ik1, ik2, r1, r2 else ik2, ik1, r2, r1
+        in
+        (* The rules for signed + unsigned get hairy.
+           (unsigned short + long) is converted to signed long,
+           but (unsigned int + long) is converted to unsigned long.*)
+        if unsignedRank >= signedRank then unsignedKind
+        else if (bytesSizeOfInt signedKind) > (bytesSizeOfInt unsignedKind) then
+          signedKind
+        else 
+          unsignedVersionOf signedKind
+      end
+    in
+    let i1',_ = truncateInteger64 ik' i1 in
+    let i2',_ = truncateInteger64 ik' i2 in
+    i1', i2', ik'      
+  end
+
