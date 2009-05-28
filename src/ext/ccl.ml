@@ -1056,8 +1056,8 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       SFacts (FactSet.singleton ("*", ANT 0))
   | Const _ ->
       begin
-        match isInteger e with
-        | Some i -> SInt (Int64.to_int i) (* TODO: possible bug in conv?  *)
+        match getInteger e with
+        | Some i -> SInt (cilint_to_int i) (* TODO: possible bug in conv?  *)
         | None -> SNone
       end
   | SizeOf _
@@ -1109,8 +1109,8 @@ and evaluateLval (lv : lval) (state : state) : summary =
       end
 
 let getTypeSize (t : typ) : int =
-  match isInteger (constFold true (SizeOf t)) with
-  | Some i -> Int64.to_int i
+  match getInteger (constFold true (SizeOf t)) with
+  | Some i -> cilint_to_int i
   | None -> E.s (E.bug "failed to compute size of type %a\n" d_type t)
 
 let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t * bool =
@@ -1362,7 +1362,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                            dn_instr instr d_state state);
            match instr with
            | Call (None, Lval (Var vi, NoOffset), [ptr; chr; size], l)
-                 when vi.vname = "memset" && isInteger chr = Some Int64.zero ->
+                 when vi.vname = "memset" && isZero chr ->
                let t = typeOf ptr in
                let facts, exact = getAllocFact t size state in
                if exact then begin

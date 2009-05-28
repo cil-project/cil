@@ -352,10 +352,9 @@ class annotationVisitor
       if isArrayType v.vtype || v.vaddrof then begin
         match v.vtype with
           TArray (bt, Some size, a) ->
-            let size' = isInteger (constFold true size) in
+            let size' = getInteger (constFold true size) in
             if size' = None then E.s (error "Non-constant array size");
-            let size'' = (Int64.to_int (Util.valOf size'))
-                  
+            let size'' = (cilint_to_int (Util.valOf size'))
                         * (bitsSizeOf bt / 8) in
             let typestr = encodeType bt in
             self#queueInstr 

@@ -11,6 +11,7 @@ Canonicalize
 Cfg
 Check
 Cil
+Cilint
 Cillower
 Ciloptions
 Ciltools

@@ -286,12 +286,12 @@ ifdef NATIVECAML
  CAMLC := ocamlopt
 else
  CMXA := cma
- CAMLC := ocamlc
+ CAMLC := ocamlc -custom
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -noautolink -I $(OBJDIR) unix.$(CMXA) str.$(CMXA) \
-                 -cclib -lunix -cclib -lstr cil.$(CMXA) \
+	$(CAMLC) -noautolink -I $(OBJDIR) unix.$(CMXA) str.$(CMXA) nums.$(CMXA) \
+                 -cclib -lunix -cclib -lstr -cclib -lnums cil.$(CMXA) \
                  $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
 	echo SUCCESS

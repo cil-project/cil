@@ -50,6 +50,7 @@ open Cabs
 open Cabshelper
 open Pretty
 open Cil
+open Cilint
 open Trace
 
 
@@ -2362,8 +2363,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let a = extraAttrs @ (getTypeAttrs ()) in 
         enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
-	let smallest = ref Int64.zero in
-	let largest = ref Int64.zero in
+	let smallest = ref zero_cilint in
+	let largest = ref zero_cilint in
 
 	(* Life is fun here. ANSI says: enum constants are ints,
 	   and there's an implementation-dependent underlying integer
@@ -2379,12 +2380,13 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	     values; T is signed if any enum value is negative, unsigned otherwise
 	   - if the enum is packed or sizeof(T) >= sizeof(int), then EI = T
 	   - otherwise EI = int if T is signed and unsigned int otherwise
-	   Note that these rules make the enum unsigned if possible *)
+	   Note that these rules make the enum unsigned if possible (as
+	   opposed the enum constants which tend towards being signed...) *)
 
-	let updateEnum (i:int64) : ikind =
-	  if Int64.compare i !smallest < 0 then
+	let updateEnum (i:cilint) : ikind =
+	  if compare_cilint i !smallest < 0 then
 	    smallest := i;
-	  if Int64.compare i !largest > 0 then
+	  if compare_cilint i !largest > 0 then
 	    largest := i;
 	  if !msvcMode then 
 	    IInt
@@ -2392,6 +2394,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	    (* This matches gcc's behaviour *)
 	    if fitsInInt IInt i then IInt
 	    else if fitsInInt IUInt i then IUInt
+	    else if fitsInInt ILong i then ILong
+	    else if fitsInInt IULong i then IULong
 	    else if fitsInInt ILongLong i then ILongLong
 	    else IULongLong
 	in
@@ -2408,7 +2412,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           
           (kname, (newname, i, loc)) :: loop (increm i 1) rest
         end
-            
+
         and loop i = function
             [] -> []
           | (kname, A.NOTHING, cloc) :: rest ->
@@ -2419,10 +2423,10 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
               (* constant-eval 'e' to determine tag value *)
               let e' = getIntConstExp e in
               let e'' = 
-                match isInteger (constFold true e') with 
-                  Some i -> 
-		    let ik = updateEnum i in 
-		    if !lowerConstants then kinteger64 ik i else e'
+                match getInteger (constFold true e') with 
+                  Some n -> 
+		    let ik = updateEnum n in 
+		    if !lowerConstants then kintegerCilint ik n else e'
                 | _ -> E.s (error "Constant initializer %a not an integer" d_exp e')
               in
               processName kname e'' (convLoc cloc) rest
@@ -2433,7 +2437,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         enum.eitems <- List.map (fun (_, x) -> x) fields;
 	(* Pick the enum's kind - see discussion above *)
 	if not !msvcMode then begin
-	  let unsigned = Int64.compare !smallest Int64.zero >= 0 in
+	  let unsigned = compare_cilint !smallest zero_cilint >= 0 in
 	  let smallKind = intKindForValue !smallest unsigned in
 	  let largeKind = intKindForValue !largest unsigned in
 	  let ekind = 
@@ -2584,8 +2588,8 @@ and doAttr (a: A.attribute) : attribute list =
 
               match H.find env n' with 
                 EnvEnum (tag, _), _ -> begin
-                  match isInteger (constFold true tag) with 
-                    Some i64 when !lowerConstants -> AInt (i64_to_int i64)
+                  match getInteger (constFold true tag) with 
+                    Some i when !lowerConstants -> AInt (cilint_to_int i)
                   |  _ -> ACons(n', [])
                 end
               | _ -> ACons (n', [])
@@ -2784,12 +2788,17 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                                 * an extern, for example. We use 1 for now *)
                 in 
                 (match constFold true len' with 
-                   Const(CInt64(i, _, _)) ->
-                     if i < 0L then 
+                   Const(CInt64(i, ik, _)) ->
+		     (* We want array sizes to be positive, and the byte size
+			to fit in an OCaml int *)
+		     let elems = mkCilint ik i in
+                     if compare_cilint elems zero_cilint < 0 then 
                        E.s (error "Length of array is negative");
-                     if Int64.mul i (Int64.of_int elsz) >= 0x80000000L then 
-                       E.s (error "Length of array is too large")
-
+		     let size = mul_cilint elems (cilint_of_int elsz) in
+		     begin
+		       try ignore(int_of_cilint size)
+		       with _ -> E.s (error "Length of array is too large")
+		     end
                  | l -> 
                      if isConstant l then 
                        (* e.g., there may be a float constant involved. 
@@ -3101,8 +3110,8 @@ and getIntConstExp (aexp) : exp =
 and isIntegerConstant (aexp) : int option =
   match doExp true aexp (AExp None) with
     (c, e, _) when isEmpty c -> begin
-      match isInteger (constFold true e) with
-        Some i64 -> Some (i64_to_int i64)
+      match getInteger (constFold true e) with
+        Some i -> Some (cilint_to_int i)
       | _ -> None
     end
   | _ -> None
@@ -6208,16 +6217,16 @@ and doStatement (s : A.statement) : chunk =
         let (seh, eh', etl) = doExp false eh (AExp None) in
         if isNotEmpty sel || isNotEmpty seh then
           E.s (error "Case statement with a non-constant");
-        let il, ih = 
+        let il, ih, ik = 
           match constFold true el', constFold true eh' with
-            Const(CInt64(il, _, _)), Const(CInt64(ih, _, _)) -> 
-              i64_to_int il, i64_to_int ih
+            Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) -> 
+              mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
           | _ -> E.s (unimp "Cannot understand the constants in case range")
         in
-        if il > ih then 
+        if compare_cilint il ih > 0 then 
           E.s (error "Empty case range");
-        let rec mkAll (i: int) = 
-          if i > ih then [] else integer i :: mkAll (i + 1)
+        let rec mkAll (i: cilint) = 
+          if compare_cilint i ih > 0 then [] else kintegerCilint ik i :: mkAll (add_cilint i one_cilint)
         in
         caseRangeChunk (mkAll il) loc' (doStatement s)
         

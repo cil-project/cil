@@ -42,6 +42,8 @@
  *
  *)
 
+open Cilint
+
 (** {b CIL API Documentation.}  An html version of this document 
  *  can be found at http://hal.cs.berkeley.edu/cil *)
 
@@ -1594,9 +1596,14 @@ val one: exp
 val mone: exp
 
 
+(** Construct an integer of a given kind, from a cilint. If needed it
+ * will truncate the integer to be within the representable range for
+ * the given kind. *)
+val kintegerCilint: ikind -> cilint -> exp
+
 (** Construct an integer of a given kind, using OCaml's int64 type. If needed 
-  * it will truncate the integer to be within the representable range for the 
-  * given kind. *)
+ * it will truncate the integer to be within the representable range for the 
+ * given kind. *)
 val kinteger64: ikind -> int64 -> exp
 
 (** Construct an integer of a given kind. Converts the integer to int64 and 
@@ -1605,19 +1612,29 @@ val kinteger64: ikind -> int64 -> exp
   * the Char or Short kinds *)
 val kinteger: ikind -> int -> exp
 
-(** Construct an integer of kind IInt. You can use this always since the 
-    OCaml integers are 31 bits and are guaranteed to fit in an IInt *)
+(** Construct an integer of kind IInt. On targets where C's 'int' is 16-bits,
+    the integer may get truncated. *)
 val integer: int -> exp
 
 
-(** If the given expression is a (possibly cast'ed) 
-    character or an integer constant, return that integer.
-    Otherwise, return None. *)
+(** Deprecated (can't handle large 64-bit unsigned constants
+    correctly) - use getInteger instead. If the given expression
+    is a (possibly cast'ed) character or an integer constant, return
+    that integer.  Otherwise, return None. *)
 val isInteger: exp -> int64 option
+
+(** If the given expression is an integer constant or a CastE'd
+    integer constant, return that constant's value. 
+    Otherwise return None. *)
+val getInteger: exp -> cilint option
 
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
     can't be done. *)
 val i64_to_int: int64 -> int
+
+(** Convert a cilint int to an OCaml int, or raise an exception if that
+    can't be done. *)
+val cilint_to_int: cilint -> int
 
 (** True if the expression is a compile-time constant *)
 val isConstant: exp -> bool
@@ -1634,8 +1651,6 @@ val isZero: exp -> bool
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
   Returns CInt64(sign-extened c, IInt, None) *)
 val charConstToInt: char -> constant
-
-val convertInts: int64 -> ikind -> int64 -> ikind -> int64 * int64 * ikind
 
 (** Do constant folding on an expression. If the first argument is true then 
     will also compute compiler-dependent expressions such as sizeof.
@@ -2483,6 +2498,16 @@ exception SizeOfError of string * typ
 (** Give the unsigned kind corresponding to any integer kind *)
 val unsignedVersionOf : ikind -> ikind
 
+(** Give the signed kind corresponding to any integer kind *)
+val signedVersionOf : ikind -> ikind
+
+(** Return the integer conversion rank of an integer kind *)
+val intRank : ikind -> int
+
+(** Return the common integer kind of the two integer arguments, as
+    defined in ISO C 6.3.1.8 ("Usual arithmetic conversions") *)
+val commonIntKind : ikind -> ikind -> ikind
+
 (** The signed integer kind for a given size (unsigned if second argument
  * is true). Raises Not_found if no such kind exists *)
 val intKindForSize : int -> bool -> ikind
@@ -2505,16 +2530,34 @@ val bitsSizeOf: typ -> int
  * during truncation (because it was too large to fit in k). *)
 val truncateInteger64: ikind -> int64 -> int64 * bool
 
+(** Represents an integer as for a given kind.  Returns a truncation
+ * flag saying that the value fit in the kind (NoTruncation), didn't
+ * fit but no "interesting" bits (all-0 or all-1) were lost
+ * (ValueTruncation) or that bits were lost (BitTruncation). Another 
+ * way to look at the ValueTruncation result is that if you had used
+ * the kind of opposite signedness (e.g. IUInt rather than IInt), you
+ * would gave got NoTruncation... *)
+val truncateCilint: ikind -> cilint -> cilint * truncation
+
 (** True if the integer fits within the kind's range *)
-val fitsInInt: ikind -> int64 -> bool
+val fitsInInt: ikind -> cilint -> bool
 
-(** Return the smallest kind that will hold the integer's value.
- *  The kind will be unsigned if the 2nd argument is true *)
-val intKindForValue: int64 -> bool -> ikind
+(** Return the smallest kind that will hold the integer's value.  The
+ * kind will be unsigned if the 2nd argument is true, signed
+ * otherwise.  Note that if the value doesn't fit in any of the
+ * available types, you will get ILongLong (2nd argument false) or
+ * IULongLong (2nd argument true). *)
+val intKindForValue: cilint -> bool -> ikind
 
-(** The size of a type, in bytes. Returns a constant expression or a "sizeof" 
- * expression if it cannot compute the size. This function is architecture 
- * dependent, so you should only call this after you call {!Cil.initCIL}.  *)
+(** Construct a cilint from an integer kind and int64 value. Used for
+ * getting the actual constant value from a CInt64(n, ik, _)
+ * constant. *)
+val mkCilint : ikind -> int64 -> cilint
+
+(** The size of a type, in bytes. Returns a constant expression or a
+ * "sizeof" expression if it cannot compute the size. This function
+ * is architecture dependent, so you should only call this after you
+ * call {!Cil.initCIL}.  *)
 val sizeOf: typ -> exp
 
 (** The minimum alignment (in bytes) for a type. This function is 

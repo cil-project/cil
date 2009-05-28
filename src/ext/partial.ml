@@ -13,6 +13,7 @@
  * (More assumptions in the comments below)
  *****************************************************************************)
 open Cil
+open Cilint
 open Pretty
 
 (*****************************************************************************
@@ -754,8 +755,8 @@ struct
               and is_false e = isZero e
               (* logical truth in C expressed in cilly's terms *)
               and is_true e =
-                match isInteger e with
-                    Some x -> x <> Int64.zero
+                match getInteger e with
+                    Some x -> not (iszero_cilint x)
                   | None -> false in
               (* evaluate expression and eliminate branches *)
               let e' = S.evaluate state e in

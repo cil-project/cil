@@ -75,7 +75,7 @@ CILLY_FEATURES += @EXTRAFEATURES@
 CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
               cilutil escape longarray growArray\
               cabs cabshelper cabsvisit whitetrack cprint lexerhack machdep machdepenv cparser clexer  \
-              cilversion cil cillower formatparse formatlex formatcil cabs2cil \
+              cilversion cilint cil cillower formatparse formatlex formatcil cabs2cil \
               patch frontc check mergecil \
               dataflow dominators bitmap ssa ciltools \
               usedef logcalls logwrites rmtmps \
@@ -93,7 +93,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 # main's argument checking and whatnot ...
 CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
 CILLY_CMODULES = perfcount
-CILLY_LIBS     = unix str
+CILLY_LIBS     = unix str nums
 
 SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
 MLLS        += clexer.mll formatlex.mll
@@ -109,7 +109,7 @@ include ocamlutil/Makefile.ocaml
 
 OBEXEEXT = $(EXEEXT:asm=native)
 ocamlbuild:
-	ocamlbuild -X obj -X doc -X test src/main$(OBEXEEXT) src/cil.$(CMXA)
+	ocamlbuild -cflags -g -X obj -X doc -X test src/main$(OBEXEEXT) src/cil.$(CMXA)
 	cp _build/src/main$(OBEXEEXT) $(OBJDIR)/cilly$(EXE)
 	cp _build/src/cil.$(CMXA) $(OBJDIR)/
 
