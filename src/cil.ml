@@ -4990,22 +4990,14 @@ let removeOffsetLval ((b, off): lval) : lval * offset =
 (*** Define the visiting engine ****)
 (* visit all the nodes in a Cil expression *)
 let doVisit (vis: cilVisitor)
-            (startvisit: 'a -> 'a visitAction) 
+            (action: 'a visitAction)
             (children: cilVisitor -> 'a -> 'a) 
             (node: 'a) : 'a = 
-  let action = startvisit node in
   match action with
     SkipChildren -> node
   | ChangeTo node' -> node'
-  | _ -> (* DoChildren and ChangeDoChildrenPost *)
-      let nodepre = match action with
-        ChangeDoChildrenPost (node', _) -> node'
-      | _ -> node
-      in
-      let nodepost = children vis nodepre in
-      match action with
-        ChangeDoChildrenPost (_, f) -> f nodepost
-      | _ -> nodepost
+  | DoChildren -> children vis node
+  | ChangeDoChildrenPost(node', f) -> f (children vis node')
 
 (* mapNoCopy is like map but avoid copying the list if the function does not 
  * change the elements. *)
@@ -5027,27 +5019,20 @@ let rec mapNoCopyList (f: 'a -> 'a list) = function
 
 (* A visitor for lists *)
 let doVisitList  (vis: cilVisitor)
-                 (startvisit: 'a -> 'a list visitAction)
+                 (action: 'a list visitAction)
                  (children: cilVisitor -> 'a -> 'a)
                  (node: 'a) : 'a list = 
-  let action = startvisit node in
   match action with
     SkipChildren -> [node]
   | ChangeTo nodes' -> nodes'
-  | _ -> 
-      let nodespre = match action with
-        ChangeDoChildrenPost (nodespre, _) -> nodespre
-      | _ -> [node]
-      in
-      let nodespost = mapNoCopy (children vis) nodespre in
-      match action with
-        ChangeDoChildrenPost (_, f) -> f nodespost
-      | _ -> nodespost
+  | DoChildren -> [children vis node]
+  | ChangeDoChildrenPost(nodes', f) ->
+      f (mapNoCopy (fun n -> children vis n) nodes')
   
 let debugVisit = false
 
 let rec visitCilExpr (vis: cilVisitor) (e: exp) : exp = 
-  doVisit vis vis#vexpr childrenExp e
+  doVisit vis (vis#vexpr e) childrenExp e
 and childrenExp (vis: cilVisitor) (e: exp) : exp = 
   let vExp e = visitCilExpr vis e in
   let vTyp t = visitCilType vis t in
@@ -5120,17 +5105,17 @@ and visitCilInit (vis: cilVisitor) (forglob: varinfo)
         let initl' = if !hasChanged then List.rev !newinitl else initl in
         if t' != t || initl' != initl then CompoundInit (t', initl') else i
   in
-  doVisit vis (vis#vinit forglob atoff) childrenInit i
+  doVisit vis (vis#vinit forglob atoff i) childrenInit i
           
 and visitCilLval (vis: cilVisitor) (lv: lval) : lval =
-  doVisit vis vis#vlval childrenLval lv
+  doVisit vis (vis#vlval lv) childrenLval lv
 and childrenLval (vis: cilVisitor) (lv: lval) : lval =  
   (* and visit its subexpressions *)
   let vExp e = visitCilExpr vis e in
   let vOff off = visitCilOffset vis off in
   match lv with
     Var v, off ->
-      let v'   = doVisit vis vis#vvrbl (fun _ x -> x) v in
+      let v'   = doVisit vis (vis#vvrbl v) (fun _ x -> x) v in
       let off' = vOff off in
       if v' != v || off' != off then Var v', off' else lv
   | Mem e, off -> 
@@ -5139,7 +5124,7 @@ and childrenLval (vis: cilVisitor) (lv: lval) : lval =
       if e' != e || off' != off then Mem e', off' else lv
 
 and visitCilOffset (vis: cilVisitor) (off: offset) : offset =
-  doVisit vis vis#voffs childrenOffset off
+  doVisit vis (vis#voffs off) childrenOffset off
 and childrenOffset (vis: cilVisitor) (off: offset) : offset =
   let vOff off = visitCilOffset vis off in
   match off with
@@ -5159,20 +5144,20 @@ and childrenOffset (vis: cilVisitor) (off: offset) : offset =
  * initializers will never recursively contain offsets)
  *)
 and visitCilInitOffset (vis: cilVisitor) (off: offset) : offset =
-  doVisit vis vis#vinitoffs childrenOffset off
+  doVisit vis (vis#vinitoffs off) childrenOffset off
 
 and visitCilInstr (vis: cilVisitor) (i: instr) : instr list =
   let oldloc = !currentLoc in
   currentLoc := (get_instrLoc i);
   assertEmptyQueue vis;
-  let res = doVisitList vis vis#vinst childrenInstr i in
+  let res = doVisitList vis (vis#vinst i) childrenInstr i in
   currentLoc := oldloc;
   (* See if we have accumulated some instructions *)
   vis#unqueueInstr () @ res
 
 and childrenInstr (vis: cilVisitor) (i: instr) : instr =
-  let fExp = visitCilExpr vis in
-  let fLval = visitCilLval vis in
+  let fExp e = visitCilExpr vis e in
+  let fLval lv = visitCilLval vis lv in
   match i with
   | Set(lv,e,l) -> 
       let lv' = fLval lv in let e' = fExp e in
@@ -5203,7 +5188,7 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   currentLoc := (get_stmtLoc s.skind) ;
   assertEmptyQueue vis;
   let toPrepend : instr list ref = ref [] in (* childrenStmt may add to this *)
-  let res = doVisit vis vis#vstmt (childrenStmt toPrepend) s in
+  let res = doVisit vis (vis#vstmt s) (childrenStmt toPrepend) s in
   (* Now see if we have saved some instructions *)
   toPrepend := !toPrepend @ vis#unqueueInstr ();
   (match !toPrepend with 
@@ -5215,7 +5200,9 @@ and visitCilStmt (vis: cilVisitor) (s: stmt) : stmt =
   currentLoc := oldloc;
   res
   
-and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
+and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
+  (* this is a hack to avoid currying and reduce GC pressure *)
+  () ; fun vis s ->
   let fExp e = (visitCilExpr vis e) in
   let fBlock b = visitCilBlock vis b in
   let fInst i = visitCilInstr vis i in
@@ -5294,7 +5281,7 @@ and childrenStmt (toPrepend: instr list ref) (vis:cilVisitor) (s:stmt): stmt =
     
  
 and visitCilBlock (vis: cilVisitor) (b: block) : block = 
-  doVisit vis vis#vblock childrenBlock b
+  doVisit vis (vis#vblock b) childrenBlock b
 and childrenBlock (vis: cilVisitor) (b: block) : block = 
   let fStmt s = visitCilStmt vis s in
   let stmts' = mapNoCopy fStmt b.bstmts in
@@ -5302,7 +5289,7 @@ and childrenBlock (vis: cilVisitor) (b: block) : block =
 
 
 and visitCilType (vis : cilVisitor) (t : typ) : typ =
-  doVisit vis vis#vtype childrenType t
+  doVisit vis (vis#vtype t) childrenType t
 and childrenType (vis : cilVisitor) (t : typ) : typ =
   (* look for types referred to inside t's definition *)
   let fTyp t  = visitCilType vis t in
@@ -5358,7 +5345,7 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
 (* for declarations, we visit the types inside; but for uses, *)
 (* we just visit the varinfo node *)
 and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
-  doVisit vis vis#vvdec childrenVarDecl v 
+  doVisit vis (vis#vvdec v) childrenVarDecl v
 and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   v.vtype <- visitCilType vis v.vtype;
   v.vattr <- visitCilAttributes vis v.vattr;  
@@ -5366,7 +5353,7 @@ and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
 
 and visitCilAttributes (vis: cilVisitor) (al: attribute list) : attribute list=
    let al' = 
-     mapNoCopyList (doVisitList vis vis#vattr childrenAttribute) al in
+     mapNoCopyList (fun x -> doVisitList vis (vis#vattr x) childrenAttribute x) al in
    if al' != al then 
      (* Must re-sort *)
      addAttributes al' []
@@ -5381,7 +5368,7 @@ and childrenAttribute (vis: cilVisitor) (a: attribute) : attribute =
       
 
 and visitCilAttrParams (vis: cilVisitor) (a: attrparam) : attrparam =
-   doVisit vis vis#vattrparam childrenAttrparam a
+   doVisit vis (vis#vattrparam a) childrenAttrparam a
 and childrenAttrparam (vis: cilVisitor) (aa: attrparam) : attrparam = 
   let fTyp t  = visitCilType vis t in
   let fAttrP a = visitCilAttrParams vis a in
@@ -5436,7 +5423,7 @@ and childrenAttrparam (vis: cilVisitor) (aa: attrparam) : attrparam =
 let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   if debugVisit then ignore (E.log "Visiting function %s\n" f.svar.vname);
   assertEmptyQueue vis;
-  let f = doVisit vis vis#vfunc childrenFunction f in
+  let f = doVisit vis (vis#vfunc f) childrenFunction f in
 
   let toPrepend = vis#unqueueInstr () in
   if toPrepend <> [] then 
@@ -5444,11 +5431,12 @@ let rec visitCilFunction (vis : cilVisitor) (f : fundec) : fundec =
   f
 
 and childrenFunction (vis : cilVisitor) (f : fundec) : fundec =
+  let visitVarDecl vd = visitCilVarDecl vis vd in
   f.svar <- visitCilVarDecl vis f.svar; (* hit the function name *)
   (* visit local declarations *)
-  f.slocals <- mapNoCopy (visitCilVarDecl vis) f.slocals;
+  f.slocals <- mapNoCopy visitVarDecl f.slocals;
   (* visit the formals *)
-  let newformals = mapNoCopy (visitCilVarDecl vis) f.sformals in
+  let newformals = mapNoCopy visitVarDecl f.sformals in
   (* Make sure the type reflects the formals *)
   setFormals f newformals;
   (* Remember any new instructions that were generated while visiting
@@ -5465,7 +5453,7 @@ let rec visitCilGlobal (vis: cilVisitor) (g: global) : global list =
   let oldloc = !currentLoc in
   currentLoc := (get_globalLoc g) ;
   currentGlobal := g;
-  let res = doVisitList vis vis#vglob childrenGlobal g in
+  let res = doVisitList vis (vis#vglob g) childrenGlobal g in
   currentLoc := oldloc;
   res
 and childrenGlobal (vis: cilVisitor) (g: global) : global =
