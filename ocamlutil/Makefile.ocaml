@@ -287,7 +287,11 @@ ifdef CAML_NOOPT
    LINK_FLAGS       += -ccopt /Zi -ccopt /Od
  else
    COMPILE_FLAGS    += -g -ccopt -g
-   LINK_FLAGS       += -g -ccopt -g
+   ifdef MINGW
+     LINK_FLAGS       += -g
+   else
+     LINK_FLAGS       += -g -ccopt -g
+   endif
  endif
 else
   ifdef WIN32
