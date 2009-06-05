@@ -100,7 +100,8 @@ let print chn msg =
      else "Unix.time");
   let gc = Gc.quick_stat () in 
   let printM (w: float) : string = 
-    Printf.sprintf "%.2fMb" (w *. 4.0 /. 1000000.0)
+    let coeff = float_of_int (Sys.word_size / 8) in
+    Printf.sprintf "%.2fMb" (w *. coeff /. 1000000.0)
   in
   Printf.fprintf chn 
     "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
