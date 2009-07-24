@@ -2385,7 +2385,7 @@ and bitsSizeOf t =
   | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
   | TFloat _ -> 8 * !M.theMachine.M.sizeof_float
-  | TEnum (ei, _) -> 8 * (bitsSizeOf (TInt(ei.ekind, [])))
+  | TEnum (ei, _) -> bitsSizeOf (TInt(ei.ekind, []))
   | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
