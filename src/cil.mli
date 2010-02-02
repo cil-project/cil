@@ -51,7 +51,7 @@ open Cilint
  * set {!Cil.msvcMode}.  *)
 val initCIL: unit -> unit
 
-(** This are the CIL version numbers. A CIL version is a number of the form 
+(** These are the CIL version numbers. A CIL version is a number of the form 
  * M.m.r (major, minor and release) *)
 val cilVersion: string
 val cilVersionMajor: int
