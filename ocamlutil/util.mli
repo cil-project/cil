@@ -36,6 +36,8 @@ val list_iter3 : ('a -> 'b -> 'c -> unit) ->
 val get_some_option_list : 'a option list -> 'a list
 val list_append: ('a list) -> ('a list) -> ('a list) (* tail-recursive append*)
 
+val list_map : ('a -> 'b) -> 'a list -> 'b list
+
 (** Iterate over a list passing the index as you go *)
 val list_iteri: (int -> 'a -> unit) -> 'a list -> unit
 val list_mapi: (int -> 'a -> 'b) -> 'a list -> 'b list

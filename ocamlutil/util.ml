@@ -201,7 +201,23 @@ let rec list_find_first (l: 'a list) (f: 'a -> 'b option) : 'b option =
         None -> list_find_first t f
       | r -> r
   end
-  
+
+let list_array_map f l =
+  Array.to_list (Array.map f (Array.of_list l))
+ 
+let rec count_map f l ctr =
+  match l with
+  | [] -> []
+  | [x] -> [f x]
+  | [x;y] -> [f x; f y]
+  | [x;y;z] -> [f x; f y; f z]
+  | x :: y :: z :: w :: tl ->
+    f x :: f y :: f z :: f w ::
+      (if ctr > 500 then list_array_map f tl
+       else count_map f tl (ctr + 1))
+ 
+let list_map f l = count_map f l 0
+
 (** Generates the range of integers starting with a and ending with b *)
 let int_range_list (a: int) (b: int) = 
   list_init (b - a + 1) (fun i -> a + i)
