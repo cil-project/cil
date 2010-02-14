@@ -419,7 +419,7 @@ object
         Instr il when contains_call il ->
           begin
             let list_of_stmts =
-              List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
+              Util.list_map (fun one_inst -> mkStmtOneInstr one_inst) il in
             let block = mkBlock list_of_stmts in
               ChangeDoChildrenPost
                 (s, (fun _ -> s.skind <- Block block; s))
@@ -603,7 +603,7 @@ struct
             Instr il ->
               let state = ref state in
               let new_il =
-                List.map
+                Util.list_map
                   (fun i ->
                      if debug then
                        ignore (Pretty.printf "Instr %a@!" d_instr i);
@@ -643,7 +643,7 @@ struct
                                              [Call (lo, Lval (Var vi, NoOffset), al', loc)], false
                              with e ->
                                let state'' = S.call_to_unknown_function !state in
-                               let al' = List.map (S.evaluate !state) al in
+                               let al' = Util.list_map (S.evaluate !state) al in
                                  state := state'';
                                  [Call (lo, Lval (Var vi, NoOffset), al', loc)], false
                            in
@@ -656,7 +656,7 @@ struct
                              end;
                              result
                        | Call (lo, f, al, loc) ->
-                           let al' = List.map (S.evaluate !state) al in
+                           let al' = Util.list_map (S.evaluate !state) al in
                              state := S.call_to_unknown_function !state;
                              begin
                                match lo with

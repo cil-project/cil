@@ -66,7 +66,7 @@ let rec varTimesMono (v: int) (m: mono) =
  
 (* Multiply a polynomial by a variable *)
 let varTimesPoly (v: int) (p: poly) : poly = 
-  List.map (fun (l, m) -> (l, varTimesMono v m)) p
+  Util.list_map (fun (l, m) -> (l, varTimesMono v m)) p
 
 
 (* Add a number of polynomials *)
@@ -85,7 +85,7 @@ let groupByLeaf (p: poly) : (string * mono list) list =
   (* Sort the leaves *)
   let ll = H.fold (fun l _ acc -> l :: acc) leaves [] in
   let ll = List.sort (fun l1 l2 -> compare l1 l2) ll in
-  List.map 
+  Util.list_map 
     (fun l -> 
       let ml = H.find_all h l in
       (l, ml))
@@ -104,7 +104,7 @@ let groupByMonomial (p: poly) : (mono * string list) list =
   (* Sort the monomials *)
   let ml = H.fold (fun m _ acc -> m :: acc) monomials [] in
   let ml = List.sort (fun l1 l2 -> compare l1 l2) ml in
-  List.map 
+  Util.list_map 
     (fun m -> 
       let ll = H.find_all h m in
       let ll = List.sort compare ll in

@@ -154,7 +154,7 @@ class callBBVisitor = object
     match s.skind with
       Instr(il) -> begin
 	if (List.length il > 1) then 
-          let list_of_stmts = List.map (fun one_inst -> 
+          let list_of_stmts = Util.list_map (fun one_inst -> 
             mkStmtOneInstr one_inst) il in
           let block = mkBlock list_of_stmts in
 	  s.skind <- Block block;

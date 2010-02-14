@@ -857,7 +857,7 @@ let rec oneFilePass1 (f:file) : unit =
           (* Save the names of the formal arguments *)
           let _, args, _, _ = splitFunctionTypeVI fdec.svar in
           H.add formalNames (!currentFidx, fdec.svar.vname) 
-            (List.map (fun (fn, _, _) -> fn) (argsToList args));
+            (Util.list_map (fun (fn, _, _) -> fn) (argsToList args));
           fdec.svar.vreferenced <- false;
           (* Force inline functions to be static. *) 
           (* GN: This turns out to be wrong. inline functions are external, 
@@ -1601,7 +1601,7 @@ let oneFilePass2 (f: file) =
                 (* And we must rename the items to using the same name space 
                  * as the variables *)
                 ei.eitems <- 
-                   List.map
+                   Util.list_map
                      (fun (n, i, loc) -> 
                        let newname, _ = 
                          A.newAlphaName vtAlpha None n !currentLoc in

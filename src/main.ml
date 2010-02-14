@@ -223,7 +223,7 @@ let theMain () =
       Testcil.doit !Cilutil.testcil
     end else
       (* parse each of the files named on the command line, to CIL *)
-      let files = List.map parseOneFile !Ciloptions.fileNames in
+      let files = Util.list_map parseOneFile !Ciloptions.fileNames in
 
       (* if there's more than one source file, merge them together; *)
       (* now we have just one CIL "file" to deal with *)

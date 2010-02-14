@@ -104,7 +104,7 @@ let myTypeSig (t: typ) : typsig =
     | TSArray (base, e, a) ->
         TSArray (removeFunPtrs base, e, a)
     | TSFun (ret, args, v, a) ->
-        TSFun (removeFunPtrs ret, List.map removeFunPtrs args, v, a)
+        TSFun (removeFunPtrs ret, Util.list_map removeFunPtrs args, v, a)
     | _ -> ts
   in
   removeFunPtrs (typeSigWithAttrs (fun _ -> []) t)
@@ -563,7 +563,7 @@ let makeStartNodeLinks () : unit =
 
 let funType (ret_t: typ) (args: (string * typ) list) = 
   TFun(ret_t, 
-      Some (List.map (fun (n,t) -> (n, t, [])) args),
+      Some (Util.list_map (fun (n,t) -> (n, t, [])) args),
       false, [])
 
 class instrumentClass = object

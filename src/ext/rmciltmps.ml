@@ -1023,7 +1023,7 @@ class unusedRemoverClass : cilVisitor = object(self)
     match stm.skind with
       Instr il ->
 	let newil = List.filter good_instr il in
-	let newil' = List.map call_fixer newil in
+	let newil' = Util.list_map call_fixer newil in
 	stm.skind <- Instr(newil');
 	SkipChildren
     | _ -> DoChildren

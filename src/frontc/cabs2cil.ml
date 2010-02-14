@@ -868,7 +868,7 @@ module BlockChunk =
       if c.cases != [] then raise (Failure "cannot duplicate: has cases") else
       let pCount = ref (List.length c.postins) in
       { stmts = 
-        List.map 
+        Util.list_map 
           (fun s -> 
             if s.labels != [] then 
               raise (Failure "cannot duplicate: has labels");
@@ -981,7 +981,7 @@ module BlockChunk =
 
     let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
-      let labels = List.map (fun e -> Case (e, l)) el in
+      let labels = Util.list_map (fun e -> Case (e, l)) el in
       fst.labels <- labels @ fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
         
@@ -1693,7 +1693,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
        inline one *)
     if (not !Cil.oldstyleExternInline) && oldvi.vstorage = Extern && oldvi.vinline then begin
       H.remove alreadyDefined oldvi.vname;
-      theFile := List.map (fun g -> match g with
+      theFile := Util.list_map (fun g -> match g with
 	   | GFun (fi, l) when fi.svar == oldvi -> GVarDecl(fi.svar, l)
 	   | x -> x) !theFile
     end;
@@ -2434,7 +2434,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         
         let fields = loop zero eil in
         (* Now set the right set of items *)
-        enum.eitems <- List.map (fun (_, x) -> x) fields;
+        enum.eitems <- Util.list_map (fun (_, x) -> x) fields;
 	(* Pick the enum's kind - see discussion above *)
 	if not !msvcMode then begin
 	  let unsigned = compare_cilint !smallest zero_cilint >= 0 in
@@ -2605,7 +2605,7 @@ and doAttr (a: A.attribute) : attribute list =
           end
         | A.CALL(A.VARIABLE n, args) -> begin
             let n' = if strip then stripUnderscore n else n in
-            let ae' = List.map ae args in
+            let ae' = Util.list_map ae args in
             ACons(n', ae')
         end
         | A.EXPR_SIZEOF e -> ASizeOfE (ae e)
@@ -2644,13 +2644,13 @@ and doAttr (a: A.attribute) : attribute list =
                    d_attrparam a);
       in
       if s = "__attribute__" then (* Just a wrapper for many attributes*)
-        List.map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
+        Util.list_map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
       else if s = "__blockattribute__" then (* Another wrapper *)
-        List.map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
+        Util.list_map (fun e -> arg2attr (attrOfExp true ~foldenum:false e)) el
       else if s = "__declspec" then
-        List.map (fun e -> arg2attr (attrOfExp false ~foldenum:false e)) el
+        Util.list_map (fun e -> arg2attr (attrOfExp false ~foldenum:false e)) el
       else
-        [Attr(stripUnderscore s, List.map (attrOfExp ~foldenum:false false) el)]
+        [Attr(stripUnderscore s, Util.list_map (attrOfExp ~foldenum:false false) el)]
 
 and doAttributes (al: A.attribute list) : attribute list =
   List.fold_left (fun acc a -> cabsAddAttributes (doAttr a) acc) [] al
@@ -2854,7 +2854,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
           vi
         in
         let targs : varinfo list option = 
-          match List.map doOneArg args'  with
+          match Util.list_map doOneArg args'  with
           | [] -> None (* No argument list *)
           | [t] when isVoidType t.vtype -> 
               Some []
@@ -2909,7 +2909,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
             None -> None
           | Some argl -> 
               fixupArgumentTypes 0 argl;
-              Some (List.map (fun a -> (a.vname, a.vtype, a.vattr)) argl)
+              Some (Util.list_map (fun a -> (a.vname, a.vtype, a.vattr)) argl)
         in
         let tres = 
           match unrollType bt with
@@ -3026,11 +3026,11 @@ and makeCompType (isstruct: bool)
         floc      =  convLoc cloc
       } 
     in
-    List.map makeFieldInfo nl
+    Util.list_map makeFieldInfo nl
   in
 
 
-  let flds = List.concat (List.map doFieldGroup nglist) in
+  let flds = List.concat (Util.list_map doFieldGroup nglist) in
   if comp.cfields <> [] then begin
     (* This appears to be a multiply defined structure. This can happen from 
     * a construct like "typedef struct foo { ... } A, B;". This is dangerous 
@@ -3038,7 +3038,7 @@ and makeCompType (isstruct: bool)
     * appear as backward references, which coild lead to circularity in 
     * the type structure. We do a thourough check and then we reuse the type 
     * for A *)
-    let fieldsSig fs = List.map (fun f -> typeSig f.ftype) fs in 
+    let fieldsSig fs = Util.list_map (fun f -> typeSig f.ftype) fs in 
     if not (Util.equals (fieldsSig comp.cfields) (fieldsSig flds)) then
       ignore (error "%s seems to be multiply defined" (compFullName comp))
   end else 
@@ -3078,7 +3078,7 @@ and preprocessCast (specs: A.specifier)
   let specs1 = 
     match typ with
       TComp (ci, _) -> 
-        List.map 
+        Util.list_map 
           (function 
               A.SpecType (A.Tstruct ("", flds, [])) -> 
                 A.SpecType (A.Tstruct (ci.cname, None, []))
@@ -4866,7 +4866,7 @@ and doInit
           A.NEXT_INIT, 
           A.SINGLE_INIT(A.CONSTANT (A.CONST_INT (Int64.to_string c)))
 	in
-        (List.map init s) @
+        (Util.list_map init s) @
         (
 	  (* ISO 6.7.8 para 14: final NUL added only if no size specified, or
 	   * if there is room for it; btw, we can't rely on zero-init of
@@ -4875,7 +4875,7 @@ and doInit
             then [init Int64.zero]
             else [])
 (*
-        List.map 
+        Util.list_map 
           (fun c -> 
 	    if (compare c maxWChar > 0) then (* if c > maxWChar *)
 	      E.s (error "cab2cil:doInit:character 0x%Lx too big." c)
@@ -5385,7 +5385,7 @@ and doAliasFun vtype (thisname:string) (othername:string)
   let rt, formals, isva, _ = splitFunctionType vtype in
   if isva then E.s (error "%a: alias unsupported with varargs."
                       d_loc !currentLoc);
-  let args = List.map 
+  let args = Util.list_map 
                (fun (n,_,_) -> A.VARIABLE n)
                (argsToList formals) in
   let call = A.CALL (A.VARIABLE othername, args) in
@@ -5657,7 +5657,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 
               (* Recreate the type based on the formals. *)
               let ftype = TFun(returnType, 
-                               Some (List.map (fun f -> (f.vname,
+                               Some (Util.list_map (fun f -> (f.vname,
                                                          f.vtype, 
                                                          f.vattr)) formals), 
                                isvararg, funta) in
@@ -6307,12 +6307,12 @@ and doStatement (s : A.statement) : chunk =
 		else
 		  let pattern = Str.regexp "%" in
 		  let escape = Str.global_replace pattern "%%" in
-		  List.map escape tmpls
+		  Util.list_map escape tmpls
 	      in
 	      (tmpls', [], [], [])
 	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
               let outs' =
-		List.map
+		Util.list_map
 		  (fun (id, c, e) ->
 		    let (se, e', t) = doExp false e (AExp None) in
 		    let lv =
@@ -6326,7 +6326,7 @@ and doStatement (s : A.statement) : chunk =
               in
 	      (* Get the side-effects out of expressions *)
               let ins' =
-		List.map
+		Util.list_map
 		  (fun (id, c, e) ->
 		    let (se, e', et) = doExp false e (AExp None) in
 		    stmts := !stmts @@ se;
@@ -6419,7 +6419,7 @@ let convFile (f : A.file) : Cil.file =
   let setupBuiltin name (resTyp, argTypes, isva) = 
     let v = 
       makeGlobalVar name (TFun(resTyp, 
-                               Some (List.map (fun at -> ("", at, [])) 
+                               Some (Util.list_map (fun at -> ("", at, [])) 
                                        argTypes),
                                isva, [])) in
     ignore (alphaConvertVarAndAddToEnv true v);

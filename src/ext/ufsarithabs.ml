@@ -254,14 +254,14 @@ let fundecToCFGInfo (fdec: fundec) : S.cfgInfo =
   in
   List.iter 
     (fun s -> 
-      ci.S.successors.(s.sid) <- List.map (fun s' -> s'.sid) s.succs;
-      ci.S.predecessors.(s.sid) <- List.map (fun s' -> s'.sid) s.preds;
+      ci.S.successors.(s.sid) <- Util.list_map (fun s' -> s'.sid) s.succs;
+      ci.S.predecessors.(s.sid) <- Util.list_map (fun s' -> s'.sid) s.preds;
       ci.S.blocks.(s.sid) <- begin
         let instrs: (S.reg list * S.reg list) list = 
           match s.skind with 
             Instr il -> 
               (* Each instruction is transformed independently *)
-              List.map (fun i -> 
+              Util.list_map (fun i -> 
                 let vused, vdefs = Usedef.computeUseDefInstr i in 
                 (vsToRegList vdefs, vsToRegList vused)) il
                 
@@ -510,7 +510,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         let argdoc: doc = 
           (docList ~sep:break (self#pExp ())) 
             ()
-            (args @ (List.map (fun v -> Lval (Var v, NoOffset)) grt))
+            (args @ (Util.list_map (fun v -> Lval (Var v, NoOffset)) grt))
         in 
         dprintf "%a = (%s @[%a@]);"
           (docList 
@@ -610,7 +610,7 @@ class absPrinterClass (callgraph: CG.callgraph) : cilPrinter =
         (* initVarRenameState has already set the state for the phi register *)
         let lhs: string = self#variableUse varRenameState v in 
         let rhs: string list = 
-          List.map
+          Util.list_map
             (fun p -> 
               self#variableUse blockEndData.(p) v)
             cfgi.S.predecessors.(s.sid)
@@ -1139,7 +1139,7 @@ let feature : featureDescr =
       nrNodes := 0;
       IH.iter (fun idx cn -> 
         let cnlistToNodeList (cnl: (string, CG.callnode) H.t) : int list = 
-          List.map 
+          Util.list_map 
             (fun (_, sn) -> 
               try IH.find funidToNodeId sn.CG.cnInfo.vid
               with Not_found -> assert false

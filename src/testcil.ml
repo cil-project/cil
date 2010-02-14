@@ -49,8 +49,8 @@ let integerKinds = [ IChar; ISChar; IUChar; IInt; IUInt; IShort; IUShort;
 let floatKinds = [ FFloat; FDouble ] 
     
 let baseTypes = 
-       (List.map (fun ik -> (1, fun _ -> TInt(ik, []))) integerKinds)
-     @ (List.map (fun fk -> (1, fun _ -> TFloat(fk, []))) floatKinds)
+       (Util.list_map (fun ik -> (1, fun _ -> TInt(ik, []))) integerKinds)
+     @ (Util.list_map (fun fk -> (1, fun _ -> TFloat(fk, []))) floatKinds)
 
 
 (* Make a random struct *)
@@ -329,7 +329,7 @@ let testSizeOf () =
 
   (* Now make it a bit more complicated *)
   baseTypeChoices := 
-     List.map (fun ik -> (1, fun _ -> TInt(ik, []))) 
+     Util.list_map (fun ik -> (1, fun _ -> TInt(ik, []))) 
        [IInt; ILong; IUInt; IULong ];
   useBitfields := true;
   for i = 0 to 100 do

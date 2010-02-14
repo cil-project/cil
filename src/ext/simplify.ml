@@ -278,7 +278,7 @@ class threeAddressVisitor (fi: fundec) = object (self)
           | _ -> None
         in
         let f' = makeBasic self#makeTemp f in
-        let args' = List.map (makeBasic self#makeTemp) args in 
+        let args' = Util.list_map (makeBasic self#makeTemp) args in 
         ChangeTo [ Call (someo', f', args', loc) ]
   | _ -> DoChildren
 
@@ -353,7 +353,7 @@ let splitOneVar (v: varinfo)
                 (mknewvar: string -> typ -> varinfo) : varinfo list = 
   try 
     (* See if we have already split it *)
-    List.map snd (H.find newvars v.vname)
+    Util.list_map snd (H.find newvars v.vname)
   with Not_found -> begin
     let vars: (offset * varinfo) list = 
       foldStructFields v.vtype 
@@ -367,7 +367,7 @@ let splitOneVar (v: varinfo)
     else begin
       (* Now remember the newly created vars *)
       H.add newvars v.vname vars;
-      List.map snd vars (* Return just the vars *)
+      Util.list_map snd vars (* Return just the vars *)
     end
   end
 
@@ -533,7 +533,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
         let vars4v = H.find newvars v.vname in
         if vars4v = [] then E.s (errorLoc l "No fields in split struct");
         ChangeTo 
-          (List.map 
+          (Util.list_map 
              (fun (off, newv) ->  
                 let lv' = 
                   visitCilLval (self :> cilVisitor)
@@ -555,7 +555,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
           let vars4v = H.find newvars v.vname in
           if vars4v = [] then E.s (errorLoc l "No fields in split struct");
           ChangeTo  
-            (List.map 
+            (Util.list_map 
                (fun (off, newv) -> 
                   let lv' = 
                     visitCilLval (self :> cilVisitor)
@@ -582,7 +582,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
                         Lval (Var v, NoOffset) when H.mem newvars v.vname -> 
                           begin
                             mustChange := true;
-                            (List.map 
+                            (Util.list_map 
                                (fun (_, newv) -> 
                                  Lval (Var newv, NoOffset)) 
                                (H.find newvars v.vname))

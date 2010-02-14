@@ -1878,7 +1878,7 @@ class outVisitor = object
     match inst with
     | Call (ret, fn, args, attrs) ->
         let newArgs =
-          List.map
+          Util.list_map
             (fun arg ->
                match arg with
                | Lval (Var vi, NoOffset) when Hashtbl.mem mapping vi.vname ->
@@ -1917,8 +1917,8 @@ let analyzeFile (f : file) : unit =
   visitCilFile (new preVisitor) f;
   visitCilFile (new outVisitor) f;
   visitCilFile (new ptrArithVisitor) f;
-  verifiedExps := List.map fst expStats.verified;
-  verifiedArgs := List.map fst argStats.verified;
+  verifiedExps := Util.list_map fst expStats.verified;
+  verifiedArgs := Util.list_map fst argStats.verified;
   ignore (E.log "\nCCL Results:\n  Derefs: %a\n    Args: %a\n\n"
                 d_stats expStats d_stats argStats);
   (*

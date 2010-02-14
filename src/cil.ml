@@ -1454,7 +1454,7 @@ let mkCompInfo
    comp.ckey <- !nextCompinfoKey;
    incr nextCompinfoKey;
    let flds = 
-       List.map (fun (fn, ft, fb, fa, fl) -> 
+       Util.list_map (fun (fn, ft, fb, fa, fl) -> 
           { fcomp = comp;
             ftype = ft;
             fname = fn;
@@ -1471,7 +1471,7 @@ let copyCompInfo (ci: compinfo) (n: string) : compinfo =
                      ckey = !nextCompinfoKey; } in
   incr nextCompinfoKey;
   (* Copy the fields and set the new pointers to parents *)
-  ci'.cfields <- List.map (fun f -> {f with fcomp = ci'}) ci'.cfields;
+  ci'.cfields <- Util.list_map (fun f -> {f with fcomp = ci'}) ci'.cfields;
   ci'
 
 (**** Utility functions ******)
@@ -1558,7 +1558,7 @@ let rec unrollTypeDeep (t: typ) : typ =
               (match args with 
                 None -> None
               | Some argl -> 
-                  Some (List.map (fun (an,at,aa) -> 
+                  Some (Util.list_map (fun (an,at,aa) -> 
                   (an, unrollTypeDeep at, aa)) argl)), 
               isva, 
               addAttributes al a')
@@ -1808,7 +1808,7 @@ let separateStorageModifiers (al: attribute list) =
       (* Put back the declspec. Put it without the leading __ since these will 
        * be added later *)
       let stom' = 
-	List.map (fun (Attr(an, args)) -> 
+	Util.list_map (fun (Attr(an, args)) -> 
           Attr("declspec", [ACons(an, args)])) stom in
       stom', rest
 
@@ -4802,7 +4802,7 @@ let setFormals (f: fundec) (forms: varinfo list) =
     TFun(rt, _, isva, fa) -> 
       f.svar.vtype <- 
          TFun(rt, 
-              Some (List.map (fun a -> (a.vname, a.vtype, a.vattr)) forms), 
+              Some (Util.list_map (fun a -> (a.vname, a.vtype, a.vattr)) forms), 
               isva, fa)
   | _ -> E.s (E.bug "Set formals. %s does not have function type\n"
                 f.svar.vname)
@@ -4838,7 +4838,7 @@ let setFunctionTypeMakeFormals (f: fundec) (t: typ) =
       f.svar.vtype <- t; 
       f.sformals <- [];
       
-      f.sformals <- List.map (fun (n,t,a) -> makeLocal f n t) args;
+      f.sformals <- Util.list_map (fun (n,t,a) -> makeLocal f n t) args;
 
       setFunctionType f t
 
@@ -5667,7 +5667,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
 (* Fold over all globals, including the global initializer *)
 let mapGlobals (fl: file) 
                (doone: global -> global) : unit = 
-  fl.globals <- List.map doone fl.globals;
+  fl.globals <- Util.list_map doone fl.globals;
   (match fl.globinit with
     None -> ()
   | Some g -> begin
@@ -5852,7 +5852,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> 
       TSFun(typeSig rt, 
-            List.map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
+            Util.list_map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
             isva, doattr a)
   | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
   | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
@@ -6292,7 +6292,7 @@ class copyFunctionVisitor (newname: string) = object (self)
             s.skind <- Goto (sr',l)
         | Switch (e, body, cases, l) -> 
             s.skind <- Switch (e, body, 
-                               List.map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
         | _ -> ()
       in
       List.iter patchstmt !patches;
@@ -6454,7 +6454,7 @@ let get_switch_count () =
 let switch_label = ref (-1)
 
 let rec xform_switch_stmt s break_dest cont_dest label_index = begin
-  s.labels <- List.map (fun lab -> match lab with
+  s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
   | Case(e,l) ->
       let suffix =

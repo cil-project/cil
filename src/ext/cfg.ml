@@ -137,8 +137,10 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
   incr start_id;
   s.sid <- !start_id;
   nodeList := s :: !nodeList; (* Future traversals can be made in linear time. e.g.  *)
-  if s.succs <> [] then
-    E.s (bug "CFG must be cleared before being computed!");
+  if s.succs <> [] then begin
+    (*E.s*)ignore (bug "CFG must be cleared before being computed!");
+	raise (Failure "CFG bug")
+  end;
   let addSucc (n: stmt) =
     if not (List.memq n s.succs) then
       s.succs <- n::s.succs;
