@@ -682,6 +682,7 @@ let gprintf (finish : doc -> 'b)
         let j = skip_args (succ i) in
         match fget j with
           '%' -> literal acc j 
+	| ',' -> collect acc (succ j)
         | 's' ->
             Obj.magic(fun s ->
               let str = 
