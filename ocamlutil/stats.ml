@@ -101,7 +101,7 @@ let print chn msg =
   let gc = Gc.quick_stat () in 
   let printM (w: float) : string = 
     let coeff = float_of_int (Sys.word_size / 8) in
-    Printf.sprintf "%.2fMb" (w *. coeff /. 1000000.0)
+    Printf.sprintf "%.2fMB" (w *. coeff /. 1000000.0)
   in
   Printf.fprintf chn 
     "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
