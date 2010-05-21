@@ -3873,8 +3873,28 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              let tresult, result = doBinOp bop' e1' t1 e2' t2 in
              (* We must cast the result to the type of the lv1, which may be 
               * different than t1 if lv1 was a Cast *)
-             let _, result' = castTo tresult (typeOfLval lv1) result in
+             let tresult', result' = castTo tresult (typeOfLval lv1) result in
+             (* Catch the case of an lval that might depend on itself,
+                e.g. p[p[0]] when p[0] == 0.  We need to use a temporary
+                here if the result of the expression will be used:
+                   tmp := e1 bop e2; lv := tmp; use tmp as the result
+                Test: small1/compound2.c *)
+             let needsTemp = match what, lv1 with
+                 (ADrop|AType), _ -> false
+               | _, (Mem e, off) -> not (isConstant e)
+                                    || not (isConstantOffset off)
+               | _, (Var _, off) -> not (isConstantOffset off)
+             in
              (* The type of the result is the type of the left-hand side  *) 
+             if needsTemp then
+               let descr = (dd_lval () lv1) in
+               let tmp = var (newTempVar descr true tresult') in
+               finishExp (se1 @@ se2 +++
+               (Set(tmp, result', !currentLoc)) +++
+               (Set(lv1, Lval tmp, !currentLoc)))
+               (Lval tmp)
+               t1
+             else
              finishExp (se1 @@ se2 +++ 
                         (Set(lv1, result', !currentLoc)))
                e1'
