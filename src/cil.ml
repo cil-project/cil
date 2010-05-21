@@ -5298,16 +5298,16 @@ and childrenType (vis : cilVisitor) (t : typ) : typ =
     TPtr(t1, a) -> 
       let t1' = fTyp t1 in
       let a' = fAttr a in
-      if t1' != t || a' != a then TPtr(t1', a') else t
+      if t1' != t1 || a' != a then TPtr(t1', a') else t
   | TArray(t1, None, a) -> 
       let t1' = fTyp t1 in
       let a' = fAttr a in
-      if t1' != t || a' != a  then TArray(t1', None, a') else t
+      if t1' != t1 || a' != a  then TArray(t1', None, a') else t
   | TArray(t1, Some e, a) -> 
       let t1' = fTyp t1 in
       let e' = visitCilExpr vis e in
       let a' = fAttr a in
-      if t1' != t || e' != e  || a' != a then TArray(t1', Some e', a') else t
+      if t1' != t1 || e' != e  || a' != a then TArray(t1', Some e', a') else t
 
       (* DON'T recurse into the compinfo, this is done in visitCilGlobal.
 	 User can iterate over cinfo.cfields manually, if desired.*)
