@@ -1090,6 +1090,20 @@ let lookupLabel (l: string) =
   with Not_found -> 
     l
 
+(* Enter all the labels into the alpha renaming table to prevent
+   duplicate labels when unfolding short-circuiting logical operators
+   and when creating labels for (some) continue statements. *)
+class registerLabelsVisitor = object
+  inherit V.nopCabsVisitor
+
+  method vstmt s =
+    currentLoc := convLoc (C.get_statementloc s);
+    (match s with
+       | A.LABEL (lbl,_,_) ->
+           AL.registerAlphaName alphaTable None (kindPlusName "label" lbl) !currentLoc
+       | _ -> ());
+    V.DoChildren
+end
 
 (** ALLOCA ***)
 let allocaFun () = 
@@ -5554,6 +5568,10 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             
             IH.clear varSizeArrays;
             
+            (* Enter all the function's labels into the alpha conversion table *)
+            ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
+            currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
+
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
             transparentUnionArgs := [];

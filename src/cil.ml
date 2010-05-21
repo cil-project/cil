@@ -6444,16 +6444,21 @@ and succpred_stmt s fallthrough =
  *  (3) remove "default"
  *  (4) remove "continue"
  *)
-let is_case_label l = match l with
-  | Case _ | Default _ -> true
-  | _ -> false
+
+(* This alphaTable is used to prevent collision of label names when
+   transforming switch statements and loops. It uses a *unit*
+   alphaTableData ref because there isn't any information we need to
+   carry around. *)
+let labelAlphaTable : (string, unit A.alphaTableData ref) H.t =
+  H.create 11
+
+let freshLabel (base:string) =
+  fst (A.newAlphaName labelAlphaTable None base ())
 
 let switch_count = ref (-1) 
 let get_switch_count () = 
   switch_count := 1 + !switch_count ;
   !switch_count
-
-let switch_label = ref (-1)
 
 let rec xform_switch_stmt s break_dest cont_dest label_index = begin
   s.labels <- Util.list_map (fun lab -> match lab with
@@ -6467,14 +6472,13 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
 	    else
 	      string_of_cilint value
 	| None ->
-	    incr switch_label;
-	    "exp_" ^ string_of_int !switch_label
+	    "exp"
       in
       let str = Pretty.sprint !lineLength 
 	  (Pretty.dprintf "switch_%d_%s" label_index suffix) in 
-      (Label(str,l,false))
-  | Default(l) -> (Label(Printf.sprintf 
-                  "switch_%d_default" label_index,l,false))
+      (Label(freshLabel str,l,false))
+  | Default(l) -> (Label(freshLabel (Printf.sprintf 
+                  "switch_%d_default" label_index),l,false))
   ) s.labels ; 
   match s.skind with
   | Instr _ | Return _ | Goto _ -> ()
@@ -6516,7 +6520,7 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
       let i = get_switch_count () in 
       let break_stmt = mkStmt (Instr []) in
       break_stmt.labels <- 
-				[Label((Printf.sprintf "switch_%d_break" i),l,false)] ;
+				[Label(freshLabel (Printf.sprintf "switch_%d_break" i),l,false)] ;
       let break_block = mkBlock [ break_stmt ] in
       let body_block = b in 
       let body_if_stmtkind = (If(zero,body_block,break_block,l)) in
@@ -6561,10 +6565,10 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
           let i = get_switch_count () in 
           let break_stmt = mkStmt (Instr []) in
           break_stmt.labels <- 
-						[Label((Printf.sprintf "while_%d_break" i),l,false)] ;
+						[Label(freshLabel (Printf.sprintf "while_%d_break" i),l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
           cont_stmt.labels <- 
-						[Label((Printf.sprintf "while_%d_continue" i),l,false)] ;
+						[Label(freshLabel (Printf.sprintf "while_%d_continue" i),l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt 
             (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in 
@@ -6593,10 +6597,32 @@ end and xform_switch_block b break_dest cont_dest label_index =
       (warn "prepareCFG: %a@!" d_stmt stmt)) b.bstmts ;
     raise e
 
+(* Enter all the labels in a function into an alpha renaming table to
+   prevent duplicate labels when transforming loops and switch
+   statements. *)
+class registerLabelsVisitor : cilVisitor = object
+  inherit nopCilVisitor
+  method vstmt { labels = labels } = begin
+    List.iter
+      (function
+           Label (name,_,_) -> A.registerAlphaName labelAlphaTable None name ()
+         | _ -> ())
+      labels;
+    DoChildren
+  end
+  method vexpr _ = SkipChildren
+  method vtype _ = SkipChildren
+  method vinst _ = SkipChildren
+end
+
 (* prepare a function for computeCFGInfo by removing break, continue,
  * default and switch statements/labels and replacing them with Ifs and
  * Gotos. *)
 let prepareCFG (fd : fundec) : unit =
+  (* Labels are local to a function, so start with a clean slate by
+     clearing labelAlphaTable. Then register all labels. *)
+  H.clear labelAlphaTable;
+  ignore (visitCilFunction (new registerLabelsVisitor) fd);
   xform_switch_block fd.sbody 
       (fun () -> failwith "prepareCFG: break with no enclosing loop") 
       (fun () -> failwith "prepareCFG: continue with no enclosing loop") (-1)
