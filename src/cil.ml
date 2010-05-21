@@ -3027,6 +3027,29 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
 
+  (* Atomic Builtins *)
+  (* These builtins are overloaded, hence the "magic" void type with
+     __overloaded__ attribute, used to suppress warnings in cabs2cil.ml.
+     For the same reason, we do not specify the type of the parameters. *)
+  H.add h "__sync_fetch_and_add" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_fetch_and_sub" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_fetch_and_or" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_fetch_and_and" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_fetch_and_xor" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_fetch_and_nand" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_add_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_sub_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_or_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_and_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_xor_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_nand_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_bool_compare_and_swap" (TInt (IBool, []), [ ], true);
+  H.add h "__sync_val_compare_and_swap" (TVoid[Attr("overloaded",[])], [ ],
+    true);
+  H.add h "__sync_synchronize" (voidType, [ ], true);
+  H.add h "__sync_lock_test_and_set" (TVoid[Attr("overloaded",[])], [ ], true);
+  H.add h "__sync_lock_release" (voidType, [ ], true);
+
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
     H.add h "__builtin_varargs_start" 

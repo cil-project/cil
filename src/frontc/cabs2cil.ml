@@ -4002,7 +4002,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         in
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
-        let resType' = typeRemoveAttributes ["warn_unused_result"] resType in 
+        let resType' =
+          ref (typeRemoveAttributes ["warn_unused_result"] resType) in 
         (* Before we do the arguments we try to intercept a few builtins. For 
          * these we have defined then with a different type, so we do not 
          * want to give warnings. We'll just leave the arguments of these
@@ -4107,7 +4108,47 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Try to intercept some builtins *)
         (match !pf with 
           Lval(Var fv, NoOffset) -> begin
-            if fv.vname = "__builtin_va_arg" then begin
+            (* Atomic builtins are overloaded: check the type of the
+               arguments and fix the return type accordingly.
+               No trick needed for __sync_synchronize,
+               __sync_bool_compare_and_swap and __sync_lock_release.
+               Some consistency checks are left to the compiler, we do
+               as few as we can here to ensure a correct translation. *)
+            if fv.vname = "__sync_fetch_and_add" ||
+               fv.vname = "__sync_fetch_and_sub" ||
+               fv.vname = "__sync_fetch_and_or"  ||
+               fv.vname = "__sync_fetch_and_and" ||
+               fv.vname = "__sync_fetch_and_xor" ||
+               fv.vname = "__sync_fetch_and_nand"||
+               fv.vname = "__sync_add_and_fetch" ||
+               fv.vname = "__sync_sub_and_fetch" ||
+               fv.vname = "__sync_or_and_fetch"  ||
+               fv.vname = "__sync_and_and_fetch" ||
+               fv.vname = "__sync_xor_and_fetch" ||
+               fv.vname = "__sync_nand_and_fetch" ||
+               fv.vname = "__sync_lock_test_and_set" then begin
+              match !pargs  with
+                ptr :: value :: q -> begin match typeOf ptr with
+                TPtr (vtype, _) ->
+                    let cast v = snd (castTo (typeOf v) vtype v) in
+                    resType' := vtype;
+                    pargs := ptr :: cast value :: q
+                | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname) end
+              | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname)
+            end else if fv.vname = "__sync_val_compare_and_swap" then begin
+              match !pargs  with
+                ptr :: oldval :: newval :: q -> begin match typeOf ptr with
+                TPtr (vtype, _) ->
+                    let cast v = snd (castTo (typeOf v) vtype v) in
+                    resType' := vtype;
+                    pargs := ptr :: cast oldval :: cast newval :: q
+                | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname) end
+              | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname)
+            end else if fv.vname = "__builtin_va_arg" then begin
               match !pargs with 
                 marker :: SizeOf resTyp :: _ -> begin
                   (* Make a variable of the desired type *)
@@ -4252,14 +4293,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match !pwhat with 
             ADrop -> addCall None zero intType
 
-          | AType -> prestype := resType'
+          | AType -> prestype := !resType'
                 
           | ASet(lv, vtype) when !pis__builtin_va_arg -> 
               (* Make an exception here for __builtin_va_arg *)
               addCall None (Lval(lv)) vtype
                   
-          | ASet(lv, vtype) when !doCollapseCallCast || 
-              (Util.equals (typeSig vtype) (typeSig resType'))
+          | ASet(lv, vtype) when !doCollapseCallCast ||
+              (Util.equals (typeSig vtype) (typeSig !resType'))
               ->
               (* We can assign the result directly to lv *)
               addCall (Some lv) (Lval(lv)) vtype
@@ -4268,7 +4309,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               let restype'' = 
                 match !pwhat with
                   AExp (Some t) when !doCollapseCallCast -> t
-                | _ -> resType'
+                | _ -> !resType'
               in
               let descr = dprintf "%a(%a)" dd_exp !pf
                             (docList ~sep:(text ", ") (dd_exp ())) !pargs in

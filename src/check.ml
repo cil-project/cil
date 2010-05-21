@@ -805,6 +805,8 @@ and checkInstr (i: instr) =
           (* Now check the return value*)
       (match dest, unrollType rt with
         None, TVoid _ -> ()
+      (* Avoid spurious warnings for atomic builtins *)
+      | Some _, TVoid [Attr ("overloaded", [])] -> ()
       | Some _, TVoid _ -> ignore (warn "void value is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
       | Some destlv, rt' -> 
