@@ -3373,8 +3373,8 @@ as it will ensure your message is viewed by a broad audience.
 \item {\bf May 28, 2009}: Improved 64-bit int support (large constants
   no longer cause a CIL failure). There's a new cilint type that
   should be used to handle integer C values - cilint is essentially a
-  big_int so will be able to handle future expansion. To get the value
-  represented by a CInt64(n, ik, _) constant, call \t{mkCilint ik n}
+  big\_int so will be able to handle future expansion. To get the value
+  represented by a CInt64(n, ik, \_) constant, call \t{mkCilint ik n}
   --- this will give you the correct value for unsigned 64-bit C
   constants stored in a signed OCaml int64.
 

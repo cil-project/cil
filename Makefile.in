@@ -338,8 +338,8 @@ odoc: $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
 
 doc/cilpp.tex: doc/cilcode.pl doc/cil.tex lib/Cilly.pm
 	-rm -rf doc/html/cil
-	-mkdir doc/html/cil
-	-mkdir doc/html/cil/examples
+	-mkdir -p doc/html/cil
+	-mkdir -p doc/html/cil/examples
 	cd doc; perl cilcode.pl cil.tex >cilpp.tex.tmp
 	mv doc/cilpp.tex.tmp $@
 
