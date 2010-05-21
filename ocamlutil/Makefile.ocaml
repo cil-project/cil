@@ -271,8 +271,13 @@ else
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
- CAMLC          = $(CAMLDIR)ocamlc $(COMPILE_FLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINK_FLAGS)
+ ifdef PROFILE
+   CAMLC          = $(CAMLDIR)ocamlcp -p a $(COMPILE_FLAGS)
+   CAMLLINK       = $(CAMLDIR)ocamlcp -p a -custom  $(LINK_FLAGS)
+ else
+   CAMLC          = $(CAMLDIR)ocamlc $(COMPILE_FLAGS)
+   CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINK_FLAGS)
+ endif
  CAML_NOOPT     = 1
 endif
 
