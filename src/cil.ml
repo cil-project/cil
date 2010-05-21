@@ -1323,6 +1323,8 @@ let compactStmts (b: stmt list) : stmt list =
         else
           finishLast (compress s ils rest)
 
+    | {skind=Block b;labels = []} :: rest when b.battrs = [] ->
+        compress lastinstrstmt lastinstrs (b.bstmts@rest)
     | s :: rest -> 
         let res = s :: compress dummyStmt Clist.empty rest in
         finishLast res
