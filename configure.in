@@ -445,6 +445,24 @@ case "$target" in
     ARCHOS=sparc_SOLARIS
     ;;
 
+  *mipsel*linux*)
+    AC_MSG_RESULT(configuring for MIPSel/Linux)
+
+    ARCHOS=mipsel_LINUX
+    if test $cross_compiling = "yes"; then
+      AC_PATH_PROG([EMUL], [qemu-mipsel])
+    fi
+    ;;
+
+  *mips*linux*)
+    AC_MSG_RESULT(configuring for MIPS/Linux)
+
+    ARCHOS=mips_LINUX
+    if test $cross_compiling = "yes"; then
+      AC_PATH_PROG([EMUL], [qemu-mips])
+    fi
+    ;;
+
   *)
     AC_MSG_ERROR([
       Unsupported platform $target -- sorry.
@@ -453,15 +471,18 @@ case "$target" in
          on amd64:   FreeBSD
          on PowerPC: Mac OS X 
          on SPARC:   Solaris
+         on MIPS:    Linux
+         on MIPSel:  Linux
     ])
     ;;
 esac
 
 # Make the object directory if not already present
-AC_CHECK_FILE(obj/$ARCHOS,, AC_MSG_RESULT(creating obj/$ARCHOS);
-                            mkdir -p obj/$ARCHOS)
-   
-AC_MSG_CHECKING([delete the obj/$ARCHOS/feature_config.ml and obj/$ARCHOS/machdep.ml file])
+AC_MSG_CHECKING([obj/$ARCHOS and related files])
+if test -d obj/$ARCHOS; then
+    mkdir -p obj/$ARCHOS
+fi
+
 rm -f obj/$ARCHOS/machdep.ml
 rm -f obj/.depend/machdep.d
 rm -f obj/$ARCHOS/feature_config.ml
@@ -530,6 +551,7 @@ chmod -w Makefile.features
 # write @ARCHOS@ somewhere in a written file to get it substituted
 AC_SUBST(ARCHOS)
 AC_SUBST(MINGW)
+AC_SUBST(EMUL)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
