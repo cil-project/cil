@@ -207,6 +207,11 @@ module Solver = functor(T:TRANSLATOR) ->
 	  let e1 = transExp e1 in
 	  let e2 = transExp e2 in
 	  transBinOp op e1 e2
+      | Question (e1,e2,e3,_) ->
+	  let e1 = transExp e1 in
+	  let e2 = transExp e2 in
+	  let e3 = transExp e3 in
+	  T.mkIte e1 e2 e3
       | SizeOf typ -> T.mkConst ((bitsSizeOf typ)/8)
       | SizeOfE e -> transExp (SizeOf(typeOf e))
       | SizeOfStr s -> T.mkConst (1 + String.length s)

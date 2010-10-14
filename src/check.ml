@@ -545,6 +545,17 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch tres intType;
               tres
       end
+
+      | Question (e1, e2, e3, tres) -> begin
+          let t1 = checkExp isconst e1 in
+          let t2 = checkExp isconst e2 in
+          let t3 = checkExp isconst e3 in
+          checkScalarType t1;
+          typeMatch t2 t3;
+          typeMatch t2 tres;
+          tres
+      end
+
       | AddrOf (lv) -> begin
           let tlv = checkLval isconst true lv in
           (* Only certain types can be in AddrOf *)

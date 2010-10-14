@@ -488,6 +488,9 @@ and exp =
                                             type of the result. The arithemtic
                                             conversions are made  explicit
                                             for the arguments *)
+  | Question   of exp * exp * exp * typ
+                                        (** (a ? b : c) operation. Includes
+                                            the type of the result *)
   | CastE      of typ * exp            (** Use {!Cil.mkCast} to make casts *)
 
   | AddrOf     of lval                 (** Always use {!Cil.mkAddrOf} to 
@@ -1756,6 +1759,7 @@ let bitwiseLevel = 75
 let questionLevel = 100
 let getParenthLevel (e: exp) = 
   match e with 
+  | Question _ -> questionLevel
   | BinOp((LAnd | LOr), _,_,_) -> 80
                                         (* Bit operations. *)
   | BinOp((BOr|BXor|BAnd),_,_,_) -> bitwiseLevel (* 75 *)
@@ -1871,8 +1875,9 @@ let rec typeOf (e: exp) : typ =
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
-  | UnOp (_, _, t) -> t
-  | BinOp (_, _, _, t) -> t
+  | UnOp (_, _, t)
+  | BinOp (_, _, _, t)
+  | Question (_, _, _, t)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
   | StartOf (lv) -> begin
@@ -3283,6 +3288,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (self#pExpPrec level () e2)
           ++ unalign
 
+    | Question(e1,e2,e3,_) ->
+        (self#pExpPrec level () e1)
+          ++ text " ? "
+          ++ (self#pExpPrec level () e2)
+          ++ text " : "
+          ++ (self#pExpPrec level () e3)
+
     | CastE(t,e) -> 
         text "(" 
           ++ self#pType None () t
@@ -4591,6 +4603,10 @@ class plainCilPrinterClass =
       dprintf "%a(@[%a,@?%a@])" d_plainbinop b
         self#pExp e1 self#pExp e2
 
+  | Question(e1,e2,e3,_) ->
+      dprintf "Question(@[%a,@?%a,@?%a@])"
+        self#pExp e1 self#pExp e2 self#pExp e3
+
   | SizeOf (t) -> 
       text "sizeof(" ++ self#pType None () t ++ chr ')'
   | SizeOfE (e) -> 
@@ -5088,6 +5104,9 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | BinOp (bo, e1, e2, t) -> 
       let e1' = vExp e1 in let e2' = vExp e2 in let t' = vTyp t in
       if e1' != e1 || e2' != e2 || t' != t then BinOp(bo, e1',e2',t') else e
+  | Question (e1, e2, e3, t) ->
+      let e1' = vExp e1 in let e2' = vExp e2 in let e3' = vExp e3 in let t' = vTyp t in
+      if e1' != e1 || e2' != e2 || e3' != e3 || t' != t then Question(e1',e2',e3',t') else e
   | CastE (t, e1) ->           
       let t' = vTyp t in let e1' = vExp e1 in
       if t' != t || e1' != e1 then CastE(t', e1') else e
@@ -5976,6 +5995,7 @@ let rec isConstant = function
   | Const _ -> true
   | UnOp (_, e, _) -> isConstant e
   | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
+  | Question (e1, e2, e3, _) -> isConstant e1 && isConstant e2 && isConstant e3
   | Lval (Var vi, NoOffset) -> 
       (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
   | Lval _ -> false

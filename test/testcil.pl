@@ -213,6 +213,7 @@ addBadComment("testrun/question-fold-float",
         "Limitation. CIL needs to fold questions but does not fold floats.");
 addTest("testrun/question");
 addTest("testrun/question2");
+addTest("testrun/question3 USE_LOGICAL_OPERATORS=1");
 addTest("test/argcast");
 addBadComment("test/argcast", 
 	      "Notbug. CIL bases type for implicit functions based on first call's argument.");
