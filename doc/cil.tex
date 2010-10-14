@@ -3019,7 +3019,7 @@ should be easy.)
 the shift is logical.)
 
 \begin{cilcode}[local]
- return ((1 - sizeof(int)) >> 32);
+ return (((1 - sizeof(int)) >> 16) >> 16);
 \end{cilcode}
 
 \item Scoping rules can be tricky. This function returns 5.
