@@ -57,6 +57,14 @@ endif
 ifndef EMUL
    EMUL=@EMUL@
 endif
+ifdef EMUL
+	 # Compile machdep-ml.c with -static when
+	 # cross-compiling only (because -static
+	 # is broken on MacOS X)
+   MACHDEPCC=$(CC) $(CFLAGS) -static -D_GNUCC
+else
+   MACHDEPCC=gcc -D_GNUCC
+endif
 
 # Put here all the byproducts of make
 OBJDIR      := obj/$(ARCHOS)
@@ -192,7 +200,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "  __thread_is_keyword: bool; (* whether __thread is a keyword *)">>$@
 	echo "  __builtin_va_list: bool; (* whether __builtin_va_list is builtin (gccism) *)">>$@
 	echo "}" >> $@ 	
-	if $(CC) $(CFLAGS) -static -D_GNUCC $< -o $(OBJDIR)/machdep-ml.exe ;then \
+	if $(MACHDEPCC) $< -o $(OBJDIR)/machdep-ml.exe ;then \
 	    echo "machdep-ml.exe created succesfully." \
 	;else \
             rm -f $@; exit 1 \
@@ -214,10 +222,10 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 
 lib/Cilly.pm: lib/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
 	cp lib/Cilly.pm.in lib/Cilly.pm
-	if $(CC) $(CFLAGS) -static -m32 -D_GNUCC src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
+	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
 	  sed -i -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" lib/Cilly.pm; \
 	fi
-	if $(CC) $(CFLAGS) -static -m64 -D_GNUCC src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
+	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
 	  sed -i -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" lib/Cilly.pm; \
 	fi
 
