@@ -292,6 +292,17 @@ let options : (string * Arg.spec * string) list =
     (" Prevent small chunks of code from being duplicated" ^
        is_default (not !Cabs2cil.allowDuplication));
 
+    "--useLogicalOperators",
+    Arg.Set Cil.useLogicalOperators,
+    (" Where possible (that is, if there are no side-effects),\n\t\t\t\t" ^
+       "retain && and || (instead of transforming them to If statements)" ^
+       is_default !Cil.useLogicalOperators);
+
+    "--noUseLogicalOperators",
+    Arg.Clear Cil.useLogicalOperators,
+     ("Transform && and || to If statements" ^
+       is_default (not !Cil.useLogicalOperators));
+
     "--keepunused",
     Arg.Set Rmtmps.keepUnused,
     (" Do not remove the unused variables and types" ^
