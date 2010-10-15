@@ -233,7 +233,7 @@ int main(int argc, char **argv)
 	     (int)sizeof(int *), alignof_ptr, (int)sizeof(enum e { ONE, TWO }), alignof_enum,
 	     (int)sizeof(float), alignof_float, (int)sizeof(double), alignof_double, 
 	     (int)sizeof(long double), alignof_longdouble, (int)sizeof(void), 
-	     sizeof(bool), alignof_bool,
+	     (int)sizeof(bool), alignof_bool,
 	     sizeof_fun, alignof_fun, alignof_str, alignof_aligned, 
 	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T), 
 	     char_is_unsigned ? "false" : "true", CONST_STRING_LITERALS, 
