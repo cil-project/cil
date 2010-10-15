@@ -4662,10 +4662,8 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
             else 
               CEAnd (ce1, ce2)
       | CEExp(se1, e1'), CEExp (se2, e2') when 
-              !useLogicalOperators && isEmpty se1 && isEmpty se2 -> 
-          CEExp (empty, BinOp(LAnd, 
-                              makeCast e1' intType, 
-                              makeCast e2' intType, intType))
+              !useLogicalOperators && isEmpty se2 -> 
+          CEExp (se1, BinOp(LAnd, e1', e2', intType))
       | _ -> CEAnd (ce1, ce2)
     end
 
@@ -4684,9 +4682,8 @@ and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
               CEOr (ce1, ce2)
 
       | CEExp (se1, e1'), CEExp (se2, e2') when 
-              !useLogicalOperators && isEmpty se1 && isEmpty se2 ->
-          CEExp (empty, BinOp(LOr, makeCast e1' intType, 
-                              makeCast e2' intType, intType))
+              !useLogicalOperators && isEmpty se2 ->
+          CEExp (se1, BinOp(LOr, e1', e2', intType))
       | _ -> CEOr (ce1, ce2)
     end
 
