@@ -126,7 +126,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
   #
@@ -151,7 +150,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
   #
@@ -166,7 +164,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
 
