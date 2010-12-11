@@ -135,7 +135,6 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
 	$(AT)$(CAMLLINK) -verbose -o $@ \
                     $(CILLY_LIBS:%=%.$(CMXA)) \
-                    $(CILLY_LIBS:%=-cclib -l%) \
                     $^
 
 
