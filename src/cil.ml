@@ -3723,7 +3723,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           | _ :: rest -> pickLabel rest
         in
         match pickLabel !sref.labels with
-          Some l -> text ("goto " ^ l ^ ";")
+          Some lbl -> self#pLineDirective l ++ text ("goto " ^ lbl ^ ";")
         | None -> 
             ignore (error "Cannot find label for target of goto");
             text "goto __invalid_label;"
