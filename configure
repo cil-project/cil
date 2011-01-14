@@ -607,6 +607,7 @@ DEFAULT_CIL_MODE
 DEFAULT_COMPILER
 HAS_MSVC
 CILHOME
+FLEXLINK
 MINGW
 ARCHOS
 EMUL
@@ -4947,6 +4948,7 @@ chmod -w Makefile.features
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @ARCHOS@ somewhere in a written file to get it substituted
+
 
 
 
