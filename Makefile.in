@@ -294,7 +294,6 @@ OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:main=) libmaincil
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
                        $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) \
-               $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) \
                $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 
 $(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.$(CMC))
