@@ -243,8 +243,13 @@ ifdef NATIVECAML
    COMPILE_FLAGS  += -S
  endif
  ifdef STATIC
-   COMPILE_FLAGS  += -ccopt -static
-   LINK_FLAGS     += -ccopt -static
+   ifdef FLEXLINK
+     COMPILE_FLAGS  += -ccopt "-link -static"
+     LINK_FLAGS     += -ccopt "-link -static"
+   else
+     COMPILE_FLAGS  += -ccopt -static
+     LINK_FLAGS     += -ccopt -static
+   endif
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
  CAMLC          = $(CAMLDIR)ocamlopt  $(COMPILE_FLAGS)
@@ -288,11 +293,19 @@ ifdef CAML_NOOPT
    COMPILE_FLAGS    += -ccopt /Zi -ccopt /Od
    LINK_FLAGS       += -ccopt /Zi -ccopt /Od
  else
-   COMPILE_FLAGS    += -g -ccopt -g
+   ifdef FLEXLINK
+     COMPILE_FLAGS    += -g -ccopt "-link -g"
+   else
+     COMPILE_FLAGS    += -g -ccopt -g
+   endif
    ifdef MINGW
      LINK_FLAGS       += -g
    else
-     LINK_FLAGS       += -g -ccopt -g
+     ifdef FLEXLINK
+       LINK_FLAGS    += -g -ccopt "-link -g"
+     else
+       LINK_FLAGS    += -g -ccopt -g
+     endif
    endif
  endif
 else
