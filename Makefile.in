@@ -54,6 +54,10 @@ ifndef MINGW
    MINGW=@MINGW@
 endif
 
+ifndef FLEXLINK
+   FLEXLINK=@FLEXLINK@
+endif
+
 ifndef EMUL
    EMUL=@EMUL@
 endif

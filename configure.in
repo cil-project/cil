@@ -426,6 +426,10 @@ case "$target" in
     CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
+    # Ocaml >= 3.11 uses flexlink for linking
+    if test $major -ge 3 -a $minor -ge 11; then
+      FLEXLINK=yes
+    fi
     ;;
 
   # MinGW
@@ -434,6 +438,10 @@ case "$target" in
 
     ARCHOS=x86_WIN32
     MINGW=yes
+    # Ocaml >= 3.11 uses flexlink for linking
+    if test $major -ge 3 -a $minor -ge 11; then
+      FLEXLINK=yes
+    fi
 
     CC=`which $CC`
     ;;
