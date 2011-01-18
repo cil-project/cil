@@ -3703,6 +3703,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	in
 	leftflush ++ directive ++ chr ' ' ++ num l.line ++ filename ++ line
 
+  method private pIfConditionThen loc condition thenBlock =
+      self#pLineDirective loc
+      ++ text "if"
+      ++ (align
+          ++ text " ("
+          ++ self#pExp () condition
+          ++ text ") "
+          ++ self#pBlock () thenBlock)
 
   method private pStmtKind (next: stmt) () = function
       Return(None, l) ->
@@ -3743,59 +3751,33 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ unalign
 
     | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () be
-                ++ text ") "
-                ++ self#pBlock () t)
+        self#pIfConditionThen l be t
           
     | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
                 battrs=[]},l)
      when !gref == next && not !printCilAsIs ->
-       self#pLineDirective l
-         ++ text "if"
-         ++ (align
-               ++ text " ("
-               ++ self#pExp () be
-               ++ text ") "
-               ++ self#pBlock () t)
+        self#pIfConditionThen l be t
 
     | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () (UnOp(LNot,be,intType))
-                ++ text ") "
-                ++ self#pBlock () e)
+          self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
     | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
            battrs=[]},e,l)
       when !gref == next && not !printCilAsIs ->
-        self#pLineDirective l
-          ++ text "if"
-          ++ (align
-                ++ text " ("
-                ++ self#pExp () (UnOp(LNot,be,intType))
-                ++ text ") "
-                ++ self#pBlock () e)
+        self#pIfConditionThen l (UnOp(LNot,be,intType)) e
           
     | If(be,t,e,l) ->
-        self#pLineDirective l
-          ++ (align
-                ++ text "if"
-                ++ (align
-                      ++ text " ("
-                      ++ self#pExp () be
-                      ++ text ") "
-                      ++ self#pBlock () t)
-                ++ text " "   (* sm: indent next code 2 spaces (was 4) *)
-                ++ (align
-                      ++ text "else "
-                      ++ self#pBlock () e)
-          ++ unalign)
+        self#pIfConditionThen l be t
+          ++ (match e with
+                { bstmts=[{skind=If _} as elsif]; battrs=[] } ->
+                    text " else"
+                    ++ line (* Don't indent else-ifs *)
+                    ++ self#pStmtNext next () elsif
+              | _ ->
+                    text " "   (* sm: indent next code 2 spaces (was 4) *)
+                    ++ align
+                    ++ text "else "
+                    ++ self#pBlock () e)
           
     | Switch(e,b,_,l) ->
         self#pLineDirective l
