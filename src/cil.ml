@@ -6481,12 +6481,7 @@ let labelAlphaTable : (string, unit A.alphaTableData ref) H.t =
 let freshLabel (base:string) =
   fst (A.newAlphaName labelAlphaTable None base ())
 
-let switch_count = ref (-1) 
-let get_switch_count () = 
-  switch_count := 1 + !switch_count ;
-  !switch_count
-
-let rec xform_switch_stmt s break_dest cont_dest label_index = begin
+let rec xform_switch_stmt s break_dest cont_dest = begin
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
   | Case(e,l) ->
@@ -6500,11 +6495,9 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
 	| None ->
 	    "exp"
       in
-      let str = Pretty.sprint !lineLength 
-	  (Pretty.dprintf "switch_%d_%s" label_index suffix) in 
-      (Label(freshLabel str,l,false))
-  | Default(l) -> (Label(freshLabel (Printf.sprintf 
-                  "switch_%d_default" label_index),l,false))
+      let str = "case_" ^ suffix in
+      Label(freshLabel str,l,false)
+  | Default(l) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ; 
   match s.skind with
   | Instr _ | Return _ | Goto _ -> ()
@@ -6520,8 +6513,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
                   ignore (error "prepareCFG: continue: %a@!" d_stmt s) ;
                   raise e
                 end
-  | If(e,b1,b2,l) -> xform_switch_block b1 break_dest cont_dest label_index ;
-                     xform_switch_block b2 break_dest cont_dest label_index
+  | If(e,b1,b2,l) -> xform_switch_block b1 break_dest cont_dest ;
+                     xform_switch_block b2 break_dest cont_dest
   | Switch(e,b,sl,l) -> begin
       (* change 
        * switch (se) {
@@ -6543,10 +6536,8 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
        *  label_break: ; // break_stmt
        * } 
        *)
-      let i = get_switch_count () in 
       let break_stmt = mkStmt (Instr []) in
-      break_stmt.labels <- 
-				[Label(freshLabel (Printf.sprintf "switch_%d_break" i),l,false)] ;
+      break_stmt.labels <- [Label(freshLabel "switch_break",l,false)] ;
       let break_block = mkBlock [ break_stmt ] in
       let body_block = b in 
       let body_if_stmtkind = (If(zero,body_block,break_block,l)) in
@@ -6588,31 +6579,28 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
         handle_labels stmt_hd.labels
       end in
       s.skind <- handle_choices (List.sort compare_choices sl) ;
-      xform_switch_block b (fun () -> ref break_stmt) cont_dest i 
+      xform_switch_block b (fun () -> ref break_stmt) cont_dest
     end
   | Loop(b,l,_,_) -> 
-          let i = get_switch_count () in 
           let break_stmt = mkStmt (Instr []) in
-          break_stmt.labels <- 
-						[Label(freshLabel (Printf.sprintf "while_%d_break" i),l,false)] ;
+          break_stmt.labels <- [Label(freshLabel "while_break",l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
-          cont_stmt.labels <- 
-						[Label(freshLabel (Printf.sprintf "while_%d_continue" i),l,false)] ;
+          cont_stmt.labels <- [Label(freshLabel "while_continue",l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt 
             (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in 
           let break_dest () = ref break_stmt in
           let cont_dest () = ref cont_stmt in 
-          xform_switch_block b break_dest cont_dest label_index ;
+          xform_switch_block b break_dest cont_dest ;
           break_stmt.succs <- s.succs ; 
           let new_block = mkBlock [ this_stmt ; break_stmt ] in
           s.skind <- Block new_block
-  | Block(b) -> xform_switch_block b break_dest cont_dest label_index
+  | Block(b) -> xform_switch_block b break_dest cont_dest
 
   | TryExcept _ | TryFinally _ -> 
       failwith "xform_switch_statement: structured exception handling not implemented"
 
-end and xform_switch_block b break_dest cont_dest label_index = 
+end and xform_switch_block b break_dest cont_dest =
   try 
     let rec link_succs sl = match sl with
     | [] -> ()
@@ -6620,7 +6608,7 @@ end and xform_switch_block b break_dest cont_dest label_index =
     in 
     link_succs b.bstmts ;
     List.iter (fun stmt -> 
-      xform_switch_stmt stmt break_dest cont_dest label_index) b.bstmts ;
+      xform_switch_stmt stmt break_dest cont_dest) b.bstmts ;
   with e ->
     List.iter (fun stmt -> ignore
       (warn "prepareCFG: %a@!" d_stmt stmt)) b.bstmts ;
@@ -6654,7 +6642,7 @@ let prepareCFG (fd : fundec) : unit =
   ignore (visitCilFunction (new registerLabelsVisitor) fd);
   xform_switch_block fd.sbody 
       (fun () -> failwith "prepareCFG: break with no enclosing loop") 
-      (fun () -> failwith "prepareCFG: continue with no enclosing loop") (-1)
+      (fun () -> failwith "prepareCFG: continue with no enclosing loop")
 
 (* make the cfg and return a list of statements *)
 let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
