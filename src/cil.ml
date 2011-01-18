@@ -6556,10 +6556,13 @@ let rec xform_switch_stmt s break_dest cont_dest label_index = begin
       result, we sort the order in which we handle the labels (but not the
       order in which we print out the statements, so fall-through still
       works as expected). *)
-      let compare_choices s1 s2 = match s1.labels, s2.labels with
-      | (Default(_) :: _), _ -> 1
-      | _, (Default(_) :: _) -> -1
-      | _, _ -> 0
+      let compare_choices s1 s2 =
+          let contains_default labels =
+              List.exists (function Default _ -> true | _ -> false) labels
+          in
+          if contains_default s1.labels then 1
+          else if contains_default s2.labels then -1
+          else 0
       in
 
       let rec handle_choices sl = match sl with
