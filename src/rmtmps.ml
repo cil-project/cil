@@ -577,7 +577,9 @@ let markReachable file isRoot =
 
 (* We keep only one label, preferably one that was not introduced by CIL. 
  * Scan a list of labels and return the data for the label that should be 
- * kept, and the remaining filtered list of labels *)
+ * kept, and the remaining filtered list of labels. After this cleanup,
+ * every statement's labels will be either a single 'Default' or any
+ * number of 'Case's, in either case possibly preceded by a single 'Label'. *)
 let labelsToKeep (ll: label list) : (string * location * bool) * label list = 
   let rec loop (sofar: string * location * bool) = function
       [] -> sofar, []
@@ -601,7 +603,13 @@ let labelsToKeep (ll: label list) : (string * location * bool) * label list =
         let newlabel', rest' = loop newlabel rest in
         newlabel', (if keepl then l :: rest' else rest')
   in
-  loop ("", locUnknown, false) ll
+  let sofar, labels = loop ("", locUnknown, false) ll in
+  try
+      (* If there is a 'default' label, remove all 'case' labels, as they are unnecessary *)
+      let default = List.find (function Default _ -> true | _ -> false) labels
+      in sofar, [ default ]
+  with Not_found ->
+      sofar, labels
 
 class markUsedLabels (labelMap: (string, unit) H.t) = object
   inherit nopCilVisitor
@@ -629,6 +637,13 @@ class removeUnusedLabels (labelMap: (string, unit) H.t) = object
 
   method vstmt (s: stmt) = 
     let (ln, lloc, lorig), lrest = labelsToKeep s.labels in
+    (* Check our desired invariants for labels: 'lrest' must be either a
+       single 'Default' or only 'Case's. It is okay for 'lrest' to be
+       empty, because a 'Label' can exist on its own, independent of
+       switch statement labels, and the 'for_all' accepts this case. *)
+    assert (match lrest with
+                  [ Default _ ] -> true
+                | _ -> List.for_all (function Case _ -> true | _ -> false) lrest);
     s.labels <-
        (if ln <> "" && H.mem labelMap ln then (* We had labels *)
          (Label(ln, lloc, lorig) :: lrest)
