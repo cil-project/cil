@@ -400,6 +400,7 @@ addTest("test/label7");
 addTest("test/label8");
 addTest("test/label9 EXTRAARGS=--domakeCFG");
 addTest("testrun/case_then_default_in_switch EXTRAARGS=--domakeCFG");
+addTestFail("test/switch_default_parse_bug ", "Empty default in switch ");
 addTest("testrun/wchar1");
 addTest("testrun/wchar2");
 addTest("testrun/wchar3");
