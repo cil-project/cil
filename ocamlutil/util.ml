@@ -209,10 +209,22 @@ let rec count_map f l ctr =
   match l with
   | [] -> []
   | [x] -> [f x]
-  | [x;y] -> [f x; f y]
-  | [x;y;z] -> [f x; f y; f z]
+  | [x;y] ->
+          (* order matters! *)
+          let x' = f x in
+          let y' = f y in
+          [x'; y']
+  | [x;y;z] ->
+          let x' = f x in
+          let y' = f y in
+          let z' = f z in
+          [x'; y'; z']
   | x :: y :: z :: w :: tl ->
-    f x :: f y :: f z :: f w ::
+          let x' = f x in
+          let y' = f y in
+          let z' = f z in
+          let w' = f w in
+          x' :: y' :: z' :: w' ::
       (if ctr > 500 then list_array_map f tl
        else count_map f tl (ctr + 1))
  
