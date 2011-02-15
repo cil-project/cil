@@ -4756,7 +4756,10 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
                 (e: A.expression) 
                 (st: chunk)
                 (sf: chunk) : chunk = 
-  compileCondExp (doCondExp isconst e) st sf
+  if isEmpty st && isEmpty sf then
+    let se,_,_ = doExp isconst e ADrop in se
+  else
+    compileCondExp (doCondExp isconst e) st sf
 
 
 and doPureExp (e : A.expression) : exp = 
