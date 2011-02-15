@@ -1659,6 +1659,15 @@ let d_storage () = function
 let mostNeg32BitInt : int64 = (Int64.of_string "-0x80000000")
 let mostNeg64BitInt : int64 = (Int64.of_string "-0x8000000000000000")
 
+let bytesSizeOfInt (ik: ikind): int = 
+  match ik with 
+  | IChar | ISChar | IUChar -> 1
+  | IBool -> !M.theMachine.M.sizeof_bool
+  | IInt | IUInt -> !M.theMachine.M.sizeof_int
+  | IShort | IUShort -> !M.theMachine.M.sizeof_short
+  | ILong | IULong -> !M.theMachine.M.sizeof_long
+  | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
+
 (* constant *)
 let d_const () c = 
   match c with
@@ -1683,13 +1692,10 @@ let d_const () c =
       (* Watch out here for negative integers that we should be printing as 
        * large positive ones *)
       if i < Int64.zero && (not (isSigned ik)) then
-        let high = Int64.shift_right i 32 in
-        if ik <> IULongLong && ik <> ILongLong && high = Int64.of_int (-1) then
-          (* Print only the low order 32 bits *)
-          text (prefix ^ "0x" ^ 
-                (Int64.format "%x" 
-                  (Int64.logand i (Int64.shift_right_logical high 32))
-                ^ suffix))
+        if bytesSizeOfInt ik <> 8 then
+          (* I am convinced that we shall never store smaller than 64-bits
+           * integers in negative form. -- Gabriel *)
+          E.s (E.bug "unexpected negative unsigned integer (please report this bug)")
         else
           text (prefix ^ "0x" ^ Int64.format "%x" i ^ suffix)
       else (
@@ -1916,15 +1922,6 @@ and typeOffset basetyp =
  **)
 exception SizeOfError of string * typ
 
-
-let bytesSizeOfInt (ik: ikind): int = 
-  match ik with 
-  | IChar | ISChar | IUChar -> 1
-  | IBool -> !M.theMachine.M.sizeof_bool
-  | IInt | IUInt -> !M.theMachine.M.sizeof_int
-  | IShort | IUShort -> !M.theMachine.M.sizeof_short
-  | ILong | IULong -> !M.theMachine.M.sizeof_long
-  | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
 
 let unsignedVersionOf (ik:ikind): ikind =
   match ik with
