@@ -1278,10 +1278,10 @@ let rec castTo ?(fromsource=false)
           
     | TArray _, TPtr _ -> result
           
-    | TArray(t1,_,_), (TArray(t2,None,_) as nt')
+    | TArray(t1,_,_), TArray(t2,None,_)
         when Util.equals (typeSig t1) (typeSig t2) -> (nt', e)
           
-    | TPtr _, (TArray(_,_,_) as nt') -> (nt', e)
+    | TPtr _, TArray(_,_,_) -> (nt', e)
           
     | TEnum _, TInt _ -> result
     | TFloat _, (TInt _|TEnum _) -> result
@@ -1316,7 +1316,7 @@ let rec castTo ?(fromsource=false)
            * have been changed to the type of the first argument, and we'll 
            * see a cast from a union to the type of the first argument. Turn 
            * that into a field access *)
-    | TComp(tunion, a1), nt' -> begin
+    | TComp(tunion, a1), _ -> begin
         match isTransparentUnion ot with 
           None -> E.s (error "cabs2cil/castTo: illegal cast  %a -> %a@!"
                          d_type ot d_type nt')
@@ -1332,7 +1332,7 @@ let rec castTo ?(fromsource=false)
             castTo ~fromsource:fromsource fstfield.ftype nt' e'
         end
     end
-    | _, nt' -> 
+    | _ -> 
         (* strip attributes for a cleaner error message *)
         let ot'' = setTypeAttrs ot [] in
         let nt'' = setTypeAttrs nt' [] in
