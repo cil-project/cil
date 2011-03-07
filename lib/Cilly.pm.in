@@ -1323,8 +1323,12 @@ sub runShell {
     if ($code != 0) {
         # sm: now that we always print, don't echo the command again,
         # since that makes the output more confusing
-	#die "Possible error with @cmd!\n";
-	$code >>= 8;    # extract exit code portion
+        #die "Possible error with @cmd!\n";
+        if ($code & 0x7f) {
+            print STDERR "The command\n@cmd\nreceived signal ," ($code
+                &0x7f), "\n";
+        }
+        $code >>= 8;    # extract exit code portion
 
         exit $code;
     } 
