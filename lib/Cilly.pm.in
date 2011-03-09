@@ -1325,8 +1325,8 @@ sub runShell {
         # since that makes the output more confusing
         #die "Possible error with @cmd!\n";
         if ($code & 0x7f) {
-            print STDERR "The command\n@cmd\nreceived signal ," ($code
-                &0x7f), "\n";
+            print STDERR
+                "The command\n@cmd\nreceived signal %d\n", ($code &0x7f);
         }
         $code >>= 8;    # extract exit code portion
 
