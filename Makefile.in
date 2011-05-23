@@ -698,6 +698,10 @@ install: $(install_cmi) $(install_cma) $(install_lib)
 	$(INSTALL) -d $(DESTDIR)$(pkgdatadir)
 	$(INSTALL_DATA) $(addprefix lib/, $(filter %.pm, $(DISTRIB_LIB))) $(DESTDIR)$(pkgdatadir)
 
+uninstall:
+	-rm -rf $(DESTDIR)$(pkglibdir)
+	-rm -rf $(DESTDIR)$(pkgdatadir)
+
 cil.spec: cil.spec.in
 	./config.status $@
 
