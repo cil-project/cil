@@ -3691,6 +3691,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ | 
+           A.CONSTANT (A.CONST_STRING _) | A.CONSTANT (A.CONST_WSTRING _) |
            A.CAST (_, A.COMPOUND_INIT _)) -> begin
             let (se, e', t) = doExp false e (AExp None) in
             (* ignore (E.log "ADDROF on %a : %a\n" d_plainexp e'
@@ -3702,6 +3703,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             | StartOf (lv) ->
                 let tres = TPtr(typeOfLval lv, []) in (* pointer to array *)
                 finishExp se (mkAddrOfAndMark lv) tres
+
+            | Const (CStr _ | CWStr _) as x ->
+               (* string to array *)
+               finishExp se x (TPtr(t, []))
 
               (* Function names are converted into pointers to the function. 
                * Taking the address-of again does not change things *)

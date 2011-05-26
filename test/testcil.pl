@@ -421,6 +421,7 @@ addTest("testrun/lval1 _GNUCC=1");
 #addToGroup("test/bind2", "slow");
 addTest("testrun/decl1 _GNUCC=1");
 addTest("testrun/addr-array");
+addTest("testrun/addr-string");
 addTest("combine1 ");
 addTest("combine2 ");
 addTest("combine3 ");
