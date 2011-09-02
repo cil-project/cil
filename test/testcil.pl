@@ -191,6 +191,7 @@ addBadComment("testrun/warnings-unused-label",
 	      "Minor. We don't do a good enough job at eliminating unused labels");
 addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
 addTest("testrun/castincr WARNINGS_ARE_ERRORS=1");
+addTest("test/castunion");
 
 addTest("test/apachebits");
 addTest("testrun/apachebuf");
