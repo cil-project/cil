@@ -194,14 +194,16 @@ let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
       let truncmax = 1 lsl n in
      let bits = i land (truncmax - 1) in
       let tval = 
+    (* check if the n-th bit is 1... *)
 	if bits < max then
 	  bits
 	else
+    (* and fill with 1 bits on the left if it is *)
 	  bits - truncmax
       in
       let trunc = 
-	if i > max || i < -max then
-	  if i > truncmax then 
+	if i >= max || i < -max then
+	  if i >= truncmax then
 	    BitTruncation
 	  else
 	    ValueTruncation
@@ -237,7 +239,7 @@ let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
       let truncmax = 1 lsl n in
       let bits = i land (truncmax - 1) in
       let trunc = 
-	if i > truncmax || i < 0 then
+	if i >= truncmax || i < 0 then
 	  if i < -max then
 	    BitTruncation
 	  else
