@@ -637,6 +637,9 @@ addTest("combine_syserr MERGEINLINES=1");
 addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
 
+addTest("testrun/constfold EXTRAARGS=\"--domakeCFG --dopartial\"");
+addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on sourceforge.");
+
 # tests of things implemented for EDG compatibility
 addTest("mergestruct");
 
