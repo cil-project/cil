@@ -176,7 +176,6 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "  sizeof_long: int ;      (* Size of \"long\" *)"        >> $@
 	echo "  sizeof_longlong: int;   (* Size of \"long long\" *)"   >> $@
 	echo "  sizeof_ptr: int;        (* Size of pointers *)"        >> $@
-	echo "  sizeof_enum: int;       (* Size of enum types *)"      >> $@
 	echo "  sizeof_float: int;      (* Size of \"float\" *)"       >> $@
 	echo "  sizeof_double: int;     (* Size of \"double\" *)"      >> $@
 	echo "  sizeof_longdouble: int; (* Size of \"long double\" *)" >> $@
