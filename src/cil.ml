@@ -4936,7 +4936,8 @@ let loadBinaryFile (filename : string) : file =
   let inchan = open_in_bin filename in
   let loaded : savedFile = (Marshal.from_channel inchan : savedFile) in
   close_in inchan ;
-  if !nextGlobalVID = 1 && !nextCompinfoKey = 1 then begin
+  (* nexGlobalVID = 2 because dummyFunDec has VID = 1 *)
+  if !nextGlobalVID = 2 && !nextCompinfoKey = 1 then begin
     nextGlobalVID := loaded.savedNextVID;
     nextCompinfoKey := loaded.savedNextCompinfoKey;
   end
