@@ -5569,7 +5569,7 @@ let foldGlobals (fl: file)
 let findOrCreateFunc (f:file) (name:string) (t:typ) : varinfo = 
   let rec search glist = 
     match glist with
-	GVarDecl(vi,_) :: rest when vi.vname = name -> 
+	GVarDecl(vi,_) :: rest | GFun ({svar = vi},_) :: rest when vi.vname = name ->
           if not (isFunctionType vi.vtype) then 
             E.s (error ("findOrCreateFunc: can't create %s because another "
                         ^^"global exists with that name.") name);
