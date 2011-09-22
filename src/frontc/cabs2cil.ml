@@ -4240,6 +4240,27 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to %s" fv.vname);
+            end else if fv.vname = "__builtin_object_size" then begin
+              (* Side-effects make __builtin_object_size return -1 or 0 *)
+              if (not (isEmpty (!prechunk ()))) then
+              (match !pargs with
+                [ ptr; typ ] -> begin
+                  match constFold true typ with
+                  | Const (CInt64 (0L,_,_)) | Const (CInt64 (1L,_,_))  ->
+                          piscall := false;
+                          pres := kinteger !kindOfSizeOf (-1);
+                          prestype := !typeOfSizeOf
+                  | Const (CInt64 (2L,_,_)) | Const (CInt64 (3L,_,_))  ->
+                          piscall := false;
+                          pres := kinteger !kindOfSizeOf 0;
+                          prestype := !typeOfSizeOf
+                  | _ ->
+                          ignore (warn "Invalid call to builtin_object_size")
+                end
+              | _ ->
+                  ignore (warn "Invalid call to builtin_object_size"));
+              (* Drop the side-effects *)
+              prechunk := (fun _ -> empty);
             end else if fv.vname = "__builtin_constant_p" then begin
               (* Drop the side-effects *)
               prechunk := (fun _ -> empty);
