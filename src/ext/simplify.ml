@@ -85,6 +85,10 @@ let splitStructs = ref true
 let simpleMem = ref true
 let simplAddrOf = ref true
 
+(* Whether to convert function calls to calls-by-pointer when function address
+ * has been taken somewhere. *)
+let convertDirectCalls = ref true
+
 let onlyVariableBasics = ref false
 let noStringConstantsBasics = ref false
 
@@ -130,7 +134,7 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
   (* Make it a three address expression first *)
   let e' = makeThreeAddress setTemp e in
   if dump then 
-    ignore (E.log "   e'= %a\n" d_plainexp e);
+    ignore (E.log "   e'= %a\n" d_plainexp e');
   (* See if it is a basic one *)
   match e' with 
   | Lval (Var _, _) -> e'
@@ -220,8 +224,9 @@ and simplifyLval
       in
       let a' = if !simpleMem then makeBasic setTemp a' else a' in
       Mem (mkCast a' (typeForCast restoff)), restoff
-
-  | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
+  (* We are taking this variable's address; but suppress simplification if it's a simple function
+   * call in no-convert mode*)
+  | Var v, off when v.vaddrof && (!convertDirectCalls || not (isFunctionType (typeOfLval lv) ))  ->
       let offidx, restoff = offsetToInt v.vtype off in
       (* We cannot call makeBasic recursively here, so we must do it 
        * ourselves *)
@@ -714,6 +719,9 @@ let feature : featureDescr =
     fd_extraopt = [
       ("--no-split-structs", Arg.Clear splitStructs,
                     " do not split structured variables"); 
+      ("--no-convert-direct-calls", Arg.Clear convertDirectCalls,
+                    " do not convert direct function calls to function pointer \
+                      calls if the address of the function was taken");
     ];
     fd_doit = (function f -> iterGlobals f doGlobal);
     fd_post_check = true;
