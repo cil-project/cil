@@ -554,12 +554,11 @@ publish_distrib: publish_doc
 	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
         fi
 
+MAINBRANCH=develop
 publish_doc: doc
-	if test -d $(CILHTMLDEST); then \
-           cp -rf doc/html/cil/* $(CILHTMLDEST); echo "Done publishing doc"; \
-	else \
-	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
-        fi
+	git checkout gh-pages;
+	cp -rf doc/html/cil/* doc/ && git commit -am "Automatic doc update"; echo "Done publishing doc"; \
+	git checkout $(MAINBRANCH)
 
 cleancheck:
 	rm -f test/small1/*.o
