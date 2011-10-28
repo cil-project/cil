@@ -1956,12 +1956,7 @@ sub new {
             # EARLY_PREPROC
 	    '-Wp,' => { TYPE => 'EARLY_PREPROC' },
 	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
-            '-Wl,' =>
-            { RUN => sub { 
-                my ($linkargs) = ($_[1] =~ m|-Wl,(.*)$|);
-                #Split up the args
-                push @{$stub->{LINKARGS}}, split(/,/, $linkargs);
-            }},
+            '-Wl,' => { TYPE => 'LINK' },
 	    
 	    # Warning Options
             "-pedantic\$" => { TYPE => 'ALLARGS' },
