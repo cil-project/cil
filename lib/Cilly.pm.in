@@ -2021,24 +2021,7 @@ sub new {
             '-Xpreprocessor$' => { ONEMORE => 1, TYPE => "PREPROC" },
 
             # Linker Options
-            "-l" => 
-            { RUN => sub { 
-                my ($libname) = ($_[1] =~ m|-l(.+)$|);
-                # See if we can find this library in the LIBDIR
-                my @libdirs = @{$stub->{LIBDIR}};
-                if($#libdirs == -1) {
-                    push @libdirs, '.';
-                }
-                foreach my $d (@libdirs) {
-                    if(-f "$d/lib$libname.a") {
-                        # Pretend that we had a straight argument
-                        push @{$stub->{OFILES}}, "$d/lib$libname.a";
-                        return;
-                    }
-                }
-                # We get here when we cannot find the library in the LIBDIR
-                push @{$stub->{LINKARGS}}, $_[1];
-            }},
+            "-l" => { TYPE => "LINK" },
             '-nostartfiles$' => { TYPE => 'LINK' },
             '-nodefaultlibs$' => { TYPE => 'LINK' },
             '-nostdlib$' => { TYPE => 'LINK' },
