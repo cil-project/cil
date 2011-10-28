@@ -4045,6 +4045,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               fv.vname = "__builtin_next_arg"
             | _ -> false
         in
+        let isBuiltinChooseExpr = 
+          match f'' with 
+            Lval (Var fv, NoOffset) ->
+              fv.vname = "__builtin_choose_expr"
+            | _ -> false
+        in
           
         (** If the "--forceRLArgEval" flag was used, make sure
           we evaluate args right-to-left.
@@ -4098,9 +4104,16 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                       let (ss, args') = loop args in
                       let (sa, a', at) = force_right_to_left_evaluation 
                           (doExp false a (AExp None)) in
-                      let promoted_type = defaultArgumentPromotion at in
-                      let _, a'' = castTo at promoted_type a' in
-                      (sa :: ss, a'' :: args')
+                      if isBuiltinChooseExpr then
+                          (* This built-in function is analogous to the `? :'
+                           * operator in C, except that the expression returned
+                           * has its type unaltered by promotion rules. 
+                           * -- gcc manual *)
+                          (sa :: ss, a' :: args')
+                      else
+                          let promoted_type = defaultArgumentPromotion at in
+                          let _, a'' = castTo at promoted_type a' in
+                          (sa :: ss, a'' :: args')
                 in
                 loop args
         in
