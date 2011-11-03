@@ -551,6 +551,9 @@ addTest("testrun/simplify_structs2 USECILLY=1 EXTRAARGS=--dosimplify");
 
 addTest("test/tempname EXTRAARGS=--dosimplify");
 
+addTest("test/simplify_volatile EXTRAARGS=--dosimplify");
+addBadComment("test/simplify_volatile", "Bug. Simplification of volatile structures with array members fails.");
+
 addTest("testrun/typeof1 ");
 addTest("testrun/semicolon _GNUCC=1");
 
