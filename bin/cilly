@@ -120,7 +120,7 @@ sub CillyCommand {
 
     if(defined $ENV{OCAMLDEBUG} || $self->{OCAMLDEBUG}) {
         print "OCAMLDEBUG is on\n";
-        my @idirs = (".", "src", "src/frontc", "src/ccured", "src/ext",
+        my @idirs = (".", "src", "src/frontc", "src/ext",
                      "ocamlutil", 
                      "obj/$::archos");
 	my @iflags = map { ('-I', "$::cilhome/$_") } @idirs;

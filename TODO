@@ -1,0 +1,27 @@
+
+Front-end
+ - trigraph sequences (??:, ...) ISO 5.2.1.1
+ - name spaces for struct/enum/union are the same ISO 6.2.3
+ - check integer conversion ISO 6.3.1.1
+ - character constants (type, value, escapes) ISO 6.4.4.4
+ - string literals (value, escapes) ISO 6.4.5
+ - punctuation tokens ISO 6.4.6
+ - default argument promotions in function calls ISO 6.5.2.2
+ - compound literals ISO 6.5.2.5. Missing fields initialized to 0!!
+ - check that long long is properly done in type specs ISO 6.7.2
+ - Initialization ISO 6.7.8
+
+- MSVC has a bug in the handling of shift operators: arithmetic
+  conversions are applied on both operands instead of just integral
+  promotions. We duplicate this bug in doBinOp in cabs2cil.
+
+ - we should allow the user to specify a logging function that takes
+   printf()-style arguments (rather than hardcoding syslog/printk/printf).
+
+ - the restrict attribute is dropped in cabs2cil
+
+ - struct and union must share the name space
+
+ - when merging we use too much memory. We should be droping the references to
+ the CABS files once we convert each one to CIL.
+
