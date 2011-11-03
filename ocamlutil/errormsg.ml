@@ -50,12 +50,14 @@ let s (d : 'a) = raise Error
 
 let hadErrors = ref false
 
+let logChannel : out_channel ref = ref stderr
+
 let errorContext = ref []
 let pushContext f = errorContext := f :: (!errorContext)
 let popContext () = 
   match !errorContext with 
     _ :: t -> errorContext := t
-  | [] -> s (eprintf "Bug: cannot pop error context")
+  | [] -> s (fprintf !logChannel "Bug: cannot pop error context")
 
 
 let withContext ctx f x = 
@@ -77,7 +79,7 @@ let showContext () =
   let rec loop = function
       [] -> ()
     | f :: rest -> (errorContext := rest; (* Just in case f raises an error *)
-                    ignore (eprintf "  Context : %t@!" f);
+                    ignore (fprintf !logChannel "  Context : %t@!" f);
                     loop rest)
   in
   let old = !errorContext in
@@ -90,12 +92,10 @@ let showContext () =
   end
 
 let contextMessage (name: string) (d: doc) = 
-  ignore (eprintf "%s: %a@!" name insert d);
+  ignore (fprintf !logChannel "%s: %a@!" name insert d);
   showContext ()
 
 let warnFlag = ref false
-
-let logChannel : out_channel ref = ref stderr
 
 let redEscStr = "\027[31;1m"
 let greenEscStr = "\027[32;1m"
