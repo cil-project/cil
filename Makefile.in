@@ -325,7 +325,6 @@ testcil: $(OBJDIR)/cilly$(EXE)
 ### The following are available
 ###
 ###   make doc  - creates the documentation
-###   make publish_doc - creates the documentation and puts it on the web page
 
 ODOC_FILES =        ocamlutil/pretty.mli ocamlutil/errormsg.mli \
                     ocamlutil/clist.mli \
@@ -538,30 +537,6 @@ distclean: clean
 	rm -f config.h
 	rm -f Makefile
 	rm -f README
-
-## Publish the distribution
-CILHTMLDEST=/var/www/cil
-publish_distrib: publish_doc
-	if test -d $(CILHTMLDEST); then \
-           cp -rf doc/html/cil/* $(CILHTMLDEST); \
-           cp -f $(CIL_TAR_GZ) $(CILHTMLDEST)/distrib; \
-           ln -sf $(CILHTMLDEST)/distrib/$(CIL_TAR_GZ) $(CILHTMLDEST)/distrib/cil-latest.tar.gz ; \
-           echo "Publish succeeded"; \
-	else \
-	   error "Cannot publish because $(CILHTMLDEST) does not exist" ; \
-        fi
-
-MAINBRANCH=develop
-publish_doc: doc
-	mv doc/html/cil cildoc.tmp
-	git stash
-	git checkout -f gh-pages
-	cp -rf  cildoc.tmp/* doc/
-	git add doc/
-	git commit -m "Automatic doc update"
-	echo "Done publishing doc"
-	git checkout $(MAINBRANCH)
-	rm -rf cildoc.tmp
 
 cleancheck:
 	rm -f test/small1/*.o

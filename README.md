@@ -28,4 +28,4 @@ Build the doc:
 
     make doc
 
-You can also [browse it online](http://kerneis.github.com/cil/doc).
+You can also [browse it online](http://kerneis.github.com/cil/doc/html/cil).
