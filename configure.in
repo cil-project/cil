@@ -291,38 +291,6 @@ EOF
  fi
 fi
 
-# 
-# Now setup the performance counters
-#
-# At runtime, we'll try to get the cycle speed from /proc/cpuinfo
-# or FreeBSD sysctl.  This means binaries can be moved to different computers.
-# CYCLES_PER_USEC is only a backup in case these aren't available.
-# (See the subversion history for the old code that read /proc/cpuinfo here.)
-AC_MSG_CHECKING(if performance counters are usable)
-# Create a C file from src/perfcount.c.in
-rm -f ./cycles.exe
-if gcc -DCONFIGURATION_ONLY \
-       -x c ocamlutil/perfcount.c.in -lm -o ./cycles.exe >/dev/null 2>&1; then
-
-   if CYCLES_PER_USEC=`./cycles.exe 2>&1` ;then
-     AC_MSG_RESULT([ok ($CYCLES_PER_USEC cycles per us)])
-   else
-     # Print what we got 
-     AC_MSG_RESULT([no ($CYCLES_PER_USEC)])
-     CYCLES_PER_USEC=0
-   fi
-else
-   CYCLES_PER_USEC=0
-   AC_MSG_RESULT([no (cannot compile perfcount.c)])
-fi
-rm -f ./cycles.exe
-
-if test "$CYCLES_PER_USEC" != "0" ;then
-      HAS_PERFCOUNT=1
-else
-      HAS_PERFCOUNT=0
-fi
-
 # additional tools we might check for:
 #   - gnu make
 
@@ -581,7 +549,6 @@ AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)
 AC_SUBST(CIL_VERSION)
 AC_SUBST(CYCLES_PER_USEC)
-AC_SUBST(HAS_PERFCOUNT)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
@@ -601,7 +568,6 @@ CIL_CONFIG_EXE_FILES(bin/patcher.bat)
 CIL_CONFIG_FILES(bin/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
-CIL_CONFIG_FILES(ocamlutil/perfcount.c)
 CIL_CONFIG_FILES(test/llvm/Makefile)
 CIL_CONFIG_FILES(src/machdep-ml.c)
 

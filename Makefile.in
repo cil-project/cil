@@ -34,9 +34,6 @@ config.status: configure
 configure: configure.in aclocal.m4
 	autoconf
 
-ocamlutil/perfcount.c: config.status ocamlutil/perfcount.c.in
-	./$<
-
 @DEFAULT_COMPILER@=1
 
 
@@ -108,7 +105,7 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 # otherwise every program that links against that library will get
 # main's argument checking and whatnot ...
 CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
-CILLY_CMODULES = perfcount
+CILLY_CMODULES = 
 CILLY_LIBS     = unix str nums
 
 SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
@@ -283,7 +280,7 @@ endif
 
 
 OCAML_CIL_LIB_MODULES := $(CILLY_LIBRARY_MODULES) 
-OCAML_CIL_LIB_CMODULES := perfcount
+OCAML_CIL_LIB_CMODULES :=
 
 # list of modules to use for building a library; remove 'main'
 # and add 'libmaincil'
@@ -295,9 +292,6 @@ $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
 	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) \
                $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) \
                $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-
-$(OBJDIR)/libperfcount.a: %: %($(OBJDIR)/perfcount.$(CMC))
-	ranlib $@
 
 # sm: for Simon: build a library of CIL functions which can
 # be called from C code; this is like the target above, except
@@ -438,7 +432,7 @@ DISTRIB_OCAMLUTIL = pretty.ml pretty.mli errormsg.ml errormsg.mli \
                     longarray.ml longarray.mli \
                     growArray.ml growArray.mli \
                     bitmap.ml bitmap.mli \
-                    perfcount.c.in Makefile.ocaml \
+                    Makefile.ocaml \
                     _tags
 
 
@@ -537,7 +531,6 @@ checkdistrib:
 distclean: clean
 	rm -f src/frontc/cparser.output
 	rm -f src/formatparse.output
-	rm -f ocamlutil/perfcount.c
 	rm -f bin/cilly.bat
 	rm -f bin/patcher.bat
 	rm -f bin/CilConfig.pm

@@ -32,35 +32,18 @@
 
 (** Utilities for maintaining timing statistics *)
 
-(** Whether to use the performance counters (on Pentium only) *)
 type timerModeEnum =
   | Disabled      (** Do not collect timing information *)
   | SoftwareTimer (** Use OCaml's [Unix.time] for timing information *)
-  | HardwareTimer (** Use the Pentium's cycle counter to time code *)
-  | HardwareIfAvail (** Use the hardware cycle counter if availible; 
-                        otherwise use SoftwareTimer *)
 
 (** Resets all the timings and specifies the method to use for future timings.
- *  Call this before doing any timing.
-
- * You will get an exception if you pass HardwareTimer to reset and the
- * hardware counters are not available *)
+ *  Call this before doing any timing. *)
 val reset: timerModeEnum -> unit
-exception NoPerfCount
 
 (** Flag to indicate whether or not to count the number of calls of
     to {!Stats.repeattime} or {!Stats.time} for each label.
     (default: false) *)
 val countCalls: bool ref
-
-(** Check if we have performance counters *)
-val has_performance_counters: unit -> bool
-                           
-(** Sample the current cycle count, in megacycles. *)
-val sample_pentium_perfcount_20: unit -> int
-
-(** Sample the current cycle count, in kilocycles. *)
-val sample_pentium_perfcount_10: unit -> int
 
 (** Time a function and associate the time with the given string. If some
     timing information is already associated with that string, then accumulate

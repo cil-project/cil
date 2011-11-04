@@ -11,12 +11,6 @@ dispatch begin
 	(* the main CIL library *)
 	ocaml_lib "src/cil";
 
-	(* performance counter external functions *)
-	let perfcount = "ocamlutil/perfcount.o" in
-	flag ["use_perfcount"] (S [P perfcount]);
-	dep ["use_perfcount"] [perfcount];
-	flag ["optimize"] (S [A "-ccopt"; A "-O3"]);
-
 	(* residual reliance on make to build some OCaml source files *)
 	let make target =
 	  let basename = Pathname.basename target in
