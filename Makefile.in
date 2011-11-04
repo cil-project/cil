@@ -22,7 +22,6 @@ all:  quickbuild setup
 # Now add the defines for the CIL features
 include Makefile.features
 
-
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
 Makefile: config.status Makefile.in 
@@ -105,13 +104,12 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 # otherwise every program that links against that library will get
 # main's argument checking and whatnot ...
 CILLY_MODULES = $(CILLY_LIBRARY_MODULES) main
-CILLY_CMODULES = 
 CILLY_LIBS     = unix str nums
 
 SOURCEDIRS  += src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
 MLLS        += clexer.mll formatlex.mll
 MLYS        += cparser.mly formatparse.mly
-MODULES     += $(CILLY_MODULES) libmaincil
+MODULES     += $(CILLY_MODULES)
 
 BEFOREDEPS += $(OBJDIR)/machdep.ml
 BEFOREDEPS += $(OBJDIR)/cilversion.ml
@@ -131,8 +129,7 @@ ocamlbuild:
    # Now the rule to make cilly
 
 cilly: $(OBJDIR)/cilly$(EXE)
-$(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
-                        $(CILLY_CMODULES:%=$(OBJDIR)/%.$(CMC))
+$(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO))
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
 	$(AT)$(CAMLLINK) -verbose -o $@ \
                     $(CILLY_LIBS:%=%.$(CMXA)) \
@@ -142,11 +139,7 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO)) \
 quickbuild: cilversion machdep cilly lib/Cilly.pm
 
 # Setup also makes the native code versions
-#
-# sm: cillib is only built with NATIVECAML=1 because it builds libcil.o,
-# which requires native-code .cmx compiled modules... could break it
-# into two targets so we build cil.cma both ways, but no one is using
-# cil.cma now so I'll leave it alone
+
 setup: cilversion machdep
 	$(MAKE) cilly NATIVECAML= 
 	$(MAKE) cilly NATIVECAML=1
@@ -228,7 +221,6 @@ lib/Cilly.pm: lib/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
 	  sed -i -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" lib/Cilly.pm; \
 	fi
 
-#
 # Create the version information module
 .PHONY: cilversion
 cilversion: $(OBJDIR)/cilversion.ml
@@ -236,14 +228,9 @@ $(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
 	rm -f $@
 	./config.status --file=$@:$<
 
-# build two libraries
-.PHONY: cillib libcil
-ifeq ($(NATIVECAML),1)
-cillib: $(OBJDIR)/cil.$(CMXA) $(OBJDIR)/libcil.o lib/Cilly.pm
-else
+# build library
+.PHONY: cillib
 cillib: $(OBJDIR)/cil.$(CMXA) lib/Cilly.pm
-endif
-
 
 $(OBJDIR)/feature_config.ml: config.status
 	rm -f $(OBJDIR)/feature_config.*
@@ -274,37 +261,12 @@ endif
 	| perl -pe 's/\\n/\n/g' >> $@
 	echo "]"   >>$@ 
 
-
-
-
-
-
 OCAML_CIL_LIB_MODULES := $(CILLY_LIBRARY_MODULES) 
-OCAML_CIL_LIB_CMODULES :=
-
-# list of modules to use for building a library; remove 'main'
-# and add 'libmaincil'
-OCAML_CIL_C_LIB_MODULES := $(CILLY_MODULES:main=) libmaincil
 
 # Build an OCAML library (CMA / CMXA) that exports our Cil stuff
-$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
-                       $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
+$(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) \
-               $(OCAML_CIL_LIB_CMODULES:%=-cclib -l%) \
                $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-
-# sm: for Simon: build a library of CIL functions which can
-# be called from C code; this is like the target above, except
-# it is callable from C instead of from Ocaml
-ifeq ($(NATIVECAML),1)
-$(OBJDIR)/libcil.o: $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a) \
-                    $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-	ocamlopt -output-obj -o $@ $(CILLY_LIBS:%=%.cmxa) $^
-else
-$(OBJDIR)/libcil.o:
-	@echo "Can only build $@ when NATIVECAML is 1."
-	exit 2
-endif
 
 # Test cil
 ifdef _MSVC
@@ -463,11 +425,11 @@ uninstall: uninstall-findlib
 	   	$(DESTDIR)$(perl_vendorlib)/KeptFile.pm $(DESTDIR)$(perl_vendorlib)/OutputFile.pm \
 		$(DESTDIR)$(perl_vendorlib)/TempFile.pm
 
-EVERYTHING=$(OBJDIR)/*.cmi $(OBJDIR)/*.cmo $(OBJDIR)/*.cmx $(OBJDIR)/*.cma \
-		   $(OBJDIR)/*.cmxa $(OBJDIR)/*.o $(OBJDIR)/*.a src/*.mli src/ext/*.mli src/frontc/*.mli
+EVERYTHING=$(OBJDIR)/*.cmi $(OBJDIR)/*.cmx $(OBJDIR)/*.cma $(OBJDIR)/*.mli \
+		   $(OBJDIR)/*.cmxa $(OBJDIR)/*.a $(SOURCEDIRS:%=%/*.mli)
 
 install-findlib: all $(EVERYTHING)
-	ocamlfind install cil META $^
+	ocamlfind install cil META $(EVERYTHING)
 
 uninstall-findlib:
 	ocamlfind remove cil
