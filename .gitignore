@@ -82,9 +82,6 @@
 /doc/index.html
 /doc/ocamldoc.sty
 
-# /doc/html/
-/doc/html/*
-
 # /lib/
 /lib/splay
 /lib/*.patch2.i*
