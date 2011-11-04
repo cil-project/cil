@@ -397,6 +397,17 @@ case "$target" in
     ARCHOS=${ARCH}_FREEBSD
     ;;
 
+  *powerpc64*linux*)
+    AC_MSG_RESULT(configuring for linux/powerpc64)
+
+    ARCHOS=ppc64_LINUX
+    ;;
+
+  *powerpc-*linux*)
+    AC_MSG_RESULT(configuring for linux/powerpc)
+
+    ARCHOS=ppc_LINUX
+    ;;
 
   # Mac OS X
   *86*darwin*)
