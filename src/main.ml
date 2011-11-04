@@ -211,7 +211,7 @@ let theMain () =
   begin
     (* this point in the code is the program entry point *)
 
-    Stats.reset Stats.HardwareIfAvail;
+    Stats.reset Stats.SoftwareTimer;
 
     (* parse the command-line arguments *)
     Arg.parse (Arg.align argDescr) Ciloptions.recordFile usageMsg;
@@ -223,7 +223,7 @@ let theMain () =
       Testcil.doit !Cilutil.testcil
     end else
       (* parse each of the files named on the command line, to CIL *)
-      let files = List.map parseOneFile !Ciloptions.fileNames in
+      let files = Util.list_map parseOneFile !Ciloptions.fileNames in
 
       (* if there's more than one source file, merge them together; *)
       (* now we have just one CIL "file" to deal with *)

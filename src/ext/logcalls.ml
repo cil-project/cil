@@ -141,7 +141,7 @@ let logCalls (f: file) : unit =
         (* Collect expressions that denote the actual arguments *)
         let actargs =
           (* make lvals out of args which pass test below *)
-          (List.map
+          (Util.list_map
             (fun vi -> match unrollType vi.vtype with
               | TComp(cinfo, _) when isFatCharPtr(cinfo) ->
                   (* access the _p field for these *)

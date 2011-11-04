@@ -35,6 +35,8 @@
  *)
 
 open Cil
+open Cilint
+open Cilint
 open Pretty
 
 module E = Errormsg
@@ -60,8 +62,8 @@ let rec compareExp (e1: exp) (e2: exp) : bool =
   | CastE(t1, e1), CastE(t2, e2) ->
       t1 == t2 && compareExp e1 e2
   | _ -> begin
-      match isInteger (constFold true e1), isInteger (constFold true e2) with
-        Some i1, Some i2 -> i1 = i2
+      match getInteger (constFold true e1), getInteger (constFold true e2) with
+        Some i1, Some i2 -> compare_cilint i1 i2 = 0
       | _ -> false
     end
 

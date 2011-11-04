@@ -1056,8 +1056,8 @@ let rec evaluateExp (e : exp) (state : state) : summary =
       SFacts (FactSet.singleton ("*", ANT 0))
   | Const _ ->
       begin
-        match isInteger e with
-        | Some i -> SInt (Int64.to_int i) (* TODO: possible bug in conv?  *)
+        match getInteger e with
+        | Some i -> SInt (cilint_to_int i) (* TODO: possible bug in conv?  *)
         | None -> SNone
       end
   | SizeOf _
@@ -1109,8 +1109,8 @@ and evaluateLval (lv : lval) (state : state) : summary =
       end
 
 let getTypeSize (t : typ) : int =
-  match isInteger (constFold true (SizeOf t)) with
-  | Some i -> Int64.to_int i
+  match getInteger (constFold true (SizeOf t)) with
+  | Some i -> cilint_to_int i
   | None -> E.s (E.bug "failed to compute size of type %a\n" d_type t)
 
 let getAllocFact (t : typ) (e : exp) (state : state) : FactSet.t * bool =
@@ -1362,7 +1362,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                            dn_instr instr d_state state);
            match instr with
            | Call (None, Lval (Var vi, NoOffset), [ptr; chr; size], l)
-                 when vi.vname = "memset" && isInteger chr = Some Int64.zero ->
+                 when vi.vname = "memset" && isZero chr ->
                let t = typeOf ptr in
                let facts, exact = getAllocFact t size state in
                if exact then begin
@@ -1878,7 +1878,7 @@ class outVisitor = object
     match inst with
     | Call (ret, fn, args, attrs) ->
         let newArgs =
-          List.map
+          Util.list_map
             (fun arg ->
                match arg with
                | Lval (Var vi, NoOffset) when Hashtbl.mem mapping vi.vname ->
@@ -1917,8 +1917,8 @@ let analyzeFile (f : file) : unit =
   visitCilFile (new preVisitor) f;
   visitCilFile (new outVisitor) f;
   visitCilFile (new ptrArithVisitor) f;
-  verifiedExps := List.map fst expStats.verified;
-  verifiedArgs := List.map fst argStats.verified;
+  verifiedExps := Util.list_map fst expStats.verified;
+  verifiedArgs := Util.list_map fst argStats.verified;
   ignore (E.log "\nCCL Results:\n  Derefs: %a\n    Args: %a\n\n"
                 d_stats expStats d_stats argStats);
   (*

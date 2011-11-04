@@ -126,7 +126,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
   #
@@ -151,7 +150,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
   #
@@ -166,7 +164,6 @@
   #	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
   #	$(AT)$(CAMLLINK) -verbose -o $@ \
   #                    $(PROJECT_LIBS:%=%.$(CMXA)) \
-  #                    $(PROJECT_LIBS:%=-cclib -l%) \
   #                    $^
   #
 
@@ -246,8 +243,13 @@ ifdef NATIVECAML
    COMPILE_FLAGS  += -S
  endif
  ifdef STATIC
-   COMPILE_FLAGS  += -ccopt -static
-   LINK_FLAGS     += -ccopt -static
+   ifdef FLEXLINK
+     COMPILE_FLAGS  += -ccopt "-link -static"
+     LINK_FLAGS     += -ccopt "-link -static"
+   else
+     COMPILE_FLAGS  += -ccopt -static
+     LINK_FLAGS     += -ccopt -static
+   endif
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
  CAMLC          = $(CAMLDIR)ocamlopt  $(COMPILE_FLAGS)
@@ -271,8 +273,13 @@ else
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
- CAMLC          = $(CAMLDIR)ocamlc $(COMPILE_FLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINK_FLAGS)
+ ifdef PROFILE
+   CAMLC          = $(CAMLDIR)ocamlcp -p a $(COMPILE_FLAGS)
+   CAMLLINK       = $(CAMLDIR)ocamlcp -p a -custom  $(LINK_FLAGS)
+ else
+   CAMLC          = $(CAMLDIR)ocamlc $(COMPILE_FLAGS)
+   CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINK_FLAGS)
+ endif
  CAML_NOOPT     = 1
 endif
 
@@ -286,8 +293,20 @@ ifdef CAML_NOOPT
    COMPILE_FLAGS    += -ccopt /Zi -ccopt /Od
    LINK_FLAGS       += -ccopt /Zi -ccopt /Od
  else
-   COMPILE_FLAGS    += -g -ccopt -g
-   LINK_FLAGS       += -g -ccopt -g
+   ifdef FLEXLINK
+     COMPILE_FLAGS    += -g -ccopt "-link -g"
+   else
+     COMPILE_FLAGS    += -g -ccopt -g
+   endif
+   ifdef MINGW
+     LINK_FLAGS       += -g
+   else
+     ifdef FLEXLINK
+       LINK_FLAGS    += -g -ccopt "-link -g"
+     else
+       LINK_FLAGS    += -g -ccopt -g
+     endif
+   endif
  endif
 else
   ifdef WIN32

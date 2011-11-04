@@ -156,7 +156,7 @@ and sliceType (i : int) (t : typ) : typ =
           if checkRegion i attrs then
             TFun (sliceTypeAll ret,
                   applyOption
-                    (List.map (fun (aname, atype, aattrs) ->
+                    (Util.list_map (fun (aname, atype, aattrs) ->
                                (aname, sliceTypeAll atype, aattrs)))
                     args,
                   va, attrs)
@@ -310,13 +310,13 @@ let sliceInstr (inst : instr) : instr list =
         (fun i rest ->
            if not (isVoidType (sliceType i t)) then
              Call (Some (sliceLval i lv), sliceExp 1 fn,
-                   List.map (sliceExp i) args, l) :: rest
+                   Util.list_map (sliceExp i) args, l) :: rest
            else
              rest)
         []
   | Call (ret, fn, args, l) when isExternalFunction fn ->
       [Call (applyOption (sliceLval 1) ret, sliceExp 1 fn,
-             List.map (sliceExp 1) args, l)]
+             Util.list_map (sliceExp 1) args, l)]
   | Call (ret, fn, args, l) ->
       let ret', set =
         match ret with
@@ -349,14 +349,14 @@ let sliceReturnExp (eo : exp option) (l : location) : stmtkind =
 
 let rec sliceStmtKind (sk : stmtkind) : stmtkind =
   match sk with
-  | Instr instrs -> Instr (List.flatten (List.map sliceInstr instrs))
+  | Instr instrs -> Instr (List.flatten (Util.list_map sliceInstr instrs))
   | Block b -> Block (sliceBlock b)
   | If (e, b1, b2, l) -> If (sliceExp 1 e, sliceBlock b1, sliceBlock b2, l)
   | Break l -> Break l
   | Continue l -> Continue l
   | Return (eo, l) -> sliceReturnExp eo l
   | Switch (e, b, sl, l) -> Switch (sliceExp 1 e, sliceBlock b,
-                                    List.map sliceStmt sl, l)
+                                    Util.list_map sliceStmt sl, l)
   | Loop (b, l, so1, so2) -> Loop (sliceBlock b, l,
                                    applyOption sliceStmt so1,
                                    applyOption sliceStmt so2)
@@ -369,7 +369,7 @@ and sliceStmt (s : stmt) : stmt =
   s
 
 and sliceBlock (b : block) : block =
-  ignore (List.map sliceStmt b.bstmts);
+  ignore (Util.list_map sliceStmt b.bstmts);
   b
 
 let sliceFundec (fd : fundec) (l : location) : unit =

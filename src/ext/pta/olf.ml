@@ -487,7 +487,7 @@ let rec print_tau_list (l : tau list) : unit =
         print_string ", ";
         print_t_strings t
   in
-    print_t_strings (List.map string_of_tau l)
+    print_t_strings (Util.list_map string_of_tau l)
 
 let print_constraint (c : tconstraint) =
   match c with
@@ -583,7 +583,7 @@ let copy_toplevel (t : tau) : tau =
     | Ref  _ -> make_ref (fresh_c_absloc false, fresh_var_i false)
     | Fun f ->
         make_fun (fresh_c_absloc false,
-                  List.map (fun _ -> fresh_var_i false) f.args,
+                  Util.list_map (fun _ -> fresh_var_i false) f.args,
                   fresh_var_i false)
     | _ -> die "copy_toplevel"
 
@@ -917,7 +917,7 @@ let apply (t : tau) (al : tau list) : (tau * int) =
           let new_l, new_ret, new_args =
             fresh_c_absloc false,
             fresh_var false,
-            List.map (function _ -> fresh_var false) !actuals
+            Util.list_map (function _ -> fresh_var false) !actuals
           in
           let new_fun = make_fun (new_l, new_args, new_ret) in
             add_toplev_constraint (Unification (new_fun, f));
@@ -951,7 +951,7 @@ let apply_undefined (al : tau list) : (tau * int) =
     arguments [formals], and return value [ret]. Adds no constraints. *)
 let make_function (name : string) (formals : lvalue list) (ret : tau) : tau =
   let f = make_fun (make_c_absloc false name None,
-                    List.map (fun x -> rvalue x) formals,
+                    Util.list_map (fun x -> rvalue x) formals,
                     ret)
   in
     make_pair (fresh_var false, f)
@@ -1094,7 +1094,7 @@ let epoints_to (t : tau) : Cil.varinfo list =
     get_vinfos (points_to_aux t)
 
 let points_to_names (lv : lvalue) : string list =
-  List.map (fun v -> v.vname) (points_to lv)
+  Util.list_map (fun v -> v.vname) (points_to lv)
 
 let absloc_points_to (lv : lvalue) : absloc list =
   points_to_aux lv.contents

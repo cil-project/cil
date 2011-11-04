@@ -307,7 +307,7 @@ let add_phi_functions_info (flowgraph: cfgInfo) : unit =
  * definition *)
   for i = 0 to size-1 do
     flowgraph.blocks.(i).livevars <- 
-      List.map (fun r -> (r, i)) result.(i);
+      Util.list_map (fun r -> (r, i)) result.(i);
   done
     
   
@@ -669,7 +669,7 @@ let stronglyConnectedComponents (f: cfgInfo) (debug: bool): sccInfo =
   end;
   
   (* Order nodes of each SCC. The graph is a SCC here.*)
-  let scclist = List.map (fun i -> 
+  let scclist = Util.list_map (fun i -> 
     let successors = Array.create size [] in
     for j = 0 to size - 1 do 
       successors.(j) <- List.filter (fun x -> IntSet.mem x (snd all_sccArray.(i))) f.successors.(j);

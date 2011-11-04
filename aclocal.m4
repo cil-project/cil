@@ -37,7 +37,8 @@ AC_DEFUN([CIL_CHECK_INTEGER_TYPE], [
   if test -z "$real_type"; then
     AC_MSG_ERROR([cannot find definition of $1])
   fi
-  AC_DEFINE_UNQUOTED([$2], "[$real_type]")
+  AC_DEFINE_UNQUOTED([$2], "[$real_type]",
+   [Real integer type corresponding to $1.])
   AC_MSG_RESULT([$real_type])
 ])
 

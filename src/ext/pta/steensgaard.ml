@@ -463,7 +463,7 @@ let rec string_of_lvalue (lv : lvalue) : string =
 	      
 (** Print a list of tau elements, comma separated *)
 let rec print_tau_list (l : tau list) : unit = 
-  let t_strings = List.map string_of_tau l in
+  let t_strings = Util.list_map string_of_tau l in
   let rec print_t_strings = function
     | h :: [] -> print_string h; print_newline();
     | h :: t -> print_string h; print_string ", "; print_t_strings t
@@ -622,7 +622,7 @@ let copy_toplevel (t : tau) : tau =
     | Fun  f -> 
 	let fresh_fn = fun _ -> fresh_var_i()
 	in
-	  make_fun (fresh_label(), List.map fresh_fn !(f.args) , fresh_var_i())
+	  make_fun (fresh_label(), Util.list_map fresh_fn !(f.args) , fresh_var_i())
     | _ -> raise Bad_type_copy
 
 let pad_args (l,l' : (tau list ref) * (tau list ref)) : unit =
@@ -1156,7 +1156,7 @@ let apply (t : tau) (al : tau list) : tau =
       | Var v ->
 	  let new_l,new_ret,new_args = 
 	    fresh_label(), fresh_var (), 
-	    List.map (function _ -> fresh_var()) (!actuals) 
+	    Util.list_map (function _ -> fresh_var()) (!actuals) 
 	  in
 	  let new_fun = make_fun(new_l,new_args,new_ret) in
 	    add_constraint (Unification(new_fun,f));
@@ -1175,7 +1175,7 @@ let apply (t : tau) (al : tau list) : tau =
   [formals], and return value [ret]. Adds no constraints. *)
 let make_function (name : string) (formals : lvalue list) (ret : tau) : tau = 
   let 
-    f = make_fun(make_label(name),List.map (fun x -> rvalue x) formals, ret) 
+    f = make_fun(make_label(name),Util.list_map (fun x -> rvalue x) formals, ret) 
   in
     make_pair(fresh_var(),f)
 
@@ -1390,13 +1390,13 @@ let points_to_int (lv : lvalue) : constantset =
       points_to_tau (lv.contents)
 
 let points_to (lv : lvalue) : string list =
-  List.map snd (C.elements (points_to_int lv))
+  Util.list_map snd (C.elements (points_to_int lv))
 
 let alias_query (a_progress : bool) (lv : lvalue list) : int * int = 
   (0,0) (* todo *)
 (*
   let a_count = ref 0 in
-  let ptsets = List.map points_to_int lv in
+  let ptsets = Util.list_map points_to_int lv in
   let total_sets = List.length ptsets in
   let counted_sets = ref 0 in 
   let record_alias s s' = 

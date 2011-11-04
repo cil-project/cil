@@ -595,7 +595,7 @@ let rec print_tau_list (l : tau list) : unit =
         print_t_strings t
     | [] -> ()
   in
-    print_t_strings (List.map string_of_tau l)
+    print_t_strings (Util.list_map string_of_tau l)
 
 let print_constraint (c : tconstraint) =
   match c with
@@ -716,7 +716,7 @@ let copy_toplevel (t : tau) : tau =
     | Fun  f ->
         let fresh_fn = fun _ -> fresh_var_i false in
           make_fun (fresh_label false,
-                    List.map fresh_fn f.args, fresh_var_i false)
+                    Util.list_map fresh_fn f.args, fresh_var_i false)
     | _ -> die "copy_toplevel"
 
 
@@ -1151,7 +1151,7 @@ let apply (t : tau) (al : tau list) : (tau * int) =
       | Var v ->
           let new_l, new_ret, new_args =
             fresh_label false, fresh_var false,
-            List.map (function _ -> fresh_var false) !actuals
+            Util.list_map (function _ -> fresh_var false) !actuals
           in
           let new_fun = make_fun (new_l, new_args, new_ret) in
             add_toplev_constraint (Unification (new_fun, f));
@@ -1169,7 +1169,7 @@ let apply (t : tau) (al : tau list) : (tau * int) =
   [formals], and return value [ret]. Adds no constraints. *)
 let make_function (name : string) (formals : lvalue list) (ret : tau) : tau =
   let f = make_fun (make_label false name None,
-                    List.map (fun x -> rvalue x) formals,
+                    Util.list_map (fun x -> rvalue x) formals,
                     ret)
   in
     make_pair (fresh_var false, f)
@@ -1403,7 +1403,7 @@ let points_to_aux (t : tau) : constant list =
   with NoContents -> []
 
 let points_to_names (lv : lvalue) : string list =
-  List.map (fun (_, str, _) -> str) (points_to_aux lv.contents)
+  Util.list_map (fun (_, str, _) -> str) (points_to_aux lv.contents)
 
 let points_to (lv : lvalue) : Cil.varinfo list =
   let rec get_vinfos l : Cil.varinfo list = match l with
@@ -1537,9 +1537,9 @@ let may_alias (t1 : tau) (t2 : tau) : bool =
 let alias_query (b : bool) (lvl : lvalue list) : int * int =
   let naive_count = ref 0 in
   let smart_count = ref 0 in
-  let lbls = List.map extract_ptlabel lvl in (* label option list *)
+  let lbls = Util.list_map extract_ptlabel lvl in (* label option list *)
   let ptsets =
-    List.map
+    Util.list_map
       (function
            Some l -> collect_ptsets l
          | None -> C.empty)
@@ -1576,9 +1576,9 @@ let alias_frequency (lvl : (lvalue * bool) list) : int * int =
   let extract_lbl (lv, b : lvalue * bool) = (lv.l, b) in
   let naive_count = ref 0 in
   let smart_count = ref 0 in
-  let lbls = List.map extract_lbl lvl in
+  let lbls = Util.list_map extract_lbl lvl in
   let ptsets =
-    List.map
+    Util.list_map
       (fun (lbl, b) ->
          if b then (find lbl).loc (* symbol access *)
          else collect_ptsets lbl)

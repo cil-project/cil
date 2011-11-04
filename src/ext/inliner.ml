@@ -106,7 +106,7 @@ class copyBodyVisitor     (host: fundec)                (* The host of the
             s.skind <- Goto (sr',l)
         | Switch (e, body, cases, l) -> 
             s.skind <- Switch (e, body, 
-                               List.map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
         | _ -> ()
       in
       List.iter patchstmt !patches;
@@ -161,7 +161,7 @@ class copyBodyVisitor     (host: fundec)                (* The host of the
     let postProc (s': stmt) : stmt = 
       (* Rename the labels if necessary *)
       s'.labels <- 
-        List.map (fun lb -> 
+        Util.list_map (fun lb -> 
           match lb with
             Label (n, l, fromsrc) -> Label(replLabel n, l, fromsrc)
           | _ -> lb) s'.labels;

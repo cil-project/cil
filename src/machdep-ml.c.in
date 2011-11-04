@@ -223,17 +223,17 @@ int main(int argc, char **argv)
     {
       fprintf(stderr, "Generating CIL_MACHINE machine dependency information string (for CIL)\n");
       printf("short=%d,%d int=%d,%d long=%d,%d long_long=%d,%d pointer=%d,%d "
-	     "enum=%d,%d float=%d,%d double=%d,%d long_double=%d,%d void=%d "
+	     "alignof_enum=%d float=%d,%d double=%d,%d long_double=%d,%d void=%d "
 	     "bool=%d,%d fun=%d,%d alignof_string=%d max_alignment=%d size_t=%s "
 	     "wchar_t=%s char_signed=%s const_string_literals=%s "
 	     "big_endian=%s __thread_is_keyword=%s __builtin_va_list=%s "
 	     "underscore_name=%s\n",
 	     (int)sizeof(short), alignof_short, (int)sizeof(int), alignof_int,
 	     (int)sizeof(long), alignof_long, (int)sizeof(long long), alignof_longlong, 
-	     (int)sizeof(int *), alignof_ptr, (int)sizeof(enum e { ONE, TWO }), alignof_enum,
+	     (int)sizeof(int *), alignof_ptr, alignof_enum,
 	     (int)sizeof(float), alignof_float, (int)sizeof(double), alignof_double, 
 	     (int)sizeof(long double), alignof_longdouble, (int)sizeof(void), 
-	     sizeof(bool), alignof_bool,
+	     (int)sizeof(bool), alignof_bool,
 	     sizeof_fun, alignof_fun, alignof_str, alignof_aligned, 
 	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T), 
 	     char_is_unsigned ? "false" : "true", CONST_STRING_LITERALS, 
@@ -256,7 +256,6 @@ int main(int argc, char **argv)
       printf("\t sizeof_long           = %d;\n", (int)sizeof(long));
       printf("\t sizeof_longlong       = %d;\n", (int)sizeof(LONGLONG));
       printf("\t sizeof_ptr            = %d;\n", (int)sizeof(int *));
-      printf("\t sizeof_enum           = %d;\n", (int)sizeof(enum e { ONE, TWO }));
       printf("\t sizeof_float          = %d;\n", (int)sizeof(float));
       printf("\t sizeof_double         = %d;\n", (int)sizeof(double));
       printf("\t sizeof_longdouble     = %d;\n", (int)sizeof(long double));

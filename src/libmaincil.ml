@@ -72,7 +72,7 @@ class unrollVisitorClass = object (self)
             let doFieldinfo (fi : fieldinfo) : unit = 
               fi.ftype <- unrollTypeDeep fi.ftype 
             in begin                
-                ignore(List.map doFieldinfo ci.cfields);
+                ignore(Util.list_map doFieldinfo ci.cfields);
                 (*ChangeTo [g]*)
                 SkipChildren
               end              

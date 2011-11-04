@@ -434,7 +434,7 @@ and childrenStatement vis s =
           [d'] when d' == d -> s
         | [d'] -> DEFINITION d'
         | dl -> let l = get_definitionloc d in
-          let dl' = List.map (fun d' -> DEFINITION d') dl in
+          let dl' = Util.list_map (fun d' -> DEFINITION d') dl in
           BLOCK ({blabels = []; battrs = []; bstmts = dl' }, l)
     end
   | ASM (sl, b, details, l) -> 

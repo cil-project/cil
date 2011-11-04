@@ -204,26 +204,29 @@ cygwin version of ocaml (preferred) and with the Win32 version of ocaml.
 \begin{itemize}
 \item {\em Official distribution} (Recommended):
 \begin{enumerate}
-\item Download the CIL \ahref{distrib}{distribution} (latest version is
-\ahrefurl{distrib/cil-\cilversion.tar.gz}). See the \secref{changes} for recent changes to the CIL distribution.
+\item Download the CIL
+    \ahref{http://sourceforge.net/projects/cil/files/cil/}{distribution}
+    (latest version is
+    \ahrefurl{http://sourceforge.net/projects/cil/files/cil/cil-\cilversion.tar.gz}).
+    See the \secref{changes} for recent changes to the CIL distribution.
 \item Unzip and untar the source distribution. This will create a directory
       called \t{cil} whose structure is explained below. \\
       \t{~~~~tar xvfz cil-\cilversion.tar.gz}
 \end{enumerate}
-\item {\em Subversion Repository}: \\
+\item {\em Git Repository}: \\
   Alternately, you can download an up to the minute version of CIL
   from our Subversion repository at:
 \begin{verbatim}
-    svn co svn://hal.cs.berkeley.edu/home/svn/projects/trunk/cil
+    git clone git://cil.git.sourceforge.net/gitroot/cil/cil
 \end{verbatim}
-However, the Subversion version may be less stable than the released
+There is also a Github mirror:
+\begin{verbatim}
+    git clone git://github.com/kerneis/cil.git
+\end{verbatim}
+However, the Git version may be less stable than the released
 version.  See the Changes section of doc/cil.tex to see what's
 changed since the last release.  There may be changes that aren't yet
 documented in the .tex file or this website.
-
-For those who were using the CVS server before we switched to
-Subversion, revision 8603 in Subversion corresponds to the last CVS
-version.
 
 \end{itemize}
 \item Enter the \t{cil} directory and run the \t{configure} script and then 
@@ -238,11 +241,8 @@ version.
 name of the subdirectory is either \t{x86\_WIN32} if you are using \t{cygwin}
 on Windows or \t{x86\_LINUX} if you are using Linux (although you should be
 using instead the Perl wrapper \t{bin/cilly}). Note that we do not have an
-\t{install} make target and you should use Cil from the development directory.
-\item If you decide to use CIL, {\bf please}
-\ahref{mailto:necula@cs.berkeley.edu}{send us a note}. This will help recharge
-our batteries after a few years of development. And of course, do send us
-your bug reports as well.
+\t{install} make target and you should use Cil from the development
+directory.
 \end{enumerate}
 
  The \t{configure} script tries to find appropriate defaults for your system.
@@ -3019,7 +3019,7 @@ should be easy.)
 the shift is logical.)
 
 \begin{cilcode}[local]
- return ((1 - sizeof(int)) >> 32);
+ return (((1 - sizeof(int)) >> 16) >> 16);
 \end{cilcode}
 
 \item Scoping rules can be tricky. This function returns 5.
@@ -3130,6 +3130,20 @@ code returns 2.
   The correct interpretation is \t{((unsigned long) - 1) / 8}, which is a
   relatively large number, as opposed to \t{(unsigned long) (- 1 / 8)}, which
   is 0. 
+
+\item An example with \t{typedef} wierdness. Example due to James Cheney. 
+\begin{cilcode}[global]
+typedef int int_t;
+typedef int int2_t;
+
+int_t f(int2_t int2_t[]) {
+  int_t int_t = int2_t[0];
+  {
+    int int2_t = 2*int_t;
+    return int2_t;
+  }
+}
+\end{cilcode}
 
 \end{enumerate}
 
@@ -3304,15 +3318,21 @@ Microsoft Research. Any opinions, findings, and conclusions or recommendations
 expressed in this material are those of the author(s) and do not necessarily
 reflect the views of the National Science Foundation or the other sponsors.
 
+Starting with version 1.4.0, CIL is maintained by
+\ahref{mailto:kerneis@pps.jussieu.fr}{Gabriel Kerneis} since the UC
+Berkeley does have time anymore to support it.
+
 \section{License}
 
-Copyright (c) 2001-2007, 
+Copyright (c) 2001-2011,
 \begin{itemize}
 \item George C. Necula    <necula@cs.berkeley.edu>
 \item Scott McPeak        <smcpeak@cs.berkeley.edu>
 \item Wes Weimer          <weimer@cs.berkeley.edu>
 \item Ben Liblit          <liblit@cs.wisc.edu>
 \item Matt Harren         <matth@cs.berkeley.edu>
+\item Gabriel Kerneis     <kerneis@pps.jussieu.fr>
+\item and the CIL contributors for various patches.
 \end{itemize}
 All rights reserved.
 
@@ -3356,6 +3376,23 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item {\bf November 4, 211}: Released version 1.4.0.  Includes many bug
+    fixes and a cleanup of obsolete files and Makefile rules.  Also fix
+    support for OCaml 3.12, add support of some gcc builtins.
+\item {\bf May 28, 2009}: Improved 64-bit int support (large constants
+  no longer cause a CIL failure). There's a new cilint type that
+  should be used to handle integer C values - cilint is essentially a
+  big\_int so will be able to handle future expansion. To get the value
+  represented by a CInt64(n, ik, \_) constant, call \t{mkCilint ik n}
+  --- this will give you the correct value for unsigned 64-bit C
+  constants stored in a signed OCaml int64.
+
+  In a related move, the already deprecated \t{unbox\_int\_exp},
+  \t{box\_int\_to\_exp} and \t{cil\_to\_ocaml\_int} functions have
+  been removed.  And \t{convertInts}, \t{isInteger},
+  \t{truncateInteger64} are now deprecated and will be removed in a
+  future release.
+
 \item {\bf April 24, 2009}: {\bf Released version 1.3.7} (Subversion
   revision 10727). Includes change below and other miscellaneous bug fixes.
 \item {\bf April 22, 2009}: \t{ocamlbuild} make target added (thanks

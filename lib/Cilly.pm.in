@@ -1323,8 +1323,12 @@ sub runShell {
     if ($code != 0) {
         # sm: now that we always print, don't echo the command again,
         # since that makes the output more confusing
-	#die "Possible error with @cmd!\n";
-	$code >>= 8;    # extract exit code portion
+        #die "Possible error with @cmd!\n";
+        if ($code & 0x7f) {
+            print STDERR
+                "The command\n@cmd\nreceived signal %d\n", ($code &0x7f);
+        }
+        $code >>= 8;    # extract exit code portion
 
         exit $code;
     } 
@@ -1952,12 +1956,7 @@ sub new {
             # EARLY_PREPROC
 	    '-Wp,' => { TYPE => 'EARLY_PREPROC' },
 	    '-Wl,--(no-)?whole-archive$' => { TYPE => 'OSOURCE' },
-            '-Wl,' =>
-            { RUN => sub { 
-                my ($linkargs) = ($_[1] =~ m|-Wl,(.*)$|);
-                #Split up the args
-                push @{$stub->{LINKARGS}}, split(/,/, $linkargs);
-            }},
+            '-Wl,' => { TYPE => 'LINK' },
 	    
 	    # Warning Options
             "-pedantic\$" => { TYPE => 'ALLARGS' },
@@ -2017,24 +2016,7 @@ sub new {
             '-Xpreprocessor$' => { ONEMORE => 1, TYPE => "PREPROC" },
 
             # Linker Options
-            "-l" => 
-            { RUN => sub { 
-                my ($libname) = ($_[1] =~ m|-l(.+)$|);
-                # See if we can find this library in the LIBDIR
-                my @libdirs = @{$stub->{LIBDIR}};
-                if($#libdirs == -1) {
-                    push @libdirs, '.';
-                }
-                foreach my $d (@libdirs) {
-                    if(-f "$d/lib$libname.a") {
-                        # Pretend that we had a straight argument
-                        push @{$stub->{OFILES}}, "$d/lib$libname.a";
-                        return;
-                    }
-                }
-                # We get here when we cannot find the library in the LIBDIR
-                push @{$stub->{LINKARGS}}, $_[1];
-            }},
+            "-l" => { TYPE => "LINK" },
             '-nostartfiles$' => { TYPE => 'LINK' },
             '-nodefaultlibs$' => { TYPE => 'LINK' },
             '-nostdlib$' => { TYPE => 'LINK' },

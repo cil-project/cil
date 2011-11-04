@@ -85,6 +85,29 @@ let splitStructs = ref true
 let simpleMem = ref true
 let simplAddrOf = ref true
 
+(* Whether to convert function calls to calls-by-pointer when function address
+ * has been taken somewhere. *)
+let convertDirectCalls = ref true
+
+(* Whether to convert field offsets to offsets by integer.
+ * This conversion makes the generated code analysis simpler for static source
+ * code verifiers. *)
+let convertFieldOffsets = ref true
+(* WARN: splitStructs should be set to false if field offsets are not
+ * converted.  Otherwise, the connection between a pointer to a structure and
+ * its fields is sometimes lost, and is harder to analyze statically.  If a
+ * structure inside a structure (say, "struct A{struct B b} a;" is split into
+ * fields, then, instead of a pointer to the enclosed structure (in "&a.b"), a
+ * pointer to its first member might be used.  This will make the rest of the
+ * structure pointed to by "&a.b" be accessed through the (possibly
+ * non-structure) pointer to its first element, which is harder to analyze
+ * statically.
+ *
+ * Last, but not least, this inconsistency will trigger "Cannot find
+ * component .foo of bar" error if you turn splitting structure on and take an
+ * address of  bar.foo, where foo is a field of a structure type. :-)
+*)
+
 let onlyVariableBasics = ref false
 let noStringConstantsBasics = ref false
 
@@ -112,6 +135,10 @@ let rec makeThreeAddress
       if not(!simplAddrOf) then e else
       match simplifyLval setTemp lv with 
         Mem a, NoOffset -> if !simpleMem then a else AddrOf(Mem a, NoOffset)
+      (* Do not change addrof if we do not convert field offsets *)
+      | Mem a, off when not !convertFieldOffsets -> AddrOf(Mem a, off)
+      (* Do not change addrof if we do not convert field offsets *)
+      | Var v, off when not !convertFieldOffsets -> AddrOf(Var v, off)
       | _ -> (* This is impossible, because we are taking the address 
           * of v and simplifyLval should turn it into a Mem, except if the 
           * sizeof has failed.  *)
@@ -130,7 +157,7 @@ and makeBasic (setTemp: taExp -> bExp) (e: exp) : bExp =
   (* Make it a three address expression first *)
   let e' = makeThreeAddress setTemp e in
   if dump then 
-    ignore (E.log "   e'= %a\n" d_plainexp e);
+    ignore (E.log "   e'= %a\n" d_plainexp e');
   (* See if it is a basic one *)
   match e' with 
   | Lval (Var _, _) -> e'
@@ -210,7 +237,10 @@ and simplifyLval
     | Field(fi, _) -> E.s (bug "bug in offsetToInt")
   in
   match lv with 
-    Mem a, off -> 
+    Mem a, off when not !convertFieldOffsets ->
+      let a' = if !simpleMem then makeBasic setTemp a else a in
+      Mem a', off
+  | Mem a, off ->
       let offidx, restoff = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
       let a' = 
         if offidx <> zero then 
@@ -220,8 +250,10 @@ and simplifyLval
       in
       let a' = if !simpleMem then makeBasic setTemp a' else a' in
       Mem (mkCast a' (typeForCast restoff)), restoff
-
-  | Var v, off when v.vaddrof -> (* We are taking this variable's address *)
+  (* We are taking this variable's address; but suppress simplification if it's a simple function
+   * call in no-convert-function-calls mode*)
+  | Var v, off when v.vaddrof && (!convertDirectCalls || not (isFunctionType (typeOfLval lv) ))  ->
+      if (not !convertFieldOffsets) then (Var v, off) else
       let offidx, restoff = offsetToInt v.vtype off in
       (* We cannot call makeBasic recursively here, so we must do it 
        * ourselves *)
@@ -278,7 +310,7 @@ class threeAddressVisitor (fi: fundec) = object (self)
           | _ -> None
         in
         let f' = makeBasic self#makeTemp f in
-        let args' = List.map (makeBasic self#makeTemp) args in 
+        let args' = Util.list_map (makeBasic self#makeTemp) args in 
         ChangeTo [ Call (someo', f', args', loc) ]
   | _ -> DoChildren
 
@@ -353,7 +385,7 @@ let splitOneVar (v: varinfo)
                 (mknewvar: string -> typ -> varinfo) : varinfo list = 
   try 
     (* See if we have already split it *)
-    List.map snd (H.find newvars v.vname)
+    Util.list_map snd (H.find newvars v.vname)
   with Not_found -> begin
     let vars: (offset * varinfo) list = 
       foldStructFields v.vtype 
@@ -367,7 +399,7 @@ let splitOneVar (v: varinfo)
     else begin
       (* Now remember the newly created vars *)
       H.add newvars v.vname vars;
-      List.map snd vars (* Return just the vars *)
+      Util.list_map snd vars (* Return just the vars *)
     end
   end
 
@@ -533,7 +565,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
         let vars4v = H.find newvars v.vname in
         if vars4v = [] then E.s (errorLoc l "No fields in split struct");
         ChangeTo 
-          (List.map 
+          (Util.list_map 
              (fun (off, newv) ->  
                 let lv' = 
                   visitCilLval (self :> cilVisitor)
@@ -555,7 +587,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
           let vars4v = H.find newvars v.vname in
           if vars4v = [] then E.s (errorLoc l "No fields in split struct");
           ChangeTo  
-            (List.map 
+            (Util.list_map 
                (fun (off, newv) -> 
                   let lv' = 
                     visitCilLval (self :> cilVisitor)
@@ -582,7 +614,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
                         Lval (Var v, NoOffset) when H.mem newvars v.vname -> 
                           begin
                             mustChange := true;
-                            (List.map 
+                            (Util.list_map 
                                (fun (_, newv) -> 
                                  Lval (Var newv, NoOffset)) 
                                (H.find newvars v.vname))
@@ -714,6 +746,17 @@ let feature : featureDescr =
     fd_extraopt = [
       ("--no-split-structs", Arg.Clear splitStructs,
                     " do not split structured variables"); 
+      ("--no-convert-direct-calls", Arg.Clear convertDirectCalls,
+                    " do not convert direct function calls to function pointer \
+                      calls if the address of the function was taken");
+      ("--no-convert-field-offsets", Arg.Unit ( fun () ->
+                      convertFieldOffsets := false;
+                      (* do not split structs in function calls *)
+                      splitStructs := false
+                    ),
+                    " do not convert field offsets to offsets by integer.    \
+                      Implies --no-split-structs.  To be used by static code \
+                      verification tools.");
     ];
     fd_doit = (function f -> iterGlobals f doGlobal);
     fd_post_check = true;

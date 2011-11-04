@@ -33,6 +33,10 @@ let considerVariableDef: (varinfo -> bool) ref =
 let considerVariableAddrOfAsUse: (varinfo -> bool) ref = 
   ref (fun _ -> true)
 
+(** Say if you want to consider a variable addrof as a def *)
+let considerVariableAddrOfAsDef: (varinfo -> bool) ref = 
+  ref (fun _ -> false)
+
 (** Return any vars that should be considered "used" by an expression,
     other than the ones it refers to directly.  Deputy uses this for
     variables in Cast annotations. *)
@@ -106,6 +110,8 @@ class useDefVisitorClass : cilVisitor = object (self)
         ignore (visitCilOffset (self :> cilVisitor) off);
         if (!considerVariableAddrOfAsUse) v then 
           varUsed := VS.add v !varUsed;
+        if (!considerVariableAddrOfAsDef) v then
+          varDefs := VS.add v !varDefs;
         SkipChildren
 
     | SizeOfE _

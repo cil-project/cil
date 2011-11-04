@@ -466,7 +466,7 @@ module PredAbst = functor(S:SOLVER) ->
       h'
 
     let hl_combine hl1 hl2 =
-      List.map 
+      Util.list_map 
 	(fun (h1, h2) -> h_combine h1 h2)
 	(List.combine hl1 hl2)
 
@@ -499,17 +499,17 @@ module PredAbst = functor(S:SOLVER) ->
 	    let pl2 = helper e2 in
 	    (* for every pair of things from pl1 and pl2 *)
 	    List.fold_left (fun l (c1,e1) ->
-	      l @ (List.map (fun (c2,e2) ->
+	      l @ (Util.list_map (fun (c2,e2) ->
 		(BinOp(LAnd,c1,c2,intType),BinOp(op,e1,e2,t))) pl2))
 	      [] pl1
 	| UnOp(op, e, t) ->
 	    let pl = helper e in
-	    List.map (fun (c,e) ->
+	    Util.list_map (fun (c,e) ->
 	      (c,UnOp(op,e,t)))
 	      pl
 	| CastE(t, e) ->
 	    let pl = helper e in
-	    List.map (fun (c,e) ->
+	    Util.list_map (fun (c,e) ->
 	      (c,CastE(t,e)))
 	      pl
 	| _ -> raise (E.s "Simplify has not been run\n")
@@ -633,7 +633,7 @@ module PredAbst = functor(S:SOLVER) ->
 	  (* replace the formals in rpreds with the 
 	     expressions given as arguments *)
 	  let rpreds = 
-	    List.map (fun e ->
+	    Util.list_map (fun e ->
 	      List.fold_left2 (fun e vi ae ->
 		substitute ae (* for *) (Var vi, NoOffset) (* in *) e)
 		e fsig.fsFormals el)
@@ -644,7 +644,7 @@ module PredAbst = functor(S:SOLVER) ->
 	    | None, None -> rpreds
 	    | Some lv, Some rvi -> 
 		(* replace fsig.fsReturn in rpreds with Lval(lv) *)
-		List.map (fun e ->
+		Util.list_map (fun e ->
 		  substitute (Lval lv) (* for *) (Var rvi,NoOffset) (* in *) e)
 		  rpreds
 	    | _, _ -> raise (E.s "fsReturn is wrong in handleCallInstr\n")
@@ -764,7 +764,7 @@ module PredAbst = functor(S:SOLVER) ->
 
 	let copy ss = match ss with
 	| ILState hl -> begin
-	    ILState(List.map (fun h -> IH.copy h) hl)
+	    ILState(Util.list_map (fun h -> IH.copy h) hl)
 	end
 	| StmState h -> StmState(IH.copy h)
 

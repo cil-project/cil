@@ -285,19 +285,17 @@ and checkArithmeticType (t: typ) =
   if not (isArithmeticType t) then
     ignore (warn "Non-arithmetic type")
 
-(* Check that a type is a promoted boolean type *)
-and checkBooleanType (t: typ) = 
-  checkType t CTExp;
-  match unrollType t with
-    TInt _ | TEnum _ | TFloat _ | TPtr _ -> ()
-  | _ -> ignore (warn "Non-boolean type")
-
-
 (* Check that a type is a pointer type *)
 and checkPointerType (t: typ) = 
   checkType t CTExp;
   if not (isPointerType t) then
     ignore (warn "Non-pointer type")
+
+(* Check that a type is a scalar type *)
+and checkScalarType (t: typ) = 
+  checkType t CTExp;
+  if not (isScalarType t) then
+    ignore (warn "Non-scalar type")
 
 
 and typeMatch (t1: typ) (t2: typ) = 
@@ -509,7 +507,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
 
       | UnOp (LNot, e, tres) -> 
           let te = checkExp isconst e in
-          checkBooleanType te;
+          checkScalarType te;
           checkIntegralType tres; (* Must check that t is well-formed *)
           typeMatch tres intType;
           tres
@@ -528,8 +526,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch t1 t2; checkIntegralType tres;
               typeMatch t1 tres; tres
           | LAnd | LOr -> 
-              typeMatch t1 t2; checkBooleanType tres;
-              typeMatch t1 tres; tres
+              checkScalarType t1; checkScalarType t2;
+              typeMatch tres intType; tres
           | Shiftlt | Shiftrt -> 
               typeMatch t1 tres; checkIntegralType t1; 
               checkIntegralType t2; tres
@@ -731,7 +729,7 @@ and checkStmt (s: stmt) =
       | If (e, bt, bf, l) -> 
           currentLoc := l;
           let te = checkExp false e in
-          checkBooleanType te;
+          checkScalarType te;
           checkBlock bt;
           checkBlock bf
       | Switch (e, b, cases, l) -> 
@@ -805,6 +803,8 @@ and checkInstr (i: instr) =
           (* Now check the return value*)
       (match dest, unrollType rt with
         None, TVoid _ -> ()
+      (* Avoid spurious warnings for atomic builtins *)
+      | Some _, TVoid [Attr ("overloaded", [])] -> ()
       | Some _, TVoid _ -> ignore (warn "void value is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
       | Some destlv, rt' -> 
