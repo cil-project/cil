@@ -608,8 +608,11 @@ exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
 libdir = @libdir@
 pkglibdir = $(libdir)/cil
-datadir = @datadir@
-pkgdatadir = $(datadir)/cil
+libexecdir = @libexecdir@
+pkglibexecdir = $(libexecdir)/cil/$(OBJDIR)
+bindir = @bindir@
+# Hack - I don't know how to find perl_vendorlib
+perl_vendorlib = $(libdir)
 
 all_distrib := $(DISTRIB_OCAMLUTIL) $(DISTRIB_SRC) $(DISTRIB_SRC_FRONTC) $(DISTRIB_SRC_EXT) $(DISTRIB_SRC_EXT_PTA)
 all_ml      := $(filter %.ml,  $(all_distrib))
@@ -620,20 +623,21 @@ install_mli := $(filter $(OCAML_CIL_LIB_MODULES:=.mli), $(all_mli))
 install_cmi := $(install_mli:%.mli=$(OBJDIR)/%.cmi)
 install_cmx := $(install_mli:%.mli=$(OBJDIR)/%.cmx)
 install_cma := $(addprefix $(OBJDIR)/cil., cma cmxa a)
-install_lib := $(OCAML_CIL_LIB_CMODULES:%=$(OBJDIR)/lib%.a)
 
 install: $(install_cmi) $(install_cma) $(install_lib)
 	$(INSTALL) -d $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cma) $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cmi) $(DESTDIR)$(pkglibdir)
 	$(INSTALL_DATA) $(install_cmx) $(DESTDIR)$(pkglibdir)
-	$(INSTALL_DATA) $(install_lib) $(DESTDIR)$(pkglibdir)
-	$(INSTALL) -d $(DESTDIR)$(pkgdatadir)
-	$(INSTALL_DATA) $(addprefix lib/, $(filter %.pm, $(DISTRIB_LIB))) $(DESTDIR)$(pkgdatadir)
+	$(INSTALL) -m 0644 lib/*.pm bin/CilConfig.pm $(DESTDIR)$(perl_vendorlib)
+	sed -i "s,^.*cilhome.*$$,\$$::cilhome = \"$(libexecdir)/cil\";," $(DESTDIR)$(perl_vendorlib)/CilConfig.pm
+	$(INSTALL) -d $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 bin/cilly $(DESTDIR)$(bindir)
+	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)
+	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)
 
 uninstall:
 	-rm -rf $(DESTDIR)$(pkglibdir)
-	-rm -rf $(DESTDIR)$(pkgdatadir)
 
 cil.spec: cil.spec.in
 	./config.status $@
@@ -641,7 +645,7 @@ cil.spec: cil.spec.in
 rpms: distrib
 	rpmbuild -ta $(CIL_TAR_GZ)
 
-install-findlib: $(install_cmi) $(install_cma) $(install_cmx)
+install-findlib: $(install_cmi) $(install_cma) $(install_cmx) META
 	ocamlfind install cil META $(install_cma) $(install_cmi) $(install_cmx)
 
 uninstall-findlib:
