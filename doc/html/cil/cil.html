@@ -149,22 +149,25 @@ Get the source code.
 <UL CLASS="itemize"><LI CLASS="li-itemize">
 <EM>Official distribution</EM> (Recommended):
 <OL CLASS="enumerate" type=a><LI CLASS="li-enumerate">
-Download the CIL <A HREF="distrib">distribution</A> (latest version is
-<A HREF="distrib/cil-1.4.0.tar.gz"><TT>distrib/cil-1.4.0.tar.gz</TT></A>). See the Section&#XA0;<A HREF="#sec-changes">20</A> for recent changes to the CIL distribution.
+Download the CIL
+<A HREF="http://sourceforge.net/projects/cil/files/cil/">distribution</A>
+(latest version is
+<A HREF="http://sourceforge.net/projects/cil/files/cil/cil-1.4.0.tar.gz"><TT>http://sourceforge.net/projects/cil/files/cil/cil-1.4.0.tar.gz</TT></A>).
+See the Section&#XA0;<A HREF="#sec-changes">20</A> for recent changes to the CIL distribution.
 </LI><LI CLASS="li-enumerate">Unzip and untar the source distribution. This will create a directory
 called <TT>cil</TT> whose structure is explained below.<BR>
  <TT>&#XA0;&#XA0;&#XA0;&#XA0;tar xvfz cil-1.4.0.tar.gz</TT>
 </LI></OL>
-</LI><LI CLASS="li-itemize"><EM>Subversion Repository</EM>:<BR>
+</LI><LI CLASS="li-itemize"><EM>Git Repository</EM>:<BR>
  Alternately, you can download an up to the minute version of CIL
 from our Subversion repository at:
-<PRE CLASS="verbatim">    svn co svn://hal.cs.berkeley.edu/home/svn/projects/trunk/cil
-</PRE>However, the Subversion version may be less stable than the released
+<PRE CLASS="verbatim">    git clone git://cil.git.sourceforge.net/gitroot/cil/cil
+</PRE>There is also a Github mirror:
+<PRE CLASS="verbatim">    git clone git://github.com/kerneis/cil.git
+</PRE>However, the Git version may be less stable than the released
 version. See the Changes section of doc/cil.tex to see what&#X2019;s
 changed since the last release. There may be changes that aren&#X2019;t yet
-documented in the .tex file or this website.<P>For those who were using the CVS server before we switched to
-Subversion, revision 8603 in Subversion corresponds to the last CVS
-version.</P></LI></UL>
+documented in the .tex file or this website.</LI></UL>
 </LI><LI CLASS="li-enumerate">Enter the <TT>cil</TT> directory and run the <TT>configure</TT> script and then 
 GNU make to build the distribution. If you are on Windows, at least the
 <TT>configure</TT> step must be run from within <TT>bash</TT>.<BR>
@@ -177,11 +180,8 @@ GNU make to build the distribution. If you are on Windows, at least the
 name of the subdirectory is either <TT>x86_WIN32</TT> if you are using <TT>cygwin</TT>
 on Windows or <TT>x86_LINUX</TT> if you are using Linux (although you should be
 using instead the Perl wrapper <TT>bin/cilly</TT>). Note that we do not have an
-<TT>install</TT> make target and you should use Cil from the development directory.
-</LI><LI CLASS="li-enumerate">If you decide to use CIL, <B>please</B>
-<A HREF="mailto:necula@cs.berkeley.edu">send us a note</A>. This will help recharge
-our batteries after a few years of development. And of course, do send us
-your bug reports as well.
+<TT>install</TT> make target and you should use Cil from the development
+directory.
 </LI></OL><P>The <TT>configure</TT> script tries to find appropriate defaults for your system.
 You can control its actions by passing the following arguments:
 </P><UL CLASS="itemize"><LI CLASS="li-itemize">
@@ -2422,14 +2422,18 @@ Raymond To and Aman Bhargava.</P><P>This work is based upon work supported in pa
 Foundation under Grants No. 9875171, 0085949 and 0081588, and gifts from
 Microsoft Research. Any opinions, findings, and conclusions or recommendations
 expressed in this material are those of the author(s) and do not necessarily
-reflect the views of the National Science Foundation or the other sponsors.</P><!--TOC section License-->
-<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc55">18</A>&#XA0;&#XA0;License</H2><!--SEC END --><P>Copyright (c) 2001-2007, 
+reflect the views of the National Science Foundation or the other sponsors.</P><P>Starting with version 1.4.0, CIL is maintained by
+<A HREF="mailto:kerneis@pps.jussieu.fr">Gabriel Kerneis</A> since the UC
+Berkeley does have time anymore to support it.</P><!--TOC section License-->
+<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc55">18</A>&#XA0;&#XA0;License</H2><!--SEC END --><P>Copyright (c) 2001-2011,
 </P><UL CLASS="itemize"><LI CLASS="li-itemize">
 George C. Necula &lt;necula@cs.berkeley.edu&gt;
 </LI><LI CLASS="li-itemize">Scott McPeak &lt;smcpeak@cs.berkeley.edu&gt;
 </LI><LI CLASS="li-itemize">Wes Weimer &lt;weimer@cs.berkeley.edu&gt;
 </LI><LI CLASS="li-itemize">Ben Liblit &lt;liblit@cs.wisc.edu&gt;
 </LI><LI CLASS="li-itemize">Matt Harren &lt;matth@cs.berkeley.edu&gt;
+</LI><LI CLASS="li-itemize">Gabriel Kerneis &lt;kerneis@pps.jussieu.fr&gt;
+</LI><LI CLASS="li-itemize">and the CIL contributors for various patches.
 </LI></UL><P>
 All rights reserved.</P><P>Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:</P><P>1. Redistributions of source code must retain the above copyright notice,
@@ -2456,7 +2460,10 @@ sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
 as it will ensure your message is viewed by a broad audience. </P><!--TOC section Changes-->
 <H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><!--SEC END --><P><A NAME="sec-changes"></A></P><!--NAME changes.html-->
 <UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>May 28, 2009</B>: Improved 64-bit int support (large constants
+<B>November 4, 211</B>: Released version 1.4.0. Includes many bug
+fixes and a cleanup of obsolete files and Makefile rules. Also fix
+support for OCaml 3.12, add support of some gcc builtins.
+</LI><LI CLASS="li-itemize"><B>May 28, 2009</B>: Improved 64-bit int support (large constants
 no longer cause a CIL failure). There&#X2019;s a new cilint type that
 should be used to handle integer C values - cilint is essentially a
 big_int so will be able to handle future expansion. To get the value
