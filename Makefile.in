@@ -355,7 +355,6 @@ distclean: clean
 	rm -f config.log
 	rm -f config.h
 	rm -f Makefile
-	rm -f README
 
 cleancheck:
 	rm -f test/small1/*.o
