@@ -2559,6 +2559,8 @@ and makeVarInfoCabs
       vtype
   in
   let vi = makeVarinfo isglobal n t in
+  (* makeVarinfo removes "const" even for formals, please respect my choices! *)
+  vi.vtype <- t;
   vi.vstorage <- sto;
   vi.vattr <- nattr;
   vi.vdecl <- ldecl;
@@ -5781,6 +5783,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
 	      (* sfg: extract locations for the formals from dt *)
 	      let doFormal (loc : location) (fn, ft, fa) =
 		let f = makeVarinfo false fn ft in
+		(* makeVarinfo removes const qualifier even on formals *)
+		f.vtype <- ft;
 		  (f.vdecl <- loc;
 		   f.vattr <- fa;
 		   alphaConvertVarAndAddToEnv true f)
