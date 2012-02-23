@@ -289,6 +289,13 @@ let popGlobals () =
   in
   revonto (revonto [] !theFile) !theFileTypes
 
+(* Like Cil.mkCastT, but it calls typeForInsertedCast *)
+let makeCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
+  Cil.mkCastT e oldt (!typeForInsertedCast newt)
+
+let makeCast ~(e: exp) ~(newt: typ) = 
+  makeCastT e (typeOf e) newt
+
 
 (********* ENVIRONMENTS ***************)
 
@@ -995,29 +1002,45 @@ module BlockChunk =
     let switchChunk (e: exp) (body: chunk) (l: location) =
       (* Make the statement *)
       let defaultSeen = ref false in
-      let checkForDefault lb : unit = 
+      let t = typeOf e in
+      let checkForDefaultAndCast lb =
         match lb with
-          Default _ -> if !defaultSeen then
-            E.s (error "Switch statement at %a has duplicate default entries."
+        | Default _ as d ->
+	    if !defaultSeen then
+        E.s (error "Switch statement at %a has duplicate default entries."
                    d_loc l);
-            defaultSeen := true
+            defaultSeen := true;
+            d
+        | Label _ as l -> l
+        | Case (e, loc) ->
+          (* If needed, convert e to type t, and check in case the label
+             was too big *)
+          let e' = makeCast ~e ~newt:t in
+          let constFold = constFold false in
+          let e'' = if !lowerConstants then constFold e' else e' in
+          (match (constFold e), (constFold e'') with
+            | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
+                when i1 != i2 ->
+                ignore (warnOpt
+	          "Case label %a exceeds range for switch expression" d_exp e);
         | _ -> ()
+          );
+          Case (e'', loc)
       in
-      let cases = (* eliminate duplicate entries from body.cases.
-                     A statement is added to body.cases for each case label
-                     it has. *)
-        List.fold_right (fun s acc ->
+      let block = c2block body in
+      let cases = (* eliminate duplicate entries from body.cases. A statement
+                     is added to body.cases for each case label it has. *)
+        List.fold_right
+          (fun s acc ->
                            if List.memq s acc then acc
                            else begin
-                             List.iter checkForDefault s.labels;
+              s.labels <- List.map checkForDefaultAndCast s.labels;
                              s::acc
                            end) 
           body.cases
           []
       in
-      let switch = mkStmt (Switch (e, c2block body, 
-                                   cases, 
-                                   l)) in
+      let switch = mkStmt (Switch (e, block, cases, l)) in
       { stmts = [ switch (* ; n *) ];
         postins = [];
         cases = [];
@@ -1339,13 +1362,6 @@ let rec castTo ?(fromsource=false)
         E.s (error "cabs2cil/castTo: illegal cast  %a -> %a@!" 
                   d_type ot'' d_type nt'')
   end
-
-(* Like Cil.mkCastT, but it calls typeForInsertedCast *)
-let makeCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) = 
-  Cil.mkCastT e oldt (!typeForInsertedCast newt)
-
-let makeCast ~(e: exp) ~(newt: typ) = 
-  makeCastT e (typeOf e) newt
 
 (* A cast that is used for conditional expressions. Pointers are Ok *)
 let checkBool (ot : typ) (e : exp) : bool =
@@ -6350,12 +6366,15 @@ and doStatement (s : A.statement) : chunk =
     | A.SWITCH (e, s, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (se, e', et) = doExp false e (AExp (Some intType)) in
-        let (et'', e'') = castTo et intType e' in
+        let (se, e', et) = doExp false e (AExp None) in
+        if not (Cil.isIntegralType et) then
+          E.s (error "Switch on a non-integer expression.");
+        let et' = integralPromotion et in
+        let e' = makeCastT ~e:e' ~oldt:et ~newt:et' in
         enter_break_env ();
         let s' = doStatement s in
         exit_break_env ();
-        se @@ (switchChunk e'' s' loc')
+        se @@ (switchChunk e' s' loc')
                
     | A.CASE (e, s, loc) -> 
         let loc' = convLoc loc in

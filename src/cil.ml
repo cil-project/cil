@@ -6546,7 +6546,9 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         Not_found -> (* this is a list of specific cases *)
           match cases with
           | Case (ce,cl) :: lab_tl ->
-              let make_eq exp =  BinOp(Eq,e,exp,intType) in
+              (* assume that integer promotion and type conversion of cases is
+               * performed by cabs2cil. *)
+              let make_eq exp =  BinOp(Eq, e, exp, typeOf e) in
               let make_or_from_cases =
                 List.fold_left
                     (fun pred label -> match label with
