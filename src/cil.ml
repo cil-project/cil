@@ -2880,6 +2880,19 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_atan2l" (longDoubleType, [ longDoubleType; 
                                                 longDoubleType ], false);
 
+  let addSwap sizeInBits =
+    try
+      assert (sizeInBits mod 8 = 0);
+      let sizeInBytes = sizeInBits / 8 in
+      let sizedIntType = TInt (intKindForSize sizeInBytes false, []) in
+      let name = Printf.sprintf "__builtin_bswap%d" sizeInBits in
+      H.add h name (sizedIntType, [ sizedIntType ], false)
+    with Not_found ->
+      ()
+  in
+  addSwap 32;
+  addSwap 64;
+
   H.add h "__builtin_ceil" (doubleType, [ doubleType ], false);
   H.add h "__builtin_ceilf" (floatType, [ floatType ], false);
   H.add h "__builtin_ceill" (longDoubleType, [ longDoubleType ], false);
