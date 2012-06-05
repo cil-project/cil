@@ -53,6 +53,9 @@ let fastMode       = ref false
   * output) *)
 let printIndent = ref true
 
+(** Whether to rebalance doc before printing it to avoid stack-overflows *)
+let flattenBeforePrint = ref true
+
 (******************************************************************************)	
 (* The doc type and constructors *)
 
@@ -583,6 +586,7 @@ let emitDoc
 
 (* Print a document on a channel *)
 let fprint (chn: out_channel) ~(width: int) doc =
+  let doc = if !flattenBeforePrint then flatten Nil doc else doc in
   (* Save some parameters, to allow for nested calls of these routines. *)
   maxCol := width;
   let old_breaks = !breaks in 
@@ -606,6 +610,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
 
 (* Print the document to a string *)
 let sprint ~(width : int)  doc : string = 
+  let doc = if !flattenBeforePrint then flatten Nil doc else doc in
   maxCol := width;
   let old_breaks = !breaks in 
   breaks := [];

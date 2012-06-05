@@ -306,6 +306,9 @@ val fastMode  : bool ref
 
 val flushOften   : bool ref  (** If true the it flushes after every print *)
 
+(** Whether to rebalance doc before printing it to avoid stack-overflows *)
+val flattenBeforePrint : bool ref
+
 
 (** Keep a running count of the taken newlines. You can read and write this 
   * from the client code if you want *)
