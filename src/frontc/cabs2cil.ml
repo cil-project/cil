@@ -988,8 +988,9 @@ module BlockChunk =
 
     let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
       let fst, stmts' = getFirstInChunk next in
-      let labels = Util.list_map (fun e -> Case (e, l)) el in
-      fst.labels <- labels @ fst.labels;
+      (* Reverse el twice, so that map and append are tail-recursive *)
+      let labels = List.rev_map (fun e -> Case (e, l)) el in
+      fst.labels <- List.rev_append labels fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
         
     let defaultChunk (l: location) (next: chunk) = 
@@ -1030,15 +1031,15 @@ module BlockChunk =
       let block = c2block body in
       let cases = (* eliminate duplicate entries from body.cases. A statement
                      is added to body.cases for each case label it has. *)
-        List.fold_right
-          (fun s acc ->
+        List.rev (List.fold_left
+          (fun acc s ->
                            if List.memq s acc then acc
                            else begin
-              s.labels <- List.map checkForDefaultAndCast s.labels;
+              s.labels <- List.rev_map checkForDefaultAndCast s.labels;
                              s::acc
                            end) 
-          body.cases
           []
+          body.cases)
       in
       let switch = mkStmt (Switch (e, block, cases, l)) in
       { stmts = [ switch (* ; n *) ];
@@ -6400,10 +6401,12 @@ and doStatement (s : A.statement) : chunk =
         in
         if compare_cilint il ih > 0 then 
           E.s (error "Empty case range");
-        let rec mkAll (i: cilint) = 
-          if compare_cilint i ih > 0 then [] else kintegerCilint ik i :: mkAll (add_cilint i one_cilint)
+        let rec mkAll (i: cilint) acc =
+          if compare_cilint i ih > 0 then
+             List.rev acc
+          else mkAll (add_cilint i one_cilint) (kintegerCilint ik i :: acc)
         in
-        caseRangeChunk (mkAll il) loc' (doStatement s)
+        caseRangeChunk (mkAll il []) loc' (doStatement s)
         
 
     | A.DEFAULT (s, loc) -> 
