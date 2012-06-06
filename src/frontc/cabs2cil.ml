@@ -4211,7 +4211,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   ignore (warn "Invalid call to %s" fv.vname)
             end else if fv.vname = "__builtin_va_arg" then begin
               match !pargs with 
-                marker :: SizeOf resTyp :: _ -> begin
+                [ marker ; SizeOf resTyp ] -> begin
                   (* Make a variable of the desired type *)
                   let destlv, destlvtyp = 
                     match !pwhat with 
@@ -4219,8 +4219,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                     | _ -> var (newTempVar nil true resTyp), resTyp
                   in
                   pwhat := (ASet (destlv, destlvtyp));
-                  pargs := [marker; SizeOf resTyp; 
-                            CastE(voidPtrType, AddrOf destlv)];
                   pis__builtin_va_arg := true;
                 end
               | _ -> 
@@ -4368,7 +4366,15 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         if !piscall then begin 
           let addCall (calldest: lval option) (res: exp) (t: typ) = 
 	    let prev = !prechunk () in
-            prechunk := (fun _ -> prev +++ (Call(calldest, !pf, !pargs, !currentLoc)));
+            let dest, args = if !pis__builtin_va_arg then begin
+            (* Make an exception here for __builtin_va_arg:
+               hide calldest as a third parameter.  *)
+            match calldest with
+            | Some destlv -> None, !pargs @ [CastE(voidPtrType, AddrOf destlv)]
+            | None -> E.s (E.bug "__builtin_va_arg should have calldest always set")
+            end
+            else calldest, !pargs in
+            prechunk := (fun _ -> prev +++ (Call(dest, !pf, args, !currentLoc)));
             pres := res;
             prestype := t
           in
@@ -4377,10 +4383,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
           | AType -> prestype := !resType'
                 
-          | ASet(lv, vtype) when !pis__builtin_va_arg -> 
-              (* Make an exception here for __builtin_va_arg *)
-              addCall None (Lval(lv)) vtype
-                  
           | ASet(lv, vtype) when !doCollapseCallCast ||
               (Util.equals (typeSig vtype) (typeSig !resType'))
               ->
@@ -4391,6 +4393,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               let restype'' = 
                 match !pwhat with
                   AExp (Some t) when !doCollapseCallCast -> t
+                | ASet (_, t) when !pis__builtin_va_arg -> t
                 | _ -> !resType'
               in
               let descr = dprintf "%a(%a)" dd_exp !pf
