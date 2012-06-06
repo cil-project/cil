@@ -690,7 +690,9 @@ and checkStmt (s: stmt) =
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
         | Case (e, _) -> 
-            checkExpType true e intType
+           let t = checkExp true e in
+           if not (isIntegralType t) then
+               E.s (bug "Type of case expression is not integer");
         | _ -> () (* Not yet implemented *)
       in
       List.iter checkLabel s.labels;
@@ -734,7 +736,9 @@ and checkStmt (s: stmt) =
           checkBlock bf
       | Switch (e, b, cases, l) -> 
           currentLoc := l;
-          checkExpType false e intType;
+          let t = checkExp false e in
+          if not (isIntegralType t) then
+              E.s (bug "Type of switch expression is not integer");
           (* Remember the statements so far *)
           let prevStatements = !statements in
           checkBlock b;
