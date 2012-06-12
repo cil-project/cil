@@ -664,7 +664,7 @@ addTest("baddef");
 #runTest $make apache/rewrite
 
 addTest("test/init");
-addTest("test/initial");
+addTest("test/initial WARNINGS_ARE_ERRORS=1");
 addTest("test/jmp_buf");
 addTest("test/static");
 

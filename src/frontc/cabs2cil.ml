@@ -1929,30 +1929,17 @@ let rec collectInitializer
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
                  !pMaxIdx len);
-        (* len could be extremely big. So omit the last initializers, if they 
-         * are many (more than 16) *)
-(*
-        ignore (E.log "collectInitializer: len = %d, pMaxIdx= %d\n"
-                  len !pMaxIdx); *)
-        let endAt = 
-          if len - 1 > !pMaxIdx + 16 then 
-            !pMaxIdx 
-          else
-            len - 1
-        in
-        (* Make one zero initializer to be used next *)
-        let oneZeroInit = makeZeroInit bt in
+        (* Missing initializers must be set to zero but this is not done here.
+         * See assignInit. *)
         let rec collect (acc: (offset * init) list) (idx: int) = 
           if idx = -1 then acc
           else
-            let thisi =
-              if idx > !pMaxIdx then oneZeroInit
-              else (fst (collectInitializer !pArray.(idx) bt))
+            let thisi = fst (collectInitializer !pArray.(idx) bt)
             in
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
         
-        CompoundInit (newtype, collect [] endAt), newtype
+        CompoundInit (newtype, collect [] !pMaxIdx), newtype
 
     | TComp (comp, _), CompoundPre (pMaxIdx, pArray) when comp.cstruct ->
         let rec collect (idx: int) = function
@@ -6219,7 +6206,50 @@ and assignInit (lv: lval)
     SingleInit e -> 
       let (_, e'') = castTo iet (typeOfLval lv) e in 
       acc +++ (Set(lv, e'', !currentLoc))
-  | CompoundInit (t, initl) -> 
+  | CompoundInit (t, initl) -> begin
+    match unrollType t with
+    | TArray (bt, leno, at) -> begin
+      match leno with
+        Some len -> begin
+          match constFold true len with
+            Const(CInt64(ni, _, _)) when ni >= 0L ->
+              (* Write any initializations in initl using one
+                 instruction per element. *)
+              let b = foldLeftCompound
+                ~implicit:false
+                ~doinit:(fun off i it acc ->
+                  assignInit (addOffsetLval off lv) i it acc)
+                ~ct:t
+                ~initl:initl
+                ~acc:acc in
+              let ilen = List.length initl in
+              if ilen >= i64_to_int ni then
+                (* There are no remaining initializations *)
+                b
+              else
+                (* Use a loop for any remaining initializations *)
+                let ctrv = newTempVar (text "init counter") true uintType in
+                let ctrlval = Var ctrv, NoOffset in
+                let init = Set(ctrlval, Const(CInt64(Int64.of_int ilen, IUInt, None)), !currentLoc) in
+                startLoop false;
+                let bodyc =
+                  let ifc =
+                    let ife =
+                      BinOp(Ge, Lval ctrlval, Const(CInt64(ni, IUInt, None)), intType) in
+                    ifChunk ife !currentLoc (breakChunk !currentLoc) skipChunk
+                  in
+                  let dest = addOffsetLval (Index(Lval ctrlval, NoOffset)) lv in
+                  let assignc = assignInit dest (makeZeroInit bt) bt empty in
+                  let inci = Set(ctrlval, BinOp(PlusA, Lval ctrlval, Const(CInt64(1L, IUInt, None)), uintType), !currentLoc) in
+                  (ifc @@ assignc) +++ inci in
+                exitLoop ();
+                let loopc = loopChunk bodyc in
+                b +++ init @@ loopc
+          | _ -> E.s (bug "Array length is not a constant expression")
+        end
+      | None -> E.s (bug "Array length is not a constant expression")
+    end
+    | _ ->
       foldLeftCompound
         ~implicit:false
         ~doinit:(fun off i it acc -> 
@@ -6227,6 +6257,7 @@ and assignInit (lv: lval)
         ~ct:t
         ~initl:initl
         ~acc:acc
+  end
 
   (* Now define the processors for body and statement *)
 and doBody (blk: A.block) : chunk = 
