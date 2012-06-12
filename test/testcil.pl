@@ -187,8 +187,6 @@ addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("test/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("test/warnings-noreturn WARNINGS_ARE_ERRORS=1");
 addTest("testrun/warnings-unused-label WARNINGS_ARE_ERRORS=1");
-addBadComment("testrun/warnings-unused-label", 
-	      "Minor. We don't do a good enough job at eliminating unused labels");
 addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
 addTest("testrun/castincr WARNINGS_ARE_ERRORS=1");
 addTest("test/castunion");
