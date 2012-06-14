@@ -127,6 +127,8 @@ let rec makeThreeAddress
   | Lval lv -> Lval (simplifyLval setTemp lv)
   | BinOp(bo, e1, e2, tres) -> 
       BinOp(bo, makeBasic setTemp e1, makeBasic setTemp e2, tres)
+  | Question _ ->
+      E.s (bug "Simplify: There should not be a \"?:\" operator here.")
   | UnOp(uo, e1, tres) -> 
       UnOp(uo, makeBasic setTemp e1, tres)
   | CastE(t, e) -> 

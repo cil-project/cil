@@ -206,11 +206,10 @@ addTest("testrun/offsetof");
 addTest("testrun/offsetof1");
 addTest("testrun/offsetof2");
 addTest("testrun/offsetof3");
-addTest("testrun/question-fold-float");
-addBadComment("testrun/question-fold-float",
-        "Limitation. CIL needs to fold questions but does not fold floats.");
+addTest("testrun/question-fold-float USE_LOGICAL_OPERATORS=1");
 addTest("testrun/question");
 addTest("testrun/question2");
+addTest("testrun/question3 USE_LOGICAL_OPERATORS=1");
 addTest("test/argcast");
 addBadComment("test/argcast", 
 	      "Notbug. CIL bases type for implicit functions based on first call's argument.");

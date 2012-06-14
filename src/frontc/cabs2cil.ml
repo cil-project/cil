@@ -4457,7 +4457,15 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              | Some e2' -> 
                  finishExp (se1 @@ se2) (snd (castTo t2 tresult e2')) tresult
            end
-
+        | CEExp (se1, e1') when !useLogicalOperators && isEmpty se2 && isEmpty se3 ->
+           let e2' = match e2'o with
+               None -> (* use e1' *)
+                 snd (castTo t2 tresult e1')
+             | Some e2' ->
+                 snd (castTo t2 tresult e2')
+           in
+           let e3' = snd (castTo t3 tresult e3') in
+           finishExp se1 (Question (e1', e2', e3', tresult)) tresult
         | _ -> (* Use a conditional *) begin
             match e2'o with 
               None -> (* has form "e1 ? : e3"  *)
@@ -4830,8 +4838,14 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
 
 and doPureExp (e : A.expression) : exp = 
   let (se, e', _) = doExp true e (AExp None) in
-  if isNotEmpty se then
-   E.s (error "doPureExp: not pure");
+  if isNotEmpty se then begin
+      let msg =
+          if !useLogicalOperators then
+               error "doPureExp: not pure"
+          else
+               error "doPureExp: could not compute array length, try --useLogicalOperators"
+      in E.s msg;
+  end;
   e'
 
 and doInitializer
