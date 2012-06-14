@@ -25,7 +25,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.4.0) : Cil</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.0) : Cil</title>
 </head>
 <body>
 <div class="navbar"><a href="Stats.html">Previous</a>
@@ -1146,6 +1146,13 @@ expression of type <code class="code">TPtr(T)</code>.
 <code><span class="constructor">BinOp</span> <span class="keyword">of</span> <code class="type"><a href="Cil.html#TYPEbinop">binop</a> * <a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPEtyp">typ</a></code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Binary operation. Includes the type of the result. The arithmetic 
  conversions are made explicit for the arguments.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Question</span> <span class="keyword">of</span> <code class="type"><a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPEtyp">typ</a></code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >(a ? b : c) operation. Includes the type of the result</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >

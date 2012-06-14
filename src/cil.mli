@@ -594,6 +594,9 @@ and exp =
     (** Binary operation. Includes the type of the result. The arithmetic 
      * conversions are made explicit for the arguments. *)
 
+  | Question   of exp * exp * exp * typ
+    (** (a ? b : c) operation. Includes the type of the result *)
+
   | CastE      of typ * exp            
     (** Use {!Cil.mkCast} to make casts.  *)
 

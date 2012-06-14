@@ -43,7 +43,7 @@ instance in the OCaml toplevel using [findlib][]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;           
-    - : string = "1.4.0"
+    - : string = "1.5.0"
 
 
 More documentation
@@ -76,4 +76,4 @@ Ressources
 * [Mailing list](https://lists.sourceforge.net/lists/listinfo/cil-users)
 * [Bug tracker](http://sourceforge.net/tracker/?group_id=138953&atid=742140)
 
-CIL is maintained by Gabriel Kerneis <kerneis@pps.jussieu.fr> 
+CIL is maintained by Gabriel Kerneis <kerneis@pps.univ-paris-diderot.fr> 

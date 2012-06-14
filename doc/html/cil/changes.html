@@ -22,7 +22,32 @@ function loadTop(url) {
 <A HREF="ciltoc.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
 <HR>
 <H2 CLASS="section"><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><P><A NAME="sec-changes"></A></P><UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>November 4, 211</B>: Released version 1.4.0. Includes many bug
+<B>June 14, 2012</B>: <B>Released version 1.5.0</B>.<BR>
+ New features:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+<B>Incompatible change</B>: introduce a <TT>Question</TT> variant for
+the <TT>Cil.exp</TT> type (thanks to Elnatan Reisner). Enabled by the
+flag <TT>--useLogicalOperators</TT>.
+</LI><LI CLASS="li-itemize">Add support for new GCC attributes and builtins (thanks to Ben
+Liblit).
+</LI><LI CLASS="li-itemize">Remove trivial gotos and associated labels in useless variables
+elimination.
+</LI></UL>
+Bug fixes:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Preserve <TT>const</TT> in function parameters.
+</LI><LI CLASS="li-itemize">Handle array initialization of arbitrary length.
+</LI><LI CLASS="li-itemize">Allow single character output file names in Cilly (#3499163).
+</LI><LI CLASS="li-itemize">Mitigate stack-overflow issues for large case-range in switch statements (#3480417).
+</LI><LI CLASS="li-itemize">Explicit casting for return value of <TT>va_arg</TT> (#3463364).
+</LI><LI CLASS="li-itemize">Avoid spurious warnings in <TT>loadBinaryFile</TT> (thanks to Jesse Draper).
+</LI><LI CLASS="li-itemize">Add <TT>-WX</TT> flag to <TT>CFLAGS</TT> when using the MSVC compiler (thanks to Jim
+Grundy).
+</LI><LI CLASS="li-itemize">Fix name collisions in global scope (#3532283, thanks to Ed Schwartz).
+</LI><LI CLASS="li-itemize">Fix types in switch statements (#3481303, thanks to Boris
+Yakobowski).
+</LI><LI CLASS="li-itemize">Minor build improvements (MacOS portability).
+</LI></UL></LI><LI CLASS="li-itemize"><B>November 4, 2011</B>: <B>Released version 1.4.0</B>. Includes many bug
 fixes and a cleanup of obsolete files and Makefile rules. Also fix
 support for OCaml 3.12, add support of some gcc builtins.
 </LI><LI CLASS="li-itemize"><B>May 28, 2009</B>: Improved 64-bit int support (large constants

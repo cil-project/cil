@@ -152,11 +152,11 @@ Get the source code.
 Download the CIL
 <A HREF="http://sourceforge.net/projects/cil/files/cil/">distribution</A>
 (latest version is
-<A HREF="http://sourceforge.net/projects/cil/files/cil/cil-1.4.0.tar.gz"><TT>http://sourceforge.net/projects/cil/files/cil/cil-1.4.0.tar.gz</TT></A>).
+<A HREF="http://sourceforge.net/projects/cil/files/cil/cil-1.5.0.tar.gz"><TT>http://sourceforge.net/projects/cil/files/cil/cil-1.5.0.tar.gz</TT></A>).
 See the Section&#XA0;<A HREF="#sec-changes">20</A> for recent changes to the CIL distribution.
 </LI><LI CLASS="li-enumerate">Unzip and untar the source distribution. This will create a directory
 called <TT>cil</TT> whose structure is explained below.<BR>
- <TT>&#XA0;&#XA0;&#XA0;&#XA0;tar xvfz cil-1.4.0.tar.gz</TT>
+ <TT>&#XA0;&#XA0;&#XA0;&#XA0;tar xvfz cil-1.5.0.tar.gz</TT>
 </LI></OL>
 </LI><LI CLASS="li-itemize"><EM>Git Repository</EM>:<BR>
  Alternately, you can download an up to the minute version of CIL
@@ -233,7 +233,7 @@ last step will create a subdirectory <TT>TEMP_cil-bindistrib</TT> that contains
 everything that you need to run CIL on another machine. You will have to edit
 manually some of the files in the <TT>bin</TT> directory to replace <TT>CILHOME</TT>.
 The resulting CIL can be run with ActiveState Perl also. </P><!--TOC section Distribution Contents-->
-<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc4">3</A>&#XA0;&#XA0;Distribution Contents</H2><!--SEC END --><P>The file <A HREF="distrib/cil-1.4.0.tar.gz"><TT>distrib/cil-1.4.0.tar.gz</TT></A> 
+<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc4">3</A>&#XA0;&#XA0;Distribution Contents</H2><!--SEC END --><P>The file <A HREF="distrib/cil-1.5.0.tar.gz"><TT>distrib/cil-1.5.0.tar.gz</TT></A> 
 contains the complete source CIL distribution, 
 consisting of the following files:</P><P>
 
@@ -2423,7 +2423,7 @@ Foundation under Grants No. 9875171, 0085949 and 0081588, and gifts from
 Microsoft Research. Any opinions, findings, and conclusions or recommendations
 expressed in this material are those of the author(s) and do not necessarily
 reflect the views of the National Science Foundation or the other sponsors.</P><P>Starting with version 1.4.0, CIL is maintained by
-<A HREF="mailto:kerneis@pps.jussieu.fr">Gabriel Kerneis</A> since the UC
+<A HREF="mailto:kerneis@pps.univ-paris-diderot.fr">Gabriel Kerneis</A> since the UC
 Berkeley does have time anymore to support it.</P><!--TOC section License-->
 <H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc55">18</A>&#XA0;&#XA0;License</H2><!--SEC END --><P>Copyright (c) 2001-2011,
 </P><UL CLASS="itemize"><LI CLASS="li-itemize">
@@ -2432,7 +2432,7 @@ George C. Necula &lt;necula@cs.berkeley.edu&gt;
 </LI><LI CLASS="li-itemize">Wes Weimer &lt;weimer@cs.berkeley.edu&gt;
 </LI><LI CLASS="li-itemize">Ben Liblit &lt;liblit@cs.wisc.edu&gt;
 </LI><LI CLASS="li-itemize">Matt Harren &lt;matth@cs.berkeley.edu&gt;
-</LI><LI CLASS="li-itemize">Gabriel Kerneis &lt;kerneis@pps.jussieu.fr&gt;
+</LI><LI CLASS="li-itemize">Gabriel Kerneis &lt;kerneis@pps.univ-paris-diderot.fr&gt;
 </LI><LI CLASS="li-itemize">and the CIL contributors for various patches.
 </LI></UL><P>
 All rights reserved.</P><P>Redistribution and use in source and binary forms, with or without
@@ -2460,7 +2460,32 @@ sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
 as it will ensure your message is viewed by a broad audience. </P><!--TOC section Changes-->
 <H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><!--SEC END --><P><A NAME="sec-changes"></A></P><!--NAME changes.html-->
 <UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>November 4, 211</B>: Released version 1.4.0. Includes many bug
+<B>June 14, 2012</B>: <B>Released version 1.5.0</B>.<BR>
+ New features:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+<B>Incompatible change</B>: introduce a <TT>Question</TT> variant for
+the <TT>Cil.exp</TT> type (thanks to Elnatan Reisner). Enabled by the
+flag <TT>--useLogicalOperators</TT>.
+</LI><LI CLASS="li-itemize">Add support for new GCC attributes and builtins (thanks to Ben
+Liblit).
+</LI><LI CLASS="li-itemize">Remove trivial gotos and associated labels in useless variables
+elimination.
+</LI></UL>
+Bug fixes:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Preserve <TT>const</TT> in function parameters.
+</LI><LI CLASS="li-itemize">Handle array initialization of arbitrary length.
+</LI><LI CLASS="li-itemize">Allow single character output file names in Cilly (#3499163).
+</LI><LI CLASS="li-itemize">Mitigate stack-overflow issues for large case-range in switch statements (#3480417).
+</LI><LI CLASS="li-itemize">Explicit casting for return value of <TT>va_arg</TT> (#3463364).
+</LI><LI CLASS="li-itemize">Avoid spurious warnings in <TT>loadBinaryFile</TT> (thanks to Jesse Draper).
+</LI><LI CLASS="li-itemize">Add <TT>-WX</TT> flag to <TT>CFLAGS</TT> when using the MSVC compiler (thanks to Jim
+Grundy).
+</LI><LI CLASS="li-itemize">Fix name collisions in global scope (#3532283, thanks to Ed Schwartz).
+</LI><LI CLASS="li-itemize">Fix types in switch statements (#3481303, thanks to Boris
+Yakobowski).
+</LI><LI CLASS="li-itemize">Minor build improvements (MacOS portability).
+</LI></UL></LI><LI CLASS="li-itemize"><B>November 4, 2011</B>: <B>Released version 1.4.0</B>. Includes many bug
 fixes and a cleanup of obsolete files and Makefile rules. Also fix
 support for OCaml 3.12, add support of some gcc builtins.
 </LI><LI CLASS="li-itemize"><B>May 28, 2009</B>: Improved 64-bit int support (large constants

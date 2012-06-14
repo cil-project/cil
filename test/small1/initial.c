@@ -5,7 +5,7 @@ typedef struct {
 } DATA;
 
 typedef struct {
-  int tag[5];
+  int tag[1024];
   int x;
   DATA d1;
   DATA d2;
@@ -25,7 +25,7 @@ int main() {
 
   if(x2[5].x != 0) E(2); // Make sure you zero even after the last init
   if(x2[5].d2.b != 0) E(21);
-  if(x2[5].tag[1] != 0) E(22);
+  if(x2[5].tag[1023] != 0) E(22);
   
   if(x2[5].tag[0] != 8) E(3);
   if(sizeof(x2) != 6 * sizeof(TDATA)) E(4);

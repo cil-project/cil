@@ -226,7 +226,7 @@ let add_type name =
    (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
    H.add lexicon name (fun loc -> NAMED_TYPE (name, loc))
 
-let context : string list list ref = ref []
+let context : string list list ref = ref [[]]
 
 let push_context _ = context := []::!context
 
@@ -243,7 +243,7 @@ let pop_context _ =
  * will be reinstated when we exit this context  *)
 let add_identifier name =
   match !context with
-    [] -> () (* Just ignore raise (InternalError "Empty context stack") *)
+    [] -> raise (InternalError "Empty context stack")
   | con::sub ->
       (context := (name::con)::sub;
        (*                print_string ("adding IDENT for " ^ name ^ "\n"); *)

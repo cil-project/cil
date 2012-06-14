@@ -3319,7 +3319,7 @@ expressed in this material are those of the author(s) and do not necessarily
 reflect the views of the National Science Foundation or the other sponsors.
 
 Starting with version 1.4.0, CIL is maintained by
-\ahref{mailto:kerneis@pps.jussieu.fr}{Gabriel Kerneis} since the UC
+\ahref{mailto:kerneis@pps.univ-paris-diderot.fr}{Gabriel Kerneis} since the UC
 Berkeley does have time anymore to support it.
 
 \section{License}
@@ -3331,7 +3331,7 @@ Copyright (c) 2001-2011,
 \item Wes Weimer          <weimer@cs.berkeley.edu>
 \item Ben Liblit          <liblit@cs.wisc.edu>
 \item Matt Harren         <matth@cs.berkeley.edu>
-\item Gabriel Kerneis     <kerneis@pps.jussieu.fr>
+\item Gabriel Kerneis     <kerneis@pps.univ-paris-diderot.fr>
 \item and the CIL contributors for various patches.
 \end{itemize}
 All rights reserved.
@@ -3376,7 +3376,34 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
-\item {\bf November 4, 211}: Released version 1.4.0.  Includes many bug
+\item{\bf June 14, 2012}: {\bf Released version 1.5.0}.\\
+    New features:
+    \begin{itemize}
+        \item {\bf Incompatible change}: introduce a \t{Question} variant for
+            the \t{Cil.exp} type (thanks to Elnatan Reisner).  Enabled by the
+            flag \t{--useLogicalOperators}.
+        \item Add support for new GCC attributes and builtins (thanks to Ben
+            Liblit).
+        \item Remove trivial gotos and associated labels in useless variables
+            elimination.
+    \end{itemize}
+    Bug fixes:
+    \begin{itemize}
+        \item Preserve \t{const} in function parameters.
+        \item Handle array initialization of arbitrary length.
+        \item Allow single character output file names in Cilly (\#3499163).
+        \item Mitigate stack-overflow issues for large case-range in switch statements (\#3480417).
+        \item Explicit casting for return value of \t{va\_arg} (\#3463364).
+        \item Avoid spurious warnings in \t{loadBinaryFile} (thanks to Jesse Draper).
+        \item Add \t{-WX} flag to \t{CFLAGS} when using the MSVC compiler (thanks to Jim
+            Grundy).
+        \item Fix name collisions in global scope (\#3532283, thanks to Ed Schwartz).
+        \item Fix types in switch statements (\#3481303, thanks to Boris
+            Yakobowski).
+        \item Minor build improvements (MacOS portability).
+    \end{itemize}
+
+\item {\bf November 4, 2011}: {\bf Released version 1.4.0}.  Includes many bug
     fixes and a cleanup of obsolete files and Makefile rules.  Also fix
     support for OCaml 3.12, add support of some gcc builtins.
 \item {\bf May 28, 2009}: Improved 64-bit int support (large constants

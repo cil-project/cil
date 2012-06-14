@@ -215,10 +215,12 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 lib/Cilly.pm: lib/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
 	cp lib/Cilly.pm.in lib/Cilly.pm
 	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
-	  sed -i -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" lib/Cilly.pm; \
+	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" lib/Cilly.pm > lib/Cilly.pm.tmp; \
+	  mv lib/Cilly.pm.tmp lib/Cilly.pm; \
 	fi
 	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
-	  sed -i -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" lib/Cilly.pm; \
+	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" lib/Cilly.pm > lib/Cilly.pm.tmp; \
+	  mv lib/Cilly.pm.tmp lib/Cilly.pm; \
 	fi
 
 # Create the version information module
@@ -355,7 +357,6 @@ distclean: clean
 	rm -f config.log
 	rm -f config.h
 	rm -f Makefile
-	rm -f README
 
 cleancheck:
 	rm -f test/small1/*.o
@@ -411,7 +412,8 @@ perl_vendorlib = $(libdir)
 install: install-findlib
 	$(INSTALL) -d $(DESTDIR)$(perl_vendorlib)
 	$(INSTALL) -m 0644 lib/*.pm bin/CilConfig.pm $(DESTDIR)$(perl_vendorlib)
-	sed -i "s,^.*cilhome.*$$,\$$::cilhome = \"$(libexecdir)/cil\";," $(DESTDIR)$(perl_vendorlib)/CilConfig.pm
+	sed -e "s,^.*cilhome.*$$,\$$::cilhome = \"$(libexecdir)/cil\";," $(DESTDIR)$(perl_vendorlib)/CilConfig.pm > $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp
+	mv $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp $(DESTDIR)$(perl_vendorlib)/CilConfig.pm
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -m 0755 bin/cilly $(DESTDIR)$(bindir)
 	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)

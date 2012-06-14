@@ -187,8 +187,6 @@ addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("test/const-struct-init WARNINGS_ARE_ERRORS=1");
 addTest("test/warnings-noreturn WARNINGS_ARE_ERRORS=1");
 addTest("testrun/warnings-unused-label WARNINGS_ARE_ERRORS=1");
-addBadComment("testrun/warnings-unused-label", 
-	      "Minor. We don't do a good enough job at eliminating unused labels");
 addTest("test/warnings-cast WARNINGS_ARE_ERRORS=1");
 addTest("testrun/castincr WARNINGS_ARE_ERRORS=1");
 addTest("test/castunion");
@@ -208,8 +206,10 @@ addTest("testrun/offsetof");
 addTest("testrun/offsetof1");
 addTest("testrun/offsetof2");
 addTest("testrun/offsetof3");
+addTest("testrun/question-fold-float USE_LOGICAL_OPERATORS=1");
 addTest("testrun/question");
 addTest("testrun/question2");
+addTest("testrun/question3 USE_LOGICAL_OPERATORS=1");
 addTest("test/argcast");
 addBadComment("test/argcast", 
 	      "Notbug. CIL bases type for implicit functions based on first call's argument.");
@@ -388,6 +388,7 @@ addTest("testrun/scope8");
 addTest("testrun/scope9 ");
 addTest("testrun/scope10 ");
 addTest("testrun/scope11 ");
+addTest("test/scope12 ");
 addTest("test/voidstar");
 addTest("testrun/memcpy1");
 
@@ -660,7 +661,7 @@ addTest("baddef");
 #runTest $make apache/rewrite
 
 addTest("test/init");
-addTest("test/initial");
+addTest("test/initial WARNINGS_ARE_ERRORS=1");
 addTest("test/jmp_buf");
 addTest("test/static");
 
