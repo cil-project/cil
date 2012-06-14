@@ -30,7 +30,7 @@ AC_PREREQ(2.50)
 #
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
-CIL_VERSION_MINOR=4
+CIL_VERSION_MINOR=5
 CIL_VERSION_REV=0
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
@@ -95,6 +95,7 @@ if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
   HAS_MSVC=yes
   DEFAULT_COMPILER=_MSVC
   DEFAULT_CIL_MODE=MSVC
+  CFLAGS="-WX"
 else
   if cl 2>&1 | grep "Microsoft" >/dev/null ;then
      AC_MSG_RESULT(found)

@@ -545,6 +545,17 @@ and checkExp (isconst: bool) (e: exp) : typ =
               typeMatch tres intType;
               tres
       end
+
+      | Question (e1, e2, e3, tres) -> begin
+          let t1 = checkExp isconst e1 in
+          let t2 = checkExp isconst e2 in
+          let t3 = checkExp isconst e3 in
+          checkScalarType t1;
+          typeMatch t2 t3;
+          typeMatch t2 tres;
+          tres
+      end
+
       | AddrOf (lv) -> begin
           let tlv = checkLval isconst true lv in
           (* Only certain types can be in AddrOf *)
@@ -690,7 +701,9 @@ and checkStmt (s: stmt) =
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
         | Case (e, _) -> 
-            checkExpType true e intType
+           let t = checkExp true e in
+           if not (isIntegralType t) then
+               E.s (bug "Type of case expression is not integer");
         | _ -> () (* Not yet implemented *)
       in
       List.iter checkLabel s.labels;
@@ -734,7 +747,9 @@ and checkStmt (s: stmt) =
           checkBlock bf
       | Switch (e, b, cases, l) -> 
           currentLoc := l;
-          checkExpType false e intType;
+          let t = checkExp false e in
+          if not (isIntegralType t) then
+              E.s (bug "Type of switch expression is not integer");
           (* Remember the statements so far *)
           let prevStatements = !statements in
           checkBlock b;

@@ -611,6 +611,47 @@ let labelsToKeep (ll: label list) : (string * location * bool) * label list =
   with Not_found ->
       sofar, labels
 
+(* Remove some trivial gotos, typically inserted at the end of for loops,
+ * because they are not printed by CIL which might yield an unused label
+ * warning. See test/small1/warnings-unused-label.c for a regression test. *)
+
+class removeUnusedGoto = object(self)
+  inherit nopCilVisitor
+
+  method private pStmtNext (next: stmt) (s: stmt) = match s.skind with
+        (* Else-if: don't call visitCilStmt, recurse manually instead *)
+      | If(_,t,{ bstmts=[{skind=If _} as elsif]; battrs=[] },_) ->
+              ignore(visitCilBlock (self:>cilVisitor) t);
+              self#pStmtNext next elsif
+      | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
+                  battrs=[]} as b),_)
+      | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
+                  battrs=[]} as b),_,_)
+                when !gref == next ->
+              b.bstmts <- [];
+              ignore(visitCilStmt (self:>cilVisitor) s)
+      | _ -> ignore(visitCilStmt (self:>cilVisitor) s)
+
+  method vblock blk =
+    let rec dofirst = function
+        [] -> ()
+      | [x] -> self#pStmtNext invalidStmt x
+      | x :: rest -> dorest x rest
+    and dorest prev = function
+        [] -> self#pStmtNext invalidStmt prev
+      | x :: rest ->
+          self#pStmtNext x prev;
+          dorest x rest
+    in
+      dofirst blk.bstmts;
+      SkipChildren
+
+   (* No need to go into expressions or instructions *)
+  method vexpr _ = SkipChildren
+  method vinst _ = SkipChildren
+  method vtype _ = SkipChildren
+end
+          
 class markUsedLabels (labelMap: (string, unit) H.t) = object
   inherit nopCilVisitor
 
@@ -727,6 +768,7 @@ let removeUnmarked file =
         (* We also want to remove unused labels. We do it all here, including 
          * marking the used labels *)
         let usedLabels:(string, unit) H.t = H.create 13 in
+        ignore (visitCilFunction (new removeUnusedGoto) func);
         ignore (visitCilBlock (new markUsedLabels usedLabels) func.sbody);
         (* And now we scan again and we remove them *)
         ignore (visitCilBlock (new removeUnusedLabels usedLabels) func.sbody);

@@ -24,7 +24,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.4.0) : Pretty</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.0) : Pretty</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a href="index.html">Up</a>
@@ -260,6 +260,9 @@ If set to <code class="code">true</code> then optional breaks are taken only whe
 </div>
 <pre><span id="VALflushOften"><span class="keyword">val</span> flushOften</span> : <code class="type">bool ref</code></pre><div class="info">
 If true the it flushes after every print<br>
+</div>
+<pre><span id="VALflattenBeforePrint"><span class="keyword">val</span> flattenBeforePrint</span> : <code class="type">bool ref</code></pre><div class="info">
+Whether to rebalance doc before printing it to avoid stack-overflows<br>
 </div>
 <pre><span id="VALcountNewLines"><span class="keyword">val</span> countNewLines</span> : <code class="type">int ref</code></pre><div class="info">
 Keep a running count of the taken newlines. You can read and write this 
