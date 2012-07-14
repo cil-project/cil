@@ -42,6 +42,12 @@ ifdef RELEASE
   UNSAFE     := 1
 endif
 
+ifndef CAMLNATTL
+  ifeq (@HAS_OCAML_NATIVE_TOOLS@, 1)
+    CAMLNATTL := 1
+  endif
+endif
+
 ifndef ARCHOS
    ARCHOS=@ARCHOS@
 endif

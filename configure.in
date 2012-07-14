@@ -34,6 +34,9 @@ CIL_VERSION_MINOR=5
 CIL_VERSION_REV=0
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
+# Assume at first that no native versions of OCaml tools are available
+HAS_OCAML_NATIVE_TOOLS=0
+
 
 # make sure I haven't forgotten to run autoconf
 if test configure -ot configure.in; then
@@ -172,6 +175,23 @@ if binaryExists ocamlc; then
       OCaml from source.  Please make sure all these tools are built and
       in the path.
     ])
+  fi
+
+  # check if native versions of OCaml tools are available
+  AC_MSG_CHECKING(availability of native ocaml tools versions)
+  if binaryExists ocamlc.opt && \
+     binaryExists ocamllex.opt && \
+     binaryExists ocamldep.opt && \
+     binaryExists ocamlopt.opt; then
+    veropt=`ocamlc.opt -v | grep version | sed 's/^.*version //'`
+    if [[ "$ver" == "$veropt" ]]; then
+      AC_MSG_RESULT(ok)
+      HAS_OCAML_NATIVE_TOOLS=1
+    else
+      AC_MSG_RESULT([no, version mismatch: $veropt])
+    fi
+  else
+    AC_MSG_RESULT(no)
   fi
 else
   AC_MSG_ERROR([
@@ -555,6 +575,7 @@ AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
 AC_SUBST(EXTRAFEATURES)
 AC_SUBST(EXTRASRCDIRS)
+AC_SUBST(HAS_OCAML_NATIVE_TOOLS)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
