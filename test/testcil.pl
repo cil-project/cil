@@ -268,7 +268,6 @@ addTest("testrun/const12 ");
 addTest("test/const13 WARNINGS_ARE_ERRORS=1");
 addBadComment("test/const13", "Minor. Const warnings from generated code - need more casts.");
 addTest("test/const14");
-addBadComment("test/const14", "Bug. Missing cast to result type when short-cutting expressions to 0.");
 addTest("testrun/const15 ");
 addTest("test/deref _GNUCC=1");
 addTest("test_i/empty");
@@ -564,7 +563,7 @@ addTest("merge-ar ");
 
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
-addTest("runall/sizeof3");
+addTest("testrun/sizeof3");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
@@ -615,8 +614,7 @@ addTest("scott/open $gcc");
 addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 addTest("scott-nolink/brlock $gcc");
-addTest("scott/regparm0 $gcc");         # this works, unfortunately..
-addBadComment("scott/regparm0", "Bug. Also gcc bug. regparm attribute not handled well, compounded by gcc treating multiple regparm attributes inconsistently between function declarations and definitions.");
+addTest("scott/regparm0 $gcc");         # this works, unfortunately... but the bug has been fixed nonetheless
 addTest("scott/unscomp");               # kernel/fs/buffer.c
 addTest("scott/thing");
 
