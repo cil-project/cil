@@ -152,11 +152,11 @@ Get the source code.
 Download the CIL
 <A HREF="http://sourceforge.net/projects/cil/files/cil/">distribution</A>
 (latest version is
-<A HREF="http://sourceforge.net/projects/cil/files/cil/cil-1.5.0.tar.gz"><TT>http://sourceforge.net/projects/cil/files/cil/cil-1.5.0.tar.gz</TT></A>).
+<A HREF="http://sourceforge.net/projects/cil/files/cil/cil-1.5.1.tar.gz"><TT>http://sourceforge.net/projects/cil/files/cil/cil-1.5.1.tar.gz</TT></A>).
 See the Section&#XA0;<A HREF="#sec-changes">20</A> for recent changes to the CIL distribution.
 </LI><LI CLASS="li-enumerate">Unzip and untar the source distribution. This will create a directory
 called <TT>cil</TT> whose structure is explained below.<BR>
- <TT>&#XA0;&#XA0;&#XA0;&#XA0;tar xvfz cil-1.5.0.tar.gz</TT>
+ <TT>&#XA0;&#XA0;&#XA0;&#XA0;tar xvfz cil-1.5.1.tar.gz</TT>
 </LI></OL>
 </LI><LI CLASS="li-itemize"><EM>Git Repository</EM>:<BR>
  Alternately, you can download an up to the minute version of CIL
@@ -233,7 +233,7 @@ last step will create a subdirectory <TT>TEMP_cil-bindistrib</TT> that contains
 everything that you need to run CIL on another machine. You will have to edit
 manually some of the files in the <TT>bin</TT> directory to replace <TT>CILHOME</TT>.
 The resulting CIL can be run with ActiveState Perl also. </P><!--TOC section Distribution Contents-->
-<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc4">3</A>&#XA0;&#XA0;Distribution Contents</H2><!--SEC END --><P>The file <A HREF="distrib/cil-1.5.0.tar.gz"><TT>distrib/cil-1.5.0.tar.gz</TT></A> 
+<H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc4">3</A>&#XA0;&#XA0;Distribution Contents</H2><!--SEC END --><P>The file <A HREF="distrib/cil-1.5.1.tar.gz"><TT>distrib/cil-1.5.1.tar.gz</TT></A> 
 contains the complete source CIL distribution, 
 consisting of the following files:</P><P>
 
@@ -2460,7 +2460,18 @@ sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
 as it will ensure your message is viewed by a broad audience. </P><!--TOC section Changes-->
 <H2 CLASS="section"><!--SEC ANCHOR --><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><!--SEC END --><P><A NAME="sec-changes"></A></P><!--NAME changes.html-->
 <UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>June 14, 2012</B>: <B>Released version 1.5.0</B>.<BR>
+<B>July 14, 2012</B>: <B>Released version 1.5.1</B>.<BR>
+ New features:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Native versions of OCaml tool (thanks to Oliver Schwahn).
+</LI></UL>
+Bug fixes:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Fixed bug in which pointer difference operations were incorrectly
+typed (#3538514, thanks to Jim Grundy).
+</LI><LI CLASS="li-itemize">Merger: fix integer overflow in pragma.
+</LI><LI CLASS="li-itemize">Fix various regression tests and doc generation.
+</LI></UL></LI><LI CLASS="li-itemize"><B>June 14, 2012</B>: <B>Released version 1.5.0</B>.<BR>
  New features:
 <UL CLASS="itemize"><LI CLASS="li-itemize">
 <B>Incompatible change</B>: introduce a <TT>Question</TT> variant for

@@ -693,7 +693,7 @@ sub compile {
     open(OUT, ">$outfile") || die "Cannot create $outfile";
     my $toprintsrc = $srcname; 
     $toprintsrc =~ s|\\|/|g;
-    print OUT "#pragma merger($mtime,\"$toprintsrc\",\"" . 
+    print OUT "#pragma merger(\"$mtime\",\"$toprintsrc\",\"" .
               join(',', @{$ccargs}), "\")\n";
     open(IN, '<', $srcname) || die "Cannot read $srcname";
     while(<IN>) {
@@ -840,7 +840,7 @@ sub separateTrueObjects {
         if($fstline =~ m|CIL|) {
             goto ToMerge;
         } 
-        if($fstline =~ m|^\#pragma merger\((\d+),\".*\",\"(.*)\"\)$|) {
+        if($fstline =~ m|^\#pragma merger\(\"(\d+)\",\".*\",\"(.*)\"\)$|) {
             my $mymtime = $1;
             # Get the CC flags
             my @thisccargs = split(/,/, $2);
