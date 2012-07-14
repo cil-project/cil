@@ -1260,6 +1260,9 @@ let doubleType = TFloat(FDouble, [])
 (* An integer type that fits pointers. Initialized by initCIL *)
 let upointType = ref voidType 
 
+(* An integer type that fits a pointer difference. Initialized by initCIL *)
+let ptrdiffType = ref voidType
+
 (* An integer type that fits wchar_t. Initialized by initCIL *)
 let wcharKind = ref IChar
 let wcharType = ref voidType 
@@ -6724,6 +6727,7 @@ let initCIL () =
       else E.s(E.unimp "initCIL: cannot find the right ikind for type %s\n" name)
     in      
     upointType := TInt(findIkindSz true !M.theMachine.M.sizeof_ptr, []);
+    ptrdiffType := TInt(findIkindSz false !M.theMachine.M.sizeof_ptr, []);
     kindOfSizeOf := findIkindName !M.theMachine.M.size_t;
     typeOfSizeOf := TInt(!kindOfSizeOf, []);
     wcharKind := findIkindName !M.theMachine.M.wchar_t;

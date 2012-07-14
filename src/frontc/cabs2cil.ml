@@ -4679,9 +4679,9 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
         (makeCastT e2 t2 (integralPromotion t2)) t1
   | MinusA when isPointerType t1 && isPointerType t2 ->
       let commontype = t1 in
-      intType,
+      !ptrdiffType,
       optConstFoldBinOp false MinusPP (makeCastT e1 t1 commontype) 
-                                      (makeCastT e2 t2 commontype) intType
+                                      (makeCastT e2 t2 commontype) !ptrdiffType
   | (Le|Lt|Ge|Gt|Eq|Ne) when isPointerType t1 && isPointerType t2 ->
       pointerComparison e1 t1 e2 t2
   | (Eq|Ne) when isPointerType t1 && isZero e2 -> 

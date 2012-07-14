@@ -43,7 +43,7 @@
   #   - you can use one Makefile for several Ocaml projects
   #   
   # You must include this file in your Makefile. Before the include point 
-  # you must defined the following variables (which are glob al for all Ocaml 
+  # you must defined the following variables (which are global for all Ocaml
   # projects specified in one Makefile):
   # 
   # CAMLDIR    - the directory where to get the ocaml executables from. 
@@ -62,6 +62,7 @@
   # STATIC     - if set then it will compile and link statically
   #              (NATIVECAML mode only)
   # PREPROC    - the preprocessor command
+  # CAMLNATTL  - if set then will use native versions of the OCaml tools
 
   # WIN32      - means that we are using the Windows native tools
 
@@ -167,10 +168,19 @@
   #                    $^
   #
 
+ifdef CAMLNATTL
+  CAMLLEX = ocamllex.opt
+  CAMLDEP = ocamldep.opt
+  CAMLCMPLR = ocamlc.opt
+  CAMLCMPLR_OPT = ocamlopt.opt
+else
+  CAMLLEX = ocamllex
+  CAMLDEP = ocamldep
+  CAMLCMPLR = ocamlc
+  CAMLCMPLR_OPT = ocamlopt
+endif
 
-CAMLLEX = ocamllex
-CAMLYACC= ocamlyacc -v
-CAMLDEP = ocamldep
+CAMLYACC = ocamlyacc -v
 CAMLP4 = camlp4 pa_o.cmo pa_op.cmo pr_o.cmo
 
 # Internal versions of COMPILEFLAGS and LINKFLAGS.  We'll add additional flags
@@ -252,8 +262,8 @@ ifdef NATIVECAML
    endif
  endif
  #foo := $(shell echo "I am in NATIVECAML mode" >&2; echo whatever)
- CAMLC          = $(CAMLDIR)ocamlopt  $(COMPILE_FLAGS)
- CAMLLINK       = $(CAMLDIR)ocamlopt  $(LINK_FLAGS)
+ CAMLC          = $(CAMLDIR)$(CAMLCMPLR_OPT)  $(COMPILE_FLAGS)
+ CAMLLINK       = $(CAMLDIR)$(CAMLCMPLR_OPT)  $(LINK_FLAGS)
  CMO            = cmx
  CMC            = opt.$(OBJ)  # compiled (and optimized) C
  CMXA           = cmxa
@@ -263,7 +273,7 @@ ifdef NATIVECAML
  # sm: by adding -native in native mode, we prevent spurious
  # dependencies on .cmo files which were causing lots of
  # extra recompilation
- CAMLDEP        = $(CAMLDIR)ocamldep -native
+ CAMLDEP        = $(CAMLDIR)$(CAMLDEP) -native
  # CAML_NOOPT maintains its value on entry (default, missing)
 else 
  # Bytecode mode
@@ -277,8 +287,8 @@ else
    CAMLC          = $(CAMLDIR)ocamlcp -p a $(COMPILE_FLAGS)
    CAMLLINK       = $(CAMLDIR)ocamlcp -p a -custom  $(LINK_FLAGS)
  else
-   CAMLC          = $(CAMLDIR)ocamlc $(COMPILE_FLAGS)
-   CAMLLINK       = $(CAMLDIR)ocamlc -custom  $(LINK_FLAGS)
+   CAMLC          = $(CAMLDIR)$(CAMLCMPLR) $(COMPILE_FLAGS)
+   CAMLLINK       = $(CAMLDIR)$(CAMLCMPLR) -custom  $(LINK_FLAGS)
  endif
  CAML_NOOPT     = 1
 endif

@@ -16,5 +16,5 @@ int main()
   struct foo f = { 1, 2, 3, 4, 5, 6 };
   int x;
   x = values[0];
-  exit(0);
+  exit(x + f.f1 + f.b.f2 - f.b.a[0]);
 }
