@@ -542,7 +542,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | MinusPP  -> 
               checkPointerType t1; checkPointerType t2;
               typeMatch t1 t2;
-              typeMatch tres intType;
+              typeMatch tres !ptrdiffType;
               tres
       end
 
