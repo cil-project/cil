@@ -150,7 +150,7 @@ struct
       let n1 = cgFindNode cg caller in
       let n2 = cgFindNode cg callee in
         n1.calls <- n2.fd :: n1.calls;
-        n1.calledBy <- n1.fd :: n1.calledBy
+        n2.calledBy <- n1.fd :: n2.calledBy
     with _ -> ()
 
   class callGraphVisitor cg =
