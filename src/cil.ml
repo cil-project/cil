@@ -75,6 +75,8 @@ let oldstyleExternInline = ref false
 
 let useLogicalOperators = ref false
 
+let useComputedGoto = ref false
+
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.

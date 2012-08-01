@@ -2009,6 +2009,10 @@ val msvcMode: bool ref
  * their operands *)
 val useLogicalOperators: bool ref
 
+(** Whether to use GCC's computed gotos.  By default, do not use them and
+ * replace them by a switch. *)
+val useComputedGoto: bool ref
+
 (** Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is
      seen (as long as optimization is enabled)
