@@ -686,7 +686,7 @@ struct
                       let y = stmt_fun a x in
                         match x.skind with
                             Instr _
-                          | Return _ | Goto _ | Break _ | Continue _ -> y
+                          | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> y
                           | If (_expr, then_block, else_block, _loc) ->
                               visit_block
                                 stmt_fun
@@ -709,6 +709,10 @@ struct
                 and gather_gotos acc stmt =
                   match stmt.skind with
                       Goto (stmt_ref, _loc) -> gather_labels acc !stmt_ref
+                    | ComputedGoto _ ->
+                            (* Assume that CFG fills successors correctly *)
+                            List.fold_left (fun a s -> gather_labels a s)
+                                acc stmt.succs
                     | _ -> acc
                 and transitive_closure ini_stmt =
                   let rec iter trace acc stmt =
@@ -727,6 +731,10 @@ struct
                     (fun a x ->
                       match x.skind with
                           Goto (stmt_ref, _loc) -> gather_labels a !stmt_ref
+                        | ComputedGoto _ ->
+                            (* Assume that CFG fills successors correctly *)
+                            List.fold_left (fun a s -> gather_labels a s)
+                                a x.succs
                         | Block block -> visit_block gather_gotos a block
                         | _ -> a)
                     LabelSet.empty

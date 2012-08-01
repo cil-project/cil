@@ -124,6 +124,7 @@ let rec makeThreeAddress
       constFold true e
   | Const _ -> e
   | AddrOf (Var _, NoOffset) -> e
+  | AddrOfLabel (_) -> e
   | Lval lv -> Lval (simplifyLval setTemp lv)
   | BinOp(bo, e1, e2, tres) -> 
       BinOp(bo, makeBasic setTemp e1, makeBasic setTemp e2, tres)
