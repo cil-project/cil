@@ -6467,22 +6467,22 @@ let trylink source dest_option = match dest_option with
 
 
 (** Cmopute the successors and predecessors of a block, given a fallthrough *)
-let rec succpred_block b fallthrough =
+let rec succpred_block b fallthrough rlabels =
   let rec handle sl = match sl with
     [] -> ()
-  | [a] -> succpred_stmt a fallthrough 
+  | [a] -> succpred_stmt a fallthrough rlabels
   | hd :: ((next :: _) as tl) -> 
-      succpred_stmt hd (Some next) ;
+      succpred_stmt hd (Some next) rlabels;
       handle tl 
   in handle b.bstmts
 
 
-and succpred_stmt s fallthrough = 
+and succpred_stmt s fallthrough rlabels =
   match s.skind with
     Instr _ -> trylink s fallthrough
   | Return _ -> ()
   | Goto(dest,l) -> link s !dest
-  | ComputedGoto(e,l) -> failwith "not implemented yet" (* XXX *)
+  | ComputedGoto(e,l) ->  List.iter (link s) rlabels
   | Break _  
   | Continue _ 
   | Switch _ ->
@@ -6491,23 +6491,23 @@ and succpred_stmt s fallthrough =
   | If(e1,b1,b2,l) -> 
       (match b1.bstmts with
         [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough )) ;
+      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough rlabels )) ;
       (match b2.bstmts with
         [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
+      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough rlabels ))
 
   | Loop(b,l,_,_) -> 
       begin match b.bstmts with
         [] -> failwith "computeCFGInfo: empty loop" 
       | hd :: tl -> 
           link s hd ; 
-          succpred_block b (Some(hd))
+          succpred_block b (Some(hd)) rlabels
       end
 
   | Block(b) -> begin match b.bstmts with
                   [] -> trylink s fallthrough
                 | hd :: tl -> link s hd ;
-                    succpred_block b fallthrough
+                    succpred_block b fallthrough rlabels
                 end
   | TryExcept _ | TryFinally _ -> 
       failwith "computeCFGInfo: structured exception handling not implemented"
@@ -6702,6 +6702,25 @@ class registerLabelsVisitor : cilVisitor = object
   method vinst _ = SkipChildren
 end
 
+(* Find all labels-as-value in a function to use them as successors of computed
+ * gotos. Duplicated in src/ext/cfg.ml. *)
+class addrOfLabelFinder slr = object(self)
+    inherit nopCilVisitor
+
+    method vexpr e = match e with
+    | AddrOfLabel sref ->
+        slr := !sref :: (!slr);
+        SkipChildren
+    | _ -> DoChildren
+
+end
+
+let findAddrOfLabelStmts (b : block) : stmt list =
+    let slr = ref [] in
+    let vis = new addrOfLabelFinder slr in
+    ignore(visitCilBlock vis b);
+    !slr
+
 (* prepare a function for computeCFGInfo by removing break, continue,
  * default and switch statements/labels and replacing them with Ifs and
  * Gotos. *)
@@ -6722,7 +6741,8 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
   let clear_it = new clear in 
   ignore (visitCilBlock clear_it f.sbody) ;
   f.smaxstmtid <- Some (!sid_counter) ;
-  succpred_block f.sbody (None);
+  let rlabels = findAddrOfLabelStmts f.sbody in
+  succpred_block f.sbody None rlabels;
   let res = List.rev !statements in
   statements := [];
   f.sallstmts <- res;
