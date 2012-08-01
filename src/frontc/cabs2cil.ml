@@ -4590,7 +4590,13 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | Some (e, t) -> finishExp se e t
     end
 
-    | A.LABELADDR l -> begin (* GCC's taking the address of a label *)
+    | A.LABELADDR l when !Cil.useComputedGoto -> begin (* GCC's taking the address of a label *)
+        let ln = lookupLabel l in
+        let gref = ref dummyStmt in
+        addGoto ln gref;
+        finishExp empty (AddrOfLabel gref) voidPtrType
+    end
+    | A.LABELADDR l -> begin
         let l = lookupLabel l in (* To support locallly declared labels *)
         let addrval =
           try H.find gotoTargetHash l
@@ -6474,6 +6480,13 @@ and doStatement (s : A.statement) : chunk =
         (* Maybe we need to rename this label *)
         gotoChunk (lookupLabel l) loc'
 
+    | A.COMPGOTO (e, loc) when !Cil.useComputedGoto -> begin
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Do the expression *)
+        let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
+        se @@ s2c(mkStmt(ComputedGoto (e', loc')))
+    end
     | A.COMPGOTO (e, loc) -> begin
         let loc' = convLoc loc in
         currentLoc := loc';
