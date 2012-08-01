@@ -606,6 +606,8 @@ and exp =
      * {!Cil.mkAddrOrStartOf} to make one of these if you are not sure which 
      * one to use. *)
 
+  | AddrOfLabel of stmt ref
+
   | StartOf    of lval   
     (** Conversion from an array to a pointer to the beginning of the array. 
      * Given an lval of type [TArray(T)] produces an expression of type 
@@ -941,6 +943,8 @@ and stmtkind =
     * points to the statement that is the target of the Goto. This means that 
     * you have to update the reference whenever you replace the target 
     * statement. The target statement MUST have at least a label. *)
+
+  | ComputedGoto of exp * location         
 
   | Break of location                   
    (** A break to the end of the nearest enclosing Loop or Switch *)

@@ -186,7 +186,7 @@ CAMLP4 = camlp4 pa_o.cmo pa_op.cmo pr_o.cmo
 
 # Internal versions of COMPILEFLAGS and LINKFLAGS.  We'll add additional flags
 # to these.
-COMPILE_FLAGS := $(COMPILEFLAGS)
+COMPILE_FLAGS := $(COMPILEFLAGS) -warn-error +a
 LINK_FLAGS    := $(LINKFLAGS)
 
 COMPILE_FLAGS += -I $(OBJDIR)

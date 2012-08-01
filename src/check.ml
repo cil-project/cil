@@ -570,6 +570,20 @@ and checkExp (isconst: bool) (e: exp) : typ =
           | _ -> E.s (bug "AddrOf on unknown type")
       end
 
+      | AddrOfLabel (gref) -> begin
+          (* Find a label *)
+          let lab =
+            match List.filter (function Label _ -> true | _ -> false)
+                  !gref.labels with
+              Label (lab, _, _) :: _ -> lab
+            | _ ->
+                ignore (warn "Address of label to block without a label");
+                "<missing label>"
+          in
+          (* Remember it as a target *)
+          gotoTargets := (lab, !gref) :: !gotoTargets;
+          voidPtrType
+      end
       | StartOf lv -> begin
           let tlv = checkLval isconst true lv in
           match unrollType tlv with
@@ -727,8 +741,10 @@ and checkStmt (s: stmt) =
           in
           (* Remember it as a target *)
           gotoTargets := (lab, !gref) :: !gotoTargets
-            
-
+      | ComputedGoto (e, l) ->
+          currentLoc := l;
+          let te = checkExp false e in
+          typeMatch te voidPtrType
       | Return (re,l) -> begin
           currentLoc := l;
           match re, !currentReturnType with

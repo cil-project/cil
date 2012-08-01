@@ -6002,7 +6002,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   List.fold_left (fun acc elt -> 
                                       acc && instrFallsThrough elt) true il
               | Return _ | Break _ | Continue _ -> false
-              | Goto _ -> false
+              | Goto _ | ComputedGoto _ -> false
               | If (_, b1, b2, _) -> 
                   blockFallsThrough b1 || blockFallsThrough b2
               | Switch (e, b, targets, _) -> 
@@ -6064,7 +6064,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* will we leave this statement or block with a break command? *)
             and stmtCanBreak (s: stmt) : bool = 
               match s.skind with
-                Instr _ | Return _ | Continue _ | Goto _ -> false
+                Instr _ | Return _ | Continue _ | Goto _ | ComputedGoto _ -> false
               | Break _ -> true
               | If (_, b1, b2, _) -> 
                   blockCanBreak b1 || blockCanBreak b2
