@@ -283,7 +283,9 @@ let popGlobals () =
     | GVarDecl (vi, l) :: rest 
       when vi.vstorage != Extern && IH.mem mustTurnIntoDef vi.vid -> 
         IH.remove mustTurnIntoDef vi.vid;
-        revonto (GVar (vi, {init = None}, l) :: tail) rest
+        if vi.vinit.init != None then
+            E.s (E.bug "GVarDecl %s should have empty initializer" vi.vname);
+        revonto (GVar (vi, vi.vinit, l) :: tail) rest
 
     | x :: rest -> revonto (x :: tail) rest
   in
@@ -5359,7 +5361,8 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 
         H.add alreadyDefined vi.vname !currentLoc;
         IH.remove mustTurnIntoDef vi.vid;
-        cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
+        vi.vinit.init <- init;
+        cabsPushGlobal (GVar(vi, vi.vinit, !currentLoc));
         vi
       end else begin
         if not (isFunctionType vi.vtype) 

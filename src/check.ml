@@ -911,6 +911,8 @@ let rec checkGlobal = function
         (fun _ -> 
           checkGlobal (GVarDecl (vi, l));
           (* Check the initializer *)
+          if vi.vinit != init then
+              E.s (bug "GVar initializer doesn't match vinit (%s)" vi.vname);
           begin match init.init with
             None -> ()
           | Some i -> ignore (checkInitType i vi.vtype)

@@ -148,7 +148,8 @@ and global =
       * updateable so that you can change it without requiring to recreate 
       * the list of globals. There can be at most one definition for a 
       * variable in an entire program. Cannot have storage Extern or function 
-      * type. *)
+      * type. Note: the initializer field is kept for backwards compatibility,
+      * but it is now also available directly in the varinfo. *)
 
   | GFun of fundec * location           
      (** A function definition. *)
@@ -497,6 +498,12 @@ and varinfo = {
     mutable vdecl: location;            
     (** Location of variable declaration. *)
 
+    vinit: initinfo;
+    (** Optional initializer.  Only used for static and global variables.
+     * Initializers for other types of local variables are turned into
+     * assignments. Not mutable because the init field in initinfo is mutable
+     * already. *)
+
     mutable vid: int;  
     (** A unique integer identifier. This field will be 
      * set for you if you use one of the {!Cil.makeFormalVar}, 
@@ -809,8 +816,8 @@ and init =
      * {!Cil.foldLeftCompound}. *)
 
 
-(** We want to be able to update an initializer in a global variable, so we 
- * define it as a mutable field *)
+(** We want to be able to update an initializer in a variable, so we define it
+ * as a mutable field *)
 and initinfo = {
     mutable init : init option;
   } 
@@ -1517,7 +1524,7 @@ val typeSigAttrs: typsig -> attributes
  * {!Cil.makeTempVar}) and globals ({!Cil.makeGlobalVar}). Note that this 
  * function will assign a new identifier. The first argument specifies 
  * whether the varinfo is for a global. *)
-val makeVarinfo: bool -> string -> typ -> varinfo
+val makeVarinfo: bool -> string -> ?init:init -> typ -> varinfo
 
 (** Make a formal variable for a function. Insert it in both the sformals 
     and the type of the function. You can optionally specify where to insert 
@@ -1529,7 +1536,7 @@ val makeFormalVar: fundec -> ?where:string -> string -> typ -> varinfo
 (** Make a local variable and add it to a function's slocals (only if insert = 
     true, which is the default). Make sure you know what you are doing if you 
     set insert=false.  *)
-val makeLocalVar: fundec -> ?insert:bool -> string -> typ -> varinfo
+val makeLocalVar: fundec -> ?insert:bool -> string -> ?init:init -> typ -> varinfo
 
 (** Make a temporary variable and add it to a function's slocals. CIL will
     ensure that the name of the new variable is unique in this function, and
@@ -1905,8 +1912,9 @@ class type cilVisitor = object
   method vglob: global -> global list visitAction (** Global (vars, types,
                                                       etc.)  *)
   method vinit: varinfo -> offset -> init -> init visitAction        
-                                                (** Initializers for globals, 
-                                                 * pass the global where this 
+                                                (** Initializers for static,
+                                                 * const and global variables,
+                                                 * pass the variable where this
                                                  * occurs, and the offset *)
   method vtype: typ -> typ visitAction          (** Use of some type. Note 
                                                  * that for structure/union 
@@ -1982,7 +1990,7 @@ val visitCilType: cilVisitor -> typ -> typ
 (** Visit a variable declaration *)
 val visitCilVarDecl: cilVisitor -> varinfo -> varinfo
 
-(** Visit an initializer, pass also the global to which this belongs and the 
+(** Visit an initializer, pass also the variable to which this belongs and the
  * offset. *)
 val visitCilInit: cilVisitor -> varinfo -> offset -> init -> init
 

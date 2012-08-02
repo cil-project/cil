@@ -421,6 +421,11 @@ and varinfo = {
 
     mutable vdecl: location;            (** Location of variable declaration *)
 
+    vinit: initinfo;
+    (** Optional initializer.  Only used for static and global variables.
+     * Initializers for other types of local variables are turned into
+     * assignments. *)
+
     mutable vid: int;  (** A unique integer identifier.  *)
     mutable vaddrof: bool;              (** True if the address of this
                                             variable is taken. CIL will set 
@@ -4073,8 +4078,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       ++ (align
             (* locals. *)
             ++ line
-            ++ (docList ~sep:line (fun vi -> self#pVDecl () vi ++ text ";") 
-                  () f.slocals)
+            ++ (docList ~sep:line
+                (fun vi -> match vi.vinit.init with
+                | None -> self#pVDecl () vi ++ text ";"
+                | Some i -> self#pVDecl () vi ++ text " = " ++
+                    self#pInit () i ++ text ";")
+                () f.slocals)
             ++ line ++ line
             (* the body *)
             ++ ((* remember the declaration *) currentFormals <- f.sformals; 
@@ -4783,7 +4792,7 @@ let newVID () =
   t
 
    (* Make a varinfo. Used mostly as a helper function below  *)
-let makeVarinfo global name typ =
+let makeVarinfo global name ?init typ =
   (* Strip const from type for locals *)
   let vi = 
     { vname = name;
@@ -4791,6 +4800,7 @@ let makeVarinfo global name typ =
       vglob = global;
       vtype = if global then typ else typeRemoveAttributes ["const"] typ;
       vdecl = lu;
+      vinit = {init=init};
       vinline = false;
       vattr = [];
       vstorage = NoStorage;
@@ -4805,14 +4815,14 @@ let copyVarinfo (vi: varinfo) (newname: string) : varinfo =
   let vi' = {vi with vname = newname; vid = newVID () } in
   vi'
 
-let makeLocal fdec name typ = (* a helper function *)
+let makeLocal fdec name typ init = (* a helper function *)
   fdec.smaxid <- 1 + fdec.smaxid;
-  let vi = makeVarinfo false name typ in
+  let vi = makeVarinfo false name ?init:init typ in
   vi
   
    (* Make a local variable and add it to a function *)
-let makeLocalVar fdec ?(insert = true) name typ =
-  let vi = makeLocal fdec name typ in
+let makeLocalVar fdec ?(insert = true) name ?init typ =
+  let vi = makeLocal fdec name typ init in
   if insert then fdec.slocals <- fdec.slocals @ [vi];
   vi
 
@@ -4880,7 +4890,7 @@ let setFunctionTypeMakeFormals (f: fundec) (t: typ) =
       f.svar.vtype <- t; 
       f.sformals <- [];
       
-      f.sformals <- Util.list_map (fun (n,t,a) -> makeLocal f n t) args;
+      f.sformals <- Util.list_map (fun (n,t,a) -> makeLocal f n t None) args;
 
       setFunctionType f t
 
@@ -4901,7 +4911,7 @@ let makeFormalVar fdec ?(where = "$") name typ : varinfo =
   (* Search for the insertion place *)
   let thenewone = ref fdec.svar in (* Just a placeholder *)
   let makeit () : varinfo = 
-    let vi = makeLocal fdec name typ in
+    let vi = makeLocal fdec name typ None in
     thenewone := vi;
     vi
   in
@@ -5392,7 +5402,11 @@ and visitCilVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   doVisit vis (vis#vvdec v) childrenVarDecl v
 and childrenVarDecl (vis : cilVisitor) (v : varinfo) : varinfo =
   v.vtype <- visitCilType vis v.vtype;
-  v.vattr <- visitCilAttributes vis v.vattr;  
+  v.vattr <- visitCilAttributes vis v.vattr;
+  (match v.vinit.init with
+    None -> ()
+  | Some i -> let i' = visitCilInit vis v NoOffset i in
+    if i' != i then v.vinit.init <- Some i');
   v
 
 and visitCilAttributes (vis: cilVisitor) (al: attribute list) : attribute list=
@@ -5534,11 +5548,6 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
       if v' != v then GVarDecl (v', l) else g
   | GVar (v, inito, l) -> 
       let v' = visitCilVarDecl vis v in
-      (match inito.init with
-        None -> ()
-      | Some i -> let i' = visitCilInit vis v NoOffset i in 
-        if i' != i then inito.init <- Some i');
-
       if v' != v then GVar (v', inito, l) else g
 
   | GPragma (a, l) -> begin
