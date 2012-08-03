@@ -325,8 +325,8 @@ doc/cilpp.tex: doc/cilcode.pl doc/cil.tex lib/Cilly.pm
 # Documentation generated from latex files using "hevea"
 texdoc: doc/cilpp.tex
 # Create the version document
-	cd doc/html/cil; echo '\def\cilversion{@CIL_VERSION@}' >cil.version.tex
-	cd doc/html/cil; echo '\def\ccuredversion{@CCURED_VERSION@}' >>cil.version.tex
+	cd doc/html/cil; printf '\\def\\cilversion{@CIL_VERSION@}\n' >cil.version.tex
+	cd doc/html/cil; printf '\\def\\ccuredversion{@CCURED_VERSION@}\n' >>cil.version.tex
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; hevea -exec xxdate.exe ../../cilpp
 	cd doc/html/cil; mv cilpp.html cil.html
@@ -335,8 +335,8 @@ texdoc: doc/cilpp.tex
 	cp -f doc/header.html doc/html/cil
 
 pdfdoc: doc/cilpp.tex $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
-	cd doc; echo '\def\cilversion{@CIL_VERSION@}' >cil.version.tex
-	cd doc; echo '\def\ccuredversion{@CCURED_VERSION@}' >>cil.version.tex
+	cd doc; printf '\\def\\cilversion{@CIL_VERSION@}\n' >cil.version.tex
+	cd doc; printf '\\def\\ccuredversion{@CCURED_VERSION@}\n' >>cil.version.tex
 	cd doc; pdflatex cilpp.tex; pdflatex cilpp.tex
 	cd doc; mv cilpp.pdf html/cil/CIL.pdf
 	ocamldoc -o doc/cil-api.tex.tmp -v -stars \
