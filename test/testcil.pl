@@ -269,6 +269,7 @@ addTest("test/const13 WARNINGS_ARE_ERRORS=1");
 addBadComment("test/const13", "Minor. Const warnings from generated code - need more casts.");
 addTest("test/const14");
 addTest("testrun/const15 ");
+addTest("testrun/const16 ");
 addTest("test/deref _GNUCC=1");
 addTest("test_i/empty");
 addTest("test/enum");
