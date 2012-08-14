@@ -4592,7 +4592,13 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | Some (e, t) -> finishExp se e t
     end
 
-    | A.LABELADDR l -> begin (* GCC's taking the address of a label *)
+    | A.LABELADDR l when !Cil.useComputedGoto -> begin (* GCC's taking the address of a label *)
+        let ln = lookupLabel l in
+        let gref = ref dummyStmt in
+        addGoto ln gref;
+        finishExp empty (AddrOfLabel gref) voidPtrType
+    end
+    | A.LABELADDR l -> begin
         let l = lookupLabel l in (* To support locallly declared labels *)
         let addrval =
           try H.find gotoTargetHash l
@@ -6012,7 +6018,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   List.fold_left (fun acc elt -> 
                                       acc && instrFallsThrough elt) true il
               | Return _ | Break _ | Continue _ -> false
-              | Goto _ -> false
+              | Goto _ | ComputedGoto _ -> false
               | If (_, b1, b2, _) -> 
                   blockFallsThrough b1 || blockFallsThrough b2
               | Switch (e, b, targets, _) -> 
@@ -6074,7 +6080,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* will we leave this statement or block with a break command? *)
             and stmtCanBreak (s: stmt) : bool = 
               match s.skind with
-                Instr _ | Return _ | Continue _ | Goto _ -> false
+                Instr _ | Return _ | Continue _ | Goto _ | ComputedGoto _ -> false
               | Break _ -> true
               | If (_, b1, b2, _) -> 
                   blockCanBreak b1 || blockCanBreak b2
@@ -6484,6 +6490,13 @@ and doStatement (s : A.statement) : chunk =
         (* Maybe we need to rename this label *)
         gotoChunk (lookupLabel l) loc'
 
+    | A.COMPGOTO (e, loc) when !Cil.useComputedGoto -> begin
+        let loc' = convLoc loc in
+        currentLoc := loc';
+        (* Do the expression *)
+        let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
+        se @@ s2c(mkStmt(ComputedGoto (e', loc')))
+    end
     | A.COMPGOTO (e, loc) -> begin
         let loc' = convLoc loc in
         currentLoc := loc';

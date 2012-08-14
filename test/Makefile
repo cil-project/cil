@@ -144,6 +144,13 @@ endif
 ifdef CABSONLY
   CILLY+= --cabsonly
 endif
+ifdef COMPUTEDGOTO
+  CILLY+= --useComputedGoto
+endif
+ifdef LOCALINIT
+  CILLY+= --noMakeStaticGlobal
+endif
+
 
 
 # This is a way to enable the stats, allowing the command line to override it

@@ -313,6 +313,16 @@ let options : (string * Arg.spec * string) list =
      ("Transform &&, || and ?: to If statements" ^
        is_default (not !Cil.useLogicalOperators));
 
+    "--useComputedGoto",
+    Arg.Set Cil.useComputedGoto,
+    (" Retain GCC's computed goto" ^
+       is_default !Cil.useComputedGoto);
+
+    "--noUseComputedGoto",
+    Arg.Clear Cil.useComputedGoto,
+     (" Transform computed goto to Switch statements" ^
+       is_default (not !Cil.useComputedGoto));
+
     "--keepunused",
     Arg.Set Rmtmps.keepUnused,
     (" Do not remove the unused variables and types" ^

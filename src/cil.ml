@@ -77,6 +77,8 @@ let makeStaticGlobal = ref true
 
 let useLogicalOperators = ref false
 
+let useComputedGoto = ref false
+
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
@@ -504,6 +506,7 @@ and exp =
                                         * construct one of these. Apply to an 
                                         * lvalue of type [T] yields an 
                                         * expression of type [TPtr(T)] *)
+  | AddrOfLabel of stmt ref
 
   | StartOf    of lval   (** There is no C correspondent for this. C has 
                           * implicit coercions from an array to the address 
@@ -735,6 +738,9 @@ and stmtkind =
 
   | Goto of stmt ref * location         (** A goto statement. Appears from 
                                             actual goto's in the code. *)
+
+  | ComputedGoto of exp * location         
+
   | Break of location                   (** A break to the end of the nearest 
                                              enclosing Loop or Switch *)
   | Continue of location                (** A continue to the start of the 
@@ -1110,6 +1116,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Instr(hd::tl) -> get_instrLoc(hd)
     | Return(_, loc) -> loc
     | Goto(_, loc) -> loc
+    | ComputedGoto(_, loc) -> loc
     | Break(loc) -> loc
     | Continue(loc) -> loc
     | If(_, _, _, loc) -> loc
@@ -1790,6 +1797,7 @@ let getParenthLevel (e: exp) =
                                         (* Unary *)
   | CastE(_,_) -> 30
   | AddrOf(_) -> 30
+  | AddrOfLabel(_) -> 30
   | StartOf(_) -> 30
   | UnOp((Neg|BNot|LNot),_,_) -> 30
 
@@ -1890,6 +1898,7 @@ let rec typeOf (e: exp) : typ =
   | Question (_, _, _, t)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
@@ -3327,6 +3336,19 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "__alignof__(" ++ self#pExp () e ++ chr ')'
     | AddrOf(lv) -> 
         text "& " ++ (self#pLvalPrec addrOfLevel () lv)
+    | AddrOfLabel(sref) -> begin
+        (* Grab one of the labels *)
+        let rec pickLabel = function
+            [] -> None
+          | Label (l, _, _) :: _ -> Some l
+          | _ :: rest -> pickLabel rest
+        in
+        match pickLabel !sref.labels with
+          Some lbl -> text ("&& " ^ lbl)
+        | None -> 
+            ignore (error "Cannot find label for target of address of label");
+            text "&& __invalid_label"
+    end
           
     | StartOf(lv) -> self#pLval () lv
 
@@ -3770,6 +3792,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ignore (error "Cannot find label for target of goto");
             text "goto __invalid_label;"
     end
+
+    | ComputedGoto(e, l) ->
+        self#pLineDirective l
+          ++ text "goto *("
+          ++ self#pExp () e
+          ++ text ");"
 
     | Break l ->
         self#pLineDirective l
@@ -4634,6 +4662,7 @@ class plainCilPrinterClass =
 
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
+  | AddrOfLabel (sref) -> dprintf "AddrOfLabel(%a)" self#pStmt !sref
 
 
 
@@ -5128,6 +5157,7 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | AddrOf lv -> 
       let lv' = vLval lv in
       if lv' != lv then AddrOf lv' else e
+  | AddrOfLabel _ -> e
   | StartOf lv -> 
       let lv' = vLval lv in
       if lv' != lv then StartOf lv' else e
@@ -5266,6 +5296,9 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
   let skind' = 
     match s.skind with
       Break _ | Continue _ | Goto _ | Return (None, _) -> s.skind
+    | ComputedGoto (e, l) ->
+         let e' = fExp e in
+         if e' != e then ComputedGoto (e', l) else s.skind
     | Return (Some e, l) -> 
         let e' = fExp e in
         if e' != e then Return (Some e', l) else s.skind
@@ -5810,7 +5843,7 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
           peepHole1 doone b.bstmts; 
           peepHole1 doone h.bstmts;
           s.skind <- TryExcept(b, (doInstrList il, e), h, l);
-      | Return _ | Goto _ | Break _ | Continue _ -> ())
+      | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
 
 let rec peepHole2  (* Process two instructions and possibly replace them both *)
@@ -5844,7 +5877,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
           peepHole2 dotwo h.bstmts;
           s.skind <- TryExcept (b, (doInstrList il, e), h, l)
 
-      | Return _ | Goto _ | Break _ | Continue _ -> ())
+      | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
 
 
@@ -6019,6 +6052,7 @@ let rec isConstant = function
         -> vi.vglob && isConstantOffset off
   | AddrOf (Mem e, off) | StartOf(Mem e, off) 
         -> isConstant e && isConstantOffset off
+  | AddrOfLabel _ -> true
 
 and isConstantOffset = function
     NoOffset -> true
@@ -6444,21 +6478,22 @@ let trylink source dest_option = match dest_option with
 
 
 (** Cmopute the successors and predecessors of a block, given a fallthrough *)
-let rec succpred_block b fallthrough =
+let rec succpred_block b fallthrough rlabels =
   let rec handle sl = match sl with
     [] -> ()
-  | [a] -> succpred_stmt a fallthrough 
+  | [a] -> succpred_stmt a fallthrough rlabels
   | hd :: ((next :: _) as tl) -> 
-      succpred_stmt hd (Some next) ;
+      succpred_stmt hd (Some next) rlabels;
       handle tl 
   in handle b.bstmts
 
 
-and succpred_stmt s fallthrough = 
+and succpred_stmt s fallthrough rlabels =
   match s.skind with
     Instr _ -> trylink s fallthrough
   | Return _ -> ()
   | Goto(dest,l) -> link s !dest
+  | ComputedGoto(e,l) ->  List.iter (link s) rlabels
   | Break _  
   | Continue _ 
   | Switch _ ->
@@ -6467,23 +6502,23 @@ and succpred_stmt s fallthrough =
   | If(e1,b1,b2,l) -> 
       (match b1.bstmts with
         [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough )) ;
+      | hd :: tl -> (link s hd ; succpred_block b1 fallthrough rlabels )) ;
       (match b2.bstmts with
         [] -> trylink s fallthrough
-      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough ))
+      | hd :: tl -> (link s hd ; succpred_block b2 fallthrough rlabels ))
 
   | Loop(b,l,_,_) -> 
       begin match b.bstmts with
         [] -> failwith "computeCFGInfo: empty loop" 
       | hd :: tl -> 
           link s hd ; 
-          succpred_block b (Some(hd))
+          succpred_block b (Some(hd)) rlabels
       end
 
   | Block(b) -> begin match b.bstmts with
                   [] -> trylink s fallthrough
                 | hd :: tl -> link s hd ;
-                    succpred_block b fallthrough
+                    succpred_block b fallthrough rlabels
                 end
   | TryExcept _ | TryFinally _ -> 
       failwith "computeCFGInfo: structured exception handling not implemented"
@@ -6528,7 +6563,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
   | Default(l) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ; 
   match s.skind with
-  | Instr _ | Return _ | Goto _ -> ()
+  | Instr _ | Return _ | Goto _ | ComputedGoto _ -> ()
   | Break(l) -> begin try 
                   s.skind <- Goto(break_dest (),l)
                 with e ->
@@ -6678,6 +6713,25 @@ class registerLabelsVisitor : cilVisitor = object
   method vinst _ = SkipChildren
 end
 
+(* Find all labels-as-value in a function to use them as successors of computed
+ * gotos. Duplicated in src/ext/cfg.ml. *)
+class addrOfLabelFinder slr = object(self)
+    inherit nopCilVisitor
+
+    method vexpr e = match e with
+    | AddrOfLabel sref ->
+        slr := !sref :: (!slr);
+        SkipChildren
+    | _ -> DoChildren
+
+end
+
+let findAddrOfLabelStmts (b : block) : stmt list =
+    let slr = ref [] in
+    let vis = new addrOfLabelFinder slr in
+    ignore(visitCilBlock vis b);
+    !slr
+
 (* prepare a function for computeCFGInfo by removing break, continue,
  * default and switch statements/labels and replacing them with Ifs and
  * Gotos. *)
@@ -6698,7 +6752,8 @@ let computeCFGInfo (f : fundec) (global_numbering : bool) : unit =
   let clear_it = new clear in 
   ignore (visitCilBlock clear_it f.sbody) ;
   f.smaxstmtid <- Some (!sid_counter) ;
-  succpred_block f.sbody (None);
+  let rlabels = findAddrOfLabelStmts f.sbody in
+  succpred_block f.sbody None rlabels;
   let res = List.rev !statements in
   statements := [];
   f.sallstmts <- res;

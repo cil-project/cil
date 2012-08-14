@@ -1146,6 +1146,7 @@ begin
     | Instr(l) -> 13 + 67*(List.length l)
     | Return(_) -> 17
     | Goto(_) -> 19
+    | ComputedGoto(_) -> 131
     | Break(_) -> 23
     | Continue(_) -> 29
     | If(_,b1,b2,_) -> 31 + 37*(stmtListSum b1.bstmts) 

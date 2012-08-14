@@ -667,10 +667,15 @@ class markUsedLabels (labelMap: (string, unit) H.t) = object
 
     | _ -> DoChildren
 
-   (* No need to go into expressions or instructions *)
-  method vexpr _ = SkipChildren
-  method vinst _ = SkipChildren
-  method vtype _ = SkipChildren
+  method vexpr e = match e with
+  | AddrOfLabel dest ->
+      let (ln, _, _), _ = labelsToKeep !dest.labels in
+      if ln = "" then
+        E.s (E.bug "rmtmps: destination of address of label does not have labels");
+      (* Mark it as used *)
+      H.replace labelMap ln ();
+      SkipChildren
+  | _ -> DoChildren
 end
 
 class removeUnusedLabels (labelMap: (string, unit) H.t) = object
@@ -769,7 +774,9 @@ let removeUnmarked file =
          * marking the used labels *)
         let usedLabels:(string, unit) H.t = H.create 13 in
         ignore (visitCilFunction (new removeUnusedGoto) func);
-        ignore (visitCilBlock (new markUsedLabels usedLabels) func.sbody);
+        (* scan the function, not only the body, since there might be
+         * AddrOfLabel in initializers *)
+        ignore (visitCilFunction (new markUsedLabels usedLabels) func);
         (* And now we scan again and we remove them *)
         ignore (visitCilBlock (new removeUnusedLabels usedLabels) func.sbody);
 	true

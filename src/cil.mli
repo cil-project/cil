@@ -613,6 +613,8 @@ and exp =
      * {!Cil.mkAddrOrStartOf} to make one of these if you are not sure which 
      * one to use. *)
 
+  | AddrOfLabel of stmt ref
+
   | StartOf    of lval   
     (** Conversion from an array to a pointer to the beginning of the array. 
      * Given an lval of type [TArray(T)] produces an expression of type 
@@ -948,6 +950,8 @@ and stmtkind =
     * points to the statement that is the target of the Goto. This means that 
     * you have to update the reference whenever you replace the target 
     * statement. The target statement MUST have at least a label. *)
+
+  | ComputedGoto of exp * location         
 
   | Break of location                   
    (** A break to the end of the nearest enclosing Loop or Switch *)
@@ -2014,6 +2018,10 @@ val makeStaticGlobal: bool ref
  * them because they are unlike other expressions and do not evaluate both of 
  * their operands *)
 val useLogicalOperators: bool ref
+
+(** Whether to use GCC's computed gotos.  By default, do not use them and
+ * replace them by a switch. *)
+val useComputedGoto: bool ref
 
 (** Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is
