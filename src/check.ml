@@ -911,6 +911,8 @@ let rec checkGlobal = function
         (fun _ -> 
           checkGlobal (GVarDecl (vi, l));
           (* Check the initializer *)
+          if vi.vinit != init then
+              E.s (bug "GVar initializer doesn't match vinit (%s)" vi.vname);
           begin match init.init with
             None -> ()
           | Some i -> ignore (checkInitType i vi.vtype)
@@ -970,7 +972,7 @@ let rec checkGlobal = function
               if v.vglob then
                 ignore (warnContext
                           "Local %s has the vglob flag set" v.vname);
-              if v.vstorage <> NoStorage && v.vstorage <> Register then
+              if v.vstorage <> NoStorage && v.vstorage <> Register && v.vstorage <> Static then
                 ignore (warnContext
                           "Local %s has storage %a\n" v.vname
                           d_storage v.vstorage);

@@ -292,6 +292,16 @@ let options : (string * Arg.spec * string) list =
     (" Prevent small chunks of code from being duplicated" ^
        is_default (not !Cabs2cil.allowDuplication));
 
+    "--makeStaticGlobal",
+    Arg.Set Cil.makeStaticGlobal,
+    (" Convert local static variables into global variables" ^
+       is_default !Cil.makeStaticGlobal);
+
+    "--noMakeStaticGlobal",
+    Arg.Clear Cil.makeStaticGlobal,
+     (" Use initializers for local static variables" ^
+       is_default (not !Cil.makeStaticGlobal));
+
     "--useLogicalOperators",
     Arg.Set Cil.useLogicalOperators,
     (" Where possible (that is, if there are no side-effects),\n\t\t\t\t" ^
