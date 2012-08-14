@@ -73,6 +73,8 @@ let c99Mode = ref false (* True to handle ISO C 99 vs 90 changes.
    Note that CIL assumes that optimization is always enabled ;-) *)
 let oldstyleExternInline = ref false
 
+let makeStaticGlobal = ref true
+
 let useLogicalOperators = ref false
 
 

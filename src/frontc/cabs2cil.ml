@@ -2556,7 +2556,7 @@ and makeVarInfoCabs
   if inline && not (isFunctionType vtype) then
     ignore (error "inline for a non-function: %s" n);
   let t = 
-    if not isglobal && not isformal then begin
+    if not isglobal && not isformal && not (sto = Static) then begin
       (* Sometimes we call this on the formal argument of a function with no 
        * arguments. Don't call stripConstLocalType in that case *)
 (*      ignore (E.log "stripConstLocalType(%a) for %s\n" d_type vtype n); *)
@@ -4870,7 +4870,7 @@ and doInitializer
   in
   let acc, restl = 
     let so = makeSubobj vi vi.vtype NoOffset in
-    doInit vi.vglob topSetupInit so empty [ (A.NEXT_INIT, inite) ] 
+    doInit (vi.vglob || vi.vstorage = Static) topSetupInit so empty [ (A.NEXT_INIT, inite) ]
   in
   if restl <> [] then 
     ignore (warn "Ignoring some initializers");
@@ -5421,7 +5421,7 @@ and createLocal ((_, sto, _, _) as specs)
       addLocalToEnv n (EnvVar vi);
       empty
     
-  | _ when sto = Static -> 
+  | _ when sto = Static && !makeStaticGlobal ->
       if debugGlobal then 
         ignore (E.log "createGlobal (local static): %s\n" n);
 
@@ -5457,7 +5457,7 @@ and createLocal ((_, sto, _, _) as specs)
           if unrollType vi.vtype != unrollType et then
             vi.vtype <- et;
           if isNotEmpty se then 
-            E.s (error "global static initializer");
+            E.s (error "global static initializer has side-effect");
           (* Maybe the initializer refers to the function itself. 
              Push a prototype for the function, just in case. Hopefully,
              if does not refer to the locals *)
@@ -5465,7 +5465,8 @@ and createLocal ((_, sto, _, _) as specs)
           Some ie'
         end
       in
-      cabsPushGlobal (GVar(vi, {init = init}, !currentLoc));
+      vi.vinit.init <- init;
+      cabsPushGlobal (GVar(vi, vi.vinit, !currentLoc));
       empty
 
   (* Maybe we have an extern declaration. Make it a global *)
@@ -5542,9 +5543,15 @@ and createLocal ((_, sto, _, _) as specs)
                                   Some (integer (String.length s + 1)),
                                   a)
         | _, _, _ -> ());
-
-        (* Now create assignments instead of the initialization *)
-        se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
+        if vi.vstorage = Static && not !makeStaticGlobal then begin
+            (* For static variables, use initializer *)
+            if isNotEmpty se4 then
+              E.s (error "local static initializer has side-effect");
+            vi.vinit.init <- Some ie';
+            se1
+        end else
+            (* otherwise create assignments instead of the initialization *)
+            se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
           
 and doAliasFun vtype (thisname:string) (othername:string) 

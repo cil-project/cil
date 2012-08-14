@@ -2007,6 +2007,8 @@ val visitCilAttributes: cilVisitor -> attribute list -> attribute list
    Default is GCC. After you set this function you should call {!Cil.initCIL}. *)
 val msvcMode: bool ref               
 
+(** Whether to convert local static variables into global static variables *)
+val makeStaticGlobal: bool ref
 
 (** Whether to use the logical operands LAnd and LOr. By default, do not use 
  * them because they are unlike other expressions and do not evaluate both of 
