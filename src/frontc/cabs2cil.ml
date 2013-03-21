@@ -2823,24 +2823,12 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                 E.s (error "Array length %a does not have an integral type.");
               if not allowVarSizeArrays then begin
                 (* Assert that len' is a constant *)
-                let elsz = 
-                  try (bitsSizeOf bt + 7) / 8
-                  with _ -> 1 (** We get this if we cannot compute the size of 
-                                * one element. This can happen, when we define 
-                                * an extern, for example. We use 1 for now *)
-                in 
                 (match constFold true len' with 
                    Const(CInt64(i, ik, _)) ->
-		     (* We want array sizes to be positive, and the byte size
-			to fit in an OCaml int *)
+		     (* We want array sizes to be positive *)
 		     let elems = mkCilint ik i in
                      if compare_cilint elems zero_cilint < 0 then 
                        E.s (error "Length of array is negative");
-		     let size = mul_cilint elems (cilint_of_int elsz) in
-		     begin
-		       try ignore(int_of_cilint size)
-		       with _ -> E.s (error "Length of array is too large")
-		     end
                  | l -> 
                      if isConstant l then 
                        (* e.g., there may be a float constant involved. 
