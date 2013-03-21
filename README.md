@@ -11,6 +11,15 @@ either gcc or Microsoft's cl, and allows merging of the source files in
 your project. Other features include support for control-flow and
 points-to analyses.
 
+Quick start
+-----------
+
+Read the excellent [CIL tutorial][tuto] by Zachary Anderson, and
+check out the accompanying [project template][template].
+
+[tuto]: http://www.inf.ethz.ch/personal/azachary/teaching/ciltut.pdf
+[template]: https://bitbucket.org/zanderso/cil-template
+
 Installation
 -----------
 
