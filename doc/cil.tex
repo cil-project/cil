@@ -3376,6 +3376,25 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item{\bf March 22, 2013}: {\bf Released version 1.6.0}.\\
+    New features:
+    \begin{itemize}
+      \item Support for static local variables.
+      \item Support for GCC's "computed gotos" (or "labels as values").
+      \item See \ahrefurl{http://article.gmane.org/gmane.comp.compilers.cil.user/744/} for more details.
+    \end{itemize}
+    Bug fixes:
+    \begin{itemize}
+      \item cilly: use -include only on first preprocessor run.
+      \item Allow large arrays (\#3604915).
+      \item Fix caller list in EasyCallGraph.
+      \item Use actual prime numbers in function checksum.
+      \item Make breakString tail recursive.
+      \item Fix parsing of char\_signed with --envmachine (thanks to Haihao Shen).
+      \item Fix MSVC build parameters for MSys (thanks to Jim Grundy).
+      \item Various other fixes to Makefiles.
+    \end{itemize}
+
 \item{\bf July 14, 2012}: {\bf Released version 1.5.1}.\\
     New features:
     \begin{itemize}
