@@ -52,7 +52,7 @@ instance in the OCaml toplevel using [findlib][]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;           
-    - : string = "1.5.1"
+    - : string = "1.6.0"
 
 
 More documentation
