@@ -221,6 +221,8 @@ module Solver = functor(T:TRANSLATOR) ->
       (* Cast should check if signed type, and if so, make an ite term *)
       | AddrOf lv -> T.mkVar (sprint 80 (d_exp () e))
       | StartOf lv -> T.mkVar (sprint 80 (d_exp () e))
+      | AddrOfLabel _ ->
+      raise (E.s "Address of label not supported in Predabst\n") (* XXX *)
 
     let isValid e1 e2 =
       let e_imp = T.mkImp e1 e2 in

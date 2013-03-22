@@ -292,6 +292,16 @@ let options : (string * Arg.spec * string) list =
     (" Prevent small chunks of code from being duplicated" ^
        is_default (not !Cabs2cil.allowDuplication));
 
+    "--makeStaticGlobal",
+    Arg.Set Cil.makeStaticGlobal,
+    (" Convert local static variables into global variables" ^
+       is_default !Cil.makeStaticGlobal);
+
+    "--noMakeStaticGlobal",
+    Arg.Clear Cil.makeStaticGlobal,
+     (" Use initializers for local static variables" ^
+       is_default (not !Cil.makeStaticGlobal));
+
     "--useLogicalOperators",
     Arg.Set Cil.useLogicalOperators,
     (" Where possible (that is, if there are no side-effects),\n\t\t\t\t" ^
@@ -302,6 +312,16 @@ let options : (string * Arg.spec * string) list =
     Arg.Clear Cil.useLogicalOperators,
      ("Transform &&, || and ?: to If statements" ^
        is_default (not !Cil.useLogicalOperators));
+
+    "--useComputedGoto",
+    Arg.Set Cil.useComputedGoto,
+    (" Retain GCC's computed goto" ^
+       is_default !Cil.useComputedGoto);
+
+    "--noUseComputedGoto",
+    Arg.Clear Cil.useComputedGoto,
+     (" Transform computed goto to Switch statements" ^
+       is_default (not !Cil.useComputedGoto));
 
     "--keepunused",
     Arg.Set Rmtmps.keepUnused,

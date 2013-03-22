@@ -1146,6 +1146,7 @@ begin
     | Instr(l) -> 13 + 67*(List.length l)
     | Return(_) -> 17
     | Goto(_) -> 19
+    | ComputedGoto(_) -> 131
     | Break(_) -> 23
     | Continue(_) -> 29
     | If(_,b1,b2,_) -> 31 + 37*(stmtListSum b1.bstmts) 
@@ -1157,7 +1158,7 @@ begin
     | TryExcept (b, (il, e), h, _) -> 
         67 + 83*(stmtListSum b.bstmts) + 97*(stmtListSum h.bstmts)
     | TryFinally (b, h, _) -> 
-        103 + 113*(stmtListSum b.bstmts) + 119*(stmtListSum h.bstmts)
+        103 + 113*(stmtListSum b.bstmts) + 127*(stmtListSum h.bstmts)
   in
   
   (* disabled 2nd and 3rd measure because they appear to get different

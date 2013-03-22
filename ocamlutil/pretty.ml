@@ -74,9 +74,10 @@ type doc =
 
 (* Break a string at \n *)
 let rec breakString (acc: doc) (str: string) : doc = 
-  try
-    (* Printf.printf "breaking string %s\n" str; *)
-    let r = String.index str '\n' in
+  (* Printf.printf "breaking string %s\n" str; *)
+  match (try Some (String.index str '\n') with Not_found -> None) with
+  | None -> if acc = Nil then Text str else CText (acc, str)
+  | Some r ->
     (* Printf.printf "r=%d\n" r; *)
     let len = String.length str in
     if r > 0 then begin
@@ -92,8 +93,7 @@ let rec breakString (acc: doc) (str: string) : doc =
     end else (* The first is a newline *)
       breakString (Concat(acc, Line))
         (String.sub str (r + 1) (len - r - 1))
-  with Not_found -> 
-    if acc = Nil then Text str else CText (acc, str)
+    
 
 let nil           = Nil
 let text s        = breakString nil s

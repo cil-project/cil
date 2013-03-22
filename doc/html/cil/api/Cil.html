@@ -25,7 +25,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.1) : Cil</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Cil</title>
 </head>
 <body>
 <div class="navbar"><a href="Stats.html">Previous</a>
@@ -188,7 +188,8 @@ Top-level representation of a C source file<br>
  updateable so that you can change it without requiring to recreate 
  the list of globals. There can be at most one definition for a 
  variable in an entire program. Cannot have storage Extern or function 
- type.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+ type. Note: the initializer field is kept for backwards compatibility,
+ but it is now also available directly in the varinfo.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
@@ -957,6 +958,16 @@ and a new unique identifier</li>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
+<code>vinit&nbsp;: <code class="type"><a href="Cil.html#TYPEinitinfo">initinfo</a></code>;</code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Optional initializer.  Only used for static and global variables.
+ Initializers for other types of local variables are turned into
+ assignments. Not mutable because the init field in initinfo is mutable
+ already.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
 <code><span class="keyword">mutable&nbsp;</span>vid&nbsp;: <code class="type">int</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >A unique integer identifier. This field will be 
  set for you if you use one of the <a href="Cil.html#VALmakeFormalVar"><code class="code">Cil.makeFormalVar</code></a>, 
@@ -1170,6 +1181,13 @@ expression of type <code class="code">TPtr(T)</code>.
  lvalue of type <code class="code">T</code> yields an expression of type <code class="code">TPtr(T)</code>. Use 
  <a href="Cil.html#VALmkAddrOrStartOf"><code class="code">Cil.mkAddrOrStartOf</code></a> to make one of these if you are not sure which 
  one to use.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">AddrOfLabel</span> <span class="keyword">of</span> <code class="type"><a href="Cil.html#TYPEstmt">stmt</a> ref</code></code></td>
+
 </tr>
 <tr>
 <td align="left" valign="top" >
@@ -1626,8 +1644,8 @@ Initializers for global variables.<br>
 }
 
 <div class="info">
-We want to be able to update an initializer in a global variable, so we 
- define it as a mutable field<br>
+We want to be able to update an initializer in a variable, so we define it
+ as a mutable field<br>
 </div>
 
 <br>
@@ -1868,6 +1886,13 @@ Labels<br>
  points to the statement that is the target of the Goto. This means that 
  you have to update the reference whenever you replace the target 
  statement. The target statement MUST have at least a label.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">ComputedGoto</span> <span class="keyword">of</span> <code class="type"><a href="Cil.html#TYPEexp">exp</a> * <a href="Cil.html#TYPElocation">location</a></code></code></td>
+
 </tr>
 <tr>
 <td align="left" valign="top" >
@@ -2542,7 +2567,7 @@ Get the top-level attributes of a signature<br>
 </div>
 <br>
 <b>Lvalues</b><br>
-<pre><span id="VALmakeVarinfo"><span class="keyword">val</span> makeVarinfo</span> : <code class="type">bool -> string -> <a href="Cil.html#TYPEtyp">typ</a> -> <a href="Cil.html#TYPEvarinfo">varinfo</a></code></pre><div class="info">
+<pre><span id="VALmakeVarinfo"><span class="keyword">val</span> makeVarinfo</span> : <code class="type">bool -> string -> ?init:<a href="Cil.html#TYPEinit">init</a> -> <a href="Cil.html#TYPEtyp">typ</a> -> <a href="Cil.html#TYPEvarinfo">varinfo</a></code></pre><div class="info">
 Make a varinfo. Use this (rarely) to make a raw varinfo. Use other 
  functions to make locals (<a href="Cil.html#VALmakeLocalVar"><code class="code">Cil.makeLocalVar</code></a> or <a href="Cil.html#VALmakeFormalVar"><code class="code">Cil.makeFormalVar</code></a> or 
  <a href="Cil.html#VALmakeTempVar"><code class="code">Cil.makeTempVar</code></a>) and globals (<a href="Cil.html#VALmakeGlobalVar"><code class="code">Cil.makeGlobalVar</code></a>). Note that this 
@@ -2556,7 +2581,7 @@ Make a formal variable for a function. Insert it in both the sformals
     it is inserted last. Otherwise where must be the name of a formal after 
     which to insert this. By default it is inserted at the end.<br>
 </div>
-<pre><span id="VALmakeLocalVar"><span class="keyword">val</span> makeLocalVar</span> : <code class="type"><a href="Cil.html#TYPEfundec">fundec</a> -> ?insert:bool -> string -> <a href="Cil.html#TYPEtyp">typ</a> -> <a href="Cil.html#TYPEvarinfo">varinfo</a></code></pre><div class="info">
+<pre><span id="VALmakeLocalVar"><span class="keyword">val</span> makeLocalVar</span> : <code class="type"><a href="Cil.html#TYPEfundec">fundec</a> -><br>       ?insert:bool -> string -> ?init:<a href="Cil.html#TYPEinit">init</a> -> <a href="Cil.html#TYPEtyp">typ</a> -> <a href="Cil.html#TYPEvarinfo">varinfo</a></code></pre><div class="info">
 Make a local variable and add it to a function's slocals (only if insert = 
     true, which is the default). Make sure you know what you are doing if you 
     set insert=false.<br>
@@ -2940,7 +2965,7 @@ Visit a type<br>
 Visit a variable declaration<br>
 </div>
 <pre><span id="VALvisitCilInit"><span class="keyword">val</span> visitCilInit</span> : <code class="type"><a href="Cil.cilVisitor-c.html">cilVisitor</a> -> <a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Cil.html#TYPEoffset">offset</a> -> <a href="Cil.html#TYPEinit">init</a> -> <a href="Cil.html#TYPEinit">init</a></code></pre><div class="info">
-Visit an initializer, pass also the global to which this belongs and the 
+Visit an initializer, pass also the variable to which this belongs and the
  offset.<br>
 </div>
 <pre><span id="VALvisitCilAttributes"><span class="keyword">val</span> visitCilAttributes</span> : <code class="type"><a href="Cil.cilVisitor-c.html">cilVisitor</a> -> <a href="Cil.html#TYPEattribute">attribute</a> list -> <a href="Cil.html#TYPEattribute">attribute</a> list</code></pre><div class="info">
@@ -2952,10 +2977,17 @@ Visit a list of attributes<br>
 Whether the pretty printer should print output for the MS VC compiler.
    Default is GCC. After you set this function you should call <a href="Cil.html#VALinitCIL"><code class="code">Cil.initCIL</code></a>.<br>
 </div>
+<pre><span id="VALmakeStaticGlobal"><span class="keyword">val</span> makeStaticGlobal</span> : <code class="type">bool ref</code></pre><div class="info">
+Whether to convert local static variables into global static variables<br>
+</div>
 <pre><span id="VALuseLogicalOperators"><span class="keyword">val</span> useLogicalOperators</span> : <code class="type">bool ref</code></pre><div class="info">
 Whether to use the logical operands LAnd and LOr. By default, do not use 
  them because they are unlike other expressions and do not evaluate both of 
  their operands<br>
+</div>
+<pre><span id="VALuseComputedGoto"><span class="keyword">val</span> useComputedGoto</span> : <code class="type">bool ref</code></pre><div class="info">
+Whether to use GCC's computed gotos.  By default, do not use them and
+ replace them by a switch.<br>
 </div>
 <pre><span id="VALoldstyleExternInline"><span class="keyword">val</span> oldstyleExternInline</span> : <code class="type">bool ref</code></pre><div class="info">
 Set this to true to get old-style handling of gcc's extern inline C extension:

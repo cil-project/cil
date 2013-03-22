@@ -24,7 +24,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.1) : Cil.cilVisitor</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Cil.cilVisitor</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a href="Cil.html">Up</a>
@@ -96,8 +96,9 @@ Global (vars, types,
                                                       etc.)<br>
 </div>
 <pre><span id="METHODvinit"><span class="keyword">method</span> vinit</span> : <code class="type"><a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Cil.html#TYPEoffset">offset</a> -> <a href="Cil.html#TYPEinit">init</a> -> <a href="Cil.html#TYPEinit">init</a> <a href="Cil.html#TYPEvisitAction">visitAction</a></code></pre><div class="info">
-Initializers for globals, 
- pass the global where this 
+Initializers for static,
+ const and global variables,
+ pass the variable where this
  occurs, and the offset<br>
 </div>
 <pre><span id="METHODvtype"><span class="keyword">method</span> vtype</span> : <code class="type"><a href="Cil.html#TYPEtyp">typ</a> -> <a href="Cil.html#TYPEtyp">typ</a> <a href="Cil.html#TYPEvisitAction">visitAction</a></code></pre><div class="info">
