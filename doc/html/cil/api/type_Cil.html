@@ -20,7 +20,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.1) : Cil</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Cil</title>
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
@@ -130,6 +130,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vglob&nbsp;:&nbsp;bool;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vinline&nbsp;:&nbsp;bool;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vdecl&nbsp;:&nbsp;<span class="constructor">Cil</span>.location;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;vinit&nbsp;:&nbsp;<span class="constructor">Cil</span>.initinfo;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vid&nbsp;:&nbsp;int;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vaddrof&nbsp;:&nbsp;bool;<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">mutable</span>&nbsp;vreferenced&nbsp;:&nbsp;bool;<br>
@@ -150,6 +151,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Question</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.typ<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CastE</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;*&nbsp;<span class="constructor">Cil</span>.exp<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">AddrOf</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.lval<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">AddrOfLabel</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.stmt&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">StartOf</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.lval<br>
 &nbsp;&nbsp;<span class="keyword">and</span>&nbsp;constant&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">CInt64</span>&nbsp;<span class="keyword">of</span>&nbsp;int64&nbsp;*&nbsp;<span class="constructor">Cil</span>.ikind&nbsp;*&nbsp;string&nbsp;option<br>
@@ -220,6 +222,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Instr</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.instr&nbsp;list<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Return</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;option&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Goto</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.stmt&nbsp;<span class="constructor">Pervasives</span>.ref&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">ComputedGoto</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Break</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Continue</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">If</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.block&nbsp;*&nbsp;<span class="constructor">Cil</span>.block&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
@@ -349,11 +352,13 @@
 &nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">Cil</span>.attributes&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.attributes)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typsig<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;setTypeSigAttrs&nbsp;:&nbsp;<span class="constructor">Cil</span>.attributes&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typsig&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typsig<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;typeSigAttrs&nbsp;:&nbsp;<span class="constructor">Cil</span>.typsig&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.attributes<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeVarinfo&nbsp;:&nbsp;bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.varinfo<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeVarinfo&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?init:<span class="constructor">Cil</span>.init&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.varinfo<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeFormalVar&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cil</span>.fundec&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?where:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.varinfo<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeLocalVar&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cil</span>.fundec&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?insert:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.varinfo<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cil</span>.fundec&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?insert:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?init:<span class="constructor">Cil</span>.init&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.typ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.varinfo<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeTempVar&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cil</span>.fundec&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;?insert:bool&nbsp;<span class="keywordsign">-&gt;</span><br>
@@ -475,7 +480,9 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;visitCilAttributes&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Cil</span>.cilVisitor&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.attribute&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.attribute&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;msvcMode&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeStaticGlobal&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;useLogicalOperators&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;useComputedGoto&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;oldstyleExternInline&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;constFoldVisitor&nbsp;:&nbsp;bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.cilVisitor<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;lineDirectiveStyle&nbsp;=<br>

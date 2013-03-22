@@ -22,7 +22,24 @@ function loadTop(url) {
 <A HREF="ciltoc.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
 <HR>
 <H2 CLASS="section"><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><P><A NAME="sec-changes"></A></P><UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>July 14, 2012</B>: <B>Released version 1.5.1</B>.<BR>
+<B>March 22, 2013</B>: <B>Released version 1.6.0</B>.<BR>
+ New features:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Support for static local variables.
+</LI><LI CLASS="li-itemize">Support for GCC&#X2019;s "computed gotos" (or "labels as values").
+</LI><LI CLASS="li-itemize">See <A HREF="http://article.gmane.org/gmane.comp.compilers.cil.user/744/"><TT>http://article.gmane.org/gmane.comp.compilers.cil.user/744/</TT></A> for more details.
+</LI></UL>
+Bug fixes:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+cilly: use -include only on first preprocessor run.
+</LI><LI CLASS="li-itemize">Allow large arrays (#3604915).
+</LI><LI CLASS="li-itemize">Fix caller list in EasyCallGraph.
+</LI><LI CLASS="li-itemize">Use actual prime numbers in function checksum.
+</LI><LI CLASS="li-itemize">Make breakString tail recursive.
+</LI><LI CLASS="li-itemize">Fix parsing of char_signed with &#X2013;envmachine (thanks to Haihao Shen).
+</LI><LI CLASS="li-itemize">Fix MSVC build parameters for MSys (thanks to Jim Grundy).
+</LI><LI CLASS="li-itemize">Various other fixes to Makefiles.
+</LI></UL></LI><LI CLASS="li-itemize"><B>July 14, 2012</B>: <B>Released version 1.5.1</B>.<BR>
  New features:
 <UL CLASS="itemize"><LI CLASS="li-itemize">
 Native versions of OCaml tool (thanks to Oliver Schwahn).

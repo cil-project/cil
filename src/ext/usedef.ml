@@ -196,6 +196,7 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
     | Return (Some e, _) -> ve e
     | If (e, _, _, _) -> ve e
     | Break _ | Goto _ | Continue _ -> ()
+    | ComputedGoto (e, _) -> ve e
     | Loop (_, _, _, _) -> ()
     | Switch (e, _, _, _) -> ve e
     | Instr il -> 
@@ -231,6 +232,9 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
       let u'', d'' = handle_block fb in
       (VS.union (VS.union u u') u'', VS.union (VS.union d d') d'')
   | Break _ | Goto _ | Continue _ -> !varUsed, !varDefs
+  | ComputedGoto (e, _) ->
+      let _ = ve e in
+      !varUsed, !varDefs
   | Loop (b, _, _, _) -> handle_block b
   | Switch (e, b, _, _) -> 
       let _ = ve e in

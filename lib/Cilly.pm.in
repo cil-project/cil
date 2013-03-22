@@ -1990,7 +1990,7 @@ sub new {
             "-[DIU]" => { ONEMORE => 1, TYPE => "PREPROC" },
 	    '-H$' =>  { TYPE => 'EARLY_PREPROC'},
             '-idirafter$' => { ONEMORE => 1, TYPE => "PREPROC" },
-            '-include$' => { ONEMORE => 1, TYPE => "PREPROC" },
+            '-include$' => { ONEMORE => 1, TYPE => "EARLY_PREPROC" },
             '-imacros$' => { ONEMORE => 1, TYPE => "PREPROC" },
             '-iprefix$' => { ONEMORE => 1, TYPE => "PREPROC" },
             '-iquote$' => { ONEMORE => 1, TYPE => "PREPROC" },

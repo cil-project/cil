@@ -21,7 +21,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.5.1) : Index of values</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Index of values</title>
 </head>
 <body>
 <center><h1>Index of values</h1></center>
@@ -1300,6 +1300,11 @@ Make a local variable and add it to a function's slocals (only if insert =
     true, which is the default).
 </div>
 </td></tr>
+<tr><td><a href="Cil.html#VALmakeStaticGlobal">makeStaticGlobal</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Whether to convert local static variables into global static variables
+</div>
+</td></tr>
 <tr><td><a href="Cil.html#VALmakeTempVar">makeTempVar</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
 Make a temporary variable and add it to a function's slocals.
@@ -2013,6 +2018,11 @@ Give the unsigned kind corresponding to any integer kind
 An unsigned integer type that fits pointers.
 </div>
 </td></tr>
+<tr><td><a href="Cil.html#VALuseComputedGoto">useComputedGoto</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Whether to use GCC's computed gotos.
+</div>
+</td></tr>
 <tr><td><a href="Cil.html#VALuseLogicalOperators">useLogicalOperators</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
 Whether to use the logical operands LAnd and LOr.
@@ -2061,7 +2071,7 @@ Visit a global
 </td></tr>
 <tr><td><a href="Cil.html#VALvisitCilInit">visitCilInit</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-Visit an initializer, pass also the global to which this belongs and the 
+Visit an initializer, pass also the variable to which this belongs and the
  offset.
 </div>
 </td></tr>
