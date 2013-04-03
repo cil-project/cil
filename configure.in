@@ -549,8 +549,6 @@ do
       echo "export USE_$f_up=yes">>Makefile.features
    fi
 done
-echo "TYPE_SIZE_T=\"$TYPE_SIZE_T\"" >>Makefile.features
-echo "TYPE_WCHAR_T=\"$TYPE_WCHAR_T\"" >>Makefile.features
 chmod -w Makefile.features
 
 
