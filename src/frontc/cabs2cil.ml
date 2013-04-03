@@ -4326,7 +4326,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   (* Drop the side-effects *)
                   prechunk := (fun _ -> empty);
 	          piscall := false; 
-	          if Util.equals (typeSig t1) (typeSig t2) then
+            let compatible =
+              try ignore(combineTypes CombineOther t1 t2); true
+              with Failure _ -> false
+            in if compatible then
 	            pres := integer 1
 	          else
                     pres := integer 0;

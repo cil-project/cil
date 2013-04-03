@@ -31,6 +31,7 @@ int main (void)
     // http://developer.apple.com/documentation/DeveloperTools/gcc-3.3/gcc/Other-Builtins.html
     if(__builtin_types_compatible_p(char, char*)) E(10);
     if(!__builtin_types_compatible_p(int, my_int)) E(11);
+    if(!__builtin_types_compatible_p(char[], char[5])) E(12);
 
 
     SUCCESS;
