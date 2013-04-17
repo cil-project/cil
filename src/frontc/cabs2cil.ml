@@ -2310,6 +2310,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tsigned; A.Tchar] -> TInt(ISChar, [])
     | [A.Tunsigned; A.Tchar] -> TInt(IUChar, [])
 
+    | [A.Tsizet] -> !typeOfSizeOf
+
     | [A.Tshort] -> TInt(IShort, [])
     | [A.Tsigned; A.Tshort] -> TInt(IShort, [])
     | [A.Tshort; A.Tint] -> TInt(IShort, [])

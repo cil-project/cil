@@ -178,6 +178,7 @@ and print_type_spec = function
   | Tdouble -> print "double "
   | Tsigned -> printu "signed"
   | Tunsigned -> print "unsigned "
+  | Tsizet  -> print "size_t "
   | Tnamed s -> comprint "tnamed"; print s; space ();
   | Tstruct (n, None, _) -> printl ["struct";n]
   | Tstruct (n, Some flds, extraAttrs) ->
