@@ -1910,6 +1910,8 @@ let rec setOneInit (this: preInit)
  * with unspecified size actually changes the array's type
  * (ANSI C, 6.7.8, para 22) *)
 let rec collectInitializer
+    (isfield: bool)
+    (isconst: bool)
     (this: preInit)
     (thistype: typ) : (init * typ) =
   if this = NoInitPre then (makeZeroInit thistype), thistype
@@ -1929,9 +1931,13 @@ let rec collectInitializer
                             d_exp len)
             end
           | _ -> 
-              (* unsized array case, length comes from initializers *)
-              (!pMaxIdx + 1,
-               TArray (bt, Some (integer (!pMaxIdx + 1)), at))
+              (* unsized array case, length comes from initializers - except
+               * they are forbidden inside a struct or union *)
+              if isfield && not isconst then
+                E.s (error "non-static initialization of a flexible array member")
+              else
+                (!pMaxIdx + 1,
+                 TArray (bt, Some (integer (!pMaxIdx + 1)), at))
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
@@ -1941,7 +1947,7 @@ let rec collectInitializer
         let rec collect (acc: (offset * init) list) (idx: int) = 
           if idx = -1 then acc
           else
-            let thisi = fst (collectInitializer !pArray.(idx) bt)
+            let thisi = fst (collectInitializer isfield isconst !pArray.(idx) bt)
             in
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
@@ -1959,7 +1965,7 @@ let rec collectInitializer
                   if idx > !pMaxIdx then 
                     makeZeroInit f.ftype
                   else
-                    collectFieldInitializer !pArray.(idx) f
+                    collectFieldInitializer isconst !pArray.(idx) f
                 in
                 (Field(f, NoOffset), thisi) :: collect (idx + 1) restf
         in
@@ -1973,7 +1979,7 @@ let rec collectInitializer
               findField (idx + 1) rest
           | f :: _ when idx = !pMaxIdx -> 
               Field(f, NoOffset), 
-              collectFieldInitializer !pArray.(idx) f
+              collectFieldInitializer isconst !pArray.(idx) f
           | _ -> E.s (error "Can initialize only one field for union")
         in
         if !msvcMode && !pMaxIdx != 0 then 
@@ -1983,10 +1989,11 @@ let rec collectInitializer
     | _ -> E.s (unimp "collectInitializer")
                       
 and collectFieldInitializer 
+    (isconst: bool)
     (this: preInit)
     (f: fieldinfo) : init =
   (* collect, and rewrite type *)
-  let init,newtype = (collectInitializer this f.ftype) in
+  let init,newtype = (collectInitializer true isconst this f.ftype) in
   f.ftype <- newtype;
   init
             
@@ -4884,7 +4891,7 @@ and doInitializer
   let typ' = unrollType vi.vtype in
   if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
-  let (init, typ'') = collectInitializer !topPreInit typ' in
+  let (init, typ'') = collectInitializer false (vi.vglob || vi.vstorage = Static) !topPreInit typ' in
   if debugInit then
     ignore (E.log "Finished the initializer for %s\n  init=%a\n  typ=%a\n  acc=%a\n" 
            vi.vname d_init init d_type typ' d_chunk acc);
@@ -6274,7 +6281,11 @@ and assignInit (lv: lval)
                 b +++ init @@ loopc
           | _ -> E.s (bug "Array length is not a constant expression")
         end
-      | None -> E.s (bug "Array length is not a constant expression")
+      | None when initl = [] -> acc
+      | None ->
+          (* Attempt to initialize a flexible array in a struct:
+             struct s { int x; char[] a; }; *)
+          E.s (error "non-static initialization of a flexible array member")
     end
     | _ ->
       foldLeftCompound
