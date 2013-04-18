@@ -1297,6 +1297,11 @@ let rec castTo ?(fromsource=false)
         result
 
     | TPtr (told, _), TPtr(tnew, _) -> result
+
+    (* in the case of __typeof__, we do not perform conversion of functions to
+     * function pointers, so we have to accept this explicit cast when it occurs
+     * in the source. *)
+    | TFun _, TPtr _ when fromsource -> result
           
     | TInt _, TPtr _ -> result
           
