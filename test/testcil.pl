@@ -394,6 +394,7 @@ addTest("testrun/memcpy1");
 
 addTest("test/noreturn ");
                 
+addTest("test/constrexpr ");
 
 addTest("testrun/label1");
 addTest("testrun/label2");

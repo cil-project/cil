@@ -5709,7 +5709,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                };
 	    !currentFunctionFDEC.svar.vdecl <- funloc;
 
-            constrExprId := 0;
             (* Setup the environment. Add the formals to the locals. Maybe
             * they need alpha-conv  *)
             enterScope ();  (* Start the scope *)
