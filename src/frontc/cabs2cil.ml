@@ -122,12 +122,12 @@ let cabslu = {lineno = -10;
 (** Interface to the Cprint printer *)
 let withCprint (f: 'a -> unit) (x: 'a) : unit = 
   Cprint.commit (); Cprint.flush ();
-  let old = !Cprint.out in
-  Cprint.out := !E.logChannel;
+  let old = (Whitetrack.getOutput()) in
+  Whitetrack.setOutput  !E.logChannel;
   f x;
   Cprint.commit (); Cprint.flush ();
-  flush !Cprint.out;
-  Cprint.out := old
+  flush (Whitetrack.getOutput());
+  Whitetrack.setOutput  old
 
 
 (** Keep a list of the variable ID for the variables that were created to 
@@ -6702,12 +6702,12 @@ let convFile (f : A.file) : Cil.file =
           let temp_cabs = open_out temp_cabs_name in
           (* Now print the CABS in there *)
           Cprint.commit (); Cprint.flush ();
-          let old = !Cprint.out in (* Save the old output channel *)
-          Cprint.out := temp_cabs;
+          let old = (Whitetrack.getOutput()) in (* Save the old output channel *)
+          Whitetrack.setOutput  temp_cabs;
           Cprint.print_def d;
           Cprint.commit (); Cprint.flush ();
-          flush !Cprint.out;
-          Cprint.out := old;
+          flush (Whitetrack.getOutput());
+          Whitetrack.setOutput  old;
           close_out temp_cabs;
           (* Now read everythign in *and create a GText from it *)
           let temp_cabs = open_in temp_cabs_name in

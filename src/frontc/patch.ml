@@ -339,7 +339,7 @@ begin
 
   (trace "patchTime" (dprintf "applyPatch start: %f\n" (gettime ())));
   if (traceActive "patchDebug") then
-    Cprint.out := stdout      (* hack *)
+    Whitetrack.setOutput  stdout      (* hack *)
   else ();
 
   (* more hackery *)
