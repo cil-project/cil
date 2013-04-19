@@ -310,7 +310,6 @@ addTest("testrun/init15 _GNUCC=1");
 addTest("testrun/init16 ");
 addTest("testrun/init17 ");
 addTest("testrun/init18 ");
-addBadComment("testrun/init18", "Bug. Outstanding since 1.3.6 at least");
 addTest("testrun/init19 WARNINGS_ARE_ERRORS=1");
 addTest("testrun/init20 _GNUCC=1");
 addTest("testrun/init21 _GNUCC=1");

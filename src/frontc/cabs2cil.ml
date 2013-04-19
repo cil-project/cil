@@ -5172,13 +5172,23 @@ and doInit
 
         (* A structure with a composite initializer. We initialize the fields*)
   | TComp (comp, _), (A.NEXT_INIT, A.COMPOUND_INIT initl) :: restil ->
+      let initl' =
+        (* Handle empty initializers (nested inside arrays):
+            { {3}, {}, {5}, {}, {} }
+           by translating them to:
+            { {3}, {0}, {5}, {0}, {0} }
+           See test/small1/init18.c.
+        *)
+        if initl = []
+        then [(A.NEXT_INIT, A.SINGLE_INIT (CONSTANT (CONST_INT "0")))]
+        else initl in
       (* Create a separate subobject iterator *)
       let so' = makeSubobj so.host so.soTyp so.soOff in
       (* Go inside the comp *)
       so'.stack <- [InComp(so'.curOff, comp, fieldsToInit comp None)];
       normalSubobj so';
-      let acc', initl' = doInit isconst setone so' acc initl in
-      if initl' <> [] then 
+      let acc', initl'' = doInit isconst setone so' acc initl' in
+      if initl'' <> [] then
         ignore (warn "Too many initializers for structure");
       (* Advance past the structure *)
       advanceSubobj so;
