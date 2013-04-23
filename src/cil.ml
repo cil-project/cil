@@ -6139,7 +6139,7 @@ let rec makeZeroInit (t: typ) : init =
   match unrollType t with
     TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
-  | TEnum _ -> SingleInit zero
+  | TEnum (e, _) -> SingleInit (kinteger e.ekind 0)
   | TComp (comp, _) as t' when comp.cstruct -> 
       let inits = 
         List.fold_right
