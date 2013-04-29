@@ -79,6 +79,7 @@ let useLogicalOperators = ref false
 
 let useComputedGoto = ref false
 
+let useCaseRange = ref false
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
@@ -724,6 +725,8 @@ and label =
            * input source program. If the bool is "false", the label was 
            * created by CIL or some other transformation *)
   | Case of exp * location              (** A case statement *)
+  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                            range of values *)
   | Default of location                 (** A default statement *)
 
 
@@ -3699,6 +3702,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       Label (s, _, true) -> text (s ^ ": ")
     | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
     | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | CaseRange (e1, e2, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
+        ++ self#pExp () e2 ++ text ": "
     | Default _ -> text "default: "
 
   (* The pBlock will put the unalign itself *)
@@ -5360,6 +5365,10 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         Case (e, l) as lb -> 
           let e' = fExp e in
           if e' != e then Case (e', l) else lb
+        | CaseRange (e1, e2, l) as lb ->
+          let e1' = fExp e1 in
+          let e2' = fExp e2 in
+          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l) else lb
         | lb -> lb
     in
     mapNoCopy fLabel s.labels
@@ -6523,6 +6532,26 @@ and succpred_stmt s fallthrough rlabels =
   | TryExcept _ | TryFinally _ -> 
       failwith "computeCFGInfo: structured exception handling not implemented"
 
+let caseRangeFold (l: label list) =
+  let rec fold acc = function
+  | ((Case _ | Default _ | Label _) as x) :: xs -> fold (x :: acc) xs
+  | CaseRange(el, eh, loc) :: xs ->
+      let il, ih, ik =
+        match constFold true el, constFold true eh with
+          Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
+            mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
+        | _ -> E.s (error "Cannot understand the constants in case range")
+      in
+      if compare_cilint il ih > 0 then
+        E.s (error "Empty case range");
+      let rec mkAll (i: cilint) acc =
+        if compare_cilint i ih > 0 then acc
+        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc) :: acc)
+      in
+      fold (mkAll il acc) xs
+   | [] -> List.rev acc
+   in fold [] l
+
 (* [weimer] Sun May  5 12:25:24 PDT 2002
  * This code was pulled from ext/switch.ml because it looks like we really
  * want it to be part of CIL. 
@@ -6547,6 +6576,7 @@ let freshLabel (base:string) =
 let rec xform_switch_stmt s break_dest cont_dest = begin
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
+  | CaseRange _ -> failwith "unimplemented" (* XXX *)
   | Case(e,l) ->
       let suffix =
 	match getInteger e with
@@ -6629,6 +6659,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
+          | CaseRange _ :: _ -> failwith "unimplemented" (* XXX *)
           | Case (ce,cl) :: lab_tl ->
               (* assume that integer promotion and type conversion of cases is
                * performed by cabs2cil. *)

@@ -718,6 +718,13 @@ and checkStmt (s: stmt) =
            let t = checkExp true e in
            if not (isIntegralType t) then
                E.s (bug "Type of case expression is not integer");
+        | CaseRange (e1, e2, _) ->
+           let t1 = checkExp true e1 in
+           if not (isIntegralType t1) then
+               E.s (bug "Type of case expression is not integer");
+           let t2 = checkExp true e2 in
+           if not (isIntegralType t2) then
+               E.s (bug "Type of case expression is not integer");
         | _ -> () (* Not yet implemented *)
       in
       List.iter checkLabel s.labels;

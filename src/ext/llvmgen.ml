@@ -864,8 +864,9 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	let addCase (target:llvmBlock) (l:label) = match l with
 	| Label _ -> ()
 	| Case (e, _) -> cases := (intConstValue e, target) :: !cases
+	| CaseRange _ -> assert false
 	| Default _ -> defblock := target
-	in iter (fun s -> iter (addCase (getNamedBlock (labelOf s))) s.labels) slist;
+	in iter (fun s -> iter (addCase (getNamedBlock (labelOf s))) (caseRangeFold s.labels)) slist;
 	TSwitch (v, !defblock, !cases)
       in 
       gExp label e switchterm sbrk scont

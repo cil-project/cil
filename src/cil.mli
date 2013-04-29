@@ -933,6 +933,12 @@ and label =
                                          * is lowered into a constant if 
                                          * {!Cil.lowerConstants} is set to 
                                          * true. *)
+  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                         * range of values. Both expressions 
+                                         * are lowered into constants if 
+                                         * {!Cil.lowerConstants} is set to 
+                                         * true. If you want to use these, you
+                                         * must set {!Cil.useCaseRange}. *)
   | Default of location                 (** A default statement *)
 
 
@@ -2026,6 +2032,15 @@ val useLogicalOperators: bool ref
 (** Whether to use GCC's computed gotos.  By default, do not use them and
  * replace them by a switch. *)
 val useComputedGoto: bool ref
+
+(** Whether to expand ranges of values in case statements.  By default, expand
+ * them and do not use the CaseRange constructor. *)
+val useCaseRange: bool ref
+
+(** Fold every {!CaseRange} in a list of labels into the corresponding list of
+ * {!Case} labels.  Raises {!Errormsg.Error} if one of the ranges cannot be
+ * constant folded. *)
+val caseRangeFold: label list -> label list
 
 (** Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is

@@ -988,11 +988,14 @@ module BlockChunk =
         cases = [];
       }
 
-    let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
+    let caseChunk (e: exp) (l: location) (next: chunk) =
       let fst, stmts' = getFirstInChunk next in
-      (* Reverse el twice, so that map and append are tail-recursive *)
-      let labels = List.rev_map (fun e -> Case (e, l)) el in
-      fst.labels <- List.rev_append labels fst.labels;
+      fst.labels <- Case (e, l) :: fst.labels;
+      { next with stmts = stmts'; cases = fst :: next.cases}
+
+    let caseRangeChunk (e: exp) (e': exp) (l: location) (next: chunk) =
+      let fst, stmts' = getFirstInChunk next in
+      fst.labels <- CaseRange (e, e', l) :: fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
         
     let defaultChunk (l: location) (next: chunk) = 
@@ -1006,6 +1009,20 @@ module BlockChunk =
       (* Make the statement *)
       let defaultSeen = ref false in
       let t = typeOf e in
+      (* If needed, convert e to type t, and check in case the label was too big *)
+      let checkRange e =
+        let e' = makeCast ~e ~newt:t in
+        let constFold = constFold false in
+        let e'' = if !lowerConstants then constFold e' else e' in
+        begin match (constFold e), (constFold e'') with
+              | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
+              when i1 <> i2 ->
+                ignore (warnOpt
+              "Case label %a exceeds range for switch expression" d_exp e);
+        | _ -> ()
+        end;
+        e''
+      in
       let checkForDefaultAndCast lb =
         match lb with
         | Default _ as d ->
@@ -1015,20 +1032,8 @@ module BlockChunk =
             defaultSeen := true;
             d
         | Label _ as l -> l
-        | Case (e, loc) ->
-          (* If needed, convert e to type t, and check in case the label
-             was too big *)
-          let e' = makeCast ~e ~newt:t in
-          let constFold = constFold false in
-          let e'' = if !lowerConstants then constFold e' else e' in
-          (match (constFold e), (constFold e'') with
-            | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
-                when i1 != i2 ->
-                ignore (warnOpt
-	          "Case label %a exceeds range for switch expression" d_exp e);
-        | _ -> ()
-          );
-          Case (e'', loc)
+        | CaseRange (e1, e2, loc) -> CaseRange (checkRange e1, checkRange e2, loc)
+        | Case (e, loc) -> Case (checkRange e, loc)
       in
       let block = c2block body in
       let cases = (* eliminate duplicate entries from body.cases. A statement
@@ -1037,7 +1042,8 @@ module BlockChunk =
           (fun acc s ->
                            if List.memq s acc then acc
                            else begin
-              s.labels <- List.rev_map checkForDefaultAndCast s.labels;
+                             let labels = List.rev_map checkForDefaultAndCast s.labels in
+                             s.labels <- if !useCaseRange then labels else caseRangeFold labels;
                              s::acc
                            end) 
           []
@@ -5919,8 +5925,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   let bodychunk = ref default in
                   H.iter (fun lname laddr ->
                     bodychunk :=
-                       caseRangeChunk
-                         [integer laddr] l
+                       caseChunk
+                         (integer laddr) l
                          (gotoChunk lname l @@ !bodychunk))
                     gotoTargetHash;
                   (* Now recreate the switch *)
@@ -6468,30 +6474,20 @@ and doStatement (s : A.statement) : chunk =
         let (se, e', et) = doExp true e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
-        caseRangeChunk [if !lowerConstants then constFold false e' else e'] 
+        caseChunk (if !lowerConstants then constFold false e' else e')
           loc' (doStatement s)
             
     | A.CASERANGE (el, eh, s, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (sel, el', etl) = doExp false el (AExp None) in
-        let (seh, eh', etl) = doExp false eh (AExp None) in
+        let (sel, el', _) = doExp true el (AExp None) in
+        let (seh, eh', _) = doExp true eh (AExp None) in
         if isNotEmpty sel || isNotEmpty seh then
           E.s (error "Case statement with a non-constant");
-        let il, ih, ik = 
-          match constFold true el', constFold true eh' with
-            Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) -> 
-              mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
-          | _ -> E.s (unimp "Cannot understand the constants in case range")
-        in
-        if compare_cilint il ih > 0 then 
-          E.s (error "Empty case range");
-        let rec mkAll (i: cilint) acc =
-          if compare_cilint i ih > 0 then
-             List.rev acc
-          else mkAll (add_cilint i one_cilint) (kintegerCilint ik i :: acc)
-        in
-        caseRangeChunk (mkAll il []) loc' (doStatement s)
+        caseRangeChunk
+          (if !lowerConstants then constFold false el' else el')
+          (if !lowerConstants then constFold false eh' else eh')
+          loc' (doStatement s)
         
 
     | A.DEFAULT (s, loc) -> 
