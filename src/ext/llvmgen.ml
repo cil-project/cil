@@ -814,6 +814,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | Return (None, _) -> gReturnVoid slabel
       | Return (Some e, _) -> gReturn slabel e
       | Goto (sref, _) -> gGoto slabel sref
+      | ComputedGoto _ -> raise (Unimplemented "ComputedGoto")
       | Break _ -> gBreak slabel 
       | Continue _ -> gContinue slabel 
       | If (e, b1, b2, _) -> gIf slabel e b1 b2
@@ -996,6 +997,8 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     | CastE (t, e) -> iCast t e
     | AddrOf lv -> iAddrOf lv
     | StartOf lv -> iStartOf lv
+    | AddrOfLabel _ -> raise (Unimplemented "AddrOfLabel")
+    | Question _ -> raise (Unimplemented "Question")
 
     and iUnop op (e:exp) (t:typ) : llvmInstruction list * llvmValue = 
       let (il,v) = iExp e in

@@ -707,7 +707,7 @@ let makeStartNodeTable (globs: global list) : global list =
     let file = { fileName = "startnode.h"; globals = newGlobs;
                  globinit = None; globinitcalled = false; } in
     let channel = open_out file.fileName in
-    dumpFile defaultCilPrinter channel file;
+    dumpFile defaultCilPrinter channel file.fileName file;
     close_out channel;
     GText ("#include \"" ^ file.fileName ^ "\"") :: globs
 
