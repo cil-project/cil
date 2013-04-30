@@ -6331,7 +6331,10 @@ and doBody (blk: A.block) : chunk =
   else begin
     let b = c2block bodychunk in
     b.battrs <- battrs;
-    s2c (mkStmt (Block b))
+    { stmts = [ mkStmt (Block b) ];
+      postins = [];
+      cases = bodychunk.cases;
+    }
   end
       
 and doStatement (s : A.statement) : chunk = 

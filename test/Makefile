@@ -126,6 +126,9 @@ ifdef COMMLINES
   CILLY+= --commPrintLn
 endif
 
+ifdef USECFG
+	CILLY+= --domakeCFG
+endif
 ifdef USECABS
   CILLY+= --usecabs
 endif

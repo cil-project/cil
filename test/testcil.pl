@@ -701,7 +701,7 @@ addTest("scott/enumerator_sizeof");
 addTest("testrun/decl_mix_stmt");
 addTest("scott/enumattr");
 addTest("runall/alpha");
-addTest("testrun/blockattr2");
+addTest("testrun/blockattr2 USECFG=1");
 addTest("testrun/extinline2");
 addTest("test/extinline3");
 addTest("testrun/bool");
