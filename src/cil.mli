@@ -614,6 +614,8 @@ and exp =
      * one to use. *)
 
   | AddrOfLabel of stmt ref
+    (** The address of a label, using GCC's label-as-value extension.  If you
+     * want to use these, you must set {!Cil.useComputedGoto}. *)
 
   | StartOf    of lval   
     (** Conversion from an array to a pointer to the beginning of the array. 
@@ -952,6 +954,8 @@ and stmtkind =
     * statement. The target statement MUST have at least a label. *)
 
   | ComputedGoto of exp * location         
+  (** A computed goto using GCC's label-as-value extension.  If you want to use
+   * these, you must set {!Cil.useComputedGoto}. *)
 
   | Break of location                   
    (** A break to the end of the nearest enclosing Loop or Switch *)
