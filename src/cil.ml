@@ -6574,21 +6574,21 @@ let freshLabel (base:string) =
   fst (A.newAlphaName labelAlphaTable None base ())
 
 let rec xform_switch_stmt s break_dest cont_dest = begin
+  let suffix e = match getInteger e with
+  | Some value ->
+      if compare_cilint value zero_cilint < 0 then
+        "neg_" ^ string_of_cilint (neg_cilint value)
+        else
+          string_of_cilint value
+  | None -> "exp"
+  in
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
-  | CaseRange _ -> failwith "unimplemented" (* XXX *)
   | Case(e,l) ->
-      let suffix =
-	match getInteger e with
-	| Some value -> 
-	    if compare_cilint value zero_cilint < 0 then
-	      "neg_" ^ string_of_cilint (neg_cilint value)
-	    else
-	      string_of_cilint value
-	| None ->
-	    "exp"
-      in
-      let str = "case_" ^ suffix in
+      let str = Printf.sprintf "case_%s" (suffix e) in
+      Label(freshLabel str,l,false)
+  | CaseRange(e1,e2,l) ->
+      let str = Printf.sprintf "caserange_%s_%s" (suffix e1) (suffix e2) in
       Label(freshLabel str,l,false)
   | Default(l) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ; 
@@ -6659,28 +6659,38 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
-          | CaseRange _ :: _ -> failwith "unimplemented" (* XXX *)
-          | Case (ce,cl) :: lab_tl ->
-              (* assume that integer promotion and type conversion of cases is
-               * performed by cabs2cil. *)
-              let make_eq exp =  BinOp(Eq, e, exp, typeOf e) in
-              let make_or_from_cases =
-                List.fold_left
-                    (fun pred label -> match label with
-                           Case (exp, _) -> BinOp(LOr, pred, make_eq exp, intType)
-                         | _ -> E.s (bug "Unexpected pattern-matching failure"))
-                    (make_eq ce)
+          | ((Case (_, cl) | CaseRange (_, _, cl)) as lab) :: lab_tl ->
+            (* assume that integer promotion and type conversion of cases is
+             * performed by cabs2cil. *)
+            let comp_case_range e1 e2 =
+                  BinOp(Ge, e, e1, intType), BinOp(Le, e, e2, intType) in
+            let make_comp lab = begin match lab with
+              | Case (exp, _) -> BinOp(Eq, e, exp, intType)
+              | CaseRange (e1, e2, _) when !useLogicalOperators ->
+                  let c1, c2 = comp_case_range e1 e2 in
+                  BinOp(LAnd, c1, c2, intType)
+              | _ -> E.s (bug "Unexpected pattern-matching failure")
+            end in
+            let make_or_from_cases () =
+              List.fold_left
+                  (fun pred label -> BinOp(LOr, pred, make_comp label, intType))
+                  (make_comp lab) lab_tl
             in
             let make_if_stmt pred cl =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
               mkStmt(If(pred,then_block,else_block,cl)) in
+            let make_double_if_stmt (pred1, pred2) cl =
+              let then_block = mkBlock [ make_if_stmt pred2 cl ] in
+              let else_block = mkBlock [] in
+              mkStmt(If(pred1,then_block,else_block,cl)) in
             if !useLogicalOperators then
-              [make_if_stmt (make_or_from_cases lab_tl) cl]
+              [make_if_stmt (make_or_from_cases ()) cl]
             else
-              List.map
-                (function Case (ce,cl) -> make_if_stmt (make_eq ce) cl
-                         | _ -> E.s (bug "Unexpected pattern-matching failure"))
+              List.map (function
+                | Case _ as lab -> make_if_stmt (make_comp lab) cl
+                | CaseRange (e1, e2, _) -> make_double_if_stmt (comp_case_range e1 e2) cl
+                | _ -> E.s (bug "Unexpected pattern-matching failure"))
                 cases
           | Default _ :: _ | Label _ :: _ ->
               E.s (bug "Unexpected pattern-matching failure")
