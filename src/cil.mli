@@ -1499,6 +1499,7 @@ val existsType: (typ -> existsAction) -> typ -> bool
  * a function type *)
 val splitFunctionType: 
     typ -> typ * (string * typ * attributes) list option * bool * attributes
+
 (** Same as {!Cil.splitFunctionType} but takes a varinfo. Prints a nicer 
  * error message if the varinfo is not for a function *)
 val splitFunctionTypeVI: 
