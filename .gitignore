@@ -389,8 +389,3 @@
 /test/small2/merge-ar
 /test/small2/libmerge.a
 
-
-# /ocamlutil
-/ocamlutil/perfcount.c
-/ocamlutil/profile.c
-/ocamlutil/Makefile
