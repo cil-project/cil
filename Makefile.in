@@ -357,8 +357,6 @@ doc: texdoc pdfdoc odoc
 distclean: clean
 	rm -f src/frontc/cparser.output
 	rm -f src/formatparse.output
-	rm -f bin/cilly.bat
-	rm -f bin/patcher.bat
 	rm -f bin/CilConfig.pm
 	rm -f config.log
 	rm -f config.h

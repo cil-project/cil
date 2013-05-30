@@ -44,10 +44,6 @@
 /index.html
 
 # /bin/
-/bin/scaninfer.bat
-/bin/ccured.bat
-/bin/cilly.bat
-/bin/patcher.bat
 /bin/CilConfig.pm
 
 # /debian/
