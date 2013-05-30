@@ -348,7 +348,7 @@ endif
 	  CFLAGS="$(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
+	  bash ../test-bad $*.c
 
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small1; \
@@ -357,7 +357,7 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
+	  bash ../test-bad $*.c
 
 
 #CCURED_NO_SIGABRT prevents cygwin from doing a memory dump on every failure
