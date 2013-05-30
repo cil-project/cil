@@ -63,6 +63,12 @@ $Cilly::savedSourceExt = "_saved.c";
 $Cilly::m32model = "nogcc32model";
 $Cilly::m64model = "nogcc64model";
 
+our $VERSION;
+
+BEGIN {
+    $VERSION = 'CIL_VERSION';
+}
+
 # Pass to new a list of command arguments
 sub new {
     my ($proto, @args) = @_;
@@ -593,12 +599,12 @@ sub preprocess_before_cil {
            $self->{IDASHDOT}) {
             unshift @args, "-I.";
         }
-        if(! defined($self->{VERSION})) {
+        if(! defined($self->{CVERSION})) {
             $self->setVersion();
         }
         unshift @args,
             map { my $dir = $_;
-                  $self->{INCARG} . $dir . "/" . $self->{VERSION} }
+                  $self->{INCARG} . $dir . "/" . $self->{CVERSION} }
             @{$self->{INCLUDEDIR}};
         #matth: include the main include dir as well as the compiler-specific directory
         unshift @args,
@@ -1611,7 +1617,7 @@ sub setVersion {
         if($_ =~ m|Compiler Version (\S+) |) {
             $cversion = "cl_$1";
             close(VER);
-            $self->{VERSION} = $cversion;
+            $self->{CVERSION} = $cversion;
             return;
         }
     }
@@ -1699,7 +1705,7 @@ sub setVersion {
         if($_ =~ m|Linker Version (\S+)|) {
             $cversion = "link_$1";
             close(VER);
-            $self->{VERSION} = $cversion;
+            $self->{CVERSION} = $cversion;
             return;
         }
     }
@@ -1743,7 +1749,7 @@ sub setVersion {
         if($_ =~ m|Library Manager Version (\S+)|) {
             $cversion = "lib_$1";
             close(VER);
-            $self->{VERSION} = $cversion;
+            $self->{CVERSION} = $cversion;
             return;
         }
     }
@@ -2216,7 +2222,7 @@ sub setVersion {
         if($_ =~ m|^(\d+\S+)| || $_ =~ m|^(egcs-\d+\S+)|) {
             $cversion = "gcc_$1";
             close(VER) || die "Cannot start GNUCC\n";
-            $self->{VERSION} = $cversion;
+            $self->{CVERSION} = $cversion;
             return;
         }
     }
