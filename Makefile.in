@@ -357,7 +357,7 @@ doc: texdoc pdfdoc odoc
 distclean: clean
 	rm -f src/frontc/cparser.output
 	rm -f src/formatparse.output
-	rm -f bin/CilConfig.pm
+	rm -f lib/CilConfig.pm
 	rm -f config.log
 	rm -f config.h
 	rm -f Makefile
@@ -381,10 +381,10 @@ else
 endif
 
 test/%: 
-	bin/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
+	lib/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
 
 testrun/%: 
-	bin/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
+	lib/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
 	test/small1/$*
 
 .PHONY: regtest
@@ -417,11 +417,11 @@ perl_vendorlib = $(libdir)
 
 install: install-findlib
 	$(INSTALL) -d $(DESTDIR)$(perl_vendorlib)
-	$(INSTALL) -m 0644 lib/*.pm bin/CilConfig.pm $(DESTDIR)$(perl_vendorlib)
+	$(INSTALL) -m 0644 lib/*.pm $(DESTDIR)$(perl_vendorlib)
 	sed -e "s,^.*cilhome.*$$,\$$::cilhome = \"$(libexecdir)/cil\";," $(DESTDIR)$(perl_vendorlib)/CilConfig.pm > $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp
 	mv $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp $(DESTDIR)$(perl_vendorlib)/CilConfig.pm
 	$(INSTALL) -d $(DESTDIR)$(bindir)
-	$(INSTALL) -m 0755 bin/cilly $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 lib/cilly $(DESTDIR)$(bindir)
 	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
 	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
 

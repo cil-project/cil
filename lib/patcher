@@ -42,8 +42,7 @@ use File::Copy;
 use Getopt::Long;           # Command-line option processing
 use Data::Dumper;
 use FindBin;
-use lib "$FindBin::Bin";
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::RealBin";
 # Read the configuration script
 use CilConfig;
 
