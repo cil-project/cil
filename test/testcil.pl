@@ -570,7 +570,7 @@ addTest("merge-ar ");
 
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
-addTest("testrun/sizeof3");
+addTest("test/sizeof3");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
