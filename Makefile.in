@@ -389,7 +389,9 @@ testrun/%:
 	bin/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
 	test/small1/$*
 
-
+.PHONY: regtest
+regtest:
+	cd test; ./testcil -r --regrtest
 
 .PHONY: quicktest
 quicktest: $(patsubst %,test/%,func init init1) \
