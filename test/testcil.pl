@@ -11,8 +11,6 @@ use File::Basename;         # File name parsing
 use Cwd;                    # Directory navigation
 use strict;
 # use Data::Dumper;
-use FindBin;
-use lib "$FindBin::Bin/../ocamlutil";
 
 use RegTest;
 

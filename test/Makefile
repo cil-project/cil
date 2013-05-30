@@ -369,7 +369,7 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe" \
 	COMMENT="//" \
-	 perl ../../ocamlutil/runall.pl $*.c
+	 perl ../runall.pl $*.c
 
 
 runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
@@ -379,7 +379,7 @@ runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
 	COMMENT="//" \
-	 perl ../../ocamlutil/runall.pl $*.c
+	 perl ../runall.pl $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CILLY)
