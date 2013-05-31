@@ -405,7 +405,6 @@ check: quicktest
 
 ########################################################################
 
-
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 
@@ -428,10 +427,12 @@ uninstall: uninstall-findlib cilly/Makefile
 	-rm -rf $(DESTDIR)$(pkglibexecdir)
 	$(MAKE) -C cilly uninstall
 
+.PHONY: install-findlib uninstall-findlib
+
 EVERYTHING=$(OBJDIR)/*.cmi $(OBJDIR)/*.cmx $(OBJDIR)/*.cma $(OBJDIR)/*.mli \
 		   $(OBJDIR)/*.cmxa $(OBJDIR)/*.a $(SOURCEDIRS:%=%/*.mli)
 
-install-findlib: all $(EVERYTHING)
+install-findlib: all $(EVERYTHING) uninstall-findlib
 	ocamlfind install cil META $(EVERYTHING)
 
 uninstall-findlib:
