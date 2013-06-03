@@ -83,6 +83,6 @@ Ressources
 ----------
 
 * [Mailing list](https://lists.sourceforge.net/lists/listinfo/cil-users)
-* [Bug tracker](http://sourceforge.net/tracker/?group_id=138953&atid=742140)
+* [Bug tracker](http://sourceforge.net/p/cil/bugs/)
 
 CIL is maintained by Gabriel Kerneis <kerneis@pps.univ-paris-diderot.fr> 
