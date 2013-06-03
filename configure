@@ -3305,8 +3305,8 @@ ocamlDownloadInstructions="
 # required major/minor
 reqMaj=3
 reqMin=08
-knownMaj=3
-knownMin=12
+knownMaj=4
+knownMin=00
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking ocaml version is at least $reqMaj.$reqMin" >&5
 $as_echo_n "checking ocaml version is at least $reqMaj.$reqMin... " >&6; }
 if binaryExists ocamlc; then
