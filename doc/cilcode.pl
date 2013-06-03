@@ -15,7 +15,7 @@ my $tmpdir  = "cilcode.tmp";
 my $htmloutdir = "examples";
 my $outdir  = "html/cil/$htmloutdir";
 
-my $cilly = "perl ../bin/cilly --verbose";
+my $cilly = "perl ../cilly/cilly --verbose";
 
 my $doexamples = ! defined($ENV{'NO_EXAMPLES'});
 

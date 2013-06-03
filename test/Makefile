@@ -62,8 +62,8 @@ ifndef CILHOME
   endif
 endif
 
-CILLY := $(CILHOME)/bin/cilly
-PATCHER := $(CILHOME)/bin/patcher
+CILLY := $(CILHOME)/cilly/cilly
+PATCHER := $(CILHOME)/cilly/patcher
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -319,7 +319,7 @@ combine%: $(SMALL1)/combine%_1.c
 
 arcombine: mustbegcc
 	cd $(SMALL1); $(CILLY) -c array1.c array2.c
-	cd $(SMALL1); $(CILHOME)/bin/cilly \
+	cd $(SMALL1); $(CILHOME)/cilly/cilly \
                            --mode=AR --merge --verbose crv array.a array1.o array2.o
 	cd $(SMALL1); $(CILLY) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
@@ -439,9 +439,9 @@ testdir/% :
 
 
 merge-ar:
-	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
-	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
-	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
+	cd small2; $(CILHOME)/cilly/cilly --merge -c merge-ar.c merge-twice-1.c
+	cd small2; $(CILHOME)/cilly/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
+	cd small2; $(CILHOME)/cilly/cilly --merge libmerge.a -o merge-ar
 
 
 

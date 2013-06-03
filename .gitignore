@@ -43,9 +43,6 @@
 /README
 /index.html
 
-# /bin/
-/bin/CilConfig.pm
-
 # /debian/
 /debian/build-stamp
 /debian/cil
@@ -82,13 +79,10 @@
 # /doc/html/
 /doc/html/*
 
-# /lib/
-/lib/splay
-/lib/*.patch2.i*
-/lib/topformflat
-/lib/topformflat.c
-/lib/getrusage
-/lib/Cilly.pm
+# /cilly/
+/cilly/CilConfig.pm
+/cilly/Cilly.pm
+/cilly/*.patch2.i*
 
 # /obj/
 /obj/x86_*

@@ -240,7 +240,7 @@ documented in the .tex file or this website.
 \item You should now find \t{cilly.asm.exe} in a subdirectory of \t{obj}. The
 name of the subdirectory is either \t{x86\_WIN32} if you are using \t{cygwin}
 on Windows or \t{x86\_LINUX} if you are using Linux (although you should be
-using instead the Perl wrapper \t{bin/cilly}). Note that we do not have an
+using instead the Perl wrapper \t{cilly/cilly}). Note that we do not have an
 \t{install} make target and you should use Cil from the development
 directory.
 \end{enumerate}
@@ -337,21 +337,14 @@ consisting of the following files:
 \t{doc/}                        & HTML documentation of the CIL API. \\
 \t{obj/}                        & Directory that will contain the compiled
                                    CIL modules and executables.\\
-\t{bin/cilly.in}                & The \t{configure} source for a Perl script 
+\t{cilly/cilly}                &  A Perl script 
                                   that can be invoked with the 
                                   same arguments as either \t{gcc} or
                                   Microsoft Visual C and will convert the
                                   program to CIL, perform some simple
                                   transformations, emit it and compile it as
                                   usual. \\
-\t{lib/CompilerStub.pm}         & A Perl class that can be used to write code
-                                  that impersonates a compiler. \t{cilly}
-                                  uses it.  \\
-\t{lib/Merger.pm}               &  A subclass of \t{CompilerStub.pm} that can
-                                  be used to merge source files into a single
-                                  source file.\t{cilly}
-                                  uses it. \\
-\t{bin/patcher.in}              & A Perl script that applies specified patches
+\t{cilly/patcher}              & A Perl script that applies specified patches
                                   to standard include files.\\
 \\
 \t{src/check.ml,mli}            & Checks the well-formedness of a CIL file. \\
@@ -828,7 +821,7 @@ cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a
 given output channel. A good \t{cilPrinter} to use is
 \t{defaultCilPrinter}. 
 
-Check out \t{src/main.ml} and \t{bin/cilly} for other good ideas
+Check out \t{src/main.ml} and \t{cilly/cilly} for other good ideas
 about high-level file processing. Again, we highly recommend that you just
 our \t{cilly} driver so that you can avoid spending time re-inventing the
 wheel to provide drop-in support for standard \t{makefile}s. 
@@ -1495,13 +1488,13 @@ CIL you will obtain the file \t{obj/cilly.asm.exe}.
 
  We wrote a driver for this executable that makes it easy to invoke your
 analysis on existing C code with very little manual intervention. This driver
-is \t{bin/cilly} and is quite powerful. Note that the \t{cilly} script
+is \t{cilly/cilly} and is quite powerful. Note that the \t{cilly} script
 is configured during installation with the path where CIL resides. This means
 that you can move it to any place you want. 
 
  A simple use of the driver is:
 \begin{verbatim}
-bin/cilly --save-temps -D HAPPY_MOOD -I myincludes hello.c -o hello
+cilly/cilly --save-temps -D HAPPY_MOOD -I myincludes hello.c -o hello
 \end{verbatim}
 
 \c{-{}-save-temps} tells CIL to save the resulting output files in the
@@ -1523,13 +1516,13 @@ This performs the following actions:
  Note that \t{cilly} behaves like the \t{gcc} compiler. This makes it
 easy to use it with existing \t{Makefiles}:
 \begin{verbatim}
-make CC="bin/cilly" LD="bin/cilly"
+make CC="cilly/cilly" LD="cilly/cilly"
 \end{verbatim}
 
  \t{cilly} can also behave as the Microsoft Visual C compiler, if the first
  argument is \t{-{}-mode=MSVC}:
 \begin{verbatim}
-bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
+cilly/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 \end{verbatim}
 
  (This in turn will pass a \t{-{}-MSVC} flag to the underlying \t{cilly.asm}
@@ -1548,7 +1541,7 @@ underlying \t{cilly.asm} process. As a general rule all arguments that start
 with \t{-{}-} and that \t{cilly} itself does not process, are passed on. For
 example, 
 \begin{verbatim}
-bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+cilly/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
 \end{verbatim}
 
  will produce a file \t{hello.cil.c} that prints all the memory addresses
@@ -1559,12 +1552,12 @@ sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
 have to do is to pass the \t{-{}-merge} flag to \t{cilly}:
 \begin{verbatim}
-make CC="bin/cilly --save-temps --dologwrites --merge"
+make CC="cilly/cilly --save-temps --dologwrites --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="bin/cilly --save-temps --dologwrites --merge --leavealone=foo --leavealone=bar"
+make CC="cilly/cilly --save-temps --dologwrites --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
@@ -1614,7 +1607,7 @@ the end.
 system's include files:
 
 \begin{verbatim}
-make CC="bin/cilly --includedir=myinclude"
+make CC="cilly/cilly --includedir=myinclude"
 \end{verbatim}
 
  This will force the preprocessor to use the file \t{myinclude/xxx/stdio.h}
@@ -2855,7 +2848,7 @@ makes modified copies of include files and applies the patch.
 
  The patcher is invoked as follows: 
 \begin{verbatim}
-bin/patcher [options]
+cilly/patcher [options]
 
 Options:
   --help       Prints this help message
