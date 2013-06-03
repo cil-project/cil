@@ -934,11 +934,12 @@ and label =
                                          * {!Cil.lowerConstants} is set to 
                                          * true. *)
   | CaseRange of exp * exp * location   (** A case statement corresponding to a
-                                         * range of values. Both expressions 
-                                         * are lowered into constants if 
-                                         * {!Cil.lowerConstants} is set to 
-                                         * true. If you want to use these, you
-                                         * must set {!Cil.useCaseRange}. *)
+                                         * range of values (GCC's extension).
+                                         * Both expressions are lowered into
+                                         * constants if {!Cil.lowerConstants} is
+                                         * set to true. If you want to use
+                                         * these, you must set
+                                         * {!Cil.useCaseRange}. *)
   | Default of location                 (** A default statement *)
 
 
