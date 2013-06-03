@@ -45,14 +45,14 @@ You can also use CIL as a library to write your own programs.  For
 instance in the OCaml toplevel using [findlib][]:
 
     $ ocaml
-            Objective Caml version 3.12.0
+            Objective Caml version 4.00.1
 
     # #use "topfind";;
     [...]
     # #require "cil";;
     [...]
     # Cil.cilVersion;;           
-    - : string = "1.6.0"
+    - : string = "1.7.0"
 
 
 More documentation
