@@ -21,10 +21,12 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Index of values</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Index of values</title>
 </head>
 <body>
-<center><h1>Index of values</h1></center>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;</div>
+<h1>Index of values</h1>
 <table>
 <tr><td align="left"><br></td></tr>
 <tr><td><a href="Pretty.html#VAL(++)">(++)</a> [<a href="Pretty.html">Pretty</a>]</td>
@@ -170,6 +172,12 @@ Constructs a list of statements
 <tr><td><a href="Formatcil.html#VALcType">cType</a> [<a href="Formatcil.html">Formatcil</a>]</td>
 <td><div class="info">
 Constructs a type based on the program and the list of arguments.
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALcaseRangeFold">caseRangeFold</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Fold every <code class="code">CaseRange</code> in a list of labels into the corresponding list of
+ <code class="code">Case</code> labels.
 </div>
 </td></tr>
 <tr><td><a href="Cfg.html#VALcfgFun">cfgFun</a> [<a href="Cfg.html">Cfg</a>]</td>
@@ -349,7 +357,7 @@ A visitor that does constant folding.
 </td></tr>
 <tr><td><a href="Cil.html#VALconvertInts">convertInts</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-<font color="#CCCCCC"></font></div>
+<span class="deprecated"></span></div>
 </td></tr>
 <tr><td><a href="Dataflow.ForwardsTransfer.html#VALcopy">copy</a> [<a href="Dataflow.ForwardsTransfer.html">Dataflow.ForwardsTransfer</a>]</td>
 <td><div class="info">
@@ -949,7 +957,7 @@ The data at function exit.
 <tr><td align="left"><br>G</td></tr>
 <tr><td><a href="Cil.html#VALgccBuiltins">gccBuiltins</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-<font color="#CCCCCC"></font></div>
+<span class="deprecated"></span></div>
 </td></tr>
 <tr><td><a href="Alpha.html#VALgetAlphaPrefix">getAlphaPrefix</a> [<a href="Alpha.html">Alpha</a>]</td>
 <td></td></tr>
@@ -1124,7 +1132,7 @@ True if the argument is a function type
 </td></tr>
 <tr><td><a href="Cil.html#VALisInteger">isInteger</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-<font color="#CCCCCC"></font></div>
+<span class="deprecated"></span></div>
 </td></tr>
 <tr><td><a href="Cil.html#VALisIntegralType">isIntegralType</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
@@ -1439,7 +1447,7 @@ Make a while loop.
 </td></tr>
 <tr><td><a href="Cil.html#VALmsvcBuiltins">msvcBuiltins</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-<font color="#CCCCCC"></font></div>
+<span class="deprecated"></span></div>
 </td></tr>
 <tr><td><a href="Cil.html#VALmsvcMode">msvcMode</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
@@ -1818,7 +1826,10 @@ Given a function type split it into return type,
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALsplitFunctionTypeVI">splitFunctionTypeVI</a> [<a href="Cil.html">Cil</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Same as <a href="Cil.html#VALsplitFunctionType"><code class="code">Cil.splitFunctionType</code></a> but takes a varinfo.
+</div>
+</td></tr>
 <tr><td><a href="Pretty.html#VALsprint">sprint</a> [<a href="Pretty.html">Pretty</a>]</td>
 <td><div class="info">
 Format the document to the given width and emit it as a string
@@ -1892,7 +1903,7 @@ Represents an integer as for a given kind.
 </td></tr>
 <tr><td><a href="Cil.html#VALtruncateInteger64">truncateInteger64</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
-<font color="#CCCCCC"></font></div>
+<span class="deprecated"></span></div>
 </td></tr>
 <tr><td><a href="Cil.html#VALtypeAddAttributes">typeAddAttributes</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
@@ -2016,6 +2027,11 @@ Give the unsigned kind corresponding to any integer kind
 <tr><td><a href="Cil.html#VALupointType">upointType</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
 An unsigned integer type that fits pointers.
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALuseCaseRange">useCaseRange</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Whether to expand ranges of values in case statements.
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALuseComputedGoto">useComputedGoto</a> [<a href="Cil.html">Cil</a>]</td>
@@ -2200,6 +2216,6 @@ Invokes a thunk, with printDepth temporarily set to the specified value
 0
 </div>
 </td></tr>
-</table><br>
+</table>
 </body>
 </html>

@@ -30,7 +30,7 @@ AC_PREREQ(2.50)
 #
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
-CIL_VERSION_MINOR=6
+CIL_VERSION_MINOR=7
 CIL_VERSION_REV=0
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
@@ -125,8 +125,8 @@ ocamlDownloadInstructions="
 # required major/minor
 reqMaj=3
 reqMin=08
-knownMaj=3
-knownMin=12
+knownMaj=4
+knownMin=00
 AC_MSG_CHECKING(ocaml version is at least $reqMaj.$reqMin)
 if binaryExists ocamlc; then
   # what version?
@@ -486,14 +486,14 @@ case "$target" in
 esac
 
 # Make the object directory if not already present
-AC_MSG_CHECKING([obj/$ARCHOS and related files])
-if test -d obj/$ARCHOS; then
-    mkdir -p obj/$ARCHOS
+AC_MSG_CHECKING([obj/ and related files])
+if test -d obj/; then
+    mkdir -p obj/
 fi
 
-rm -f obj/$ARCHOS/machdep.ml
+rm -f obj/machdep.ml
 rm -f obj/.depend/machdep.d
-rm -f obj/$ARCHOS/feature_config.ml
+rm -f obj/feature_config.ml
 rm -f obj/.depend/feature_config.d
 AC_MSG_RESULT([done])
 
@@ -549,8 +549,6 @@ do
       echo "export USE_$f_up=yes">>Makefile.features
    fi
 done
-echo "TYPE_SIZE_T=\"$TYPE_SIZE_T\"" >>Makefile.features
-echo "TYPE_WCHAR_T=\"$TYPE_WCHAR_T\"" >>Makefile.features
 chmod -w Makefile.features
 
 
@@ -584,9 +582,7 @@ CIL_CONFIG_FILES(Makefile)
 CIL_CONFIG_FILES(META)
 CIL_CONFIG_FILES(config.mk)
 CIL_CONFIG_FILES(test/Makefile)
-CIL_CONFIG_EXE_FILES(bin/cilly.bat)
-CIL_CONFIG_EXE_FILES(bin/patcher.bat)
-CIL_CONFIG_FILES(bin/CilConfig.pm)
+CIL_CONFIG_FILES(cilly/App/Cilly/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(test/llvm/Makefile)

@@ -20,7 +20,7 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Cil</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Cil</title>
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
@@ -217,6 +217,7 @@
 &nbsp;&nbsp;<span class="keyword">and</span>&nbsp;label&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Label</span>&nbsp;<span class="keyword">of</span>&nbsp;string&nbsp;*&nbsp;<span class="constructor">Cil</span>.location&nbsp;*&nbsp;bool<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Case</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CaseRange</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.exp&nbsp;*&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Default</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.location<br>
 &nbsp;&nbsp;<span class="keyword">and</span>&nbsp;stmtkind&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Instr</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Cil</span>.instr&nbsp;list<br>
@@ -483,6 +484,8 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;makeStaticGlobal&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;useLogicalOperators&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;useComputedGoto&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;useCaseRange&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;caseRangeFold&nbsp;:&nbsp;<span class="constructor">Cil</span>.label&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.label&nbsp;list<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;oldstyleExternInline&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Pervasives</span>.ref<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;constFoldVisitor&nbsp;:&nbsp;bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Cil</span>.cilVisitor<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;lineDirectiveStyle&nbsp;=<br>

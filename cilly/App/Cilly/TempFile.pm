@@ -1,6 +1,7 @@
-package TempFile;
-use OutputFile;
-@ISA = (OutputFile);
+package App::Cilly::TempFile;
+
+use App::Cilly::OutputFile;
+our @ISA = (App::Cilly::OutputFile);
 
 use strict;
 use Carp;

@@ -125,7 +125,7 @@ while [ $i -le $numcases ]; do
   # compile this with our tool
   rm -f test-bad.out test-bad.err ${tmpname}$OUTEXT
   echo $CILLY $CFLAGS $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
-  $CILHOME/bin/teetwo test-bad.out test-bad.err \
+  $CILHOME/test/teetwo test-bad.out test-bad.err \
               $CILLY $CFLAGS -DERROR=$i $tmpname.c ${OUTFLAG}${tmpname}$OUTEXT
   # cat test-bad.out test-bad.err
   status=$?
@@ -154,7 +154,7 @@ while [ $i -le $numcases ]; do
   if [ $runit != 0 ]; then 
     echo "./$tmpname$OUTEXT"
     rm -f test-bad.out test-bad.err
-    if $CILHOME/bin/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
+    if $CILHOME/test/teetwo test-bad.out test-bad.err ./$tmpname$OUTEXT ; then
       # cat test-bad.out test-bad.err
       if [ $i = 0 ]; then
         # expected success on 0th iteration

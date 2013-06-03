@@ -79,7 +79,7 @@ class caseLabeledStmtFinder slr = object(self)
     
     method vstmt s =
         if List.exists (fun l ->
-            match l with | Case(_, _) | Default _ -> true | _ -> false)
+            match l with | Case _ | CaseRange _ | Default _ -> true | _ -> false)
             s.labels
         then begin
             slr := s :: (!slr);

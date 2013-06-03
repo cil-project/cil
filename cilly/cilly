@@ -39,15 +39,15 @@
 use strict;
 use Data::Dumper;
 use FindBin;
-use lib "$FindBin::Bin";
-use lib "$FindBin::Bin/../lib"; # The libraries are in the lib directory
-# Read the configuration script
-use CilConfig;
+use lib "$FindBin::RealBin";
 
-use Cilly;
+# Read the configuration script
+use App::Cilly::CilConfig;
+
+use App::Cilly;
 
 $::default_is_merge = 0;
-my $stub = CilCompiler->new(@ARGV);
+my $stub = App::Cilly::CilCompiler->new(@ARGV);
 
 $stub->setVersion ();
 
@@ -56,23 +56,23 @@ $stub->doit();
 
 
 # Define here your favorite compiler by overriding Merger methods
-package CilCompiler;
+package App::Cilly::CilCompiler;
 use File::Basename;
 use strict;
 BEGIN {
-    @CilCompiler::ISA = qw(Cilly);
-    $CilCompiler::base = "$::cilhome/obj/$::archos/cilly";
+    @App::Cilly::CilCompiler::ISA = qw(App::Cilly);
+    $App::Cilly::CilCompiler::base = "$::cilbindir/cilly";
     # Use the most recent version of cilly
-    $CilCompiler::mtime_asm = int((stat("$CilCompiler::base.asm.exe"))[9]);
-    $CilCompiler::mtime_byte = int((stat("$CilCompiler::base.byte.exe"))[9]);
-    $CilCompiler::use_debug = 
+    $App::Cilly::CilCompiler::mtime_asm = int((stat("$App::Cilly::CilCompiler::base.asm.exe"))[9]);
+    $App::Cilly::CilCompiler::mtime_byte = int((stat("$App::Cilly::CilCompiler::base.byte.exe"))[9]);
+    $App::Cilly::CilCompiler::use_debug = 
          grep(/--bytecode/, @ARGV) ||
          grep(/--ocamldebug/, @ARGV) ||
-        ($CilCompiler::mtime_asm < $CilCompiler::mtime_byte);
-    $CilCompiler::compiler = 
-        $CilCompiler::base . 
-            ($CilCompiler::use_debug ? ".byte" : ".asm") . ".exe";
-    if($CilCompiler::use_debug) { 
+        ($App::Cilly::CilCompiler::mtime_asm < $App::Cilly::CilCompiler::mtime_byte);
+    $App::Cilly::CilCompiler::compiler = 
+        $App::Cilly::CilCompiler::base . 
+            ($App::Cilly::CilCompiler::use_debug ? ".byte" : ".asm") . ".exe";
+    if($App::Cilly::CilCompiler::use_debug) { 
         $ENV{"OCAMLRUNPARAM"} = "b" . $ENV{"OCAMLRUNPARAM"};
     } 
 }
@@ -107,7 +107,7 @@ sub helpMessage {
 
 The following are the arguments of the Cilly process
 EOF
-   my @cmd = ($CilCompiler::compiler, '-help');
+   my @cmd = ($App::Cilly::CilCompiler::compiler, '-help');
    $self->runShell(@cmd); 
 }
 
@@ -116,14 +116,14 @@ sub CillyCommand {
     my ($self, $ppsrc, $dest) = @_;
 
     my $aftercil;
-    my @cmd = ($CilCompiler::compiler);
+    my @cmd = ($App::Cilly::CilCompiler::compiler);
 
     if(defined $ENV{OCAMLDEBUG} || $self->{OCAMLDEBUG}) {
         print "OCAMLDEBUG is on\n";
         my @idirs = (".", "src", "src/frontc", "src/ext",
                      "ocamlutil", 
-                     "obj/$::archos");
-	my @iflags = map { ('-I', "$::cilhome/$_") } @idirs;
+                     "obj/");
+	my @iflags = map { ('-I', "$::cilbindir/../$_") } @idirs;
         unshift @cmd, 'ocamldebug', '-emacs', @iflags;
     }
     if($::docxx) {
@@ -134,7 +134,7 @@ sub CillyCommand {
         push @cmd, '--cabsonly', $aftercil;
     } else {
         if(defined $self->{CILLY_OUT}) {
-            $aftercil = new OutputFile($dest, $self->{CILLY_OUT});
+            $aftercil = new App::Cilly::OutputFile($dest, $self->{CILLY_OUT});
             return ($aftercil, @cmd);
         }
 	$aftercil = $self->cilOutputFile($dest, 'cil.c');
@@ -145,7 +145,7 @@ sub CillyCommand {
 sub MergeCommand {
     my ($self, $ppsrc, $dir, $base) = @_;
 
-    return ('', $CilCompiler::compiler);
+    return ('', $App::Cilly::CilCompiler::compiler);
 }
 
 

@@ -1,6 +1,5 @@
 
-$::archos    = "@ARCHOS@";
 $::cc        = "@CC@";
-$::cilhome   = "@CILHOME@";
+$::cilbindir = "@CILHOME@/obj";
 $::default_mode = "@DEFAULT_CIL_MODE@";
 

@@ -22,11 +22,31 @@ function loadTop(url) {
 <A HREF="ciltoc.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
 <HR>
 <H2 CLASS="section"><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><P><A NAME="sec-changes"></A></P><UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>March 22, 2013</B>: <B>Released version 1.6.0</B>.<BR>
+<B>June 4, 2013</B>: <B>Released version 1.7.0</B>.<BR>
+ New features:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Support for C99 flexible array members.
+</LI><LI CLASS="li-itemize">Support for GCC&#X2019;s &#X201C;case range&#X201D; extension (<CODE>--useCaseRange</CODE>).
+</LI><LI CLASS="li-itemize">Add a &#X201C;regtest&#X201D; make target to run regression tests.
+</LI><LI CLASS="li-itemize"><TT>cilly</TT> is now installed as a proper perl script.
+</LI></UL>
+Bug fixes:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Preserve cases in switch block with attribute (thanks to Edmund Grimley-Evans).
+</LI><LI CLASS="li-itemize">Fix computation of <CODE>__builtin_type_compatible_p</CODE>.
+</LI><LI CLASS="li-itemize">Do not hardcode <CODE>size_t</CODE> as unsigned for <CODE>offsetof</CODE>.
+</LI><LI CLASS="li-itemize">Allow cast of functions to function pointers.
+</LI><LI CLASS="li-itemize">Avoid name clashes for introduced <CODE>__constr_expr</CODE>.
+</LI><LI CLASS="li-itemize">Handle trailing empty initializers inside arrays.
+</LI><LI CLASS="li-itemize">Use correct integer kind for zero enum initializer.
+</LI><LI CLASS="li-itemize">Allow symlinks to cilly (#120).
+</LI><LI CLASS="li-itemize">Fix log message going to the wrong channel.
+</LI><LI CLASS="li-itemize">Cleanup code, documentation and build system.
+</LI></UL></LI><LI CLASS="li-itemize"><B>March 22, 2013</B>: <B>Released version 1.6.0</B>.<BR>
  New features:
 <UL CLASS="itemize"><LI CLASS="li-itemize">
 Support for static local variables.
-</LI><LI CLASS="li-itemize">Support for GCC&#X2019;s "computed gotos" (or "labels as values").
+</LI><LI CLASS="li-itemize">Support for GCC&#X2019;s &#X201C;computed gotos&#X201D; (or &#X201C;labels as values&#X201D;).
 </LI><LI CLASS="li-itemize">See <A HREF="http://article.gmane.org/gmane.comp.compilers.cil.user/744/"><TT>http://article.gmane.org/gmane.comp.compilers.cil.user/744/</TT></A> for more details.
 </LI></UL>
 Bug fixes:

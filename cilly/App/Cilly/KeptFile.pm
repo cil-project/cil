@@ -1,6 +1,7 @@
-package KeptFile;
-use OutputFile;
-@ISA = (OutputFile);
+package App::Cilly::KeptFile;
+
+use App::Cilly::OutputFile;
+our @ISA = (App::Cilly::OutputFile);
 
 use strict;
 use Carp;

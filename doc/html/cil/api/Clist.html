@@ -25,28 +25,29 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Clist</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Clist</title>
 </head>
 <body>
-<div class="navbar"><a href="Errormsg.html">Previous</a>
-&nbsp;<a href="index.html">Up</a>
-&nbsp;<a href="Stats.html">Next</a>
+<div class="navbar"><a class="pre" href="Errormsg.html" title="Errormsg">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Stats.html" title="Stats">Next</a>
 </div>
-<center><h1>Module <a href="type_Clist.html">Clist</a></h1></center>
-<br>
-<pre><span class="keyword">module</span> Clist: <code class="code">sig</code> <a href="Clist.html">..</a> <code class="code">end</code></pre>Utilities for managing "concatenable lists" (clists). We often need to
+<h1>Module <a href="type_Clist.html">Clist</a></h1>
+<pre><span class="keyword">module</span> Clist: <code class="code">sig</code> <a href="Clist.html">..</a> <code class="code">end</code></pre><div class="info">
+Utilities for managing "concatenable lists" (clists). We often need to
     concatenate sequences, and using lists for this purpose is expensive. This
     module provides routines to manage such lists more efficiently. In this
     model, we never do cons or append explicitly. Instead we maintain
     the elements of the list in a special data structure. Routines are provided
     to convert to/from ordinary lists, and carry out common list operations.<br>
+</div>
 <hr width="100%">
-<br><code><span id="TYPEclist"><span class="keyword">type</span> <code class="type">'a</code> clist</span> = </code><table class="typetable">
+<pre><code><span id="TYPEclist"><span class="keyword">type</span> <code class="type">'a</code> clist</span> = </code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">CList</span> <span class="keyword">of</span> <code class="type">'a list</code></code></td>
+<code><span id="TYPEELTclist.CList"><span class="constructor">CList</span></span> <span class="keyword">of</span> <code class="type">'a list</code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The only representation for the empty 
                                      list. Try to use sparingly.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
@@ -54,7 +55,7 @@
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">CConsL</span> <span class="keyword">of</span> <code class="type">'a * 'a <a href="Clist.html#TYPEclist">clist</a></code></code></td>
+<code><span id="TYPEELTclist.CConsL"><span class="constructor">CConsL</span></span> <span class="keyword">of</span> <code class="type">'a * 'a <a href="Clist.html#TYPEclist">clist</a></code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Do not use this a lot because scanning 
  it is not tail recursive</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
@@ -62,14 +63,14 @@
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">CConsR</span> <span class="keyword">of</span> <code class="type">'a <a href="Clist.html#TYPEclist">clist</a> * 'a</code></code></td>
+<code><span id="TYPEELTclist.CConsR"><span class="constructor">CConsR</span></span> <span class="keyword">of</span> <code class="type">'a <a href="Clist.html#TYPEclist">clist</a> * 'a</code></code></td>
 
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">CSeq</span> <span class="keyword">of</span> <code class="type">'a <a href="Clist.html#TYPEclist">clist</a> * 'a <a href="Clist.html#TYPEclist">clist</a></code></code></td>
+<code><span id="TYPEELTclist.CSeq"><span class="constructor">CSeq</span></span> <span class="keyword">of</span> <code class="type">'a <a href="Clist.html#TYPEclist">clist</a> * 'a <a href="Clist.html#TYPEclist">clist</a></code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >We concatenate only two of them at this
                                     time. Neither is the empty clist. To be
                                     sure always use append to make these</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
@@ -105,7 +106,7 @@ Find the length of a clist<br>
 <pre><span id="VALmap"><span class="keyword">val</span> map</span> : <code class="type">('a -> 'b) -> 'a <a href="Clist.html#TYPEclist">clist</a> -> 'b <a href="Clist.html#TYPEclist">clist</a></code></pre><div class="info">
 Map a function over a clist. Returns another clist<br>
 </div>
-<pre><span id="VALfold_left"><span class="keyword">val</span> fold_left</span> : <code class="type">('a -> 'b -> 'a) -> 'a -> 'b <a href="Clist.html#TYPEclist">clist</a> -> 'a</code></pre><div class="info">
+<pre><span id="VALfold_left"><span class="keyword">val</span> fold_left</span> : <code class="type">('acc -> 'a -> 'acc) -> 'acc -> 'a <a href="Clist.html#TYPEclist">clist</a> -> 'acc</code></pre><div class="info">
 A version of fold_left that works on clists<br>
 </div>
 <pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">('a -> unit) -> 'a <a href="Clist.html#TYPEclist">clist</a> -> unit</code></pre><div class="info">

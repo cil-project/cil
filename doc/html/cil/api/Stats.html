@@ -25,30 +25,31 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Stats</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Stats</title>
 </head>
 <body>
-<div class="navbar"><a href="Clist.html">Previous</a>
-&nbsp;<a href="index.html">Up</a>
-&nbsp;<a href="Cil.html">Next</a>
+<div class="navbar"><a class="pre" href="Clist.html" title="Clist">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Cil.html" title="Cil">Next</a>
 </div>
-<center><h1>Module <a href="type_Stats.html">Stats</a></h1></center>
-<br>
-<pre><span class="keyword">module</span> Stats: <code class="code">sig</code> <a href="Stats.html">..</a> <code class="code">end</code></pre>Utilities for maintaining timing statistics<br>
+<h1>Module <a href="type_Stats.html">Stats</a></h1>
+<pre><span class="keyword">module</span> Stats: <code class="code">sig</code> <a href="Stats.html">..</a> <code class="code">end</code></pre><div class="info">
+Utilities for maintaining timing statistics<br>
+</div>
 <hr width="100%">
-<br><code><span id="TYPEtimerModeEnum"><span class="keyword">type</span> <code class="type"></code>timerModeEnum</span> = </code><table class="typetable">
+<pre><code><span id="TYPEtimerModeEnum"><span class="keyword">type</span> <code class="type"></code>timerModeEnum</span> = </code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">Disabled</span></code></td>
+<code><span id="TYPEELTtimerModeEnum.Disabled"><span class="constructor">Disabled</span></span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Do not collect timing information</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">SoftwareTimer</span></code></td>
+<code><span id="TYPEELTtimerModeEnum.SoftwareTimer"><span class="constructor">SoftwareTimer</span></span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Use OCaml's <code class="code">Unix.time</code> for timing information</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 

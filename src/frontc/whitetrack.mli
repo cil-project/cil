@@ -17,6 +17,7 @@ val setLoc : Cabs.cabsloc -> unit
 
 (* where we write the file to *)
 val setOutput : out_channel -> unit
+val getOutput : unit -> out_channel
 
 (* is whitespace tracking enabled *)
 val enabled : bool ref

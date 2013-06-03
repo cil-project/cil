@@ -42,13 +42,6 @@
 /META
 /README
 
-# /bin/
-/bin/scaninfer.bat
-/bin/ccured.bat
-/bin/cilly.bat
-/bin/patcher.bat
-/bin/CilConfig.pm
-
 # /debian/
 /debian/build-stamp
 /debian/cil
@@ -82,13 +75,13 @@
 /doc/index.html
 /doc/ocamldoc.sty
 
-# /lib/
-/lib/splay
-/lib/*.patch2.i*
-/lib/topformflat
-/lib/topformflat.c
-/lib/getrusage
-/lib/Cilly.pm
+# /doc/html/
+/doc/html/*
+
+# /cilly/
+/cilly/CilConfig.pm
+/cilly/Cilly.pm
+/cilly/*.patch2.i*
 
 # /obj/
 /obj/x86_*
@@ -385,8 +378,3 @@
 /test/small2/merge-ar
 /test/small2/libmerge.a
 
-
-# /ocamlutil
-/ocamlutil/perfcount.c
-/ocamlutil/profile.c
-/ocamlutil/Makefile
