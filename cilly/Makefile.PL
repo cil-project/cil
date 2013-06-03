@@ -36,7 +36,7 @@ package MY;
 sub MY::top_targets {
     my $str = shift->SUPER::top_targets(@_);
 
-    $str =~ s/^pure_all.+/$& fix-cilhome/m;
+    $str =~ s/^pure_all.+/$& fix-cilbindir/m;
 
     return $str;
 }
@@ -44,11 +44,11 @@ sub MY::top_targets {
 sub MY::postamble {
     my $postamble = <<'MAKE_FRAG';
 
-.PHONY: fix-cilhome
+.PHONY: fix-cilbindir
 
-fix-cilhome:
-ifdef CILHOME
-	perl -p -i -e "s,^.*cilhome.*$$,\\$$::cilhome = \"$(CILHOME)\";," $(INST_LIBDIR)/App/Cilly/CilConfig.pm
+fix-cilbindir:
+ifdef CILBINDIR
+	perl -p -i -e "s,^.*cilbindir.*$$,\\$$::cilbindir = \"$(CILBINDIR)\";," $(INST_LIBDIR)/App/Cilly/CilConfig.pm
 endif
 
 MAKE_FRAG

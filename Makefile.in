@@ -418,9 +418,9 @@ pkglibexecdir = $(libexecdir)/cil
 bindir = @bindir@
 
 install: install-findlib cilly/Makefile
-	$(MAKE) -C cilly install CILHOME="$(libexecdir)/cil"
-	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
-	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
+	$(MAKE) -C cilly install CILBINDIR="$(libexecdir)/cil"
+	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)
+	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)
 
 # FIXME
 uninstall: uninstall-findlib cilly/Makefile

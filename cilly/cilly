@@ -61,7 +61,7 @@ use File::Basename;
 use strict;
 BEGIN {
     @App::Cilly::CilCompiler::ISA = qw(App::Cilly);
-    $App::Cilly::CilCompiler::base = "$::cilhome/obj/cilly";
+    $App::Cilly::CilCompiler::base = "$::cilbindir/cilly";
     # Use the most recent version of cilly
     $App::Cilly::CilCompiler::mtime_asm = int((stat("$App::Cilly::CilCompiler::base.asm.exe"))[9]);
     $App::Cilly::CilCompiler::mtime_byte = int((stat("$App::Cilly::CilCompiler::base.byte.exe"))[9]);
@@ -123,7 +123,7 @@ sub CillyCommand {
         my @idirs = (".", "src", "src/frontc", "src/ext",
                      "ocamlutil", 
                      "obj/");
-	my @iflags = map { ('-I', "$::cilhome/$_") } @idirs;
+	my @iflags = map { ('-I', "$::cilbindir/../$_") } @idirs;
         unshift @cmd, 'ocamldebug', '-emacs', @iflags;
     }
     if($::docxx) {
