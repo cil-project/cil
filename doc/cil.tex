@@ -3366,11 +3366,33 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item{\bf June 4, 2013}: {\bf Released version 1.7.0}.\\
+    New features:
+    \begin{itemize}
+      \item Support for C99 flexible array members.
+      \item Support for GCC's ``case range'' extension (\verb|--useCaseRange|).
+      \item Add a ``regtest'' make target to run regression tests.
+      \item \texttt{cilly} is now installed as a proper perl script.
+    \end{itemize}
+    Bug fixes:
+    \begin{itemize}
+      \item Preserve cases in switch block with attribute (thanks to Edmund Grimley-Evans).
+      \item Fix computation of \verb|__builtin_type_compatible_p|.
+      \item Do not hardcode \verb|size_t| as unsigned for \verb|offsetof|.
+      \item Allow cast of functions to function pointers.
+      \item Avoid name clashes for introduced \verb|__constr_expr|.
+      \item Handle trailing empty initializers inside arrays.
+      \item Use correct integer kind for zero enum initializer.
+      \item Allow symlinks to cilly (\#120).
+      \item Fix log message going to the wrong channel.
+      \item Cleanup code, documentation and build system.
+    \end{itemize}
+
 \item{\bf March 22, 2013}: {\bf Released version 1.6.0}.\\
     New features:
     \begin{itemize}
       \item Support for static local variables.
-      \item Support for GCC's "computed gotos" (or "labels as values").
+      \item Support for GCC's ``computed gotos'' (or ``labels as values'').
       \item See \ahrefurl{http://article.gmane.org/gmane.comp.compilers.cil.user/744/} for more details.
     \end{itemize}
     Bug fixes:
