@@ -30,3 +30,30 @@ WriteMakefile(
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => '' },
 );
+
+package MY;
+
+sub MY::top_targets {
+    my $str = shift->SUPER::top_targets(@_);
+
+    $str =~ s/^pure_all.+/$& fix-cilhome/m;
+
+    return $str;
+}
+
+sub MY::postamble {
+    my $postamble = <<'MAKE_FRAG';
+
+.PHONY: fix-cilhome
+
+fix-cilhome:
+ifdef CILHOME
+	perl -p -i -e "s,^.*cilhome.*$$,\\$$::cilhome = \"$(CILHOME)\";," $(INST_LIBDIR)/App/Cilly/CilConfig.pm
+endif
+
+MAKE_FRAG
+
+    return $postamble;
+}
+
+1;
