@@ -286,7 +286,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 ARCHOS := $(ARCHOS)
-OBJDIR := $(CILHOME)/obj/$(ARCHOS)
+OBJDIR := $(CILHOME)/obj
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt

@@ -48,10 +48,6 @@ ifndef CAMLNATTL
   endif
 endif
 
-ifndef ARCHOS
-   ARCHOS=@ARCHOS@
-endif
-
 ifndef MINGW
    MINGW=@MINGW@
 endif
@@ -73,7 +69,7 @@ else
 endif
 
 # Put here all the byproducts of make
-OBJDIR      := obj/$(ARCHOS)
+OBJDIR      := obj
 DEPENDDIR   := obj/.depend
 
 CILLY_FEATURES :=
