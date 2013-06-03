@@ -25,16 +25,17 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Errormsg</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Errormsg</title>
 </head>
 <body>
-<div class="navbar"><a href="Pretty.html">Previous</a>
-&nbsp;<a href="index.html">Up</a>
-&nbsp;<a href="Clist.html">Next</a>
+<div class="navbar"><a class="pre" href="Pretty.html" title="Pretty">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Clist.html" title="Clist">Next</a>
 </div>
-<center><h1>Module <a href="type_Errormsg.html">Errormsg</a></h1></center>
-<br>
-<pre><span class="keyword">module</span> Errormsg: <code class="code">sig</code> <a href="Errormsg.html">..</a> <code class="code">end</code></pre>Utility functions for error-reporting<br>
+<h1>Module <a href="type_Errormsg.html">Errormsg</a></h1>
+<pre><span class="keyword">module</span> Errormsg: <code class="code">sig</code> <a href="Errormsg.html">..</a> <code class="code">end</code></pre><div class="info">
+Utility functions for error-reporting<br>
+</div>
 <hr width="100%">
 <pre><span id="VALlogChannel"><span class="keyword">val</span> logChannel</span> : <code class="type">out_channel ref</code></pre><div class="info">
 A channel for printing log messages<br>
@@ -102,33 +103,33 @@ To ensure that the context is registered and removed properly, use the
 <pre><span id="VALnewline"><span class="keyword">val</span> newline</span> : <code class="type">unit -> unit</code></pre><pre><span id="VALnewHline"><span class="keyword">val</span> newHline</span> : <code class="type">unit -> unit</code></pre><pre><span id="VALgetPosition"><span class="keyword">val</span> getPosition</span> : <code class="type">unit -> int * string * int</code></pre><pre><span id="VALgetHPosition"><span class="keyword">val</span> getHPosition</span> : <code class="type">unit -> int * string</code></pre><div class="info">
 high-level position<br>
 </div>
-<pre><span id="VALsetHLine"><span class="keyword">val</span> setHLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetHFile"><span class="keyword">val</span> setHFile</span> : <code class="type">string -> unit</code></pre><pre><span id="VALsetCurrentLine"><span class="keyword">val</span> setCurrentLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetCurrentFile"><span class="keyword">val</span> setCurrentFile</span> : <code class="type">string -> unit</code></pre><br><code><span id="TYPElocation"><span class="keyword">type</span> <code class="type"></code>location</span> = {</code><table class="typetable">
+<pre><span id="VALsetHLine"><span class="keyword">val</span> setHLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetHFile"><span class="keyword">val</span> setHFile</span> : <code class="type">string -> unit</code></pre><pre><span id="VALsetCurrentLine"><span class="keyword">val</span> setCurrentLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetCurrentFile"><span class="keyword">val</span> setCurrentFile</span> : <code class="type">string -> unit</code></pre><pre><code><span id="TYPElocation"><span class="keyword">type</span> <code class="type"></code>location</span> = {</code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code>file&nbsp;: <code class="type">string</code>;</code></td>
+<code><span id="TYPEELTlocation.file">file</span>&nbsp;:<code class="type">string</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The file name</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code>line&nbsp;: <code class="type">int</code>;</code></td>
+<code><span id="TYPEELTlocation.line">line</span>&nbsp;:<code class="type">int</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The line number</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code>hfile&nbsp;: <code class="type">string</code>;</code></td>
+<code><span id="TYPEELTlocation.hfile">hfile</span>&nbsp;:<code class="type">string</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The high-level file name, or "" if not present</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code>&nbsp;&nbsp;</code></td>
 <td align="left" valign="top" >
-<code>hline&nbsp;: <code class="type">int</code>;</code></td>
+<code><span id="TYPEELTlocation.hline">hline</span>&nbsp;:<code class="type">int</code>;</code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The high-level line number, or 0 if not present</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 }

@@ -614,6 +614,8 @@ and exp =
      * one to use. *)
 
   | AddrOfLabel of stmt ref
+    (** The address of a label, using GCC's label-as-value extension.  If you
+     * want to use these, you must set {!Cil.useComputedGoto}. *)
 
   | StartOf    of lval   
     (** Conversion from an array to a pointer to the beginning of the array. 
@@ -931,6 +933,13 @@ and label =
                                          * is lowered into a constant if 
                                          * {!Cil.lowerConstants} is set to 
                                          * true. *)
+  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                         * range of values (GCC's extension).
+                                         * Both expressions are lowered into
+                                         * constants if {!Cil.lowerConstants} is
+                                         * set to true. If you want to use
+                                         * these, you must set
+                                         * {!Cil.useCaseRange}. *)
   | Default of location                 (** A default statement *)
 
 
@@ -952,6 +961,8 @@ and stmtkind =
     * statement. The target statement MUST have at least a label. *)
 
   | ComputedGoto of exp * location         
+  (** A computed goto using GCC's label-as-value extension.  If you want to use
+   * these, you must set {!Cil.useComputedGoto}. *)
 
   | Break of location                   
    (** A break to the end of the nearest enclosing Loop or Switch *)
@@ -1489,6 +1500,7 @@ val existsType: (typ -> existsAction) -> typ -> bool
  * a function type *)
 val splitFunctionType: 
     typ -> typ * (string * typ * attributes) list option * bool * attributes
+
 (** Same as {!Cil.splitFunctionType} but takes a varinfo. Prints a nicer 
  * error message if the varinfo is not for a function *)
 val splitFunctionTypeVI: 
@@ -2022,6 +2034,15 @@ val useLogicalOperators: bool ref
 (** Whether to use GCC's computed gotos.  By default, do not use them and
  * replace them by a switch. *)
 val useComputedGoto: bool ref
+
+(** Whether to expand ranges of values in case statements.  By default, expand
+ * them and do not use the CaseRange constructor. *)
+val useCaseRange: bool ref
+
+(** Fold every {!CaseRange} in a list of labels into the corresponding list of
+ * {!Case} labels.  Raises {!Errormsg.Error} if one of the ranges cannot be
+ * constant folded. *)
+val caseRangeFold: label list -> label list
 
 (** Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is

@@ -122,12 +122,12 @@ let cabslu = {lineno = -10;
 (** Interface to the Cprint printer *)
 let withCprint (f: 'a -> unit) (x: 'a) : unit = 
   Cprint.commit (); Cprint.flush ();
-  let old = !Cprint.out in
-  Cprint.out := !E.logChannel;
+  let old = (Whitetrack.getOutput()) in
+  Whitetrack.setOutput  !E.logChannel;
   f x;
   Cprint.commit (); Cprint.flush ();
-  flush !Cprint.out;
-  Cprint.out := old
+  flush (Whitetrack.getOutput());
+  Whitetrack.setOutput  old
 
 
 (** Keep a list of the variable ID for the variables that were created to 
@@ -988,11 +988,14 @@ module BlockChunk =
         cases = [];
       }
 
-    let caseRangeChunk (el: exp list) (l: location) (next: chunk) = 
+    let caseChunk (e: exp) (l: location) (next: chunk) =
       let fst, stmts' = getFirstInChunk next in
-      (* Reverse el twice, so that map and append are tail-recursive *)
-      let labels = List.rev_map (fun e -> Case (e, l)) el in
-      fst.labels <- List.rev_append labels fst.labels;
+      fst.labels <- Case (e, l) :: fst.labels;
+      { next with stmts = stmts'; cases = fst :: next.cases}
+
+    let caseRangeChunk (e: exp) (e': exp) (l: location) (next: chunk) =
+      let fst, stmts' = getFirstInChunk next in
+      fst.labels <- CaseRange (e, e', l) :: fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
         
     let defaultChunk (l: location) (next: chunk) = 
@@ -1006,6 +1009,20 @@ module BlockChunk =
       (* Make the statement *)
       let defaultSeen = ref false in
       let t = typeOf e in
+      (* If needed, convert e to type t, and check in case the label was too big *)
+      let checkRange e =
+        let e' = makeCast ~e ~newt:t in
+        let constFold = constFold false in
+        let e'' = if !lowerConstants then constFold e' else e' in
+        begin match (constFold e), (constFold e'') with
+              | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
+              when i1 <> i2 ->
+                ignore (warnOpt
+              "Case label %a exceeds range for switch expression" d_exp e);
+        | _ -> ()
+        end;
+        e''
+      in
       let checkForDefaultAndCast lb =
         match lb with
         | Default _ as d ->
@@ -1015,20 +1032,8 @@ module BlockChunk =
             defaultSeen := true;
             d
         | Label _ as l -> l
-        | Case (e, loc) ->
-          (* If needed, convert e to type t, and check in case the label
-             was too big *)
-          let e' = makeCast ~e ~newt:t in
-          let constFold = constFold false in
-          let e'' = if !lowerConstants then constFold e' else e' in
-          (match (constFold e), (constFold e'') with
-            | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
-                when i1 != i2 ->
-                ignore (warnOpt
-	          "Case label %a exceeds range for switch expression" d_exp e);
-        | _ -> ()
-          );
-          Case (e'', loc)
+        | CaseRange (e1, e2, loc) -> CaseRange (checkRange e1, checkRange e2, loc)
+        | Case (e, loc) -> Case (checkRange e, loc)
       in
       let block = c2block body in
       let cases = (* eliminate duplicate entries from body.cases. A statement
@@ -1037,7 +1042,8 @@ module BlockChunk =
           (fun acc s ->
                            if List.memq s acc then acc
                            else begin
-              s.labels <- List.rev_map checkForDefaultAndCast s.labels;
+                             let labels = List.rev_map checkForDefaultAndCast s.labels in
+                             s.labels <- if !useCaseRange then labels else caseRangeFold labels;
                              s::acc
                            end) 
           []
@@ -1297,6 +1303,11 @@ let rec castTo ?(fromsource=false)
         result
 
     | TPtr (told, _), TPtr(tnew, _) -> result
+
+    (* in the case of __typeof__, we do not perform conversion of functions to
+     * function pointers, so we have to accept this explicit cast when it occurs
+     * in the source. *)
+    | TFun _, TPtr _ when fromsource -> result
           
     | TInt _, TPtr _ -> result
           
@@ -1905,6 +1916,8 @@ let rec setOneInit (this: preInit)
  * with unspecified size actually changes the array's type
  * (ANSI C, 6.7.8, para 22) *)
 let rec collectInitializer
+    (isfield: bool)
+    (isconst: bool)
     (this: preInit)
     (thistype: typ) : (init * typ) =
   if this = NoInitPre then (makeZeroInit thistype), thistype
@@ -1924,9 +1937,13 @@ let rec collectInitializer
                             d_exp len)
             end
           | _ -> 
-              (* unsized array case, length comes from initializers *)
-              (!pMaxIdx + 1,
-               TArray (bt, Some (integer (!pMaxIdx + 1)), at))
+              (* unsized array case, length comes from initializers - except
+               * they are forbidden inside a struct or union *)
+              if isfield && not isconst then
+                E.s (error "non-static initialization of a flexible array member")
+              else
+                (!pMaxIdx + 1,
+                 TArray (bt, Some (integer (!pMaxIdx + 1)), at))
         in
         if !pMaxIdx >= len then 
           E.s (E.bug "collectInitializer: too many initializers(%d >= %d)\n"
@@ -1936,7 +1953,7 @@ let rec collectInitializer
         let rec collect (acc: (offset * init) list) (idx: int) = 
           if idx = -1 then acc
           else
-            let thisi = fst (collectInitializer !pArray.(idx) bt)
+            let thisi = fst (collectInitializer isfield isconst !pArray.(idx) bt)
             in
             collect ((Index(integer idx, NoOffset), thisi) :: acc) (idx - 1)
         in
@@ -1954,7 +1971,7 @@ let rec collectInitializer
                   if idx > !pMaxIdx then 
                     makeZeroInit f.ftype
                   else
-                    collectFieldInitializer !pArray.(idx) f
+                    collectFieldInitializer isconst !pArray.(idx) f
                 in
                 (Field(f, NoOffset), thisi) :: collect (idx + 1) restf
         in
@@ -1968,7 +1985,7 @@ let rec collectInitializer
               findField (idx + 1) rest
           | f :: _ when idx = !pMaxIdx -> 
               Field(f, NoOffset), 
-              collectFieldInitializer !pArray.(idx) f
+              collectFieldInitializer isconst !pArray.(idx) f
           | _ -> E.s (error "Can initialize only one field for union")
         in
         if !msvcMode && !pMaxIdx != 0 then 
@@ -1978,10 +1995,11 @@ let rec collectInitializer
     | _ -> E.s (unimp "collectInitializer")
                       
 and collectFieldInitializer 
+    (isconst: bool)
     (this: preInit)
     (f: fieldinfo) : init =
   (* collect, and rewrite type *)
-  let init,newtype = (collectInitializer this f.ftype) in
+  let init,newtype = (collectInitializer true isconst this f.ftype) in
   f.ftype <- newtype;
   init
             
@@ -2309,6 +2327,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tbool] -> TInt(IBool, [])
     | [A.Tsigned; A.Tchar] -> TInt(ISChar, [])
     | [A.Tunsigned; A.Tchar] -> TInt(IUChar, [])
+
+    | [A.Tsizet] -> !typeOfSizeOf
 
     | [A.Tshort] -> TInt(IShort, [])
     | [A.Tsigned; A.Tshort] -> TInt(IShort, [])
@@ -4326,7 +4346,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   (* Drop the side-effects *)
                   prechunk := (fun _ -> empty);
 	          piscall := false; 
-	          if Util.equals (typeSig t1) (typeSig t2) then
+            let compatible =
+              try ignore(combineTypes CombineOther t1 t2); true
+              with Failure _ -> false
+            in if compatible then
 	            pres := integer 1
 	          else
                     pres := integer 0;
@@ -4874,7 +4897,7 @@ and doInitializer
   let typ' = unrollType vi.vtype in
   if debugInit then 
     ignore (E.log "Collecting the initializer for %s\n" vi.vname);
-  let (init, typ'') = collectInitializer !topPreInit typ' in
+  let (init, typ'') = collectInitializer false (vi.vglob || vi.vstorage = Static) !topPreInit typ' in
   if debugInit then
     ignore (E.log "Finished the initializer for %s\n  init=%a\n  typ=%a\n  acc=%a\n" 
            vi.vname d_init init d_type typ' d_chunk acc);
@@ -5155,13 +5178,23 @@ and doInit
 
         (* A structure with a composite initializer. We initialize the fields*)
   | TComp (comp, _), (A.NEXT_INIT, A.COMPOUND_INIT initl) :: restil ->
+      let initl' =
+        (* Handle empty initializers (nested inside arrays):
+            { {3}, {}, {5}, {}, {} }
+           by translating them to:
+            { {3}, {0}, {5}, {0}, {0} }
+           See test/small1/init18.c.
+        *)
+        if initl = []
+        then [(A.NEXT_INIT, A.SINGLE_INIT (CONSTANT (CONST_INT "0")))]
+        else initl in
       (* Create a separate subobject iterator *)
       let so' = makeSubobj so.host so.soTyp so.soOff in
       (* Go inside the comp *)
       so'.stack <- [InComp(so'.curOff, comp, fieldsToInit comp None)];
       normalSubobj so';
-      let acc', initl' = doInit isconst setone so' acc initl in
-      if initl' <> [] then 
+      let acc', initl'' = doInit isconst setone so' acc initl' in
+      if initl'' <> [] then
         ignore (warn "Too many initializers for structure");
       (* Advance past the structure *)
       advanceSubobj so;
@@ -5699,7 +5732,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                };
 	    !currentFunctionFDEC.svar.vdecl <- funloc;
 
-            constrExprId := 0;
             (* Setup the environment. Add the formals to the locals. Maybe
             * they need alpha-conv  *)
             enterScope ();  (* Start the scope *)
@@ -5893,8 +5925,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   let bodychunk = ref default in
                   H.iter (fun lname laddr ->
                     bodychunk :=
-                       caseRangeChunk
-                         [integer laddr] l
+                       caseChunk
+                         (integer laddr) l
                          (gotoChunk lname l @@ !bodychunk))
                     gotoTargetHash;
                   (* Now recreate the switch *)
@@ -6265,7 +6297,11 @@ and assignInit (lv: lval)
                 b +++ init @@ loopc
           | _ -> E.s (bug "Array length is not a constant expression")
         end
-      | None -> E.s (bug "Array length is not a constant expression")
+      | None when initl = [] -> acc
+      | None ->
+          (* Attempt to initialize a flexible array in a struct:
+             struct s { int x; char[] a; }; *)
+          E.s (error "non-static initialization of a flexible array member")
     end
     | _ ->
       foldLeftCompound
@@ -6301,7 +6337,10 @@ and doBody (blk: A.block) : chunk =
   else begin
     let b = c2block bodychunk in
     b.battrs <- battrs;
-    s2c (mkStmt (Block b))
+    { stmts = [ mkStmt (Block b) ];
+      postins = [];
+      cases = bodychunk.cases;
+    }
   end
       
 and doStatement (s : A.statement) : chunk = 
@@ -6435,30 +6474,20 @@ and doStatement (s : A.statement) : chunk =
         let (se, e', et) = doExp true e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
-        caseRangeChunk [if !lowerConstants then constFold false e' else e'] 
+        caseChunk (if !lowerConstants then constFold false e' else e')
           loc' (doStatement s)
             
     | A.CASERANGE (el, eh, s, loc) -> 
         let loc' = convLoc loc in
         currentLoc := loc';
-        let (sel, el', etl) = doExp false el (AExp None) in
-        let (seh, eh', etl) = doExp false eh (AExp None) in
+        let (sel, el', _) = doExp true el (AExp None) in
+        let (seh, eh', _) = doExp true eh (AExp None) in
         if isNotEmpty sel || isNotEmpty seh then
           E.s (error "Case statement with a non-constant");
-        let il, ih, ik = 
-          match constFold true el', constFold true eh' with
-            Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) -> 
-              mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
-          | _ -> E.s (unimp "Cannot understand the constants in case range")
-        in
-        if compare_cilint il ih > 0 then 
-          E.s (error "Empty case range");
-        let rec mkAll (i: cilint) acc =
-          if compare_cilint i ih > 0 then
-             List.rev acc
-          else mkAll (add_cilint i one_cilint) (kintegerCilint ik i :: acc)
-        in
-        caseRangeChunk (mkAll il []) loc' (doStatement s)
+        caseRangeChunk
+          (if !lowerConstants then constFold false el' else el')
+          (if !lowerConstants then constFold false eh' else eh')
+          loc' (doStatement s)
         
 
     | A.DEFAULT (s, loc) -> 
@@ -6682,12 +6711,12 @@ let convFile (f : A.file) : Cil.file =
           let temp_cabs = open_out temp_cabs_name in
           (* Now print the CABS in there *)
           Cprint.commit (); Cprint.flush ();
-          let old = !Cprint.out in (* Save the old output channel *)
-          Cprint.out := temp_cabs;
+          let old = (Whitetrack.getOutput()) in (* Save the old output channel *)
+          Whitetrack.setOutput  temp_cabs;
           Cprint.print_def d;
           Cprint.commit (); Cprint.flush ();
-          flush !Cprint.out;
-          Cprint.out := old;
+          flush (Whitetrack.getOutput());
+          Whitetrack.setOutput  old;
           close_out temp_cabs;
           (* Now read everythign in *and create a GText from it *)
           let temp_cabs = open_in temp_cabs_name in

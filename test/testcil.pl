@@ -11,8 +11,6 @@ use File::Basename;         # File name parsing
 use Cwd;                    # Directory navigation
 use strict;
 # use Data::Dumper;
-use FindBin;
-use lib "$FindBin::Bin/../ocamlutil";
 
 use RegTest;
 
@@ -310,7 +308,6 @@ addTest("testrun/init15 _GNUCC=1");
 addTest("testrun/init16 ");
 addTest("testrun/init17 ");
 addTest("testrun/init18 ");
-addBadComment("testrun/init18", "Bug. Outstanding since 1.3.6 at least");
 addTest("testrun/init19 WARNINGS_ARE_ERRORS=1");
 addTest("testrun/init20 _GNUCC=1");
 addTest("testrun/init21 _GNUCC=1");
@@ -394,6 +391,10 @@ addTest("testrun/memcpy1");
 
 addTest("test/noreturn ");
                 
+addTest("test/constrexpr ");
+
+addTest("testrun/flexible-array-member ");
+addTest("test-bad1/flexible-array-member-bad ");
 
 addTest("testrun/label1");
 addTest("testrun/label2");
@@ -567,7 +568,7 @@ addTest("merge-ar ");
 
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
-addTest("testrun/sizeof3");
+addTest("test/sizeof3");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
@@ -698,7 +699,7 @@ addTest("scott/enumerator_sizeof");
 addTest("testrun/decl_mix_stmt");
 addTest("scott/enumattr");
 addTest("runall/alpha");
-addTest("testrun/blockattr2");
+addTest("testrun/blockattr2 USECFG=1");
 addTest("testrun/extinline2");
 addTest("test/extinline3");
 addTest("testrun/bool");

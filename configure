@@ -2187,7 +2187,7 @@ ac_config_headers="$ac_config_headers config.h"
 #
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
-CIL_VERSION_MINOR=6
+CIL_VERSION_MINOR=7
 CIL_VERSION_REV=0
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
@@ -3305,8 +3305,8 @@ ocamlDownloadInstructions="
 # required major/minor
 reqMaj=3
 reqMin=08
-knownMaj=3
-knownMin=12
+knownMaj=4
+knownMin=00
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking ocaml version is at least $reqMaj.$reqMin" >&5
 $as_echo_n "checking ocaml version is at least $reqMaj.$reqMin... " >&6; }
 if binaryExists ocamlc; then
@@ -4892,15 +4892,15 @@ fi
 esac
 
 # Make the object directory if not already present
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking obj/$ARCHOS and related files" >&5
-$as_echo_n "checking obj/$ARCHOS and related files... " >&6; }
-if test -d obj/$ARCHOS; then
-    mkdir -p obj/$ARCHOS
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking obj/ and related files" >&5
+$as_echo_n "checking obj/ and related files... " >&6; }
+if test -d obj/; then
+    mkdir -p obj/
 fi
 
-rm -f obj/$ARCHOS/machdep.ml
+rm -f obj/machdep.ml
 rm -f obj/.depend/machdep.d
-rm -f obj/$ARCHOS/feature_config.ml
+rm -f obj/feature_config.ml
 rm -f obj/.depend/feature_config.d
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: done" >&5
 $as_echo "done" >&6; }
@@ -4968,8 +4968,6 @@ $as_echo "$curval" >&6; }
       echo "export USE_$f_up=yes">>Makefile.features
    fi
 done
-echo "TYPE_SIZE_T=\"$TYPE_SIZE_T\"" >>Makefile.features
-echo "TYPE_WCHAR_T=\"$TYPE_WCHAR_T\"" >>Makefile.features
 chmod -w Makefile.features
 
 
@@ -5036,30 +5034,12 @@ chmod -w Makefile.features
   fi
 }
 {
-  if test -f bin/cilly.bat.in; then
-    ac_config_files="$ac_config_files bin/cilly.bat"
+  if test -f cilly/App/Cilly/CilConfig.pm.in; then
+    ac_config_files="$ac_config_files cilly/App/Cilly/CilConfig.pm"
 
   else
     true
-    #echo "skipping [bin/cilly.bat] because it's not in this distribution"
-  fi
-}
-{
-  if test -f bin/patcher.bat.in; then
-    ac_config_files="$ac_config_files bin/patcher.bat"
-
-  else
-    true
-    #echo "skipping [bin/patcher.bat] because it's not in this distribution"
-  fi
-}
-{
-  if test -f bin/CilConfig.pm.in; then
-    ac_config_files="$ac_config_files bin/CilConfig.pm"
-
-  else
-    true
-    #echo "skipping [bin/CilConfig.pm] because it's not in this distribution"
+    #echo "skipping [cilly/App/Cilly/CilConfig.pm] because it's not in this distribution"
   fi
 }
 {
@@ -5794,9 +5774,7 @@ do
     "META") CONFIG_FILES="$CONFIG_FILES META" ;;
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
-    "bin/cilly.bat") CONFIG_FILES="$CONFIG_FILES bin/cilly.bat" ;;
-    "bin/patcher.bat") CONFIG_FILES="$CONFIG_FILES bin/patcher.bat" ;;
-    "bin/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES bin/CilConfig.pm" ;;
+    "cilly/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES cilly/App/Cilly/CilConfig.pm" ;;
     "doc/index.html") CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
     "doc/header.html") CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
     "test/llvm/Makefile") CONFIG_FILES="$CONFIG_FILES test/llvm/Makefile" ;;
@@ -6357,9 +6335,7 @@ $as_echo "$as_me: $ac_file is unchanged" >&6;}
     "META":F) chmod a-w META ;;
     "config.mk":F) chmod a-w config.mk ;;
     "test/Makefile":F) chmod a-w test/Makefile ;;
-    "bin/cilly.bat":F) chmod a-w,a+x bin/cilly.bat ;;
-    "bin/patcher.bat":F) chmod a-w,a+x bin/patcher.bat ;;
-    "bin/CilConfig.pm":F) chmod a-w bin/CilConfig.pm ;;
+    "cilly/App/Cilly/CilConfig.pm":F) chmod a-w cilly/App/Cilly/CilConfig.pm ;;
     "doc/index.html":F) chmod a-w doc/index.html ;;
     "doc/header.html":F) chmod a-w doc/header.html ;;
     "test/llvm/Makefile":F) chmod a-w test/llvm/Makefile ;;

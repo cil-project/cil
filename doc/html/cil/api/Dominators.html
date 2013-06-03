@@ -24,15 +24,16 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Dominators</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Dominators</title>
 </head>
 <body>
-<div class="navbar"><a href="Dataflow.html">Previous</a>
-&nbsp;<a href="index.html">Up</a>
+<div class="navbar"><a class="pre" href="Dataflow.html" title="Dataflow">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
 &nbsp;</div>
-<center><h1>Module <a href="type_Dominators.html">Dominators</a></h1></center>
-<br>
-<pre><span class="keyword">module</span> Dominators: <code class="code">sig</code> <a href="Dominators.html">..</a> <code class="code">end</code></pre>Compute dominators using data flow analysis<br>
+<h1>Module <a href="type_Dominators.html">Dominators</a></h1>
+<pre><span class="keyword">module</span> Dominators: <code class="code">sig</code> <a href="Dominators.html">..</a> <code class="code">end</code></pre><div class="info">
+Compute dominators using data flow analysis<br>
+</div>
 <hr width="100%">
 <br>
 Author: George Necula   
@@ -60,19 +61,19 @@ Check whether one statement dominates another.<br>
 <pre><span id="VALchildren"><span class="keyword">val</span> children</span> : <code class="type"><a href="Dominators.html#TYPEtree">tree</a> -> <a href="Cil.html#TYPEstmt">Cil.stmt</a> -> <a href="Cil.html#TYPEstmt">Cil.stmt</a> list</code></pre><div class="info">
 Return a list of statements dominated by the argument<br>
 </div>
-<br><code><span id="TYPEorder"><span class="keyword">type</span> <code class="type"></code>order</span> = </code><table class="typetable">
+<pre><code><span id="TYPEorder"><span class="keyword">type</span> <code class="type"></code>order</span> = </code></pre><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">PreOrder</span></code></td>
+<code><span id="TYPEELTorder.PreOrder"><span class="constructor">PreOrder</span></span></code></td>
 
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span class="constructor">PostOrder</span></code></td>
+<code><span id="TYPEELTorder.PostOrder"><span class="constructor">PostOrder</span></span></code></td>
 
 </tr></table>
 

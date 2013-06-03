@@ -42,10 +42,9 @@ use File::Copy;
 use Getopt::Long;           # Command-line option processing
 use Data::Dumper;
 use FindBin;
-use lib "$FindBin::Bin";
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::RealBin";
 # Read the configuration script
-use CilConfig;
+use App::Cilly::CilConfig;
 
 $::iswin32 = $^O eq 'MSWin32' || $^O eq 'cygwin';
 # matth: On cygwin, ^O is either MSWin32 or cygwin, depending on how you build

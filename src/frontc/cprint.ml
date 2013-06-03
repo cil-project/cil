@@ -85,7 +85,6 @@ let printComments = ref false
 (*
 ** FrontC Pretty printer
 *)
-let out = ref stdout
 let width = ref 80
 let tab = ref 2
 let max_indent = ref 60
@@ -178,6 +177,7 @@ and print_type_spec = function
   | Tdouble -> print "double "
   | Tsigned -> printu "signed"
   | Tunsigned -> print "unsigned "
+  | Tsizet  -> print "size_t "
   | Tnamed s -> comprint "tnamed"; print s; space ();
   | Tstruct (n, None, _) -> printl ["struct";n]
   | Tstruct (n, Some flds, extraAttrs) ->
@@ -908,7 +908,6 @@ end
 **		Pretty printing the given abstract syntax program.
 *)
 let printFile (result : out_channel) ((fname, defs) : file) =
-  out := result;
   Whitetrack.setOutput result;
   print_defs defs;
   Whitetrack.printEOF ();

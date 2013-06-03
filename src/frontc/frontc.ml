@@ -218,7 +218,7 @@ begin
 
   let chan = open_out "safec.proto.h" in
   ignore (fprintf chan "/* generated prototypes file, %d defs */\n" (List.length file));
-  Cprint.out := chan;
+  Whitetrack.setOutput  chan;
 
   let counter : int ref = ref 0 in
 

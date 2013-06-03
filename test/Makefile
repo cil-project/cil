@@ -62,8 +62,7 @@ ifndef CILHOME
   endif
 endif
 
-CILLY := $(CILHOME)/bin/cilly
-PATCHER := $(CILHOME)/bin/patcher
+CILLY := $(CILHOME)/cilly/cilly
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -82,12 +81,6 @@ endif
 ifndef ARCHOS
   ARCHOS := x86_WIN32
 endif
-
-# By default use the old patcher
-ifndef NEWPATCH
-  OLDPATCH := 1
-endif
-
 
 # Now include the compiler specific stuff
 ifdef _MSVC
@@ -126,6 +119,9 @@ ifdef COMMLINES
   CILLY+= --commPrintLn
 endif
 
+ifdef USECFG
+	CILLY+= --domakeCFG
+endif
 ifdef USECABS
   CILLY+= --usecabs
 endif
@@ -290,7 +286,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 ARCHOS := $(ARCHOS)
-OBJDIR := $(CILHOME)/obj/$(ARCHOS)
+OBJDIR := $(CILHOME)/obj
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
@@ -316,7 +312,7 @@ combine%: $(SMALL1)/combine%_1.c
 
 arcombine: mustbegcc
 	cd $(SMALL1); $(CILLY) -c array1.c array2.c
-	cd $(SMALL1); $(CILHOME)/bin/cilly \
+	cd $(SMALL1); $(CILHOME)/cilly/cilly \
                            --mode=AR --merge --verbose crv array.a array1.o array2.o
 	cd $(SMALL1); $(CILLY) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
@@ -345,7 +341,7 @@ endif
 	  CFLAGS="$(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
+	  bash ../test-bad $*.c
 
 test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	cd $(TESTDIR)/small1; \
@@ -354,7 +350,7 @@ test-bad1/%: $(TESTDIR)/small1/%.c $(TARGET_DEP)
 	  CFLAGS=" $(CFLAGS) $(WARNALL)" \
           TESTBADONCE="$(TESTBADONCE)" \
 	  _MSVC="$(_MSVC)" \
-	  bash ../../bin/test-bad $*.c
+	  bash ../test-bad $*.c
 
 
 #CCURED_NO_SIGABRT prevents cygwin from doing a memory dump on every failure
@@ -366,7 +362,7 @@ runall/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe" \
 	COMMENT="//" \
-	 perl ../../ocamlutil/runall.pl $*.c
+	 perl ../runall.pl $*.c
 
 
 runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
@@ -376,7 +372,7 @@ runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 	   $(CFLAGS) $(WARNALL) __FILE__  $(EXEOUT)__BASENAME__.exe \
 	   && ./__BASENAME__.exe && cat __BASENAME__.cured.c" \
 	COMMENT="//" \
-	 perl ../../ocamlutil/runall.pl $*.c
+	 perl ../runall.pl $*.c
 
 # sm: trivial test of combiner
 MYSAFECC := $(CILLY)
@@ -436,9 +432,9 @@ testdir/% :
 
 
 merge-ar:
-	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
-	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
-	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
+	cd small2; $(CILHOME)/cilly/cilly --merge -c merge-ar.c merge-twice-1.c
+	cd small2; $(CILHOME)/cilly/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
+	cd small2; $(CILHOME)/cilly/cilly --merge libmerge.a -o merge-ar
 
 
 

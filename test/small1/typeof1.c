@@ -24,6 +24,7 @@ struct foo returnsAStruct(int a)
       { return (struct foo){a,2}; }
 __typeof(returnsAStruct(42)) a_struct;
 
+__typeof((void *)afun) funp; // afun should be considered as a pointer, for the cast to succeed
 #endif
 
 
@@ -62,16 +63,15 @@ int main(void)
   CHECK_CONST(sizeof(str));
   CHECK_CONST(sizeof(arr));
   CHECK_CONST(sizeof(barr));
+  CHECK_CONST(sizeof(funp));
 
   CHECK_CONST(__alignof("a string"));
   CHECK_CONST(__alignof(str));
   CHECK_CONST(__alignof(foo));
   CHECK_CONST(__alignof(afun));
   CHECK_CONST(__alignof(arr));
-
-  // Here CIL is different from GCC: CIL=4, GCC=32?
-  // I have no idea where GCC is getting its result from 
-  //  CHECK_CONST(__alignof(barr));
+  CHECK_CONST(__alignof(barr));
+  CHECK_CONST(__alignof(funp));
 
 #endif
   if(sizeof(carr) != sizeof(ARRAY)) {

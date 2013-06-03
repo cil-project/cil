@@ -70,6 +70,8 @@ let setLoc cabsloc =
 let setOutput out_chan = 
     out := out_chan
 
+let getOutput () = !out
+
 (* TODO: do this properly *)
 let invent_white () = " "
 

@@ -234,8 +234,7 @@ let transformOffsetOf (speclist, dtype) member =
   in
   let memberExpr = replaceBase member in
   let addrExpr = UNARY (ADDROF, memberExpr) in
-  (* slight cheat: hard-coded assumption that size_t == unsigned int *)
-  let sizeofType = [SpecType Tunsigned], JUSTBASE in
+  let sizeofType = [SpecType Tsizet], JUSTBASE in
   let resultExpr = CAST (sizeofType, SINGLE_INIT addrExpr) in
   resultExpr
 

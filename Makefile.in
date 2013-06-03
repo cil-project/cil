@@ -48,10 +48,6 @@ ifndef CAMLNATTL
   endif
 endif
 
-ifndef ARCHOS
-   ARCHOS=@ARCHOS@
-endif
-
 ifndef MINGW
    MINGW=@MINGW@
 endif
@@ -73,7 +69,7 @@ else
 endif
 
 # Put here all the byproducts of make
-OBJDIR      := obj/$(ARCHOS)
+OBJDIR      := obj
 DEPENDDIR   := obj/.depend
 
 CILLY_FEATURES :=
@@ -134,7 +130,12 @@ ocamlbuild:
 
    # Now the rule to make cilly
 
-cilly: $(OBJDIR)/cilly$(EXE)
+cilly/Makefile: cilly/Makefile.PL cilly/App/Cilly.pm
+	cd cilly; perl Makefile.PL
+
+cilly: $(OBJDIR)/cilly$(EXE) cilly/Makefile
+	$(MAKE) -C cilly
+
 $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO))
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) $@ $(LINKMSG)"
 	$(AT)$(CAMLLINK) -verbose -o $@ \
@@ -142,7 +143,7 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO))
                     $^
 
 
-quickbuild: cilversion machdep cilly lib/Cilly.pm
+quickbuild: cilversion machdep cilly cilly/App/Cilly.pm
 
 # Setup also makes the native code versions
 
@@ -218,15 +219,17 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "let theMachine : mach ref = ref gcc" >>$@
 
 
-lib/Cilly.pm: lib/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
-	cp lib/Cilly.pm.in lib/Cilly.pm
+cilly/App/Cilly.pm: cilly/App/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
+	cp cilly/App/Cilly.pm.in cilly/App/Cilly.pm
+	sed -e "s|CIL_VERSION|@CIL_VERSION@|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
-	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" lib/Cilly.pm > lib/Cilly.pm.tmp; \
-	  mv lib/Cilly.pm.tmp lib/Cilly.pm; \
+	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	fi
 	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
-	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" lib/Cilly.pm > lib/Cilly.pm.tmp; \
-	  mv lib/Cilly.pm.tmp lib/Cilly.pm; \
+	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	fi
 
 # Create the version information module
@@ -238,7 +241,7 @@ $(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
 
 # build library
 .PHONY: cillib
-cillib: $(OBJDIR)/cil.$(CMXA) lib/Cilly.pm
+cillib: $(OBJDIR)/cil.$(CMXA) cilly/App/Cilly.pm
 
 $(OBJDIR)/feature_config.ml: config.status
 	rm -f $(OBJDIR)/feature_config.*
@@ -315,7 +318,7 @@ odoc: $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) -hide Pervasives $(ODOC_FILES)
 
-doc/cilpp.tex: doc/cilcode.pl doc/cil.tex lib/Cilly.pm
+doc/cilpp.tex: doc/cilcode.pl doc/cil.tex cilly/App/Cilly.pm
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
@@ -357,9 +360,8 @@ doc: texdoc pdfdoc odoc
 distclean: clean
 	rm -f src/frontc/cparser.output
 	rm -f src/formatparse.output
-	rm -f bin/cilly.bat
-	rm -f bin/patcher.bat
-	rm -f bin/CilConfig.pm
+	rm -f cilly/App/CilConfig.pm
+	rm -f cilly/Makefile.old
 	rm -f config.log
 	rm -f config.h
 	rm -f Makefile
@@ -370,7 +372,8 @@ cleancheck:
 	rm -f test/small1/vararg1
 	rm -f test/small1/wchar1
 
-clean: cleancaml cleancheck
+clean: cleancaml cleancheck cilly/Makefile
+	$(MAKE) -C cilly clean
 
 
 # Now include the compiler specific stuff
@@ -383,13 +386,15 @@ else
 endif
 
 test/%: 
-	bin/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
+	cilly/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
 
 testrun/%: 
-	bin/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
+	cilly/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
 	test/small1/$*
 
-
+.PHONY: regtest
+regtest:
+	cd test; ./testcil -r --regrtest
 
 .PHONY: quicktest
 quicktest: $(patsubst %,test/%,func init init1) \
@@ -399,7 +404,6 @@ quicktest: $(patsubst %,test/%,func init init1) \
 check: quicktest
 
 ########################################################################
-
 
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -412,31 +416,23 @@ pkglibdir = $(libdir)/cil
 libexecdir = @libexecdir@
 pkglibexecdir = $(libexecdir)/cil
 bindir = @bindir@
-# Hack - I don't know how to find perl_vendorlib
-perl_vendorlib = $(libdir)
 
-install: install-findlib
-	$(INSTALL) -d $(DESTDIR)$(perl_vendorlib)
-	$(INSTALL) -m 0644 lib/*.pm bin/CilConfig.pm $(DESTDIR)$(perl_vendorlib)
-	sed -e "s,^.*cilhome.*$$,\$$::cilhome = \"$(libexecdir)/cil\";," $(DESTDIR)$(perl_vendorlib)/CilConfig.pm > $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp
-	mv $(DESTDIR)$(perl_vendorlib)/CilConfig.pm.tmp $(DESTDIR)$(perl_vendorlib)/CilConfig.pm
-	$(INSTALL) -d $(DESTDIR)$(bindir)
-	$(INSTALL) -m 0755 bin/cilly $(DESTDIR)$(bindir)
-	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
-	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)/$(OBJDIR)
+install: install-findlib cilly/Makefile
+	$(MAKE) -C cilly install CILBINDIR="$(libexecdir)/cil"
+	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)
+	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)
 
 # FIXME
-uninstall: uninstall-findlib
+uninstall: uninstall-findlib cilly/Makefile
 	-rm -rf $(DESTDIR)$(pkglibexecdir)
-	-rm -f $(DESTDIR)$(bindir)/cilly
-	-rm -f $(DESTDIR)$(perl_vendorlib)/CilConfig.pm $(DESTDIR)$(perl_vendorlib)/Cilly.pm \
-	   	$(DESTDIR)$(perl_vendorlib)/KeptFile.pm $(DESTDIR)$(perl_vendorlib)/OutputFile.pm \
-		$(DESTDIR)$(perl_vendorlib)/TempFile.pm
+	$(MAKE) -C cilly uninstall
+
+.PHONY: install-findlib uninstall-findlib
 
 EVERYTHING=$(OBJDIR)/*.cmi $(OBJDIR)/*.cmx $(OBJDIR)/*.cma $(OBJDIR)/*.mli \
 		   $(OBJDIR)/*.cmxa $(OBJDIR)/*.a $(SOURCEDIRS:%=%/*.mli)
 
-install-findlib: all $(EVERYTHING)
+install-findlib: all $(EVERYTHING) uninstall-findlib
 	ocamlfind install cil META $(EVERYTHING)
 
 uninstall-findlib:

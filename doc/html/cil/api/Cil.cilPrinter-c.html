@@ -25,17 +25,18 @@
 <link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.6.0) : Cil.cilPrinter</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Cil.cilPrinter</title>
 </head>
 <body>
-<div class="navbar"><a href="Cil.cilVisitor-c.html">Previous</a>
-&nbsp;<a href="Cil.html">Up</a>
-&nbsp;<a href="Cil.descriptiveCilPrinter-c.html">Next</a>
+<div class="navbar"><a class="pre" href="Cil.cilVisitor-c.html" title="Cil.cilVisitor">Previous</a>
+&nbsp;<a class="up" href="Cil.html" title="Cil">Up</a>
+&nbsp;<a class="post" href="Cil.descriptiveCilPrinter-c.html" title="Cil.descriptiveCilPrinter">Next</a>
 </div>
-<center><h1>Class type <a href="type_Cil.cilPrinter.html">Cil.cilPrinter</a></h1></center>
-<br>
-<pre><span id="TYPEcilPrinter"><span class="keyword">class type</span> cilPrinter</span> = <code class="code">object</code> <a href="Cil.cilPrinter-c.html">..</a> <code class="code">end</code></pre>A printer interface for CIL trees. Create instantiations of 
+<h1>Class type <a href="type_Cil.cilPrinter.html">Cil.cilPrinter</a></h1>
+<pre><span id="TYPEcilPrinter"><span class="keyword">class type</span> cilPrinter</span> = <code class="code">object</code> <a href="Cil.cilPrinter-c.html">..</a> <code class="code">end</code></pre><div class="info">
+A printer interface for CIL trees. Create instantiations of 
  this type by specializing the class <a href="Cil.defaultCilPrinterClass-c.html"><code class="code">Cil.defaultCilPrinterClass</code></a>.<br>
+</div>
 <hr width="100%">
 <pre><span id="METHODsetCurrentFormals"><span class="keyword">method</span> setCurrentFormals</span> : <code class="type"><a href="Cil.html#TYPEvarinfo">varinfo</a> list -> unit</code></pre><pre><span id="METHODsetPrintInstrTerminator"><span class="keyword">method</span> setPrintInstrTerminator</span> : <code class="type">string -> unit</code></pre><pre><span id="METHODgetPrintInstrTerminator"><span class="keyword">method</span> getPrintInstrTerminator</span> : <code class="type">unit -> string</code></pre><pre><span id="METHODpVDecl"><span class="keyword">method</span> pVDecl</span> : <code class="type">unit -> <a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
 Invoked for each variable declaration. Note that variable 

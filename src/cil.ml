@@ -79,6 +79,7 @@ let useLogicalOperators = ref false
 
 let useComputedGoto = ref false
 
+let useCaseRange = ref false
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
@@ -724,6 +725,8 @@ and label =
            * input source program. If the bool is "false", the label was 
            * created by CIL or some other transformation *)
   | Case of exp * location              (** A case statement *)
+  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                            range of values *)
   | Default of location                 (** A default statement *)
 
 
@@ -3699,6 +3702,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       Label (s, _, true) -> text (s ^ ": ")
     | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
     | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | CaseRange (e1, e2, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
+        ++ self#pExp () e2 ++ text ": "
     | Default _ -> text "default: "
 
   (* The pBlock will put the unalign itself *)
@@ -5360,6 +5365,10 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         Case (e, l) as lb -> 
           let e' = fExp e in
           if e' != e then Case (e', l) else lb
+        | CaseRange (e1, e2, l) as lb ->
+          let e1' = fExp e1 in
+          let e2' = fExp e2 in
+          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l) else lb
         | lb -> lb
     in
     mapNoCopy fLabel s.labels
@@ -6139,7 +6148,7 @@ let rec makeZeroInit (t: typ) : init =
   match unrollType t with
     TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
-  | TEnum _ -> SingleInit zero
+  | TEnum (e, _) -> SingleInit (kinteger e.ekind 0)
   | TComp (comp, _) as t' when comp.cstruct -> 
       let inits = 
         List.fold_right
@@ -6523,6 +6532,26 @@ and succpred_stmt s fallthrough rlabels =
   | TryExcept _ | TryFinally _ -> 
       failwith "computeCFGInfo: structured exception handling not implemented"
 
+let caseRangeFold (l: label list) =
+  let rec fold acc = function
+  | ((Case _ | Default _ | Label _) as x) :: xs -> fold (x :: acc) xs
+  | CaseRange(el, eh, loc) :: xs ->
+      let il, ih, ik =
+        match constFold true el, constFold true eh with
+          Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
+            mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
+        | _ -> E.s (error "Cannot understand the constants in case range")
+      in
+      if compare_cilint il ih > 0 then
+        E.s (error "Empty case range");
+      let rec mkAll (i: cilint) acc =
+        if compare_cilint i ih > 0 then acc
+        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc) :: acc)
+      in
+      fold (mkAll il acc) xs
+   | [] -> List.rev acc
+   in fold [] l
+
 (* [weimer] Sun May  5 12:25:24 PDT 2002
  * This code was pulled from ext/switch.ml because it looks like we really
  * want it to be part of CIL. 
@@ -6545,20 +6574,21 @@ let freshLabel (base:string) =
   fst (A.newAlphaName labelAlphaTable None base ())
 
 let rec xform_switch_stmt s break_dest cont_dest = begin
+  let suffix e = match getInteger e with
+  | Some value ->
+      if compare_cilint value zero_cilint < 0 then
+        "neg_" ^ string_of_cilint (neg_cilint value)
+        else
+          string_of_cilint value
+  | None -> "exp"
+  in
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
   | Case(e,l) ->
-      let suffix =
-	match getInteger e with
-	| Some value -> 
-	    if compare_cilint value zero_cilint < 0 then
-	      "neg_" ^ string_of_cilint (neg_cilint value)
-	    else
-	      string_of_cilint value
-	| None ->
-	    "exp"
-      in
-      let str = "case_" ^ suffix in
+      let str = Printf.sprintf "case_%s" (suffix e) in
+      Label(freshLabel str,l,false)
+  | CaseRange(e1,e2,l) ->
+      let str = Printf.sprintf "caserange_%s_%s" (suffix e1) (suffix e2) in
       Label(freshLabel str,l,false)
   | Default(l) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ; 
@@ -6629,27 +6659,38 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
-          | Case (ce,cl) :: lab_tl ->
-              (* assume that integer promotion and type conversion of cases is
-               * performed by cabs2cil. *)
-              let make_eq exp =  BinOp(Eq, e, exp, typeOf e) in
-              let make_or_from_cases =
-                List.fold_left
-                    (fun pred label -> match label with
-                           Case (exp, _) -> BinOp(LOr, pred, make_eq exp, intType)
-                         | _ -> E.s (bug "Unexpected pattern-matching failure"))
-                    (make_eq ce)
+          | ((Case (_, cl) | CaseRange (_, _, cl)) as lab) :: lab_tl ->
+            (* assume that integer promotion and type conversion of cases is
+             * performed by cabs2cil. *)
+            let comp_case_range e1 e2 =
+                  BinOp(Ge, e, e1, intType), BinOp(Le, e, e2, intType) in
+            let make_comp lab = begin match lab with
+              | Case (exp, _) -> BinOp(Eq, e, exp, intType)
+              | CaseRange (e1, e2, _) when !useLogicalOperators ->
+                  let c1, c2 = comp_case_range e1 e2 in
+                  BinOp(LAnd, c1, c2, intType)
+              | _ -> E.s (bug "Unexpected pattern-matching failure")
+            end in
+            let make_or_from_cases () =
+              List.fold_left
+                  (fun pred label -> BinOp(LOr, pred, make_comp label, intType))
+                  (make_comp lab) lab_tl
             in
             let make_if_stmt pred cl =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
               mkStmt(If(pred,then_block,else_block,cl)) in
+            let make_double_if_stmt (pred1, pred2) cl =
+              let then_block = mkBlock [ make_if_stmt pred2 cl ] in
+              let else_block = mkBlock [] in
+              mkStmt(If(pred1,then_block,else_block,cl)) in
             if !useLogicalOperators then
-              [make_if_stmt (make_or_from_cases lab_tl) cl]
+              [make_if_stmt (make_or_from_cases ()) cl]
             else
-              List.map
-                (function Case (ce,cl) -> make_if_stmt (make_eq ce) cl
-                         | _ -> E.s (bug "Unexpected pattern-matching failure"))
+              List.map (function
+                | Case _ as lab -> make_if_stmt (make_comp lab) cl
+                | CaseRange (e1, e2, _) -> make_double_if_stmt (comp_case_range e1 e2) cl
+                | _ -> E.s (bug "Unexpected pattern-matching failure"))
                 cases
           | Default _ :: _ | Label _ :: _ ->
               E.s (bug "Unexpected pattern-matching failure")
