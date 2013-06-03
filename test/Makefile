@@ -63,7 +63,6 @@ ifndef CILHOME
 endif
 
 CILLY := $(CILHOME)/cilly/cilly
-PATCHER := $(CILHOME)/cilly/patcher
 
 # Now do the user-specific customization
 # It is Ok if this file does not exist
@@ -82,12 +81,6 @@ endif
 ifndef ARCHOS
   ARCHOS := x86_WIN32
 endif
-
-# By default use the old patcher
-ifndef NEWPATCH
-  OLDPATCH := 1
-endif
-
 
 # Now include the compiler specific stuff
 ifdef _MSVC

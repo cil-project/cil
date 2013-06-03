@@ -142,7 +142,7 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO))
                     $^
 
 
-quickbuild: cilversion machdep cilly cilly/Cilly.pm
+quickbuild: cilversion machdep cilly cilly/App/Cilly.pm
 
 # Setup also makes the native code versions
 
@@ -218,17 +218,17 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "let theMachine : mach ref = ref gcc" >>$@
 
 
-cilly/Cilly.pm: cilly/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
-	cp cilly/Cilly.pm.in cilly/Cilly.pm
-	sed -e "s|CIL_VERSION|@CIL_VERSION@|" cilly/Cilly.pm > cilly/Cilly.pm.tmp; \
-	mv cilly/Cilly.pm.tmp cilly/Cilly.pm; \
+cilly/App/Cilly.pm: cilly/App/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
+	cp cilly/App/Cilly.pm.in cilly/App/Cilly.pm
+	sed -e "s|CIL_VERSION|@CIL_VERSION@|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
-	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" cilly/Cilly.pm > cilly/Cilly.pm.tmp; \
-	  mv cilly/Cilly.pm.tmp cilly/Cilly.pm; \
+	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	fi
 	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
-	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" cilly/Cilly.pm > cilly/Cilly.pm.tmp; \
-	  mv cilly/Cilly.pm.tmp cilly/Cilly.pm; \
+	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
+	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
 	fi
 
 # Create the version information module
@@ -240,7 +240,7 @@ $(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
 
 # build library
 .PHONY: cillib
-cillib: $(OBJDIR)/cil.$(CMXA) cilly/Cilly.pm
+cillib: $(OBJDIR)/cil.$(CMXA) cilly/App/Cilly.pm
 
 $(OBJDIR)/feature_config.ml: config.status
 	rm -f $(OBJDIR)/feature_config.*
@@ -317,7 +317,7 @@ odoc: $(OBJDIR)/pretty.cmi $(OBJDIR)/cil.cmi
              -t "CIL API Documentation (version @CIL_VERSION@)" \
 	     -I $(OBJDIR) -hide Pervasives $(ODOC_FILES)
 
-doc/cilpp.tex: doc/cilcode.pl doc/cil.tex cilly/Cilly.pm
+doc/cilpp.tex: doc/cilcode.pl doc/cil.tex cilly/App/Cilly.pm
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
@@ -359,7 +359,7 @@ doc: texdoc pdfdoc odoc
 distclean: clean
 	rm -f src/frontc/cparser.output
 	rm -f src/formatparse.output
-	rm -f cilly/CilConfig.pm
+	rm -f cilly/App/CilConfig.pm
 	rm -f config.log
 	rm -f config.h
 	rm -f Makefile

@@ -5,13 +5,13 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME                => 'cilly',
-    VERSION_FROM        => 'Cilly.pm',
+    VERSION_FROM        => 'App/Cilly.pm',
     PM                  => {
-        'Cilly.pm'      => '$(INST_LIBDIR)/App/Cilly.pm',
-        'CilConfig.pm' => '$(INST_LIBDIR)/App/Cilly/CilConfig.pm',
-        'KeptFile.pm' => '$(INST_LIBDIR)/App/Cilly/KeptFile.pm',
-        'OutputFile.pm' => '$(INST_LIBDIR)/App/Cilly/OutputFile.pm',
-        'TempFile.pm' => '$(INST_LIBDIR)/App/Cilly/TempFile.pm',
+        'App/Cilly.pm'      => '$(INST_LIBDIR)/App/Cilly.pm',
+        'App/Cilly/CilConfig.pm' => '$(INST_LIBDIR)/App/Cilly/CilConfig.pm',
+        'App/Cilly/KeptFile.pm' => '$(INST_LIBDIR)/App/Cilly/KeptFile.pm',
+        'App/Cilly/OutputFile.pm' => '$(INST_LIBDIR)/App/Cilly/OutputFile.pm',
+        'App/Cilly/TempFile.pm' => '$(INST_LIBDIR)/App/Cilly/TempFile.pm',
     },
     EXE_FILES           => [ 'cilly' ],
     PREREQ_PM => {

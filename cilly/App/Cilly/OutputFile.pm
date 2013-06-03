@@ -1,5 +1,6 @@
-package OutputFile;
-@ISA = ();
+package App::Cilly::OutputFile;
+
+our @ISA = ();
 
 use strict;
 use Carp;

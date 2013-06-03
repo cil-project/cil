@@ -43,7 +43,7 @@
 
 $::cilbin = 'bin';
 
-package Cilly;
+package App::Cilly;
 @ISA = ();
 
 use strict;
@@ -54,14 +54,14 @@ use Data::Dumper;
 use Carp;
 use Text::ParseWords;
 
-use KeptFile;
-use OutputFile;
-use TempFile;
+use App::Cilly::KeptFile;
+use App::Cilly::OutputFile;
+use App::Cilly::TempFile;
 
-$Cilly::savedSourceExt = "_saved.c";
+$App::Cilly::savedSourceExt = "_saved.c";
 
-$Cilly::m32model = "nogcc32model";
-$Cilly::m64model = "nogcc64model";
+$App::Cilly::m32model = "nogcc32model";
+$App::Cilly::m64model = "nogcc64model";
 
 our $VERSION;
 
@@ -126,19 +126,19 @@ sub new {
 
     my $compiler;
     if($mode eq "MSVC") {
-        unshift @Cilly::ISA, qw(MSVC);
+        unshift @App::Cilly::ISA, qw(MSVC);
         $compiler = MSVC->new($self);
     } elsif($mode eq "GNUCC") {
-        unshift @Cilly::ISA, qw(GNUCC);
+        unshift @App::Cilly::ISA, qw(GNUCC);
         $compiler = GNUCC->new($self);
     } elsif($mode eq "MSLINK") {
-        unshift @Cilly::ISA, qw(MSLINK);
+        unshift @App::Cilly::ISA, qw(MSLINK);
         $compiler = MSLINK->new($self);
     } elsif($mode eq "MSLIB") {
-        unshift @Cilly::ISA, qw(MSLIB);
+        unshift @App::Cilly::ISA, qw(MSLIB);
         $compiler = MSLIB->new($self);
     } elsif($mode eq "AR") {
-        unshift @Cilly::ISA, qw(AR);
+        unshift @App::Cilly::ISA, qw(AR);
         $compiler = AR->new($self);
     } else {
         die "Don't know about compiler $mode\n";
@@ -359,7 +359,7 @@ sub collectOneArgument {
 
 
 sub printVersion {
-    system ($CilCompiler::compiler, '--version'); 
+    system ($App::Cilly::CilCompiler::compiler, '--version'); 
 }
 
 sub printHelp {
@@ -540,7 +540,7 @@ sub linktolib {
 sub preprocess_compile {
     my ($self, $src, $dest, $early_ppargs, $ppargs, $ccargs) = @_;
     &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
 
     my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
     if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
@@ -566,7 +566,7 @@ sub preprocess_compile {
 # THIS IS THE ENTRY POINT FOR JUST PREPROCESSING A FILE
 sub preprocess {
     my($self, $src, $dest, $ppargs) = @_;
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
     return $self->preprocess_before_cil($src, $dest, $ppargs);
 }
 
@@ -588,7 +588,7 @@ sub preprocessAfterOutputFile {
  
 sub preprocess_before_cil {
     my ($self, $src, $dest, $ppargs) = @_;
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
     my @args = @{$ppargs};
 
     # See if we must force some includes
@@ -629,7 +629,7 @@ sub preprocess_before_cil {
 # Preprocessing after CIL
 sub preprocess_after_cil {
     my ($self, $src, $dest, $ppargs) = @_;
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
     return $self->straight_preprocess($src, $dest, $ppargs);
 }
 
@@ -638,7 +638,7 @@ sub preprocess_after_cil {
 # You should not override this method
 sub straight_preprocess {
     my ($self, $src, $dest, $ppargs) = @_;
-    Carp::confess "bad dest: $dest" unless $dest->isa('OutputFile');
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
     if($self->{VERBOSE}) {
 	my $srcname = ref $src ? $src->filename : $src;
 	print STDERR "Preprocessing $srcname\n";
@@ -669,7 +669,7 @@ sub compile {
     my($self, $src, $dest, $ppargs, $ccargs) = @_;
     &mydebug("Cilly.compile(src=$src, dest=$dest->{filename})\n");
     Carp::confess "bad dest: $dest->{filename}" 
-        unless $dest->isa('OutputFile');
+        unless $dest->isa('App::Cilly::OutputFile');
     
     if($self->{SEPARATE}) {
         # Now invoke CIL and compile afterwards
@@ -690,7 +690,7 @@ sub compile {
             die "Cannot stat the result of compilation $dest->{filename}";
         }
         $mtime = $mtime_1;
-        $outfile = $dest->{filename} . $Cilly::savedSourceExt;
+        $outfile = $dest->{filename} . $App::Cilly::savedSourceExt;
     }
     my $srcname = ref $src ? $src->filename : $src; 
     if($self->{VERBOSE}) { 
@@ -829,7 +829,7 @@ sub separateTrueObjects {
             $combsrc = $src;
             $mtime = 0;
         } else {
-            $combsrcname = $srcname . $Cilly::savedSourceExt;
+            $combsrcname = $srcname . $App::Cilly::savedSourceExt;
             $combsrc = $combsrcname;
             if(-f $combsrcname) { 
                 my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
@@ -906,7 +906,7 @@ sub link {
     }
     my $outname = ($self->{OPERATION} eq "TOASM") ? $destname 
         : "${destname}_comb.$self->{OBJEXT}";
-    my $mergedobj = new OutputFile($destname, $outname);
+    my $mergedobj = new App::Cilly::OutputFile($destname, $outname);
 
     # We must merge
     if($self->{VERBOSE}) { 
@@ -929,7 +929,7 @@ sub link {
     # file instead of merging all over again
     if(@{$tomerge} > 1 && $self->{KEEPMERGED}) {
         my $canReuse = 1;
-        my $combFile = new OutputFile($destname,
+        my $combFile = new App::Cilly::OutputFile($destname,
                                       "${destname}_comb.c");
         my @tmp = stat($combFile); 
         my $combFileMtime = $tmp[9] || 0;
@@ -984,7 +984,7 @@ sub applyCil {
     # Now prepare the command line for invoking cilly
     my ($aftercil, @cmd) = $self->CillyCommand ($ppsrc, $dest);
     Carp::confess "$self produced bad output file: $aftercil" 
-        unless $aftercil->isa('OutputFile');
+        unless $aftercil->isa('App::Cilly::OutputFile');
 
     if($self->{MODENAME} eq "MSVC" || 
        $self->{MODENAME} eq "MSLINK" ||
@@ -1026,7 +1026,7 @@ sub applyCil {
 sub applyCilAndCompile {
     my ($self, $ppsrc, $dest, $ppargs, $ccargs) = @_;
     Carp::confess "$self produced bad destination file: $dest"
-	unless $dest->isa('OutputFile');
+	unless $dest->isa('App::Cilly::OutputFile');
 
     # The input files
     my @srcs = @{$ppsrc};
@@ -1035,7 +1035,7 @@ sub applyCilAndCompile {
     # Now run cilly
     my $aftercil = $self->applyCil($ppsrc, $dest);
     Carp::confess "$self produced bad output file: $aftercil" 
-        unless $aftercil->isa('OutputFile');
+        unless $aftercil->isa('App::Cilly::OutputFile');
 
     # Now preprocess
     my $aftercilpp = $self->preprocessAfterOutputFile($aftercil);
@@ -1257,22 +1257,22 @@ sub compilerArgument {
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "CSOURCE") {
-		  OutputFile->protect(@fullarg);
+                App::Cilly::OutputFile->protect(@fullarg);
                   $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{CFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "ASMSOURCE") {
-		  OutputFile->protect(@fullarg);
+                App::Cilly::OutputFile->protect(@fullarg);
                   $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{SFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "OSOURCE") {
-		  OutputFile->protect(@fullarg);
+                App::Cilly::OutputFile->protect(@fullarg);
                   $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{OFILES}}, @fullarg; return 1;
               }
               elsif($action->{TYPE} eq "ISOURCE") {
-		  OutputFile->protect(@fullarg);
+                App::Cilly::OutputFile->protect(@fullarg);
                   $fullarg[0] = &normalizeFileName($fullarg[0]);
                   push @{$self->{IFILES}}, @fullarg; return 1;
               }
@@ -1357,7 +1357,7 @@ sub cilOutputFile {
     my ($self, $basis, $suffix) = @_;
 
     if (defined $self->{SAVE_TEMPS}) {
-	return new KeptFile($basis, $suffix, $self->{SAVE_TEMPS});
+	return new App::Cilly::KeptFile($basis, $suffix, $self->{SAVE_TEMPS});
     } else {
 	return $self->outputFile($basis, $suffix);
     }
@@ -1369,9 +1369,9 @@ sub outputFile {
     my ($self, $basis, $suffix) = @_;
 
     if (defined $self->{SAVE_TEMPS}) {
-	return new KeptFile($basis, $suffix,  $self->{SAVE_TEMPS});
+	return new App::Cilly::KeptFile($basis, $suffix,  $self->{SAVE_TEMPS});
     } else {
-	return new TempFile($basis, $suffix);
+	return new App::Cilly::TempFile($basis, $suffix);
     }
 }
 
@@ -1580,12 +1580,12 @@ sub compileOutputFile {
             my $dest  = $1;
             # Perhaps $dest is a directory
             if(-d $dest) {
-                return new KeptFile($src, $self->{OBJEXT}, $dest);
+                return new App::Cilly::KeptFile($src, $self->{OBJEXT}, $dest);
             } else {
-                return new OutputFile($src, $1);
+                return new App::Cilly::OutputFile($src, $1);
             }
 	} else {
-	    return new KeptFile($src, $self->{OBJEXT}, '.');
+	    return new App::Cilly::KeptFile($src, $self->{OBJEXT}, '.');
 	}
     } else {
 #        die "compileOutputfile: operation is not TOOBJ";
@@ -2056,12 +2056,12 @@ sub new {
 	    "-m32\$" => { TYPE => 'ALLARGS',
 			  RUN => sub {
 			      push @{$stub->{CILARGS}}, "--envmachine";
-			      $ENV{CIL_MACHINE} = $Cilly::m32model;
+			      $ENV{CIL_MACHINE} = $App::Cilly::m32model;
 			  }},
 	    "-m64\$" => { TYPE => 'ALLARGS',
 			  RUN => sub {
 			      push @{$stub->{CILARGS}}, "--envmachine";
-			      $ENV{CIL_MACHINE} = $Cilly::m64model;
+			      $ENV{CIL_MACHINE} = $App::Cilly::m64model;
 			  }},
             "-m" => { TYPE => 'ALLARGS', ONEMORE => 1 },
 	    "-pthread\$" => { TYPE => 'ALLARGS' },
@@ -2190,9 +2190,9 @@ sub compileOutputFile {
         || ($self->{OPERATION} eq 'TOASM')) {
 	if (defined $self->{OUTARG} 
             && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
-	    return new OutputFile($src, $1);
+	    return new App::Cilly::OutputFile($src, $1);
 	} else {
-	    return new KeptFile($src, $self->{OBJEXT}, '.');
+	    return new App::Cilly::KeptFile($src, $self->{OBJEXT}, '.');
 	}
     } else {
 	return $self->outputFile($src, $self->{OBJEXT});
