@@ -130,7 +130,7 @@ ocamlbuild:
 
    # Now the rule to make cilly
 
-cilly/Makefile: cilly/Makefile.PL
+cilly/Makefile: cilly/Makefile.PL cilly/App/Cilly.pm
 	cd cilly; perl Makefile.PL
 
 cilly: $(OBJDIR)/cilly$(EXE) cilly/Makefile
