@@ -418,7 +418,7 @@ pkglibexecdir = $(libexecdir)/cil
 bindir = @bindir@
 
 install: install-findlib cilly/Makefile
-	$(MAKE) -C cilly install CILBINDIR="$(libexecdir)/cil"
+	$(MAKE) -C cilly install CILBINDIR="$(pkglibexecdir)"
 	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)
 	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)
 
