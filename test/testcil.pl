@@ -857,9 +857,7 @@ sub testCommandExtras {
     my ($self, $extraargs) = @_;
 
     # (sm: pulled this out of addTests so I could write my own addTests)
-    my $theargs = defined($self->{option}->{cildebug})
-        ? " " : " RELEASE=1 ";
-    $theargs .= " $extraargs ";
+    my $theargs = " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";
     }

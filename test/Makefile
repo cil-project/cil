@@ -68,15 +68,6 @@ CILLY := $(CILHOME)/cilly/cilly
 # It is Ok if this file does not exist
 -include $(CILHOME)/.cilrc
 
-# as a convenience, let RELEASE=1 on the command line imply
-# all options designed to make things fast (at least when not in
-# the middle of development)
-ifdef RELEASE
-  # use native code tools
-  export NATIVECAML := 1
-  export CILLY += -O2
-endif
-
 # By default we are on Linux
 ifndef ARCHOS
   ARCHOS := x86_WIN32
@@ -329,12 +320,6 @@ structs : mustbemanju
 # sm: yet another failure-test target, this time utilizing a nomerge
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-ifdef _MSVC
-ifndef RELEASE
-	@echo ">>>>> Set RELEASE=1 when using MSVC to avoid those\
-	pesky dialog boxes. <<<<<"
-endif
-endif
 	cd $(TESTDIR)/small2; \
 	  CILHOME="$(CILHOME)" \
 	  CILLY="$(CILLY) --nomerge --commPrintLn" \

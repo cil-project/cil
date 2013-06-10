@@ -5777,7 +5777,6 @@ let mapGlobals (fl: file)
 
 let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
   printDepth := 99999;  (* We don't want ... in the output *)
-  (* If we are in RELEASE mode then we do not print indentation *)
 
   Pretty.fastMode := true;
 

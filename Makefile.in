@@ -37,11 +37,6 @@ configure: configure.in aclocal.m4
 
 
 
-ifdef RELEASE
-  NATIVECAML := 1
-  UNSAFE     := 1
-endif
-
 ifndef CAMLNATTL
   ifeq (@HAS_OCAML_NATIVE_TOOLS@, 1)
     CAMLNATTL := 1
@@ -366,42 +361,13 @@ distclean: clean
 	rm -f config.h
 	rm -f Makefile
 
-cleancheck:
-	rm -f test/small1/*.o
-	rm -f test/small1/hello
-	rm -f test/small1/vararg1
-	rm -f test/small1/wchar1
-
-clean: cleancaml cleancheck cilly/Makefile
+clean: cleancaml cilly/Makefile
 	$(MAKE) -C cilly clean
 
-
-# Now include the compiler specific stuff
-ifdef _MSVC
-  include Makefile.msvc
-else
-  ifdef _GNUCC
-    include Makefile.gcc
-  endif
-endif
-
-test/%: 
-	cilly/cilly $(CONLY) test/small1/$*.c $(OBJOUT)test/small1/$*.o
-
-testrun/%: 
-	cilly/cilly test/small1/$*.c $(OBJOUT)test/small1/$*
-	test/small1/$*
 
 .PHONY: regtest
 regtest:
 	cd test; ./testcil -r --regrtest
-
-.PHONY: quicktest
-quicktest: $(patsubst %,test/%,func init init1) \
-           $(patsubst %,testrun/%,hello wchar1 vararg1)
-
-.PHONY: check
-check: quicktest
 
 ########################################################################
 
