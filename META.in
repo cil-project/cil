@@ -1,7 +1,5 @@
-# META file for ocamlfind
-# 
-description = "CIL C Intermediate Language"
-requires = "unix,str,num"
+description = "C Intermediate Language"
+requires = "unix str num"
 version = "@CIL_VERSION@"
 archive(byte) = "cil.cma"
-archive(native) = "cil.cmxa" 
+archive(opt) = "cil.cmxa"
