@@ -292,7 +292,7 @@ ifdef NATIVECAML
  CAMLC := ocamlopt
 else
  CMXA := cma
- CAMLC := ocamlc -custom
+ CAMLC := ocamlc
 endif
 
 testrun/% : $(SMALL1)/%.ml

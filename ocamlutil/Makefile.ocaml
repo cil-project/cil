@@ -286,10 +286,10 @@ else
  COMPILETOWHAT  = bytecode
  ifdef PROFILE
    CAMLC          = $(CAMLCP) -p a $(COMPILE_FLAGS)
-   CAMLLINK       = $(CAMLCP) -p a -custom  $(LINK_FLAGS)
+   CAMLLINK       = $(CAMLCP) -p a $(LINK_FLAGS)
  else
    CAMLC          = $(CAMLCMPLR) $(COMPILE_FLAGS)
-   CAMLLINK       = $(CAMLCMPLR) -custom  $(LINK_FLAGS)
+   CAMLLINK       = $(CAMLCMPLR) $(LINK_FLAGS)
  endif
  CAML_NOOPT     = 1
 endif
