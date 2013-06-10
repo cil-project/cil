@@ -20,12 +20,13 @@
 # -------------- usual initial stuff -------------
 # this simply names a file somewhere in the source tree to verify
 # we're in the right directory
-AC_INIT(src/cil.mli)
+AC_INIT
+AC_CONFIG_SRCDIR([src/cil.mli])
 AC_CONFIG_HEADERS(config.h)
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
-AC_PREREQ(2.50)
+AC_PREREQ([2.69])
 
 #
 # Assign here the CIL version numbers
@@ -55,7 +56,7 @@ AC_PROG_INSTALL
 # find system type (using this macro means we must include
 # the files install-sh, config.sub, and config.guess (all from
 # the autoconf distribution) in our source tree!)
-AC_CANONICAL_SYSTEM
+AC_CANONICAL_TARGET
 
 
 # ---------------- generic functions -----------------
@@ -511,15 +512,12 @@ AC_MSG_RESULT([done])
 features="blockinggraph=no zrapp=no llvm=no"
 
 AC_ARG_WITH(blockinggraph,
-    AC_HELP_STRING([--with-blockinggraph],
-                   [enable the blocking graph feature]))
+    AS_HELP_STRING([--with-blockinggraph],[enable the blocking graph feature]))
 AC_ARG_WITH(zrapp,
-    AC_HELP_STRING([--with-zrapp],
-                   [enable the zrapp pretty-printer]))
+    AS_HELP_STRING([--with-zrapp],[enable the zrapp pretty-printer]))
 
 AC_ARG_WITH(llvm,
-    AC_HELP_STRING([--with-llvm],
-                   [enable the LLVM code generator]))
+    AS_HELP_STRING([--with-llvm],[enable the LLVM code generator]))
 
 # Now add any features specified in the command-line
 
@@ -588,7 +586,7 @@ CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(test/llvm/Makefile)
 CIL_CONFIG_FILES(src/machdep-ml.c)
 
-AC_OUTPUT()
+AC_OUTPUT
 
 # show the user what the variables have been set to
 cat <<EOF
