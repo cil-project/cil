@@ -427,10 +427,6 @@ case "$target" in
     CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
-    # Ocaml >= 3.11 uses flexlink for linking
-    if test $major -ge 3 -a $minor -ge 11; then
-      FLEXLINK=yes
-    fi
     ;;
 
   # MinGW
@@ -439,11 +435,6 @@ case "$target" in
 
     ARCHOS=x86_WIN32
     MINGW=yes
-    # Ocaml >= 3.11 uses flexlink for linking
-    if test $major -ge 3 -a $minor -ge 11; then
-      FLEXLINK=yes
-    fi
-
     CC=`which $CC`
     ;;
 
@@ -555,7 +546,6 @@ chmod -w Makefile.features
 # write @ARCHOS@ somewhere in a written file to get it substituted
 AC_SUBST(ARCHOS)
 AC_SUBST(MINGW)
-AC_SUBST(FLEXLINK)
 AC_SUBST(EMUL)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
@@ -565,7 +555,6 @@ AC_SUBST(CIL_VERSION_MAJOR)
 AC_SUBST(CIL_VERSION_MINOR)
 AC_SUBST(CIL_VERSION_REV)
 AC_SUBST(CIL_VERSION)
-AC_SUBST(CYCLES_PER_USEC)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
@@ -600,5 +589,4 @@ CIL configuration:
   CIL version                 CIL_VERSION        $CIL_VERSION
   CIL features                CIL_FEATURES       $CIL_FEATURES
   Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
-  Cycles per microsecond      CYCLES_PER_USEC    $CYCLES_PER_USEC
 EOF
