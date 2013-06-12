@@ -30,8 +30,18 @@ Makefile: config.status Makefile.in
 config.status: configure
 	./$@ --recheck
 
-configure: configure.in aclocal.m4
-	autoconf
+$(srcdir)/configure: configure.ac aclocal.m4
+	cd '$(srcdir)' && autoconf
+
+# autoheader might not change config.h.in, so touch a stamp file.
+$(srcdir)/config.h.in: stamp-h.in
+$(srcdir)/stamp-h.in: configure.ac aclocal.m4
+	cd '$(srcdir)' && autoheader
+	echo timestamp > '$(srcdir)/stamp-h.in'
+
+config.h: stamp-h
+stamp-h: config.h.in config.status
+	./config.status
 
 @DEFAULT_COMPILER@=1
 
@@ -147,7 +157,7 @@ setup: cilversion machdep
 # If the cl command cannot be run then the MSVC part will be identical to GCC
 .PHONY : machdep 
 machdep: $(OBJDIR)/machdep.ml 
-$(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
+$(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	rm -f $@
 	mkdir -p $(OBJDIR)
 	echo "(* This module was generated automatically by code in Makefile and $(<F) *)" >$@
@@ -209,7 +219,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.in Makefile.in
 	echo "let theMachine : mach ref = ref gcc" >>$@
 
 
-cilly/App/Cilly.pm: cilly/App/Cilly.pm.in src/machdep-ml.c configure.in Makefile.in
+cilly/App/Cilly.pm: cilly/App/Cilly.pm.in src/machdep-ml.c configure.ac Makefile.in
 	cp cilly/App/Cilly.pm.in cilly/App/Cilly.pm
 	sed -e "s|CIL_VERSION|@CIL_VERSION@|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
 	mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \

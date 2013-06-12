@@ -23,6 +23,7 @@
 AC_INIT
 AC_CONFIG_SRCDIR([src/cil.mli])
 AC_CONFIG_HEADERS(config.h)
+AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
