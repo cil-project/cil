@@ -2,14 +2,14 @@ dnl check whether integer types $1 and $2 are the same
 
 AC_DEFUN([__CIL_CHECK_INTEGER_TYPE_TYPE], [
   if test -z "$real_type"; then
-    AC_COMPILE_IFELSE(AC_LANG_SOURCE([
+    AC_COMPILE_IFELSE([AC_LANG_SOURCE([
 #include <stddef.h>
 #include <wchar.h>
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
 $2 foo($2 x);
-$1 foo($1 x) { return x; }]),
+$1 foo($1 x) { return x; }])],
     real_type='$2')
   fi
 ])
