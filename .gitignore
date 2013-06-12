@@ -126,7 +126,6 @@
 /test/*.stackdump
 /test/*_all.c
 /test/testingcil.c
-/test/testcil.random
 /test/__log*
 /test/testsafec.smlog
 /test/Makefile

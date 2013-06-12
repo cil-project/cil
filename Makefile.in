@@ -94,7 +94,6 @@ CILLY_LIBRARY_MODULES = pretty inthash errormsg alpha trace stats util clist \
 	      dataslicing sfi expcompare\
               cfg liveness reachingdefs deadcodeelim availexps \
               availexpslv predabst\
-              testcil \
 	      $(CILLY_FEATURES) \
 	      ciloptions feature_config
 # ww: we don't want "main" in an external cil library (cil.cma),
@@ -278,17 +277,6 @@ OCAML_CIL_LIB_MODULES := $(CILLY_LIBRARY_MODULES)
 $(OBJDIR)/cil.$(CMXA): $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
 	$(CAMLLINK) -a -o $@ -ccopt -L$(pkglibdir) \
                $(OCAML_CIL_LIB_MODULES:%=$(OBJDIR)/%.$(CMO))
-
-# Test cil
-ifdef _MSVC
-TESTCILARG=--MSVC --testcil "bash msvctestcil"
-else
-TESTCILARG=       --testcil "bash gcctestcil"
-endif
-
-.PHONY: testcil
-testcil: $(OBJDIR)/cilly$(EXE)
-	       cd test; ../$(OBJDIR)/cilly$(EXE) $(TESTCILARG)
 
 .PHONY: odoc texdoc pdfdoc
 
