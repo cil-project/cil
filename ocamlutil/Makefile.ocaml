@@ -46,8 +46,6 @@
   # you must defined the following variables (which are global for all Ocaml
   # projects specified in one Makefile):
   # 
-  # CAMLDIR    - the directory where to get the ocaml executables from. 
-  #              Must be empty (defaul) or end with a /
   # OBJDIR     - the directory where to put all object files. This directory 
   #              must exist (default obj)
   # DEPENDDIR  - the directory where to put dependency files. This directory 
@@ -155,20 +153,6 @@
   #                    $^
   #
 
-ifdef CAMLNATTL
-  CAMLLEX = $(CAMLDIR)ocamllex.opt
-  CAMLDEP = $(CAMLDIR)ocamldep.opt
-  CAMLCMPLR = $(CAMLDIR)ocamlc.opt
-  CAMLCMPLR_OPT = $(CAMLDIR)ocamlopt.opt
-else
-  CAMLLEX = $(CAMLDIR)ocamllex
-  CAMLDEP = $(CAMLDIR)ocamldep
-  CAMLCMPLR = $(CAMLDIR)ocamlc
-  CAMLCMPLR_OPT = $(CAMLDIR)ocamlopt
-endif
-CAMLCP = $(CAMLDIR)ocamlcp
-
-CAMLYACC = ocamlyacc -v
 
 # Internal versions of COMPILEFLAGS and LINKFLAGS.  We'll add additional flags
 # to these.
@@ -249,13 +233,8 @@ else
  EXEEXT         = .byte
  MOVEAFTERCAMLC = cmi cmo
  COMPILETOWHAT  = bytecode
- ifdef PROFILE
-   CAMLC          = $(CAMLCP) -p a $(COMPILE_FLAGS)
-   CAMLLINK       = $(CAMLCP) -p a $(LINK_FLAGS)
- else
-   CAMLC          = $(CAMLCMPLR) $(COMPILE_FLAGS)
-   CAMLLINK       = $(CAMLCMPLR) $(LINK_FLAGS)
- endif
+ CAMLC          = $(CAMLCMPLR) $(COMPILE_FLAGS)
+ CAMLLINK       = $(CAMLCMPLR) $(LINK_FLAGS)
 endif
 
 

@@ -13,3 +13,4 @@
 # PARTICULAR PURPOSE.
 
 m4_include([m4/cil.m4])
+m4_include([m4/ocaml.m4])

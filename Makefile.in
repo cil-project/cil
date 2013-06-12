@@ -37,18 +37,8 @@ configure: configure.in aclocal.m4
 
 
 
-ifndef CAMLNATTL
-  ifeq (@HAS_OCAML_NATIVE_TOOLS@, 1)
-    CAMLNATTL := 1
-  endif
-endif
-
 ifndef MINGW
    MINGW=@MINGW@
-endif
-
-ifndef FLEXLINK
-   FLEXLINK=@FLEXLINK@
 endif
 
 ifndef EMUL
@@ -113,6 +103,11 @@ BEFOREDEPS += $(OBJDIR)/cilversion.ml
 BEFOREDEPS += $(OBJDIR)/feature_config.ml
 
     # Include now the common set of rules for OCAML
+CAMLLEX = @OCAMLLEX@
+CAMLDEP = @OCAMLDEP@
+CAMLCMPLR = @OCAMLC@
+CAMLCMPLR_OPT = @OCAMLOPT@
+CAMLYACC = @OCAMLYACC@ -v
 include ocamlutil/Makefile.ocaml
 
 OBEXEEXT = $(EXEEXT:asm=native)
