@@ -8,11 +8,7 @@ PDIR 	= .
 # removed because I don't want to recompile every time I change header file
 #INCF 	= pfactor.h
 
-ifndef ARCHOS
-   $(error "You must define the ARCHOS variable")
-endif
-
-LLCIL   = ../../../obj/$(ARCHOS)/cilly.byte.exe --dollvm --envmachine
+LLCIL   = ../../../obj/cilly.byte.exe --dollvm --envmachine
 LLCC    = llvm-as
 CC 	= gcc -m32
 CFLAGS  = -g -DNOMEMOPT $(EXTRACFLAGS)
@@ -35,7 +31,7 @@ OBJS	= $(BINSRC:.c=.bc) $(PSRC:.c=.bc) $(FSRC:.c=.bc)
 %.bc: %.c
 	@mkdir -p temp
 	$(CC) -E $(CFLAGS) $< >temp/$*.i
-	CIL_MACHINE=`../../../obj/$(ARCHOS)/machdep-ml32.exe --env 2>/dev/null` \
+	CIL_MACHINE=`../../../obj/machdep-ml32.exe --env 2>/dev/null` \
 	  $(LLCIL) temp/$*.i >temp/$*.ll
 	$(LLCC) -o $@ temp/$*.ll
 

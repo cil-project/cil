@@ -1,11 +1,6 @@
 SOURCES = $(wildcard *.c)
 TESTS = $(basename $(SOURCES))
 
-ifndef ARCHOS
-   ARCHOS = @ARCHOS@
-endif
-
-OBJ = ../../obj/$(ARCHOS)
 CILLY = $(OBJ)/cilly.byte.exe
 
 all: compare
@@ -26,11 +21,11 @@ compare:
 	@sh compare-with-gcc $(OBJ)
 
 cfrac:
-	make -C cfrac.d ARCHOS=$(ARCHOS)
+	make -C cfrac.d
 
 clean:
 	rm -rf temp
-	make -C cfrac.d clean ARCHOS=$(ARCHOS)
+	make -C cfrac.d clean
 
 FORCE:
 .PHONY: FORCE big cfrac

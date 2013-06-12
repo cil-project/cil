@@ -45,12 +45,6 @@ stamp-h: config.h.in config.status
 
 @DEFAULT_COMPILER@=1
 
-
-
-ifndef MINGW
-   MINGW=@MINGW@
-endif
-
 ifndef EMUL
    EMUL=@EMUL@
 endif

@@ -83,7 +83,7 @@ let useCaseRange = ref false
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
-   Makefile.cil generates the file obj/@ARCHOS@/machdep.ml,
+   Makefile.cil generates the file obj/machdep.ml,
    which contains the descriptions of gcc and msvc. *)
 let envMachine : M.mach option ref = ref None
 

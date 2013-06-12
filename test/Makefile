@@ -12,20 +12,6 @@ include ../config.mk
 
 TESTDIR := .
 
-ifneq ($(ARCHOS), x86_WIN32)
-ifneq ($(ARCHOS), x86_LINUX) 
-ifneq ($(ARCHOS), x86_DARWIN) 
-ifneq ($(ARCHOS), sparc_SOLARIS) 
-   $(error You must set the ARCHOS variable to x86_WIN32, x86_LINUX, x86_DARWIN, or sparc_SOLARIS)
-endif
-endif
-endif
-endif
-
-ifndef BIG_EXAMPLES
- BIG_EXAMPLES := ../../big-examples/
-endif
-
 defaulttarget:
 	@echo "This Makefile is intended to be run with an explicit target."
 
@@ -53,13 +39,8 @@ clean:
 	-find . -name '*.browser' -exec rm -rf {} \;
 
 
-# sm: infer CILHOME when not set, to ease having multiple trees
 ifndef CILHOME
-  ifeq ($(ARCHOS), x86_WIN32)
-    $(error You have not defined the CILHOME variable)
-  else
-    export CILHOME := $(shell pwd)/..
-  endif
+  $(error You have not defined the CILHOME variable)
 endif
 
 CILLY := $(CILHOME)/cilly/cilly
@@ -67,11 +48,6 @@ CILLY := $(CILHOME)/cilly/cilly
 # Now do the user-specific customization
 # It is Ok if this file does not exist
 -include $(CILHOME)/.cilrc
-
-# By default we are on Linux
-ifndef ARCHOS
-  ARCHOS := x86_WIN32
-endif
 
 # Now include the compiler specific stuff
 ifdef _MSVC
@@ -194,12 +170,6 @@ ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
 endif
 
-mustbelinux:
-ifneq ($(ARCHOS), x86_LINUX)
-	@echo This test case works only on Linux; exit 3
-endif
-
-
 ############ Small tests
 SMALL1 := $(TESTDIR)/small1
 
@@ -276,7 +246,6 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-ARCHOS := $(ARCHOS)
 OBJDIR := $(CILHOME)/obj
 ifdef NATIVECAML
  CMXA := cmxa

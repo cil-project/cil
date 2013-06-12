@@ -288,59 +288,9 @@ CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
 # $target is typically processor-vendor-os
 case "$target" in
 
-  *86*linux*)
-    AC_MSG_RESULT(configuring for linux/x86)
-
-    ARCHOS=x86_LINUX
-    ;;
-
-  *86*openbsd*)
-    AC_MSG_RESULT(configuring for OpenBSD/x86)
-
-    ARCHOS=x86_OPENBSD
-    ;;
-
-  *i386*freebsd*|*amd64*freebsd*)
-
-    if test x"${ARCH}" = x""; then
-       ARCH=`uname -p`
-    fi
-
-    AC_MSG_RESULT(configuring for freebsd/${ARCH})
-
-    ARCHOS=${ARCH}_FREEBSD
-    ;;
-
-  *powerpc64*linux*)
-    AC_MSG_RESULT(configuring for linux/powerpc64)
-
-    ARCHOS=ppc64_LINUX
-    ;;
-
-  *powerpc-*linux*)
-    AC_MSG_RESULT(configuring for linux/powerpc)
-
-    ARCHOS=ppc_LINUX
-    ;;
-
-  # Mac OS X
-  *86*darwin*)
-    AC_MSG_RESULT(configuring for darwin/x86)
-
-    ARCHOS=x86_DARWIN
-    ;;
-
-  *powerpc*darwin*)
-    AC_MSG_RESULT(configuring for powerpc/darwin, which we treat like linux/x86)
-
-    ARCHOS=ppc_DARWIN
-    ;;
-
   # cygwin
   *86*cygwin*)
     AC_MSG_RESULT(configuring for Cygwin on win32/x86)
-
-    ARCHOS=x86_WIN32
 
     # override CILHOME; even on cygwin we want forward slashes
     # sm: I folded this into what I hope will be the only
@@ -357,22 +307,12 @@ case "$target" in
   *86*mingw32*)
     AC_MSG_RESULT(configuring for MinGW on win32/x86)
 
-    ARCHOS=x86_WIN32
-    MINGW=yes
     CC=`which $CC`
-    ;;
-
-  # Solaris
-  *sparc*solaris*)
-    AC_MSG_RESULT(configuring for SPARC/Solaris)
-
-    ARCHOS=sparc_SOLARIS
     ;;
 
   *mipsel*linux*)
     AC_MSG_RESULT(configuring for MIPSel/Linux)
 
-    ARCHOS=mipsel_LINUX
     if test $cross_compiling = "yes"; then
       AC_PATH_PROG([EMUL], [qemu-mipsel])
     fi
@@ -381,23 +321,12 @@ case "$target" in
   *mips*linux*)
     AC_MSG_RESULT(configuring for MIPS/Linux)
 
-    ARCHOS=mips_LINUX
     if test $cross_compiling = "yes"; then
       AC_PATH_PROG([EMUL], [qemu-mips])
     fi
     ;;
 
   *)
-    AC_MSG_ERROR([
-      Unsupported platform $target -- sorry.
-      ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), FreeBSD, OpenBSD, and Mac OS X
-         on amd64:   FreeBSD
-         on PowerPC: Mac OS X 
-         on SPARC:   Solaris
-         on MIPS:    Linux
-         on MIPSel:  Linux
-    ])
     ;;
 esac
 
@@ -467,9 +396,7 @@ chmod -w Makefile.features
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
-# write @ARCHOS@ somewhere in a written file to get it substituted
-AC_SUBST(ARCHOS)
-AC_SUBST(MINGW)
+# write @CILHOME@ somewhere in a written file to get it substituted
 AC_SUBST(EMUL)
 AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
@@ -495,7 +422,6 @@ CIL_CONFIG_FILES(test/Makefile)
 CIL_CONFIG_FILES(cilly/App/Cilly/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
-CIL_CONFIG_FILES(test/llvm/Makefile)
 CIL_CONFIG_FILES(src/machdep-ml.c)
 
 AC_OUTPUT
@@ -504,7 +430,6 @@ AC_OUTPUT
 cat <<EOF
 
 CIL configuration:
-  architecture/OS:            ARCHOS             $ARCHOS
   source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
