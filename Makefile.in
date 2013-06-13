@@ -13,11 +13,11 @@
 # 
 
 # Debugging. Set ECHO= to debug this Makefile 
-.PHONY: setup quickbuild doc distrib machdep cilversion
+.PHONY: quickbuild doc machdep cilversion cilly
 ECHO = @
 
 # It is important to build quickbuild first,to generate the proper dependencies
-all:  quickbuild setup
+all:  quickbuild
 
 # Now add the defines for the CIL features
 include Makefile.features
@@ -111,6 +111,12 @@ CAMLDEP = @OCAMLDEP@
 CAMLCMPLR = @OCAMLC@
 CAMLCMPLR_OPT = @OCAMLOPT@
 CAMLYACC = @OCAMLYACC@ -v
+
+OCAMLBEST = @OCAMLBEST@
+ifeq ($(OCAMLBEST),opt)
+	NATIVECAML=1
+endif
+
 include ocamlutil/Makefile.ocaml
 
 OBEXEEXT = $(EXEEXT:asm=native)
@@ -137,14 +143,6 @@ $(OBJDIR)/cilly$(EXE) : $(CILLY_MODULES:%=$(OBJDIR)/%.$(CMO))
 
 
 quickbuild: cilversion machdep cilly cilly/App/Cilly.pm
-
-# Setup also makes the native code versions
-
-setup: cilversion machdep
-	$(MAKE) cilly NATIVECAML= 
-	$(MAKE) cilly NATIVECAML=1
-	$(MAKE) cillib NATIVECAML=
-	$(MAKE) cillib NATIVECAML=1
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
