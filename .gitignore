@@ -39,9 +39,9 @@
 /TEMP_cil-bindistrib
 /_build
 /_log
-/META
 /README
 /index.html
+/stamp-h
 
 # /debian/
 /debian/build-stamp
@@ -84,18 +84,16 @@
 /cilly/Cilly.pm
 /cilly/*.patch2.i*
 
-# /obj/
-/obj/x86_*
-/obj/.depend
-
-# /obj/.depend/
-/obj/.depend/*.d
-/obj/.depend/*.di
+# /_build/
+/_build/*
 
 # /src/
 /src/*.output
 /src/ChangeLog
 /src/machdep-ml.c
+/src/cilversion.ml
+/src/feature_config.ml
+/src/machdep.ml
 
 # /src/frontc/
 /src/frontc/*.output

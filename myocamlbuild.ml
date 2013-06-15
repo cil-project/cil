@@ -1,37 +1,44 @@
-open Ocamlbuild_plugin
-open Command
+open Ocamlbuild_plugin ;;
+open Command ;;
+open Pathname ;;
+open Outcome ;;
 
 
+let find_modules builder mllib =
+  let dirs = include_dirs_of (dirname mllib) in
+  let modules = string_list_of_file mllib in
+  let make_candidates m =
+    List.map (expand_module dirs m) [["cmi"]; ["cmx"]; ["mli"; "inferred.mli"]] in
+  let dependencies = List.flatten (List.map make_candidates modules) in
+  let build_result = builder dependencies in
+  let built_files = List.filter_opt
+    (function Good file -> Some (!Options.build_dir/file) | Bad _ -> None) build_result in
+  String.concat " " built_files
 ;;
 
+dispatch begin function
+| After_rules ->
+    (* the main CIL library *)
+    ocaml_lib "src/cil";
 
-dispatch begin
-  function
-    | After_rules ->
-	(* the main CIL library *)
-	ocaml_lib "src/cil";
+    (* residual reliance on make to build some OCaml source files *)
+    let make target =
+      let basename = Pathname.basename target in
+      rule ("make " ^ target)
+      ~dep: "Makefile"
+      ~prod: basename
+      (fun _ _ -> Cmd (S
+        [A "make"; A "-C"; P ".."; P ("_build" / target)]))
+      in
+      make "cilversion.ml";
+      make "feature_config.ml";
+      make "machdep.ml";
 
-	(* residual reliance on make to build some OCaml source files *)
-	let make target =
-	  let basename = Pathname.basename target in
-	  rule ("make " ^ target)
-	    ~dep: "Makefile"
-	    ~prod: basename
-	    begin
-	      fun env _ ->
-		Cmd (S [A "make";
-			A "-s";
-			A "-C"; P "..";
-			A "MODULES=";
-			A "OBJDIR=_build";
-			P ("_build" / target)])
-	    end
-	in
-	make "cilversion.ml";
-	make "feature_config.ml";
-	make "machdep.ml";
-	make "lib/Cilly.pm";
+    (* Build an list of files to install with ocamlfind *)
+    rule "%.mllib -> %.libfiles"
+    ~dep: "%.mllib"
+    ~prod: "%.libfiles"
+    (fun env builder -> Echo ([find_modules builder (env "%.mllib")], (env "%.libfiles")))
 
-    | _ ->
-	()
-end
+| _ -> ()
+end ;;

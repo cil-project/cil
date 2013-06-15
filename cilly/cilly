@@ -63,15 +63,15 @@ BEGIN {
     @App::Cilly::CilCompiler::ISA = qw(App::Cilly);
     $App::Cilly::CilCompiler::base = "$::cilbindir/cilly";
     # Use the most recent version of cilly
-    $App::Cilly::CilCompiler::mtime_asm = int((stat("$App::Cilly::CilCompiler::base.asm.exe"))[9]);
+    $App::Cilly::CilCompiler::mtime_native = int((stat("$App::Cilly::CilCompiler::base.native.exe"))[9]);
     $App::Cilly::CilCompiler::mtime_byte = int((stat("$App::Cilly::CilCompiler::base.byte.exe"))[9]);
     $App::Cilly::CilCompiler::use_debug = 
          grep(/--bytecode/, @ARGV) ||
          grep(/--ocamldebug/, @ARGV) ||
-        ($App::Cilly::CilCompiler::mtime_asm < $App::Cilly::CilCompiler::mtime_byte);
+        ($App::Cilly::CilCompiler::mtime_native < $App::Cilly::CilCompiler::mtime_byte);
     $App::Cilly::CilCompiler::compiler = 
         $App::Cilly::CilCompiler::base . 
-            ($App::Cilly::CilCompiler::use_debug ? ".byte" : ".asm") . ".exe";
+            ($App::Cilly::CilCompiler::use_debug ? ".byte" : ".native") . ".exe";
     if($App::Cilly::CilCompiler::use_debug) { 
         $ENV{"OCAMLRUNPARAM"} = "b" . $ENV{"OCAMLRUNPARAM"};
     } 

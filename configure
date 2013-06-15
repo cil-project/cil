@@ -633,8 +633,6 @@ DEFAULT_CIL_MODE
 DEFAULT_COMPILER
 HAS_MSVC
 CILHOME
-MINGW
-ARCHOS
 EMUL
 LIBOBJS
 EGREP
@@ -3245,6 +3243,9 @@ test -n "$target_alias" &&
     NONENONEs,x,x, &&
   program_prefix=${target_alias}-
 
+# Check if executables should end with .exe (windows)
+#AC_EXEEXT
+
 
 # ---------------- generic functions -----------------
 # debugging diagnostic; set to 'echo' to debug or 'true' for production
@@ -4302,6 +4303,10 @@ fi
 
 if test "$OCAMLC" = "no"; then
   as_fn_error $? "You must install the OCaml compiler" "$LINENO" 5
+fi
+
+if test "$OCAMLBUILD" = "no"; then
+  as_fn_error $? "You must install ocamlbuild" "$LINENO" 5
 fi
 
   # checking for ocamllex
@@ -5982,67 +5987,10 @@ $as_echo "$real_type" >&6; }
 # $target is typically processor-vendor-os
 case "$target" in
 
-  *86*linux*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for linux/x86" >&5
-$as_echo "configuring for linux/x86" >&6; }
-
-    ARCHOS=x86_LINUX
-    ;;
-
-  *86*openbsd*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for OpenBSD/x86" >&5
-$as_echo "configuring for OpenBSD/x86" >&6; }
-
-    ARCHOS=x86_OPENBSD
-    ;;
-
-  *i386*freebsd*|*amd64*freebsd*)
-
-    if test x"${ARCH}" = x""; then
-       ARCH=`uname -p`
-    fi
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for freebsd/${ARCH}" >&5
-$as_echo "configuring for freebsd/${ARCH}" >&6; }
-
-    ARCHOS=${ARCH}_FREEBSD
-    ;;
-
-  *powerpc64*linux*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for linux/powerpc64" >&5
-$as_echo "configuring for linux/powerpc64" >&6; }
-
-    ARCHOS=ppc64_LINUX
-    ;;
-
-  *powerpc-*linux*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for linux/powerpc" >&5
-$as_echo "configuring for linux/powerpc" >&6; }
-
-    ARCHOS=ppc_LINUX
-    ;;
-
-  # Mac OS X
-  *86*darwin*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for darwin/x86" >&5
-$as_echo "configuring for darwin/x86" >&6; }
-
-    ARCHOS=x86_DARWIN
-    ;;
-
-  *powerpc*darwin*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for powerpc/darwin" >&5
-$as_echo "configuring for powerpc/darwin" >&6; }
-
-    ARCHOS=ppc_DARWIN
-    ;;
-
   # cygwin
   *86*cygwin*)
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for Cygwin on win32/x86" >&5
 $as_echo "configuring for Cygwin on win32/x86" >&6; }
-
-    ARCHOS=x86_WIN32
 
     # override CILHOME; even on cygwin we want forward slashes
     # sm: I folded this into what I hope will be the only
@@ -6060,24 +6008,13 @@ $as_echo "configuring for Cygwin on win32/x86" >&6; }
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MinGW on win32/x86" >&5
 $as_echo "configuring for MinGW on win32/x86" >&6; }
 
-    ARCHOS=x86_WIN32
-    MINGW=yes
     CC=`which $CC`
-    ;;
-
-  # Solaris
-  *sparc*solaris*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for SPARC/Solaris" >&5
-$as_echo "configuring for SPARC/Solaris" >&6; }
-
-    ARCHOS=sparc_SOLARIS
     ;;
 
   *mipsel*linux*)
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MIPSel/Linux" >&5
 $as_echo "configuring for MIPSel/Linux" >&6; }
 
-    ARCHOS=mipsel_LINUX
     if test $cross_compiling = "yes"; then
       # Extract the first word of "qemu-mipsel", so it can be a program name with args.
 set dummy qemu-mipsel; ac_word=$2
@@ -6126,7 +6063,6 @@ fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MIPS/Linux" >&5
 $as_echo "configuring for MIPS/Linux" >&6; }
 
-    ARCHOS=mips_LINUX
     if test $cross_compiling = "yes"; then
       # Extract the first word of "qemu-mips", so it can be a program name with args.
 set dummy qemu-mips; ac_word=$2
@@ -6172,34 +6108,8 @@ fi
     ;;
 
   *)
-    as_fn_error $? "
-      Unsupported platform $target -- sorry.
-      ./configure supports these platforms:
-         on x86:     Linux, Win32(with Cygwin), FreeBSD, OpenBSD, and Mac OS X
-         on amd64:   FreeBSD
-         on PowerPC: Mac OS X
-         on SPARC:   Solaris
-         on MIPS:    Linux
-         on MIPSel:  Linux
-    " "$LINENO" 5
     ;;
 esac
-
-# Make the object directory if not already present
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking obj/ and related files" >&5
-$as_echo_n "checking obj/ and related files... " >&6; }
-if test -d obj/; then
-    mkdir -p obj/
-fi
-
-rm -f obj/machdep.ml
-rm -f obj/.depend/machdep.d
-rm -f obj/feature_config.ml
-rm -f obj/.depend/feature_config.d
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: done" >&5
-$as_echo "done" >&6; }
-
-
 
 #
 # CIL features
@@ -6267,9 +6177,7 @@ chmod -w Makefile.features
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
-# write @ARCHOS@ somewhere in a written file to get it substituted
-
-
+# write @CILHOME@ somewhere in a written file to get it substituted
 
 
 
@@ -6349,15 +6257,6 @@ chmod -w Makefile.features
   else
     true
     #echo "skipping [doc/header.html] because it's not in this distribution"
-  fi
-}
-{
-  if test -f test/llvm/Makefile.in; then
-    ac_config_files="$ac_config_files test/llvm/Makefile"
-
-  else
-    true
-    #echo "skipping [test/llvm/Makefile] because it's not in this distribution"
   fi
 }
 {
@@ -7069,7 +6968,6 @@ do
     "cilly/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES cilly/App/Cilly/CilConfig.pm" ;;
     "doc/index.html") CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
     "doc/header.html") CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
-    "test/llvm/Makefile") CONFIG_FILES="$CONFIG_FILES test/llvm/Makefile" ;;
     "src/machdep-ml.c") CONFIG_FILES="$CONFIG_FILES src/machdep-ml.c" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -7631,7 +7529,6 @@ $as_echo "$as_me: $ac_file is unchanged" >&6;}
     "cilly/App/Cilly/CilConfig.pm":F) chmod a-w cilly/App/Cilly/CilConfig.pm ;;
     "doc/index.html":F) chmod a-w doc/index.html ;;
     "doc/header.html":F) chmod a-w doc/header.html ;;
-    "test/llvm/Makefile":F) chmod a-w test/llvm/Makefile ;;
     "src/machdep-ml.c":F) chmod a-w src/machdep-ml.c ;;
 
   esac
@@ -7676,7 +7573,6 @@ fi
 cat <<EOF
 
 CIL configuration:
-  architecture/OS:            ARCHOS             $ARCHOS
   source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC

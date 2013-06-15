@@ -55,6 +55,9 @@ AC_PROG_INSTALL
 # the autoconf distribution) in our source tree!)
 AC_CANONICAL_TARGET
 
+# Check if executables should end with .exe (windows)
+#AC_EXEEXT
+
 
 # ---------------- generic functions -----------------
 # debugging diagnostic; set to 'echo' to debug or 'true' for production
@@ -111,6 +114,10 @@ fi
 AC_PROG_OCAML
 if test "$OCAMLC" = "no"; then
   AC_MSG_ERROR([You must install the OCaml compiler])
+fi
+
+if test "$OCAMLBUILD" = "no"; then
+  AC_MSG_ERROR([You must install ocamlbuild])
 fi
 
 AC_PROG_OCAMLLEX
@@ -329,20 +336,6 @@ case "$target" in
   *)
     ;;
 esac
-
-# Make the object directory if not already present
-AC_MSG_CHECKING([obj/ and related files])
-if test -d obj/; then
-    mkdir -p obj/
-fi
-
-rm -f obj/machdep.ml
-rm -f obj/.depend/machdep.d
-rm -f obj/feature_config.ml
-rm -f obj/.depend/feature_config.d
-AC_MSG_RESULT([done])
-
-
 
 #
 # CIL features
