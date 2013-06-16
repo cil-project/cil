@@ -86,6 +86,7 @@
 /lib/Makefile.old
 /lib/MYMETA.yml
 /lib/blib/*
+/lib/pm_to_blib
 
 # /bin/
 /bin/cilly.*

@@ -283,16 +283,14 @@ INSTALL_DATA = @INSTALL_DATA@
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
-libdir = @libdir@
-pkglibdir = $(libdir)/cil
 bindir = @bindir@
 
-install: install-findlib $(CILLYDIR)/Makefile
+install: $(CILLY) install-findlib
 	$(MAKE) -C $(CILLYDIR) install
-	$(INSTALL) -m 0755 $(OBJDIR)/$(CILLY).* $(DESTDIR)$(bindir)
+	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
 # FIXME
-uninstall: uninstall-findlib $(CILLYDIR)/Makefile
+uninstall: $(CILLYDIR)/Makefile uninstall-findlib
 	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
 	$(MAKE) -C $(CILLYDIR) uninstall
 
