@@ -79,10 +79,13 @@
 # /doc/html/
 /doc/html/*
 
-# /cilly/
-/cilly/CilConfig.pm
-/cilly/Cilly.pm
-/cilly/*.patch2.i*
+# /lib/
+/lib/App/Cilly/CilConfig.pm
+/lib/App/Cilly.pm
+/lib/Makefile
+/lib/Makefile.old
+/lib/MYMETA.yml
+/lib/blib/*
 
 # /bin/
 /bin/cilly.*
