@@ -16,6 +16,10 @@ let find_modules builder mllib =
   String.concat " " built_files
 ;;
 
+let cil_version =
+  try Printf.sprintf "(version %s)" (Sys.getenv "CIL_VERSION")
+  with Not_found -> "" ;;
+
 dispatch begin function
 | After_rules ->
     (* the main CIL library *)
@@ -38,7 +42,15 @@ dispatch begin function
     rule "%.mllib -> %.libfiles"
     ~dep: "%.mllib"
     ~prod: "%.libfiles"
-    (fun env builder -> Echo ([find_modules builder (env "%.mllib")], (env "%.libfiles")))
+    (fun env builder -> Echo (
+      [find_modules builder (env "%.mllib")],
+      (env "%.libfiles")));
 
+    (* Flags for ocamldoc *)
+    flag ["ocaml";"doc"] (S [
+      A "-stars";
+      A "-hide"; A "Pervasives";
+      A "-t" ; A (Printf.sprintf "CIL API Documentation %s" cil_version);
+    ]);
 | _ -> ()
 end ;;
