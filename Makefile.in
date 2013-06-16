@@ -1,4 +1,4 @@
-# -*- Mode: makefile -*- 
+# -*- Mode: makefile -*-
 
 # Makefile for the cil wrapper
 # @do_not_edit@ Makefile.in
@@ -15,7 +15,7 @@ include Makefile.features
 
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
-Makefile: config.status Makefile.in 
+Makefile: config.status Makefile.in
 	./$<
 
 config.status: configure
@@ -58,7 +58,7 @@ CILLIB_FILES = $(OBJDIR)/src/cil.cma
 ifeq ($(OCAMLBEST),opt)
  CILLIB_FILES  += $(OBJDIR)/src/cil.cmxa
  EXEMODE        = .native
-else 
+else
  EXEMODE        = .byte
 endif
 
@@ -81,7 +81,7 @@ $(OBJDIR)/doc/%: .FORCE
 
 # OCaml CIL library
 .PHONY: cillib
-cillib: $(CILLIB_FILES)
+cillib: $(CILLIB_FILES) $(OBJDIR)/src/cil.libfiles
 
 # cilly main executable
 $(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
@@ -97,13 +97,13 @@ $(CILLY): $(BINDIR)/$(CILLY)$(EXE) $(CILLYDIR)/Makefile
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
-.PHONY : machdep 
-machdep: $(OBJDIR)/machdep.ml 
+.PHONY : machdep
+machdep: $(OBJDIR)/machdep.ml
 $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@rm -f $@
 	@mkdir -p $(OBJDIR)
 	@echo "(* This module was generated automatically by code in Makefile and $(<F) *)" >$@
-	@echo "type mach = {" >> $@ 
+	@echo "type mach = {" >> $@
 	@echo "  version_major: int;     (* Major version number *)"    >> $@
 	@echo "  version_minor: int;     (* Minor version number *)"    >> $@
 	@echo "  version: string;        (* gcc version string *)"      >> $@
@@ -120,7 +120,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@echo "  sizeof_void: int;       (* Size of \"void\" *)"        >> $@
 	@echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
 	@echo "  size_t: string;         (* Type of \"sizeof(T)\" *)"   >> $@
-	@echo "  wchar_t: string;        (* Type of \"wchar_t\" *)"     >> $@ 
+	@echo "  wchar_t: string;        (* Type of \"wchar_t\" *)"     >> $@
 	@echo "  alignof_short: int;     (* Alignment of \"short\" *)"  >> $@
 	@echo "  alignof_int: int;       (* Alignment of \"int\" *)"    >> $@
 	@echo "  alignof_bool: int;      (* Alignment of \"_Bool\" *)"    >> $@
@@ -144,7 +144,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	    echo "machdep-ml.exe created succesfully." \
 	;else \
             rm -f $@; exit 1 \
-        ;fi 
+        ;fi
 	@echo "let gcc = {" >>$@
 	@$(EMUL) $(OBJDIR)/machdep-ml.exe >>$@
 	@echo "}"          >>$@
@@ -183,29 +183,29 @@ feature_config: $(OBJDIR)/feature_config.ml
 $(OBJDIR)/feature_config.ml: config.status
 	rm -f $(OBJDIR)/feature_config.*
 	echo "(* This module was generated automatically by code in Makefile.in *)" >$@
-	echo "open Cil"   >>$@ 
+	echo "open Cil"   >>$@
 	echo "let features : featureDescr list = [" >> $@
 ifdef USE_BLOCKINGGRAPH
-	echo "   Blockinggraph.feature;" >> $@  
+	echo "   Blockinggraph.feature;" >> $@
 endif
 ifdef USE_RAND
-	echo "   Rand.feature;" >> $@  
+	echo "   Rand.feature;" >> $@
 endif
 ifdef USE_ARITHABS
 	echo "   Arithabs.feature;" >>$@
 endif
 ifdef USE_ZRAPP
-	echo "   Zrapp.feature;" >> $@  
+	echo "   Zrapp.feature;" >> $@
 endif
 ifdef USE_LLVM
-	echo "   Llvm.feature;" >> $@  
+	echo "   Llvm.feature;" >> $@
 endif
-	echo " (* EXTRAFEATURES: *)" >> $@  
+	echo " (* EXTRAFEATURES: *)" >> $@
 	echo \
           $(foreach f,@EXTRAFEATURES@, \
              "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") \
 	| perl -pe 's/\\n/\n/g' >> $@
-	echo "]"   >>$@ 
+	echo "]"   >>$@
 
 ### DOCUMENTATION
 
@@ -298,8 +298,8 @@ uninstall: uninstall-findlib $(CILLYDIR)/Makefile
 
 .PHONY: install-findlib uninstall-findlib
 
-install-findlib: $(OBJDIR)/src/cil.libfiles cillib uninstall-findlib
-	$(OCAMLFIND) install -patch-version @CIL_VERSION@ cil META $(CILLIB_FILES) `cat $<`
+install-findlib: cillib uninstall-findlib
+	$(OCAMLFIND) install -patch-version @CIL_VERSION@ cil META $(CILLIB_FILES) `cat $(OBJDIR)/src/cil.libfiles`
 
 uninstall-findlib:
 	$(OCAMLFIND) remove cil
