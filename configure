@@ -632,7 +632,6 @@ CIL_VERSION_MAJOR
 DEFAULT_CIL_MODE
 DEFAULT_COMPILER
 HAS_MSVC
-CILHOME
 EMUL
 LIBOBJS
 EGREP
@@ -3269,10 +3268,6 @@ binaryExists() {
 
 
 # -------------- portable configuration ----------------
-# this specifies the root of the source tree; it's just the
-# directory where ./configure runs, except on cygwin, which
-# overrides this below
-CILHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
@@ -5992,13 +5987,6 @@ case "$target" in
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for Cygwin on win32/x86" >&5
 $as_echo "configuring for Cygwin on win32/x86" >&6; }
 
-    # override CILHOME; even on cygwin we want forward slashes
-    # sm: I folded this into what I hope will be the only
-    # case-analysis of machine type
-    #CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
-    # Try to use the Unix paths even on cygwin. The newest versions of make
-    #  do not like colons in file names
-    CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;
@@ -6177,8 +6165,7 @@ chmod -w Makefile.features
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
-# write @CILHOME@ somewhere in a written file to get it substituted
-
+# write @CIL_VERSION@ somewhere in a written file to get it substituted
 
 
 
@@ -6233,12 +6220,12 @@ chmod -w Makefile.features
   fi
 }
 {
-  if test -f cilly/App/Cilly/CilConfig.pm.in; then
-    ac_config_files="$ac_config_files cilly/App/Cilly/CilConfig.pm"
+  if test -f lib/App/Cilly/CilConfig.pm.in; then
+    ac_config_files="$ac_config_files lib/App/Cilly/CilConfig.pm"
 
   else
     true
-    #echo "skipping [cilly/App/Cilly/CilConfig.pm] because it's not in this distribution"
+    #echo "skipping [lib/App/Cilly/CilConfig.pm] because it's not in this distribution"
   fi
 }
 {
@@ -6965,7 +6952,7 @@ do
     "META") CONFIG_FILES="$CONFIG_FILES META" ;;
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
-    "cilly/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES cilly/App/Cilly/CilConfig.pm" ;;
+    "lib/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES lib/App/Cilly/CilConfig.pm" ;;
     "doc/index.html") CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
     "doc/header.html") CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
     "src/machdep-ml.c") CONFIG_FILES="$CONFIG_FILES src/machdep-ml.c" ;;
@@ -7526,7 +7513,7 @@ $as_echo "$as_me: $ac_file is unchanged" >&6;}
     "META":F) chmod a-w META ;;
     "config.mk":F) chmod a-w config.mk ;;
     "test/Makefile":F) chmod a-w test/Makefile ;;
-    "cilly/App/Cilly/CilConfig.pm":F) chmod a-w cilly/App/Cilly/CilConfig.pm ;;
+    "lib/App/Cilly/CilConfig.pm":F) chmod a-w lib/App/Cilly/CilConfig.pm ;;
     "doc/index.html":F) chmod a-w doc/index.html ;;
     "doc/header.html":F) chmod a-w doc/header.html ;;
     "src/machdep-ml.c":F) chmod a-w src/machdep-ml.c ;;
@@ -7573,7 +7560,6 @@ fi
 cat <<EOF
 
 CIL configuration:
-  source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER

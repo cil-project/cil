@@ -3,10 +3,12 @@
 # Makefile for the cil wrapper
 # @do_not_edit@ Makefile.in
 #
-# author: George Necula
+# authors: George Necula, Gabriel Kerneis
+
+CILLY			  := cilly
 
 .PHONY: all
-all: cillib cilly
+all: cillib $(CILLY)
 
 # Now add the defines for the CIL features
 include Makefile.features
@@ -46,10 +48,10 @@ else
    MACHDEPCC=gcc -D_GNUCC
 endif
 
-# Put here all the byproducts of make
 # We have to use _build because of OCaml's bug #0004502
 OBJDIR      := _build
 BINDIR		  := bin
+CILLYDIR	  := lib
 
 OCAMLBEST := @OCAMLBEST@
 CILLIB_FILES = $(OBJDIR)/src/cil.cma
@@ -82,16 +84,16 @@ $(OBJDIR)/doc/%: .FORCE
 cillib: $(CILLIB_FILES)
 
 # cilly main executable
-$(OBJDIR)/cilly$(EXE): $(OBJDIR)/src/main$(EXEMODE)
+$(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
 	cp $< $@
 
 # cilly perl wrapper
-cilly/Makefile: cilly/Makefile.PL cilly/App/Cilly.pm
-	cd cilly; perl Makefile.PL
+$(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
+	cd $(CILLYDIR); perl Makefile.PL
 
 .PHONY: cilly
-cilly: $(OBJDIR)/cilly$(EXE) cilly/Makefile
-	$(MAKE) -C cilly
+$(CILLY): $(BINDIR)/$(CILLY)$(EXE) $(CILLYDIR)/Makefile
+	$(MAKE) -C $(CILLYDIR)
 
 # Create the machine dependency module
 # If the cl command cannot be run then the MSVC part will be identical to GCC
@@ -157,17 +159,17 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 			  ;fi
 	@echo "let theMachine : mach ref = ref gcc" >>$@
 
-cilly/App/Cilly.pm: cilly/App/Cilly.pm.in src/machdep-ml.c configure.ac Makefile.in
-	cp cilly/App/Cilly.pm.in cilly/App/Cilly.pm
-	sed -e "s|CIL_VERSION|@CIL_VERSION@|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
-	mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
+$(CILLYDIR)/App/Cilly.pm: $(CILLYDIR)/App/Cilly.pm.in src/machdep-ml.c configure.ac Makefile.in
+	cp $(CILLYDIR)/App/Cilly.pm.in $(CILLYDIR)/App/Cilly.pm
+	sed -e "s|CIL_VERSION|@CIL_VERSION@|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
+	mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
 	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
-	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
-	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
+	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
+	  mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
 	fi
 	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
-	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" cilly/App/Cilly.pm > cilly/App/Cilly.pm.tmp; \
-	  mv cilly/App/Cilly.pm.tmp cilly/App/Cilly.pm; \
+	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
+	  mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
 	fi
 
 .PHONY: cilversion
@@ -220,7 +222,7 @@ odoc: $(OBJDIR)/doc/cil.docdir/index.html
 	-mkdir -p doc/html/cil/
 	-cp -r $(dir $<) doc/html/cil/api
 
-doc/cilpp.tex: doc/cilcode.pl doc/cil.tex cilly/App/Cilly.pm
+doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLYDIR)/App/Cilly.pm
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
@@ -245,7 +247,7 @@ pdfdoc: doc/cilpp.tex
 .PHONY: distclean cleandoc cleancilly clean
 distclean: clean
 	rm -f Makefile
-	rm -f cilly/App/Cilly/CilConfig.pm
+	rm -f $(CILLYDIR)/App/Cilly/CilConfig.pm
 	rm -f config.h
 	rm -f config.log
 	rm -f config.mk
@@ -260,16 +262,17 @@ cleandoc:
 
 cleancilly:
 
-clean: cilly/Makefile
+clean: $(CILLYDIR)/Makefile
 	rm -rf $(OBJDIR)
+	rm -f $(BINDIR)/$(CILLY).*
 	rm -rf doc/html/
-	$(MAKE) -C cilly clean
-	rm -f cilly/App/Cilly.pm
-	rm -f cilly/Makefile.old
+	$(MAKE) -C $(CILLYDIR) clean
+	rm -f $(CILLYDIR)/App/Cilly.pm
+	rm -f $(CILLYDIR)/Makefile.old
 	rm -f Makefile.features
 
-.PHONY: regtest
-regtest:
+.PHONY: test
+test:
 	cd test; ./testcil -r --regrtest
 
 ########################################################################
@@ -282,23 +285,18 @@ exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
 libdir = @libdir@
 pkglibdir = $(libdir)/cil
-libexecdir = @libexecdir@
-pkglibexecdir = $(libexecdir)/cil
 bindir = @bindir@
 
-install: install-findlib cilly/Makefile
-	$(MAKE) -C cilly install CILBINDIR="$(pkglibexecdir)"
-	$(INSTALL) -d $(DESTDIR)$(pkglibexecdir)
-	$(INSTALL) -m 0755 $(OBJDIR)/cilly.*.exe $(DESTDIR)$(pkglibexecdir)
+install: install-findlib $(CILLYDIR)/Makefile
+	$(MAKE) -C $(CILLYDIR) install
+	$(INSTALL) -m 0755 $(OBJDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
 # FIXME
-uninstall: uninstall-findlib cilly/Makefile
-	-rm -rf $(DESTDIR)$(pkglibexecdir)
-	$(MAKE) -C cilly uninstall
+uninstall: uninstall-findlib $(CILLYDIR)/Makefile
+	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
+	$(MAKE) -C $(CILLYDIR) uninstall
 
 .PHONY: install-findlib uninstall-findlib
-
-SOURCEDIRS  = src src/frontc src/ext src/ext/pta ocamlutil @EXTRASRCDIRS@
 
 install-findlib: $(OBJDIR)/src/cil.libfiles cillib uninstall-findlib
 	$(OCAMLFIND) install -patch-version @CIL_VERSION@ cil META $(CILLIB_FILES) `cat $<`

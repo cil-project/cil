@@ -84,6 +84,9 @@
 /cilly/Cilly.pm
 /cilly/*.patch2.i*
 
+# /bin/
+/bin/cilly.*
+
 # /_build/
 /_build/*
 

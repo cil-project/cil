@@ -81,10 +81,6 @@ binaryExists() {
 
 
 # -------------- portable configuration ----------------
-# this specifies the root of the source tree; it's just the
-# directory where ./configure runs, except on cygwin, which
-# overrides this below
-CILHOME=`pwd`
 
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
@@ -299,13 +295,6 @@ case "$target" in
   *86*cygwin*)
     AC_MSG_RESULT(configuring for Cygwin on win32/x86)
 
-    # override CILHOME; even on cygwin we want forward slashes
-    # sm: I folded this into what I hope will be the only
-    # case-analysis of machine type
-    #CILHOME=`cygpath -wa "$CILHOME"  | sed -e "s/\\\\\/\\//g"`
-    # Try to use the Unix paths even on cygwin. The newest versions of make
-    #  do not like colons in file names
-    CILHOME=`cygpath -u "$CILHOME"`
     CC=`which $CC`
     CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
     ;;
@@ -389,9 +378,8 @@ chmod -w Makefile.features
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
-# write @CILHOME@ somewhere in a written file to get it substituted
+# write @CIL_VERSION@ somewhere in a written file to get it substituted
 AC_SUBST(EMUL)
-AC_SUBST(CILHOME)
 AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
 AC_SUBST(DEFAULT_CIL_MODE)
@@ -412,7 +400,7 @@ CIL_CONFIG_FILES(Makefile)
 CIL_CONFIG_FILES(META)
 CIL_CONFIG_FILES(config.mk)
 CIL_CONFIG_FILES(test/Makefile)
-CIL_CONFIG_FILES(cilly/App/Cilly/CilConfig.pm)
+CIL_CONFIG_FILES(lib/App/Cilly/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(src/machdep-ml.c)
@@ -423,7 +411,6 @@ AC_OUTPUT
 cat <<EOF
 
 CIL configuration:
-  source tree root:           CILHOME            $CILHOME
   (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
