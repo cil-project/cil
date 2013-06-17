@@ -39,7 +39,8 @@
 use strict;
 use Data::Dumper;
 use FindBin;
-use lib "$FindBin::RealBin/../lib";
+use lib "$FindBin::RealBin/../lib"; # to use without installing
+use lib "$FindBin::RealBin/../lib/perl5"; # to install with INSTALL_BASE set
 
 # Read the configuration script
 use App::Cilly::CilConfig;
