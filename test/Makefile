@@ -42,6 +42,14 @@ clean:
 CILHOME := $(CURDIR)/..
 CILLY := $(CILHOME)/bin/cilly
 
+ifdef _MSVC
+	include Makefile.msvc
+else
+ifdef _GNUCC
+	include Makefile.gcc
+endif
+endif
+
 CILLY += --mode=$(COMPILERNAME) --decil
 
 export EXTRAARGS
@@ -74,9 +82,6 @@ ifdef USECFG
 endif
 ifdef USECABS
   CILLY+= --usecabs
-endif
-ifndef NATIVECAML
-  CILLY+= --bytecode
 endif
 ifdef VERBOSE
   CILLY+= --verbose --warnall
@@ -229,7 +234,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-OBJDIR := $(CILHOME)/obj
+OBJDIR := $(CILHOME)/_build
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt

@@ -163,12 +163,12 @@ sub addToGroup {
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "$make setup",
+    Cmd => "$make cilly cillib",
     Group => ['ALWAYS']);
 $TEST->newTest(
     Name => "!inittests2",
     Dir => "..",
-    Cmd => "$make setup _GNUCC=1",
+    Cmd => "$make cilly cillib _GNUCC=1",
     Group => ['ALWAYS']);
 
 
