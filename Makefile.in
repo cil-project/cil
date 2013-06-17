@@ -98,7 +98,7 @@ ifeq ($(FORCE_PERL_PREFIX), 1)
 	export PERL_MM_OPT
 endif
 
-$(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
+$(CILLYDIR)/Makefile: Makefile $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
 	cd $(CILLYDIR); $(PERL) Makefile.PL
 
 .PHONY: cilly
