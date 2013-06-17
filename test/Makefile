@@ -101,6 +101,9 @@ endif
 ifdef LOCALINIT
   CILLY+= --noMakeStaticGlobal
 endif
+ifdef OPTIMIZE
+	CILLY+= $(OPT_O2)
+endif
 
 
 

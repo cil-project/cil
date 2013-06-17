@@ -574,7 +574,7 @@ addTest("testrun/builtin ");
 addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
 addTest("testrun/builtin_choose_expr");
-addTest("testrungcc/builtin_object_size _GNUCC=1");
+addTest("testrungcc/builtin_object_size _GNUCC=1 OPTIMIZE=1");
 addTest("testrun/builtin4 ");
 addTest("test/builtin5 ");
 addTest("test/sync-1 _GNUCC=1");
