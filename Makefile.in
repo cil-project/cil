@@ -90,6 +90,14 @@ $(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
 	cp $< $@
 
 # cilly perl wrapper
+prefix = @prefix@
+
+FORCE_PERL_PREFIX = @FORCE_PERL_PREFIX@
+ifeq ($(FORCE_PERL_PREFIX), 1)
+	PERL_MM_OPT = PREFIX="$(prefix)" LIB="$(prefix)/lib"
+	export PERL_MM_OPT
+endif
+
 $(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
 	cd $(CILLYDIR); $(PERL) Makefile.PL
 
@@ -282,7 +290,6 @@ test:
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 
-prefix = @prefix@
 exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
 bindir = @bindir@
