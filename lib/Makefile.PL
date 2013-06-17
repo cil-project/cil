@@ -42,6 +42,7 @@ force_uninstall:
 ifeq ($(INSTALLDIRS), site)
 	$(RM_F) $(DESTINSTALLSITEBIN)/cilly
 	$(RM_RF) $(DESTINSTALLSITELIB)/App/Cilly*
+	$(RM_RF) $(DESTINSTALLSITEARCH)/auto/$(FULLEXT)
 else
 	echo "force_uninstall works only if INSTALLDIRS=site"
 endif
