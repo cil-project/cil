@@ -30,3 +30,25 @@ WriteMakefile(
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => '' },
 );
+
+package MY;
+
+sub MY::postamble {
+    my $postamble = <<'MAKE_FRAG';
+
+.PHONY: real-uninstall
+
+force_uninstall:
+ifeq ($(INSTALLDIRS), site)
+	$(RM_F) $(DESTINSTALLSITEBIN)/cilly
+	$(RM_RF) $(DESTINSTALLSITELIB)/App/Cilly*
+else
+	echo "force_uninstall works only if INSTALLDIRS=site"
+endif
+
+MAKE_FRAG
+
+    return $postamble;
+}
+
+1;

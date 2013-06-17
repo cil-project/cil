@@ -295,13 +295,13 @@ datarootdir = @datarootdir@
 bindir = @bindir@
 
 install: $(CILLY) install-findlib
-	$(MAKE) -C $(CILLYDIR) install
+	$(MAKE) -C $(CILLYDIR) pure_install
 	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
 # FIXME
 uninstall: $(CILLYDIR)/Makefile uninstall-findlib
 	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
-	$(MAKE) -C $(CILLYDIR) uninstall
+	$(MAKE) -C $(CILLYDIR) force_uninstall
 
 .PHONY: install-findlib uninstall-findlib
 
