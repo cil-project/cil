@@ -56,28 +56,7 @@ AC_PROG_INSTALL
 AC_CANONICAL_TARGET
 
 # Check if executables should end with .exe (windows)
-#AC_EXEEXT
-
-
-# ---------------- generic functions -----------------
-# debugging diagnostic; set to 'echo' to debug or 'true' for production
-# (technically you're not supposed to use shell functions in
-# configure scripts, because some-obscure-sh somewhere doesn't
-# support them.. but they're too convenient to not use)
-diagnostic() {
-  #echo "$@"
-  true "$@"
-}
-
-# determine if a binary is in the path
-binaryExists() {
-  # on cygwin, 'which' always returns success, so use 'type' instead
-  if type "$1" >/dev/null 2>&1; then
-    return 0
-  else
-    return 1
-  fi
-}
+AC_EXEEXT
 
 
 # -------------- portable configuration ----------------
@@ -106,7 +85,8 @@ else
   fi
 fi
 
-# Testing OCaml availability
+# ------------------- OCaml ----------------
+
 AC_PROG_OCAML
 if test "$OCAMLC" = "no"; then
   AC_MSG_ERROR([You must install the OCaml compiler])
@@ -131,117 +111,12 @@ if test "$OCAMLFIND" = "no"; then
   AC_MSG_ERROR([You must install OCaml findlib (the ocamlfind command)])
 fi
 
-#
 # ------------------- Perl ----------------
-#
-AC_MSG_CHECKING([for Perl])
-  if ! binaryExists perl; then
-    AC_MSG_ERROR([
-      perl not found.
-      You need perl version 5.6.1 or later for CIL.
-      You can get perl at http://www.cpan.org/src/index.html .
-    ])
-  fi
 
-  # sm: oh how nice it would be to just say "use English;
-  # print($PERL_VERSION)", but that appears broken on 5.6.1.. so I'm
-  # trying to say "caret right-bracket", but then that would run afoul
-  # of autoconf's quoting characters, so I use the "quadrigraph" @:>@
-  # to stand for right-bracket.  what a mess.
-  perlver=`perl -e 'print($@:>@);'`
-  if perl -e "exit( $perlver >= 5.006001 );"; then
-    AC_MSG_ERROR([
-      Found perl version $perlver, but at least 5.6.1 is required.
-      You can get a newer perl at http://www.cpan.org/src/index.html .
-    ])
-  fi
-
-  perlport=`perl -e "print $^O;"`
-  case "$perlport" in
-    cygwin)
-        ;;
-    msys)
-        ;;
-    MSWin32) # ActivePerl
-        ;;
-    linux)
-        ;;
-    freebsd)
-        ;;
-    openbsd)
-        ;;
-    darwin) # Mac OS X
-        ;;
-    solaris)
-	;;
-    *)
-      AC_MSG_ERROR([
-        Unsupported Perl port $perlport -- sorry.
-        cygwin, MSWin32 (ActivePerl), linux, freebsd, openbsd, darwin,
-        and solaris are the supported ports.
-      ])
-  esac
-AC_MSG_RESULT([found version $perlver, port $perlport])
-
-        # The cygwin port has some bugs in the File::Spec module
-if test "$perlport" = "cygwin" ;then
-  AC_MSG_CHECKING([for known cygwin Perl bug in File::Spec])
-  perlfixres=[`perl -e '
-      use File::Spec;
-      if(File::Spec->file_name_is_absolute("C:/test")) {
-        print "no bug found"; exit 0;
-      } else {
-        print "bug";
-        foreach $d (@INC) {
-           if(-f "$d/File/Spec/Unix.pm") {
-              open(IN, "<$d/File/Spec/Unix.pm");
-              open(OUT, ">$d/File/Spec/Unix.pm.fixed") 
-                       || die "Cannot open $d/File/Spec/Unix.pm.fixed";
-              while(<IN>) {
-                if($_ =~ m|sub file_name_is_absolute|) {
-                   print OUT $_;
-                   print OUT scalar(<IN>);
-                   print OUT <<EOF;
-   if(\\$^O eq \"cygwin\") { 
-       return scalar(\\$file =~ m{^(\\[a-z\\]:)?\\[\\\\\\\\/\\]}is);
-};
-EOF
-                   next;
-                }
-                print OUT $_;
-              }
-              close(OUT);
-              close(IN);
-              system("mv -f $d/File/Spec/Unix.pm.fixed $d/File/Spec/Unix.pm");
-           }
-        }
-      }
-  '`]
-  # See if it was indeed fixed
-  if test "$perlfixres" = "bug" ;then
-     perlfixres=`perl -e '
-      use File::Spec;
-      if(File::Spec->file_name_is_absolute("C:/test")) {
-        print "bug fixed"; exit 0;
-      } else {
-        print "cannot fix bug"; exit 1;
-      }'`
-  fi
-  if test "x$perlfixres" = "x" ;then
-      AC_MSG_ERROR([
-        Cannot run perl
-      ])
-  elif test "$perlfixres" = "cannot fix bug" ;then
-      AC_MSG_ERROR([
-        Found a bug but cannot fix it.
-      ])
-  else
-     AC_MSG_RESULT([$perlfixres])
- fi
+AC_CHECK_TOOL([PERL],[perl],[no])
+if test "$PERL" = "no"; then
+  AC_MSG_ERROR([You must install perl])
 fi
-
-# additional tools we might check for:
-#   - gnu make
 
 #
 # -------------------- GCC --------------

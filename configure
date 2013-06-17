@@ -637,6 +637,7 @@ LIBOBJS
 EGREP
 GREP
 CPP
+PERL
 OCAMLFIND
 OCAMLYACC
 OCAMLLEXDOTOPT
@@ -3243,28 +3244,7 @@ test -n "$target_alias" &&
   program_prefix=${target_alias}-
 
 # Check if executables should end with .exe (windows)
-#AC_EXEEXT
 
-
-# ---------------- generic functions -----------------
-# debugging diagnostic; set to 'echo' to debug or 'true' for production
-# (technically you're not supposed to use shell functions in
-# configure scripts, because some-obscure-sh somewhere doesn't
-# support them.. but they're too convenient to not use)
-diagnostic() {
-  #echo "$@"
-  true "$@"
-}
-
-# determine if a binary is in the path
-binaryExists() {
-  # on cygwin, 'which' always returns success, so use 'type' instead
-  if type "$1" >/dev/null 2>&1; then
-    return 0
-  else
-    return 1
-  fi
-}
 
 
 # -------------- portable configuration ----------------
@@ -3297,7 +3277,8 @@ $as_echo "not found" >&6; }
   fi
 fi
 
-# Testing OCaml availability
+# ------------------- OCaml ----------------
+
   # checking for ocamlc
   if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ocamlc", so it can be a program name with args.
@@ -4698,121 +4679,103 @@ if test "$OCAMLFIND" = "no"; then
   as_fn_error $? "You must install OCaml findlib (the ocamlfind command)" "$LINENO" 5
 fi
 
-#
 # ------------------- Perl ----------------
-#
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Perl" >&5
-$as_echo_n "checking for Perl... " >&6; }
-  if ! binaryExists perl; then
-    as_fn_error $? "
-      perl not found.
-      You need perl version 5.6.1 or later for CIL.
-      You can get perl at http://www.cpan.org/src/index.html .
-    " "$LINENO" 5
-  fi
 
-  # sm: oh how nice it would be to just say "use English;
-  # print($PERL_VERSION)", but that appears broken on 5.6.1.. so I'm
-  # trying to say "caret right-bracket", but then that would run afoul
-  # of autoconf's quoting characters, so I use the "quadrigraph" ]
-  # to stand for right-bracket.  what a mess.
-  perlver=`perl -e 'print($]);'`
-  if perl -e "exit( $perlver >= 5.006001 );"; then
-    as_fn_error $? "
-      Found perl version $perlver, but at least 5.6.1 is required.
-      You can get a newer perl at http://www.cpan.org/src/index.html .
-    " "$LINENO" 5
+if test -n "$ac_tool_prefix"; then
+  # Extract the first word of "${ac_tool_prefix}perl", so it can be a program name with args.
+set dummy ${ac_tool_prefix}perl; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_PERL+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$PERL"; then
+  ac_cv_prog_PERL="$PERL" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_PERL="${ac_tool_prefix}perl"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
   fi
+done
+  done
+IFS=$as_save_IFS
 
-  perlport=`perl -e "print $^O;"`
-  case "$perlport" in
-    cygwin)
-        ;;
-    msys)
-        ;;
-    MSWin32) # ActivePerl
-        ;;
-    linux)
-        ;;
-    freebsd)
-        ;;
-    openbsd)
-        ;;
-    darwin) # Mac OS X
-        ;;
-    solaris)
-	;;
-    *)
-      as_fn_error $? "
-        Unsupported Perl port $perlport -- sorry.
-        cygwin, MSWin32 (ActivePerl), linux, freebsd, openbsd, darwin,
-        and solaris are the supported ports.
-      " "$LINENO" 5
-  esac
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: found version $perlver, port $perlport" >&5
-$as_echo "found version $perlver, port $perlport" >&6; }
-
-        # The cygwin port has some bugs in the File::Spec module
-if test "$perlport" = "cygwin" ;then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for known cygwin Perl bug in File::Spec" >&5
-$as_echo_n "checking for known cygwin Perl bug in File::Spec... " >&6; }
-  perlfixres=`perl -e '
-      use File::Spec;
-      if(File::Spec->file_name_is_absolute("C:/test")) {
-        print "no bug found"; exit 0;
-      } else {
-        print "bug";
-        foreach $d (@INC) {
-           if(-f "$d/File/Spec/Unix.pm") {
-              open(IN, "<$d/File/Spec/Unix.pm");
-              open(OUT, ">$d/File/Spec/Unix.pm.fixed")
-                       || die "Cannot open $d/File/Spec/Unix.pm.fixed";
-              while(<IN>) {
-                if($_ =~ m|sub file_name_is_absolute|) {
-                   print OUT $_;
-                   print OUT scalar(<IN>);
-                   print OUT <<EOF;
-   if(\\$^O eq \"cygwin\") {
-       return scalar(\\$file =~ m{^(\\[a-z\\]:)?\\[\\\\\\\\/\\]}is);
-};
-EOF
-                   next;
-                }
-                print OUT $_;
-              }
-              close(OUT);
-              close(IN);
-              system("mv -f $d/File/Spec/Unix.pm.fixed $d/File/Spec/Unix.pm");
-           }
-        }
-      }
-  '`
-  # See if it was indeed fixed
-  if test "$perlfixres" = "bug" ;then
-     perlfixres=`perl -e '
-      use File::Spec;
-      if(File::Spec->file_name_is_absolute("C:/test")) {
-        print "bug fixed"; exit 0;
-      } else {
-        print "cannot fix bug"; exit 1;
-      }'`
-  fi
-  if test "x$perlfixres" = "x" ;then
-      as_fn_error $? "
-        Cannot run perl
-      " "$LINENO" 5
-  elif test "$perlfixres" = "cannot fix bug" ;then
-      as_fn_error $? "
-        Found a bug but cannot fix it.
-      " "$LINENO" 5
-  else
-     { $as_echo "$as_me:${as_lineno-$LINENO}: result: $perlfixres" >&5
-$as_echo "$perlfixres" >&6; }
- fi
+fi
+fi
+PERL=$ac_cv_prog_PERL
+if test -n "$PERL"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $PERL" >&5
+$as_echo "$PERL" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
 fi
 
-# additional tools we might check for:
-#   - gnu make
+
+fi
+if test -z "$ac_cv_prog_PERL"; then
+  ac_ct_PERL=$PERL
+  # Extract the first word of "perl", so it can be a program name with args.
+set dummy perl; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_ac_ct_PERL+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$ac_ct_PERL"; then
+  ac_cv_prog_ac_ct_PERL="$ac_ct_PERL" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_ac_ct_PERL="perl"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+fi
+fi
+ac_ct_PERL=$ac_cv_prog_ac_ct_PERL
+if test -n "$ac_ct_PERL"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_ct_PERL" >&5
+$as_echo "$ac_ct_PERL" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+  if test "x$ac_ct_PERL" = x; then
+    PERL="no"
+  else
+    case $cross_compiling:$ac_tool_warned in
+yes:)
+{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: using cross tools not prefixed with host triplet" >&5
+$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
+ac_tool_warned=yes ;;
+esac
+    PERL=$ac_ct_PERL
+  fi
+else
+  PERL="$ac_cv_prog_PERL"
+fi
+
+if test "$PERL" = "no"; then
+  as_fn_error $? "You must install perl" "$LINENO" 5
+fi
 
 #
 # -------------------- GCC --------------

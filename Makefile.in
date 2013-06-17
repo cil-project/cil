@@ -5,7 +5,7 @@
 #
 # authors: George Necula, Gabriel Kerneis
 
-CILLY			  := cilly
+CILLY			  = cilly
 
 .PHONY: all
 all: cillib $(CILLY)
@@ -49,11 +49,11 @@ else
 endif
 
 # We have to use _build because of OCaml's bug #0004502
-OBJDIR      := _build
-BINDIR		  := bin
-CILLYDIR	  := lib
+OBJDIR      = _build
+BINDIR		  = bin
+CILLYDIR	  = lib
 
-OCAMLBEST := @OCAMLBEST@
+OCAMLBEST = @OCAMLBEST@
 CILLIB_FILES = $(OBJDIR)/src/cil.cma
 ifeq ($(OCAMLBEST),opt)
  CILLIB_FILES  += $(OBJDIR)/src/cil.cmxa
@@ -64,10 +64,12 @@ endif
 
 EXE = $(EXEMODE)$(EXEEXT)
 
-OCAMLBUILD := @OCAMLBUILD@
+OCAMLBUILD = @OCAMLBUILD@
 OCAMLBUILD += -build-dir $(OBJDIR) -no-links -classic-display
 
-OCAMLFIND := @OCAMLFIND@
+OCAMLFIND = @OCAMLFIND@
+
+PERL = @PERL@
 
 # Force to always rebuild a target (for ocamlbuild targets)
 .PHONY: .FORCE
@@ -89,7 +91,7 @@ $(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
 
 # cilly perl wrapper
 $(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
-	cd $(CILLYDIR); perl Makefile.PL
+	cd $(CILLYDIR); $(PERL) Makefile.PL
 
 .PHONY: cilly
 $(CILLY): $(BINDIR)/$(CILLY)$(EXE) $(CILLYDIR)/Makefile
@@ -204,7 +206,7 @@ endif
 	echo \
           $(foreach f,@EXTRAFEATURES@, \
              "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") \
-	| perl -pe 's/\\n/\n/g' >> $@
+	| $(PERL) -pe 's/\\n/\n/g' >> $@
 	echo "]"   >>$@
 
 ### DOCUMENTATION
@@ -226,7 +228,7 @@ doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLYDIR)/App/Cilly.pm
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
-	cd doc; perl cilcode.pl cil.tex >cilpp.tex.tmp
+	cd doc; $(PERL) cilcode.pl cil.tex >cilpp.tex.tmp
 	mv doc/cilpp.tex.tmp $@
 
 # Documentation generated from latex files using "hevea"
