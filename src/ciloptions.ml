@@ -219,10 +219,6 @@ let options : (string * Arg.spec * string) list =
 	 ignore (E.error "CIL_MACHINE machine model is invalid: %s" msg)),
    " Use machine model specified in CIL_MACHINE environment variable";
 
-    "--testcil",
-    Arg.String (fun s -> Cilutil.testcil := s),
-    "<compiler> Test CIL using the given compiler";
-
     "--ignore-merge-conflicts",
     Arg.Set Mergecil.ignore_merge_conflicts,
     (" Ignore merging conflicts" ^

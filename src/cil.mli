@@ -44,8 +44,7 @@
 
 open Cilint
 
-(** {b CIL API Documentation.}  An html version of this document 
- *  can be found at http://hal.cs.berkeley.edu/cil *)
+(** {b CIL API Documentation.} *)
 
 (** Call this function to perform some initialization. Call if after you have 
  * set {!Cil.msvcMode}.  *)

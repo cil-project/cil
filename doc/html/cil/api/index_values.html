@@ -11,17 +11,17 @@
 <link title="Index of class types" rel=Appendix href="index_class_types.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Pretty" rel="Chapter" href="Pretty.html">
-<link title="Errormsg" rel="Chapter" href="Errormsg.html">
-<link title="Clist" rel="Chapter" href="Clist.html">
-<link title="Stats" rel="Chapter" href="Stats.html">
-<link title="Cil" rel="Chapter" href="Cil.html">
-<link title="Formatcil" rel="Chapter" href="Formatcil.html">
 <link title="Alpha" rel="Chapter" href="Alpha.html">
-<link title="Cillower" rel="Chapter" href="Cillower.html">
 <link title="Cfg" rel="Chapter" href="Cfg.html">
+<link title="Cil" rel="Chapter" href="Cil.html">
+<link title="Cillower" rel="Chapter" href="Cillower.html">
+<link title="Clist" rel="Chapter" href="Clist.html">
 <link title="Dataflow" rel="Chapter" href="Dataflow.html">
-<link title="Dominators" rel="Chapter" href="Dominators.html"><title>CIL API Documentation (version 1.7.0) : Index of values</title>
+<link title="Dominators" rel="Chapter" href="Dominators.html">
+<link title="Errormsg" rel="Chapter" href="Errormsg.html">
+<link title="Formatcil" rel="Chapter" href="Formatcil.html">
+<link title="Pretty" rel="Chapter" href="Pretty.html">
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.1) : Index of values</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
@@ -120,14 +120,14 @@ The size of a type, in bits.
 A document that consists of either a space or a line break.
 </div>
 </td></tr>
-<tr><td><a href="Cil.html#VALbug">bug</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Like <a href="Errormsg.html#VALbug"><code class="code">Errormsg.bug</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALbug">bug</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 Similar to <code class="code">error</code> except that its output has the form <code class="code">Bug: ...</code>
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALbug">bug</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Like <a href="Errormsg.html#VALbug"><code class="code">Errormsg.bug</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALbuiltinFunctions">builtinFunctions</a> [<a href="Cil.html">Cil</a>]</td>
@@ -523,13 +523,13 @@ Pretty-print a label using <a href="Cil.html#VALdefaultCilPrinter"><code class="
 sm: Yet another list printer.
 </div>
 </td></tr>
+<tr><td><a href="Errormsg.html#VALd_loc">d_loc</a> [<a href="Errormsg.html">Errormsg</a>]</td>
+<td></td></tr>
 <tr><td><a href="Cil.html#VALd_loc">d_loc</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
 Pretty-print a location
 </div>
 </td></tr>
-<tr><td><a href="Errormsg.html#VALd_loc">d_loc</a> [<a href="Errormsg.html">Errormsg</a>]</td>
-<td></td></tr>
 <tr><td><a href="Cil.html#VALd_lval">d_lval</a> [<a href="Cil.html">Cil</a>]</td>
 <td><div class="info">
 Pretty-print an lvalue using <a href="Cil.html#VALdefaultCilPrinter"><code class="code">Cil.defaultCilPrinter</code></a>
@@ -821,14 +821,14 @@ Machine model specified via CIL_MACHINE environment variable
 Like <a href="Pretty.html#VALfprintf"><code class="code">Pretty.fprintf</code></a> applied to <code class="code">stderr</code>
 </div>
 </td></tr>
-<tr><td><a href="Cil.html#VALerror">error</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Like <a href="Errormsg.html#VALerror"><code class="code">Errormsg.error</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALerror">error</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 Prints an error message of the form <code class="code">Error: ...</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALerror">error</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Like <a href="Errormsg.html#VALerror"><code class="code">Errormsg.error</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALerrorLoc">errorLoc</a> [<a href="Cil.html">Cil</a>]</td>
@@ -1245,14 +1245,14 @@ Whether the machine is little endian.
 Read a <a href="Cil.html#TYPEfile"><code class="code">Cil.file</code></a> in binary form from the filesystem.
 </div>
 </td></tr>
-<tr><td><a href="Cil.html#VALlocUnknown">locUnknown</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Represents a location that cannot be determined
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALlocUnknown">locUnknown</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 An unknown location for use when you need one but you don't have one
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALlocUnknown">locUnknown</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Represents a location that cannot be determined
 </div>
 </td></tr>
 <tr><td><a href="Errormsg.html#VALlog">log</a> [<a href="Errormsg.html">Errormsg</a>]</td>
@@ -1987,14 +1987,14 @@ Whether the compiler generates assembly labels by prepending "_" to the
 Undo the changes to a table
 </div>
 </td></tr>
-<tr><td><a href="Cil.html#VALunimp">unimp</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Like <a href="Errormsg.html#VALunimp"><code class="code">Errormsg.unimp</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a>is also printed
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALunimp">unimp</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 Similar to <code class="code">error</code> except that its output has the form <code class="code">Unimplemented: ...</code>
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALunimp">unimp</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Like <a href="Errormsg.html#VALunimp"><code class="code">Errormsg.unimp</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a>is also printed
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALuniqueVarNames">uniqueVarNames</a> [<a href="Cil.html">Cil</a>]</td>
@@ -2137,15 +2137,15 @@ void
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>
-<tr><td><a href="Cil.html#VALwarn">warn</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Like <a href="Errormsg.html#VALwarn"><code class="code">Errormsg.warn</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALwarn">warn</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 Like <a href="Errormsg.html#VALerror"><code class="code">Errormsg.error</code></a> but does not raise the <a href="Errormsg.html#EXCEPTIONError"><code class="code">Errormsg.Error</code></a> 
  exception.
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALwarn">warn</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Like <a href="Errormsg.html#VALwarn"><code class="code">Errormsg.warn</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALwarnContext">warnContext</a> [<a href="Cil.html">Cil</a>]</td>
@@ -2171,14 +2171,14 @@ Like <a href="Cil.html#VALwarn"><code class="code">Cil.warn</code></a> except th
  instead of using the <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a>
 </div>
 </td></tr>
-<tr><td><a href="Cil.html#VALwarnOpt">warnOpt</a> [<a href="Cil.html">Cil</a>]</td>
-<td><div class="info">
-Like <a href="Errormsg.html#VALwarnOpt"><code class="code">Errormsg.warnOpt</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed.
-</div>
-</td></tr>
 <tr><td><a href="Errormsg.html#VALwarnOpt">warnOpt</a> [<a href="Errormsg.html">Errormsg</a>]</td>
 <td><div class="info">
 Like <a href="Errormsg.html#VALwarn"><code class="code">Errormsg.warn</code></a> but optional.
+</div>
+</td></tr>
+<tr><td><a href="Cil.html#VALwarnOpt">warnOpt</a> [<a href="Cil.html">Cil</a>]</td>
+<td><div class="info">
+Like <a href="Errormsg.html#VALwarnOpt"><code class="code">Errormsg.warnOpt</code></a> except that <a href="Cil.html#VALcurrentLoc"><code class="code">Cil.currentLoc</code></a> is also printed.
 </div>
 </td></tr>
 <tr><td><a href="Cil.html#VALwarnTruncate">warnTruncate</a> [<a href="Cil.html">Cil</a>]</td>

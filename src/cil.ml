@@ -83,7 +83,7 @@ let useCaseRange = ref false
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
-   Makefile.cil generates the file obj/@ARCHOS@/machdep.ml,
+   Makefile.cil generates the file src/machdep.ml,
    which contains the descriptions of gcc and msvc. *)
 let envMachine : M.mach option ref = ref None
 
@@ -5777,7 +5777,6 @@ let mapGlobals (fl: file)
 
 let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
   printDepth := 99999;  (* We don't want ... in the output *)
-  (* If we are in RELEASE mode then we do not print indentation *)
 
   Pretty.fastMode := true;
 

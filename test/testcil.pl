@@ -163,12 +163,12 @@ sub addToGroup {
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "$make setup",
+    Cmd => "$make cilly cillib",
     Group => ['ALWAYS']);
 $TEST->newTest(
     Name => "!inittests2",
     Dir => "..",
-    Cmd => "$make setup _GNUCC=1",
+    Cmd => "$make cilly cillib _GNUCC=1",
     Group => ['ALWAYS']);
 
 
@@ -574,7 +574,7 @@ addTest("testrun/builtin ");
 addTest("test/builtin2 ");
 addTest("testrun/builtin3 ");
 addTest("testrun/builtin_choose_expr");
-addTest("testrungcc/builtin_object_size _GNUCC=1");
+addTest("testrungcc/builtin_object_size _GNUCC=1 OPTIMIZE=1");
 addTest("testrun/builtin4 ");
 addTest("test/builtin5 ");
 addTest("test/sync-1 _GNUCC=1");
@@ -857,9 +857,7 @@ sub testCommandExtras {
     my ($self, $extraargs) = @_;
 
     # (sm: pulled this out of addTests so I could write my own addTests)
-    my $theargs = defined($self->{option}->{cildebug})
-        ? " " : " RELEASE=1 ";
-    $theargs .= " $extraargs ";
+    my $theargs = " $extraargs ";
     if(defined $self->{option}->{noremake}) {
         $theargs .= " NOREMAKE=1";
     }
