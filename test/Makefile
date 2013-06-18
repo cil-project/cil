@@ -237,7 +237,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-OBJDIR := $(CILHOME)/_build
+OBJDIR := $(CILHOME)/_build/src
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
