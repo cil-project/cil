@@ -13,7 +13,7 @@ WriteMakefile(
         'App/Cilly/OutputFile.pm' => '$(INST_LIBDIR)/App/Cilly/OutputFile.pm',
         'App/Cilly/TempFile.pm' => '$(INST_LIBDIR)/App/Cilly/TempFile.pm',
     },
-    EXE_FILES           => [ 'cilly' ],
+    EXE_FILES           => [ '../bin/cilly' ],
     PREREQ_PM => {
         'Carp'              => 0,
         'Data::Dumper'      => 0,
@@ -33,22 +33,18 @@ WriteMakefile(
 
 package MY;
 
-sub MY::top_targets {
-    my $str = shift->SUPER::top_targets(@_);
-
-    $str =~ s/^pure_all.+/$& fix-cilbindir/m;
-
-    return $str;
-}
-
 sub MY::postamble {
     my $postamble = <<'MAKE_FRAG';
 
-.PHONY: fix-cilbindir
+.PHONY: real-uninstall
 
-fix-cilbindir:
-ifdef CILBINDIR
-	perl -p -i -e "s,^.*cilbindir.*$$,\\$$::cilbindir = \"$(CILBINDIR)\";," $(INST_LIBDIR)/App/Cilly/CilConfig.pm
+force_uninstall:
+ifeq ($(INSTALLDIRS), site)
+	$(RM_F) $(DESTINSTALLSITEBIN)/cilly
+	$(RM_RF) $(DESTINSTALLSITELIB)/App/Cilly*
+	$(RM_RF) $(DESTINSTALLSITEARCH)/auto/$(FULLEXT)
+else
+	echo "force_uninstall works only if INSTALLDIRS=site"
 endif
 
 MAKE_FRAG

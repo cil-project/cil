@@ -12,20 +12,6 @@ include ../config.mk
 
 TESTDIR := .
 
-ifneq ($(ARCHOS), x86_WIN32)
-ifneq ($(ARCHOS), x86_LINUX) 
-ifneq ($(ARCHOS), x86_DARWIN) 
-ifneq ($(ARCHOS), sparc_SOLARIS) 
-   $(error You must set the ARCHOS variable to x86_WIN32, x86_LINUX, x86_DARWIN, or sparc_SOLARIS)
-endif
-endif
-endif
-endif
-
-ifndef BIG_EXAMPLES
- BIG_EXAMPLES := ../../big-examples/
-endif
-
 defaulttarget:
 	@echo "This Makefile is intended to be run with an explicit target."
 
@@ -40,7 +26,11 @@ clean:
 		-name '*.a' -o \
 		-name '*.stackdump' -o \
 		-name '*.exe' -o \
-		-name '*.i' -o \
+		\( -name '*.i' -a -not -name 'lineno.i' -a -not -name 'empty.i' \) -o \
+		-name '*.cmi' -o \
+		-name '*.cmo' -o \
+		-name '*.err' -o \
+		-name '*.out' -o \
 		-name '*_ppp.c' -o \
 		-name '*.origi' -o \
 		-name '*.o' -o \
@@ -48,49 +38,24 @@ clean:
 		-name '*.cabs.c' -o \
 	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' -o \
-		-name 'libmerge.a*' \
+		-name 'libmerge.a*' -o \
+		-name 'merge-ar' \
 	\) -exec rm -f {} \;
 	-find . -name '*.browser' -exec rm -rf {} \;
 
+distclean: clean
+	rm -f cil.log*
 
-# sm: infer CILHOME when not set, to ease having multiple trees
-ifndef CILHOME
-  ifeq ($(ARCHOS), x86_WIN32)
-    $(error You have not defined the CILHOME variable)
-  else
-    export CILHOME := $(shell pwd)/..
-  endif
-endif
+CILHOME := $(CURDIR)/..
+CILLY := $(CILHOME)/bin/cilly
 
-CILLY := $(CILHOME)/cilly/cilly
-
-# Now do the user-specific customization
-# It is Ok if this file does not exist
--include $(CILHOME)/.cilrc
-
-# as a convenience, let RELEASE=1 on the command line imply
-# all options designed to make things fast (at least when not in
-# the middle of development)
-ifdef RELEASE
-  # use native code tools
-  export NATIVECAML := 1
-  export CILLY += -O2
-endif
-
-# By default we are on Linux
-ifndef ARCHOS
-  ARCHOS := x86_WIN32
-endif
-
-# Now include the compiler specific stuff
 ifdef _MSVC
-  include ../Makefile.msvc
+	include Makefile.msvc
 else
-  ifdef _GNUCC
-    include ../Makefile.gcc
-  endif
+ifdef _GNUCC
+	include Makefile.gcc
 endif
-
+endif
 
 CILLY += --mode=$(COMPILERNAME) --decil
 
@@ -125,9 +90,6 @@ endif
 ifdef USECABS
   CILLY+= --usecabs
 endif
-ifndef NATIVECAML
-  CILLY+= --bytecode
-endif
 ifdef VERBOSE
   CILLY+= --verbose --warnall
 endif
@@ -145,6 +107,9 @@ ifdef COMPUTEDGOTO
 endif
 ifdef LOCALINIT
   CILLY+= --noMakeStaticGlobal
+endif
+ifdef OPTIMIZE
+	CILLY+= $(OPT_O2)
 endif
 
 
@@ -202,12 +167,6 @@ mustbegcc :
 ifndef _GNUCC
 	@echo This test case works only with _GNUCC=1; exit 3
 endif
-
-mustbelinux:
-ifneq ($(ARCHOS), x86_LINUX)
-	@echo This test case works only on Linux; exit 3
-endif
-
 
 ############ Small tests
 SMALL1 := $(TESTDIR)/small1
@@ -285,14 +244,13 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-ARCHOS := $(ARCHOS)
-OBJDIR := $(CILHOME)/obj
+OBJDIR := $(CILHOME)/_build/src
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
 else
  CMXA := cma
- CAMLC := ocamlc -custom
+ CAMLC := ocamlc
 endif
 
 testrun/% : $(SMALL1)/%.ml
@@ -312,7 +270,7 @@ combine%: $(SMALL1)/combine%_1.c
 
 arcombine: mustbegcc
 	cd $(SMALL1); $(CILLY) -c array1.c array2.c
-	cd $(SMALL1); $(CILHOME)/cilly/cilly \
+	cd $(SMALL1); $(CILHOME)/bin/cilly \
                            --mode=AR --merge --verbose crv array.a array1.o array2.o
 	cd $(SMALL1); $(CILLY) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
@@ -329,12 +287,6 @@ structs : mustbemanju
 # sm: yet another failure-test target, this time utilizing a nomerge
 # script capable of testing multiple failures per file
 test-bad/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
-ifdef _MSVC
-ifndef RELEASE
-	@echo ">>>>> Set RELEASE=1 when using MSVC to avoid those\
-	pesky dialog boxes. <<<<<"
-endif
-endif
 	cd $(TESTDIR)/small2; \
 	  CILHOME="$(CILHOME)" \
 	  CILLY="$(CILLY) --nomerge --commPrintLn" \
@@ -432,9 +384,9 @@ testdir/% :
 
 
 merge-ar:
-	cd small2; $(CILHOME)/cilly/cilly --merge -c merge-ar.c merge-twice-1.c
-	cd small2; $(CILHOME)/cilly/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
-	cd small2; $(CILHOME)/cilly/cilly --merge libmerge.a -o merge-ar
+	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
+	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
+	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
 
 
 

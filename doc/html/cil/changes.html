@@ -22,7 +22,18 @@ function loadTop(url) {
 <A HREF="ciltoc.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
 <HR>
 <H2 CLASS="section"><A NAME="htoc57">20</A>&#XA0;&#XA0;Changes</H2><P><A NAME="sec-changes"></A></P><UL CLASS="itemize"><LI CLASS="li-itemize">
-<B>June 4, 2013</B>: <B>Released version 1.7.0</B>.<BR>
+<B>June 18, 2013</B>: <B>Released version 1.7.1</B>.<BR>
+Improve build system, including:
+<UL CLASS="itemize"><LI CLASS="li-itemize">
+Fix <TT>make uninstall</TT>.
+</LI><LI CLASS="li-itemize">Add a <CODE>FORCE_PERL_PREFIX</CODE> to ease installation
+in home directory.
+</LI><LI CLASS="li-itemize">Detect OCaml native compilers automatically.
+</LI><LI CLASS="li-itemize">Switch to ocamlbuild.
+</LI><LI CLASS="li-itemize">Infer files to install for ocamlfind, and generate missing
+interfaces automatically.
+</LI><LI CLASS="li-itemize">Cleanup autoconf scripts.
+</LI></UL></LI><LI CLASS="li-itemize"><B>June 4, 2013</B>: <B>Released version 1.7.0</B>.<BR>
  New features:
 <UL CLASS="itemize"><LI CLASS="li-itemize">
 Support for C99 flexible array members.

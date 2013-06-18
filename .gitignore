@@ -39,8 +39,9 @@
 /TEMP_cil-bindistrib
 /_build
 /_log
-/META
 /README
+/index.html
+/stamp-h
 
 # /debian/
 /debian/build-stamp
@@ -78,23 +79,28 @@
 # /doc/html/
 /doc/html/*
 
-# /cilly/
-/cilly/CilConfig.pm
-/cilly/Cilly.pm
-/cilly/*.patch2.i*
+# /lib/
+/lib/App/Cilly/CilConfig.pm
+/lib/App/Cilly.pm
+/lib/Makefile
+/lib/Makefile.old
+/lib/MYMETA.yml
+/lib/blib/*
+/lib/pm_to_blib
 
-# /obj/
-/obj/x86_*
-/obj/.depend
+# /bin/
+/bin/cilly.*
 
-# /obj/.depend/
-/obj/.depend/*.d
-/obj/.depend/*.di
+# /_build/
+/_build/*
 
 # /src/
 /src/*.output
 /src/ChangeLog
 /src/machdep-ml.c
+/src/cilversion.ml
+/src/feature_config.ml
+/src/machdep.ml
 
 # /src/frontc/
 /src/frontc/*.output
@@ -125,7 +131,6 @@
 /test/*.stackdump
 /test/*_all.c
 /test/testingcil.c
-/test/testcil.random
 /test/__log*
 /test/testsafec.smlog
 /test/Makefile
