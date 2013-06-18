@@ -256,6 +256,8 @@ pdfdoc: doc/cilpp.tex
 
 .PHONY: distclean cleandoc cleancilly clean
 distclean: clean
+	$(MAKE) -C test distclean
+	rm -rf autom4te.cache/
 	rm -f Makefile
 	rm -f $(CILLYDIR)/App/Cilly/CilConfig.pm
 	rm -f config.h
@@ -276,6 +278,9 @@ clean: $(CILLYDIR)/Makefile
 	rm -rf $(OBJDIR)
 	rm -f $(BINDIR)/$(CILLY).*
 	rm -rf doc/html/
+	rm -rf doc/cilcode.tmp/
+	rm -f doc/cil.version.*
+	rm -f doc/cilpp.*
 	$(MAKE) -C $(CILLYDIR) clean
 	rm -f $(CILLYDIR)/App/Cilly.pm
 	rm -f $(CILLYDIR)/Makefile.old

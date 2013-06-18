@@ -26,7 +26,11 @@ clean:
 		-name '*.a' -o \
 		-name '*.stackdump' -o \
 		-name '*.exe' -o \
-		-name '*.i' -o \
+		\( -name '*.i' -a -not -name 'lineno.i' -a -not -name 'empty.i' \) -o \
+		-name '*.cmi' -o \
+		-name '*.cmo' -o \
+		-name '*.err' -o \
+		-name '*.out' -o \
 		-name '*_ppp.c' -o \
 		-name '*.origi' -o \
 		-name '*.o' -o \
@@ -34,10 +38,13 @@ clean:
 		-name '*.cabs.c' -o \
 	        -name "*-tmp.c" -o \
 		-name '*_comb*.c' -o \
-		-name 'libmerge.a*' \
+		-name 'libmerge.a*' -o \
+		-name 'merge-ar' \
 	\) -exec rm -f {} \;
 	-find . -name '*.browser' -exec rm -rf {} \;
 
+distclean: clean
+	rm -f cil.log*
 
 CILHOME := $(CURDIR)/..
 CILLY := $(CILHOME)/bin/cilly
