@@ -27,8 +27,13 @@ Run the following commands to build and install CIL:
 
     ./configure
     make
-    make check      # very quick check, optionnal
+    make test       # regression test suite, optionnal
     make install    # as root or using sudo
+
+If you want to install to some other directory, you can change the
+configure step like this:
+
+    FORCE_PERL_PREFIX=1 ./configure --prefix=/opt/cil
 
 You only need the OCaml compiler, perl, and [ocamlfind][findlib] for the
 installation.  (Of course, you also need some C compiler.)
@@ -38,7 +43,7 @@ installation.  (Of course, you also need some C compiler.)
 Usage
 -----
 
-You can use cilly (installed in /usr/local/bin by default) as a drop in
+You can use cilly (installed in /usr/local/bin by default) as a drop-in
 replacement for gcc to compile and link your programs.
 
 You can also use CIL as a library to write your own programs.  For
@@ -70,19 +75,10 @@ You can also [browse the documentation online][doc].
 [hevea]: http://hevea.inria.fr/ "Hevea - LaTex to HTML translator"
 [doc]:   http://kerneis.github.com/cil/doc/html/cil "Cil online doc"
 
-Test suite
-----------
-
-CIL comes with a test suite.  You need perl and [Hevea][] (because one
-of the tests builds the documentation):
-
-    cd test
-    ./testcil --run
-
 Ressources
 ----------
 
 * [Mailing list](https://lists.sourceforge.net/lists/listinfo/cil-users)
 * [Bug tracker](http://sourceforge.net/p/cil/bugs/)
 
-CIL is maintained by Gabriel Kerneis <kerneis@pps.univ-paris-diderot.fr> 
+CIL is maintained by Gabriel Kerneis <gabriel@kerneis.info>
