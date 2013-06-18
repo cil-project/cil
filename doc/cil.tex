@@ -3363,6 +3363,19 @@ as it will ensure your message is viewed by a broad audience.
 
 \section{Changes}\label{sec-changes}\cutname{changes.html}
 \begin{itemize}
+\item{\bf June 18, 2013}: {\bf Released version 1.7.1}.\\
+Improve build system, including:
+    \begin{itemize}
+      \item Fix \texttt{make uninstall}.
+      \item Add a \verb|FORCE_PERL_PREFIX| to ease installation
+        in home directory.
+      \item Detect OCaml native compilers automatically.
+      \item Switch to ocamlbuild.
+      \item Infer files to install for ocamlfind, and generate missing
+        interfaces automatically.
+      \item Cleanup autoconf scripts.
+    \end{itemize}
+
 \item{\bf June 4, 2013}: {\bf Released version 1.7.0}.\\
     New features:
     \begin{itemize}
