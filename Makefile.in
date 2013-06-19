@@ -98,10 +98,12 @@ ifeq ($(FORCE_PERL_PREFIX), 1)
 	export PERL_MM_OPT
 endif
 
-$(CILLYDIR)/Makefile: Makefile $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/Cilly.pm
+CILLYMOD := Cilly
+
+$(CILLYDIR)/Makefile: Makefile $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/$(CILLYMOD).pm
 	cd $(CILLYDIR); $(PERL) Makefile.PL
 
-.PHONY: cilly
+.PHONY: $(CILLY)
 $(CILLY): $(BINDIR)/$(CILLY)$(EXE) $(CILLYDIR)/Makefile
 	$(MAKE) -C $(CILLYDIR)
 
@@ -169,17 +171,17 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 			  ;fi
 	@echo "let theMachine : mach ref = ref gcc" >>$@
 
-$(CILLYDIR)/App/Cilly.pm: $(CILLYDIR)/App/Cilly.pm.in src/machdep-ml.c configure.ac Makefile.in
-	cp $(CILLYDIR)/App/Cilly.pm.in $(CILLYDIR)/App/Cilly.pm
-	sed -e "s|CIL_VERSION|@CIL_VERSION@|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
-	mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
+$(CILLYDIR)/App/$(CILLYMOD).pm: $(CILLYDIR)/App/$(CILLYMOD).pm.in src/machdep-ml.c configure.ac Makefile.in
+	cp $(CILLYDIR)/App/$(CILLYMOD).pm.in $(CILLYDIR)/App/$(CILLYMOD).pm
+	sed -e "s|CIL_VERSION|@CIL_VERSION@|" $(CILLYDIR)/App/$(CILLYMOD).pm > $(CILLYDIR)/App/$(CILLYMOD).pm.tmp; \
+	mv $(CILLYDIR)/App/$(CILLYMOD).pm.tmp $(CILLYDIR)/App/$(CILLYMOD).pm; \
 	if $(MACHDEPCC) -m32 src/machdep-ml.c -o $(OBJDIR)/machdep-ml32.exe ;then \
-	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
-	  mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
+	  sed -e "s|nogcc32model|`$(EMUL) $(OBJDIR)/machdep-ml32.exe --env`|" $(CILLYDIR)/App/$(CILLYMOD).pm > $(CILLYDIR)/App/$(CILLYMOD).pm.tmp; \
+	  mv $(CILLYDIR)/App/$(CILLYMOD).pm.tmp $(CILLYDIR)/App/$(CILLYMOD).pm; \
 	fi
 	if $(MACHDEPCC) -m64 src/machdep-ml.c -o $(OBJDIR)/machdep-ml64.exe ;then \
-	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" $(CILLYDIR)/App/Cilly.pm > $(CILLYDIR)/App/Cilly.pm.tmp; \
-	  mv $(CILLYDIR)/App/Cilly.pm.tmp $(CILLYDIR)/App/Cilly.pm; \
+	  sed -e "s|nogcc64model|`$(EMUL) $(OBJDIR)/machdep-ml64.exe --env`|" $(CILLYDIR)/App/$(CILLYMOD).pm > $(CILLYDIR)/App/$(CILLYMOD).pm.tmp; \
+	  mv $(CILLYDIR)/App/$(CILLYMOD).pm.tmp $(CILLYDIR)/App/$(CILLYMOD).pm; \
 	fi
 
 .PHONY: cilversion
@@ -232,7 +234,7 @@ odoc: $(OBJDIR)/doc/cil.docdir/index.html
 	-mkdir -p doc/html/cil/
 	-cp -r $(dir $<) doc/html/cil/api
 
-doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLYDIR)/App/Cilly.pm
+doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLYDIR)/App/$(CILLYMOD).pm
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
@@ -254,12 +256,12 @@ pdfdoc: doc/cilpp.tex
 	cd doc; pdflatex cilpp.tex; pdflatex cilpp.tex
 	cd doc; mv cilpp.pdf html/cil/CIL.pdf
 
-.PHONY: distclean cleandoc cleancilly clean
+.PHONY: distclean clean
 distclean: clean
 	$(MAKE) -C test distclean
 	rm -rf autom4te.cache/
 	rm -f Makefile
-	rm -f $(CILLYDIR)/App/Cilly/CilConfig.pm
+	rm -f $(CILLYDIR)/App/$(CILLYMOD)/CilConfig.pm
 	rm -f config.h
 	rm -f config.log
 	rm -f config.mk
@@ -269,11 +271,6 @@ distclean: clean
 	rm -f src/machdep-ml.c
 	rm -f stamp-h
 
-
-cleandoc:
-
-cleancilly:
-
 clean: $(CILLYDIR)/Makefile
 	rm -rf $(OBJDIR)
 	rm -f $(BINDIR)/$(CILLY).*
@@ -282,7 +279,7 @@ clean: $(CILLYDIR)/Makefile
 	rm -f doc/cil.version.*
 	rm -f doc/cilpp.*
 	$(MAKE) -C $(CILLYDIR) clean
-	rm -f $(CILLYDIR)/App/Cilly.pm
+	rm -f $(CILLYDIR)/App/$(CILLYMOD).pm
 	rm -f $(CILLYDIR)/Makefile.old
 	rm -f Makefile.features
 
@@ -303,7 +300,6 @@ install: $(CILLY) install-findlib
 	$(MAKE) -C $(CILLYDIR) pure_install
 	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
-# FIXME
 uninstall: $(CILLYDIR)/Makefile uninstall-findlib
 	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
 	$(MAKE) -C $(CILLYDIR) force_uninstall
