@@ -623,14 +623,16 @@ and checkInit  (i: init) : typ =
       | CompoundInit (ct, initl) -> begin
           checkType ct CTSizeof;
           (match unrollType ct with
-            TArray(bt, Some elen, _) -> 
-              ignore (checkExp true elen);
+            TArray(bt, elen, _) -> 
               let len =
-                match isInteger (constFold true elen) with
+                match elen with
+                | None -> 0L
+                | Some e -> (ignore (checkExp true e);
+                match isInteger (constFold true e) with
                   Some len -> len
                 | None -> 
                     ignore (warn "Array length is not a constant");
-                    0L
+                    0L)
               in
               let rec loopIndex i = function
                   [] -> 
@@ -647,8 +649,6 @@ and checkInit  (i: init) : typ =
                     ignore (warn "Malformed initializer for array element")
               in
               loopIndex Int64.zero initl
-          | TArray(_, None, _) -> 
-              ignore (warn "Malformed initializer for array")
           | TComp (comp, _) -> 
               if comp.cstruct then
                 let rec loopFields 

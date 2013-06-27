@@ -3,17 +3,20 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
+my $cilly = 'cilly';
+my $Cilly = ucfirst($cilly);
+
 WriteMakefile(
-    NAME                => 'cilly',
-    VERSION_FROM        => 'App/Cilly.pm',
+    NAME                => $cilly,
+    VERSION_FROM        => 'App/'.$Cilly.'.pm',
     PM                  => {
-        'App/Cilly.pm'      => '$(INST_LIBDIR)/App/Cilly.pm',
-        'App/Cilly/CilConfig.pm' => '$(INST_LIBDIR)/App/Cilly/CilConfig.pm',
-        'App/Cilly/KeptFile.pm' => '$(INST_LIBDIR)/App/Cilly/KeptFile.pm',
-        'App/Cilly/OutputFile.pm' => '$(INST_LIBDIR)/App/Cilly/OutputFile.pm',
-        'App/Cilly/TempFile.pm' => '$(INST_LIBDIR)/App/Cilly/TempFile.pm',
+        'App/'.$Cilly.'.pm'      => '$(INST_LIBDIR)/App/'.$Cilly.'.pm',
+        'App/'.$Cilly.'/CilConfig.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/CilConfig.pm',
+        'App/'.$Cilly.'/KeptFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/KeptFile.pm',
+        'App/'.$Cilly.'/OutputFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/OutputFile.pm',
+        'App/'.$Cilly.'/TempFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/TempFile.pm',
     },
-    EXE_FILES           => [ '../bin/cilly' ],
+    EXE_FILES           => [ '../bin/'.$cilly ],
     PREREQ_PM => {
         'Carp'              => 0,
         'Data::Dumper'      => 0,
@@ -40,8 +43,8 @@ sub MY::postamble {
 
 force_uninstall:
 ifeq ($(INSTALLDIRS), site)
-	$(RM_F) $(DESTINSTALLSITEBIN)/cilly
-	$(RM_RF) $(DESTINSTALLSITELIB)/App/Cilly*
+	$(RM_F) $(DESTINSTALLSITEBIN)/$(NAME)
+	cd $(DESTINSTALLSITELIB) && $(RM_F) $(TO_INST_PM)
 	$(RM_RF) $(DESTINSTALLSITEARCH)/auto/$(FULLEXT)
 else
 	echo "force_uninstall works only if INSTALLDIRS=site"

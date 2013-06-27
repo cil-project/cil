@@ -4,6 +4,6 @@ struct pci_device_info {
 	const char *name;
 };
 
-static struct pci_device_info __devices_0000 []
+struct pci_device_info __devices_0000 []
 __attribute__ ((__section__ (".data.init")))  = { };
 
