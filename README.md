@@ -57,7 +57,7 @@ instance in the OCaml toplevel using [findlib][]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;           
-    - : string = "1.7.1"
+    - : string = "1.7.2"
 
 
 More documentation
