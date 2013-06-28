@@ -1952,7 +1952,7 @@ sub new {
             "-ansi" => { TYPE => 'ALLARGS' },
             '-std=' => { TYPE => 'ALLARGS' },
 	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
-            "-f" => { TYPE => 'CC' },
+            "-f" => { TYPE => 'CC', ONEMORE => 1 },
 
 	    # -Wx,blah options (placed before general -W warning options)
             #matth: the handling of -Wp may be wrong.  We may need to
