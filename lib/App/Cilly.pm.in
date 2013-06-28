@@ -1952,7 +1952,9 @@ sub new {
             "-ansi" => { TYPE => 'ALLARGS' },
             '-std=' => { TYPE => 'ALLARGS' },
 	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
-            "-f" => { TYPE => 'CC', ONEMORE => 1 },
+             # GCC might define some more macros, eg. for -fPIC, so pass
+             # the -f to the preprocessor and the compiler
+            "-f" => { TYPE => 'ALLARGS' },
 
 	    # -Wx,blah options (placed before general -W warning options)
             #matth: the handling of -Wp may be wrong.  We may need to
