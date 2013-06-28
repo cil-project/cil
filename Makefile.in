@@ -56,7 +56,7 @@ CILLYDIR	  = lib
 OCAMLBEST = @OCAMLBEST@
 CILLIB_FILES = $(OBJDIR)/src/cil.cma
 ifeq ($(OCAMLBEST),opt)
- CILLIB_FILES  += $(OBJDIR)/src/cil.cmxa
+ CILLIB_FILES  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
  EXEMODE        = .native
 else
  EXEMODE        = .byte
