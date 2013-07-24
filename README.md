@@ -14,6 +14,10 @@ points-to analyses.
 Quick start
 -----------
 
+Install the latest release of CIL with [opam][]:
+
+    opam install cil
+
 Read the excellent [CIL tutorial][tuto] by Zachary Anderson, and
 check out the accompanying [project template][template].
 
@@ -23,6 +27,10 @@ check out the accompanying [project template][template].
 Installation
 -----------
 
+To build and install CIL, you need the OCaml compiler, perl, and
+[ocamlfind][findlib].  (Of course, you also need some C compiler,
+preferably gcc.)
+
 Run the following commands to build and install CIL:
 
     ./configure
@@ -30,15 +38,14 @@ Run the following commands to build and install CIL:
     make test       # regression test suite, optionnal
     make install    # as root or using sudo
 
-If you want to install to some other directory, you can change the
-configure step like this:
+If you want to install to some other directory, you can tweak the prefix
+during the configure step.  For instance, to install in your local [opam][]
+directory:
 
-    FORCE_PERL_PREFIX=1 ./configure --prefix=/opt/cil
-
-You only need the OCaml compiler, perl, and [ocamlfind][findlib] for the
-installation.  (Of course, you also need some C compiler.)
+    FORCE_PERL_PREFIX=1 ./configure --prefix=`opam config var prefix`
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
+[opam]: http://opam.ocamlpro.com/
 
 Usage
 -----
@@ -57,7 +64,7 @@ instance in the OCaml toplevel using [findlib][]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;           
-    - : string = "1.7.2"
+    - : string = "1.7.3"
 
 
 More documentation

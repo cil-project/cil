@@ -25,18 +25,17 @@
 <link title="Errormsg" rel="Chapter" href="Errormsg.html">
 <link title="Formatcil" rel="Chapter" href="Formatcil.html">
 <link title="Pretty" rel="Chapter" href="Pretty.html">
-<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.2) : Cil.cilPrinter</title>
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Cil.cilPrinter</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Cil.cilVisitor-c.html" title="Cil.cilVisitor">Previous</a>
-&nbsp;<a class="up" href="Cil.html" title="Cil">Up</a>
-&nbsp;<a class="post" href="Cil.descriptiveCilPrinter-c.html" title="Cil.descriptiveCilPrinter">Next</a>
+<div class="navbar"><a href="Cil.cilVisitor-c.html">Previous</a>
+&nbsp;<a href="Cil.html">Up</a>
+&nbsp;<a href="Cil.descriptiveCilPrinter-c.html">Next</a>
 </div>
-<h1>Class type <a href="type_Cil.cilPrinter.html">Cil.cilPrinter</a></h1>
-<pre><span id="TYPEcilPrinter"><span class="keyword">class type</span> cilPrinter</span> = <code class="code">object</code> <a href="Cil.cilPrinter-c.html">..</a> <code class="code">end</code></pre><div class="info">
-A printer interface for CIL trees. Create instantiations of 
- this type by specializing the class <a href="Cil.defaultCilPrinterClass-c.html"><code class="code">Cil.defaultCilPrinterClass</code></a>.<br>
-</div>
+<center><h1>Class type <a href="type_Cil.cilPrinter.html">Cil.cilPrinter</a></h1></center>
+<br>
+<pre><span id="TYPEcilPrinter"><span class="keyword">class type</span> cilPrinter</span> = <code class="code">object</code> <a href="Cil.cilPrinter-c.html">..</a> <code class="code">end</code></pre>A printer interface for CIL trees. Create instantiations of 
+ this type by specializing the class <code class="code">Cil.defaultCilPrinterClass</code>.<br>
 <hr width="100%">
 <pre><span id="METHODsetCurrentFormals"><span class="keyword">method</span> setCurrentFormals</span> : <code class="type"><a href="Cil.html#TYPEvarinfo">varinfo</a> list -> unit</code></pre><pre><span id="METHODsetPrintInstrTerminator"><span class="keyword">method</span> setPrintInstrTerminator</span> : <code class="type">string -> unit</code></pre><pre><span id="METHODgetPrintInstrTerminator"><span class="keyword">method</span> getPrintInstrTerminator</span> : <code class="type">unit -> string</code></pre><pre><span id="METHODpVDecl"><span class="keyword">method</span> pVDecl</span> : <code class="type">unit -> <a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
 Invoked for each variable declaration. Note that variable 
@@ -113,7 +112,7 @@ Print a line-number. This is assumed to come always on an empty line.
 Print a statement kind. The code to be printed is given in the
  <a href="Cil.html#TYPEstmtkind"><code class="code">Cil.stmtkind</code></a> argument.  The initial <a href="Cil.html#TYPEstmt"><code class="code">Cil.stmt</code></a> argument
  records the statement which follows the one being printed;
- <a href="Cil.defaultCilPrinterClass-c.html"><code class="code">Cil.defaultCilPrinterClass</code></a> uses this information to prettify
+ <code class="code">Cil.defaultCilPrinterClass</code> uses this information to prettify
  statement printing in certain special cases.<br>
 </div>
 <pre><span id="METHODpExp"><span class="keyword">method</span> pExp</span> : <code class="type">unit -> <a href="Cil.html#TYPEexp">exp</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">

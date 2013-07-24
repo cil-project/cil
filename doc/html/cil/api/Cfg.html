@@ -25,21 +25,20 @@
 <link title="Errormsg" rel="Chapter" href="Errormsg.html">
 <link title="Formatcil" rel="Chapter" href="Formatcil.html">
 <link title="Pretty" rel="Chapter" href="Pretty.html">
-<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.2) : Cfg</title>
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Cfg</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Alpha.html" title="Alpha">Previous</a>
-&nbsp;<a class="up" href="index.html" title="Index">Up</a>
-&nbsp;<a class="post" href="Cil.html" title="Cil">Next</a>
+<div class="navbar"><a href="Alpha.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Cil.html">Next</a>
 </div>
-<h1>Module <a href="type_Cfg.html">Cfg</a></h1>
-<pre><span class="keyword">module</span> Cfg: <code class="code">sig</code> <a href="Cfg.html">..</a> <code class="code">end</code></pre><div class="info">
-Code to compute the control-flow graph of a function or file.  
+<center><h1>Module <a href="type_Cfg.html">Cfg</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Cfg: <code class="code">sig</code> <a href="Cfg.html">..</a> <code class="code">end</code></pre>Code to compute the control-flow graph of a function or file.  
   This will fill in the <code class="code">preds</code> and <code class="code">succs</code> fields of <a href="Cil.html#TYPEstmt"><code class="code">Cil.stmt</code></a>
 <p>
 
   This is required for several other extensions, such as <a href="Dataflow.html"><code class="code">Dataflow</code></a>.<br>
-</div>
 <hr width="100%">
 <pre><span id="VALcomputeFileCFG"><span class="keyword">val</span> computeFileCFG</span> : <code class="type"><a href="Cil.html#TYPEfile">Cil.file</a> -> unit</code></pre><div class="info">
 Compute the CFG for an entire file, by calling cfgFun on each function.<br>
