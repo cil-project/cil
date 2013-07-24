@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>CIL API Documentation</title>
+</head>
+<body >
+<a href="cilly.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil007.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec9" class="section">6&#XA0;&#XA0;CIL API Documentation</h2>
+<p><a id="sec-api"></a> </p><p>The CIL API is documented in the file <span style="font-family:monospace">src/cil.mli</span>. We also have an
+<a href="api/index.html">online documentation</a> extracted from
+<span style="font-family:monospace">cil.mli</span> and other useful modules. We
+index below the main types that are used to represent C programs in CIL: </p><ul class="itemize"><li class="li-itemize">
+<a href="api/index_types.html">An index of all types</a>
+</li><li class="li-itemize"><a href="api/index_values.html">An index of all values</a>
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEfile">Cil.file</a> is the representation of a file.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEglobal">Cil.global</a> is the representation of a global declaration or
+definitions. Values for <a href="api/Cil.html#VALemptyFunction">operating on globals</a>.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEtyp">Cil.typ</a> is the representation of a type. 
+Values for <a href="api/Cil.html#VALvoidType">operating on types</a>.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEcompinfo">Cil.compinfo</a> is the representation of a structure or a union
+type
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEfieldinfo">Cil.fieldinfo</a> is the representation of a field in a structure
+or a union
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEenuminfo">Cil.enuminfo</a> is the representation of an enumeration type. 
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEvarinfo">Cil.varinfo</a> is the representation of a variable 
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEfundec">Cil.fundec</a> is the representation of a function
+</li><li class="li-itemize"><a href="api/Cil.html#TYPElval">Cil.lval</a> is the representation of an lvalue.
+Values for <a href="api/Cil.html#VALmakeVarinfo">operating on lvalues</a>.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEexp">Cil.exp</a> is the representation of an expression without
+side-effects. 
+Values for <a href="api/Cil.html#VALzero">operating on expressions</a>.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEinstr">Cil.instr</a> is the representation of an instruction (with
+side-effects but without control-flow)
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEstmt">Cil.stmt</a> is the representation of a control-flow statements. 
+Values for <a href="api/Cil.html#VALmkStmt">operating on statements</a>.
+</li><li class="li-itemize"><a href="api/Cil.html#TYPEattribute">Cil.attribute</a> is the representation of attributes. 
+Values for <a href="api/Cil.html#TYPEattributeClass">operating on attributes</a>.
+</li></ul>
+<h3 id="sec10" class="subsection">6.1&#XA0;&#XA0;Using the visitor</h3>
+<p><a id="sec-visitor"></a></p><p>One of the most useful tools exported by the CIL API is an implementation of
+the visitor pattern for CIL programs. The visiting engine scans depth-first
+the structure of a CIL program and at each node is queries a user-provided
+visitor structure whether it should do one of the following operations: 
+</p><ul class="itemize"><li class="li-itemize">
+Ignore this node and all its descendants
+</li><li class="li-itemize">Descend into all of the children and when done rebuild the node if any
+of the children have changed. 
+</li><li class="li-itemize">Replace the subtree rooted at the node with another tree.
+</li><li class="li-itemize">Replace the subtree with another tree, then descend into the children
+and rebuild the node if necessary and then invoke a user-specified function. 
+</li><li class="li-itemize">In addition to all of the above actions then visitor can specify that
+some instructions should be queued to be inserted before the current
+instruction or statement being visited. 
+</li></ul><p>By writing visitors you can customize the program traversal and
+transformation. One major limitation of the visiting engine is that it does
+not propagate information from one node to another. Each visitor must use its
+own private data to achieve this effect if necessary. </p><p>Each visitor is an object that is an instance of a class of type <a href="api/Cil.cilVisitor.html#.">Cil.cilVisitor..</a>
+The most convenient way to obtain such classes is to specialize the
+<a href="api/Cil.nopCilVisitor.html#c">Cil.nopCilVisitor.c</a>lass (which just traverses the tree doing
+nothing). Any given specialization typically overrides only a few of the
+methods. Take a look for example at the visitor defined in the module
+<span style="font-family:monospace">logwrites.ml</span>. Another, more elaborate example of a visitor is the
+[copyFunctionVisitor] defined in <span style="font-family:monospace">cil.ml</span>.</p><p>Once you have defined a visitor you can invoke it with one of the functions:
+</p><ul class="itemize"><li class="li-itemize">
+<a href="api/Cil.html#VALvisitCilFile">Cil.visitCilFile</a> or <a href="api/Cil.html#VALvisitCilFileSameGlobals">Cil.visitCilFileSameGlobals</a> - visit a file
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilGlobal">Cil.visitCilGlobal</a> - visit a global
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilFunction">Cil.visitCilFunction</a> - visit a function definition
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilExp">Cil.visitCilExp</a> - visit an expression
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilLval">Cil.visitCilLval</a> - visit an lvalue
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilInstr">Cil.visitCilInstr</a> - visit an instruction
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilStmt">Cil.visitCilStmt</a> - visit a statement
+</li><li class="li-itemize"><a href="api/Cil.html#VALvisitCilType">Cil.visitCilType</a> - visit a type. Note that this does not visit
+the files of a composite type. use visitGlobal to visit the [GCompTag] that
+defines the fields.
+</li></ul><p>Some transformations may want to use visitors to insert additional
+instructions before statements and instructions. To do so, pass a list of
+instructions to the <a href="api/Cil.html#VALqueueInstr">Cil.queueInstr</a> method of the specialized
+object. The instructions will automatically be inserted before that
+instruction in the transformed code. The <a href="api/Cil.html#VALunqueueInstr">Cil.unqueueInstr</a> method
+should not normally be called by the user. </p>
+<h3 id="sec11" class="subsection">6.2&#XA0;&#XA0;Interpreted Constructors and Deconstructors</h3>
+<p>Interpreted constructors and deconstructors are a facility for constructing
+and deconstructing CIL constructs using a pattern with holes that can be
+filled with a variety of kinds of elements. The pattern is a string that uses
+the C syntax to represent C language elements. For example, the following
+code:
+</p><pre class="verbatim"><span style="color:blue">Formatcil.cType "void * const (*)(int x)"
+</span></pre><p>is an alternative way to construct the internal representation of the type of pointer to function
+with an integer argument and a void * const as result: 
+</p><pre class="verbatim"><span style="color:blue">TPtr(TFun(TVoid [Attr("const", [])],
+          [ ("x", TInt(IInt, []), []) ], false, []), [])
+</span></pre><p>The advantage of the interpreted constructors is that you can use familiar C
+syntax to construct CIL abstract-syntax trees. </p><p>You can construct this way types, lvalues, expressions, instructions and
+statements. The pattern string can also contain a number of placeholders that
+are replaced during construction with CIL items passed as additional argument
+to the construction function. For example, the <span style="font-family:monospace">%e:id</span> placeholder means
+that the argument labeled &#X201C;id&#X201D; (expected to be of form <span style="font-family:monospace">Fe exp</span>) will
+supply the expression to replace the placeholder. For example, the following
+code constructs an increment instruction at location <span style="font-family:monospace">loc</span>:
+</p><pre class="verbatim"><span style="color:blue">Formatcil.cInstr "%v:x = %v:x + %e:something"
+        loc
+        [ ("something", Fe some_exp);
+          ("x", Fv some_varinfo) ]
+</span></pre><p>An alternative way to construct the same CIL instruction is:
+</p><pre class="verbatim"><span style="color:blue">Set((Var some_varinfo, NoOffset),
+    BinOp(PlusA, Lval (Var some_varinfo, NoOffset),
+          some_exp, intType), 
+    loc)
+</span></pre><p>See <a href="api/Cil.html#TYPEformatArg">Cil.formatArg</a> for a definition of the placeholders that are
+understood.</p><p>A dual feature is the interpreted deconstructors. This can be used to test
+whether a CIL construct has a certain form:
+</p><pre class="verbatim"><span style="color:blue">Formatcil.dType "void * const (*)(int x)" t
+</span></pre><p>will test whether the actual argument <span style="font-family:monospace">t</span> is indeed a function pointer of
+the required type. If it is then the result is <span style="font-family:monospace">Some []</span> otherwise it is
+<span style="font-family:monospace">None</span>. Furthermore, for the purpose of the interpreted deconstructors
+placeholders in patterns match anything of the right type. For example, 
+</p><pre class="verbatim"><span style="color:blue">Formatcil.dType "void * (*)(%F:t)" t
+</span></pre><p>will match any function pointer type, independent of the type and number of
+the formals. If the match succeeds the result is <span style="font-family:monospace">Some [ FF forms ]</span> where
+<span style="font-family:monospace">forms</span> is a list of names and types of the formals. Note that each member
+in the resulting list corresponds positionally to a placeholder in the
+pattern.</p><p>The interpreted constructors and deconstructors do not support the complete C
+syntax, but only a substantial fragment chosen to simplify the parsing. The
+following is the syntax that is supported:
+</p><pre class="verbatim">Expressions:
+  E ::= %e:ID | %d:ID | %g:ID | n | L | ( E ) | Unop E | E Binop E 
+        | sizeof E | sizeof ( T ) | alignof E  | alignof ( T ) 
+        | &amp; L | ( T ) E 
+
+Unary operators:
+  Unop ::= + | - | ~ | %u:ID
+
+Binary operators:
+  Binop ::= + | - | * | / | &lt;&lt; | &gt;&gt; | &amp; | ``|'' | ^ 
+          | == | != | &lt; | &gt; | &lt;= | &gt;= | %b:ID
+
+Lvalues:
+  L ::= %l:ID | %v:ID Offset | * E | (* E) Offset | E -&gt; ident Offset 
+
+Offsets:
+  Offset ::= empty | %o:ID | . ident Offset | [ E ] Offset
+
+Types:
+  T ::= Type_spec Attrs Decl
+
+Type specifiers:
+  Type_spec ::= void | char | unsigned char | short | unsigned short
+            | int | unsigned int | long | unsigned long | %k:ID | float 
+            | double | struct %c:ID | union %c:ID 
+
+
+Declarators:
+  Decl ::= * Attrs Decl | Direct_decl
+
+
+Direct declarators:
+  Direct_decl ::= empty | ident | ( Attrs Decl ) 
+                 | Direct_decl [ Exp_opt ]
+                 | ( Attrs Decl )( Parameters )
+
+Optional expressions
+  Exp_opt ::= empty | E | %eo:ID
+
+Formal parameters
+  Parameters ::= empty | ... | %va:ID | %f:ID | T | T , Parameters
+
+List of attributes
+  Attrs ::= empty | %A:ID | Attrib Attrs
+
+Attributes
+  Attrib ::= const | restrict | volatile | __attribute__ ( ( GAttr ) )
+
+GCC Attributes
+  GAttr ::= ident | ident ( AttrArg_List )
+
+Lists of GCC Attribute arguments:
+  AttrArg_List ::= AttrArg | %P:ID | AttrArg , AttrArg_List
+
+GCC Attribute arguments  
+  AttrArg ::= %p:ID | ident | ident ( AttrArg_List )
+
+Instructions
+  Instr ::= %i:ID ; | L = E ; | L Binop= E | Callres L ( Args )
+
+Actual arguments
+   Args ::= empty | %E:ID | E | E , Args
+
+Call destination
+   Callres ::= empty | L = | %lo:ID
+
+Statements
+  Stmt ::= %s:ID | if ( E ) then Stmt ; | if ( E ) then Stmt else Stmt ;
+       | return Exp_opt | break ; | continue ; | { Stmt_list } 
+       | while (E ) Stmt | Instr_list 
+
+Lists of statements
+   Stmt_list ::= empty | %S:ID | Stmt Stmt_list  
+                | Type_spec Attrs Decl ; Stmt_list
+                | Type_spec Attrs Decl = E ; Stmt_list
+                | Type_spec Attrs Decl = L (Args) ; Stmt_list
+
+List of instructions
+   Instr_list ::= Instr | %I:ID | Instr Instr_list
+</pre><p>Notes regarding the syntax:
+</p><ul class="itemize"><li class="li-itemize">
+In the grammar description above non-terminals are written with
+uppercase initial</li><li class="li-itemize">All of the patterns consist of the <span style="font-family:monospace">%</span> character followed by one or
+two letters, followed by &#X201C;:&#X201D; and an indentifier. For each such
+pattern there is a corresponding constructor of the <a href="api/Cil.html#TYPEformatArg">Cil.formatArg</a>
+type, whose name is the letter &#X2019;F&#X2019; followed by the same one or two letters as
+in the pattern. That constructor is used by the user code to pass a
+<a href="api/Cil.html#TYPEformatArg">Cil.formatArg</a> actual argument to the interpreted constructor and by
+the interpreted deconstructor to return what was matched for a pattern.</li><li class="li-itemize">If the pattern name is uppercase, it designates a list of the elements
+designated by the corresponding lowercase pattern. E.g. %E designated lists
+of expressions (as in the actual arguments of a call).</li><li class="li-itemize">The two-letter patterns whose second letter is &#X201C;o&#X201D; designate an
+optional element. E.g. %eo designates an optional expression (as in the
+length of an array). </li><li class="li-itemize">Unlike in calls to <span style="font-family:monospace">printf</span>, the pattern %g is used for strings. </li><li class="li-itemize">The usual precedence and associativity rules as in C apply </li><li class="li-itemize">The pattern string can contain newlines and comments, using both the
+<span style="font-family:monospace">/* ... */</span> style as well as the <span style="font-family:monospace">//</span> one. </li><li class="li-itemize">When matching a &#X201C;cast&#X201D; pattern of the form <span style="font-family:monospace">( T ) E</span>, the
+deconstructor will match even expressions that do not have the actual cast but
+in that case the type is matched against the type of the expression. E.g. the
+patters <span style="font-family:monospace">"(int)%e"</span> will match any expression of type <span style="font-family:monospace">int</span> whether it
+has an explicit cast or not. </li><li class="li-itemize">The %k pattern is used to construct and deconstruct an integer type of
+any kind. </li><li class="li-itemize">Notice that the syntax of types and declaration are the same (in order
+to simplify the parser). This means that technically you can write a whole
+declaration instead of a type in the cast. In this case the name that you
+declare is ignored.</li><li class="li-itemize">In lists of formal parameters and lists of attributes, an empty list in
+the pattern matches any formal parameters or attributes. </li><li class="li-itemize">When matching types, uses of named types are unrolled to expose a real
+type before matching. </li><li class="li-itemize">The order of the attributes is ignored during matching. The the pattern
+for a list of attributes contains %A then the resulting <span style="font-family:monospace">formatArg</span> will be
+bound to <span style="font-weight:bold">all</span> attributes in the list. For example, the pattern <span style="font-family:monospace">"const
+%A"</span> matches any list of attributes that contains <span style="font-family:monospace">const</span> and binds the
+corresponding placeholder to the entire list of attributes, including
+<span style="font-family:monospace">const</span>. </li><li class="li-itemize">All instruction-patterns must be terminated by semicolon</li><li class="li-itemize">The autoincrement and autodecrement instructions are not supported. Also
+not supported are complex expressions, the <span style="font-family:monospace">&amp;&amp;</span> and <span style="font-family:monospace">||</span> shortcut
+operators, and a number of other more complex instructions or statements. In
+general, the patterns support only constructs that can be represented directly
+in CIL.</li><li class="li-itemize">The pattern argument identifiers are not used during deconstruction.
+Instead, the result contains a sequence of values in the same order as the
+appearance of pattern arguments in the pattern.</li><li class="li-itemize">You can mix statements with declarations. For each declaration a new
+temporary will be constructed (using a function you provive). You can then
+refer to that temporary by name in the rest of the pattern.</li><li class="li-itemize">The <span style="font-family:monospace">%v:</span> pattern specifier is optional.
+</li></ul><p>The following function are defined in the <span style="font-family:monospace">Formatcil</span> module for
+constructing and deconstructing:
+</p><ul class="itemize"><li class="li-itemize">
+<a href="api/Formatcil.html#VALcExp">Formatcil.cExp</a> constructs <a href="api/Cil.html#TYPEexp">Cil.exp</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALcType">Formatcil.cType</a> constructs <a href="api/Cil.html#TYPEtyp">Cil.typ</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALcLval">Formatcil.cLval</a> constructs <a href="api/Cil.html#TYPElval">Cil.lval</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALcInstr">Formatcil.cInstr</a> constructs <a href="api/Cil.html#TYPEinstr">Cil.instr</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALcStmt">Formatcil.cStmt</a> and <a href="api/Formatcil.html#VALcStmts">Formatcil.cStmts</a> construct <a href="api/Cil.html#TYPEstmt">Cil.stmt</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALdExp">Formatcil.dExp</a> deconstructs <a href="api/Cil.html#TYPEexp">Cil.exp</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALdType">Formatcil.dType</a> deconstructs <a href="api/Cil.html#TYPEtyp">Cil.typ</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALdLval">Formatcil.dLval</a> deconstructs <a href="api/Cil.html#TYPElval">Cil.lval</a>.
+</li><li class="li-itemize"><a href="api/Formatcil.html#VALdInstr">Formatcil.dInstr</a> deconstructs <a href="api/Cil.html#TYPElval">Cil.lval</a>.
+</li></ul><p>Below is an example using interpreted constructors. This example generates
+the CIL representation of code that scans an array backwards and initializes
+every even-index element with an expression:
+</p><pre class="verbatim"><span style="color:blue">Formatcil.cStmts
+  loc
+  "int idx = sizeof(array) / sizeof(array[0]) - 1;
+   while(idx &gt;= 0) {
+     // Some statements to be run for all the elements of the array
+     %S:init
+     if(! (idx &amp; 1)) 
+       array[idx] = %e:init_even;
+     /* Do not forget to decrement the index variable */
+     idx = idx - 1;
+   }"
+  (fun n t -&gt; makeTempVar myfunc ~name:n t)
+  [ ("array", Fv myarray); 
+    ("init", FS [stmt1; stmt2; stmt3]);
+    ("init_even", Fe init_expr_for_even_elements) ]
+</span></pre><p>To write the same CIL statement directly in CIL would take much more effort.
+Note that the pattern is parsed only once and the result (a function that
+takes the arguments and constructs the statement) is memoized. </p>
+<h4 id="sec12" class="subsubsection">6.2.1&#XA0;&#XA0;Performance considerations for interpreted constructors</h4>
+<p>Parsing the patterns is done with a LALR parser and it takes some time. To
+improve performance the constructors and deconstructors memoize the parsed
+patterns and will only compile a pattern once. Also all construction and
+deconstruction functions can be applied partially to the pattern string to
+produce a function that can be later used directly to construct or
+deconstruct. This function appears to be about two times slower than if the
+construction is done using the CIL constructors (without memoization the
+process would be one order of magnitude slower.) However, the convenience of
+interpreted constructor might make them a viable choice in many situations
+when performance is not paramount (e.g. prototyping).</p>
+<h3 id="sec13" class="subsection">6.3&#XA0;&#XA0;Printing and Debugging support</h3>
+<p>The Modules <a href="api/Pretty.html">Pretty</a> and <a href="api/Errormsg.html">Errormsg</a> contain respectively
+utilities for pretty printing and reporting errors and provide a convenient
+<span style="font-family:monospace">printf</span>-like interface. </p><p>Additionally, CIL defines for each major type a pretty-printing function that
+you can use in conjunction with the <a href="api/Pretty.html">Pretty</a> interface. The
+following are some of the pretty-printing functions:
+</p><ul class="itemize"><li class="li-itemize">
+<a href="api/Cil.html#VALd_exp">Cil.d_exp</a> - print an expression
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_type">Cil.d_type</a> - print a type
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_lval">Cil.d_lval</a> - print an lvalue
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_global">Cil.d_global</a> - print a global
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_stmt">Cil.d_stmt</a> - print a statment
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_instr">Cil.d_instr</a> - print an instruction
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_init">Cil.d_init</a> - print an initializer
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_attr">Cil.d_attr</a> - print an attribute
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_attrlist">Cil.d_attrlist</a> - print a set of attributes
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_loc">Cil.d_loc</a> - print a location
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_ikind">Cil.d_ikind</a> - print an integer kind
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_fkind">Cil.d_fkind</a> - print a floating point kind
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_const">Cil.d_const</a> - print a constant
+</li><li class="li-itemize"><a href="api/Cil.html#VALd_storage">Cil.d_storage</a> - print a storage specifier
+</li></ul><p>You can even customize the pretty-printer by creating instances of
+<a href="api/Cil.cilPrinter.html#.">Cil.cilPrinter..</a> Typically such an instance extends
+<a href="api/Cil.html#VALdefaultCilPrinter">Cil.defaultCilPrinter</a>. Once you have a customized pretty-printer you
+can use the following printing functions:
+</p><ul class="itemize"><li class="li-itemize">
+<a href="api/Cil.html#VALprintExp">Cil.printExp</a> - print an expression
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintType">Cil.printType</a> - print a type
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintLval">Cil.printLval</a> - print an lvalue
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintGlobal">Cil.printGlobal</a> - print a global
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintStmt">Cil.printStmt</a> - print a statment
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintInstr">Cil.printInstr</a> - print an instruction
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintInit">Cil.printInit</a> - print an initializer
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintAttr">Cil.printAttr</a> - print an attribute
+</li><li class="li-itemize"><a href="api/Cil.html#VALprintAttrs">Cil.printAttrs</a> - print a set of attributes
+</li></ul><p>CIL has certain internal consistency invariants. For example, all references
+to a global variable must point to the same <span style="font-family:monospace">varinfo</span> structure. This
+ensures that one can rename the variable by changing the name in the
+<span style="font-family:monospace">varinfo</span>. These constraints are mentioned in the API documentation. There
+is also a consistency checker in file <span style="font-family:monospace">src/check.ml</span>. If you suspect that
+your transformation is breaking these constraints then you can pass the
+<span style="font-family:monospace">--check</span> option to cilly and this will ensure that the consistency checker
+is run after each transformation. </p>
+<h3 id="sec14" class="subsection">6.4&#XA0;&#XA0;Attributes</h3>
+<p><a id="sec-attrib"></a></p><p>In CIL you can attach attributes to types and to names (variables, functions
+and fields). Attributes are represented using the type <a href="api/Cil.html#TYPEattribute">Cil.attribute</a>.
+An attribute consists of a name and a number of arguments (represented using
+the type <a href="api/Cil.html#TYPEattrparam">Cil.attrparam</a>). Almost any expression can be used as an
+attribute argument. Attributes are stored in lists sorted by the name of the
+attribute. To maintain list ordering, use the functions
+<a href="api/Cil.html#VALtypeAttrs">Cil.typeAttrs</a> to retrieve the attributes of a type and the functions
+<a href="api/Cil.html#VALaddAttribute">Cil.addAttribute</a> and <a href="api/Cil.html#VALaddAttributes">Cil.addAttributes</a> to add attributes.
+Alternatively you can use <a href="api/Cil.html#VALtypeAddAttributes">Cil.typeAddAttributes</a> to add an attribute to
+a type (and return the new type).</p><p>GCC already has extensive support for attributes, and CIL extends this
+support to user-defined attributes. A GCC attribute has the syntax:</p><pre class="verbatim"> gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
+</pre><p>Since GCC and MSVC both support various flavors of each attribute (with or
+without leading or trailing _) we first strip ALL leading and trailing _
+from the attribute name (but not the identified in [ACons] parameters in
+<a href="api/Cil.html#TYPEattrparam">Cil.attrparam</a>). When we print attributes, for GCC we add two leading
+and two trailing _; for MSVC we add just two leading _.</p><p>There is support in CIL so that you can control the printing of attributes
+(see <a href="api/Cil.html#VALsetCustomPrintAttribute">Cil.setCustomPrintAttribute</a> and
+<a href="api/Cil.html#VALsetCustomPrintAttributeScope">Cil.setCustomPrintAttributeScope</a>). This custom-printing support is now
+used to print the "const" qualifier as "<span style="font-family:monospace">const</span>" and not as
+"<span style="font-family:monospace">__attribute__((const))</span>".</p><p>The attributes are specified in declarations. This is unfortunate since the C
+syntax for declarations is already quite complicated and after writing the
+parser and elaborator for declarations I am convinced that few C programmers
+understand it completely. Anyway, this seems to be the easiest way to support
+attributes. </p><p>Name attributes must be specified at the very end of the declaration, just
+before the <span style="font-family:monospace">=</span> for the initializer or before the <span style="font-family:monospace">,</span> that separates a
+declaration in a group of declarations or just before the <span style="font-family:monospace">;</span> that
+terminates the declaration. A name attribute for a function being defined can
+be specified just before the brace that starts the function body.</p><p>For example (in the following examples <span style="font-family:monospace">A1</span>,...,<span style="font-family:monospace">An</span> are type attributes
+and <span style="font-family:monospace">N</span> is a name attribute (each of these uses the <span style="font-family:monospace">__attribute__</span> syntax):</p><pre class="verbatim"><span style="color:blue"> int x N;
+ int x N, * y N = 0, z[] N;
+ extern void exit() N;
+ int fact(int x) N { ... }
+</span></pre><p>Type attributes can be specified along with the type using the following
+rules: 
+</p><ol class="enumerate" type=1><li class="li-enumerate">
+The type attributes for a base type (int, float, named type, reference
+to struct or union or enum) must be specified immediately following the
+type (actually it is Ok to mix attributes with the specification of the
+type, in between unsigned and int for example).<p>For example:
+</p><pre class="verbatim"><span style="color:blue">  int A1 x N;  /* A1 applies to the type int. An example is an attribute
+                   "even" restricting the type int to even values. */
+  struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
+</span></pre></li><li class="li-enumerate">The type attributes for a pointer type must be specified immediately
+after the * symbol.
+<pre class="verbatim"><span style="color:blue"> /* A pointer (A1) to an int (A2) */
+ int A2 * A1 x;
+ /* A pointer (A1) to a pointer (A2) to a float (A3) */
+ float A3 * A2 * A1 x;
+</span></pre><p>Note: The attributes for base types and for pointer types are a strict
+extension of the ANSI C type qualifiers (const, volatile and restrict). In
+fact CIL treats these qualifiers as attributes. </p></li><li class="li-enumerate">The attributes for a function type or for an array type can be
+specified using parenthesized declarators.<p>For example:
+</p><pre class="verbatim"><span style="color:blue">   /* A function (A1) from int (A2) to float (A3) */
+   float A3 (A1 f)(int A2);
+
+   /* A pointer (A1) to a function (A2) that returns an int (A3) */
+   int A3 (A2 * A1 pfun)(void);
+
+   /* An array (A1) of int (A2) */
+   int A2 (A1 x0)[]
+
+   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
+    * return a pointer (A5) to int (A6)  */
+   int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
+
+
+   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   extern int A7 * A6 (A4 x2)(float A5 x);
+
+   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
+    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+    * int (A7) */
+   int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
+      return &amp; x2;
+   }
+</span></pre></li></ol><p>Note: ANSI C does not allow the specification of type qualifiers for function
+and array types, although it allows for the parenthesized declarator. With
+just a bit of thought (looking at the first few examples above) I hope that
+the placement of attributes for function and array types will seem intuitive.</p><p>This extension is not without problems however. If you want to refer just to
+a type (in a cast for example) then you leave the name out. But this leads to
+strange conflicts due to the parentheses that we introduce to scope the
+attributes. Take for example the type of x0 from above. It should be written
+as: </p><pre class="verbatim"><span style="color:blue">        int A2 (A1 )[]
+</span></pre><p>But this will lead most C parsers into deep confusion because the parentheses
+around A1 will be confused for parentheses of a function designator. To push
+this problem around (I don&#X2019;t know a solution) whenever we are about to print a
+parenthesized declarator with no name but with attributes, we comment out the
+attributes so you can see them (for whatever is worth) without confusing the
+compiler. For example, here is how we would print the above type:</p><pre class="verbatim"><span style="color:blue">        int A2 /*(A1 )*/[]
+</span></pre>
+<h4 id="sec15" class="paragraph">Handling of predefined GCC attributes</h4>
+<p>GCC already supports attributes in a lot of places in declarations. The only
+place where we support attributes and GCC does not is right before the { that
+starts a function body. </p><p>GCC classifies its attributes in attributes for functions, for variables and
+for types, although the latter category is only usable in definition of struct
+or union types and is not nearly as powerful as the CIL type attributes. We
+have made an effort to reclassify GCC attributes as name and type attributes
+(they only apply for function types). Here is what we came up with:</p><ul class="itemize"><li class="li-itemize">
+GCC name attributes:<p>section, constructor, destructor, unused, weak, no_instrument_function,
+noreturn, alias, no_check_memory_usage, dllinport, dllexport, exception,
+model</p><p>Note: the "noreturn" attribute would be more appropriately qualified as a
+function type attribute. But we classify it as a name attribute to make
+it easier to support a similarly named MSVC attribute. </p></li><li class="li-itemize">GCC function type attributes:<p>fconst (printed as "const"), format, regparm, stdcall,
+cdecl, longcall</p><p>I was not able to completely decipher the position in which these attributes
+must go. So, the CIL elaborator knows these names and applies the following
+rules: 
+</p><ul class="itemize"><li class="li-itemize">
+All of the name attributes that appear in the specifier part (i.e. at
+the beginning) of a declaration are associated with all declared names. </li><li class="li-itemize">All of the name attributes that appear at the end of a declarator are
+associated with the particular name being declared.</li><li class="li-itemize">More complicated is the handling of the function type attributes, since
+there can be more than one function in a single declaration (a function
+returning a pointer to a function). Lacking any real understanding of how
+GCC handles this, I attach the function type attribute to the "nearest"
+function. This means that if a pointer to a function is "nearby" the
+attribute will be correctly associated with the function. In truth I pray
+that nobody uses declarations as that of x3 above. 
+</li></ul></li></ul>
+<h4 id="sec16" class="paragraph">Handling of predefined MSVC attributes</h4>
+<p>MSVC has two kinds of attributes, declaration modifiers to be printed before
+the storage specifier using the notation "<span style="font-family:monospace">__declspec(...)</span>" and a few
+function type attributes, printed almost as our CIL function type
+attributes. </p><p>The following are the name attributes that are printed using
+<span style="font-family:monospace">__declspec</span> right before the storage designator of the declaration:
+thread, naked, dllimport, dllexport, noreturn</p><p>The following are the function type attributes supported by MSVC: 
+fastcall, cdecl, stdcall</p><p>It is not worth going into the obscure details of where MSVC accepts these
+type attributes. The parser thinks it knows these details and it pulls
+these attributes from wherever they might be placed. The important thing
+is that MSVC will accept if we print them according to the rules of the CIL
+attributes ! </p>
+<hr>
+<a href="cilly.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil007.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

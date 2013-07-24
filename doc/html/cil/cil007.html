@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>The CIL Driver</title>
+</head>
+<body >
+<a href="attributes.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="ext.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec17" class="section">7&#XA0;&#XA0;The CIL Driver</h2>
+<p><a id="sec-driver"></a></p><p>We have packaged CIL as an application <span style="font-family:monospace">cilly</span> that contains certain
+example modules, such as <span style="font-family:monospace">logwrites.ml</span> (a module
+that instruments code to print the addresses of memory locations being
+written). Normally, you write another module like that, add command-line
+options and an invocation of your module in <span style="font-family:monospace">src/main.ml</span>. Once you compile
+CIL you will obtain the file <span style="font-family:monospace">obj/cilly.asm.exe</span>. </p><p>We wrote a driver for this executable that makes it easy to invoke your
+analysis on existing C code with very little manual intervention. This driver
+is <span style="font-family:monospace">bin/cilly</span> and is quite powerful. Note that the <span style="font-family:monospace">cilly</span> script
+is configured during installation with the path where CIL resides. This means
+that you can move it to any place you want. </p><p>A simple use of the driver is:
+</p><pre class="verbatim">bin/cilly --save-temps -D HAPPY_MOOD -I myincludes hello.c -o hello
+</pre><p><span style="color:blue">--save-temps</span> tells CIL to save the resulting output files in the
+current directory. Otherwise, they&#X2019;ll be put in <span style="font-family:monospace">/tmp</span> and deleted
+automatically. Not that this is the only CIL-specific flag in the
+list &#X2013; the other flags use <span style="font-family:monospace">gcc</span>&#X2019;s syntax.</p><p>This performs the following actions: 
+</p><ul class="itemize"><li class="li-itemize">
+preprocessing using the -D and -I arguments with the resulting 
+file left in <span style="font-family:monospace">hello.i</span>, 
+</li><li class="li-itemize">the invocation of the <span style="font-family:monospace">cilly.asm</span> application which parses <span style="font-family:monospace">hello.i</span>
+converts it to CIL and the pretty-prints it to <span style="font-family:monospace">hello.cil.c</span>
+</li><li class="li-itemize">another round of preprocessing with the result placed in <span style="font-family:monospace">hello.cil.i</span>
+</li><li class="li-itemize">the true compilation with the result in <span style="font-family:monospace">hello.cil.o</span>
+</li><li class="li-itemize">a linking phase with the result in <span style="font-family:monospace">hello</span>
+</li></ul><p>Note that <span style="font-family:monospace">cilly</span> behaves like the <span style="font-family:monospace">gcc</span> compiler. This makes it
+easy to use it with existing <span style="font-family:monospace">Makefiles</span>:
+</p><pre class="verbatim">make CC="bin/cilly" LD="bin/cilly"
+</pre><p><span style="font-family:monospace">cilly</span> can also behave as the Microsoft Visual C compiler, if the first
+argument is <span style="font-family:monospace">--mode=MSVC</span>:
+</p><pre class="verbatim">bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
+</pre><p>(This in turn will pass a <span style="font-family:monospace">--MSVC</span> flag to the underlying <span style="font-family:monospace">cilly.asm</span>
+process which will make it understand the Microsoft Visual C extensions)</p><p><span style="font-family:monospace">cilly</span> can also behave as the archiver <span style="font-family:monospace">ar</span>, if it is passed an
+argument <span style="font-family:monospace">--mode=AR</span>. Note that only the <span style="font-family:monospace">cr</span> mode is supported
+(create a new archive and replace all files in there). Therefore the
+previous version of the archive is lost. You will also need to remove
+any other commands that operate on the generated library
+(e.g. <span style="font-family:monospace">ranlib</span>, <span style="font-family:monospace">lorder</span>), as the .a file is no longer an actual
+binary library.</p><p>Furthermore, <span style="font-family:monospace">cilly</span> allows you to pass some arguments on to the
+underlying <span style="font-family:monospace">cilly.asm</span> process. As a general rule all arguments that start
+with <span style="font-family:monospace">--</span> and that <span style="font-family:monospace">cilly</span> itself does not process, are passed on. For
+example, 
+</p><pre class="verbatim">bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
+</pre><p>will produce a file <span style="font-family:monospace">hello.cil.c</span> that prints all the memory addresses
+written by the application. </p><p>The most powerful feature of <span style="font-family:monospace">cilly</span> is that it can collect all the
+sources in your project, merge them into one file and then apply CIL. This
+makes it a breeze to do whole-program analysis and transformation. All you
+have to do is to pass the <span style="font-family:monospace">--merge</span> flag to <span style="font-family:monospace">cilly</span>:
+</p><pre class="verbatim">make CC="bin/cilly --save-temps --dologwrites --merge"
+</pre><p>You can even leave some files untouched:
+</p><pre class="verbatim">make CC="bin/cilly --save-temps --dologwrites --merge --leavealone=foo --leavealone=bar"
+</pre><p>This will merge all the files except those with the basename <span style="font-family:monospace">foo</span> and
+<span style="font-family:monospace">bar</span>. Those files will be compiled as usual and then linked in at the very
+end. </p><p>The sequence of actions performed by <span style="font-family:monospace">cilly</span> depends on whether merging
+is turned on or not:
+</p><ul class="itemize"><li class="li-itemize">
+If merging is off
+<ol class="enumerate" type=1><li class="li-enumerate">
+For every file <span style="font-family:monospace">file.c</span> to compile
+<ol class="enumerate" type=a><li class="li-enumerate">
+Preprocess the file with the given arguments to 
+produce <span style="font-family:monospace">file.i</span>
+</li><li class="li-enumerate">Invoke <span style="font-family:monospace">cilly.asm</span> to produce a <span style="font-family:monospace">file.cil.c</span>
+</li><li class="li-enumerate">Preprocess to <span style="font-family:monospace">file.cil.i</span>
+</li><li class="li-enumerate">Invoke the underlying compiler to produce <span style="font-family:monospace">file.cil.o</span>
+</li></ol>
+</li><li class="li-enumerate">Link the resulting objects
+</li></ol>
+</li><li class="li-itemize">If merging is on
+<ol class="enumerate" type=1><li class="li-enumerate">
+For every file <span style="font-family:monospace">file.c</span> to compile
+<ol class="enumerate" type=a><li class="li-enumerate">
+Preprocess the file with the given arguments to 
+produce <span style="font-family:monospace">file.i</span>
+</li><li class="li-enumerate">Save the preprocessed source as <span style="font-family:monospace">file.o</span>
+</li></ol>
+</li><li class="li-enumerate">When linking executable <span style="font-family:monospace">hello.exe</span>, look at every object 
+file that must be linked and see if it actually 
+contains preprocessed source. Pass all those files to a 
+special merging application (described in
+Section&#XA0;<a href="merger.html#sec-merger">13</a>) to produce <span style="font-family:monospace">hello.exe_comb.c</span>
+</li><li class="li-enumerate">Invoke <span style="font-family:monospace">cilly.asm</span> to produce a <span style="font-family:monospace">hello.exe_comb.cil.c</span>
+</li><li class="li-enumerate">Preprocess to <span style="font-family:monospace">hello.exe_comb.cil.i</span>
+</li><li class="li-enumerate">Invoke the underlying compiler to produce <span style="font-family:monospace">hello.exe_comb.cil.o</span>
+</li><li class="li-enumerate">Invoke the actual linker to produce <span style="font-family:monospace">hello.exe</span>
+</li></ol>
+</li></ul><p>Note that files that you specify with <span style="font-family:monospace">--leavealone</span> are not merged and
+never presented to CIL. They are compiled as usual and then are linked in at
+the end. </p><p>And a final feature of <span style="font-family:monospace">cilly</span> is that it can substitute copies of the
+system&#X2019;s include files:</p><pre class="verbatim">make CC="bin/cilly --includedir=myinclude"
+</pre><p>This will force the preprocessor to use the file <span style="font-family:monospace">myinclude/xxx/stdio.h</span>
+(if it exists) whenever it encounters <span style="font-family:monospace">#include &lt;stdio.h&gt;</span>. The <span style="font-family:monospace">xxx</span> is
+a string that identifies the compiler version you are using. This modified
+include files should be produced with the patcher script (see
+Section&#XA0;<a href="patcher.html#sec-patcher">14</a>).</p>
+<h3 id="sec18" class="subsection">7.1&#XA0;&#XA0;<span style="font-family:monospace">cilly</span> Options</h3>
+<p>Among the options for the <span style="font-family:monospace">cilly</span> you can put anything that can normally
+go in the command line of the compiler that <span style="font-family:monospace">cilly</span> is impersonating.
+<span style="font-family:monospace">cilly</span> will do its best to pass those options along to the appropriate
+subprocess. In addition, the following options are supported (a complete and
+up-to-date list can always be obtained by running <span style="font-family:monospace">cilly --help</span>):</p><ul class="itemize"><li class="li-itemize">
+<span style="font-family:monospace">--gcc=command</span> Tell <span style="font-family:monospace">cilly</span> to use <span style="font-family:monospace">command</span> to invoke
+gcc, e.g. <span style="font-family:monospace">--gcc=arm-elf-gcc</span> to use a cross-compiler. See also
+the <span style="font-family:monospace">--envmachine</span> option below that tells CIL to assume a
+different machine model.
+</li><li class="li-itemize"><span style="font-family:monospace">--mode=mode</span> This must be the first argument if present. It makes
+<span style="font-family:monospace">cilly</span> behave as a given compiled. The following modes are recognized: 
+<ul class="itemize"><li class="li-itemize">
+GNUCC - the GNU C Compiler. This is the default.
+</li><li class="li-itemize">MSVC - the Microsoft Visual C compiler. Of course, you should
+pass only MSVC valid options in this case. 
+</li><li class="li-itemize">AR - the archiver <span style="font-family:monospace">ar</span>. Only the mode <span style="font-family:monospace">cr</span> is supported and
+the original version of the archive is lost. 
+</li></ul>
+</li><li class="li-itemize"><span style="font-family:monospace">--help</span> Prints a list of the options supported.
+</li><li class="li-itemize"><span style="font-family:monospace">--verbose</span> Prints lots of messages about what is going on.
+</li><li class="li-itemize"><span style="font-family:monospace">--stages</span> Less than <span style="font-family:monospace">--verbose</span> but lets you see what <span style="font-family:monospace">cilly</span>
+is doing. 
+</li><li class="li-itemize"><span style="font-family:monospace">--merge</span> This tells <span style="font-family:monospace">cilly</span> to first attempt to collect into one
+source file all of the sources that make your application, and then to apply
+<span style="font-family:monospace">cilly.asm</span> on the resulting source. The sequence of actions in this case is
+described above and the merger itself is described in Section&#XA0;<a href="merger.html#sec-merger">13</a>.</li><li class="li-itemize"><span style="font-family:monospace">--leavealone=xxx</span>. Do not merge and do not present to CIL the files
+whose basename is "xxx". These files are compiled as usual and linked in at
+the end. 
+</li><li class="li-itemize"><span style="font-family:monospace">--includedir=xxx</span>. Override the include files with those in the given
+directory. The given directory is the same name that was given an an argument
+to the patcher (see Section&#XA0;<a href="patcher.html#sec-patcher">14</a>). In particular this means that
+that directory contains subdirectories named based on the current compiler
+version. The patcher creates those directories. 
+</li><li class="li-itemize"><span style="font-family:monospace">--usecabs</span>. Do not CIL, but instead just parse the source and print
+its AST out. This should looked like the preprocessed file. This is useful
+when you suspect that the conversion to CIL phase changes the meaning of the
+program. 
+</li><li class="li-itemize"><span style="font-family:monospace">--save-temps=xxx</span>. Temporary files are preserved in the xxx
+directory. For example, the output of CIL will be put in a file
+named <span style="font-family:monospace">*.cil.c</span>.
+</li><li class="li-itemize"><span style="font-family:monospace">--save-temps</span>. Temporay files are preserved in the current directory.
+</li></ul>
+<h3 id="sec19" class="subsection">7.2&#XA0;&#XA0;<span style="font-family:monospace">cilly.asm</span> Options</h3>
+<p>
+<a id="sec-cilly-asm-options"></a></p><p>All of the options that start with <span style="font-family:monospace">--</span> and are not understood by
+<span style="font-family:monospace">cilly</span> are passed on to <span style="font-family:monospace">cilly.asm</span>. <span style="font-family:monospace">cilly</span> also passes along to
+<span style="font-family:monospace">cilly.asm</span> flags such as <span style="font-family:monospace">--MSVC</span> that both need to know
+about. The following options are supported. Many of these flags also
+have corresponding &#X201C;<span style="font-family:monospace">--no</span>*&#X201D; versions if you need to go back to
+the default, as in &#X201C;<span style="font-family:monospace">--nowarnall</span>&#X201D;.</p><p>&#XA0;&#XA0;&#XA0;&#XA0;&#XA0;&#XA0; <span style="font-weight:bold">General Options:</span>
+</p><ul class="itemize"><li class="li-itemize">
+<span style="font-family:monospace">--version</span> output version information and exit
+</li><li class="li-itemize"><span style="font-family:monospace">--verbose</span> Print lots of random stuff. This is passed on from cilly
+</li><li class="li-itemize"><span style="font-family:monospace">--warnall</span> Show all warnings.
+</li><li class="li-itemize"><span style="font-family:monospace">--debug=xxx</span> turns on debugging flag xxx
+</li><li class="li-itemize"><span style="font-family:monospace">--nodebug=xxx</span> turns off debugging flag xxx
+</li><li class="li-itemize"><span style="font-family:monospace">--flush</span> Flush the output streams often (aids debugging).
+</li><li class="li-itemize"><span style="font-family:monospace">--check</span> Run a consistency check over the CIL after every operation.
+</li><li class="li-itemize"><span style="font-family:monospace">--strictcheck</span> Same as <span style="font-family:monospace">--check</span>, but it treats
+consistency problems as errors instead of warnings.
+</li><li class="li-itemize"><span style="font-family:monospace">--nocheck</span> turns off consistency checking of CIL.
+</li><li class="li-itemize"><span style="font-family:monospace">--noPrintLn</span> Don&#X2019;t output #line directives in the output.
+</li><li class="li-itemize"><span style="font-family:monospace">--commPrintLn</span> Print #line directives in the output, but
+put them in comments.
+</li><li class="li-itemize"><span style="font-family:monospace">--commPrintLnSparse</span> Like <span style="font-family:monospace">--commPrintLn</span> but print only new
+line numbers.
+</li><li class="li-itemize"><span style="font-family:monospace">--log=xxx</span> Set the name of the log file. By default stderr is used
+</li><li class="li-itemize"><span style="font-family:monospace">--MSVC</span> Enable MSVC compatibility. Default is GNU.
+</li><li class="li-itemize"><span style="font-family:monospace">--ignore-merge-conflicts</span> ignore merging conflicts.
+</li><li class="li-itemize"><span style="font-family:monospace">--extrafiles=filename</span>: the name of a file that contains
+a list of additional files to process, separated by whitespace.
+</li><li class="li-itemize"><span style="font-family:monospace">--stats</span> Print statistics about the running time of the
+parser, conversion to CIL, etc. Also prints memory-usage
+statistics. You can time parts of your own code as well. Calling
+(<span style="font-family:monospace">Stats.time &#X2018;&#X2018;label&#X2019;&#X2019; func arg</span>) will evaluate <span style="font-family:monospace">(func arg)</span>
+and remember how long this takes. If you call <span style="font-family:monospace">Stats.time</span>
+repeatedly with the same label, CIL will report the aggregate
+time.<p>If available, CIL uses the x86 performance counters for these
+stats. This is very precise, but results in &#X201C;wall-clock time.&#X201D;
+To report only user-mode time, find the call to <span style="font-family:monospace">Stats.reset</span> in
+<span style="font-family:monospace">main.ml</span>, and change it to <span style="font-family:monospace">Stats.reset Stats.SoftwareTimer</span>.</p></li><li class="li-itemize"><span style="font-family:monospace">--envmachine</span>. Use machine model specified in
+<span style="font-family:monospace">CIL_MACHINE</span> environment variable, rather than the one
+compiled into CIL. Note that you should not pass gcc&#X2019;s 32/64-bit
+<span style="font-family:monospace">-m32</span> and <span style="font-family:monospace">-m64</span> options to <span style="font-family:monospace">cilly</span> if you use
+<span style="font-family:monospace">--envmachine</span> (they use <span style="font-family:monospace">--envmachine</span> under the hood).
+See Section&#XA0;<a href="#sec-cilmachine">7.4</a> for a description of <span style="font-family:monospace">CIL_MACHINE</span>&#X2019;s
+format.<p><span style="font-weight:bold">Lowering Options</span>
+</p></li><li class="li-itemize"><span style="font-family:monospace">--noLowerConstants</span> do not lower constant expressions.
+</li><li class="li-itemize"><span style="font-family:monospace">--noInsertImplicitCasts</span> do not insert implicit casts.
+</li><li class="li-itemize"><span style="font-family:monospace">--forceRLArgEval</span> Forces right to left evaluation of function arguments.
+</li><li class="li-itemize"><span style="font-family:monospace">--disallowDuplication</span> Prevent small chunks of code from being duplicated.
+</li><li class="li-itemize"><span style="font-family:monospace">--keepunused</span> Do not remove the unused variables and types.
+</li><li class="li-itemize"><span style="font-family:monospace">--rmUnusedInlines</span> Delete any unused inline functions. This is the default in MSVC mode.<p><span style="font-weight:bold">Output Options:</span>
+</p></li><li class="li-itemize"><span style="font-family:monospace">--printCilAsIs</span> Do not try to simplify the CIL when
+printing. Without this flag, CIL will attempt to produce prettier
+output by e.g. changing <span style="font-family:monospace">while(1)</span> into more meaningful loops.
+</li><li class="li-itemize"><span style="font-family:monospace">--noWrap</span> do not wrap long lines when printing
+</li><li class="li-itemize"><span style="font-family:monospace">--out=xxx</span> the name of the output CIL file. <span style="font-family:monospace">cilly</span>
+sets this for you.
+</li><li class="li-itemize"><span style="font-family:monospace">--mergedout=xxx</span> specify the name of the merged file
+</li><li class="li-itemize"><span style="font-family:monospace">--cabsonly=xxx</span> CABS output file name
+<p><span style="font-weight:bold">Selected features.</span> See Section&#XA0;<a href="ext.html#sec-Extension">8</a> for more information.
+</p></li><li class="li-itemize"><span style="font-family:monospace">--dologcalls</span>. Insert code in the processed source to print the name of
+functions as are called. Implemented in <span style="font-family:monospace">src/ext/logcalls.ml</span>.
+</li><li class="li-itemize"><span style="font-family:monospace">--dologwrites</span>. Insert code in the processed source to print the
+address of all memory writes. Implemented in <span style="font-family:monospace">src/ext/logwrites.ml</span>.
+</li><li class="li-itemize"><span style="font-family:monospace">--dooneRet</span>. Make each function have at most one &#X2019;return&#X2019;.
+Implemented in <span style="font-family:monospace">src/ext/oneret.ml</span>. 
+</li><li class="li-itemize"><span style="font-family:monospace">--dostackGuard</span>. Instrument function calls and returns to
+maintain a separate stack for return addresses. Implemeted in
+<span style="font-family:monospace">src/ext/heapify.ml</span>. 
+</li><li class="li-itemize"><span style="font-family:monospace">--domakeCFG</span>. Make the program look more like a CFG. Implemented
+in <span style="font-family:monospace">src/cil.ml</span>. 
+</li><li class="li-itemize"><span style="font-family:monospace">--dopartial</span>. Do interprocedural partial evaluation and
+constant folding. Implemented in <span style="font-family:monospace">src/ext/partial.ml</span>. 
+</li><li class="li-itemize"><span style="font-family:monospace">--dosimpleMem</span>. Simplify all memory expressions. Implemented in
+<span style="font-family:monospace">src/ext/simplemem.ml</span>. <p>For an up-to-date list of available options, run <span style="font-family:monospace">cilly.asm --help</span>. </p></li></ul>
+<h3 id="sec20" class="subsection">7.3&#XA0;&#XA0;Internal Options</h3>
+<p>
+<a id="sec-cilly-internal-options"></a></p><p>All of the <span style="font-family:monospace">cilly.asm</span> options described above can be set
+programmatically &#X2013; see <span style="font-family:monospace">src/ciloptions.ml</span> or the individual
+extensions to see how. Some options should be set before parsing to
+be effective. </p><p>Additionally, a few CIL options have no command-line flag and can only
+be set programmatically. These options may be useful for certain
+analyses:</p><ul class="itemize"><li class="li-itemize">
+<span style="font-family:monospace">Cabs2cil.doCollapseCallCast</span>:This is false by default. Set
+to true to replicate the behavior of CIL 1.3.5 and earlier.<p>When false, all casts in the program are made explicit using the
+<span style="font-family:monospace">CastE</span> expression. Accordingly, the destination of a Call
+instruction will always have the same type as the function&#X2019;s return
+type.</p><p>If true, the destination type of a Call may differ from the return type, so
+there is an implicit cast. This is useful for analyses involving
+<span style="font-family:monospace">malloc</span>. Without this option, CIL converts &#X201C;<span style="font-family:monospace">T* x = malloc(n);</span>&#X201D;
+into &#X201C;<span style="font-family:monospace">void* tmp = malloc(n); T* x = (T*)tmp;</span>&#X201D;. If you don&#X2019;t
+need all casts to be made explicit, you can set
+<span style="font-family:monospace">Cabs2cil.doCollapseCallCast</span> to true so that CIL won&#X2019;t insert a
+temporary and you can more easily determine the allocation type from
+calls to <span style="font-family:monospace">malloc</span>.</p></li></ul>
+<h3 id="sec21" class="subsection">7.4&#XA0;&#XA0;Specifying a machine model</h3>
+<p>
+<a id="sec-cilmachine"></a></p><p>The <span style="font-family:monospace">--envmachine</span> option tells CIL to get its machine model from
+the <span style="font-family:monospace">CIL_MACHINE</span> environment variable, rather than use the model
+compiled in to CIL itself. This is necessary when using CIL as part of
+a cross-compilation setup, and to handle gcc&#X2019;s <span style="font-family:monospace">-m32</span> and <span style="font-family:monospace">-m64</span>
+which select between a 32-bit and 64-bit machine model.</p><p><span style="font-family:monospace">CIL_MACHINE</span> is a space-separated list of key=value pairs. Unknown
+keys are ignored. The following keys must be defined:
+</p><div class="center">
+<table border=1  style="border-spacing:0;" class="cellpadding1"><tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > Key</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >Value </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > bool</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(_Bool),alignof(_Bool) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > short</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(short),alignof(short) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > int</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(int),alignof(int) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > long</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(long),alignof(long) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > long_long</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(long long),alignof(long long) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > float</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(float),alignof(float) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > double</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(double),alignof(double) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > long_double</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(long double),alignof(long double) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > pointer</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(all pointers),alignof(all pointers) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > enum</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(all enums),alignof(all enums) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > fun</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >sizeof(all fn ptrs),alignof(all fn ptrs) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > alignof_string</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >alignof(all string constants) </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > max_alignment</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >maximum alignment for any type </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > size_t</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >the definition of size_t </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > wchar_t</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >the definition of wchar_t </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > char_signed</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true if char is signed </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > big_endian</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true for big-endian machine models </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > const_string_literals</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true if string constants are const </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > __thread_is_keyword</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true if <span style="font-family:monospace">__thread</span> is a keyword </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > __builtin_va_list</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true if <span style="font-family:monospace">__builtin_va_list</span> is a builtin type </td></tr>
+<tr><td style="text-align:left;border:solid 1px;white-space:nowrap" > underscore_name</td><td style="text-align:left;border:solid 1px;white-space:nowrap" >true if generated symbols preceded by _ </td></tr>
+</table>
+</div><p>Some notes:
+</p><ul class="itemize"><li class="li-itemize">
+Values cannot contain spaces as spaces separate key/value pairs. 
+</li><li class="li-itemize">The value of size_t is the text for the type defined as
+size_t, e.g. <span style="font-family:monospace">unsigned long</span>. As spaces are not allowed in values,
+CIL will replace underscores by spaces: <span style="font-family:monospace">size_t=unsigned_long</span>.
+</li><li class="li-itemize">sizeof(t) and alignof(t) are respectively the size and alignment of
+type t.
+</li><li class="li-itemize">The boolean-valued keys expect <span style="font-family:monospace">true</span> for true, and <span style="font-family:monospace">false</span>
+for false.
+</li><li class="li-itemize">The <span style="font-family:monospace">src/machdep-ml.c</span> program will print a <span style="font-family:monospace">CIL_MACHINE</span> value
+when run with the <span style="font-family:monospace">--env</span> option.
+</li></ul><p>As an example, here&#X2019;s the <span style="font-family:monospace">CIL_MACHINE</span> value for 64-bit targets on
+an x86-based Mac OS X machine:
+</p><pre class="verbatim">  short=2,2 int=4,4 long=8,8 long_long=8,8 pointer=8,8 enum=4,4
+  float=4,4 double=8,8 long_double=16,16 void=1 bool=1,1 fun=1,1
+  alignof_string=1 max_alignment=16 size_t=unsigned_long 
+  wchar_t=int char_signed=true const_string_literals=true 
+  big_endian=false __thread_is_keyword=true 
+  __builtin_va_list=true underscore_name=true
+</pre>
+<hr>
+<a href="attributes.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="ext.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

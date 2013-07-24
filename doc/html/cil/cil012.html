@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>Known Bugs and Limitations</title>
+</head>
+<body >
+<a href="cil011.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="merger.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec45" class="section">12&#XA0;&#XA0;Known Bugs and Limitations</h2>
+<h3 id="sec46" class="subsection">12.1&#XA0;&#XA0;Code that CIL won&#X2019;t compile</h3>
+<ul class="itemize"><li class="li-itemize">
+We do not support tri-graph sequences (ISO 5.2.1.1).</li><li class="li-itemize">CIL cannot parse arbitrary <span style="font-family:monospace">#pragma</span> directives. Their
+syntax must follow gcc&#X2019;s attribute syntax to be understood. If you
+need a pragma that does not follow gcc syntax, add that pragma&#X2019;s name
+to <span style="font-family:monospace">no_parse_pragma</span> in <span style="font-family:monospace">src/frontc/clexer.mll</span> to indicate that
+CIL should treat that pragma as a monolithic string rather than try
+to parse its arguments.<p>CIL cannot parse a line containing an empty <span style="font-family:monospace">#pragma</span>.</p></li><li class="li-itemize">CIL only parses <span style="font-family:monospace">#pragma</span> directives at the "top level", this is,
+outside of any enum, structure, union, or function definitions.<p>If your compiler uses pragmas in places other than the top-level,
+you may have to preprocess the sources in a special way (sed, perl,
+etc.) to remove pragmas from these locations.</p></li><li class="li-itemize">CIL cannot parse the following code (fixing this problem would require
+extensive hacking of the LALR grammar):
+<pre class="verbatim"><span style="color:blue">int bar(int ()); // This prototype cannot be parsed
+int bar(int x()); // If you add a name to the function, it works
+int bar(int (*)()); // This also works (and it is more appropriate)
+</span></pre></li><li class="li-itemize">CIL also cannot parse certain K&amp;R old-style prototypes with missing
+return type:
+<pre class="verbatim"><span style="color:blue">g(); // This cannot be parsed
+int g(); // This is Ok
+</span></pre></li><li class="li-itemize">CIL does not understand some obscure combinations of type
+specifiers (&#X201C;signed&#X201D; and &#X201C;unsigned&#X201D; applied to typedefs that
+themselves contain a sign specification; you could argue that this
+should not be allowed anyway):
+<pre class="verbatim"><span style="color:blue">typedef signed char __s8;
+__s8 unsigned uchartest; // This is unsigned char for gcc
+</span></pre></li><li class="li-itemize">CIL does not support constant-folding of floating-point values,
+because it is difficult to simulate the behavior of various
+C floating-point implementations in Ocaml. Therefore, code such as
+this will not compile:
+<pre class="verbatim"><span style="color:blue">int globalArray[(1.0 &lt; 2.0) ? 5 : 50]
+</span></pre></li><li class="li-itemize">CIL uses Ocaml ints to represent the size of an object.
+Therefore, it can&#X2019;t compute the size of any object that is larger
+than 2<sup>30</sup> bits (134 MB) on 32-bit computers, or 2<sup>62</sup> bits on
+64-bit computers.</li></ul>
+<h3 id="sec47" class="subsection">12.2&#XA0;&#XA0;Code that behaves differently under CIL</h3>
+<ul class="itemize"><li class="li-itemize">
+GCC has a strange feature called &#X201C;extern inline&#X201D;. Such a function can
+be defined twice: first with the &#X201C;extern inline&#X201D; specifier and the second
+time without it. If optimizations are turned off then the &#X201C;extern inline&#X201D;
+definition is considered a prototype (its body is ignored). <p>With old versions of gcc, if optimizations
+are turned on then the extern inline function is inlined at all of its
+occurrences from the point of its definition all the way to the point where the
+(optional) second definition appears. No body is generated for an extern
+inline function. A body is generated for the real definition and that one is
+used in the rest of the file. </p><p>With new versions of gcc, the extern inline function is used only if there is no
+actual (non-extern) second definition (i.e. the second definition is used in the
+whole file, even for calls between the extern inline definition and the second
+definition).</p><p>By default, CIL follows the current gcc behavior for extern
+inline. However, if you set <span style="font-family:monospace">oldstyleExternInline</span> to true, you will
+get an emulation of gcc&#X2019;s old behaviour (under the assumption that
+optimizations are enabled): CIL will rename your extern inline
+function (and its uses) with the suffix <span style="font-family:monospace">__extinline</span>. This means
+that if you have two such definition, that do different things and the
+optimizations are not on, then the CIL version might compute a
+different answer! Also, if you have multiple extern inline
+declarations then CIL will ignore but the first one. This is not so
+bad because GCC itself would not like it.</p></li><li class="li-itemize">The implementation of <span style="font-family:monospace">bitsSizeOf</span> does not take into account the
+packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
+Linux/gcc-2.95.3 and on Windows/MSVC.</li><li class="li-itemize"><span style="font-family:monospace">-malign-double</span> is ignored.</li><li class="li-itemize">The statement <span style="font-family:monospace">x = 3 + x ++</span> will perform the increment of <span style="font-family:monospace">x</span>
+before the assignment, while <span style="font-family:monospace">gcc</span> delays the increment after the
+assignment. It turned out that this behavior is much easier to implement
+than gcc&#X2019;s one, and either way is correct (since the behavior is unspecified
+in this case). Similarly, if you write <span style="font-family:monospace">x = x ++;</span> then CIL will perform
+the increment before the assignment, whereas GCC and MSVC will perform it
+after the assignment. </li><li class="li-itemize">Because CIL uses 64-bit floating point numbers in its internal
+representation of floating point numbers, <span style="font-family:monospace">long double</span> constants
+are parsed as if they were <span style="font-family:monospace">double</span> constants.</li></ul>
+<h3 id="sec48" class="subsection">12.3&#XA0;&#XA0;Effects of the CIL translation</h3>
+<ul class="itemize"><li class="li-itemize">
+CIL cleans up C code in various ways that may suppress compiler
+warnings. For example, CIL will add casts where they are needed
+while <span style="font-family:monospace">gcc</span> might print a warning for the missing cast. It is
+not a goal of CIL to emit such warnings &#X2014; we support several
+versions of several different compilers, and mimicking the warnings
+of each is simply not possible. If you want to see compiler
+warnings, compile your program with your favorite compiler before
+using CIL.</li><li class="li-itemize">When you use variable-length arrays, CIL turns them into calls
+to <span style="font-family:monospace">alloca</span>. This means that they are deallocated when the
+function returns and not when the local scope ends.<p>Variable-length arrays are not supported as fields of a struct or union.</p></li><li class="li-itemize">In the new versions of <span style="font-family:monospace">glibc</span> there is a function
+<span style="font-family:monospace">__builtin_va_arg</span> that takes a type as its second argument. CIL
+handles that through a slight trick. As it parses the function it changes a
+call like:
+<pre class="verbatim">  mytype x = __builtin_va_arg(marker, mytype)
+</pre>into 
+<pre class="verbatim"> mytype x;
+ __builtin_va_arg(marker, sizeof(mytype), &amp;x);
+</pre><p>The latter form is used internally in CIL. However, the CIL pretty printer
+will try to emit the original code. </p><p>Similarly, <span style="font-family:monospace">__builtin_types_compatible_p(t1, t2)</span>, which takes
+types as arguments, is represented internally as
+<span style="font-family:monospace">__builtin_types_compatible_p(sizeof t1, sizeof t2)</span>, but the
+sizeofs are removed when printing.</p></li></ul>
+<hr>
+<a href="cil011.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="merger.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

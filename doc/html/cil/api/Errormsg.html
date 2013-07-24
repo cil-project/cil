@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Dominators.html">
+<link rel="next" href="Formatcil.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of class methods" rel=Appendix href="index_methods.html">
+<link title="Index of classes" rel=Appendix href="index_classes.html">
+<link title="Index of class types" rel=Appendix href="index_class_types.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Alpha" rel="Chapter" href="Alpha.html">
+<link title="Cfg" rel="Chapter" href="Cfg.html">
+<link title="Cil" rel="Chapter" href="Cil.html">
+<link title="Cillower" rel="Chapter" href="Cillower.html">
+<link title="Clist" rel="Chapter" href="Clist.html">
+<link title="Dataflow" rel="Chapter" href="Dataflow.html">
+<link title="Dominators" rel="Chapter" href="Dominators.html">
+<link title="Errormsg" rel="Chapter" href="Errormsg.html">
+<link title="Formatcil" rel="Chapter" href="Formatcil.html">
+<link title="Pretty" rel="Chapter" href="Pretty.html">
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Errormsg</title>
+</head>
+<body>
+<div class="navbar"><a href="Dominators.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Formatcil.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Errormsg.html">Errormsg</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Errormsg: <code class="code">sig</code> <a href="Errormsg.html">..</a> <code class="code">end</code></pre>Utility functions for error-reporting<br>
+<hr width="100%">
+<pre><span id="VALlogChannel"><span class="keyword">val</span> logChannel</span> : <code class="type">out_channel ref</code></pre><div class="info">
+A channel for printing log messages<br>
+</div>
+<pre><span id="VALdebugFlag"><span class="keyword">val</span> debugFlag</span> : <code class="type">bool ref</code></pre><div class="info">
+If set then print debugging info<br>
+</div>
+<pre><span id="VALverboseFlag"><span class="keyword">val</span> verboseFlag</span> : <code class="type">bool ref</code></pre><pre><span id="VALcolorFlag"><span class="keyword">val</span> colorFlag</span> : <code class="type">bool ref</code></pre><div class="info">
+Set to true if you want error and warning messages to be colored<br>
+</div>
+<pre><span id="VALredEscStr"><span class="keyword">val</span> redEscStr</span> : <code class="type">string</code></pre><pre><span id="VALgreenEscStr"><span class="keyword">val</span> greenEscStr</span> : <code class="type">string</code></pre><pre><span id="VALyellowEscStr"><span class="keyword">val</span> yellowEscStr</span> : <code class="type">string</code></pre><pre><span id="VALblueEscStr"><span class="keyword">val</span> blueEscStr</span> : <code class="type">string</code></pre><pre><span id="VALpurpleEscStr"><span class="keyword">val</span> purpleEscStr</span> : <code class="type">string</code></pre><pre><span id="VALcyanEscStr"><span class="keyword">val</span> cyanEscStr</span> : <code class="type">string</code></pre><pre><span id="VALwhiteEscStr"><span class="keyword">val</span> whiteEscStr</span> : <code class="type">string</code></pre><pre><span id="VALresetEscStr"><span class="keyword">val</span> resetEscStr</span> : <code class="type">string</code></pre><pre><span id="VALwarnFlag"><span class="keyword">val</span> warnFlag</span> : <code class="type">bool ref</code></pre><div class="info">
+Set to true if you want to see all warnings.<br>
+</div>
+<pre><span id="EXCEPTIONError"><span class="keyword">exception</span> Error</span></pre>
+<div class="info">
+Error reporting functions raise this exception<br>
+</div>
+<pre><span id="VALerror"><span class="keyword">val</span> error</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Prints an error message of the form <code class="code">Error: ...</code>. 
+    Use in conjunction with s, for example: <code class="code">E.s (E.error ... )</code>.<br>
+</div>
+<pre><span id="VALbug"><span class="keyword">val</span> bug</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Similar to <code class="code">error</code> except that its output has the form <code class="code">Bug: ...</code><br>
+</div>
+<pre><span id="VALunimp"><span class="keyword">val</span> unimp</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Similar to <code class="code">error</code> except that its output has the form <code class="code">Unimplemented: ...</code><br>
+</div>
+<pre><span id="VALs"><span class="keyword">val</span> s</span> : <code class="type">'a -> 'b</code></pre><div class="info">
+Stop the execution by raising an Error.<br>
+</div>
+<pre><span id="VALhadErrors"><span class="keyword">val</span> hadErrors</span> : <code class="type">bool ref</code></pre><div class="info">
+This is set whenever one of the above error functions are called. It must
+    be cleared manually<br>
+</div>
+<pre><span id="VALwarn"><span class="keyword">val</span> warn</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Like <a href="Errormsg.html#VALerror"><code class="code">Errormsg.error</code></a> but does not raise the <a href="Errormsg.html#EXCEPTIONError"><code class="code">Errormsg.Error</code></a> 
+ exception. Return type is unit.<br>
+</div>
+<pre><span id="VALwarnOpt"><span class="keyword">val</span> warnOpt</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Like <a href="Errormsg.html#VALwarn"><code class="code">Errormsg.warn</code></a> but optional. Printed only if the 
+ <a href="Errormsg.html#VALwarnFlag"><code class="code">Errormsg.warnFlag</code></a> is set<br>
+</div>
+<pre><span id="VALlog"><span class="keyword">val</span> log</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Print something to <code class="code">logChannel</code><br>
+</div>
+<pre><span id="VALlogg"><span class="keyword">val</span> logg</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+same as <a href="Errormsg.html#VALlog"><code class="code">Errormsg.log</code></a> but do not wrap lines<br>
+</div>
+<pre><span id="VALnull"><span class="keyword">val</span> null</span> : <code class="type">('a, unit, <a href="Pretty.html#TYPEdoc">Pretty.doc</a>, unit) format4 -> 'a</code></pre><div class="info">
+Do not actually print (i.e. print to /dev/null)<br>
+</div>
+<pre><span id="VALpushContext"><span class="keyword">val</span> pushContext</span> : <code class="type">(unit -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a>) -> unit</code></pre><div class="info">
+Registers a context printing function<br>
+</div>
+<pre><span id="VALpopContext"><span class="keyword">val</span> popContext</span> : <code class="type">unit -> unit</code></pre><div class="info">
+Removes the last registered context printing function<br>
+</div>
+<pre><span id="VALshowContext"><span class="keyword">val</span> showContext</span> : <code class="type">unit -> unit</code></pre><div class="info">
+Show the context stack to stderr<br>
+</div>
+<pre><span id="VALwithContext"><span class="keyword">val</span> withContext</span> : <code class="type">(unit -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a>) -> ('a -> 'b) -> 'a -> 'b</code></pre><div class="info">
+To ensure that the context is registered and removed properly, use the 
+    function below<br>
+</div>
+<pre><span id="VALnewline"><span class="keyword">val</span> newline</span> : <code class="type">unit -> unit</code></pre><pre><span id="VALnewHline"><span class="keyword">val</span> newHline</span> : <code class="type">unit -> unit</code></pre><pre><span id="VALgetPosition"><span class="keyword">val</span> getPosition</span> : <code class="type">unit -> int * string * int</code></pre><pre><span id="VALgetHPosition"><span class="keyword">val</span> getHPosition</span> : <code class="type">unit -> int * string</code></pre><div class="info">
+high-level position<br>
+</div>
+<pre><span id="VALsetHLine"><span class="keyword">val</span> setHLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetHFile"><span class="keyword">val</span> setHFile</span> : <code class="type">string -> unit</code></pre><pre><span id="VALsetCurrentLine"><span class="keyword">val</span> setCurrentLine</span> : <code class="type">int -> unit</code></pre><pre><span id="VALsetCurrentFile"><span class="keyword">val</span> setCurrentFile</span> : <code class="type">string -> unit</code></pre><br><code><span id="TYPElocation"><span class="keyword">type</span> <code class="type"></code>location</span> = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>file&nbsp;: <code class="type">string</code>;</code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The file name</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>line&nbsp;: <code class="type">int</code>;</code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The line number</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>hfile&nbsp;: <code class="type">string</code>;</code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The high-level file name, or "" if not present</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>hline&nbsp;: <code class="type">int</code>;</code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The high-level line number, or 0 if not present</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+}
+
+<div class="info">
+Type for source-file locations<br>
+</div>
+
+<pre><span id="VALd_loc"><span class="keyword">val</span> d_loc</span> : <code class="type">unit -> <a href="Errormsg.html#TYPElocation">location</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><pre><span id="VALd_hloc"><span class="keyword">val</span> d_hloc</span> : <code class="type">unit -> <a href="Errormsg.html#TYPElocation">location</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><pre><span id="VALgetLocation"><span class="keyword">val</span> getLocation</span> : <code class="type">unit -> <a href="Errormsg.html#TYPElocation">location</a></code></pre><pre><span id="VALparse_error"><span class="keyword">val</span> parse_error</span> : <code class="type">string -> 'a</code></pre><pre><span id="VALlocUnknown"><span class="keyword">val</span> locUnknown</span> : <code class="type"><a href="Errormsg.html#TYPElocation">location</a></code></pre><div class="info">
+An unknown location for use when you need one but you don't have one<br>
+</div>
+<pre><span id="VALreadingFromStdin"><span class="keyword">val</span> readingFromStdin</span> : <code class="type">bool ref</code></pre><div class="info">
+Records whether the stdin is open for reading the goal *<br>
+</div>
+<pre><span id="VALstartParsing"><span class="keyword">val</span> startParsing</span> : <code class="type">?useBasename:bool -> string -> Lexing.lexbuf</code></pre><pre><span id="VALstartParsingFromString"><span class="keyword">val</span> startParsingFromString</span> : <code class="type">?file:string -> ?line:int -> string -> Lexing.lexbuf</code></pre><pre><span id="VALfinishParsing"><span class="keyword">val</span> finishParsing</span> : <code class="type">unit -> unit</code></pre></body></html>

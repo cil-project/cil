@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>Distribution Contents</title>
+</head>
+<body >
+<a href="cil002.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil004.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec4" class="section">3&#XA0;&#XA0;Distribution Contents</h2>
+<p>The file <a href="distrib/cil-1.7.3.tar.gz"><span style="font-family:monospace">distrib/cil-1.7.3.tar.gz</span></a> 
+contains the complete source CIL distribution, 
+consisting of the following files:</p><p>
+
+
+</p><blockquote class="table"><div class="center"><hr style="width:80%;height:2"></div><div class="center"><table style="border-spacing:6px;border-collapse:separate;" class="cellpading0"><tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<em>Filename</em></td><td style="vertical-align:top;text-align:left;" ><em>Description</em> </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" ><span style="font-family:monospace">Makefile.in</span></td><td style="vertical-align:top;text-align:left;" ><span style="font-family:monospace">configure</span> source for the 
+Makefile that builds CIL/ </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">configure</span></td><td style="vertical-align:top;text-align:left;" >The configure script. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">configure.in</span></td><td style="vertical-align:top;text-align:left;" >The <span style="font-family:monospace">autoconf</span> source for <span style="font-family:monospace">configure</span>. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">config.guess</span> 		</td><td style="vertical-align:top;text-align:left;" >Stuff required by <span style="font-family:monospace">configure</span>. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">config.sub</span> 			</td><td style="vertical-align:top;text-align:left;" >idem </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">install-sh</span>	 		</td><td style="vertical-align:top;text-align:left;" >idem </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">doc/</span></td><td style="vertical-align:top;text-align:left;" >HTML documentation of the CIL API. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">obj/</span></td><td style="vertical-align:top;text-align:left;" >Directory that will contain the compiled
+CIL modules and executables.</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">bin/cilly</span></td><td style="vertical-align:top;text-align:left;" >A Perl script 
+that can be invoked with the 
+same arguments as either <span style="font-family:monospace">gcc</span> or
+Microsoft Visual C and will convert the
+program to CIL, perform some simple
+transformations, emit it and compile it as
+usual. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">lib/patcher</span></td><td style="vertical-align:top;text-align:left;" >A Perl script that applies specified patches
+to standard include files.</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/check.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Checks the well-formedness of a CIL file. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/cil.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Definition of CIL abstract syntax and
+utilities for manipulating it.</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/clist.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Utilities for efficiently managing lists
+that need to be concatenated often.</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/errormsg.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Utilities for error reporting. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/ext/heapify.ml</span></td><td style="vertical-align:top;text-align:left;" >A CIL transformation that moves array local
+variables from the stack to the heap. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/ext/logcalls.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >A CIL transformation that logs every
+function call. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/ext/sfi.ml</span></td><td style="vertical-align:top;text-align:left;" >A CIL transformation that can log every
+memory read and write. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/frontc/clexer.mll</span></td><td style="vertical-align:top;text-align:left;" >The lexer. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/frontc/cparser.mly</span></td><td style="vertical-align:top;text-align:left;" >The parser. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/frontc/cabs.ml</span></td><td style="vertical-align:top;text-align:left;" >The abstract syntax. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/frontc/cprint.ml</span></td><td style="vertical-align:top;text-align:left;" >The pretty printer for CABS. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/frontc/cabs2cil.ml</span></td><td style="vertical-align:top;text-align:left;" >The elaborator to CIL. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/main.ml</span></td><td style="vertical-align:top;text-align:left;" >The <span style="font-family:monospace">cilly</span> application. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/pretty.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Utilities for pretty printing. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/rmtmps.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >A CIL tranformation that removes unused
+types, variables and inlined functions. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/stats.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Utilities for maintaining timing statistics.
+</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/trace.ml,mli</span></td><td style="vertical-align:top;text-align:left;" >Utilities useful for printing debugging
+information.</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">ocamlutil/</span></td><td style="vertical-align:top;text-align:left;" >Miscellaneous libraries that are not
+specific to CIL. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">ocamlutil/Makefile.ocaml</span></td><td style="vertical-align:top;text-align:left;" >A file that is included by <span style="font-family:monospace">Makefile</span>. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">obj/feature_config.ml</span></td><td style="vertical-align:top;text-align:left;" >File generated by the Makefile
+describing which extra &#X201C;features&#X201D;
+to compile. See Section&#XA0;<a href="cilly.html#sec-cil">5</a>. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">obj/machdep.ml</span></td><td style="vertical-align:top;text-align:left;" >File generated by the Makefile containing
+information about your architecture,
+such as the size of a pointer. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >
+<span style="font-family:monospace">src/machdep-ml.c</span></td><td style="vertical-align:top;text-align:left;" >C program that generates
+<span style="font-family:monospace">machdep.ml</span> files. </td></tr>
+<tr><td style="vertical-align:top;text-align:left;white-space:nowrap" >&nbsp;</td></tr>
+</table>
+
+</div><div class="center"><hr style="width:80%;height:2"></div></blockquote>
+<hr>
+<a href="cil002.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil004.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>
