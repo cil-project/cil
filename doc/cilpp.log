@@ -1,0 +1,201 @@
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013/Debian) (format=pdflatex 2013.5.28)  24 JUL 2013 16:03
+entering extended mode
+ restricted \write18 enabled.
+ %&-line parsing enabled.
+**cilpp.tex
+(./cilpp.tex
+LaTeX2e <2011/06/27>
+Babel <3.9f> and hyphenation patterns for 4 languages loaded.
+(/usr/share/texlive/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2007/10/19 v1.4h Standard LaTeX document class
+(/usr/share/texlive/texmf-dist/tex/latex/base/size10.clo
+File: size10.clo 2007/10/19 v1.4h Standard LaTeX file (size option)
+)
+\c@part=\count79
+\c@section=\count80
+\c@subsection=\count81
+\c@subsubsection=\count82
+\c@paragraph=\count83
+\c@subparagraph=\count84
+\c@figure=\count85
+\c@table=\count86
+\abovecaptionskip=\skip41
+\belowcaptionskip=\skip42
+\bibindent=\dimen102
+) (./hevea.sty
+Package: hevea 1999/08/11
+
+(./comment.sty
+\CommentStream=\write3
+ Excluding comment 'comment')
+\c@cuttingdepth=\count87
+ Excluding comment 'rawhtml'
+Excluding comment 'htmlonly') (./fullpage.sty
+Style Option FULLPAGE Version 2 as of 15 Dec 1988
+) (/usr/share/texlive/texmf-dist/tex/latex/tools/longtable.sty
+Package: longtable 2004/02/01 v4.11 Multi-page Table package (DPC)
+\LTleft=\skip43
+\LTright=\skip44
+\LTpre=\skip45
+\LTpost=\skip46
+\LTchunksize=\count88
+\LTcapwidth=\dimen103
+\LT@head=\box26
+\LT@firsthead=\box27
+\LT@foot=\box28
+\LT@lastfoot=\box29
+\LT@cols=\count89
+\LT@rows=\count90
+\c@LT@tables=\count91
+\c@LT@chunks=\count92
+\LT@p@ftn=\toks14
+)
+\@input{cil.version.aux}
+\openout2 = `cil.version.aux'.
+
+(./cil.version.tex) (./cilpp.aux)
+\openout1 = `cilpp.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 78.
+LaTeX Font Info:    ... okay on input line 78.
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <12> on input line 82.
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <8> on input line 82.
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <6> on input line 82.
+
+
+LaTeX Warning: No \author given.
+
+LaTeX Font Info:    Try loading font information for OMS+cmr on input line 133.
+
+(/usr/share/texlive/texmf-dist/tex/latex/base/omscmr.fd
+File: omscmr.fd 1999/05/25 v2.5h Standard LaTeX font definitions
+)
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 133.
+ [1
+
+
+
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}]
+
+LaTeX Warning: Reference `sec-changes' on page 2 undefined on input line 211.
+
+
+Overfull \hbox (134.497pt too wide) in paragraph at lines 207--212
+[]\OT1/cmr/m/n/10 Download the CIL dis-tri-bu-tion (lat-est ver-sion is \OT1/cm
+tt/m/n/10 http://sourceforge.net/projects/cil/files/cil/cil-1.7.3.tar.gz\OT1/cm
+r/m/n/10 ).
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 230--237
+
+ []
+
+[2] [3] [4] [5] [6] [7] [8] [9] [10]
+Overfull \hbox (18.31773pt too wide) in paragraph at lines 846--852
+\OT1/cmr/m/n/10 CIL can also be built as a li-brary that is called from your st
+and-alone ap-pli-ca-tion. Add \OT1/cmtt/m/n/10 cil/src\OT1/cmr/m/n/10 , \OT1/cm
+tt/m/n/10 cil/src/frontc\OT1/cmr/m/n/10 ,
+ []
+
+[11]
+Overfull \hbox (0.28816pt too wide) in paragraph at lines 853--863
+\OT1/cmr/m/n/10 tain-ing the out-put of the C pre-pro-ces-sor. The \OT1/cmtt/m/
+n/10 Mergecil.merge: Cil.file list -> string -> Cil.file
+ []
+
+
+Overfull \hbox (13.26088pt too wide) in paragraph at lines 853--863
+\OT1/cmtt/m/n/10 Cil.file -> unit \OT1/cmr/m/n/10 to print the file to a given 
+out-put chan-nel. A good \OT1/cmtt/m/n/10 cilPrinter \OT1/cmr/m/n/10 to use is 
+\OT1/cmtt/m/n/10 defaultCilPrinter\OT1/cmr/m/n/10 . 
+ []
+
+[12] [13] [14] [15] [16] [17] [18] [19] [20]
+Overfull \hbox (38.69044pt too wide) in paragraph at lines 1465--1468
+[]\OT1/cmr/m/n/10 section, con-struc-tor, de-struc-tor, un-used, weak, no[]inst
+rument[]function, nore-turn, alias, no[]check[]memory[]usage,
+ []
+
+[21] [22] [23] [24]
+Overfull \hbox (42.61479pt too wide) in paragraph at lines 1800--1802
+[]\OT1/cmtt/m/n/10 --dopartial\OT1/cmr/m/n/10 . Do in-ter-pro-ce-du-ral par-tia
+l eval-u-a-tion and con-stant fold-ing. Im-ple-mented in \OT1/cmtt/m/n/10 src/e
+xt/partial.ml\OT1/cmr/m/n/10 . 
+ []
+
+[25]
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <7> on input line 1854.
+LaTeX Font Info:    External font `cmex10' loaded for size
+(Font)              <5> on input line 1854.
+ [26] [27] [28]
+Overfull \hbox (0.68095pt too wide) in paragraph at lines 2051--2055
+[]\OT1/cmtt/m/n/10 Ptranal.conservative[]undefineds: bool ref\OT1/cmr/m/n/10 . 
+Make the most pes-simistic as-sump-tions about glob-
+ []
+
+[29] [30] [31]
+Overfull \hbox (15.966pt too wide) in paragraph at lines 2301--2304
+[]\OT1/cmtt/m/n/10 AvailableExps.stmtStartData \OT1/cmr/m/n/10 -- Con-tains ava
+il-able ex-pres-sions data for each state-ment af-ter \OT1/cmtt/m/n/10 computeA
+Es
+ []
+
+[32] [33] [34] [35] [36]
+Overfull \hbox (24.20659pt too wide) in paragraph at lines 2673--2683
+[]\OT1/cmr/m/n/10 By de-fault, CIL fol-lows the cur-rent gcc be-hav-ior for ex-
+tern in-line. How-ever, if you set \OT1/cmtt/m/n/10 oldstyleExternInline
+ []
+
+[37]
+Overfull \hbox (11.99518pt too wide) in paragraph at lines 2782--2787
+[]\OT1/cmr/m/n/10 File-scope names (\OT1/cmtt/m/n/10 static \OT1/cmr/m/n/10 glo
+b-als, names of types de-fined with \OT1/cmtt/m/n/10 typedef\OT1/cmr/m/n/10 , a
+nd struc-ture/union/enumeration
+ []
+
+[38] [39] [40] [41] [42] [43] [44] [45] [46] [47] [48] (./cilpp.aux)
+
+LaTeX Warning: There were undefined references.
+
+ ) 
+Here is how much of TeX's memory you used:
+ 502 strings out of 495002
+ 5588 string characters out of 6180262
+ 58414 words of memory out of 5000000
+ 3770 multiletter control sequences out of 15000+600000
+ 8578 words of font info for 31 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 23i,7n,20p,176b,327s stack positions out of 5000i,500n,10000p,200000b,80000s
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></us
+r/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/shar
+e/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texli
+ve/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texm
+f-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></usr/share/texlive/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/ty
+pe1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/pu
+blic/amsfonts/cm/cmti10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/a
+msfonts/cm/cmtt10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfont
+s/cm/cmtt12.pfb>
+Output written on cilpp.pdf (48 pages, 259345 bytes).
+PDF statistics:
+ 200 PDF objects out of 1000 (max. 8388607)
+ 138 compressed objects within 2 object streams
+ 0 named destinations out of 1000 (max. 500000)
+ 1 words of extra memory for PDF output out of 10000 (max. 10000000)
+

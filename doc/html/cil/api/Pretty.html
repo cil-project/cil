@@ -25,16 +25,16 @@
 <link title="Errormsg" rel="Chapter" href="Errormsg.html">
 <link title="Formatcil" rel="Chapter" href="Formatcil.html">
 <link title="Pretty" rel="Chapter" href="Pretty.html">
-<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.2) : Pretty</title>
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Pretty</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Formatcil.html" title="Formatcil">Previous</a>
-&nbsp;<a class="up" href="index.html" title="Index">Up</a>
-&nbsp;<a class="post" href="Stats.html" title="Stats">Next</a>
+<div class="navbar"><a href="Formatcil.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Stats.html">Next</a>
 </div>
-<h1>Module <a href="type_Pretty.html">Pretty</a></h1>
-<pre><span class="keyword">module</span> Pretty: <code class="code">sig</code> <a href="Pretty.html">..</a> <code class="code">end</code></pre><div class="info">
-Utility functions for pretty-printing. The major features provided by 
+<center><h1>Module <a href="type_Pretty.html">Pretty</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Pretty: <code class="code">sig</code> <a href="Pretty.html">..</a> <code class="code">end</code></pre>Utility functions for pretty-printing. The major features provided by 
     this module are <ul>
 <li>An <code class="code">fprintf</code>-style interface with support for user-defined printers</li>
 <li>The printout is fit to a width by selecting some of the optional newlines</li>
@@ -54,7 +54,6 @@ Utility functions for pretty-printing. The major features provided by
  The formatting algorithm is not optimal but it does a pretty good job while 
  still operating in linear time. The original version was based on a pretty 
  printer by Philip Wadler which turned out to not scale to large jobs.<br>
-</div>
 <hr width="100%">
 <br>
 API<br>
@@ -213,7 +212,7 @@ This function provides an alternative method for constructing
      you use this:</li>
 </ul>
 
-<pre class="verbatim">dprintf "Name=%s, SSN=%7d, Children=@[%a@]\n"
+<pre>dprintf "Name=%s, SSN=%7d, Children=@[%a@]\n"
              pers.name pers.ssn (docList (chr ',' ++ break) text)
              pers.children</pre>
 <p>
@@ -221,7 +220,7 @@ This function provides an alternative method for constructing
  The result of <code class="code">dprintf</code> is a <a href="Pretty.html#TYPEdoc"><code class="code">Pretty.doc</code></a>. You can format the document and 
  emit it using the functions <a href="Pretty.html#VALfprint"><code class="code">Pretty.fprint</code></a> and <a href="Pretty.html#VALsprint"><code class="code">Pretty.sprint</code></a>.<br>
 </div>
-<pre><span id="VALgprintf"><span class="keyword">val</span> gprintf</span> : <code class="type">(<a href="Pretty.html#TYPEdoc">doc</a> -> 'b) -> ('a, unit, <a href="Pretty.html#TYPEdoc">doc</a>, 'b) format4 -> 'a</code></pre><div class="info">
+<pre><span id="VALgprintf"><span class="keyword">val</span> gprintf</span> : <code class="type">(<a href="Pretty.html#TYPEdoc">doc</a> -> 'a) -> ('b, unit, <a href="Pretty.html#TYPEdoc">doc</a>, 'a) format4 -> 'b</code></pre><div class="info">
 Like <a href="Pretty.html#VALdprintf"><code class="code">Pretty.dprintf</code></a> but more general. It also takes a function that is 
  invoked on the constructed document but before any formatting is done. The 
  type of the format argument means that 'a is the type of the parameters of 
@@ -271,7 +270,7 @@ Whether to rebalance doc before printing it to avoid stack-overflows<br>
 Keep a running count of the taken newlines. You can read and write this 
  from the client code if you want<br>
 </div>
-<pre><span id="VALauto_printer"><span class="keyword">val</span> auto_printer</span> : <code class="type">string -> 'b</code></pre><div class="info">
+<pre><span id="VALauto_printer"><span class="keyword">val</span> auto_printer</span> : <code class="type">string -> 'a</code></pre><div class="info">
 A function that when used at top-level in a module will direct 
  the pa_prtype module generate automatically the printing functions for a 
  type<br>

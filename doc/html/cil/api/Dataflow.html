@@ -25,91 +25,90 @@
 <link title="Errormsg" rel="Chapter" href="Errormsg.html">
 <link title="Formatcil" rel="Chapter" href="Formatcil.html">
 <link title="Pretty" rel="Chapter" href="Pretty.html">
-<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.2) : Dataflow</title>
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Dataflow</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Clist.html" title="Clist">Previous</a>
-&nbsp;<a class="up" href="index.html" title="Index">Up</a>
-&nbsp;<a class="post" href="Dominators.html" title="Dominators">Next</a>
+<div class="navbar"><a href="Clist.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Dominators.html">Next</a>
 </div>
-<h1>Module <a href="type_Dataflow.html">Dataflow</a></h1>
-<pre><span class="keyword">module</span> Dataflow: <code class="code">sig</code> <a href="Dataflow.html">..</a> <code class="code">end</code></pre><div class="info">
-A framework for data flow analysis for CIL code.  Before using 
+<center><h1>Module <a href="type_Dataflow.html">Dataflow</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Dataflow: <code class="code">sig</code> <a href="Dataflow.html">..</a> <code class="code">end</code></pre>A framework for data flow analysis for CIL code.  Before using 
     this framework, you must initialize the Control-flow Graph for your
     program, e.g using <a href="Cfg.html#VALcomputeFileCFG"><code class="code">Cfg.computeFileCFG</code></a><br>
-</div>
 <hr width="100%">
-<pre><code><span id="TYPEaction"><span class="keyword">type</span> <code class="type">'t</code> action</span> = </code></pre><table class="typetable">
+<br><code><span id="TYPEaction"><span class="keyword">type</span> <code class="type">'a</code> action</span> = </code><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTaction.Default"><span class="constructor">Default</span></span></code></td>
+<code><span class="constructor">Default</span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The default action</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTaction.Done"><span class="constructor">Done</span></span> <span class="keyword">of</span> <code class="type">'t</code></code></td>
+<code><span class="constructor">Done</span> <span class="keyword">of</span> <code class="type">'a</code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Do not do the default action. Use this result</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTaction.Post"><span class="constructor">Post</span></span> <span class="keyword">of</span> <code class="type">('t -> 't)</code></code></td>
+<code><span class="constructor">Post</span> <span class="keyword">of</span> <code class="type">('a -> 'a)</code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The default action, followed by the given 
  transformer</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 
 
-<pre><code><span id="TYPEstmtaction"><span class="keyword">type</span> <code class="type">'t</code> stmtaction</span> = </code></pre><table class="typetable">
+<br><code><span id="TYPEstmtaction"><span class="keyword">type</span> <code class="type">'a</code> stmtaction</span> = </code><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTstmtaction.SDefault"><span class="constructor">SDefault</span></span></code></td>
+<code><span class="constructor">SDefault</span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The default action</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTstmtaction.SDone"><span class="constructor">SDone</span></span></code></td>
+<code><span class="constructor">SDone</span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Do not visit this statement or its successors</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTstmtaction.SUse"><span class="constructor">SUse</span></span> <span class="keyword">of</span> <code class="type">'t</code></code></td>
+<code><span class="constructor">SUse</span> <span class="keyword">of</span> <code class="type">'a</code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Visit the instructions and successors of this statement
                   as usual, but use the specified state instead of the 
                   one that was passed to doStmt</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 
 
-<pre><code><span id="TYPEguardaction"><span class="keyword">type</span> <code class="type">'t</code> guardaction</span> = </code></pre><table class="typetable">
+<br><code><span id="TYPEguardaction"><span class="keyword">type</span> <code class="type">'a</code> guardaction</span> = </code><table class="typetable">
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTguardaction.GDefault"><span class="constructor">GDefault</span></span></code></td>
+<code><span class="constructor">GDefault</span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The default state</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTguardaction.GUse"><span class="constructor">GUse</span></span> <span class="keyword">of</span> <code class="type">'t</code></code></td>
+<code><span class="constructor">GUse</span> <span class="keyword">of</span> <code class="type">'a</code></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Use this data for the branch</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr>
 <tr>
 <td align="left" valign="top" >
 <code><span class="keyword">|</span></code></td>
 <td align="left" valign="top" >
-<code><span id="TYPEELTguardaction.GUnreachable"><span class="constructor">GUnreachable</span></span></code></td>
+<code><span class="constructor">GUnreachable</span></code></td>
 <td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The branch will never be taken.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
 </tr></table>
 
