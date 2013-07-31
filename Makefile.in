@@ -234,7 +234,7 @@ odoc: $(OBJDIR)/doc/cil.docdir/index.html
 	-mkdir -p doc/html/cil/
 	-cp -r $(dir $<) doc/html/cil/api
 
-doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLYDIR)/App/$(CILLYMOD).pm
+doc/cilpp.tex: doc/cilcode.pl doc/cil.tex $(CILLY)
 	-rm -rf doc/html/cil
 	-mkdir -p doc/html/cil
 	-mkdir -p doc/html/cil/examples
