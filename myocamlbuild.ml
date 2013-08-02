@@ -35,7 +35,6 @@ dispatch begin function
         [A (try Sys.getenv "MAKE" with Not_found -> "make");
          A "-C"; P ".."; P ("_build" / target)]))
       in
-      make "feature_config.ml";
       make "machdep.ml";
 
     (* Build an list of files to install with ocamlfind *)

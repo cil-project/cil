@@ -111,7 +111,10 @@ sub helpMessage {
 
 The following are the arguments of the Cilly process
 EOF
-   my @cmd = ($App::Cilly::CilCompiler::compiler, '-help');
+   my @cmd = ($App::Cilly::CilCompiler::compiler, '--help');
+   if(defined $stub->{CILARGS}) {
+       push @cmd, @{$stub->{CILARGS}};
+   }
    $self->runShell(@cmd); 
 }
 

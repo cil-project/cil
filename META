@@ -1,5 +1,5 @@
 description = "C Intermediate Language"
-requires = "unix str num"
+requires = "unix str num dynlink"
 version = "@CIL_VERSION@"
 archive(byte) = "cil.cma"
 archive(native) = "cil.cmxa"

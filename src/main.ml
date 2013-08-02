@@ -67,8 +67,7 @@ let parseOneFile (fname: string) : C.file =
   );
   cil
 
-(** These are the statically-configured features. To these we append the 
-  * features defined in Feature_config.ml (from Makefile) *)
+(** These are the statically-configured features. *)
   
 let makeCFGFeature : C.featureDescr = 
   { C.fd_name = "makeCFG";
@@ -87,7 +86,7 @@ let makeCFGFeature : C.featureDescr =
     C.fd_post_check = true;
   } 
 
-let features : C.featureDescr list = 
+let staticFeatures : C.featureDescr list =
   [ Epicenter.feature;
     Simplify.feature;
     Canonicalize.feature;
@@ -105,7 +104,6 @@ let features : C.featureDescr list =
     Ptranal.feature;
     Liveness.feature;
   ] 
-  @ Feature_config.features 
 
 let rec processOneFile (cil: C.file) =
   begin
@@ -140,7 +138,7 @@ let rec processOneFile (cil: C.file) =
             end
           end
         end)
-      features;
+      (Features.list ());
 
 
     (match !outChannel with
@@ -172,6 +170,15 @@ let theMain () =
    * wants these suppressed *)
   C.print_CIL_Input := true;
 
+  (* Load static features *)
+  List.iter Features.register staticFeatures;
+
+  (* Load plugins. This needs to be done before command-line arguments are
+   * built. *)
+  Features.loadFromEnv "CIL_FEATURES";
+  Features.loadFromArgv "--load";
+
+
   (*********** COMMAND LINE ARGUMENTS *****************)
   (* Construct the arguments for the features configured from the Makefile *)
   let blankLine = ("", Arg.Unit (fun _ -> ()), "") in
@@ -191,7 +198,7 @@ let theMain () =
            " Enable " ^ fdesc.C.fd_description) ::
           fdesc.C.fd_extraopt @ acc
       )
-      features
+      (Features.list ())
       [blankLine]
   in
   let featureArgs = 
@@ -206,6 +213,7 @@ let theMain () =
           "--mergedout", Arg.String (openFile "merged output"
                                        (fun oc -> mergedChannel := Some oc)),
               " specify the name of the merged file";
+          "--load", Arg.String ignore, "" (* ignore --load because they have been processed above already *)
         ]
         @ F.args @ featureArgs in
   begin
