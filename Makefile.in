@@ -93,7 +93,7 @@ prefix ?= @prefix@
 
 FORCE_PERL_PREFIX ?= @FORCE_PERL_PREFIX@
 ifeq ($(FORCE_PERL_PREFIX), 1)
-	PERL_MM_OPT = INSTALL_BASE="$(prefix)"
+	PERL_MM_OPT = INSTALL_BASE="$(DESTDIR)$(prefix)"
 	export PERL_MM_OPT
 endif
 
