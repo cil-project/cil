@@ -284,7 +284,7 @@ let analyze_instr (i : instr ) : unit =
           List.iter (fun e -> ignore (analyze_expr e)) actuals
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
-            if is_undefined_fun fexpr & !conservative_undefineds then
+            if is_undefined_fun fexpr && !conservative_undefineds then
               A.apply_undefined (Util.list_map analyze_expr actuals)
             else
               A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
