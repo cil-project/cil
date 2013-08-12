@@ -648,6 +648,7 @@ OCAMLMKLIB
 OCAMLMKTOP
 OCAMLDEP
 OCAML
+OCAMLNATDYNLINK
 OCAMLOPTDOTOPT
 OCAMLCDOTOPT
 OCAMLBEST
@@ -3379,7 +3380,7 @@ fi
 $as_echo "OCaml version is $OCAMLVERSION" >&6; }
      # If OCAMLLIB is set, use it
      if test "$OCAMLLIB" = ""; then
-        OCAMLLIB=`$OCAMLC -where 2>/dev/null || $OCAMLC -v|tail -1|cut -d ' ' -f 4`
+        OCAMLLIB=`$OCAMLC -where 2>/dev/null | tr -d '\015' || $OCAMLC -v|tail -1|cut -d ' ' -f 4`
      else
         { $as_echo "$as_me:${as_lineno-$LINENO}: result: OCAMLLIB previously set; preserving it." >&5
 $as_echo "OCAMLLIB previously set; preserving it." >&6; }
@@ -3485,17 +3486,17 @@ fi
 
      OCAMLBEST=byte
      if test "$OCAMLOPT" = "no"; then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find ocamlopt; bytecode compilation only." >&5
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find ocamlopt; bytecode compilation only." >&5
 $as_echo "$as_me: WARNING: Cannot find ocamlopt; bytecode compilation only." >&2;}
      else
-	TMPVERSION=`$OCAMLOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlopt discarded." >&5
+        TMPVERSION=`$OCAMLOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+        if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+           { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlopt discarded." >&5
 $as_echo "versions differs from ocamlc; ocamlopt discarded." >&6; }
-	    OCAMLOPT=no
-	else
-	    OCAMLBEST=opt
-	fi
+           OCAMLOPT=no
+        else
+           OCAMLBEST=opt
+        fi
      fi
 
 
@@ -3594,18 +3595,18 @@ else
 fi
 
      if test "$OCAMLCDOTOPT" != "no"; then
-	TMPVERSION=`$OCAMLCDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlc.opt discarded." >&5
+        TMPVERSION=`$OCAMLCDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+        if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+           { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlc.opt discarded." >&5
 $as_echo "versions differs from ocamlc; ocamlc.opt discarded." >&6; }
-	else
-	    OCAMLC=$OCAMLCDOTOPT
-	fi
+        else
+           OCAMLC=$OCAMLCDOTOPT
+        fi
      fi
 
      # checking for ocamlopt.opt
      if test "$OCAMLOPT" != "no" ; then
-	if test -n "$ac_tool_prefix"; then
+        if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ocamlopt.opt", so it can be a program name with args.
 set dummy ${ac_tool_prefix}ocamlopt.opt; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -3697,18 +3698,33 @@ else
   OCAMLOPTDOTOPT="$ac_cv_prog_OCAMLOPTDOTOPT"
 fi
 
-	if test "$OCAMLOPTDOTOPT" != "no"; then
-	   TMPVERSION=`$OCAMLOPTDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	   if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	      { $as_echo "$as_me:${as_lineno-$LINENO}: result: version differs from ocamlc; ocamlopt.opt discarded." >&5
+        if test "$OCAMLOPTDOTOPT" != "no"; then
+           TMPVERSION=`$OCAMLOPTDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+           if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+              { $as_echo "$as_me:${as_lineno-$LINENO}: result: version differs from ocamlc; ocamlopt.opt discarded." >&5
 $as_echo "version differs from ocamlc; ocamlopt.opt discarded." >&6; }
-	   else
-	      OCAMLOPT=$OCAMLOPTDOTOPT
-	   fi
-        fi
+           else
+              OCAMLOPT=$OCAMLOPTDOTOPT
+           fi
+       fi
      fi
 
 
+  fi
+
+
+
+  # checking for native dynlink
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dynlink.cmxa" >&5
+$as_echo_n "checking for dynlink.cmxa... " >&6; }
+  if test -f "$OCAMLLIB/dynlink.cmxa" ; then
+     OCAMLNATDYNLINK=yes
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+  else
+     OCAMLNATDYNLINK=no
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
   fi
 
 
@@ -4379,7 +4395,7 @@ else
 fi
 
   if test "$OCAMLLEX" != "no"; then
-    if test -n "$ac_tool_prefix"; then
+     if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ocamllex.opt", so it can be a program name with args.
 set dummy ${ac_tool_prefix}ocamllex.opt; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -4471,9 +4487,9 @@ else
   OCAMLLEXDOTOPT="$ac_cv_prog_OCAMLLEXDOTOPT"
 fi
 
-    if test "$OCAMLLEXDOTOPT" != "no"; then
-	OCAMLLEX=$OCAMLLEXDOTOPT
-    fi
+     if test "$OCAMLLEXDOTOPT" != "no"; then
+        OCAMLLEX=$OCAMLLEXDOTOPT
+     fi
   fi
 
 
