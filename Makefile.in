@@ -36,7 +36,7 @@ stamp-h: config.h.in config.status
 
 @DEFAULT_COMPILER@=1
 
-EMUL ?= @EMUL@
+EMUL = @EMUL@
 
 ifdef EMUL
 	 # Compile machdep-ml.c with -static when
@@ -52,7 +52,7 @@ OBJDIR      = _build
 BINDIR		  = bin
 CILLYDIR	  = lib
 
-OCAMLBEST ?= @OCAMLBEST@
+OCAMLBEST = @OCAMLBEST@
 CILLIB_FILES = $(OBJDIR)/src/cil.cma
 ifeq ($(OCAMLBEST),opt)
  CILLIB_FILES  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
@@ -63,12 +63,12 @@ endif
 
 EXE = $(EXEMODE)$(EXEEXT)
 
-OCAMLBUILD ?= @OCAMLBUILD@
+OCAMLBUILD = @OCAMLBUILD@
 OCAMLBUILD += -build-dir $(OBJDIR) -no-links -classic-display
 
-OCAMLFIND ?= @OCAMLFIND@
+OCAMLFIND = @OCAMLFIND@
 
-PERL ?= @PERL@
+PERL = @PERL@
 
 # Force to always rebuild a target (for ocamlbuild targets)
 .PHONY: .FORCE
@@ -89,7 +89,7 @@ $(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
 	cp $< $@
 
 # cilly perl wrapper
-prefix ?= @prefix@
+prefix = @prefix@
 
 FORCE_PERL_PREFIX ?= @FORCE_PERL_PREFIX@
 ifeq ($(FORCE_PERL_PREFIX), 1)
@@ -288,12 +288,12 @@ test:
 
 ########################################################################
 
-INSTALL ?= @INSTALL@
-INSTALL_DATA ?= @INSTALL_DATA@
+INSTALL = @INSTALL@
+INSTALL_DATA = @INSTALL_DATA@
 
-exec_prefix ?= @exec_prefix@
-datarootdir ?= @datarootdir@
-bindir ?= @bindir@
+exec_prefix = @exec_prefix@
+datarootdir = @datarootdir@
+bindir = @bindir@
 
 install: $(CILLY) install-findlib
 	$(MAKE) -C $(CILLYDIR) pure_install
