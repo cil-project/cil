@@ -305,7 +305,16 @@ uninstall: $(CILLYDIR)/Makefile uninstall-findlib
 
 .PHONY: install-findlib uninstall-findlib
 
-install-findlib: cillib uninstall-findlib
+# Make DESTDIR work for ocamlfind
+ifneq ($(DESTDIR),)
+  OCAMLFIND_DESTDIR = $(DESTDIR)$(shell ocamlfind printconf destdir)
+endif
+export OCAMLFIND_DESTDIR
+
+install-findlib: cillib
+ifneq ($(OCAMLFIND_DESTDIR),)
+	mkdir -p $(OCAMLFIND_DESTDIR)
+endif
 	$(OCAMLFIND) install -patch-version @CIL_VERSION@ cil META $(CILLIB_FILES) `cat $(OBJDIR)/src/cil.libfiles`
 
 uninstall-findlib:
