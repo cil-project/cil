@@ -42,7 +42,7 @@ If you want to install to some other directory, you can tweak the prefix
 during the configure step.  For instance, to install in your local [opam][]
 directory:
 
-    FORCE_PERL_PREFIX=1 ./configure --prefix=`opam config var prefix`
+    ./configure --prefix=`opam config var prefix`
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 [opam]: http://opam.ocamlpro.com/

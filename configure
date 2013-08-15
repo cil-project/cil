@@ -620,7 +620,6 @@ ac_includes_default="\
 #endif"
 
 ac_subst_vars='LTLIBOBJS
-FORCE_PERL_PREFIX
 EXTRASRCDIRS
 EXTRAFEATURES
 UNDERSCORE_NAME
@@ -731,8 +730,7 @@ CFLAGS
 LDFLAGS
 LIBS
 CPPFLAGS
-CPP
-FORCE_PERL_PREFIX'
+CPP'
 
 
 # Initialize some variables set by options.
@@ -1357,8 +1355,6 @@ Some influential environment variables:
   CPPFLAGS    (Objective) C/C++ preprocessor flags, e.g. -I<include dir> if
               you have headers in a nonstandard directory <include dir>
   CPP         C preprocessor
-  FORCE_PERL_PREFIX
-              Install cilly wrapper in PREFIX/bin and PREFIX/lib
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -6133,8 +6129,6 @@ chmod -w Makefile.features
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
-
-
 
 
 

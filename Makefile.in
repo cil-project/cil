@@ -90,17 +90,12 @@ $(BINDIR)/$(CILLY)$(EXE): $(OBJDIR)/src/main$(EXEMODE)
 
 # cilly perl wrapper
 prefix = @prefix@
-
-FORCE_PERL_PREFIX ?= @FORCE_PERL_PREFIX@
-ifeq ($(FORCE_PERL_PREFIX), 1)
-	PERL_MM_OPT = INSTALL_BASE="$(DESTDIR)$(prefix)"
-	export PERL_MM_OPT
-endif
+INSTALL_BASE = $(prefix)
 
 CILLYMOD := Cilly
 
 $(CILLYDIR)/Makefile: Makefile $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/$(CILLYMOD).pm
-	cd $(CILLYDIR); $(PERL) Makefile.PL
+	cd $(CILLYDIR); $(PERL) Makefile.PL INSTALL_BASE="$(INSTALL_BASE)"
 
 .PHONY: $(CILLY)
 $(CILLY): $(BINDIR)/$(CILLY)$(EXE) $(CILLYDIR)/Makefile
@@ -295,8 +290,13 @@ exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
 bindir = @bindir@
 
+# Make DESTDIR absolute (necessary for perl installation)
+ifneq ($(DESTDIR),)
+  override DESTDIR := $(abspath $(DESTDIR))
+endif
+
 install: $(CILLY) install-findlib
-	$(MAKE) -C $(CILLYDIR) pure_install
+	$(MAKE) -C $(CILLYDIR) pure_install DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
 	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
 uninstall: $(CILLYDIR)/Makefile uninstall-findlib
