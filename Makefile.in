@@ -193,12 +193,6 @@ $(CILLYDIR)/App/$(CILLYMOD).pm: $(CILLYDIR)/App/$(CILLYMOD).pm.in src/machdep-ml
 	  mv $(CILLYDIR)/App/$(CILLYMOD).pm.tmp $(CILLYDIR)/App/$(CILLYMOD).pm; \
 	fi
 
-.PHONY: cilversion
-cilversion: $(OBJDIR)/cilversion.ml
-$(OBJDIR)/cilversion.ml: src/cilversion.ml.in config.status
-	rm -f $@
-	./config.status --file=$@:$<
-
 .PHONY: feature_config
 feature_config: $(OBJDIR)/feature_config.ml
 $(OBJDIR)/feature_config.ml: config.status

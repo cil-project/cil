@@ -6218,6 +6218,15 @@ chmod -w Makefile.features
     #echo "skipping [src/machdep-ml.c] because it's not in this distribution"
   fi
 }
+{
+  if test -f src/cilversion.ml.in; then
+    ac_config_files="$ac_config_files src/cilversion.ml"
+
+  else
+    true
+    #echo "skipping [src/cilversion.ml] because it's not in this distribution"
+  fi
+}
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -6919,6 +6928,7 @@ do
     "doc/index.html") CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
     "doc/header.html") CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
     "src/machdep-ml.c") CONFIG_FILES="$CONFIG_FILES src/machdep-ml.c" ;;
+    "src/cilversion.ml") CONFIG_FILES="$CONFIG_FILES src/cilversion.ml" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac
@@ -7480,6 +7490,7 @@ $as_echo "$as_me: $ac_file is unchanged" >&6;}
     "doc/index.html":F) chmod a-w doc/index.html ;;
     "doc/header.html":F) chmod a-w doc/header.html ;;
     "src/machdep-ml.c":F) chmod a-w src/machdep-ml.c ;;
+    "src/cilversion.ml":F) chmod a-w src/cilversion.ml ;;
 
   esac
 done # for ac_tag

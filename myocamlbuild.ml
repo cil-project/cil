@@ -34,7 +34,6 @@ dispatch begin function
       (fun _ _ -> Cmd (S
         [A "make"; A "-C"; P ".."; P ("_build" / target)]))
       in
-      make "cilversion.ml";
       make "feature_config.ml";
       make "machdep.ml";
 

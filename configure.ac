@@ -279,6 +279,7 @@ CIL_CONFIG_FILES(lib/App/Cilly/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(src/machdep-ml.c)
+CIL_CONFIG_FILES(src/cilversion.ml)
 
 AC_OUTPUT
 
