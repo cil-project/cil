@@ -62,8 +62,16 @@ let init () =
     initialized := true
   end
 
-let findlib_lookup s =
-  E.s (E.error "could not find module %s" s)
+let findlib_lookup pkg =
+  try
+    let preds = [ if D.is_native then "native" else "byte"; "plugin" ] in
+    let deps = F.package_deep_ancestors preds [pkg] in
+    let dirs = List.map F.package_directory deps in
+    (* XXX each archive might be a space-separated list of cmxa/cmxs *)
+    let archives = List.map (fun pkg -> F.package_property preds pkg "archive") deps in
+    let files = List.map2 (fun d a -> F.resolve_path ~base:d (D.adapt_filename a)) dirs archives in
+    files
+  with _ -> E.s (E.error "could not find module %s" pkg)
 
 let find_plugin s =
   if s = "" then E.s (E.error "missing module name") else
