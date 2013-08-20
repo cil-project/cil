@@ -58,6 +58,7 @@ OCAMLC = @OCAMLC@
 OCAMLOPT = @OCAMLOPT@
 OCAMLFIND = @OCAMLFIND@
 OCAMLBUILD = @OCAMLBUILD@
+OCAMLNATDYNLINK = @OCAMLNATDYNLINK@
 
 PERL = @PERL@
 
@@ -70,8 +71,11 @@ ifneq ($(OCAMLC),no)
   CILLY_EXE_FILES += $(OBJDIR)/src/main.byte
 endif
 ifneq ($(OCAMLOPT),no)
+# build native version only if natdynlink is available
+ifeq ($(OCAMLNATDYNLINK),"yes")
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
   CILLY_EXE_FILES += $(OBJDIR)/src/main.native
+endif
 endif
 
 CILLIB_FILES = $(OBJDIR)/src/cil.libfiles
