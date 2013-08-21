@@ -67,16 +67,16 @@ CILLY_EXE_FILES=
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
-  CILLY_EXE_FILES += $(OBJDIR)/src/cilly.byte
+  CILLY_EXE_FILES += $(OBJDIR)/src/main.byte
 endif
 ifneq ($(OCAMLOPT),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
-  CILLY_EXE_FILES += $(OBJDIR)/src/cilly.native
+  CILLY_EXE_FILES += $(OBJDIR)/src/main.native
 endif
 
 CILLIB_FILES = $(OBJDIR)/src/cil.libfiles
 CILDOC_INDEX = $(OBJDIR)/cil.docdir/index.html
-CILLY_EXE_BIN = $(patsubst $(OBJDIR)/src/cilly.%,bin/$(CILLY).%,$(CILLY_EXE_FILES))
+CILLY_EXE_BIN = $(patsubst $(OBJDIR)/src/main.%,bin/$(CILLY).%,$(CILLY_EXE_FILES))
 
 # Force a single invocation of ocamlbuild per make execution
 
@@ -111,7 +111,7 @@ CILLYMOD := Cilly
 $(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/$(CILLYMOD).pm
 	cd $(CILLYDIR); $(PERL) Makefile.PL INSTALL_BASE="$(INSTALL_BASE)"
 
-bin/$(CILLY).%: $(OBJDIR)/src/cilly.%
+bin/$(CILLY).%: $(OBJDIR)/src/main.%
 	cp $< $@
 
 .PHONY: $(CILLY)
