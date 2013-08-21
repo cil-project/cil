@@ -76,7 +76,7 @@ endif
 
 CILLIB_FILES = $(OBJDIR)/src/cil.libfiles
 CILDOC_INDEX = $(OBJDIR)/cil.docdir/index.html
-
+CILLY_EXE_BIN = $(patsubst $(OBJDIR)/src/cilly.%,bin/$(CILLY).%,$(CILLY_EXE_FILES))
 
 # Force a single invocation of ocamlbuild per make execution
 
@@ -111,9 +111,11 @@ CILLYMOD := Cilly
 $(CILLYDIR)/Makefile: $(CILLYDIR)/Makefile.PL $(CILLYDIR)/App/$(CILLYMOD).pm
 	cd $(CILLYDIR); $(PERL) Makefile.PL INSTALL_BASE="$(INSTALL_BASE)"
 
+bin/$(CILLY).%: $(OBJDIR)/src/cilly.%
+	cp $< $@
+
 .PHONY: $(CILLY)
-$(CILLY): $(CILLY_EXE_FILES) $(CILLYDIR)/Makefile
-	cp $(CILLY_EXE_FILES) bin/
+$(CILLY): $(CILLY_EXE_BIN) $(CILLYDIR)/Makefile
 	$(MAKE) -C $(CILLYDIR)
 
 # Create the machine dependency module
