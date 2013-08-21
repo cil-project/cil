@@ -17,3 +17,9 @@ package "epicenter" (
   archive(byte,plugin) = "epicenter.cmo"
   archive(native,plugin) = "epicenter.cmxs"
 )
+
+package "simplify" (
+  description = "Simplify plugin for CIL"
+  archive(byte,plugin) = "simplify.cmo"
+  archive(native,plugin) = "simplify.cmxs"
+)

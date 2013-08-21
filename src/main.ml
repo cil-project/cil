@@ -91,7 +91,7 @@ let makeCFGFeature : C.featureDescr =
 
 let staticFeatures : C.featureDescr list =
   [ (*Epicenter.feature;*)
-    Simplify.feature;
+    (*Simplify.feature;*)
     Canonicalize.feature;
     (*Callgraph.feature;*)
     Logwrites.feature;

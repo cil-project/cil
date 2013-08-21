@@ -66,7 +66,7 @@ PERL = @PERL@
 CILLIB_TARGETS=
 CILLY_EXE_FILES=
 
-CIL_PLUGINS = callgraph epicenter
+CIL_PLUGINS = callgraph epicenter simplify
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
