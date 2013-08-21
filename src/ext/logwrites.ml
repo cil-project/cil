@@ -137,3 +137,4 @@ let feature : featureDescr =
     fd_post_check = true;
   } 
 
+let () = Features.register feature

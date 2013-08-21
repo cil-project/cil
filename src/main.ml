@@ -94,7 +94,7 @@ let staticFeatures : C.featureDescr list =
     (*Simplify.feature;*)
     (*Canonicalize.feature;*)
     (*Callgraph.feature;*)
-    Logwrites.feature;
+    (*Logwrites.feature;*)
     Heapify.feature1;
     Heapify.feature2;
     Oneret.feature;

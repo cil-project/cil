@@ -42,7 +42,6 @@ Llvmgen
 Llvmssa
 Llvmutils
 Logcalls
-Logwrites
 Longarray
 Machdep
 Machdepenv

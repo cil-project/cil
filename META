@@ -29,3 +29,9 @@ package "canonicalize" (
   archive(byte,plugin) = "canonicalize.cmo"
   archive(native,plugin) = "canonicalize.cmxs"
 )
+
+package "logwrites" (
+  description = "Logwrites plugin for CIL"
+  archive(byte,plugin) = "logwrites.cmo"
+  archive(native,plugin) = "logwrites.cmxs"
+)
