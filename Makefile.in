@@ -65,11 +65,11 @@ PERL = @PERL@
 CILLIB_TARGETS=
 CILLY_EXE_FILES=
 
-ifneq ($(OCAMLC),"no")
+ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
   CILLY_EXE_FILES += $(OBJDIR)/src/cilly.byte
 endif
-ifneq ($(OCAMLOPT),"no")
+ifneq ($(OCAMLOPT),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
   CILLY_EXE_FILES += $(OBJDIR)/src/cilly.native
 endif
