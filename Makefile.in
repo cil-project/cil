@@ -72,7 +72,7 @@ ifneq ($(OCAMLC),no)
 endif
 ifneq ($(OCAMLOPT),no)
 # build native version only if natdynlink is available
-ifeq ($(OCAMLNATDYNLINK),"yes")
+ifeq ($(OCAMLNATDYNLINK),yes)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
   CILLY_EXE_FILES += $(OBJDIR)/src/main.native
 endif
