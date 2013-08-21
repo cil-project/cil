@@ -96,7 +96,7 @@ $(OCAMLBUILD_TARGETS): ocamlbuild
 .PHONY: ocamlbuild
 ocamlbuild:
 	export CIL_VERSION
-	$(OCAMLBUILD) $(patsubst $(OBJDIR)/%,%,$(OCAMLBUILD_TARGETS))
+	MAKE=$(MAKE) $(OCAMLBUILD) $(patsubst $(OBJDIR)/%,%,$(OCAMLBUILD_TARGETS))
 
 # OCaml CIL library
 .PHONY: cillib

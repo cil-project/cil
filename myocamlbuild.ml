@@ -32,7 +32,8 @@ dispatch begin function
       ~dep: "Makefile"
       ~prod: basename
       (fun _ _ -> Cmd (S
-        [A "make"; A "-C"; P ".."; P ("_build" / target)]))
+        [A (try Sys.getenv "MAKE" with Not_found -> "make");
+         A "-C"; P ".."; P ("_build" / target)]))
       in
       make "feature_config.ml";
       make "machdep.ml";
