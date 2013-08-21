@@ -6,7 +6,6 @@ Cabs
 Cabs2cil
 Cabshelper
 Cabsvisit
-Callgraph
 Canonicalize
 Cfg
 Check
@@ -25,7 +24,6 @@ Dataflow
 Dataslicing
 Deadcodeelim
 Dominators
-Epicenter
 Errormsg
 Escape
 Expcompare

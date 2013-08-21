@@ -59,7 +59,10 @@ let parseOneFile (fname: string) : C.file =
   if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
   
-  if (not !Epicenter.doEpicenter) then (
+  let doEpicenter =
+    List.exists (fun f -> f.C.fd_name = "epicenter" && !(f.C.fd_enabled) = true)
+    (Features.list ()) in
+  if (not doEpicenter) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
     (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
@@ -87,10 +90,10 @@ let makeCFGFeature : C.featureDescr =
   } 
 
 let staticFeatures : C.featureDescr list =
-  [ Epicenter.feature;
+  [ (*Epicenter.feature;*)
     Simplify.feature;
     Canonicalize.feature;
-    Callgraph.feature;
+    (*Callgraph.feature;*)
     Logwrites.feature;
     Heapify.feature1;
     Heapify.feature2;

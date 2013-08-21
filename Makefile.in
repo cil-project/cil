@@ -66,14 +66,18 @@ PERL = @PERL@
 CILLIB_TARGETS=
 CILLY_EXE_FILES=
 
+CIL_PLUGINS = callgraph epicenter
+
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
+  CILLIB_TARGETS  += $(patsubst %,$(OBJDIR)/src/ext/%.cmo,$(CIL_PLUGINS))
   CILLY_EXE_FILES += $(OBJDIR)/src/main.byte
 endif
 ifneq ($(OCAMLOPT),no)
 # build native version only if natdynlink is available
 ifeq ($(OCAMLNATDYNLINK),yes)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
+  CILLIB_TARGETS  += $(patsubst %,$(OBJDIR)/src/ext/%.cmxs,$(CIL_PLUGINS))
   CILLY_EXE_FILES += $(OBJDIR)/src/main.native
 endif
 endif
