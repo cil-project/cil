@@ -290,3 +290,5 @@ let feature : featureDescr =
     fd_doit = canonicalize;
     fd_post_check = true;
   } 
+
+let () = Features.register feature

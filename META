@@ -23,3 +23,9 @@ package "simplify" (
   archive(byte,plugin) = "simplify.cmo"
   archive(native,plugin) = "simplify.cmxs"
 )
+
+package "canonicalize" (
+  description = "Canonicalize plugin for CIL"
+  archive(byte,plugin) = "canonicalize.cmo"
+  archive(native,plugin) = "canonicalize.cmxs"
+)
