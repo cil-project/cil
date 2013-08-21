@@ -66,17 +66,16 @@ BEGIN {
       "$FindBin::RealBin/$FindBin::RealScript";
     # Use the most recent version of cilly
     $App::Cilly::CilCompiler::mtime_native =
-    int((stat("$App::Cilly::CilCompiler::base.native" . $::exeext))[9]);
+    int((stat("$App::Cilly::CilCompiler::base.native"))[9]);
     $App::Cilly::CilCompiler::mtime_byte =
-    int((stat("$App::Cilly::CilCompiler::base.byte" . $::exeext))[9]);
+    int((stat("$App::Cilly::CilCompiler::base.byte"))[9]);
     $App::Cilly::CilCompiler::use_debug = 
          grep(/--bytecode/, @ARGV) ||
          grep(/--ocamldebug/, @ARGV) ||
         ($App::Cilly::CilCompiler::mtime_native < $App::Cilly::CilCompiler::mtime_byte);
     $App::Cilly::CilCompiler::compiler = 
         $App::Cilly::CilCompiler::base . 
-            ($App::Cilly::CilCompiler::use_debug ? ".byte" : ".native") .
-            $::exeext;
+            ($App::Cilly::CilCompiler::use_debug ? ".byte" : ".native");
     if($App::Cilly::CilCompiler::use_debug) { 
         $ENV{"OCAMLRUNPARAM"} = "b" . $ENV{"OCAMLRUNPARAM"};
     } 
