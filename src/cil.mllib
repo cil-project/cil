@@ -1,6 +1,4 @@
 Alpha
-Availexps
-Availexpslv
 Bitmap
 Cabs
 Cabs2cil
@@ -12,7 +10,6 @@ Cil
 Cilint
 Cillower
 Ciloptions
-Ciltools
 Cilutil
 Cilversion
 Clexer
@@ -20,7 +17,6 @@ Clist
 Cparser
 Cprint
 Dataflow
-Deadcodeelim
 Dominators
 Errormsg
 Escape
@@ -31,7 +27,6 @@ Formatlex
 Formatparse
 Frontc
 GrowArray
-Heap
 Inthash
 Lexerhack
 Liveness
@@ -45,7 +40,6 @@ Machdepenv
 Mergecil
 Patch
 Pretty
-Reachingdefs
 Rmtmps
 Ssa
 Stats
