@@ -68,11 +68,12 @@ CILLY_EXE_FILES=
 
 CIL_PLUGINS = \
   callgraph epicenter simplify canonicalize logwrites \
-  heapify oneret simplemem sfi dataslicing logcalls partial
+  heapify oneret simplemem sfi dataslicing logcalls partial \
+  pta
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
-  CILLIB_TARGETS  += $(patsubst %,$(OBJDIR)/src/ext/%.cmo,$(CIL_PLUGINS))
+  CILLIB_TARGETS  += $(patsubst %,$(OBJDIR)/src/ext/%.cma,$(CIL_PLUGINS))
   CILLY_EXE_FILES += $(OBJDIR)/src/main.byte
 endif
 ifneq ($(OCAMLOPT),no)

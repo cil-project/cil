@@ -7,73 +7,73 @@ archive(native) = "cil.cmxa"
 
 package "callgraph" (
   description = "Callgraph plugin for CIL"
-  archive(byte,plugin) = "callgraph.cmo"
+  archive(byte,plugin) = "callgraph.cma"
   archive(native,plugin) = "callgraph.cmxs"
 )
 
 package "epicenter" (
   description = "Epicenter plugin for CIL"
   requires = "cil.callgraph"
-  archive(byte,plugin) = "epicenter.cmo"
+  archive(byte,plugin) = "epicenter.cma"
   archive(native,plugin) = "epicenter.cmxs"
 )
 
 package "simplify" (
   description = "Simplify plugin for CIL"
-  archive(byte,plugin) = "simplify.cmo"
+  archive(byte,plugin) = "simplify.cma"
   archive(native,plugin) = "simplify.cmxs"
 )
 
 package "canonicalize" (
   description = "Canonicalize plugin for CIL"
-  archive(byte,plugin) = "canonicalize.cmo"
+  archive(byte,plugin) = "canonicalize.cma"
   archive(native,plugin) = "canonicalize.cmxs"
 )
 
 package "logwrites" (
   description = "Logwrites plugin for CIL"
-  archive(byte,plugin) = "logwrites.cmo"
+  archive(byte,plugin) = "logwrites.cma"
   archive(native,plugin) = "logwrites.cmxs"
 )
 
 package "heapify" (
   description = "heapify plugin for CIL"
-  archive(byte,plugin) = "heapify.cmo"
+  archive(byte,plugin) = "heapify.cma"
   archive(native,plugin) = "heapify.cmxs"
 )
 
 package "oneret" (
   description = "oneret plugin for CIL"
-  archive(byte,plugin) = "oneret.cmo"
+  archive(byte,plugin) = "oneret.cma"
   archive(native,plugin) = "oneret.cmxs"
 )
 
 package "simplemem" (
   description = "simplemem plugin for CIL"
-  archive(byte,plugin) = "simplemem.cmo"
+  archive(byte,plugin) = "simplemem.cma"
   archive(native,plugin) = "simplemem.cmxs"
 )
 
 package "dataslicing" (
   description = "dataslicing plugin for CIL"
-  archive(byte,plugin) = "dataslicing.cmo"
+  archive(byte,plugin) = "dataslicing.cma"
   archive(native,plugin) = "dataslicing.cmxs"
 )
 
 package "logcalls" (
   description = "logcalls plugin for CIL"
-  archive(byte,plugin) = "logcalls.cmo"
+  archive(byte,plugin) = "logcalls.cma"
   archive(native,plugin) = "logcalls.cmxs"
 )
 
 package "sfi" (
   description = "sfi plugin for CIL"
-  archive(byte,plugin) = "sfi.cmo"
+  archive(byte,plugin) = "sfi.cma"
   archive(native,plugin) = "sfi.cmxs"
 )
 
 package "partial" (
   description = "partial plugin for CIL"
-  archive(byte,plugin) = "partial.cmo"
+  archive(byte,plugin) = "partial.cma"
   archive(native,plugin) = "partial.cmxs"
 )
