@@ -344,3 +344,5 @@ let feature =
    fd_doit = do_live_feature;
    fd_post_check = false
  }
+
+let () = Features.register feature

@@ -69,7 +69,7 @@ CILLY_EXE_FILES=
 CIL_PLUGINS = \
   callgraph epicenter simplify canonicalize logwrites \
   heapify oneret simplemem sfi dataslicing logcalls partial \
-  pta
+  pta liveness zrapp
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma

@@ -84,3 +84,16 @@ package "partial" (
   archive(byte,plugin) = "partial.cma"
   archive(native,plugin) = "partial.cmxs"
 )
+
+package "liveness" (
+  description = "liveness plugin for CIL"
+  archive(byte,plugin) = "liveness.cma"
+  archive(native,plugin) = "liveness.cmxs"
+)
+
+package "zrapp" (
+  requires = "cil.liveness"
+  description = "zrapp plugin for CIL"
+  archive(byte,plugin) = "zrapp.cma"
+  archive(native,plugin) = "zrapp.cmxs"
+)

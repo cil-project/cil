@@ -70,27 +70,6 @@ let parseOneFile (fname: string) : C.file =
   );
   cil
 
-(** These are the statically-configured features. *)
-  
-let staticFeatures : C.featureDescr list =
-  [ (*Epicenter.feature;*)
-    (*Simplify.feature;*)
-    (*Canonicalize.feature;*)
-    (*Callgraph.feature;*)
-    (*Logwrites.feature;*)
-    (*Heapify.feature1;
-    Heapify.feature2;
-    Oneret.feature;
-    makeCFGFeature; (* ww: make CFG *must* come before Partial *) 
-    Partial.feature;
-    Simplemem.feature;
-    Sfi.feature;
-    Dataslicing.feature;
-    Logcalls.feature;*)
-    (*Ptranal.feature;*)
-    Liveness.feature;
-  ] 
-
 let rec processOneFile (cil: C.file) =
   begin
 
@@ -155,9 +134,6 @@ let theMain () =
    * can easily add a command-line flag if someone sometimes
    * wants these suppressed *)
   C.print_CIL_Input := true;
-
-  (* Load static features *)
-  List.iter Features.register staticFeatures;
 
   (* Load plugins. This needs to be done before command-line arguments are
    * built. *)

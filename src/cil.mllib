@@ -29,7 +29,6 @@ Frontc
 GrowArray
 Inthash
 Lexerhack
-Liveness
 Llvm
 Llvmgen
 Llvmssa
@@ -44,6 +43,5 @@ Rmtmps
 Ssa
 Stats
 Trace
-Usedef
 Util
 Whitetrack
