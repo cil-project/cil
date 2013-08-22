@@ -1,0 +1,4 @@
+- Features: enable, disable, enabled, list_loaded
+- META: cil.default-features
+- CIL_FEATURES should default to cil.default-plugins if not set
+- plugins without installing?
