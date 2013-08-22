@@ -11,9 +11,6 @@ CIL_VERSION = @CIL_VERSION@
 .PHONY: all
 all: cillib $(CILLY)
 
-# Now add the defines for the CIL features
-include Makefile.features
-
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
 Makefile: config.status Makefile.in
@@ -205,35 +202,6 @@ $(CILLYDIR)/App/$(CILLYMOD).pm: $(CILLYDIR)/App/$(CILLYMOD).pm.in src/machdep-ml
 	  mv $(CILLYDIR)/App/$(CILLYMOD).pm.tmp $(CILLYDIR)/App/$(CILLYMOD).pm; \
 	fi
 
-.PHONY: feature_config
-feature_config: $(OBJDIR)/feature_config.ml
-$(OBJDIR)/feature_config.ml: config.status
-	rm -f $(OBJDIR)/feature_config.*
-	echo "(* This module was generated automatically by code in Makefile.in *)" >$@
-	echo "open Cil"   >>$@
-	echo "let features : featureDescr list = [" >> $@
-ifdef USE_BLOCKINGGRAPH
-	echo "   Blockinggraph.feature;" >> $@
-endif
-ifdef USE_RAND
-	echo "   Rand.feature;" >> $@
-endif
-ifdef USE_ARITHABS
-	echo "   Arithabs.feature;" >>$@
-endif
-ifdef USE_ZRAPP
-	echo "   Zrapp.feature;" >> $@
-endif
-ifdef USE_LLVM
-	echo "   Llvm.feature;" >> $@
-endif
-	echo " (* EXTRAFEATURES: *)" >> $@
-	echo \
-          $(foreach f,@EXTRAFEATURES@, \
-             "\n   "`echo $f | cut -c 1 | tr "[a-z]" "[A-Z]"``echo $f | cut -c 2-`".feature;") \
-	| $(PERL) -pe 's/\\n/\n/g' >> $@
-	echo "]"   >>$@
-
 ### DOCUMENTATION
 
 # You should usually run this twice to get all of the references linked
@@ -296,7 +264,6 @@ clean: $(CILLYDIR)/Makefile
 	$(MAKE) -C $(CILLYDIR) clean
 	rm -f $(CILLYDIR)/App/$(CILLYMOD).pm
 	rm -f $(CILLYDIR)/Makefile.old
-	rm -f Makefile.features
 
 .PHONY: test
 test:

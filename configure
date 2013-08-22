@@ -620,8 +620,6 @@ ac_includes_default="\
 #endif"
 
 ac_subst_vars='LTLIBOBJS
-EXTRASRCDIRS
-EXTRAFEATURES
 UNDERSCORE_NAME
 THREAD_IS_KEYWORD
 HAVE_BUILTIN_VA_LIST
@@ -719,9 +717,6 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
-with_blockinggraph
-with_zrapp
-with_llvm
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1339,13 +1334,6 @@ fi
 if test -n "$ac_init_help"; then
 
   cat <<\_ACEOF
-
-Optional Packages:
-  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
-  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-blockinggraph    enable the blocking graph feature
-  --with-zrapp            enable the zrapp pretty-printer
-  --with-llvm             enable the LLVM code generator
 
 Some influential environment variables:
   CC          C compiler command
@@ -6078,75 +6066,9 @@ fi
     ;;
 esac
 
-#
-# CIL features
-#
-#
-
-# Set the defaults
-
-
-# Give a space-separated list of features with the defaults
-features="blockinggraph=no zrapp=no llvm=no"
-
-
-# Check whether --with-blockinggraph was given.
-if test "${with_blockinggraph+set}" = set; then :
-  withval=$with_blockinggraph;
-fi
-
-
-# Check whether --with-zrapp was given.
-if test "${with_zrapp+set}" = set; then :
-  withval=$with_zrapp;
-fi
-
-
-
-# Check whether --with-llvm was given.
-if test "${with_llvm+set}" = set; then :
-  withval=$with_llvm;
-fi
-
-
-# Now add any features specified in the command-line
-
-features="$features $EXTRAFEATURES"
-
-rm -f Makefile.features
-echo "# -*- Mode: makefile -*-">Makefile.features
-echo "# This file was generated automatically by ./configure.in">>Makefile.features
-echo "# We will not need this once configure supports multiline variables">>Makefile.features
-
-for f_val in $features
-do
-   # If there is no =, then we default to yes
-   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
-   # echo "Testing feature $f_val"
-   f=`echo $f_val | sed -e s%=.*$%%`
-   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to use CIL feature $f" >&5
-$as_echo_n "checking whether to use CIL feature $f... " >&6; }
-   # default value from "features"
-   defval=`echo $f_val | sed -e s%^.*=%%`
-   # current value
-   getcurval="echo \${with_$f:=$defval}"
-   curval=`eval $getcurval`
-   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $curval" >&5
-$as_echo "$curval" >&6; }
-   if test $curval = yes ;then
-      CIL_FEATURES="$CIL_FEATURES $f"
-      f_up=`echo $f | tr a-z A-Z`
-      echo "export USE_$f_up=yes">>Makefile.features
-   fi
-done
-chmod -w Makefile.features
-
-
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
-
-
 
 
 
@@ -7554,6 +7476,4 @@ CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
-  CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
 EOF

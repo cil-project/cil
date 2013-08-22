@@ -201,56 +201,6 @@ case "$target" in
     ;;
 esac
 
-#
-# CIL features
-#
-#
-   
-# Set the defaults
-
-
-# Give a space-separated list of features with the defaults
-features="blockinggraph=no zrapp=no llvm=no"
-
-AC_ARG_WITH(blockinggraph,
-    AS_HELP_STRING([--with-blockinggraph],[enable the blocking graph feature]))
-AC_ARG_WITH(zrapp,
-    AS_HELP_STRING([--with-zrapp],[enable the zrapp pretty-printer]))
-
-AC_ARG_WITH(llvm,
-    AS_HELP_STRING([--with-llvm],[enable the LLVM code generator]))
-
-# Now add any features specified in the command-line
-
-features="$features $EXTRAFEATURES"
-
-rm -f Makefile.features
-echo "# -*- Mode: makefile -*-">Makefile.features
-echo "# This file was generated automatically by ./configure.in">>Makefile.features
-echo "# We will not need this once configure supports multiline variables">>Makefile.features
-
-for f_val in $features
-do
-   # If there is no =, then we default to yes
-   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
-   # echo "Testing feature $f_val"
-   f=`echo $f_val | sed -e s%=.*$%%`
-   AC_MSG_CHECKING(whether to use CIL feature $f)
-   # default value from "features"
-   defval=`echo $f_val | sed -e s%^.*=%%`
-   # current value
-   getcurval="echo \${with_$f:=$defval}"
-   curval=`eval $getcurval`
-   AC_MSG_RESULT($curval)
-   if test $curval = yes ;then
-      CIL_FEATURES="$CIL_FEATURES $f"
-      f_up=`echo $f | tr a-z A-Z`
-      echo "export USE_$f_up=yes">>Makefile.features
-   fi
-done
-chmod -w Makefile.features
-
-
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
@@ -265,8 +215,6 @@ AC_SUBST(CIL_VERSION)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
-AC_SUBST(EXTRAFEATURES)
-AC_SUBST(EXTRASRCDIRS)
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -291,6 +239,4 @@ CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
-  CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
 EOF
