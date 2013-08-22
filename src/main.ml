@@ -95,9 +95,9 @@ let staticFeatures : C.featureDescr list =
     (*Canonicalize.feature;*)
     (*Callgraph.feature;*)
     (*Logwrites.feature;*)
-    Heapify.feature1;
+    (*Heapify.feature1;
     Heapify.feature2;
-    Oneret.feature;
+    Oneret.feature;*)
     makeCFGFeature; (* ww: make CFG *must* come before Partial *) 
     Partial.feature;
     Simplemem.feature;

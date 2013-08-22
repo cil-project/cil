@@ -172,3 +172,5 @@ let feature : featureDescr =
       | _ -> ()));
     fd_post_check = true;
   } 
+
+let () = Features.register feature

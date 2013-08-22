@@ -33,7 +33,6 @@ Formatparse
 Frontc
 GrowArray
 Heap
-Heapify
 Inthash
 Lexerhack
 Liveness
@@ -47,7 +46,6 @@ Machdep
 Machdepenv
 Mergecil
 Olf
-Oneret
 Partial
 Patch
 Predabst

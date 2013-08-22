@@ -35,3 +35,15 @@ package "logwrites" (
   archive(byte,plugin) = "logwrites.cmo"
   archive(native,plugin) = "logwrites.cmxs"
 )
+
+package "heapify" (
+  description = "heapify plugin for CIL"
+  archive(byte,plugin) = "heapify.cmo"
+  archive(native,plugin) = "heapify.cmxs"
+)
+
+package "oneret" (
+  description = "oneret plugin for CIL"
+  archive(byte,plugin) = "oneret.cmo"
+  archive(native,plugin) = "oneret.cmxs"
+)

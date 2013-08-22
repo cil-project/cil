@@ -243,7 +243,8 @@ let feature2 : featureDescr =
     fd_post_check = true;
   } 
       
-
+let () = Features.register feature1
+let () = Features.register feature2
 
 
 
