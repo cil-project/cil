@@ -72,7 +72,14 @@ package "sfi" (
   archive(native,plugin) = "sfi.cmxs"
 )
 
+package "pta" (
+  description = "ptranal plugin for CIL"
+  archive(byte,plugin) = "pta.cma"
+  archive(native,plugin) = "pta.cmxs"
+)
+
 package "partial" (
+  requires = "cil.pta"
   description = "partial plugin for CIL"
   archive(byte,plugin) = "partial.cma"
   archive(native,plugin) = "partial.cmxs"

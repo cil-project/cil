@@ -87,7 +87,7 @@ let staticFeatures : C.featureDescr list =
     Sfi.feature;
     Dataslicing.feature;
     Logcalls.feature;*)
-    Ptranal.feature;
+    (*Ptranal.feature;*)
     Liveness.feature;
   ] 
 

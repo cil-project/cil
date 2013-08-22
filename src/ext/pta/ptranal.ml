@@ -596,3 +596,5 @@ let feature : featureDescr = {
                if !ptrTypes then print_types ());
   fd_post_check = false (* No changes *)
 }
+
+let () = Features.register feature
