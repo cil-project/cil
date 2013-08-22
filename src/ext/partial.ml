@@ -1150,6 +1150,25 @@ let feature : featureDescr = {
   fd_post_check = false
 }
 
+let makeCFGFeature : featureDescr =
+  { fd_name = "makeCFG";
+    fd_enabled = Cilutil.makeCFG;
+    fd_description = "make the program look more like a CFG" ;
+    fd_extraopt = [];
+    fd_doit = (fun f ->
+      ignore (calls_end_basic_blocks f) ;
+      ignore (globally_unique_vids f) ;
+      iterGlobals f (fun glob -> match glob with
+        GFun(fd,_) -> prepareCFG fd ;
+                      (* jc: blockinggraph depends on this "true" arg *)
+                      ignore (computeCFGInfo fd true)
+      | _ -> ())
+    );
+    fd_post_check = true;
+  }
+
+let () = Features.register makeCFGFeature (* ww: make CFG *must* come before Partial *)
+let () = Features.register feature
 (*
  *
  * Copyright (c) 2001-2002,

@@ -71,3 +71,9 @@ package "sfi" (
   archive(byte,plugin) = "sfi.cmo"
   archive(native,plugin) = "sfi.cmxs"
 )
+
+package "partial" (
+  description = "partial plugin for CIL"
+  archive(byte,plugin) = "partial.cmo"
+  archive(native,plugin) = "partial.cmxs"
+)
