@@ -452,3 +452,5 @@ let feature : featureDescr =
     fd_doit = sliceFile;
     fd_post_check = true;
   } 
+
+let () = Features.register feature

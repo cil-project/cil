@@ -100,10 +100,10 @@ let staticFeatures : C.featureDescr list =
     Oneret.feature;*)
     makeCFGFeature; (* ww: make CFG *must* come before Partial *) 
     Partial.feature;
-    Simplemem.feature;
+    (*Simplemem.feature;
     Sfi.feature;
     Dataslicing.feature;
-    Logcalls.feature;
+    Logcalls.feature;*)
     Ptranal.feature;
     Liveness.feature;
   ] 

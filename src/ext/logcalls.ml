@@ -230,6 +230,8 @@ let feature : featureDescr =
     fd_post_check = true
   } 
 
+let () = Features.register feature
+
 (*
  *
  * Copyright (c) 2001-2002, 

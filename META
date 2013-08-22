@@ -47,3 +47,27 @@ package "oneret" (
   archive(byte,plugin) = "oneret.cmo"
   archive(native,plugin) = "oneret.cmxs"
 )
+
+package "simplemem" (
+  description = "simplemem plugin for CIL"
+  archive(byte,plugin) = "simplemem.cmo"
+  archive(native,plugin) = "simplemem.cmxs"
+)
+
+package "dataslicing" (
+  description = "dataslicing plugin for CIL"
+  archive(byte,plugin) = "dataslicing.cmo"
+  archive(native,plugin) = "dataslicing.cmxs"
+)
+
+package "logcalls" (
+  description = "logcalls plugin for CIL"
+  archive(byte,plugin) = "logcalls.cmo"
+  archive(native,plugin) = "logcalls.cmxs"
+)
+
+package "sfi" (
+  description = "sfi plugin for CIL"
+  archive(byte,plugin) = "sfi.cmo"
+  archive(native,plugin) = "sfi.cmxs"
+)

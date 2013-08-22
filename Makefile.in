@@ -66,7 +66,9 @@ PERL = @PERL@
 CILLIB_TARGETS=
 CILLY_EXE_FILES=
 
-CIL_PLUGINS = callgraph epicenter simplify canonicalize logwrites heapify oneret
+CIL_PLUGINS = \
+  callgraph epicenter simplify canonicalize logwrites \
+  heapify oneret simplemem sfi dataslicing logcalls
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma

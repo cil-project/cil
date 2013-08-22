@@ -130,3 +130,5 @@ let feature : featureDescr =
     fd_doit = (function (f: file) -> ignore (simplemem f)) ;
     fd_post_check = true;
   } 
+
+let () = Features.register feature
