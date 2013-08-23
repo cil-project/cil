@@ -4166,47 +4166,28 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Try to intercept some builtins *)
         (match !pf with 
           Lval(Var fv, NoOffset) -> begin
-            (* Atomic builtins are overloaded: check the type of the
-               arguments and fix the return type accordingly.
-               No trick needed for __sync_synchronize,
-               __sync_bool_compare_and_swap and __sync_lock_release.
+            (* Most atomic builtins are overloaded: check the type of the
+               first argument and fix the return type accordingly for those
+               annotated with "overloaded" in src/cil.ml.
                Some consistency checks are left to the compiler, we do
-               as few as we can here to ensure a correct translation. *)
-            if fv.vname = "__sync_fetch_and_add" ||
-               fv.vname = "__sync_fetch_and_sub" ||
-               fv.vname = "__sync_fetch_and_or"  ||
-               fv.vname = "__sync_fetch_and_and" ||
-               fv.vname = "__sync_fetch_and_xor" ||
-               fv.vname = "__sync_fetch_and_nand"||
-               fv.vname = "__sync_add_and_fetch" ||
-               fv.vname = "__sync_sub_and_fetch" ||
-               fv.vname = "__sync_or_and_fetch"  ||
-               fv.vname = "__sync_and_and_fetch" ||
-               fv.vname = "__sync_xor_and_fetch" ||
-               fv.vname = "__sync_nand_and_fetch" ||
-               fv.vname = "__sync_lock_test_and_set" then begin
+               as few as we can here to ensure a correct translation.
+               References:
+               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
+               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
+             *)
+            if !resType' = TVoid[Attr("overloaded",[])] then begin
               match !pargs  with
-                ptr :: value :: q -> begin match typeOf ptr with
+                ptr :: _ -> begin match typeOf ptr with
                 TPtr (vtype, _) ->
-                    let cast v = snd (castTo (typeOf v) vtype v) in
-                    resType' := vtype;
-                    pargs := ptr :: cast value :: q
+                    resType' := vtype
                 | _ ->
                   ignore (warn "Invalid call to %s" fv.vname) end
               | _ ->
                   ignore (warn "Invalid call to %s" fv.vname)
-            end else if fv.vname = "__sync_val_compare_and_swap" then begin
-              match !pargs  with
-                ptr :: oldval :: newval :: q -> begin match typeOf ptr with
-                TPtr (vtype, _) ->
-                    let cast v = snd (castTo (typeOf v) vtype v) in
-                    resType' := vtype;
-                    pargs := ptr :: cast oldval :: cast newval :: q
-                | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname) end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname)
-            end else if fv.vname = "__builtin_va_arg" then begin
+            end
+            
+            (* Builtins for va_arg functions *)
+            else if fv.vname = "__builtin_va_arg" then begin
               match !pargs with 
                 [ marker ; SizeOf resTyp ] -> begin
                   (* Make a variable of the desired type *)
@@ -4267,7 +4248,20 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to %s" fv.vname);
-            end else if fv.vname = "__builtin_object_size" then begin
+            end else if fv.vname = "__builtin_va_arg_pack" then begin
+
+              (match !pargs with 
+                [  ] -> begin 
+                  piscall := false; 
+		  pres := SizeOfE !pf;
+		  prestype := !typeOfSizeOf
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to builtin_va_arg_pack"));
+            end
+             
+            (* More weird buitins *)
+            else if fv.vname = "__builtin_object_size" then begin
               (* Side-effects make __builtin_object_size return -1 or 0 *)
               if (not (isEmpty (!prechunk ()))) then
               (match !pargs with
@@ -4306,16 +4300,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to builtin_constant_p"));
-            end else if fv.vname = "__builtin_va_arg_pack" then begin
-
-              (match !pargs with 
-                [  ] -> begin 
-                  piscall := false; 
-		  pres := SizeOfE !pf;
-		  prestype := !typeOfSizeOf
-                end
-              | _ -> 
-                  ignore (warn "Invalid call to builtin_va_arg_pack"));
             end else if fv.vname = "__builtin_choose_expr" then begin
 
               (* Constant-fold the argument and see if it is a constant *)
