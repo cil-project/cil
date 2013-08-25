@@ -37,13 +37,27 @@
 (** Description of a CIL feature. *)
 type t = Cil.featureDescr
 
-(** Register a feature to be used by CIL. *)
+(** Register a feature to be used by CIL. Feature name must be unique. *)
 val register : t -> unit
 
-(**/**)
+(** List registered features. *)
+val list_registered : unit -> t list
 
-(** Get the list of registered features. *)
-val list : unit -> t list
+(** Check if a given feature is registered. *)
+val registered : string -> bool
+
+(** Find a feature by name. Raise Not_found if the feature is not registered. *)
+val find : string -> t
+
+(** Enable a given feature, by name. Raise Not_found if the feature is not
+ *  registered. *)
+val enable : string -> unit
+
+(** Check if a given feature is enabled. Raise Not_found if the feature is not
+ * registered. *)
+val enabled : string -> bool
+
+(**/**)
 
 (** Initialize the module. This needs to be called before {!loadWithDeps} is
  * used. Called automatically by {!loadFromArgv}. *)

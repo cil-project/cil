@@ -40,10 +40,26 @@ module F = Findlib
 
 type t = Cil.featureDescr
 
-(** List of registered features *)
 let features = ref []
-let register f = features := !features @ [f]
-let list () = !features
+
+let same_name s f = s = f.fd_name
+
+let register f =
+  if List.exists (same_name f.fd_name) !features
+  then E.s (E.error "Feature %s is already registered" f.fd_name)
+  else features := !features @ [f]
+
+let list_registered () = !features
+
+let find s = List.find (same_name s) !features
+
+let registered s =
+  try ignore(find s); true
+  with Not_found -> false
+
+let enabled s = !((find s).fd_enabled)
+
+let enable s = let f = find s in f.fd_enabled := true
 
 (** Dynamic linking *)
 

@@ -59,10 +59,7 @@ let parseOneFile (fname: string) : C.file =
   if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
   
-  let doEpicenter =
-    List.exists (fun f -> f.C.fd_name = "epicenter" && !(f.C.fd_enabled) = true)
-    (Feature.list ()) in
-  if (not doEpicenter) then (
+  if (not (Feature.enabled "epicenter")) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
     (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
@@ -82,7 +79,7 @@ let rec processOneFile (cil: C.file) =
       end
     end;
 
-    (* Scan all the features configured from the Makefile and, if they are 
+    (* Scan all the registered features and, if they are 
      * enabled then run them on the current file *)
     List.iter 
       (fun fdesc -> 
@@ -103,7 +100,7 @@ let rec processOneFile (cil: C.file) =
             end
           end
         end)
-      (Feature.list ());
+      (Feature.list_registered());
 
 
     (match !outChannel with
@@ -160,7 +157,7 @@ let theMain () =
            " Enable " ^ fdesc.C.fd_description) ::
           fdesc.C.fd_extraopt @ acc
       )
-      (Feature.list ())
+      (Feature.list_registered())
       [blankLine]
   in
   let featureArgs = 
