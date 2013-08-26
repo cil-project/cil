@@ -1167,8 +1167,8 @@ let makeCFGFeature : featureDescr =
     fd_post_check = true;
   }
 
-let () = Features.register makeCFGFeature (* ww: make CFG *must* come before Partial *)
-let () = Features.register feature
+let () = Feature.register makeCFGFeature (* ww: make CFG *must* come before Partial *)
+let () = Feature.register feature
 (*
  *
  * Copyright (c) 2001-2002,

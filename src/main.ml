@@ -61,7 +61,7 @@ let parseOneFile (fname: string) : C.file =
   
   let doEpicenter =
     List.exists (fun f -> f.C.fd_name = "epicenter" && !(f.C.fd_enabled) = true)
-    (Features.list ()) in
+    (Feature.list ()) in
   if (not doEpicenter) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
@@ -103,7 +103,7 @@ let rec processOneFile (cil: C.file) =
             end
           end
         end)
-      (Features.list ());
+      (Feature.list ());
 
 
     (match !outChannel with
@@ -137,8 +137,8 @@ let theMain () =
 
   (* Load plugins. This needs to be done before command-line arguments are
    * built. *)
-  Features.loadFromEnv "CIL_FEATURES";
-  Features.loadFromArgv "--load";
+  Feature.loadFromEnv "CIL_FEATURES";
+  Feature.loadFromArgv "--load";
 
 
   (*********** COMMAND LINE ARGUMENTS *****************)
@@ -160,11 +160,11 @@ let theMain () =
            " Enable " ^ fdesc.C.fd_description) ::
           fdesc.C.fd_extraopt @ acc
       )
-      (Features.list ())
+      (Feature.list ())
       [blankLine]
   in
   let featureArgs = 
-    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs 
+    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Feature") :: featureArgs 
   in
     
   let argDescr = Ciloptions.options @ 

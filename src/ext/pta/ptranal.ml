@@ -597,4 +597,4 @@ let feature : featureDescr = {
   fd_post_check = false (* No changes *)
 }
 
-let () = Features.register feature
+let () = Feature.register feature
