@@ -41,10 +41,12 @@ dispatch begin function
     rule "plugin dir -> mllib"
     ~prod: "src/ext/%.mllib"
     (fun env builder ->
-      let files = Sys.readdir (".."/(env "src/ext/%")) in
-      let modules = Array.map module_name_of_pathname files in
+      let files = Array.to_list (Sys.readdir (".."/(env "src/ext/%"))) in
+      let ml_files = List.filter
+        (fun f -> let ext = get_extension f in ext = "ml" || ext = "mli") files in
+      let modules = List.map module_name_of_pathname ml_files in
       let uniq_mods =
-        List.fold_left (fun l m -> List.union l [m ^ "\n"]) [] (Array.to_list modules) in
+        List.fold_left (fun l m -> List.union l [m ^ "\n"]) [] modules in
       Echo (uniq_mods, (env "src/ext/%.mllib")));
 
     (* Build a list of files to install with ocamlfind *)
