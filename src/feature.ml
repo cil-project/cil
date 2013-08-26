@@ -130,8 +130,8 @@ let loadFromArgv switch =
     with Arg.Bad _ | Arg.Help _ -> incr idx; aux ()
   in init (); aux ()
 
-let loadFromEnv name =
-  try
-    let plugins = Str.split (Str.regexp "[ ,]+") (Sys.getenv name) in
-    List.iter loadWithDeps plugins
-  with Not_found -> ()
+let loadFromEnv name default =
+  let plugins =
+    try Str.split (Str.regexp "[ ,]+") (Sys.getenv name)
+    with Not_found -> default in
+  List.iter loadWithDeps plugins
