@@ -84,8 +84,11 @@ let findlib_lookup pkg =
     let deps = F.package_deep_ancestors preds [pkg] in
     let find_modules pkg =
       let base = F.package_directory pkg in
-      let archives = F.package_property preds pkg "archive" in
-      let modules = Str.split (Str.regexp "[ ,]+") archives in
+      let archives =
+        try F.package_property preds pkg "archive"
+        (* some packages have dependencies but no archive *)
+        with Not_found -> "" in
+      let modules = List.filter ((<>) "") (Str.split (Str.regexp "[ ,]+") archives) in
       List.map (fun m -> F.resolve_path ~base (D.adapt_filename m)) modules in
     let files = List.map find_modules deps in
     List.flatten files
