@@ -306,13 +306,15 @@ ifneq ($(DESTDIR),)
   override DESTDIR := $(abspath $(DESTDIR))
 endif
 
+MAKE_CILLY = $(MAKE) -C $(CILLYDIR) DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
+
 install: $(CILLY) install-findlib
-	$(MAKE) -C $(CILLYDIR) pure_install DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
+	$(MAKE_CILLY) pure_install
 	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
 uninstall: $(CILLYDIR)/Makefile uninstall-findlib
 	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
-	$(MAKE) -C $(CILLYDIR) force_uninstall
+	$(MAKE_CILLY) force_uninstall
 
 .PHONY: install-findlib uninstall-findlib
 
