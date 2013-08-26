@@ -75,6 +75,6 @@ val loadWithDeps : string -> unit
  * {!Sys.argv} element. *)
 val loadFromArgv : string -> unit
 
-(** {!loadFromEnv name} loads coma-separated module names stored in the
- * environment variable {!name}. *)
-val loadFromEnv : string -> unit
+(** {!loadFromEnv name default} loads coma-separated module names stored in the
+ * environment variable {!name}, or {!default} if it is not defined. *)
+val loadFromEnv : string -> string list -> unit
