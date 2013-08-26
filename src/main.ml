@@ -100,7 +100,7 @@ let rec processOneFile (cil: C.file) =
             end
           end
         end)
-      (Feature.list_registered());
+      (Feature.list_registered ());
 
 
     (match !outChannel with
@@ -157,11 +157,12 @@ let theMain () =
            " Enable " ^ fdesc.C.fd_description) ::
           fdesc.C.fd_extraopt @ acc
       )
-      (Feature.list_registered())
+      (Feature.list_registered ())
       [blankLine]
   in
   let featureArgs = 
-    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Feature") :: featureArgs 
+    if Feature.list_registered () = [] then [] else
+    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs 
   in
     
   let argDescr = Ciloptions.options @ 
