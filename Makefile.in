@@ -67,6 +67,8 @@ CIL_PLUGINS_DIR = src/ext
 CIL_EXCLUDE_PLUGINS = $(addprefix $(CIL_PLUGINS_DIR)/, arithabs rand)
 CIL_PLUGINS = $(addprefix $(OBJDIR)/,$(filter-out $(CIL_EXCLUDE_PLUGINS),$(wildcard $(CIL_PLUGINS_DIR)/*)))
 
+CIL_DEFAULT_PLUGINS = $(patsubst $(CIL_PLUGINS_DIR)/%/default,cil.%,$(wildcard $(CIL_PLUGINS_DIR)/*/default))
+
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
   CILLIB_TARGETS  += $(addsuffix .cma,$(CIL_PLUGINS))
@@ -117,6 +119,9 @@ META:
 	@printf "version = \"$(CIL_VERSION)\"\n\n" >>$@
 	@printf "archive(byte) = \"cil.cma\"\n" >>$@
 	@printf "archive(native) = \"cil.cmxa\"\n\n" >>$@
+	@printf "package \"default-features\" (\n" >>$@
+	@printf "requires=\"$(CIL_DEFAULT_PLUGINS)\"\n" >>$@
+	@printf ")\n\n" >>$@
 	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
 	  printf "package \"$(plugin)\" (\n" >> $@;\
 		cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
