@@ -106,8 +106,23 @@ ocamlbuild:
 	MAKE=$(MAKE) $(OCAMLBUILD) $(patsubst $(OBJDIR)/%,%,$(OCAMLBUILD_TARGETS))
 
 # OCaml CIL library
-.PHONY: cillib
-cillib: $(CILLIB_TARGETS)
+.PHONY: cillib META
+cillib: $(CILLIB_TARGETS) META
+
+META:
+	@rm -f $@
+	@printf "description = \"C Intermediate Language\"\n" >>$@
+	@printf "requires = \"unix str num dynlink\"\n" >>$@
+	@printf "version = \"$(CIL_VERSION)\"\n\n" >>$@
+	@printf "archive(byte) = \"cil.cma\"\n" >>$@
+	@printf "archive(native) = \"cil.cmxa\"\n\n" >>$@
+	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
+	  printf "package \"$(plugin)\" (\n" >> $@;\
+		cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
+	  printf "archive(byte,plugin) = \"$(plugin).cma\"\n" >> $@;\
+	  printf "archive(native,plugin) = \"$(plugin).cmxs\"\n" >> $@;\
+	  printf ")\n\n" >> $@;\
+		)
 
 # cilly perl wrapper
 prefix = @prefix@
@@ -301,11 +316,11 @@ ifneq ($(DESTDIR),)
 endif
 export OCAMLFIND_DESTDIR
 
-install-findlib: $(CILLIB_FILES) $(CILLIB_TARGETS)
+install-findlib: META $(CILLIB_FILES) $(CILLIB_TARGETS)
 ifneq ($(OCAMLFIND_DESTDIR),)
 	mkdir -p $(OCAMLFIND_DESTDIR)
 endif
-	$(OCAMLFIND) install -patch-version $(CIL_VERSION) cil META \
+	$(OCAMLFIND) install cil META \
 		$(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
 
 uninstall-findlib:
