@@ -76,6 +76,7 @@ ifneq ($(OCAMLOPT),no)
 # build native version only if natdynlink is available
 ifeq ($(OCAMLNATDYNLINK),yes)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
+  CILLIB_TARGETS  += $(addsuffix .cmxa,$(CIL_PLUGINS))
   CILLIB_TARGETS  += $(addsuffix .cmxs,$(CIL_PLUGINS))
   CILLY_EXE_FILES += $(OBJDIR)/src/main.native
 endif
@@ -119,7 +120,9 @@ META:
 	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
 	  printf "package \"$(plugin)\" (\n" >> $@;\
 		cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
+	  printf "archive(byte) = \"$(plugin).cma\"\n" >> $@;\
 	  printf "archive(byte,plugin) = \"$(plugin).cma\"\n" >> $@;\
+	  printf "archive(native) = \"$(plugin).cmxa\"\n" >> $@;\
 	  printf "archive(native,plugin) = \"$(plugin).cmxs\"\n" >> $@;\
 	  printf ")\n\n" >> $@;\
 		)
