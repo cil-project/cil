@@ -3,6 +3,7 @@ open Escape
 open Pretty
 open Trace
 open Cil
+open Feature
 
 module E = Errormsg
 module H = Hashtbl
@@ -620,9 +621,9 @@ let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
   with _ ->
     raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fl)))
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "zrapp";              
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "pretty printing with checks for name conflicts and\n\t\t\t\ttemp variable elimination";
     fd_extraopt = [
     "--zrapp_elim_temps",

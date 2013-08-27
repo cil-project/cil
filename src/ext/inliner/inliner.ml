@@ -49,12 +49,12 @@
 
 open Pretty
 open Cil
+open Feature
 module E = Errormsg
 module H = Hashtbl
 module IH = Inthash
 module A = Alpha
 
-let doInline = ref false
 let debug = true
 
 exception Recursion (* Used to signal recursion *)
@@ -431,12 +431,12 @@ let doit (fl: file) =
 
   doFile inlineWhat fl
 
-let feature : featureDescr = 
+let rec feature = 
   { fd_name = "inliner";
-    fd_enabled = doInline;
+    fd_enabled = false;
     fd_description = "inline function calls";
     fd_extraopt = [
-    "--inline", Arg.String (fun s -> doInline := true;
+    "--inline", Arg.String (fun s -> feature.fd_enabled <- true;
                                      toinline := s :: !toinline), 
                 "<func> inline this function";
     ];

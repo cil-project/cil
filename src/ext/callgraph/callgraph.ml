@@ -4,6 +4,7 @@
 (* see copyright notice at end of this file *)
 
 open Cil
+open Feature
 open Trace
 open Printf
 module P = Pretty
@@ -201,11 +202,9 @@ let printGraph (out:out_channel) (g:callgraph) : unit = begin
     g
   end
     
-let doCallGraph = ref false
-
-let feature : featureDescr = 
+let feature = 
   { fd_name = "callgraph";
-    fd_enabled = doCallGraph;
+    fd_enabled = false;
     fd_description = "generation of a static call graph";
     fd_extraopt = [];
     fd_doit = 

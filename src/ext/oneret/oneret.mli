@@ -41,4 +41,4 @@
  * if the function is supposed to return something, and it is not declared to 
  * not return. *)
 val oneret: Cil.fundec -> unit
-val feature : Cil.featureDescr 
+val feature : Feature.t 

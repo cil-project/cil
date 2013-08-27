@@ -37,4 +37,4 @@
 
 (* This module finds and analyzes yield points. *)
 
-val feature: Cil.featureDescr
+val feature: Feature.t

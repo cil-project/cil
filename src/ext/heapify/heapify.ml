@@ -43,6 +43,7 @@
  * and frees the structure on return. 
  *)
 open Cil
+open Feature
 
 (* utilities that should be in Cil.ml *)
 (* sfg: this function appears to never be called *)
@@ -223,17 +224,17 @@ void * stackguard_pop() {
     ignore (stackguard f push pop get_ra set_ra )
       
       
-let feature1 : featureDescr = 
+let feature1 = 
   { fd_name = "stackGuard";
-    fd_enabled = Cilutil.doStackGuard;
+    fd_enabled = false;
     fd_description = "instrument function calls and returns to maintain a\n\t\t\t\tseparate stack for return addresses" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> default_stackguard f);
     fd_post_check = true;
   } 
-let feature2 : featureDescr = 
+let feature2 = 
   { fd_name = "heapify";
-    fd_enabled = Cilutil.doHeapify;
+    fd_enabled = false;
     fd_description = "move stack-allocated arrays to the heap" ;
     fd_extraopt = [
       "--heapifyAll", Arg.Set heapifyNonArrays,

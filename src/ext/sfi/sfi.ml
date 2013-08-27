@@ -38,6 +38,7 @@
 
 open Pretty
 open Cil
+open Feature
 module E = Errormsg
 module H = Hashtbl
 
@@ -323,9 +324,9 @@ let doit (f: file) =
     GVarDecl (logFree.svar, locUnknown) :: f.globals
 
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "sfi";
-    fd_enabled = doSfi;
+    fd_enabled = false;
     fd_description = "instrument memory operations";
     fd_extraopt = [
     "--sfireads", Arg.Set doSfiReads, " SFI for reads";

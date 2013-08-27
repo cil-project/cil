@@ -54,6 +54,7 @@
      - iBinop/MinusPP: will get an exception when computing elemsize
 *)
 open Cil
+open Feature
 open Pretty
 open List
 open Llvmutils
@@ -163,9 +164,9 @@ let generate (f:file) : doc =
   (globals#printGlobals ()) ++ body
 
 (* CIL feature setup *)
-let feature : featureDescr = 
+let feature =
   { fd_name = "llvm";              
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "generate llvm code";
     fd_extraopt = [];
     fd_doit = 

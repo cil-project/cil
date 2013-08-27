@@ -35,6 +35,7 @@
  *
  *)
 open Cil
+open Feature
 open Pretty
 module E = Errormsg
 
@@ -750,9 +751,9 @@ let instrumentProgram (f: file) : unit =
 
 
 
-let feature : featureDescr = 
+let feature =
   { fd_name = "FCG";
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "computing and printing a static call graph";
     fd_extraopt = [];
     fd_doit = 

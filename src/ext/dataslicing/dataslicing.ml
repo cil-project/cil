@@ -34,6 +34,7 @@
  *
  *)
 open Cil
+open Feature
 open Pretty
 module E = Errormsg
 
@@ -444,9 +445,9 @@ let sliceFile (f : file) : unit =
   f.globals <- List.rev !newGlobals;
   visitCilFile (new dropAttrsVisitor) f
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "DataSlicing";
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "data slicing";
     fd_extraopt = [];
     fd_doit = sliceFile;

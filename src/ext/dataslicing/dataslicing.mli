@@ -38,4 +38,4 @@
  * and function types with region(i) annotations, and this transformation
  * will separate the fields into parallel data structures accordingly. *)
 
-val feature: Cil.featureDescr
+val feature: Feature.t

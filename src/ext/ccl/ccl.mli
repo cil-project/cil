@@ -37,4 +37,4 @@
 val verifiedExps: Cil.exp list ref
 val verifiedArgs: Cil.exp list ref
 
-val feature: Cil.featureDescr
+val feature: Feature.t

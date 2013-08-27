@@ -34,6 +34,7 @@
  *
  *)
 open Cil
+open Feature
 open Pretty
 module E = Errormsg
 
@@ -1930,9 +1931,9 @@ let analyzeFile (f : file) : unit =
   if !E.hadErrors then
     E.s (E.error "Verification failed")
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "CCL";
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "CCured Lite";
     fd_extraopt = [
       "--cclverbose", Arg.Set verbose, "Enable verbose output for CCL";

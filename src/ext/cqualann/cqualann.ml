@@ -29,6 +29,7 @@
 *)
 
 open Cil  
+open Feature
 open Pretty
 module E = Errormsg
 module H = Hashtbl
@@ -498,15 +499,13 @@ let entry_point (f : file) =
 
 
 
-let enableAnn = ref false 
-
 (***********************
  * The Cil.featureDesc that tells the CIL front-end how to call this module.
  * This is the only value that needs to be exported from smalloc.ml. **)
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "CqualAnn";
-    fd_enabled = enableAnn;
+    fd_enabled = false;
     fd_description = "adding assembly annotations for Cqual qualifiers." ;
     fd_extraopt = [ "--doCollapseCallCast", 
                     Arg.Set Cabs2cil.doCollapseCallCast,

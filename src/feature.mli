@@ -35,7 +35,30 @@
 (** Extending CIL with external features *)
 
 (** Description of a CIL feature. *)
-type t = Cil.featureDescr
+type t = {
+
+    mutable fd_enabled: bool; 
+    (** The enable flag. Set to default value  *)
+
+    fd_name: string; 
+    (** This is used to construct an option "--doxxx" and "--dontxxx" that 
+     * enable and disable the feature  *)
+
+    fd_description: string; 
+    (** A longer name that can be used to document the new options  *)
+
+    fd_extraopt: (string * Arg.spec * string) list; 
+    (** Additional command line options.  The description strings should
+        usually start with a space for Arg.align to print the --help nicely. *)
+
+    fd_doit: (Cil.file -> unit);
+    (** This performs the transformation *)
+
+    fd_post_check: bool; 
+    (** Whether to perform a CIL consistency checking after this stage, if 
+     * checking is enabled (--check is passed to cilly). Set this to true if 
+     * your feature makes any changes for the program. *)
+}
 
 (** Register a feature to be used by CIL. Feature name must be unique. *)
 val register : t -> unit

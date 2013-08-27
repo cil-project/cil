@@ -43,6 +43,7 @@
 
 module F = Frontc
 module C = Cil
+module Fe = Feature
 module CK = Check
 module E = Errormsg
 open Pretty
@@ -83,20 +84,20 @@ let rec processOneFile (cil: C.file) =
      * enabled then run them on the current file *)
     List.iter 
       (fun fdesc -> 
-        if ! (fdesc.C.fd_enabled) then begin
+        if fdesc.Fe.fd_enabled then begin
           if !E.verboseFlag then 
             ignore (E.log "Running CIL feature %s (%s)\n" 
-                      fdesc.C.fd_name fdesc.C.fd_description);
+                      fdesc.Fe.fd_name fdesc.Fe.fd_description);
           (* Run the feature, and see how long it takes. *)
-          Stats.time fdesc.C.fd_name
-            fdesc.C.fd_doit cil;
+          Stats.time fdesc.Fe.fd_name
+            fdesc.Fe.fd_doit cil;
           (* See if we need to do some checking *)
-          if !Cilutil.doCheck && fdesc.C.fd_post_check then begin
-            ignore (E.log "CIL check after %s\n" fdesc.C.fd_name);
+          if !Cilutil.doCheck && fdesc.Fe.fd_post_check then begin
+            ignore (E.log "CIL check after %s\n" fdesc.Fe.fd_name);
             if not (CK.checkFile [] cil) && !Cilutil.strictChecking then begin
               E.error ("Feature \"%s\" left CIL's internal data "
                        ^^"structures in an inconsistent state. "
-                       ^^"(See the warnings above)") fdesc.C.fd_name
+                       ^^"(See the warnings above)") fdesc.Fe.fd_name
             end
           end
         end)
@@ -144,18 +145,18 @@ let theMain () =
   let featureArgs = 
     List.fold_right
       (fun fdesc acc ->
-	if !(fdesc.C.fd_enabled) then
+	if fdesc.Fe.fd_enabled then
           (* The feature is enabled by default *)
           blankLine ::
-          ("--dont" ^ fdesc.C.fd_name, Arg.Clear(fdesc.C.fd_enabled), 
-           " Disable " ^ fdesc.C.fd_description) ::
-          fdesc.C.fd_extraopt @ acc
+          ("--dont" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- false), 
+           " Disable " ^ fdesc.Fe.fd_description) ::
+          fdesc.Fe.fd_extraopt @ acc
 	else
           (* Disabled by default *)
           blankLine ::
-          ("--do" ^ fdesc.C.fd_name, Arg.Set(fdesc.C.fd_enabled), 
-           " Enable " ^ fdesc.C.fd_description) ::
-          fdesc.C.fd_extraopt @ acc
+          ("--do" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- true), 
+           " Enable " ^ fdesc.Fe.fd_description) ::
+          fdesc.Fe.fd_extraopt @ acc
       )
       (Feature.list_registered ())
       [blankLine]

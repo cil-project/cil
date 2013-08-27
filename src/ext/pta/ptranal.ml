@@ -38,6 +38,7 @@ exception Bad_function
 
 
 open Cil
+open Feature
 
 module H = Hashtbl
 
@@ -561,16 +562,15 @@ let absloc_eq a b = A.absloc_eq (a, b)
 let d_absloc: unit -> absloc -> Pretty.doc = A.d_absloc
 
 
-let ptrAnalysis = ref false
 let ptrResults = ref false
 let ptrTypes = ref false
 
 
 
 (** Turn this into a CIL feature *)
-let feature : featureDescr = {
+let feature = {
   fd_name = "ptranal";
-  fd_enabled = ptrAnalysis;
+  fd_enabled = false;
   fd_description = "alias analysis";
   fd_extraopt = [
     ("--ptr_may_aliases",

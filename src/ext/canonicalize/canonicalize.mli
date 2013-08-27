@@ -45,4 +45,4 @@
  *
  ************************************************************************)
 
-val feature: Cil.featureDescr
+val feature: Feature.t

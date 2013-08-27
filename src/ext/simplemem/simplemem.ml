@@ -45,6 +45,7 @@
  * constructor. 
  *)
 open Cil
+open Feature
 
 (* current context: where should we put our temporaries? *)
 let thefunc = ref None 
@@ -122,9 +123,9 @@ let simplemem (f : file) =
   with e -> Printf.printf "Exception in Simplemem.simplemem: %s\n"
     (Printexc.to_string e) ; raise e
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "simpleMem";
-    fd_enabled = Cilutil.doSimpleMem;
+    fd_enabled = false;
     fd_description = "simplify all memory expressions" ;
     fd_extraopt = [];
     fd_doit = (function (f: file) -> ignore (simplemem f)) ;

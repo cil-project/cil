@@ -37,6 +37,7 @@
 
 open Pretty
 open Cil
+open Feature
 module E = Errormsg
 module H = Hashtbl
 
@@ -125,9 +126,9 @@ class logWriteVisitor = object
 
 end
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "logwrites";
-    fd_enabled = Cilutil.logWrites;
+    fd_enabled = false;
     fd_description = "generation of code to log memory writes";
     fd_extraopt = [];
     fd_doit = 

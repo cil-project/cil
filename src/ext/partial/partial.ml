@@ -14,6 +14,7 @@
  *****************************************************************************)
 open Cil
 open Cilint
+open Feature
 open Pretty
 
 (*****************************************************************************
@@ -1107,10 +1108,10 @@ let initialized_constants = ref false
 let root_fun = ref "main"
 
 let do_feature_partial f =
-  if not !Cilutil.makeCFG then
+  if not (Feature.enabled "makeCFG") then
     Errormsg.s (Errormsg.error
                   "--dopartial: you must also specify --domakeCFG\n");
-  if not !(Ptranal.feature.fd_enabled) &&
+  if not (Feature.enabled "ptranal") &&
     !PartialAlgorithm.use_ptranal_alias then
     Errormsg.s (Errormsg.error
                   "--dopartial: you must also specify --doptranal\n");
@@ -1125,9 +1126,9 @@ let do_feature_partial f =
        end
      else [])
 
-let feature : featureDescr = {
+let feature = {
   fd_name = "partial";
-  fd_enabled = Cilutil.doPartial;
+  fd_enabled = false;
   fd_description = "interprocedural partial evaluation and constant folding";
   fd_extraopt = [
     ("--partial_global_const",
@@ -1150,9 +1151,9 @@ let feature : featureDescr = {
   fd_post_check = false
 }
 
-let makeCFGFeature : featureDescr =
+let makeCFGFeature =
   { fd_name = "makeCFG";
-    fd_enabled = Cilutil.makeCFG;
+    fd_enabled = false;
     fd_description = "make the program look more like a CFG" ;
     fd_extraopt = [];
     fd_doit = (fun f ->

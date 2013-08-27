@@ -70,6 +70,7 @@
 
 open Pretty
 open Cil
+open Feature
 module E = Errormsg
 module H = Hashtbl
 
@@ -742,9 +743,9 @@ let doGlobal = function
       end
   | _ -> ()
       
-let feature : featureDescr = 
+let feature = 
   { fd_name = "simplify";
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "compiles CIL to 3-address code";
     fd_extraopt = [
       ("--no-split-structs", Arg.Clear splitStructs,

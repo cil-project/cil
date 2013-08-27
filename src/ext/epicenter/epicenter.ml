@@ -6,6 +6,7 @@
 
 open Callgraph
 open Cil
+open Feature
 open Trace
 open Pretty
 module H = Hashtbl
@@ -54,13 +55,12 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
   Cilutil.sliceGlobal := true;
   Rmtmps.removeUnusedTemps ~isRoot:isRoot f
 
-let doEpicenter = ref false
 let epicenterName = ref ""
 let epicenterHops = ref 0
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "epicenter";
-    fd_enabled = doEpicenter;
+    fd_enabled = false;
     fd_description = "remove all functions except those within some number" ^
                 "\n\t\t\t\tof hops (in the call graph) from a given function";
     fd_extraopt = 

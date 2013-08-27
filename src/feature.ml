@@ -38,7 +38,14 @@ module E = Errormsg
 module D = Dynlink
 module F = Findlib
 
-type t = Cil.featureDescr
+type t = {
+    mutable fd_enabled: bool; 
+    fd_name: string; 
+    fd_description: string; 
+    fd_extraopt: (string * Arg.spec * string) list; 
+    fd_doit: (file -> unit);
+    fd_post_check: bool; 
+}
 
 let features = ref []
 
@@ -57,9 +64,9 @@ let registered s =
   try ignore(find s); true
   with Not_found -> false
 
-let enabled s = !((find s).fd_enabled)
+let enabled s = (find s).fd_enabled
 
-let enable s = let f = find s in f.fd_enabled := true
+let enable s = let f = find s in f.fd_enabled <- true
 
 (** Dynamic linking *)
 

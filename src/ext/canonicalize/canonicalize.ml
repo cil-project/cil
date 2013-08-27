@@ -63,6 +63,7 @@
  ************************************************************************)
 
 open Cil
+open Feature
 module E = Errormsg
 module H = Hashtbl
 
@@ -282,9 +283,9 @@ let canonicalize (f:file) =
 
 
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "canonicalize";
-    fd_enabled = ref false;
+    fd_enabled = false;
     fd_description = "fixing some C-isms so that the result is C++ compliant.";
     fd_extraopt = [];
     fd_doit = canonicalize;

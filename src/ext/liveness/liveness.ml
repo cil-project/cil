@@ -7,6 +7,7 @@
  *)
 
 open Cil
+open Feature
 open Pretty
 
 module DF = Dataflow
@@ -329,7 +330,7 @@ let do_live_feature (f:file) =
 let feature =
   {
    fd_name = "Liveness";
-   fd_enabled = ref false;
+   fd_enabled = false;
    fd_description = "Spit out live variables at a label";
    fd_extraopt = [
    "--live_label",

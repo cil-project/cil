@@ -4,6 +4,7 @@
 
 open Pretty
 open Cil
+open Feature
 open Trace
 module E = Errormsg
 module H = Hashtbl
@@ -216,9 +217,9 @@ let logCalls (f: file) : unit =
      f.globals <- GVarDecl (p, locUnknown) :: f.globals
   end  
 
-let feature : featureDescr = 
+let feature = 
   { fd_name = "logcalls";
-    fd_enabled = Cilutil.logCalls;
+    fd_enabled = false;
     fd_description = "generation of code to log function calls";
     fd_extraopt = [
       ("--logcallprintf", Arg.String (fun s -> printFunctionName := s), 
