@@ -16,7 +16,7 @@ WriteMakefile(
         'App/'.$Cilly.'/OutputFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/OutputFile.pm',
         'App/'.$Cilly.'/TempFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/TempFile.pm',
     },
-    EXE_FILES           => [ '../bin/'.$cilly ],
+    EXE_FILES           => [ '../../bin/'.$cilly ],
     PREREQ_PM => {
         'Carp'              => 0,
         'Data::Dumper'      => 0,

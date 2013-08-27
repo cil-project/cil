@@ -48,7 +48,7 @@ endif
 # We have to use _build because of OCaml's bug #0004502
 OBJDIR      = _build
 BINDIR		  = bin
-CILLYDIR	  = lib
+CILLYDIR	  = lib/perl5
 
 # Ocaml tools
 OCAMLC = @OCAMLC@
