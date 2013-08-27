@@ -9,7 +9,7 @@ CILLY			  = cilly
 CIL_VERSION = @CIL_VERSION@
 
 .PHONY: all
-all: cillib $(CILLY)
+all: install-local
 
 # look out for outdated Makefile; if it's out of date, this will automatically
 # re-run ./config.status, then re-exec make with the same arguments
@@ -108,10 +108,7 @@ ocamlbuild:
 	export CIL_VERSION
 	MAKE=$(MAKE) $(OCAMLBUILD) $(patsubst $(OBJDIR)/%,%,$(OCAMLBUILD_TARGETS))
 
-# OCaml CIL library
-.PHONY: cillib META
-cillib: $(CILLIB_TARGETS) META
-
+.PHONY: META
 META:
 	@rm -f $@
 	@printf "description = \"C Intermediate Language\"\n" >>$@
@@ -274,12 +271,14 @@ distclean: clean
 	rm -f config.status
 	rm -f doc/header.html
 	rm -f doc/index.html
-	rm -f src/machdep-ml.c
+	rm -f src/machdep-ml.c src/cilversion.ml
 	rm -f stamp-h
 
 clean: $(CILLYDIR)/Makefile
 	rm -rf $(OBJDIR)
 	rm -f $(BINDIR)/$(CILLY).*
+	rm -rf lib/cil share/
+	rm -f META
 	rm -rf doc/html/
 	rm -rf doc/cilcode.tmp/
 	rm -f doc/cil.version.*
@@ -299,6 +298,7 @@ INSTALL_DATA = @INSTALL_DATA@
 
 exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
+datadir = $(datarootdir)/cil
 bindir = @bindir@
 
 # Make DESTDIR absolute (necessary for perl installation)
@@ -308,28 +308,38 @@ endif
 
 MAKE_CILLY = $(MAKE) -C $(CILLYDIR) DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
 
-install: $(CILLY) install-findlib
+install: $(CILLY) install-findlib install-data
 	$(MAKE_CILLY) pure_install
 	$(INSTALL) -m 0755 $(BINDIR)/$(CILLY).* $(DESTDIR)$(bindir)
 
-uninstall: $(CILLYDIR)/Makefile uninstall-findlib
+uninstall: $(CILLYDIR)/Makefile uninstall-findlib uninstall-data
 	-rm -f $(DESTDIR)$(bindir)/$(CILLY).*
 	$(MAKE_CILLY) force_uninstall
 
 .PHONY: install-findlib uninstall-findlib
 
-# Make DESTDIR work for ocamlfind
-ifneq ($(DESTDIR),)
-  OCAMLFIND_DESTDIR = $(DESTDIR)$(shell ocamlfind printconf destdir)
-endif
-export OCAMLFIND_DESTDIR
+# Get the default OCAMLFIND_DESTDIR
+OCAMLFIND_DESTDIR = $(shell ocamlfind printconf destdir)
 
-install-findlib: META $(CILLIB_FILES) $(CILLIB_TARGETS)
-ifneq ($(OCAMLFIND_DESTDIR),)
-	mkdir -p $(OCAMLFIND_DESTDIR)
-endif
-	$(OCAMLFIND) install cil META \
-		$(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
+install-findlib: META $(CILLIB_FILES) $(CILLIB_TARGETS) uninstall-findlib
+	mkdir -p $(DESTDIR)$(OCAMLFIND_DESTDIR)
+	OCAMLFIND_DESTDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR) \
+	  $(OCAMLFIND) install cil META $(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
 
 uninstall-findlib:
-	$(OCAMLFIND) remove cil
+	OCAMLFIND_DESTDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR) $(OCAMLFIND) remove cil
+
+.PHONY: install-data uninstall-data
+install-data:
+	mkdir -p $(DESTDIR)$(datadir)
+	printf $(abspath $(OCAMLFIND_DESTDIR)) > ocamlpath
+	$(INSTALL_DATA) ocamlpath $(DESTDIR)$(datadir)
+	rm -f ocamlpath
+
+uninstall-data:
+	rm -rf $(DESTDIR)$(datadir)
+
+.PHONY: install-local
+# Recursive call to install-findlib builds $(CILLIB_TARGETS)
+install-local:
+	$(MAKE) $(CILLY) install-findlib install-data PREFIX=. datarootdir=share/ OCAMLFIND_DESTDIR=lib/

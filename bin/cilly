@@ -79,6 +79,14 @@ BEGIN {
     if($App::Cilly::CilCompiler::use_debug) { 
         $ENV{"OCAMLRUNPARAM"} = "b" . $ENV{"OCAMLRUNPARAM"};
     } 
+    # Fix ocamlfind search path
+    if(open (my $input_fh, "<",
+        "$FindBin::RealBin/../share/cil/ocamlpath")) {
+      my $ocamlpath = <$input_fh>;
+      chomp;
+      $ENV{"OCAMLPATH"} = join(':', $ocamlpath, $ENV{"OCAMLPATH"});
+      close $input_fh;
+    }
 }
 
 # We need to customize the collection of arguments

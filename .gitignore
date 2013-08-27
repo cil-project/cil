@@ -80,14 +80,20 @@
 # /doc/html/
 /doc/html/*
 
-# /lib/
-/lib/App/Cilly/CilConfig.pm
-/lib/App/Cilly.pm
-/lib/Makefile
-/lib/Makefile.old
-/lib/MYMETA.yml
-/lib/blib/*
-/lib/pm_to_blib
+# /lib/perl5/
+/lib/perl5/App/Cilly/CilConfig.pm
+/lib/perl5/App/Cilly.pm
+/lib/perl5/Makefile
+/lib/perl5/Makefile.old
+/lib/perl5/MYMETA.yml
+/lib/perl5/blib/*
+/lib/perl5/pm_to_blib
+
+# /lib/cil
+/lib/cil
+
+# /share
+/share/cil/ocamlpath
 
 # /bin/
 /bin/cilly.*
