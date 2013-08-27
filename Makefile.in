@@ -64,8 +64,8 @@ CILLIB_TARGETS=
 CILLY_EXE_FILES=
 
 CIL_PLUGINS_DIR = src/ext
-CIL_EXCLUDE_PLUGINS = $(addprefix $(CIL_PLUGINS_DIR)/, arithabs rand)
-CIL_PLUGINS = $(addprefix $(OBJDIR)/,$(filter-out $(CIL_EXCLUDE_PLUGINS),$(wildcard $(CIL_PLUGINS_DIR)/*)))
+CIL_EXCLUDE_PLUGINS =
+CIL_PLUGINS = $(addprefix $(OBJDIR)/,$(filter-out $(addprefix $(CIL_PLUGINS_DIR)/, $(CIL_EXCLUDE_PLUGINS)),$(wildcard $(CIL_PLUGINS_DIR)/*)))
 
 CIL_DEFAULT_PLUGINS = $(patsubst $(CIL_PLUGINS_DIR)/%/default,cil.%,$(wildcard $(CIL_PLUGINS_DIR)/*/default))
 
