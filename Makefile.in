@@ -119,6 +119,9 @@ META:
 	@printf "package \"default-features\" (\n" >>$@
 	@printf "requires=\"$(CIL_DEFAULT_PLUGINS)\"\n" >>$@
 	@printf ")\n\n" >>$@
+	@printf "package \"all-features\" (\n" >>$@
+	@printf "requires=\"$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,cil.%,$(CIL_PLUGINS))\"\n" >>$@
+	@printf ")\n\n" >>$@
 	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
 	  printf "package \"$(plugin)\" (\n" >> $@;\
 		cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
