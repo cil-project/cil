@@ -1074,6 +1074,8 @@ let rec evaluateExp (e : exp) (state : state) : summary =
   | AlignOf _
   | AlignOfE _ -> SNone
   | StartOf lv -> evaluateLval lv state
+  | Question _ -> E.s (E.unimp "ternary operator ?:")
+  | AddrOfLabel _ -> E.s (E.unimp "address of label")
 
 and evaluateLval (lv : lval) (state : state) : summary =
   match lv with
@@ -1389,7 +1391,6 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      let formals = argsToList argInfo in
                      let matches = Hashtbl.create 7 in
                      let removeNames = ref [] in
-                     let outSubst = Hashtbl.create 7 in
                      let inOutSubst = Hashtbl.create 7 in
                      let inFacts, outFacts = getFunctionFacts fnType in
                      let rec argIter fn : unit =
@@ -1489,7 +1490,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                            "@$arg" ^ (string_of_int i)
                        in
                        if isOutType ftype || isInOutType ftype then begin
-                         let fFacts = getVarFacts fakeName outFacts in
+                         let _ = getVarFacts fakeName outFacts in
                          let fType = ftype in
                          match evaluateExp aExp state with
                          | SAddrVar aName ->
@@ -1590,6 +1591,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
   | Continue _ -> E.s (E.bug "break, switch, or continue not removed")
   | TryFinally _
   | TryExcept _ -> E.s (E.unimp "exceptions")
+  | ComputedGoto _ -> E.s (E.unimp "computed goto")
   end;
   !return
 
