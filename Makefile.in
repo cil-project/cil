@@ -118,13 +118,16 @@ META:
 	@printf "archive(native) = \"cil.cmxa\"\n\n" >>$@
 	@printf "package \"default-features\" (\n" >>$@
 	@printf "requires=\"$(CIL_DEFAULT_PLUGINS)\"\n" >>$@
+	@printf "version = \"$(CIL_VERSION)\"\n" >>$@
 	@printf ")\n\n" >>$@
 	@printf "package \"all-features\" (\n" >>$@
 	@printf "requires=\"$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,cil.%,$(CIL_PLUGINS))\"\n" >>$@
+	@printf "version = \"$(CIL_VERSION)\"\n" >>$@
 	@printf ")\n\n" >>$@
 	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
 	  printf "package \"$(plugin)\" (\n" >> $@;\
-		cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
+	  cat $(CIL_PLUGINS_DIR)/$(plugin)/META >> $@;\
+	  printf "version = \"$(CIL_VERSION)\"\n" >>$@;\
 	  printf "archive(byte) = \"$(plugin).cma\"\n" >> $@;\
 	  printf "archive(byte,plugin) = \"$(plugin).cma\"\n" >> $@;\
 	  printf "archive(native) = \"$(plugin).cmxa\"\n" >> $@;\
