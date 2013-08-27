@@ -1,6 +1,6 @@
 # Traverse only subdirectories containing source code
 true: -traverse
-<src> or <ocamlutil>: include
+<src>: include
 # build every cmo in debug mode (for cil.cma)
 <**/*.cmo>: debug
 <**/*.ml>: bin_annot, annot
