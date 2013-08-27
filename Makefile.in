@@ -342,4 +342,4 @@ uninstall-data:
 .PHONY: install-local
 # Recursive call to install-findlib builds $(CILLIB_TARGETS)
 install-local:
-	$(MAKE) $(CILLY) install-findlib install-data PREFIX=. datarootdir=share/ OCAMLFIND_DESTDIR=lib/
+	$(MAKE) $(CILLY) install-findlib install-data PREFIX=. datarootdir=share OCAMLFIND_DESTDIR=lib
