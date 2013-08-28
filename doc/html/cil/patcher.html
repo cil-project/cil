@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>Using the patcher</title>
+</head>
+<body >
+<a href="merger.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil015.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec50" class="section">14&#XA0;&#XA0;Using the patcher</h2>
+<p><a id="sec-patcher"></a></p><p>Occasionally we have needed to modify slightly the standard include files.
+So, we developed a simple mechanism that allows us to create modified copies
+of the include files and use them instead of the standard ones. For this
+purpose we specify a patch file and we run a program caller Patcher which
+makes modified copies of include files and applies the patch.</p><p>The patcher is invoked as follows: 
+</p><pre class="verbatim">lib/patcher [options]
+
+Options:
+  --help       Prints this help message
+  --verbose    Prints a lot of information about what is being done
+  --mode=xxx   What tool to emulate: 
+                GNUCC     - GNU CC
+                MSVC      - MS VC cl compiler
+
+  --dest=xxx   The destination directory. Will make one if it does not exist
+  --patch=xxx  Patch file (can be specified multiple times)
+  --ppargs=xxx An argument to be passed to the preprocessor (can be specified
+               multiple times)
+
+  --ufile=xxx  A user-include file to be patched (treated as \#include "xxx")
+  --sfile=xxx  A system-include file to be patched (treated as \#include &lt;xxx&gt;)
+ 
+  --clean       Remove all files in the destination directory
+  --dumpversion Print the version name used for the current compiler
+
+ All of the other arguments are passed to the preprocessor. You should pass
+ enough arguments (e.g., include directories) so that the patcher can find the
+ right include files to be patched.
+</pre><p>Based on the given <span style="font-family:monospace">mode</span> and the current version of the compiler (which
+the patcher can print when given the <span style="font-family:monospace">dumpversion</span> argument) the patcher
+will create a subdirectory of the <span style="font-family:monospace">dest</span> directory, such as:
+</p><pre class="verbatim">  /usr/home/necula/cil/include/gcc_2.95.3-5
+</pre><p>In that file the patcher will copy the modified versions of the include files
+specified with the <span style="font-family:monospace">ufile</span> and <span style="font-family:monospace">sfile</span> options. Each of these options can
+be specified multiple times. </p><p>The patch file (specified with the <span style="font-family:monospace">patch</span> option) has a format inspired by
+the Unix <span style="font-family:monospace">patch</span> tool. The file has the following grammar:</p><pre class="verbatim">  &lt;&lt;&lt; flags
+  patterns
+  ===
+  replacement
+  &gt;&gt;&gt;
+</pre><p>The flags are a comma separated, case-sensitive, sequence of keywords or
+keyword = value. The following flags are supported:
+</p><ul class="itemize"><li class="li-itemize">
+<span style="font-family:monospace">file=foo.h</span> - will only apply the patch on files whose name is
+<span style="font-family:monospace">foo.h</span>. 
+</li><li class="li-itemize"><span style="font-family:monospace">optional</span> - this means that it is Ok if the current patch does not
+match any of the processed files. 
+</li><li class="li-itemize"><span style="font-family:monospace">group=foo</span> - will add this patch to the named group. If this is not
+specified then a unique group is created to contain just the current patch.
+When all files specified in the command line have been patched, an error
+message is generated for all groups for whom no member patch was used. We use
+this mechanism to receive notice when the patch triggers are out-dated with
+respect to the new include files. 
+</li><li class="li-itemize"><span style="font-family:monospace">system=sysname</span> - will only consider this pattern on a given
+operating system. The &#X201C;sysname&#X201D; is reported by the &#X201C;$&#XD4;&#X201D; variable in
+Perl, except that Windows is always considered to have sysname
+&#X201C;cygwin.&#X201D; For Linux use &#X201C;linux&#X201D; (capitalization matters).
+</li><li class="li-itemize"><span style="font-family:monospace">ateof</span> - In this case the patterns are ignored and the replacement
+text is placed at the end of the patched file. Use the <span style="font-family:monospace">file</span> flag if you
+want to restrict the files in which this replacement is performed. 
+</li><li class="li-itemize"><span style="font-family:monospace">atsof</span> - The patterns are ignored and the replacement text is placed
+at the start of the patched file. Uf the <span style="font-family:monospace">file</span> flag to restrict the
+application of this patch to a certain file. 
+</li><li class="li-itemize"><span style="font-family:monospace">disabled</span> - Use this flag if you want to disable the pattern.
+</li></ul><p>The patterns can consist of several groups of lines separated by the <span style="font-family:monospace">|||</span>
+marker. Each of these group of lines is a multi-line pattern that if found in
+the file will be replaced with the text given at the end of the block. </p><p>The matching is space-insensitive.</p><p>All of the markers <span style="font-family:monospace">&lt;&lt;&lt;</span>, <span style="font-family:monospace">|||</span>, <span style="font-family:monospace">===</span> and <span style="font-family:monospace">&gt;&gt;&gt;</span> must appear at the
+beginning of a line but they can be followed by arbitrary text (which is
+ignored).</p><p>The replacement text can contain the special keyword <span style="font-family:monospace">@__pattern__@</span>,
+which is substituted with the pattern that matched. </p>
+<hr>
+<a href="merger.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil015.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>Controlling CIL</title>
+</head>
+<body >
+<a href="ext.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil010.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec42" class="section">9&#XA0;&#XA0;Controlling CIL</h2>
+<p>In the process of converting a C file to CIL we drop the unused prototypes
+and even inline function definitions. This results in much smaller files. If
+you do not want this behavior then you must pass the <span style="font-family:monospace">--keepunused</span> argument
+to the CIL application. </p><p>Alternatively you can put the following pragma in the code (instructing CIL
+to specifically keep the declarations and definitions of the function
+<span style="font-family:monospace">func1</span> and variable <span style="font-family:monospace">var2</span>, the definition of type <span style="font-family:monospace">foo</span> and of
+structure <span style="font-family:monospace">bar</span>):
+</p><pre class="verbatim"><span style="color:blue">#pragma cilnoremove("func1", "var2", "type foo", "struct bar")
+</span></pre>
+<hr>
+<a href="ext.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil010.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

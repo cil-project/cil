@@ -1,0 +1,6 @@
+# subdirectories containing source code
+"ocamlutil": include
+"src": include
+"test": not_hygienic
+# build every cmo in debug mode (for cil.cma)
+<**/*.cmo>: debug

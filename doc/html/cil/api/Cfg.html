@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Alpha.html">
+<link rel="next" href="Cil.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of class methods" rel=Appendix href="index_methods.html">
+<link title="Index of classes" rel=Appendix href="index_classes.html">
+<link title="Index of class types" rel=Appendix href="index_class_types.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Alpha" rel="Chapter" href="Alpha.html">
+<link title="Cfg" rel="Chapter" href="Cfg.html">
+<link title="Cil" rel="Chapter" href="Cil.html">
+<link title="Cillower" rel="Chapter" href="Cillower.html">
+<link title="Clist" rel="Chapter" href="Clist.html">
+<link title="Dataflow" rel="Chapter" href="Dataflow.html">
+<link title="Dominators" rel="Chapter" href="Dominators.html">
+<link title="Errormsg" rel="Chapter" href="Errormsg.html">
+<link title="Formatcil" rel="Chapter" href="Formatcil.html">
+<link title="Pretty" rel="Chapter" href="Pretty.html">
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Cfg</title>
+</head>
+<body>
+<div class="navbar"><a href="Alpha.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Cil.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Cfg.html">Cfg</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Cfg: <code class="code">sig</code> <a href="Cfg.html">..</a> <code class="code">end</code></pre>Code to compute the control-flow graph of a function or file.  
+  This will fill in the <code class="code">preds</code> and <code class="code">succs</code> fields of <a href="Cil.html#TYPEstmt"><code class="code">Cil.stmt</code></a>
+<p>
+
+  This is required for several other extensions, such as <a href="Dataflow.html"><code class="code">Dataflow</code></a>.<br>
+<hr width="100%">
+<pre><span id="VALcomputeFileCFG"><span class="keyword">val</span> computeFileCFG</span> : <code class="type"><a href="Cil.html#TYPEfile">Cil.file</a> -> unit</code></pre><div class="info">
+Compute the CFG for an entire file, by calling cfgFun on each function.<br>
+</div>
+<pre><span id="VALclearFileCFG"><span class="keyword">val</span> clearFileCFG</span> : <code class="type"><a href="Cil.html#TYPEfile">Cil.file</a> -> unit</code></pre><div class="info">
+clear the sid, succs, and preds fields of each statement.<br>
+</div>
+<pre><span id="VALcfgFun"><span class="keyword">val</span> cfgFun</span> : <code class="type"><a href="Cil.html#TYPEfundec">Cil.fundec</a> -> int</code></pre><div class="info">
+Compute a control flow graph for fd.  Stmts in fd have preds and succs
+  filled in<br>
+</div>
+<pre><span id="VALclearCFGinfo"><span class="keyword">val</span> clearCFGinfo</span> : <code class="type"><a href="Cil.html#TYPEfundec">Cil.fundec</a> -> unit</code></pre><div class="info">
+clear the sid, succs, and preds fields of each statment in a function<br>
+</div>
+<pre><span id="VALprintCfgChannel"><span class="keyword">val</span> printCfgChannel</span> : <code class="type">out_channel -> <a href="Cil.html#TYPEfundec">Cil.fundec</a> -> unit</code></pre><div class="info">
+print control flow graph (in dot form) for fundec to channel<br>
+</div>
+<pre><span id="VALprintCfgFilename"><span class="keyword">val</span> printCfgFilename</span> : <code class="type">string -> <a href="Cil.html#TYPEfundec">Cil.fundec</a> -> unit</code></pre><div class="info">
+Print control flow graph (in dot form) for fundec to file<br>
+</div>
+<pre><span id="VALstart_id"><span class="keyword">val</span> start_id</span> : <code class="type">int ref</code></pre><div class="info">
+Next statement id that will be assigned.<br>
+</div>
+<pre><span id="VALallStmts"><span class="keyword">val</span> allStmts</span> : <code class="type"><a href="Cil.html#TYPEfile">Cil.file</a> -> <a href="Cil.html#TYPEstmt">Cil.stmt</a> list</code></pre><div class="info">
+Return all statements in a file - valid after computeFileCfg only<br>
+</div>
+</body></html>

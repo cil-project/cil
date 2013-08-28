@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>GCC Extensions</title>
+</head>
+<body >
+<a href="cil009.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil011.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec43" class="section">10&#XA0;&#XA0;GCC Extensions</h2>
+<p>The CIL parser handles most of the <span style="font-family:monospace">gcc</span>
+<a href="javascript:loadTop('http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc_5.html#SEC67')">extensions</a>
+and compiles them to CIL. The following extensions are not handled (note that
+we are able to compile a large number of programs, including the Linux kernel,
+without encountering these):</p><ol class="enumerate" type=1><li class="li-enumerate">
+Nested function definitions.
+</li><li class="li-enumerate">Constructing function calls.
+</li><li class="li-enumerate">Naming an expression&#X2019;s type.
+</li><li class="li-enumerate">Complex numbers
+</li><li class="li-enumerate">Hex floats
+</li><li class="li-enumerate">Subscripts on non-lvalue arrays.
+</li><li class="li-enumerate">Forward function parameter declarations
+</li></ol><p>The following extensions are handled, typically by compiling them away:
+</p><ol class="enumerate" type=1><li class="li-enumerate">
+Attributes for functions, variables and types. In fact, we have a clear
+specification (see Section&#XA0;<a href="attributes.html#sec-attrib">6.4</a>) of how attributes are interpreted. The
+specification extends that of <span style="font-family:monospace">gcc</span>.
+</li><li class="li-enumerate">Old-style function definitions and prototypes. These are translated to
+new-style. 
+</li><li class="li-enumerate">Locally-declared labels. As part of the translation to CIL, we generate
+new labels as needed. 
+</li><li class="li-enumerate">Labels as values and computed goto. This allows a program to take the
+address of a label and to manipulate it as any value and also to perform a
+computed goto. We compile this by assigning each label whose address is taken
+a small integer that acts as its address. Every computed <span style="font-family:monospace">goto</span> in the body
+of the function is replaced with a <span style="font-family:monospace">switch</span> statement. If you want to invoke
+the label from another function, you are on your own (the <span style="font-family:monospace">gcc</span>
+documentation says the same.)
+</li><li class="li-enumerate">Generalized lvalues. You can write code like <span style="font-family:monospace">(a, b) += 5</span> and it gets
+translated to CIL. 
+</li><li class="li-enumerate">Conditionals with omitted operands. Things like <span style="font-family:monospace">x ? : y</span> are
+translated to CIL.
+</li><li class="li-enumerate">Double word integers. The type <span style="font-family:monospace">long long</span> and the <span style="font-family:monospace">LL</span> suffix on
+constants is understood. This is currently interpreted as 64-bit integers.
+</li><li class="li-enumerate">Local arrays of variable length. These are converted to uses of
+<span style="font-family:monospace">alloca</span>, the array variable is replaced with a pointer to the allocated
+array and the instances of <span style="font-family:monospace">sizeof(a)</span> are adjusted to return the size of
+the array and not the size of the pointer. 
+</li><li class="li-enumerate">Non-constant local initializers. Like all local initializers these are
+compiled into assignments. 
+</li><li class="li-enumerate">Compound literals. These are also turned into assignments.
+</li><li class="li-enumerate">Designated initializers. The CIL parser actually supports the full ISO
+syntax for initializers, which is more than both <span style="font-family:monospace">gcc</span> and <span style="font-family:monospace">MSVC</span>. I
+(George) think that this is the most complicated part of the C language and
+whoever designed it should be banned from ever designing languages again.
+</li><li class="li-enumerate">Case ranges. These are compiled into separate cases. There is no code
+duplication, just a larger number of <span style="font-family:monospace">case</span> statements.
+</li><li class="li-enumerate">Transparent unions. This is a strange feature that allows you to define
+a function whose formal argument has a (tranparent) union type, but the
+argument is called as if it were the first element of the union. This is
+compiled away by saying that the type of the formal argument is that of the
+first field, and the first thing in the function body we copy the formal into
+a union. </li><li class="li-enumerate">Inline assembly-language. The full syntax is supported and it is carried
+as such in CIL.</li><li class="li-enumerate">Function names as strings. The identifiers <span style="font-family:monospace">__FUNCTION__</span> and
+<span style="font-family:monospace">__PRETTY_FUNCTION__</span> are replaced with string literals. </li><li class="li-enumerate">Keywords <span style="font-family:monospace">typeof</span>, <span style="font-family:monospace">alignof</span>, <span style="font-family:monospace">inline</span> are supported. 
+</li></ol>
+<hr>
+<a href="cil009.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil011.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

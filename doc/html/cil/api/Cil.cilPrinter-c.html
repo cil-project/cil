@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Cil.cilVisitor-c.html">
+<link rel="next" href="Cil.descriptiveCilPrinter-c.html">
+<link rel="Up" href="Cil.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of class methods" rel=Appendix href="index_methods.html">
+<link title="Index of classes" rel=Appendix href="index_classes.html">
+<link title="Index of class types" rel=Appendix href="index_class_types.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Alpha" rel="Chapter" href="Alpha.html">
+<link title="Cfg" rel="Chapter" href="Cfg.html">
+<link title="Cil" rel="Chapter" href="Cil.html">
+<link title="Cillower" rel="Chapter" href="Cillower.html">
+<link title="Clist" rel="Chapter" href="Clist.html">
+<link title="Dataflow" rel="Chapter" href="Dataflow.html">
+<link title="Dominators" rel="Chapter" href="Dominators.html">
+<link title="Errormsg" rel="Chapter" href="Errormsg.html">
+<link title="Formatcil" rel="Chapter" href="Formatcil.html">
+<link title="Pretty" rel="Chapter" href="Pretty.html">
+<link title="Stats" rel="Chapter" href="Stats.html"><title>CIL API Documentation (version 1.7.3) : Cil.cilPrinter</title>
+</head>
+<body>
+<div class="navbar"><a href="Cil.cilVisitor-c.html">Previous</a>
+&nbsp;<a href="Cil.html">Up</a>
+&nbsp;<a href="Cil.descriptiveCilPrinter-c.html">Next</a>
+</div>
+<center><h1>Class type <a href="type_Cil.cilPrinter.html">Cil.cilPrinter</a></h1></center>
+<br>
+<pre><span id="TYPEcilPrinter"><span class="keyword">class type</span> cilPrinter</span> = <code class="code">object</code> <a href="Cil.cilPrinter-c.html">..</a> <code class="code">end</code></pre>A printer interface for CIL trees. Create instantiations of 
+ this type by specializing the class <code class="code">Cil.defaultCilPrinterClass</code>.<br>
+<hr width="100%">
+<pre><span id="METHODsetCurrentFormals"><span class="keyword">method</span> setCurrentFormals</span> : <code class="type"><a href="Cil.html#TYPEvarinfo">varinfo</a> list -> unit</code></pre><pre><span id="METHODsetPrintInstrTerminator"><span class="keyword">method</span> setPrintInstrTerminator</span> : <code class="type">string -> unit</code></pre><pre><span id="METHODgetPrintInstrTerminator"><span class="keyword">method</span> getPrintInstrTerminator</span> : <code class="type">unit -> string</code></pre><pre><span id="METHODpVDecl"><span class="keyword">method</span> pVDecl</span> : <code class="type">unit -> <a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Invoked for each variable declaration. Note that variable 
+ declarations are all the <code class="code">GVar</code>, <code class="code">GVarDecl</code>, <code class="code">GFun</code>, all the <code class="code">varinfo</code> 
+ in formals of function types, and the formals and locals for function 
+ definitions.<br>
+</div>
+<pre><span id="METHODpVar"><span class="keyword">method</span> pVar</span> : <code class="type"><a href="Cil.html#TYPEvarinfo">varinfo</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Invoked on each variable use.<br>
+</div>
+<pre><span id="METHODpLval"><span class="keyword">method</span> pLval</span> : <code class="type">unit -> <a href="Cil.html#TYPElval">lval</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Invoked on each lvalue occurrence<br>
+</div>
+<pre><span id="METHODpOffset"><span class="keyword">method</span> pOffset</span> : <code class="type"><a href="Pretty.html#TYPEdoc">Pretty.doc</a> -> <a href="Cil.html#TYPEoffset">offset</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Invoked on each offset occurrence. The second argument is the base.<br>
+</div>
+<pre><span id="METHODpInstr"><span class="keyword">method</span> pInstr</span> : <code class="type">unit -> <a href="Cil.html#TYPEinstr">instr</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Invoked on each instruction occurrence.<br>
+</div>
+<pre><span id="METHODpLabel"><span class="keyword">method</span> pLabel</span> : <code class="type">unit -> <a href="Cil.html#TYPElabel">label</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print a label.<br>
+</div>
+<pre><span id="METHODpStmt"><span class="keyword">method</span> pStmt</span> : <code class="type">unit -> <a href="Cil.html#TYPEstmt">stmt</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Control-flow statement. This is used by 
+ <a href="Cil.html#VALprintGlobal"><code class="code">Cil.printGlobal</code></a> and by <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a>.<br>
+</div>
+<pre><span id="METHODdStmt"><span class="keyword">method</span> dStmt</span> : <code class="type">out_channel -> int -> <a href="Cil.html#TYPEstmt">stmt</a> -> unit</code></pre><div class="info">
+Dump a control-flow statement to a file with a given indentation. 
+ This is used by <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a>.<br>
+</div>
+<pre><span id="METHODdBlock"><span class="keyword">method</span> dBlock</span> : <code class="type">out_channel -> int -> <a href="Cil.html#TYPEblock">block</a> -> unit</code></pre><div class="info">
+Dump a control-flow block to a file with a given indentation. 
+ This is used by <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a>.<br>
+</div>
+<pre><span id="METHODpBlock"><span class="keyword">method</span> pBlock</span> : <code class="type">unit -> <a href="Cil.html#TYPEblock">block</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print a block.<br>
+</div>
+<pre><span id="METHODpGlobal"><span class="keyword">method</span> pGlobal</span> : <code class="type">unit -> <a href="Cil.html#TYPEglobal">global</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Global (vars, types, etc.). This can be slow and is used only by 
+ <a href="Cil.html#VALprintGlobal"><code class="code">Cil.printGlobal</code></a> but not by <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a>.<br>
+</div>
+<pre><span id="METHODdGlobal"><span class="keyword">method</span> dGlobal</span> : <code class="type">out_channel -> <a href="Cil.html#TYPEglobal">global</a> -> unit</code></pre><div class="info">
+Dump a global to a file with a given indentation. This is used by 
+ <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a><br>
+</div>
+<pre><span id="METHODpFieldDecl"><span class="keyword">method</span> pFieldDecl</span> : <code class="type">unit -> <a href="Cil.html#TYPEfieldinfo">fieldinfo</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+A field declaration<br>
+</div>
+<pre><span id="METHODpType"><span class="keyword">method</span> pType</span> : <code class="type"><a href="Pretty.html#TYPEdoc">Pretty.doc</a> option -> unit -> <a href="Cil.html#TYPEtyp">typ</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Use of some type in some declaration. The first argument is used to print 
+ the declared element, or is None if we are just printing a type with no 
+ name being declared. Note that for structure/union and enumeration types 
+ the definition of the composite type is not visited. Use <code class="code">vglob</code> to 
+ visit it.<br>
+</div>
+<pre><span id="METHODpAttr"><span class="keyword">method</span> pAttr</span> : <code class="type"><a href="Cil.html#TYPEattribute">attribute</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a> * bool</code></pre><div class="info">
+Attribute. Also return an indication whether this attribute must be 
+ printed inside the __attribute__ list or not.<br>
+</div>
+<pre><span id="METHODpAttrParam"><span class="keyword">method</span> pAttrParam</span> : <code class="type">unit -> <a href="Cil.html#TYPEattrparam">attrparam</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Attribute parameter<br>
+</div>
+<pre><span id="METHODpAttrs"><span class="keyword">method</span> pAttrs</span> : <code class="type">unit -> <a href="Cil.html#TYPEattributes">attributes</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Attribute lists<br>
+</div>
+<pre><span id="METHODpLineDirective"><span class="keyword">method</span> pLineDirective</span> : <code class="type">?forcefile:bool -> <a href="Cil.html#TYPElocation">location</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print a line-number. This is assumed to come always on an empty line. 
+ If the forcefile argument is present and is true then the file name 
+ will be printed always. Otherwise the file name is printed only if it 
+ is different from the last time time this function is called. The last 
+ file name is stored in a private field inside the cilPrinter object.<br>
+</div>
+<pre><span id="METHODpStmtKind"><span class="keyword">method</span> pStmtKind</span> : <code class="type"><a href="Cil.html#TYPEstmt">stmt</a> -> unit -> <a href="Cil.html#TYPEstmtkind">stmtkind</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print a statement kind. The code to be printed is given in the
+ <a href="Cil.html#TYPEstmtkind"><code class="code">Cil.stmtkind</code></a> argument.  The initial <a href="Cil.html#TYPEstmt"><code class="code">Cil.stmt</code></a> argument
+ records the statement which follows the one being printed;
+ <code class="code">Cil.defaultCilPrinterClass</code> uses this information to prettify
+ statement printing in certain special cases.<br>
+</div>
+<pre><span id="METHODpExp"><span class="keyword">method</span> pExp</span> : <code class="type">unit -> <a href="Cil.html#TYPEexp">exp</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print expressions<br>
+</div>
+<pre><span id="METHODpInit"><span class="keyword">method</span> pInit</span> : <code class="type">unit -> <a href="Cil.html#TYPEinit">init</a> -> <a href="Pretty.html#TYPEdoc">Pretty.doc</a></code></pre><div class="info">
+Print initializers. This can be slow and is used by 
+ <a href="Cil.html#VALprintGlobal"><code class="code">Cil.printGlobal</code></a> but not by <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a>.<br>
+</div>
+<pre><span id="METHODdInit"><span class="keyword">method</span> dInit</span> : <code class="type">out_channel -> int -> <a href="Cil.html#TYPEinit">init</a> -> unit</code></pre><div class="info">
+Dump a global to a file with a given indentation. This is used by 
+ <a href="Cil.html#VALdumpGlobal"><code class="code">Cil.dumpGlobal</code></a><br>
+</div>
+</body></html>

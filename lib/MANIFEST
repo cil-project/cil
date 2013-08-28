@@ -1,0 +1,8 @@
+patcher
+MANIFEST
+Makefile.PL
+App/Cilly.pm
+App/Cilly/CilConfig.pm
+App/Cilly/KeptFile.pm
+App/Cilly/OutputFile.pm
+App/Cilly/TempFile.pm

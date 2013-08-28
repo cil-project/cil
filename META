@@ -1,0 +1,5 @@
+description = "C Intermediate Language"
+requires = "unix str num"
+version = "@CIL_VERSION@"
+archive(byte) = "cil.cma"
+archive(native) = "cil.cmxa"

@@ -1,0 +1,5 @@
+# subdirectories containing source code
+"ext": include
+"frontc": include
+
+<main.{byte,native}>: use_unix, use_str, use_nums, use_cil

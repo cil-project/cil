@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>CIL Limitations</title>
+</head>
+<body >
+<a href="cil010.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil012.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec44" class="section">11&#XA0;&#XA0;CIL Limitations</h2>
+<p>There are several implementation details of CIL that might make it unusable
+or less than ideal for certain tasks:</p><ul class="itemize"><li class="li-itemize">
+CIL operates after preprocessing. If you need to see comments, for
+example, you cannot use CIL. But you can use attributes and pragmas instead.
+And there is some support to help you patch the include files before they are
+seen by the preprocessor. For example, this is how we turn some
+<span style="font-family:monospace">#define</span>s that we don&#X2019;t like into function calls. </li><li class="li-itemize">CIL does transform the code in a non-trivial way. This is done in order
+to make most analyses easier. But if you want to see the code <span style="font-family:monospace">e1, e2++</span>
+exactly as it appears in the code, then you should not use CIL. </li><li class="li-itemize">CIL removes all local scopes and moves all variables to function
+scope. It also separates a declaration with an initializer into a declaration
+plus an assignment. The unfortunate effect of this transformation is that
+local variables cannot have the <span style="font-family:monospace">const</span> qualifier.</li></ul>
+<hr>
+<a href="cil010.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="cil012.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>

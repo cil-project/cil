@@ -1,0 +1,3 @@
+$::cc        = "@CC@";
+$::exeext    = "@EXEEXT@";
+$::default_mode = "@DEFAULT_CIL_MODE@";

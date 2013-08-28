@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="generator" content="hevea 2.06">
+
+<base target="main">
+<script language="JavaScript">
+<!-- Begin
+function loadTop(url) {
+  parent.location.href= url;
+}
+// -->
+</script><link rel="stylesheet" type="text/css" href="cil.css">
+<title>Using the merger</title>
+</head>
+<body >
+<a href="cil012.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="patcher.html"><img src="next_motif.gif" alt="Next"></a>
+<hr>
+<h2 id="sec49" class="section">13&#XA0;&#XA0;Using the merger</h2>
+<p><a id="sec-merger"></a></p><p>There are many program analyses that are more effective when
+done on the whole program.</p><p>The merger is a tool that combines all of the C source files in a project
+into a single C file. There are two tasks that a merger must perform:
+</p><ol class="enumerate" type=1><li class="li-enumerate">
+Detect what are all the sources that make a project and with what
+compiler arguments they are compiled.</li><li class="li-enumerate">Merge all of the source files into a single file. 
+</li></ol><p>For the first task the merger impersonates a compiler and a linker (both a
+GCC and a Microsoft Visual C mode are supported) and it expects to be invoked
+(from a build script or a Makefile) on all sources of the project. When
+invoked to compile a source the merger just preprocesses the source and saves
+the result using the name of the requested object file. By preprocessing at
+this time the merger is able to take into account variations in the command
+line arguments that affect preprocessing of different source files.</p><p>When the merger is invoked to link a number of object files it collects the
+preprocessed sources that were stored with the names of the object files, and
+invokes the merger proper. Note that arguments that affect the compilation or
+linking must be the same for all source files.</p><p>For the second task, the merger essentially concatenates the preprocessed
+sources with care to rename conflicting file-local declarations (we call this
+process alpha-conversion of a file). The merger also attempts to remove
+duplicate global declarations and definitions. Specifically the following
+actions are taken: </p><ul class="itemize"><li class="li-itemize">
+File-scope names (<span style="font-family:monospace">static</span> globals, names of types defined with
+<span style="font-family:monospace">typedef</span>, and structure/union/enumeration tags) are given new names if they
+conflict with declarations from previously processed sources. The new name is
+formed by appending the suffix <span style="font-family:monospace">___n</span>, where <span style="font-family:monospace">n</span> is a unique integer
+identifier. Then the new names are applied to their occurrences in the file. </li><li class="li-itemize">Non-static declarations and definitions of globals are never renamed.
+But we try to remove duplicate ones. Equality of globals is detected by
+comparing the printed form of the global (ignoring the line number directives)
+after the body has been alpha-converted. This process is intended to remove
+those declarations (e.g. function prototypes) that originate from the same
+include file. Similarly, we try to eliminate duplicate definitions of
+<span style="font-family:monospace">inline</span> functions, since these occasionally appear in include files.</li><li class="li-itemize">The types of all global declarations with the same name from all files
+are compared for type isomorphism. During this process, the merger detects all
+those isomorphisms between structures and type definitions that are <span style="font-weight:bold">required</span> for the merged program to be legal. Such structure tags and
+typenames are coalesced and given the same name. </li><li class="li-itemize">Besides the structure tags and type names that are required to be
+isomorphic, the merger also tries to coalesce definitions of structures and
+types with the same name from different file. However, in this case the merger
+will not give an error if such definitions are not isomorphic; it will just
+use different names for them. </li><li class="li-itemize">In rare situations, it can happen that a file-local global in
+encountered first and it is not renamed, only to discover later when
+processing another file that there is an external symbol with the same name.
+In this case, a second pass is made over the merged file to rename the
+file-local symbol. 
+</li></ul><p>Here is an example of using the merger:</p><p>The contents of <span style="font-family:monospace">file1.c</span> is:
+</p><pre class="verbatim"><span style="color:blue">struct foo; // Forward declaration
+extern struct foo *global;
+</span></pre><p>The contents of <span style="font-family:monospace">file2.c</span> is:</p><pre class="verbatim"><span style="color:blue">struct bar {
+ int x;
+ struct bar *next;
+};
+extern struct bar *global;
+struct foo {
+ int y;
+};
+extern struct foo another;
+void main() {
+}
+</span></pre><p>There are several ways in which one might create an executable from these
+files:
+</p><ul class="itemize"><li class="li-itemize">
+<pre class="verbatim">gcc file1.c file2.c -o a.out
+</pre></li><li class="li-itemize"><pre class="verbatim">gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ld file1.o file2.o -o a.out
+</pre></li><li class="li-itemize"><pre class="verbatim">gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ar r libfile2.a file2.o
+gcc file1.o libfile2.a -o a.out
+</pre></li><li class="li-itemize"><pre class="verbatim">gcc -c file1.c -o file1.o
+gcc -c file2.c -o file2.o
+ar r libfile2.a file2.o
+gcc file1.o -lfile2 -o a.out
+</pre></li></ul><p>In each of the cases above you must replace all occurrences of <span style="font-family:monospace">gcc</span> and
+<span style="font-family:monospace">ld</span> with <span style="font-family:monospace">cilly --merge</span>, and all occurrences of <span style="font-family:monospace">ar</span> with <span style="font-family:monospace">cilly
+--merge --mode=AR</span>. It is very important that the <span style="font-family:monospace">--merge</span> flag be used
+throughout the build process. If you want to see the merged source file you
+must also pass the <span style="font-family:monospace">--keepmerged</span> flag to the linking phase. </p><p>The result of merging file1.c and file2.c is:
+</p><pre class="verbatim"><span style="color:blue">// from file1.c
+struct foo; // Forward declaration
+extern struct foo *global;
+
+// from file2.c
+struct foo {
+ int x;
+ struct foo *next;
+};
+struct foo___1 {
+ int y;
+};
+extern struct foo___1 another;
+</span></pre>
+<hr>
+<a href="cil012.html"><img src="previous_motif.gif" alt="Previous"></a>
+<a href="ciltoc.html"><img src="contents_motif.gif" alt="Up"></a>
+<a href="patcher.html"><img src="next_motif.gif" alt="Next"></a>
+</body>
+</html>
