@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+include /usr/share/ocaml/ocamlvars.mk
+
+export OCAMLFIND_DESTDIR = $(CURDIR)/debian/tmp/$(OCAML_STDLIB_DIR)
+export PERL_MM_OPT = INSTALLDIRS=vendor
+
+override_dh_auto_build:
+	make all
+	make OCAMLBEST= bin/cilly.byte
+	make doc
+
+override_dh_auto_install:
+	mkdir -p $(OCAMLFIND_DESTDIR)/cil
+	make DESTDIR=$(CURDIR)/debian/tmp install
+	# Copy documentation, avoiding spurious files not cleaned by CIL
+	mkdir -p $(CURDIR)/debian/tmp/docs/html
+	cp -r $(CURDIR)/doc/html/cil/api $(CURDIR)/debian/tmp/docs/html/
+	cp -r $(CURDIR)/doc/html/cil/examples $(CURDIR)/debian/tmp/docs/html/
+	cp $(CURDIR)/doc/html/cil/*.gif $(CURDIR)/debian/tmp/docs/html/
+	cp $(CURDIR)/doc/html/cil/*.html $(CURDIR)/debian/tmp/docs/html/
+	cp $(CURDIR)/doc/html/cil/*.css $(CURDIR)/debian/tmp/docs/html/
+	cp $(CURDIR)/doc/html/cil/CIL.pdf $(CURDIR)/debian/tmp/docs/cil-manual.pdf
+
+%:
+	dh $@  --with autotools-dev --with ocaml

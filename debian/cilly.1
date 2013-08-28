@@ -1,0 +1,425 @@
+.TH cilly "1" "August 2013" "cilly" "User Commands"
+.SH NAME
+cilly \- C program analysis and transformation
+.SH SYNOPSIS
+.B cilly
+[\fIoptions\fR] [\fIgcc_or_mscl arguments\fR] \fIsource\-files\fR...
+.PP
+.B cilly.byte
+[\fIoptions\fR] \fIsource\-files\fR...
+.PP
+.B cilly.native
+[\fIoptions\fR] \fIsource\-files\fR...
+.SH DESCRIPTION
+CIL (C Intermediate Language) is a front-end for the C programming
+language that facilitates program analysis and transformation.
+The analysis and transformation is performed by
+.B cilly.byte
+or
+.B cilly.native
+(the later being a faster equivalent of the former).
+.B cilly
+is a wrapper emulating GCC (or MSVC) to run CIL easily on
+large C programs.
+.SH OPTIONS
+.TP
+\fB\-\-mode\fR=\fIxxx\fR
+What tool to emulate:
+.TP
+GNUCC
+\- GNU gcc
+.TP
+AR
+\- GNU ar
+.TP
+MSVC
+\- MS VC cl compiler
+.TP
+MSLINK
+\- MS VC link linker
+.TP
+MSLIB
+\- MS VC lib linker
+.IP
+This option must be the first one! If it is not found there
+then GNUCC mode is assumed.
+.HP
+\fB\-\-help\fR (or \fB\-help\fR) Prints this help message.
+.TP
+\fB\-\-verbose\fR
+Prints a lot of information about what is being done.
+.HP
+\fB\-\-save\-temps\fR Keep temporary files in the current directory.
+.HP
+\fB\-\-save\-temps\fR=\fIxxx\fR Keep temporary files in the given directory.
+.TP
+\fB\-\-nomerge\fR
+Apply CIL separately to each source file as they are compiled.
+This is the default.
+.TP
+\fB\-\-merge\fR
+Apply CIL to the merged program.
+.TP
+\fB\-\-keepmerged\fR
+Save the merged file. Only useful if \fB\-\-nomerge\fR is not given.
+.TP
+\fB\-\-trueobj\fR
+Do not write preprocessed sources in .obj/.o files but
+create some other files (e.g. foo.o_saved.c).
+.TP
+\fB\-\-truelib\fR
+When linking to a library (with \fB\-r\fR or \fB\-i\fR), output real
+object files instead of preprocessed sources. This only
+works for GCC right now.
+.TP
+\fB\-\-leavealone\fR=\fIxxx\fR
+Leave alone files whose base name is xxx. This means
+they are not merged and not processed with CIL.
+.TP
+\fB\-\-includedir\fR=\fIxxx\fR
+Adds a new include directory to replace existing ones
+.TP
+\fB\-\-bytecode\fR
+Invoke the bytecode (as opposed to native code) system
+.TP
+\fB\-\-stdoutpp\fR
+For MSVC only, use the "preprocess to stdout" mode. This
+is for some versions of MSVC that do not support
+well the /P file
+.PP
+All other arguments starting with \fB\-\-\fR are passed to
+.B cilly.byte
+or
+.B cilly.native.
+.PP
+The following are the arguments of
+.B cilly.byte
+and
+.B cilly.native.
+.IP
+General Options
+.TP
+\fB\-\-version\fR
+Output version information and exit
+.TP
+\fB\-\-verbose\fR
+Print lots of random stuff; this is passed on from cilly
+.TP
+\fB\-\-noverbose\fR
+Undo effect of verbose flag (default)
+.TP
+\fB\-\-warnall\fR
+Show optional warnings
+.TP
+\fB\-\-nowarnall\fR
+Disable optional warnings (default)
+.TP
+\fB\-\-noTruncateWarning\fR
+Suppress warning about truncating integer constants
+.TP
+\fB\-\-debug\fR <xxx>
+Turn on debugging flag xxx
+.TP
+\fB\-\-nodebug\fR <xxx>
+Turn off debugging flag xxx
+.TP
+\fB\-\-flush\fR
+Flush the output streams often; aids debugging
+.TP
+\fB\-\-noflush\fR
+Only flush output streams when inevitable (default)
+.TP
+\fB\-\-check\fR
+Run a consistency check over the CIL after every operation
+.TP
+\fB\-\-nocheck\fR
+Turn off consistency checking of CIL (default)
+.TP
+\fB\-\-strictcheck\fR
+Same as \fB\-\-check\fR, but treats problems as errors not warnings.
+.TP
+\fB\-\-noPrintLn\fR
+Do not output #line directives in the output
+.TP
+\fB\-\-commPrintLn\fR
+Print #line directives in the output, but put them in comments
+.TP
+\fB\-\-commPrintLnSparse\fR
+Print commented #line directives in the output only when
+the line number changes.
+.TP
+\fB\-\-stats\fR
+Print statistics about running times and memory usage
+.TP
+\fB\-\-nostats\fR
+Do not print statistics (default)
+.TP
+\fB\-\-log\fR <filename>
+Set the name of the log file; by default use stderr
+.TP
+\fB\-\-MSVC\fR
+Enable MSVC compatibility; default is GNU
+.TP
+\fB\-\-envmachine\fR
+Use machine model specified in CIL_MACHINE environment variable
+.TP
+\fB\-\-ignore\-merge\-conflicts\fR
+Ignore merging conflicts
+.TP
+\fB\-\-sliceGlobal\fR
+Output is the slice of #pragma cilnoremove(sym) symbols
+.TP
+\fB\-\-tr\fR <sys>
+Subsystem to show debug printfs for
+.TP
+\fB\-\-extrafiles\fR <filename>
+File that contains a list of additional files to process,
+separated by newlines
+.IP
+Lowering Options
+.TP
+\fB\-\-lowerConstants\fR
+Lower constant expressions (default)
+.TP
+\fB\-\-noLowerConstants\fR
+Do not lower constant expressions
+.TP
+\fB\-\-insertImplicitCasts\fR
+Insert implicit casts (default)
+.TP
+\fB\-\-noInsertImplicitCasts\fR
+Do not insert implicit casts
+.TP
+\fB\-\-forceRLArgEval\fR
+Forces right to left evaluation of function arguments
+.TP
+\fB\-\-noForceRLArgEval\fR
+Evaluate function arguments in unspecified order (default)
+.TP
+\fB\-\-nocil\fR <index>
+Do not compile to CIL the global with the given index
+.TP
+\fB\-\-noDisallowDuplication\fR
+Duplicate small chunks of code if necessary (default)
+.TP
+\fB\-\-disallowDuplication\fR
+Prevent small chunks of code from being duplicated
+.TP
+\fB\-\-makeStaticGlobal\fR
+Convert local static variables into global variables (default)
+.TP
+\fB\-\-noMakeStaticGlobal\fR
+Use initializers for local static variables
+.TP
+\fB\-\-useLogicalOperators\fR
+Where possible (that is, if there are no side\-effects),
+retain &&, || and ?: (instead of transforming them to If statements)
+.HP
+\fB\-\-noUseLogicalOperators\fR Transform &&, || and ?: to If statements (default)
+.TP
+\fB\-\-useComputedGoto\fR
+Retain GCC's computed goto
+.TP
+\fB\-\-noUseComputedGoto\fR
+Transform computed goto to Switch statements (default)
+.TP
+\fB\-\-useCaseRange\fR
+Retain ranges of values in case labels
+.TP
+\fB\-\-noUseCaseRange\fR
+Transform case ranges to sequence of cases (default)
+.TP
+\fB\-\-keepunused\fR
+Do not remove the unused variables and types
+.TP
+\fB\-\-nokeepunused\fR
+Remove unused variables and types (default)
+.TP
+\fB\-\-rmUnusedInlines\fR
+Delete any unused inline functions; this is the default in MSVC mode
+.TP
+\fB\-\-noRmUnusedInlines\fR
+Do not delete any unused inline functions (default)
+.IP
+Output Options
+.TP
+\fB\-\-printCilAsIs\fR
+Do not try to simplify the CIL when printing.
+.TP
+\fB\-\-noPrintCilAsIs\fR
+Simplify the CIL when printing.  This produces prettier output
+by e.g. changing while(1) into more meaningful loops   (default)
+.TP
+\fB\-\-noWrap\fR
+Do not wrap long lines when printing
+.TP
+\fB\-\-pdepth\fR <n>
+Set max print depth (default: 10000000)
+.TP
+\fB\-\-decil\fR
+Don't print CIL specific\-features like __blockattribute__
+.TP
+\fB\-\-out\fR
+the name of the output CIL file.
+The cilly script sets this for you.
+.TP
+\fB\-\-mergedout\fR
+specify the name of the merged file
+.TP
+\fB\-\-cabsonly\fR <fname>
+CABS output file name
+.TP
+\fB\-\-printComments\fR
+print cabs tree structure in comments in cabs output
+.TP
+\fB\-\-patchFile\fR <fname>
+name the file containing patching transformations
+.TP
+\fB\-\-printPatched\fR
+print patched CABS files after patching, to *.patched
+.TP
+\fB\-\-printProtos\fR
+print prototypes to safec.proto.h after parsing
+.TP
+\fB\-\-printNotice\fR
+include a comment saying printed by FrontC
+.IP
+CIL Features
+.TP
+\fB\-\-docallgraph\fR
+Enable generation of a static call graph
+.TP
+\fB\-\-docanonicalize\fR
+Enable fixing some C\-isms so that the result is C++ compliant.
+.TP
+\fB\-\-doDataSlicing\fR
+Enable data slicing
+.TP
+\fB\-\-doepicenter\fR
+Enable remove all functions except those within some number
+of hops (in the call graph) from a given function
+.TP
+\fB\-\-epicenter\-name\fR <name>
+do an epicenter slice starting from function <name>
+.TP
+\fB\-\-epicenter\-hops\fR <n>
+specify max # of hops for epicenter slice
+.TP
+\fB\-\-dostackGuard\fR
+Enable instrument function calls and returns to maintain a
+separate stack for return addresses
+.TP
+\fB\-\-doheapify\fR
+Enable move stack\-allocated arrays to the heap
+.TP
+\fB\-\-heapifyAll\fR
+When using heapify, move all local vars whose address is taken,
+not just arrays.
+.TP
+\fB\-\-doLiveness\fR
+Enable Spit out live variables at a label
+.TP
+\fB\-\-live_label\fR
+Output the variables live at this label
+.TP
+\fB\-\-live_func\fR
+Output the variables live at each statement in this function.
+.TP
+\fB\-\-live_debug\fR
+Print lots of debugging info
+.TP
+\fB\-\-dologcalls\fR
+Enable generation of code to log function calls
+.TP
+\fB\-\-logcallprintf\fR
+the name of the printf function to use
+.TP
+\fB\-\-logcalladdproto\fR
+whether to add the prototype for the printf function
+.TP
+\fB\-\-dologwrites\fR
+Enable generation of code to log memory writes
+.TP
+\fB\-\-dooneRet\fR
+Enable make each function have at most one 'return'
+.TP
+\fB\-\-doptranal\fR
+Enable alias analysis
+.TP
+\fB\-\-ptr_may_aliases\fR
+Print out results of may alias queries
+.TP
+\fB\-\-ptr_unify\fR
+Make the alias analysis unification\-based
+.TP
+\fB\-\-ptr_model_strings\fR
+Make the alias analysis model string constants
+.TP
+\fB\-\-ptr_conservative\fR
+Treat undefineds conservatively in alias analysis
+.TP
+\fB\-\-ptr_results\fR
+print the results of the alias analysis
+.TP
+\fB\-\-ptr_mono\fR
+run alias analysis monomorphically
+.TP
+\fB\-\-ptr_types\fR
+print inferred points\-to analysis types
+.TP
+\fB\-\-domakeCFG\fR
+Enable make the program look more like a CFG
+.TP
+\fB\-\-dopartial\fR
+Enable interprocedural partial evaluation and constant folding
+.TP
+\fB\-\-partial_global_const\fR
+treat global constants as initialized
+.TP
+\fB\-\-partial_no_global_const\fR
+treat global constants as unknown values
+.TP
+\fB\-\-partial_root_function\fR
+where to start simplification
+.TP
+\fB\-\-partial_use_easy_alias\fR
+to analyze pointers
+.TP
+\fB\-\-partial_use_ptranal_alias\fR
+to analyze pointers (also see options of ptranal feature)
+.TP
+\fB\-\-dosfi\fR
+Enable instrument memory operations
+.TP
+\fB\-\-sfireads\fR
+SFI for reads
+.TP
+\fB\-\-sfiwrites\fR
+SFI for writes
+.TP
+\fB\-\-dosimpleMem\fR
+Enable simplify all memory expressions
+.TP
+\fB\-\-dosimplify\fR
+Enable compiles CIL to 3\-address code
+.TP
+\fB\-\-no\-split\-structs\fR
+do not split structured variables
+.TP
+\fB\-\-no\-convert\-direct\-calls\fR
+do not convert direct function calls to function pointer calls if the address of the function was taken
+.TP
+\fB\-\-no\-convert\-field\-offsets\fR
+do not convert field offsets to offsets by integer.    Implies \fB\-\-no\-split\-structs\fR.  To be used by static code verification tools.
+.TP
+\fB\-help\fR
+Display this list of options
+.TP
+\fB\-\-help\fR
+Display this list of options
+.PP
+.SH "SEE ALSO"
+The full documentation for
+.B CIL
+is maintained as PDF and HTML files.
+More information is also available at http://cil.sourceforge.net/

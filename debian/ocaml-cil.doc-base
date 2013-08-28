@@ -1,0 +1,18 @@
+Document: ocaml-cil
+Title: CIL User and Developer Manual
+Author: Georges Necula, Matt Haren and others
+Abstract: This manual describes what CIL is
+ and how it can be used to analyse and transform C
+ programs.
+Section: Programming
+
+Format: pdf
+Files: /usr/share/doc/ocaml-cil/cil-manual.pdf.gz
+
+Format: HTML
+Index: /usr/share/doc/ocaml-cil/html/index.html
+Files: /usr/share/doc/ocaml-cil/html/*.html
+       /usr/share/doc/ocaml-cil/html/*.gif
+       /usr/share/doc/ocaml-cil/html/*.css
+       /usr/share/doc/ocaml-cil/html/api/*
+       /usr/share/doc/ocaml-cil/html/examples/*

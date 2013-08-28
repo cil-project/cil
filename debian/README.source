@@ -1,0 +1,21 @@
+ocaml-cil for Debian
+--------------------
+
+We describe here one way to work with the package sources, using
+git-packagebuilder and pristine-tar (enabled by default in
+debian/gbp.conf).
+
+## Clone the repository
+
+git clone -b debian https://github.com/kerneis/cil ocaml-cil
+
+## Build the package
+
+gbp buildpackage 
+
+## Update the package to a new upstream release
+
+export CIL_VERSION=1.7.3
+gbp import-orig --debian-branch=debian -u $CIL_VERSION --upstream-vcs-tag=cil-$(CIL_VERSION) ../cil-$(CIL_VERSION).tar.gz
+
+Don't forget to update debian/changelog.

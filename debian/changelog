@@ -1,0 +1,5 @@
+ocaml-cil (1.7.3-1) unstable; urgency=low
+
+  * Initial release (Closes: #615158)
+
+ -- Gabriel Kerneis <gabriel@kerneis.info>  Tue, 27 Aug 2013 18:51:26 +0100

@@ -1,0 +1,38 @@
+Source: ocaml-cil
+Section: devel
+Priority: extra
+Maintainer: Gabriel Kerneis <gabriel@kerneis.info>
+Build-Depends:
+  debhelper (>= 8.0.0),
+  perl,
+  autotools-dev,
+  ocaml-nox,
+  ocaml-findlib,
+  hevea,
+  dh-ocaml
+Standards-Version: 3.9.3
+Homepage: http://kerneis.github.io/cil
+#Vcs-Git: git://git.debian.org/collab-maint/ocaml-cil.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/ocaml-cil.git;a=summary
+
+Package: ocaml-cil
+Architecture: any
+Depends:
+  ${perl:Depends},
+  ${shlibs:Depends},
+  ${misc:Depends},
+  ${ocaml:Depends},
+  ocaml-findlib
+Description: C Intermediate Language
+ CIL is a front-end for the C programming language that facilitates program
+ analysis and transformation. CIL will parse and typecheck a program, and
+ compile it into a simplified subset of C. For example, in CIL all looping
+ constructs are given a single form and expressions have no side-effects. This
+ reduces the number of cases that must be considered when manipulating a C
+ program. CIL has been used for a variety of projects, including CCured, a tool
+ that makes C programs memory safe.
+ .
+ CIL supports ANSI C as well as most of the extensions of the GNU C and
+ Microsoft C compilers. A Perl script acts as a drop in replacement for either
+ gcc or Microsoft's cl, and allows merging of the source files in your project.
+ Other features include support for control-flow and points-to analyses.
