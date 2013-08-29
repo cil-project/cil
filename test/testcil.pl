@@ -569,6 +569,7 @@ addTest("merge-ar ");
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
 addTest("test/sizeof3");
+addBadComment("test/sizeof3", "Bug. Constant-folding of very large arrays does not work on 32-bit machines.");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
