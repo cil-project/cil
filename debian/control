@@ -9,11 +9,12 @@ Build-Depends:
   ocaml-nox,
   ocaml-findlib,
   hevea,
+  texlive-latex-base,
   dh-ocaml
-Standards-Version: 3.9.3
+Standards-Version: 3.9.4
 Homepage: http://kerneis.github.io/cil
-#Vcs-Git: git://git.debian.org/collab-maint/ocaml-cil.git
-#Vcs-Browser: http://git.debian.org/?p=collab-maint/ocaml-cil.git;a=summary
+Vcs-Git: git://github.com/kerneis/cil.git
+Vcs-Browser: https://github.com/kerneis/cil/tree/debian
 
 Package: ocaml-cil
 Architecture: any
@@ -21,8 +22,7 @@ Depends:
   ${perl:Depends},
   ${shlibs:Depends},
   ${misc:Depends},
-  ${ocaml:Depends},
-  ocaml-findlib
+  ${ocaml:Depends}
 Description: C Intermediate Language
  CIL is a front-end for the C programming language that facilitates program
  analysis and transformation. CIL will parse and typecheck a program, and
