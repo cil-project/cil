@@ -13,9 +13,32 @@ git clone -b debian https://github.com/kerneis/cil ocaml-cil
 
 gbp buildpackage 
 
+## Workflow for debian patches
+
+We apply some patches from upstream, using the workflow described here:
+
+https://honk.sigxcpu.org/piki/development/debian_packages_in_git/
+
+It can be summarised as follows:
+
+git checkout debian
+gbp pq import
+# rebase, edit, commit patches, etc. on patch-queue/debian
+git checkout debian
+gbp pq export
+git add -A debian/patches
+git commit
+
+
 ## Update the package to a new upstream release
 
 export CIL_VERSION=1.7.3
 gbp import-orig --debian-branch=debian -u $CIL_VERSION --upstream-vcs-tag=cil-$(CIL_VERSION) ../cil-$(CIL_VERSION).tar.gz
+
+To refresh debian/patches:
+
+gbp pq rebase
+git checkout debian
+gbp pq export
 
 Don't forget to update debian/changelog.
