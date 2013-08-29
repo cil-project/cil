@@ -1,0 +1,27 @@
+From: Gabriel Kerneis <gabriel@kerneis.info>
+Date: Thu, 29 Aug 2013 10:36:20 +0100
+Subject: Do not fail testsuite on new gcc behaviour
+
+Sometime between gcc 4.4 and gcc 4.7, the behaviour
+of function attributes has changed such that
+test/small2/regparm0.c does not compile anymore on 32-bit.
+This is actually a good thing, since the previous behaviour
+was quite confusing (although supported by CIL).
+---
+ test/testcil.pl |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/test/testcil.pl b/test/testcil.pl
+index dd814ed..560430a 100644
+--- a/test/testcil.pl
++++ b/test/testcil.pl
+@@ -620,7 +620,8 @@ addTest("scott/open $gcc");
+ addTest("scott/constfold");
+ addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
+ addTest("scott-nolink/brlock $gcc");
+-addTest("scott/regparm0 $gcc");         # this works, unfortunately... but the bug has been fixed nonetheless
++addTest("scott/regparm0 $gcc");         # this used to work, unfortunately...  but the bug has been fixed in CIL (and now gcc)
++addBadComment("scott/regparm0", "Notbug. Not a bug if fails with gcc >= 4.7 on i386");
+ addTest("scott/unscomp");               # kernel/fs/buffer.c
+ addTest("scott/thing");
+ 

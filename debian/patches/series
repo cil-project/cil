@@ -1,1 +1,2 @@
 0001-Fix-testsuite-on-32-bit-machines.patch
+0002-Do-not-fail-testsuite-on-new-gcc-behaviour.patch
