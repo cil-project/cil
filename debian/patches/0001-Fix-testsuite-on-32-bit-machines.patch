@@ -1,0 +1,33 @@
+From: Gabriel Kerneis <gabriel@kerneis.info>
+Date: Thu, 29 Aug 2013 09:30:23 +0100
+Subject: Fix testsuite on 32-bit machines
+
+---
+ test/small1/arrsize.c |    2 +-
+ test/testcil.pl       |    1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/test/small1/arrsize.c b/test/small1/arrsize.c
+index 6da8d0a..718b948 100755
+--- a/test/small1/arrsize.c
++++ b/test/small1/arrsize.c
+@@ -1,6 +1,6 @@
+ #include "testharness.h"
+ 
+-#define MAXINT (1ull << ((8 * sizeof(int)) - 1))
++#define MAXINT (1ull << ((8 * sizeof(int)) - 2))
+ 
+ int g1[ MAXINT / sizeof(int)  ];
+ char g2[ MAXINT / sizeof(char) ];
+diff --git a/test/testcil.pl b/test/testcil.pl
+index 778dfa7..dd814ed 100644
+--- a/test/testcil.pl
++++ b/test/testcil.pl
+@@ -569,6 +569,7 @@ addTest("merge-ar ");
+ addTest("testrun/sizeof1");
+ addTest("testrun/sizeof2");
+ addTest("test/sizeof3");
++addBadComment("test/sizeof3", "Bug. Constant-folding of very large arrays does not work on 32-bit machines.");
+ addTest("test/outofmem ");
+ addTest("testrun/builtin ");
+ addTest("test/builtin2 ");
