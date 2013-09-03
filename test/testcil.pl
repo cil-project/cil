@@ -620,8 +620,8 @@ addTest("scott/open $gcc");
 addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 addTest("scott-nolink/brlock $gcc");
-addTest("scott/regparm0 $gcc");         # this used to work, unfortunately...  but the bug has been fixed in CIL (and now gcc)
-addBadComment("scott/regparm0", "Notbug. Not a bug if fails with gcc >= 4.7 on i386");
+addTest("scott/regparm0 $gcc");         # this works, unfortunately...  but the bug has been fixed in CIL
+addBadComment("scott/regparm0", "Notbug. Some gcc versions fail to compile this test on i386");
 addTest("scott/unscomp");               # kernel/fs/buffer.c
 addTest("scott/thing");
 
