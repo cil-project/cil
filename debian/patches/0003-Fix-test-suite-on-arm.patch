@@ -1,0 +1,179 @@
+From: Gabriel Kerneis <gabriel@kerneis.info>
+Date: Tue, 3 Sep 2013 19:50:58 +0100
+Subject: Fix test suite on arm
+
+- Fix a test which assumed that char is signed
+- Fix a test which assumed that alignof aligned is 16
+- Restrict some embedded __asm__ tests to i386 || x86_64
+---
+ test/small1/align3.c          |    6 +++++-
+ test/small1/asm1.c            |    5 +++++
+ test/small1/asm4.c            |    3 ++-
+ test/small1/inline2.c         |    2 ++
+ test/small1/linuxcombine1_1.c |    2 ++
+ test/small1/rmtmps2.c         |    2 ++
+ test/small2/sizeofchar.c      |    6 +++++-
+ test/testcil.pl               |    4 ++--
+ 8 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/test/small1/align3.c b/test/small1/align3.c
+index 5beebf4..8c1fadc 100644
+--- a/test/small1/align3.c
++++ b/test/small1/align3.c
+@@ -53,18 +53,21 @@ struct s4 {
+   char b;
+ };
+ //The alignment is the result of rounding the size up to some system-defined
+-// power of two (16)
++// power of two (eg. 16 on i386 and x86_64)
+ struct s4 __attribute__((aligned)) s4_4; //alignment 16
+ extern int size4[sizeof(struct s4)];
+ extern int size2[__alignof(struct s4)];
+ extern int size4[sizeof(s4_4)];
++#if defined(i386) || defined(__x86_64__)
+ extern int size16[__alignof(s4_4)];
++#endif
+ 
+ struct s4 __attribute__((aligned(sizeof(double)/2))) s4_int;
+ extern int size4[__alignof(s4_int)];
+ struct s4 __attribute__((aligned(__alignof(int)))) s4_db;
+ extern int size4[__alignof(s4_db)];
+ 
++#if defined(i386) || defined(__x86_64__)
+ struct s5 {
+   short a;
+   char b;
+@@ -72,6 +75,7 @@ struct s5 {
+ struct s5 s5_4; //alignment 16
+ extern int size16[sizeof(s5_4)];
+ extern int size16[__alignof(s5_4)];
++#endif
+ 
+ int i;
+ int __attribute__((__aligned__(1)))i_1;
+diff --git a/test/small1/asm1.c b/test/small1/asm1.c
+index b910cf6..3d00647 100644
+--- a/test/small1/asm1.c
++++ b/test/small1/asm1.c
+@@ -7,9 +7,14 @@ __inline static char * __wes_memset_generic(char *s, char c, unsigned int count)
+     int d0;
+     int d1;
+ 
++#if defined(i386) || defined(__x86_64__)
+     __asm__ __volatile__("rep\n\t"
+     			 "stosb": "=&c" (d0), "=&D" (d1): "a" (c), "1" (s),
+ 			 "0" (count): "memory");
++#else
++    /* fallback for platforms where this test does not compile */
++    memset(s,c,count);
++#endif
+     return s;
+ }
+ 
+diff --git a/test/small1/asm4.c b/test/small1/asm4.c
+index a8b9299..193044b 100644
+--- a/test/small1/asm4.c
++++ b/test/small1/asm4.c
+@@ -41,11 +41,12 @@ main (int   argc,
+ 
+   (void)( {	if (!( sizeof (gint64) == 8 ))	g_log (((gchar*) 0) ,	G_LOG_LEVEL_ERROR,	"file %s: line %d (%s): assertion failed: (%s)",	"type-test.c",	51,	__PRETTY_FUNCTION__,	"sizeof (gint64) == 8");			})  ;
+ 
+-
++#if defined(i386) || defined(__x86_64__)
+   (void)( {	if (!( ((__extension__	({ register guint16 __v;	if (__builtin_constant_p (  gu16t1  ))	__v = ((guint16) ( (((guint16) (   gu16t1   ) & (guint16) 0x00ffU) << 8) | (((guint16) (   gu16t1   ) & (guint16) 0xff00U) >> 8))) ;	else	__asm__ __const__ ("rorw $8, %w0"	: "=r" (__v)	: "0" ((guint16) (  gu16t1  )));	__v; })) )  == gu16t2 ))	g_log (((gchar*) 0) ,	G_LOG_LEVEL_ERROR,	"file %s: line %d (%s): assertion failed: (%s)",	"type-test.c",	54,	__PRETTY_FUNCTION__,	"GUINT16_SWAP_LE_BE (gu16t1) == gu16t2");			})  ;
+   (void)( {	if (!( ((__extension__	({ register guint32 __v;	if (__builtin_constant_p (  gu32t1  ))	__v = ((guint32) ( (((guint32) (   gu32t1   ) & (guint32) 0x000000ffU) << 24) | (((guint32) (   gu32t1   ) & (guint32) 0x0000ff00U) <<  8) | (((guint32) (   gu32t1   ) & (guint32) 0x00ff0000U) >>  8) | (((guint32) (   gu32t1   ) & (guint32) 0xff000000U) >> 24))) ;	else	__asm__ __const__ ("rorw $8, %w0\n\t"	"rorl $16, %0\n\t"	"rorw $8, %w0"	: "=r" (__v)	: "0" ((guint32) (  gu32t1  )));	__v; })) )  == gu32t2 ))	g_log (((gchar*) 0) ,	G_LOG_LEVEL_ERROR,	"file %s: line %d (%s): assertion failed: (%s)",	"type-test.c",	55,	__PRETTY_FUNCTION__,	"GUINT32_SWAP_LE_BE (gu32t1) == gu32t2");			})  ;
+ 
+   (void)( {	if (!( ((__extension__	({ union { guint64 __ll;	guint32 __l[2]; } __r;	if (__builtin_constant_p (  gu64t1  ))	__r.__ll = ((guint64) ( (((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x00000000000000ffULL)) ) << 56) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x000000000000ff00ULL)) ) << 40) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x0000000000ff0000ULL)) ) << 24) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x00000000ff000000ULL)) ) <<  8) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x000000ff00000000ULL)) ) >>  8) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x0000ff0000000000ULL)) ) >> 24) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0x00ff000000000000ULL)) ) >> 40) |	(((guint64) (   gu64t1   ) &	(guint64) (__extension__  ( 0xff00000000000000ULL)) ) >> 56))) ;	else	{	union { guint64 __ll;	guint32 __l[2]; } __w;	__w.__ll = ((guint64)   gu64t1  );	__r.__l[0] = ((__extension__	({ register guint32 __v;	if (__builtin_constant_p (  __w.__l[1]  ))	__v = ((guint32) ( (((guint32) (   __w.__l[1]   ) & (guint32) 0x000000ffU) << 24) | (((guint32) (   __w.__l[1]   ) & (guint32) 0x0000ff00U) <<  8) | (((guint32) (   __w.__l[1]   ) & (guint32) 0x00ff0000U) >>  8) | (((guint32) (   __w.__l[1]   ) & (guint32) 0xff000000U) >> 24))) ;	else	__asm__ __const__ ("rorw $8, %w0\n\t"	"rorl $16, %0\n\t"	"rorw $8, %w0"	: "=r" (__v)	: "0" ((guint32) (  __w.__l[1]  )));	__v; })) ) ;	__r.__l[1] = ((__extension__	({ register guint32 __v;	if (__builtin_constant_p (  __w.__l[0]  ))	__v = ((guint32) ( (((guint32) (   __w.__l[0]   ) & (guint32) 0x000000ffU) << 24) | (((guint32) (   __w.__l[0]   ) & (guint32) 0x0000ff00U) <<  8) | (((guint32) (   __w.__l[0]   ) & (guint32) 0x00ff0000U) >>  8) | (((guint32) (   __w.__l[0]   ) & (guint32) 0xff000000U) >> 24))) ;	else	__asm__ __const__ ("rorw $8, %w0\n\t"	"rorl $16, %0\n\t"	"rorw $8, %w0"	: "=r" (__v)	: "0" ((guint32) (  __w.__l[0]  )));	__v; })) ) ;	}	__r.__ll; })) )  == gu64t2 ))	g_log (((gchar*) 0) ,	G_LOG_LEVEL_ERROR,	"file %s: line %d (%s): assertion failed: (%s)",	"type-test.c",	57,	__PRETTY_FUNCTION__,	"GUINT64_SWAP_LE_BE (gu64t1) == gu64t2");			})  ;
++#endif
+ 
+   return 0;
+ }
+diff --git a/test/small1/inline2.c b/test/small1/inline2.c
+index 28438f3..70b53d0 100755
+--- a/test/small1/inline2.c
++++ b/test/small1/inline2.c
+@@ -2,10 +2,12 @@
+ 
+ int main(void) {
+      int x = 1, y = 5, z = 0;
++#if defined(i386) || defined(__x86_64__)
+      asm("movl %[in1], %[out] \n addl %[in2], %[out]"
+        : [out] "=r" (z) : [in1] "m" (x), [in2] "m" (y) );
+ 
+      if(z != 6) E(1);
++#endif
+      return 0;
+ }
+ 
+diff --git a/test/small1/linuxcombine1_1.c b/test/small1/linuxcombine1_1.c
+index 9853e65..17bfd38 100644
+--- a/test/small1/linuxcombine1_1.c
++++ b/test/small1/linuxcombine1_1.c
+@@ -3399,9 +3399,11 @@ __inline static int atomic_dec_and_test(atomic_t *v )
+ { unsigned char c ;
+ 
+   {
++#if defined(i386) || defined(__x86_64__)
+   __asm__  volatile   ("lock ; "
+                        "decl %0; sete %1": "=m" (v->counter),
+                        "=qm" (c): "m" (v->counter): "memory");
++#endif
+   return ((int )c != 0);
+ }
+ }
+diff --git a/test/small1/rmtmps2.c b/test/small1/rmtmps2.c
+index c5e006f..46132a0 100644
+--- a/test/small1/rmtmps2.c
++++ b/test/small1/rmtmps2.c
+@@ -5,10 +5,12 @@ static __inline__ int atomic_dec_and_test(atomic_t *v)
+ {
+ 	unsigned char c;
+ 
++#if defined(i386) || defined(__x86_64__)
+ 	__asm__ __volatile__(
+ 		""  "decl %0; sete %1"
+ 		:"=m" (v->counter), "=qm" (c)
+ 		:"m" (v->counter) : "memory");
++#endif
+ 	return c != 0;
+ }
+ 
+diff --git a/test/small2/sizeofchar.c b/test/small2/sizeofchar.c
+index 9b0aeba..b1ea400 100644
+--- a/test/small2/sizeofchar.c
++++ b/test/small2/sizeofchar.c
+@@ -4,6 +4,7 @@
+ // problems with sizeof and chars
+   
+ #include <assert.h>    // assert
++#include <limits.h>    // CHAR_MIN
+ 
+ int main()
+ {
+@@ -18,7 +19,10 @@ int main()
+ 
+   //character constants are ints, so this should be sign-extended to 0xFFFFFFFF
+   i = '\xff';
+-  assert((int)i == (int)-1);
++  if(CHAR_MIN == 0) /* char is unsigned */
++    assert((int)i == (int)255);
++  else              /* char is signed */
++    assert((int)i == (int)-1);
+ 
+   {
+     //Test CIL's understanding of '\xff' by forcing it to do constant folding:
+diff --git a/test/testcil.pl b/test/testcil.pl
+index 560430a..2a9116e 100644
+--- a/test/testcil.pl
++++ b/test/testcil.pl
+@@ -620,8 +620,8 @@ addTest("scott/open $gcc");
+ addTest("scott/constfold");
+ addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
+ addTest("scott-nolink/brlock $gcc");
+-addTest("scott/regparm0 $gcc");         # this used to work, unfortunately...  but the bug has been fixed in CIL (and now gcc)
+-addBadComment("scott/regparm0", "Notbug. Not a bug if fails with gcc >= 4.7 on i386");
++addTest("scott/regparm0 $gcc");         # this works, unfortunately...  but the bug has been fixed in CIL
++addBadComment("scott/regparm0", "Notbug. Some gcc versions fail to compile this test on i386");
+ addTest("scott/unscomp");               # kernel/fs/buffer.c
+ addTest("scott/thing");
+ 
