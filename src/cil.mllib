@@ -29,10 +29,6 @@ Frontc
 GrowArray
 Inthash
 Lexerhack
-Llvm
-Llvmgen
-Llvmssa
-Llvmutils
 Longarray
 Machdep
 Machdepenv
