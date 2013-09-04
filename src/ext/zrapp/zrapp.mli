@@ -10,4 +10,4 @@ val zraCilPrinter : Cil.cilPrinter
 
 val pp_exp : Cil.fundec -> unit -> Cil.exp -> Pretty.doc
 
-val feature : Cil.featureDescr
+val feature : Feature.t
