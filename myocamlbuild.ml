@@ -13,7 +13,8 @@ let find_modules builder mllib =
   let build_result = builder dependencies in
   let built_files = List.filter_opt
     (function Good file -> Some (!Options.build_dir/file) | Bad _ -> None) build_result in
-  String.concat " " built_files
+  (* add a trailing space to ease concatenation of .libfiles *)
+  (String.concat " " built_files) ^ " "
 ;;
 
 let cil_version =

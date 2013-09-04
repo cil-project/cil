@@ -84,7 +84,7 @@ ifeq ($(OCAMLNATDYNLINK),yes)
 endif
 endif
 
-CILLIB_FILES = $(OBJDIR)/src/cil.libfiles
+CILLIB_FILES = $(OBJDIR)/src/cil.libfiles $(addsuffix .libfiles,$(CIL_PLUGINS))
 CILDOC_INDEX = $(OBJDIR)/cil.docdir/index.html
 CILLY_EXE_BIN = $(patsubst $(OBJDIR)/src/main.%,bin/$(CILLY).%,$(CILLY_EXE_FILES))
 
