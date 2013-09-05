@@ -64,9 +64,13 @@ let registered s =
   try ignore(find s); true
   with Not_found -> false
 
-let enabled s = (find s).fd_enabled
+let enabled s = try (find s).fd_enabled with Not_found -> false
 
-let enable s = let f = find s in f.fd_enabled <- true
+let enable s =
+  try
+    let f = find s in f.fd_enabled <- true
+  with Not_found ->
+    E.s (E.error "cannot enable feature %s: not found" s)
 
 (** Dynamic linking *)
 

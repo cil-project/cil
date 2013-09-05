@@ -72,11 +72,11 @@ val registered : string -> bool
 (** Find a feature by name. Raise Not_found if the feature is not registered. *)
 val find : string -> t
 
-(** Enable a given feature, by name. Raise Not_found if the feature is not
+(** Enable a given feature, by name. Raise {!Errormsg.Error} if the feature is not
  *  registered. *)
 val enable : string -> unit
 
-(** Check if a given feature is enabled. Raise Not_found if the feature is not
+(** Check if a given feature is enabled. Return false if the feature is not
  * registered. *)
 val enabled : string -> bool
 
