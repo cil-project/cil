@@ -13,8 +13,8 @@ Build-Depends:
   dh-ocaml
 Standards-Version: 3.9.4
 Homepage: http://kerneis.github.io/cil
-Vcs-Git: git://github.com/kerneis/cil.git
-Vcs-Browser: https://github.com/kerneis/cil/tree/debian
+Vcs-Git: git://anonscm.debian.org/pkg-ocaml-maint/packages/ocaml-cil.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-ocaml-maint/packages/ocaml-cil.git
 
 Package: ocaml-cil
 Architecture: any
