@@ -2920,6 +2920,9 @@ let initGccBuiltins () : unit =
 
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
 
+  H.add h "__builtin_trap" (voidType, [], false);
+  H.add h "__builtin_unreachable" (voidType, [], false);
+
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
   H.add h "__builtin_fabsf" (floatType, [ floatType ], false);
   H.add h "__builtin_fabsl" (longDoubleType, [ longDoubleType ], false);
