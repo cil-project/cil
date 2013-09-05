@@ -3001,6 +3001,8 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_prefetch" (voidType, [ voidConstPtrType ], true);
   H.add h "__builtin_return" (voidType, [ voidConstPtrType ], false);
   H.add h "__builtin_return_address" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_extract_return_addr" (voidPtrType, [ voidPtrType ], false);
+  H.add h "__builtin_frob_return_address" (voidPtrType, [ voidPtrType ], false);
 
   H.add h "__builtin_sin" (doubleType, [ doubleType ], false);
   H.add h "__builtin_sinf" (floatType, [ floatType ], false);
