@@ -12,6 +12,8 @@ include ../config.mk
 
 TESTDIR := .
 
+unexport CIL_FEATURES
+
 defaulttarget:
 	@echo "This Makefile is intended to be run with an explicit target."
 

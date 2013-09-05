@@ -8,6 +8,9 @@
 CILLY			  = cilly
 CIL_VERSION = @CIL_VERSION@
 
+# Avoid using CIL_FEATURES when building doc or tests
+unexport CIL_FEATURES
+
 .PHONY: all
 all: install-local
 
