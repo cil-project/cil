@@ -111,7 +111,7 @@ let findlib_lookup pkg =
 
 let find_plugin s =
   if s = "" then E.s (E.error "missing module name") else
-  let s_resolve = try D.adapt_filename (F.resolve_path s) with _ -> s in
+  let s_resolve = D.adapt_filename (try F.resolve_path s with _ -> s) in
   if Sys.file_exists s_resolve then [s_resolve]
   else findlib_lookup s
 
@@ -140,7 +140,7 @@ let loadFromArgv switch =
   let rec aux () =
     try
       Arg.parse_argv ~current:idx Sys.argv spec ignore ""
-    with Arg.Bad _ | Arg.Help _ -> incr idx; aux ()
+    with Arg.Bad _ | Arg.Help _ -> aux ()
   in init (); aux ()
 
 let loadFromEnv name default =
