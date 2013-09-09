@@ -308,6 +308,10 @@ and typeMatch (t1: typ) (t2: typ) =
         TInt (ik, _), TEnum (ei, _) when ik = ei.ekind -> ()
       | TEnum (ei, _), TInt (ik, _) when ik = ei.ekind -> ()
           
+      (* Allow unspecified array lengths - this happens with
+       * flexible array members *)
+      | TArray (t, None, _), TArray (t', _, _)
+      | TArray (t, _, _), TArray (t', None, _) -> typeMatch t t'
       | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!"
                            d_type t1 d_type t2)
   end else begin

@@ -1998,11 +1998,10 @@ and collectFieldInitializer
     (isconst: bool)
     (this: preInit)
     (f: fieldinfo) : init =
-  (* collect, and rewrite type *)
-  let init,newtype = (collectInitializer true isconst this f.ftype) in
-  f.ftype <- newtype;
-  init
-            
+  (* Do NOT rewrite type. We need to keep type incomplete for flexible array
+   * members in fields, and incomplete types otherwise cannot appear in a
+   * structure declaration. *)
+  fst (collectInitializer true isconst this f.ftype)
 
 type stackElem = 
     InArray of offset * typ * int * int ref (* offset of parent, base type, 
