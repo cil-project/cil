@@ -303,9 +303,13 @@ bindir = @bindir@
 CYGPATH=@CYGPATH@
 
 # Make DESTDIR absolute (necessary for perl installation), and add trailing
-# backspace which is stripped by abspath on cygwin.
+# backspace.
 ifneq ($(DESTDIR),)
-  override DESTDIR := $(abspath $(DESTDIR))/
+  ifneq ($(CYGPATH),)
+    override DESTDIR := $(shell $(CYGPATH) -ua $(DESTDIR)/)
+  else
+    override DESTDIR := $(abspath $(DESTDIR)/)
+  endif
 endif
 
 MAKE_CILLY = $(MAKE) -C $(CILLYDIR) DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
@@ -327,8 +331,8 @@ OCAMLFIND_DESTDIR=$(shell ocamlfind printconf destdir)
 # cygwin, since the former is in unix format whereas the later and the result
 # are in windows (mixed) format.
 ifneq ($(CYGPATH),)
-  override OCAMLFIND_DESTDIR := $(shell $(CYGPATH) -ua "$(OCAMLFIND_DESTDIR)")
-  OCAMLFIND_INSTALLDIR=$(shell $(CYGPATH) -ma "$(DESTDIR)$(OCAMLFIND_DESTDIR)")
+  OCAMLFIND_UNIXDIR=$(shell $(CYGPATH) -ua "$(OCAMLFIND_DESTDIR)")
+  OCAMLFIND_INSTALLDIR=$(shell $(CYGPATH) -ma "$(DESTDIR)$(OCAMLFIND_UNIXDIR)")
 else
   OCAMLFIND_INSTALLDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR)
 endif
@@ -344,7 +348,11 @@ uninstall-findlib:
 .PHONY: install-data uninstall-data
 install-data:
 	mkdir -p $(DESTDIR)$(datadir)
+ifneq ($(CYGPATH),)
+	printf $(shell $(CYGPATH) -ma "$(OCAMLFIND_DESTDIR)") > ocamlpath
+else
 	printf $(abspath $(OCAMLFIND_DESTDIR)) > ocamlpath
+endif
 	$(INSTALL_DATA) ocamlpath $(DESTDIR)$(datadir)
 	rm -f ocamlpath
 

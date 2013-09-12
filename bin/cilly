@@ -87,15 +87,7 @@ BEGIN {
       close $input_fh;
       # ocamlpath separator is ':' on Unix, but ';' on Windows
       my $ocamlsep = $^O == "MSWin32" || $^O == "cygwin" ? ';' : ':';
-      if($^O == "cygwin") {
-        # On cygwin, we don't know if cilly knows how to resolve cygwin
-        # paths (probably not). Add the resolved path.
-        my $winocamlpath = `cygpath -w -a $ocamlpath`;
-        chomp($winocamlpath);
-        $ENV{"OCAMLPATH"} = join($ocamlsep, $winocamlpath, $ocamlpath, $ENV{"OCAMLPATH"});
-      } else {
-        $ENV{"OCAMLPATH"} = join($ocamlsep, $ocamlpath, $ENV{"OCAMLPATH"});
-      }
+      $ENV{"OCAMLPATH"} = join($ocamlsep, $ocamlpath, $ENV{"OCAMLPATH"});
     }
 }
 
