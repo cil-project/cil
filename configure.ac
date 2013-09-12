@@ -161,46 +161,6 @@ AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 CIL_CHECK_INTEGER_TYPE(size_t, TYPE_SIZE_T)
 CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
 
-
-# ----------- platform-specific code -------------
-# $target is typically processor-vendor-os
-case "$target" in
-
-  # cygwin
-  *86*cygwin*)
-    AC_MSG_RESULT(configuring for Cygwin on win32/x86)
-
-    CC=`which $CC`
-    CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
-    ;;
-
-  # MinGW
-  *86*mingw32*)
-    AC_MSG_RESULT(configuring for MinGW on win32/x86)
-
-    CC=`which $CC`
-    ;;
-
-  *mipsel*linux*)
-    AC_MSG_RESULT(configuring for MIPSel/Linux)
-
-    if test $cross_compiling = "yes"; then
-      AC_PATH_PROG([EMUL], [qemu-mipsel])
-    fi
-    ;;
-
-  *mips*linux*)
-    AC_MSG_RESULT(configuring for MIPS/Linux)
-
-    if test $cross_compiling = "yes"; then
-      AC_PATH_PROG([EMUL], [qemu-mips])
-    fi
-    ;;
-
-  *)
-    ;;
-esac
-
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
