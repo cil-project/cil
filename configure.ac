@@ -120,7 +120,7 @@ fi
 
 # ------------------- Cygpath -------------
 
-AC_CHECK_PROG([CYGPATH],[cygpath])
+AC_CHECK_PROG([CYGPATH],[cygpath],[cygpath])
 
 #
 # -------------------- GCC --------------
