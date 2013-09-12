@@ -87,7 +87,7 @@ sub new {
       NATIVECAML => 1, # this causes the native code boxer to be used
       IDASHDOT => 1,   # if true, pass "-I." to gcc's preprocessor
       VERBOSE => 0,    # when true, print extra detail
-      TRACE_COMMANDS => 1, # when true, echo commands being run
+      TRACE_COMMANDS => 0, # when true, echo commands being run
       SEPARATE => ! $::default_is_merge,
       LIBDIR => [],
       OPERATION => 'TOEXE', # This is the default for all compilers
