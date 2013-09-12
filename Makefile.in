@@ -327,7 +327,7 @@ OCAMLFIND_DESTDIR=$(shell ocamlfind printconf destdir)
 # cygwin, since the former is in unix format whereas the later and the result
 # are in windows (mixed) format.
 ifneq ($(CYGPATH),)
-  override OCAMLFIND_DESTDIR := $(shell $(CYGPATH) -ua "$(OCAMLFIND_DESTDIR))")
+  override OCAMLFIND_DESTDIR := $(shell $(CYGPATH) -ua "$(OCAMLFIND_DESTDIR)")
   OCAMLFIND_INSTALLDIR=$(shell $(CYGPATH) -ma "$(DESTDIR)$(OCAMLFIND_DESTDIR)")
 else
   OCAMLFIND_INSTALLDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR)
