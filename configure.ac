@@ -118,6 +118,10 @@ if test "$PERL" = "no"; then
   AC_MSG_ERROR([You must install perl])
 fi
 
+# ------------------- Cygpath -------------
+
+AC_CHECK_PROG([CYGPATH],[cygpath])
+
 #
 # -------------------- GCC --------------
 #

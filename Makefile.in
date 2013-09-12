@@ -300,9 +300,12 @@ datarootdir = @datarootdir@
 datadir = $(datarootdir)/cil
 bindir = @bindir@
 
-# Make DESTDIR absolute (necessary for perl installation)
+CYGPATH=@CYGPATH@
+
+# Make DESTDIR absolute (necessary for perl installation), and add trailing
+# backspace which is stripped by abspath on cygwin.
 ifneq ($(DESTDIR),)
-  override DESTDIR := $(abspath $(DESTDIR))
+  override DESTDIR := $(abspath $(DESTDIR))/
 endif
 
 MAKE_CILLY = $(MAKE) -C $(CILLYDIR) DESTDIR=$(DESTDIR) INSTALL_BASE=$(INSTALL_BASE)
@@ -318,15 +321,25 @@ uninstall: $(CILLYDIR)/Makefile uninstall-findlib uninstall-data
 .PHONY: install-findlib uninstall-findlib
 
 # Get the default OCAMLFIND_DESTDIR
-OCAMLFIND_DESTDIR = $(shell ocamlfind printconf destdir)
+OCAMLFIND_DESTDIR=$(shell ocamlfind printconf destdir)
+
+# Add DESTDIR in front of OCAMLFIND_DESTDIR. Do the necessary conversions on
+# cygwin, since the former is in unix format whereas the later and the result
+# are in windows (mixed) format.
+ifneq ($(CYGPATH),)
+  override OCAMLFIND_DESTDIR := $(shell $(CYGPATH) -ua "$(OCAMLFIND_DESTDIR))")
+  OCAMLFIND_INSTALLDIR=$(shell $(CYGPATH) -ma "$(DESTDIR)$(OCAMLFIND_DESTDIR)")
+else
+  OCAMLFIND_INSTALLDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR)
+endif
 
 install-findlib: META $(CILLIB_FILES) $(CILLIB_TARGETS) uninstall-findlib
-	mkdir -p $(DESTDIR)$(OCAMLFIND_DESTDIR)
-	OCAMLFIND_DESTDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR) \
+	mkdir -p $(OCAMLFIND_INSTALLDIR)
+	OCAMLFIND_DESTDIR=$(OCAMLFIND_INSTALLDIR) \
 	  $(OCAMLFIND) install cil META $(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
 
 uninstall-findlib:
-	OCAMLFIND_DESTDIR=$(DESTDIR)$(OCAMLFIND_DESTDIR) $(OCAMLFIND) remove cil
+	OCAMLFIND_DESTDIR=$(OCAMLFIND_INSTALLDIR) $(OCAMLFIND) remove cil
 
 .PHONY: install-data uninstall-data
 install-data:
@@ -341,4 +354,4 @@ uninstall-data:
 .PHONY: install-local
 # Recursive call to install-findlib builds $(CILLIB_TARGETS)
 install-local:
-	$(MAKE) $(CILLY) install-findlib install-data PREFIX=. datarootdir=share OCAMLFIND_DESTDIR=lib
+	$(MAKE) $(CILLY) install-findlib install-data PREFIX=. datarootdir=share DESTDIR= OCAMLFIND_DESTDIR=lib
