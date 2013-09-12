@@ -86,6 +86,7 @@
 /lib/perl5/Makefile
 /lib/perl5/Makefile.old
 /lib/perl5/MYMETA.yml
+/lib/perl5/MYMETA.json
 /lib/perl5/blib/*
 /lib/perl5/pm_to_blib
 
