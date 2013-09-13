@@ -21,7 +21,7 @@ sub new {
 				   SUFFIX => ".$suffix",
 				   UNLINK => 1);
     close($fh);
-    if($^O == "cygwin") {
+    if($^O eq "cygwin") {
       $filename = `cygpath -w "$filename"`;
       chomp($filename);
     }

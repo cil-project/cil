@@ -86,7 +86,7 @@ BEGIN {
       chomp($ocamlpath);
       close $input_fh;
       # ocamlpath separator is ':' on Unix, but ';' on Windows
-      my $ocamlsep = $^O == "MSWin32" || $^O == "cygwin" ? ';' : ':';
+      my $ocamlsep = ($^O eq "MSWin32" || $^O eq "cygwin") ? ';' : ':';
       $ENV{"OCAMLPATH"} = join($ocamlsep, $ocamlpath, $ENV{"OCAMLPATH"});
     }
 }
