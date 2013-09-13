@@ -1227,45 +1227,65 @@ let defaultArgumentPromotion (t : typ) : typ = (* c.f. ISO 6.5.2.2:6 *)
 
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
-    (t2: typ) : typ = 
-  let checkToInt _ = () in  (* dummies for now *)
-  let checkToFloat _ = () in
+    (t2: typ) : typ =
   match unrollType t1, unrollType t2 with
-    TFloat(FLongDouble, _), _ -> checkToFloat t2; t1
-  | _, TFloat(FLongDouble, _) -> checkToFloat t1; t2
-  | TFloat(FDouble, _), _ -> checkToFloat t2; t1
-  | _, TFloat (FDouble, _) -> checkToFloat t1; t2
-  | TFloat(FFloat, _), _ -> checkToFloat t2; t1
-  | _, TFloat (FFloat, _) -> checkToFloat t1; t2
+    TFloat(FLongDouble, _), _ -> t1
+  | _, TFloat(FLongDouble, _) -> t2
+  | TFloat(FDouble, _), _ -> t1
+  | _, TFloat (FDouble, _) -> t2
+  | TFloat(FFloat, _), _ -> t1
+  | _, TFloat (FFloat, _) -> t2
   | _, _ -> begin
       let t1' = integralPromotion t1 in
       let t2' = integralPromotion t2 in
       match unrollType t1', unrollType t2' with
-        TInt(IULongLong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IULongLong, _) -> checkToInt t1'; t2'
-            
-      (* We assume a long long is always larger than a long  *)
-      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'  
-      | _, TInt(ILongLong, _) -> checkToInt t1'; t2'
-            
-      | TInt(IULong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IULong, _) -> checkToInt t1'; t2'
 
-                    
-      | TInt(ILong,_), TInt(IUInt,_) 
-            when bitsSizeOf t1' <= bitsSizeOf t2' -> TInt(IULong,[])
-      | TInt(IUInt,_), TInt(ILong,_) 
-            when bitsSizeOf t2' <= bitsSizeOf t1' -> TInt(IULong,[])
-            
-      | TInt(ILong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(ILong, _) -> checkToInt t1'; t2'
+      (* If both operands have the same type, then no further
+       * conversion is needed.  *)
+      | TInt(ik1, _), TInt(ik2, _) when ik1 = ik2 -> t1'
 
-      | TInt(IUInt, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IUInt, _) -> checkToInt t1'; t2'
-            
-      | TInt(IInt, _), TInt (IInt, _) -> t1'
+      (* Otherwise, if both operands have signed integer types or
+       * both have unsigned integer types, the operand with the type
+       * of lesser integer conversion rank is converted to the type
+       * of the operand with greater rank. *)
+      | TInt(ik1, _), TInt(ik2, _) when isSigned ik1 = isSigned ik2 ->
+          assert(intRank ik1 <> intRank ik2);
+          if intRank ik1 < intRank ik2 then t2' else t1'
+
+      (* We need to know which one is signed for the next cases *)
+      | TInt(ik1, a1), TInt(ik2, a2) -> begin
+
+        let signedKind, unsignedKind, signedType, unsignedType, signedAttrs =
+          if isSigned ik1
+          then ik1, ik2, t1', t2', a1
+          else ik2, ik1, t2', t1', a2 in
+        assert(isSigned signedKind);
+        assert(not(isSigned unsignedKind));
+
+        (* Otherwise, if the operand that has unsigned integer type has
+         * rank greater or equal to the rank of the type of the other
+         * operand, then the operand with signed integer type is converted
+         * to the type of the operand with unsigned integer type. *)
+        if (intRank unsignedKind >= intRank signedKind)
+        then unsignedType
+
+        (* Otherwise, if the type of the operand with signed integer type
+         * can represent all of the values of the type of the operand with
+         * unsigned integer type, then the operand with unsigned integer
+         * type is converted to the type of the operand with signed integer
+         * type. *)
+        else if bytesSizeOfInt signedKind > bytesSizeOfInt unsignedKind
+        then signedType
+
+        (* Otherwise, both operands are converted to the unsigned integer
+         * type corresponding to the type of the operand with signed
+         * integer type.  *)
+        else TInt(unsignedVersionOf signedKind, signedAttrs)
+
+      end
 
       | _, _ -> E.s (error "arithmeticConversion")
+
   end
 
   
