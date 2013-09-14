@@ -21,10 +21,6 @@ sub new {
 				   SUFFIX => ".$suffix",
 				   UNLINK => 1);
     close($fh);
-    if($^O eq "cygwin") {
-      $filename = `cygpath -w "$filename"`;
-      chomp($filename);
-    }
     my $self = $class->SUPER::new($basis, $filename);
     return $self;
 }

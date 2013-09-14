@@ -1296,16 +1296,11 @@ sub compilerArgument {
 sub runShell {
     my ($self, @cmd) = @_;
 
-    my $msvcFriends = 
-        ($self->{MODENAME} eq "MSVC" || 
-         $self->{MODENAME} eq "MSLINK" || 
-         $self->{MODENAME} eq "MSLIB");
-
     foreach (@cmd) {
 	$_ = $_->filename if ref;
-        # If we are in MSVC mode then we might have to convert the files
+        # If we are on cygwin then we need to convert the files
         # from cygwin names to the actual Windows names
-        if($msvcFriends && $^O eq "cygwin") {
+        if($^O eq "cygwin") {
             my $arg = $_;
             if ($arg =~ m|^/| && -f $arg) { 
                 my $mname = `cygpath -m $arg`;
