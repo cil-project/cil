@@ -89,6 +89,10 @@ let init () =
     initialized := true
   end
 
+let adapt_filename f = try
+  D.adapt_filename f
+  with _ -> f
+
 let findlib_lookup pkg =
   try
     let preds = [ if D.is_native then "native" else "byte"; "plugin" ] in
@@ -100,7 +104,7 @@ let findlib_lookup pkg =
         (* some packages have dependencies but no archive *)
         with Not_found -> "" in
       let modules = List.filter ((<>) "") (Str.split (Str.regexp "[ ,]+") archives) in
-      List.map (fun m -> F.resolve_path ~base (D.adapt_filename m)) modules in
+      List.map (fun m -> F.resolve_path ~base (adapt_filename m)) modules in
     let files = List.map find_modules deps in
     List.flatten files
   with
@@ -111,7 +115,7 @@ let findlib_lookup pkg =
 
 let find_plugin s =
   if s = "" then E.s (E.error "missing module name") else
-  let s_resolve = D.adapt_filename (try F.resolve_path s with _ -> s) in
+  let s_resolve = adapt_filename (try F.resolve_path s with _ -> s) in
   if Sys.file_exists s_resolve then [s_resolve]
   else findlib_lookup s
 
