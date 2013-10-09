@@ -116,7 +116,7 @@ let findlib_lookup pkg =
 let find_plugin s =
   if s = "" then E.s (E.error "missing module name") else
   let s_resolve = adapt_filename (try F.resolve_path s with _ -> s) in
-  if Sys.file_exists s_resolve then [s_resolve]
+  if Sys.file_exists s_resolve && not (Sys.is_directory s_resolve) then [s_resolve]
   else findlib_lookup s
 
 (** List of loaded modules *)
