@@ -4,9 +4,6 @@
   This is required for several other extensions, such as {!Dataflow}. 
 *)
 
-open Cil
-
-
 (** Compute the CFG for an entire file, by calling cfgFun on each function. *)
 val computeFileCFG: Cil.file -> unit
 
@@ -15,19 +12,19 @@ val clearFileCFG: Cil.file -> unit
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
   filled in *)
-val cfgFun : fundec -> int
+val cfgFun : Cil.fundec -> int
 
 (** clear the sid, succs, and preds fields of each statment in a function *)
 val clearCFGinfo: Cil.fundec -> unit
 
 (** print control flow graph (in dot form) for fundec to channel *)
-val printCfgChannel : out_channel -> fundec -> unit
+val printCfgChannel : out_channel -> Cil.fundec -> unit
 
 (** Print control flow graph (in dot form) for fundec to file *)
-val printCfgFilename : string -> fundec -> unit
+val printCfgFilename : string -> Cil.fundec -> unit
 
 (** Next statement id that will be assigned. *)
 val start_id: int ref
 
 (** Return all statements in a file - valid after computeFileCfg only *)
-val allStmts : file -> stmt list
+val allStmts : Cil.file -> Cil.stmt list
