@@ -39,9 +39,9 @@ CC=@CC@
 @DEFAULT_COMPILER@=1
 
 # We have to use _build because of OCaml's bug #0004502
-OBJDIR      = _build
-BINDIR		  = bin
-CILLYDIR	  = lib/perl5
+OBJDIR    = _build
+BINDIR    = bin
+CILLYDIR  = lib/perl5
 
 # Ocaml tools
 OCAMLC = @OCAMLC@
@@ -86,9 +86,9 @@ CILLY_EXE_BIN = $(patsubst $(OBJDIR)/src/main.%,bin/$(CILLY).%,$(CILLY_EXE_FILES
 override OCAMLBUILD += -build-dir $(OBJDIR) -use-ocamlfind -no-links -classic-display
 
 OCAMLBUILD_TARGETS = \
-	$(CILLIB_TARGETS) \
-	$(CILLIB_FILES)		\
-  $(CILLY_EXE_FILES) \
+	$(CILLIB_TARGETS)  \
+	$(CILLIB_FILES)	   \
+	$(CILLY_EXE_FILES) \
 	$(CILDOC_INDEX)
 
 # Trick: this no-op rule is executed for each target, but
@@ -126,7 +126,7 @@ META:
 	  printf "archive(native) = \"$(plugin).cmxa\"\n" >> $@;\
 	  printf "archive(native,plugin) = \"$(plugin).cmxs\"\n" >> $@;\
 	  printf ")\n\n" >> $@;\
-		)
+	)
 
 # cilly perl wrapper
 prefix = @prefix@
@@ -188,7 +188,7 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@echo "  little_endian: bool; (* whether the machine is little endian *)">>$@
 	@echo "  __thread_is_keyword: bool; (* whether __thread is a keyword *)">>$@
 	@echo "  __builtin_va_list: bool; (* whether __builtin_va_list is builtin (gccism) *)">>$@
-	@echo "}" >> $@ 	
+	@echo "}" >> $@
 	@if $(CC) -D_GNUCC $< -o $(OBJDIR)/machdep-ml.exe ;then \
 	    echo "machdep-ml.exe created succesfully." \
 	;else \
