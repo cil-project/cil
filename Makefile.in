@@ -73,6 +73,7 @@ ifeq ($(OCAMLNATDYNLINK),yes)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cmxa $(OBJDIR)/src/cil.a
   CILLIB_TARGETS  += $(addsuffix .cmxa,$(CIL_PLUGINS))
   CILLIB_TARGETS  += $(addsuffix .cmxs,$(CIL_PLUGINS))
+  CILLIB_TARGETS  += $(addsuffix .a,$(CIL_PLUGINS))
   CILLY_EXE_FILES += $(OBJDIR)/src/main.native
 endif
 endif
