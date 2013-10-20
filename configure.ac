@@ -203,4 +203,5 @@ CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
+  Native OCaml CIL libs                          $OCAMLNATDYNLINK
 EOF
