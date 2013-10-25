@@ -430,10 +430,6 @@ and enuminfo = {
       * should always be IInt, but gcc allows other integer kinds *)
 }
 
-(** {b Enumerations.} Information about an enumeration. This is shared by all 
- * references to an enumeration. Make sure you have a [GEnumTag] for each of 
- * of these. *)
-
 (** Information about a defined type *)
 and typeinfo = {
     mutable tname: string;              
