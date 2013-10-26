@@ -12,6 +12,7 @@ WriteMakefile(
     PM                  => {
         'App/'.$Cilly.'.pm'      => '$(INST_LIBDIR)/App/'.$Cilly.'.pm',
         'App/'.$Cilly.'/CilConfig.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/CilConfig.pm',
+        'App/'.$Cilly.'/CilCompiler.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/CilCompiler.pm',
         'App/'.$Cilly.'/KeptFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/KeptFile.pm',
         'App/'.$Cilly.'/OutputFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/OutputFile.pm',
         'App/'.$Cilly.'/TempFile.pm' => '$(INST_LIBDIR)/App/'.$Cilly.'/TempFile.pm',
