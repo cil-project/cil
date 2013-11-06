@@ -286,10 +286,11 @@ clean: $(CILLYDIR)/Makefile
 	$(MAKE) -C $(CILLYDIR) clean
 	rm -f $(CILLYDIR)/App/$(CILLYMOD).pm
 	rm -f $(CILLYDIR)/Makefile.old
+	$(MAKE) -C test clean
 
 .PHONY: test
 test:
-	cd test; ./testcil -r --regrtest
+	cd test; CC=@CC@ ./testcil -r --regrtest
 
 ########################################################################
 
