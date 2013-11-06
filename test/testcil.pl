@@ -16,7 +16,7 @@ use RegTest;
 
 $ENV{LANG} = 'C';
 
-print "Test infrastructure for CIL\n";
+print "Test infrastructure for CIL on $^O\n";
 
 # Create our customized test harness
 my $TEST = CilRegTest->new(AvailParams => { 'RUN' => 1,
@@ -34,7 +34,7 @@ my $inferbox="none";
 my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
 my $solaris = $^O eq 'solaris';
-
+my $freebsd = $^O eq 'freebsd';
 
 # operating modes
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
@@ -47,7 +47,7 @@ my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
 my $manju = $unix && system("hostname | grep manju >/dev/null")==0;
 
 my $make;
-if ($solaris) {
+if ($solaris || $freebsd) {
     $make = "gmake";
 } else {
     $make = "make";
