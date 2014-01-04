@@ -6531,7 +6531,7 @@ and doStatement (s : A.statement) : chunk =
         | None -> begin
             (* Make a temporary variable *)
             let vchunk = createLocal 
-                (intType, NoStorage, false, [])
+                (!upointType, NoStorage, false, [])
                 (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT) 
             in
             if not (isEmpty vchunk) then 
@@ -6547,7 +6547,7 @@ and doStatement (s : A.statement) : chunk =
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);
-            se @@ i2c (Set(var switchv, makeCast e' intType, loc')) @@
+            se @@ i2c (Set(var switchv, makeCast e' !upointType, loc')) @@
             s2c switch
         end
       end
