@@ -61,5 +61,9 @@ let valOf : 'a option -> 'a = function
     None -> raise (Failure "Util.valOf")
   | Some x -> x
 
+let list_map_opt f = function
+  | None -> None
+  | Some l -> Some (list_map f l)
+
 let equals x1 x2 : bool =
   (compare x1 x2) = 0

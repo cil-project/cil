@@ -12,6 +12,9 @@ val memoize: ('a, 'b) Hashtbl.t ->
 (** Get the value of an option.  Raises Failure if None *)
 val valOf : 'a option -> 'a
 
+(* list_map lifted on option type *)
+val list_map_opt : ('a -> 'b) -> 'a list option -> 'b list option
+
 (** This has the semantics of (=) on OCaml 3.07 and earlier.  It can
    handle cyclic values as long as a structure in the cycle has a unique
    name or id in some field that occurs before any fields that have cyclic
