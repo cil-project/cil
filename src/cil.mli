@@ -1109,7 +1109,7 @@ and typsig =
     TSArray of typsig * int64 option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
+  | TSFun of typsig * typsig list option * bool * attribute list
   | TSEnum of string * attribute list
   | TSBase of typ
 

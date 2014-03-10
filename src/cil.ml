@@ -862,7 +862,7 @@ and typsig =
     TSArray of typsig * int64 option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
+  | TSFun of typsig * typsig list option * bool * attribute list
   | TSEnum of string * attribute list
   | TSBase of typ
 
@@ -4824,9 +4824,14 @@ let rec d_typsig () = function
         (if iss then "struct" else "union") name
         d_attrlist al
   | TSFun (rt, args, isva, al) -> 
-      dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
+      dprintf "TSFun(@[%a,@?%a,%B,@?%a@])"
         d_typsig rt
-        (docList ~sep:(chr ',' ++ break) (d_typsig ())) args isva
+        insert
+        (match args with
+        | None -> text "None"
+        | Some args ->
+            docList ~sep:(chr ',' ++ break) (d_typsig ()) () args)
+        isva
         d_attrlist al
   | TSEnum (n, al) -> 
       dprintf "TSEnum(@[%s,@?%a@])"
@@ -5959,9 +5964,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
   | TComp (comp, a) -> 
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> 
-      TSFun(typeSig rt, 
-            Util.list_map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
-            isva, doattr a)
+      TSFun(typeSig rt, (Util.list_map_opt (fun (_, atype, _) -> (typeSig atype)) args), isva, doattr a)
   | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
   | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
 

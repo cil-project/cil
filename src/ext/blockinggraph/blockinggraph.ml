@@ -105,7 +105,7 @@ let myTypeSig (t: typ) : typsig =
     | TSArray (base, e, a) ->
         TSArray (removeFunPtrs base, e, a)
     | TSFun (ret, args, v, a) ->
-        TSFun (removeFunPtrs ret, Util.list_map removeFunPtrs args, v, a)
+        TSFun (removeFunPtrs ret, (Util.list_map_opt removeFunPtrs args), v, a)
     | _ -> ts
   in
   removeFunPtrs (typeSigWithAttrs (fun _ -> []) t)
