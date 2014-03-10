@@ -714,6 +714,7 @@ addTest("testrun/compound1");
 addBadComment("testrun/compound1", "Notbug. Undefined behavior (probably).");
 addTest("testrun/compound2");
 
+addTest("test/shell-escape SHELL_ESCAPE=1");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

@@ -152,6 +152,12 @@ ifdef PROFILE
   CILLY+= -pg
 endif
 
+ifdef SHELL_ESCAPE
+	INCLUDE_DEF := -DSTDIO=<stdio.h>
+	INCLUDE_DEF2 := -DTEST="testharness.h"
+	CFLAGS += "$(INCLUDE_DEF)" '$(INCLUDE_DEF2)'
+endif
+
 # sm: use this instead of "sh ./testit" for those self-tests which can't
 # be made to work on windows; it does nothing, and has no output
 UNIXTESTIT := sh ./testit
