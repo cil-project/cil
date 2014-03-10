@@ -441,12 +441,29 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionFDEC: fundec ref = ref dummyFunDec
 
-  
-let lastStructId = ref 0
-let anonStructName (k: string) (suggested: string) = 
-  incr lastStructId;
-  "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "") 
-  ^ "_" ^ (string_of_int (!lastStructId))
+
+(* Generate unique ids for structs, with a best-effort to base them on the
+ * structure of the type, so that the same anonymous struct in different
+ * compilation units gets the same name - this is important to preserve
+ * compatible types. This is not bullet-proof because we do not
+ * normalize the context at all. *)
+let structIds = ref []
+let newStructId id =
+  assert(id >= 0);
+  let rec find_fresh id max_id = function
+    | [] -> id
+    | x :: xs ->
+        let max' = max x max_id in
+        find_fresh (if id = x then max' + 1 else id) max' xs in
+  let id' = find_fresh id (-1) !structIds in
+  assert(id' >= 0);
+  assert(List.for_all ((<>) id') !structIds);
+  structIds := id' :: !structIds ;
+  id'
+let anonStructName (k: string) (suggested: string) (context: 'a) =
+  let id = newStructId (Hashtbl.hash_param 100 1000 context) in
+  "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "")
+  ^ "_" ^ (string_of_int id)
 
 
 let constrExprId = ref 0
@@ -456,7 +473,7 @@ let startFile () =
   H.clear env;
   H.clear genv;
   H.clear alphaTable;
-  lastStructId := 0
+  structIds := []
 
 
 
@@ -2410,8 +2427,9 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing struct tag on incomplete struct");
         findCompType "struct" n []
     | [A.Tstruct (n, Some nglist, extraAttrs)] -> (* A definition of a struct *)
+      let (specs, names) = List.split nglist in
       let n' =
-        if n <> "" then n else anonStructName "struct" suggestedAnonName in
+        if n <> "" then n else anonStructName "struct" suggestedAnonName specs in
       (* Use the (non-cv, non-name) attributes in !attrs now *)
       let a = extraAttrs @ (getTypeAttrs ()) in
       makeCompType true n' nglist (doAttributes a)
@@ -2420,8 +2438,9 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist, extraAttrs)] -> (* A definition of a union *)
+        let (specs, names) = List.split nglist in
         let n' =
-          if n <> "" then n else anonStructName "union" suggestedAnonName in
+          if n <> "" then n else anonStructName "union" suggestedAnonName specs in
         (* Use the attributes now *)
         let a = extraAttrs @ (getTypeAttrs ()) in
         makeCompType false n' nglist (doAttributes a)
@@ -2431,8 +2450,13 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         findCompType "enum" n []
 
     | [A.Tenum (n, Some eil, extraAttrs)] -> (* A definition of an enum *)
+        let rec justNames eil = match eil with
+            [] -> []
+          | (str, expr, loc) :: eis -> str :: justNames eis
+        in
+        let names = justNames eil in
         let n' =
-          if n <> "" then n else anonStructName "enum" suggestedAnonName in
+          if n <> "" then n else anonStructName "enum" suggestedAnonName names in
         (* make a new name for this enumeration *)
         let n'', _  = newAlphaName true "enum" n' in
 
