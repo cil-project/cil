@@ -495,6 +495,9 @@ addTest("testrun/voidarg ");
 addTest("testrun/union2 ");
 addTest("testrun/union3 ");
 addTest("test/union5 ");
+addTest("testrun/union6 ");
+addBadComment("testrun/union6",
+  "Bug. Unsupported C11 implicit initialization of union padding.");
 addTest("runall/extinline ");
 
 addTest("testrun/rmtmps-attr ");
