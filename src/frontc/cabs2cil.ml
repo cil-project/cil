@@ -6525,7 +6525,7 @@ and doStatement (s : A.statement) : chunk =
         match !gotoTargetData with
           Some (switchv, switch) -> (* We have already generated this one  *)
             se 
-            @@ i2c(Set (var switchv, makeCast e' intType, loc'))
+            @@ i2c(Set (var switchv, makeCast e' !upointType, loc'))
             @@ s2c(mkStmt(Goto (ref switch, loc')))
 
         | None -> begin
