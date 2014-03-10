@@ -26,4 +26,4 @@ opam install ${OPAM_DEPENDS}
 eval `opam config env`
 ./configure
 make
-make test
+make test VERBOSE=1
