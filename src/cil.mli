@@ -1347,7 +1347,7 @@ val doubleType: typ
  *  and is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
-(** An unsigned integer type that fits pointer difference. Depends on
+(** An signed integer type that fits pointer difference. Depends on
  *  {!Cil.msvcMode} and is set when you call {!Cil.initCIL}. *)
 val ptrdiffType: typ ref
 
