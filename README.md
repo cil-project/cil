@@ -21,7 +21,7 @@ Install the latest release of CIL with [opam][]:
 Read the excellent [CIL tutorial][tuto] by Zachary Anderson, and
 check out the accompanying [project template][template].
 
-[tuto]: http://www.inf.ethz.ch/personal/azachary/teaching/ciltut.pdf
+[tuto]: https://bitbucket.org/zanderso/cil-template/downloads/ciltut.pdf
 [template]: https://bitbucket.org/zanderso/cil-template
 
 Installation
