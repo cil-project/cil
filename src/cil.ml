@@ -6377,6 +6377,19 @@ let uniqueVarNames (f: file) : unit =
   ()
           
 
+(* We want to use physical equality to index statements in hashtable;
+ * this works because statements are records with mutable fields.
+ * Note that if you have a huge function with many statements that are
+ * structurally equal, this might yield very poor performance (they will
+ * all be physically equal, but in the same bucket), and even cause stack
+ * overflows. To work-around this unlikely bug, one may call computeCFG
+ * before copyFunction, so that statements differ at least by stmt.sid. *)
+module HPhys = Hashtbl.Make(struct
+    type t = stmt
+    let equal = (==)
+    let hash = Hashtbl.hash
+end)
+
 (* A visitor that makes a deep copy of a function body *)
 class copyFunctionVisitor (newname: string) = object (self)
   inherit nopCilVisitor
@@ -6384,10 +6397,10 @@ class copyFunctionVisitor (newname: string) = object (self)
       (* Keep here a maping from locals to their copies *)
   val map : (string, varinfo) H.t = H.create 113 
       (* Keep here a maping from statements to their copies *)
-  val stmtmap : (int, stmt) H.t = H.create 113
-  val sid = ref 0 (* Will have to assign ids to statements *)
+  val stmtmap : stmt HPhys.t = HPhys.create 113
       (* Keep here a list of statements to be patched *)
-  val patches : stmt list ref = ref []
+  val stmtPatches : stmt list ref = ref []
+  val exprPatches : exp list ref = ref []
 
   val argid = ref 0
 
@@ -6402,27 +6415,35 @@ class copyFunctionVisitor (newname: string) = object (self)
       (* Change the name. Only this late to allow the visitor to copy the 
        * svar  *)
       f'.svar.vname <- newname;
-      let findStmt (i: int) = 
-        try H.find stmtmap i 
-        with Not_found -> E.s (bug "Cannot find the copy of stmt#%d" i)
+      let findStmt (s: stmt) =
+        try HPhys.find stmtmap s
+        with Not_found -> E.s (bug "Cannot find the copy of stmt#%a" dn_stmt s)
       in
       let patchstmt (s: stmt) = 
         match s.skind with
           Goto (sr, l) -> 
             (* Make a copy of the reference *)
-            let sr' = ref (findStmt !sr.sid) in
+            let sr' = ref (findStmt !sr) in
             s.skind <- Goto (sr',l)
         | Switch (e, body, cases, l) -> 
             s.skind <- Switch (e, body, 
-                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs) cases, l)
         | _ -> ()
       in
-      List.iter patchstmt !patches;
+      let patchexpr = function
+        | AddrOfLabel sr ->
+            (* we have already made a copy of the reference during the
+             * first pass for expressions; only need to update it. *)
+            sr := findStmt !sr
+        | _ -> ()
+      in
+      List.iter patchstmt !stmtPatches;
+      List.iter patchexpr !exprPatches;
       f'
     in
-    patches := [];
-    sid := 0;
-    H.clear stmtmap;
+    stmtPatches := [];
+    exprPatches := [];
+    HPhys.clear stmtmap;
     ChangeDoChildrenPost (f', patchfunction)
     
       (* We must create a new varinfo for each declaration. Memoize to 
@@ -6451,12 +6472,11 @@ class copyFunctionVisitor (newname: string) = object (self)
 
         (* Replace statements. *)
   method vstmt (s: stmt) : stmt visitAction = 
-    s.sid <- !sid; incr sid;
-    let s' = {s with sid = s.sid} in
-    H.add stmtmap s.sid s'; (* Remember where we copied this *)
+    let s' = {s with sid = -1; succs = []; preds = [] } in
+    HPhys.add stmtmap s s'; (* Remember where we copied this *)
     (* if we have a Goto or a Switch remember them to fixup at end *)
     (match s'.skind with
-      (Goto _ | Switch _) -> patches := s' :: !patches
+      (Goto _ | Switch _) -> stmtPatches := s' :: !stmtPatches
     | _ -> ());
     (* Do the children *)
     ChangeDoChildrenPost (s', fun x -> x)
@@ -6465,6 +6485,15 @@ class copyFunctionVisitor (newname: string) = object (self)
   method vblock (b: block) = 
     ChangeDoChildrenPost ({b with bstmts = b.bstmts}, fun x -> x)
 
+
+  method vexpr = function
+      (* Copy references to statements in AddrOfLabel, and remember it
+       * to fix it up at the end. *)
+    | AddrOfLabel sr ->
+        let e = AddrOfLabel (ref !sr) in
+        exprPatches := e :: !exprPatches;
+        ChangeTo e
+    | _ -> DoChildren
 
   method vglob _ = E.s (bug "copyFunction should not be used on globals")
 end
