@@ -3,19 +3,12 @@ module E = Errormsg
 module H = Hashtbl
 module IH = Inthash
 
-let rec list_rev_append revxs ys =
-  begin match revxs with
-  | [] -> ys
-  | x::xs -> list_rev_append xs (x::ys)
-  end
-;;
-
 (* tail-recursive append: reverses xs twice *)
 let list_append (xs: 'a list) (ys: 'a list): 'a list =
   match xs with (* optimize some common cases *)
       [] -> ys
     | [x] -> x::ys
-    | _ -> list_rev_append (List.rev xs) ys
+    | _ -> List.rev_append (List.rev xs) ys
 
 let list_array_map f l =
   Array.to_list (Array.map f (Array.of_list l))
