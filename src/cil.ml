@@ -3972,7 +3972,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | GEnumTagDecl (enum, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
-          text ("enum " ^ enum.ename ^ ";\n")
+          text "enum " ++ text enum.ename ++ chr ' '
+          ++ self#pAttrs () enum.eattr ++ text ";\n"
 
     | GCompTag (comp, l) -> (* This is a definition of a tag *)
         let n = comp.cname in
@@ -3992,8 +3993,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           (self#pAttrs () rest_attr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
-        self#pLineDirective l ++
-          text (compFullName comp) ++ text ";\n"
+        let su = if comp.cstruct then "struct " else "union " in
+        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
+        self#pLineDirective l
+          ++ text su ++ self#pAttrs () sto_mod
+          ++ text comp.cname ++ chr ' '
+          ++ self#pAttrs () rest_attr ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
