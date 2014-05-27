@@ -5113,7 +5113,7 @@ let doVisit (vis: cilVisitor)
 let mapNoCopy (f: 'a -> 'a) l =
   let rec aux acc changed = function
     [] -> if changed then List.rev acc else l
-  | (i :: resti) as li -> 
+  | i :: resti -> 
       let i' = f i in
       aux (i' :: acc) (changed || i != i') resti
   in aux [] false l
@@ -5121,7 +5121,7 @@ let mapNoCopy (f: 'a -> 'a) l =
 let rec mapNoCopyList (f: 'a -> 'a list) l =
   let rec aux acc changed = function
     [] -> if changed then List.rev acc else l
-  | (i :: resti) as li -> 
+  | i :: resti -> 
       let il' = f i in
       let has_changed =
         match il' with
