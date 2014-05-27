@@ -5110,21 +5110,25 @@ let doVisit (vis: cilVisitor)
 
 (* mapNoCopy is like map but avoid copying the list if the function does not 
  * change the elements. *)
-let rec mapNoCopy (f: 'a -> 'a) = function
-    [] -> []
+let mapNoCopy (f: 'a -> 'a) l =
+  let rec aux acc changed = function
+    [] -> if changed then List.rev acc else l
   | (i :: resti) as li -> 
       let i' = f i in
-      let resti' = mapNoCopy f resti in
-      if i' != i || resti' != resti then i' :: resti' else li 
+      aux (i' :: acc) (changed || i != i') resti
+  in aux [] false l
 
-let rec mapNoCopyList (f: 'a -> 'a list) = function
-    [] -> []
+let rec mapNoCopyList (f: 'a -> 'a list) l =
+  let rec aux acc changed = function
+    [] -> if changed then List.rev acc else l
   | (i :: resti) as li -> 
       let il' = f i in
-      let resti' = mapNoCopyList f resti in
-      match il' with
-        [i'] when i' == i && resti' == resti -> li
-      | _ -> il' @ resti'
+      let has_changed =
+        match il' with
+          [i'] when i' == i -> false
+        | _ -> true in
+      aux (List.rev_append il' acc) (changed || has_changed) resti
+  in aux [] false l
 
 (* A visitor for lists *)
 let doVisitList  (vis: cilVisitor)
