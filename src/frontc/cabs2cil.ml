@@ -6243,29 +6243,11 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
     if nattr <> [] then
       ignore (warn "Ignoring identifier attribute");
            (* doSpec will register the type. *)
-    (* See if we are defining a composite or enumeration type, and in that 
-     * case move the attributes from the defined type into the composite type 
-     * *)
-    let isadef = 
-      List.exists 
-        (function 
-            A.SpecType(A.Tstruct(_, Some _, _)) -> true
-          | A.SpecType(A.Tunion(_, Some _, _)) -> true
-          | A.SpecType(A.Tenum(_, Some _, _)) -> true
-          | _ -> false) specs
-    in
     match restyp with 
       TComp(ci, al) -> 
-        if isadef then begin
           ci.cattr <- cabsAddAttributes ci.cattr al; 
-          (* The GCompTag was already added *)
-        end else (* Add a GCompTagDecl *)
-          cabsPushGlobal (GCompTagDecl(ci, !currentLoc))
     | TEnum(ei, al) -> 
-        if isadef then begin
           ei.eattr <- cabsAddAttributes ei.eattr al;
-        end else
-          cabsPushGlobal (GEnumTagDecl(ei, !currentLoc))
     | _ -> 
         ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type")
             
