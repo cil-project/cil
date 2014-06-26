@@ -327,6 +327,10 @@ let cached_aliases : (int * int,unit) H.t = H.create 64
 (** A hashtable mapping pairs of tau's to their join node. *)
 let join_cache : (int * int, tau) H.t = H.create 64
 
+let fresh_appsite, reset_appsite = Util.make_counter ()
+let fresh_index, reset_index = Util.make_counter ()
+let fresh_stamp, reset_stamp = Util.make_counter ()
+
 (***********************************************************************)
 (*                                                                     *)
 (* Utility Functions                                                   *)
@@ -339,24 +343,6 @@ let die s =
   Printf.printf "*******\nAssertion failed: %s\n*******\n" s;
   assert false
 
-let fresh_appsite : (unit -> int) =
-  let appsite_index = ref 0 in
-    fun () ->
-      incr appsite_index;
-      !appsite_index
-
-(** Generate a unique integer. *)
-let fresh_index : (unit -> int) =
-  let counter = ref 0 in
-    fun () ->
-      incr counter;
-      !counter
-
-let fresh_stamp : (unit -> int) =
-  let stamp = ref 0 in
-    fun () ->
-      incr stamp;
-      !stamp
 
 (** Return a unique integer representation of a tau *)
 let get_stamp (t : tau) : int =

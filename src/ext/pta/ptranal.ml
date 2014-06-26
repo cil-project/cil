@@ -97,11 +97,7 @@ let expressions : (exp,A.tau) H.t = H.create 64
 
 let lvalues : (lval,A.lvalue) H.t = H.create 64
 
-let fresh_index : (unit -> int) =
-  let count = ref 0 in
-    fun () ->
-      incr count;
-      !count
+let fresh_index, reset_index = Util.make_counter ()
 
 let alloc_names = [
   "malloc";

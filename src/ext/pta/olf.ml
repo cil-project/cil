@@ -229,9 +229,10 @@ let cached_aliases : (int * int, unit) H.t = H.create 64
 (** A hashtable mapping pairs of tau's to their join node. *)
 let join_cache : (int * int, tau) H.t = H.create 64
 
-(** *)
 let label_prefix = "l_"
 
+let fresh_index, reset_index = Util.make_counter ()
+let fresh_stamp, reset_stamp = Util.make_counter ()
 
 (***********************************************************************)
 (*                                                                     *)
@@ -273,19 +274,6 @@ let rec keep_until p l =
       [] -> []
     | x :: xs -> if p x then [x] else x :: keep_until p xs
 
-
-(** Generate a unique integer. *)
-let fresh_index : (unit -> int) =
-  let counter = ref 0 in
-    fun () ->
-      incr counter;
-      !counter
-
-let fresh_stamp : (unit -> int) =
-  let stamp = ref 0 in
-    fun () ->
-      incr stamp;
-      !stamp
 
 (** Return a unique integer representation of a tau *)
 let get_stamp (t : tau) : int =
