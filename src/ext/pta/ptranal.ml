@@ -423,11 +423,6 @@ let resolve_funptr (e : exp) : fundec list =
       []
       varinfos
 
-let count_hash_elts h =
-  let result = ref 0 in
-    H.iter (fun _ -> fun _ -> incr result) lvalue_hash;
-    !result
-
 let compute_may_aliases (b : bool) : unit =
   let rec compute_may_aliases_aux (exps : exp list) =
     match exps with
@@ -435,9 +430,8 @@ let compute_may_aliases (b : bool) : unit =
       | h :: t ->
           ignore (Util.list_map (may_alias h) t);
           compute_may_aliases_aux t
-  and exprs : exp list ref = ref [] in
-    H.iter (fun e -> fun _ -> exprs := e :: !exprs) expressions;
-    compute_may_aliases_aux !exprs
+  and exprs = H.fold (fun e _ acc -> e :: acc) expressions [] in
+    compute_may_aliases_aux exprs
 
 
 let compute_results (show_sets : bool) : unit =
