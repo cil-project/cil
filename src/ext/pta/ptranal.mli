@@ -88,6 +88,9 @@ val initialize: unit -> unit
 (** Analyze a file *)
 val analyze_file : Cil.file -> unit
 
+(** Analyze a global *)
+val analyze_global : Cil.global -> unit
+
 (** Print the type of each lvalue in the program *)
 val print_types : unit -> unit
 
