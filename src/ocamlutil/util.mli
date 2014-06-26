@@ -20,3 +20,8 @@ val list_map_opt : ('a -> 'b) -> 'a list option -> 'b list option
    name or id in some field that occurs before any fields that have cyclic
    pointers. *)
 val equals: 'a -> 'a -> bool
+
+(** [make_counter ()] returns two functions: the first one increments a
+ * counter (initialized to 0) and returns its new value; the second one
+ * resets the counter to 0. *)
+val make_counter : unit -> (unit -> int) * (unit -> unit)

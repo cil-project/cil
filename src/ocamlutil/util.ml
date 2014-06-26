@@ -60,3 +60,8 @@ let list_map_opt f = function
 
 let equals x1 x2 : bool =
   (compare x1 x2) = 0
+
+let make_counter () =
+  let c = ref 0 in
+  (fun () -> incr c; !c),
+  (fun () -> c := 0)
