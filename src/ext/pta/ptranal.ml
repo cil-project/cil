@@ -119,6 +119,22 @@ let callHasNoSideEffects : (exp -> bool) ref =
 let all_globals : varinfo list ref = ref []
 let all_functions : fundec list ref = ref []
 
+let initialize () = begin
+   A.initialize ();
+   found_undefined := false;
+   current_fundec := None;
+   Hashtbl.clear fun_access_map;
+   fun_varinfo_map := F.empty;
+   current_ret := None;
+   Hashtbl.clear lvalue_hash;
+   Hashtbl.clear expressions;
+   Hashtbl.clear lvalues;
+   all_globals  := [];
+   all_functions := [];
+   reset_index ();
+end
+
+
 
 (***********************************************************************)
 (*                                                                     *)

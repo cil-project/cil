@@ -81,6 +81,10 @@ val callHasNoSideEffects : (Cil.exp -> bool) ref
 (*                                                                     *)
 (***********************************************************************)
 
+(** Reset global variables used internally by Ptranal. Must be called before
+each analysis. *)
+val initialize: unit -> unit
+
 (** Analyze a file *)
 val analyze_file : Cil.file -> unit
 

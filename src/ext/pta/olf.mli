@@ -50,6 +50,7 @@ val print_constraints : bool ref
 val no_flow : bool ref
 val no_sub : bool ref
 val analyze_mono : bool ref
+val initialize : unit -> unit
 val solve_constraints : unit -> unit (* only for compatability with Golf *)
 val rvalue : lvalue -> tau
 val deref : tau -> lvalue

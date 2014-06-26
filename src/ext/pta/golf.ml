@@ -331,6 +331,19 @@ let fresh_appsite, reset_appsite = Util.make_counter ()
 let fresh_index, reset_index = Util.make_counter ()
 let fresh_stamp, reset_stamp = Util.make_counter ()
 
+let initialize () = begin
+   Q.clear eq_worklist;
+   Q.clear leq_worklist;
+   Q.clear path_worklist;
+   PH.clear path_hash;
+   toplev_count := 0;
+   H.clear cached_aliases;
+   H.clear join_cache;
+   reset_appsite ();
+   reset_index ();
+   reset_stamp ();
+end
+
 (***********************************************************************)
 (*                                                                     *)
 (* Utility Functions                                                   *)
