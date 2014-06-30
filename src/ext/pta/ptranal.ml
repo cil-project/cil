@@ -42,7 +42,19 @@ open Feature
 
 module H = Hashtbl
 
-module A = Olf
+(* The module A is Golf by default, but can optionally be changed to Olf
+ * with a command-line switch. We need to by-pass fd_extraopt and parse
+ * the command-line directly because, for type-checking reasons, the
+ * module must be chosen at load time. *)
+let olf_backend = ref false
+let olf_option =
+  ["--ptr_use_olf", Arg.Set olf_backend, " use Olf instead of Golf analysis"]
+
+module type OLF = module type of Olf
+module A =
+  (val (Util.parse_argv_skip_unknown olf_option ignore;
+    if !olf_backend then (module Olf) else (module Golf)): OLF)
+
 exception UnknownLocation = A.UnknownLocation
 
 type access = A.lvalue * bool
@@ -579,23 +591,21 @@ let feature = {
   fd_enabled = false;
   fd_description = "alias analysis";
   fd_extraopt = [
-    ("--ptr_may_aliases",
-     Arg.Unit (fun _ -> debug_may_aliases := true),
+    ("--ptr_may_aliases", Arg.Set debug_may_aliases,
      " Print out results of may alias queries");
-    ("--ptr_unify", Arg.Unit (fun _ -> no_sub := true),
+    ("--ptr_unify", Arg.Set no_sub,
      " Make the alias analysis unification-based");
-    ("--ptr_model_strings", Arg.Unit (fun _ -> model_strings := true),
+    ("--ptr_model_strings", Arg.Set model_strings,
      " Make the alias analysis model string constants");
-    ("--ptr_conservative",
-     Arg.Unit (fun _ -> conservative_undefineds := true),
+    ("--ptr_conservative", Arg.Set conservative_undefineds,
      " Treat undefineds conservatively in alias analysis");
-    ("--ptr_results", Arg.Unit (fun _ -> ptrResults := true),
+    ("--ptr_results", Arg.Set ptrResults,
      " print the results of the alias analysis");
-    ("--ptr_mono", Arg.Unit (fun _ -> analyze_mono := true),
+    ("--ptr_mono", Arg.Set analyze_mono,
      " run alias analysis monomorphically");
-    ("--ptr_types",Arg.Unit (fun _ -> ptrTypes := true),
+    ("--ptr_types",Arg.Set ptrTypes,
      " print inferred points-to analysis types")
-  ];
+  ] @ olf_option ;
   fd_doit = (function (f: file) ->
                analyze_file f;
                compute_results !ptrResults;
