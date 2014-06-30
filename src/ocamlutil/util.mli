@@ -25,3 +25,8 @@ val equals: 'a -> 'a -> bool
  * counter (initialized to 0) and returns its new value; the second one
  * resets the counter to 0. *)
 val make_counter : unit -> (unit -> int) * (unit -> unit)
+
+(** Same as {!Arg.parse} except it skips every unknown option, and
+ * disables [-help] and [--help]. *)
+val parse_argv_skip_unknown : (Arg.key * Arg.spec * Arg.doc) list ->
+  Arg.anon_fun -> unit

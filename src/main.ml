@@ -60,7 +60,7 @@ let parseOneFile (fname: string) : C.file =
   if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
   
-  if (not (Feature.enabled "epicenter")) then (
+  if (not (Fe.enabled "epicenter")) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
     (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
@@ -101,7 +101,7 @@ let rec processOneFile (cil: C.file) =
             end
           end
         end)
-      (Feature.list_registered ());
+      (Fe.list_registered ());
 
 
     (match !outChannel with
@@ -133,10 +133,13 @@ let theMain () =
    * wants these suppressed *)
   C.print_CIL_Input := true;
 
-  (* Load plugins. This needs to be done before command-line arguments are
-   * built. *)
-  Feature.loadFromEnv "CIL_FEATURES" ["cil.default-features"];
-  Feature.loadFromArgv "--load";
+  (* Load plugins from environment and command-line. This needs to be
+   * done before command-line arguments are built. *)
+  let env_plugins =
+    try Str.split (Str.regexp "[ ,]+") (Sys.getenv "CIL_FEATURES")
+    with Not_found -> ["cil.default-features"] in
+  List.iter Fe.loadWithDeps env_plugins;
+  Util.parse_argv_skip_unknown ["--load", Arg.String Fe.loadWithDeps, ""] ignore;
 
 
   (*********** COMMAND LINE ARGUMENTS *****************)
@@ -158,11 +161,11 @@ let theMain () =
            " Enable " ^ fdesc.Fe.fd_description) ::
           fdesc.Fe.fd_extraopt @ acc
       )
-      (Feature.list_registered ())
+      (Fe.list_registered ())
       [blankLine]
   in
   let featureArgs = 
-    if Feature.list_registered () = [] then [] else
+    if Fe.list_registered () = [] then [] else
     ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs 
   in
     

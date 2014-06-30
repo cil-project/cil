@@ -65,3 +65,11 @@ let make_counter () =
   let c = ref 0 in
   (fun () -> incr c; !c),
   (fun () -> c := 0)
+
+let parse_argv_skip_unknown speclist anon_fun =
+  let idx = ref 0 in
+  let rec parse () =
+    try
+      Arg.parse_argv ~current:idx Sys.argv speclist anon_fun ""
+    with Arg.Bad _ | Arg.Help _ -> parse ()
+  in parse ()

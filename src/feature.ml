@@ -130,25 +130,6 @@ let add_plugin path =
 
 (** Look for plugin and depencies and add them *)
 let loadWithDeps s =
+  init ();
   let paths = find_plugin s in
   List.iter add_plugin paths
-
-(** Parse only {switch} command-line option, ignoring every error raised by other, unparsed
- * options. Return the list of plugins to load. *)
-let loadFromArgv switch =
-  let spec = [
-    switch, Arg.String loadWithDeps, "";
-    (* ignore --help at this stage *)
-    "--help", Arg.Unit ignore, ""; "-help", Arg.Unit ignore, "" ] in
-  let idx = ref 0 in
-  let rec aux () =
-    try
-      Arg.parse_argv ~current:idx Sys.argv spec ignore ""
-    with Arg.Bad _ | Arg.Help _ -> aux ()
-  in init (); aux ()
-
-let loadFromEnv name default =
-  let plugins =
-    try Str.split (Str.regexp "[ ,]+") (Sys.getenv name)
-    with Not_found -> default in
-  List.iter loadWithDeps plugins
