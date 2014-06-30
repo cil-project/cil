@@ -53,7 +53,7 @@ let olf_option =
 module type OLF = module type of Olf
 module A =
   (val (Util.parse_argv_skip_unknown olf_option ignore;
-    if !olf_backend then (module Olf) else (module Golf)): OLF)
+    if !olf_backend then (module Olf : OLF) else (module Golf : OLF)): OLF)
 
 exception UnknownLocation = A.UnknownLocation
 
