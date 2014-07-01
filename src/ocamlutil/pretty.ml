@@ -636,18 +636,11 @@ let sprint ~(width : int)  doc : string =
 external format_int: string -> int -> string = "caml_format_int"
 external format_float: string -> float -> string = "caml_format_float"
 
-(* Internal representation of format has changed in 4.02. It used to be
- * the raw format string, but it is now a pair, the second member of
- * which is the format string *)
-let unsafe_format_to_string (fmt : ('a,'b,'c,'d) format4) : string =
-  match Util.ocaml_major_version, Util.ocaml_minor_version with
-  | (maj, min) when maj < 4 || (maj = 4 && min < 2) -> Obj.magic fmt
-  | _ -> Obj.obj (Obj.field (Obj.repr fmt) 1)
 
+    
 let gprintf (finish : doc -> 'b)  
             (format : ('a, unit, doc, 'b) format4) : 'a =
-
-  let (format:string) = unsafe_format_to_string format in
+  let format = string_of_format format in
 
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in

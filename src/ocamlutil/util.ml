@@ -1,3 +1,8 @@
+(** Utility functions for Coolaid *)
+module E = Errormsg
+module H = Hashtbl
+module IH = Inthash
+
 (* tail-recursive append: reverses xs twice *)
 let list_append (xs: 'a list) (ys: 'a list): 'a list =
   match xs with (* optimize some common cases *)
@@ -55,6 +60,3 @@ let list_map_opt f = function
 
 let equals x1 x2 : bool =
   (compare x1 x2) = 0
-
-let (ocaml_major_version,ocaml_minor_version) =
-  Scanf.sscanf Sys.ocaml_version "%d.%d" (fun x y -> (x,y))

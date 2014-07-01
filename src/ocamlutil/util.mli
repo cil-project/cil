@@ -20,7 +20,3 @@ val list_map_opt : ('a -> 'b) -> 'a list option -> 'b list option
    name or id in some field that occurs before any fields that have cyclic
    pointers. *)
 val equals: 'a -> 'a -> bool
-
-(** Convenient access to components of Sys.ocaml_version. *)
-val ocaml_major_version: int
-val ocaml_minor_version: int
