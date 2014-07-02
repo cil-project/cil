@@ -1392,7 +1392,7 @@ let attributeHash: (string, attributeClass) H.t =
 
   List.iter (fun a -> H.add table a (AttrFunType false))
     [ "format"; "regparm"; "longcall"; 
-      "noinline"; "always_inline"; "leaf";
+      "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
