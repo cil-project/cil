@@ -124,9 +124,8 @@ let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
                (syn: (string, 'a node) H.t) (* The synonyms table *)
                (fidx: int) (name: string) (data: 'a) 
                (l: (location * int) option) = 
-  let res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
-              nrep  = Obj.magic 1; nmergedSyns = false; } in
-  res.nrep <- res; (* Make the self cycle *)
+  let rec res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
+              nrep  = res; nmergedSyns = false; } in
   H.add eq (fidx, name) res; (* Add it to the proper table *)
   if mergeSynonyms && not (prefix "__anon" name) then 
     H.add syn name res; 
