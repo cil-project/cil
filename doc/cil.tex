@@ -1953,12 +1953,18 @@ The analyses have the following characteristics:
 
 The analysis itself is factored into two components: \t{Ptranal},
 which walks over the CIL file and generates constraints, and \t{Olf}
-or \t{Golf}, which solve the constraints.  The analysis is invoked
-with the function \t{Ptranal.analyze\_file: Cil.file ->
-  unit}.  This function builds the points-to graph for the CIL file
-and stores it internally.  There is currently no facility for clearing
-internal state, so \t{Ptranal.analyze\_file} should only be called
-once.
+or \t{Golf}, which solve the constraints.
+
+The analysis is invoked with the function \t{Ptranal.analyze\_file:
+ Cil.file -> unit}.  This function builds the points-to graph for the
+CIL file and stores it internally.  (There is currently no facility
+for clearing internal state, so \t{Ptranal.analyze\_file} should only
+be called once.)  After building the points-to graph the result
+database must be built with a call to \t{Ptranal.compute\_results: bool ref -> unit}.
+This will essentially serialize the points-to graph.  If invoked with \t{true}, the
+function will print out the points-to set of each variable in the
+file, which is useful for debugging.
+
 
 %%% Interface for querying the points-to graph...
 The constructed points-to graph supports several kinds of queries,
@@ -2040,10 +2046,6 @@ the results of the analysis.
   \t{true}, this output is sufficient to reconstruct the points-to
   graph.  One nice feature is that there is a pretty printer for
   recursive types, so the print routine does not loop.
-\item \t{Ptranal.compute\_results: bool ref}.
-  If \t{true}, the analysis will print out the points-to set of each
-  variable in the program.  This will essentially serialize the
-  points-to graph.
 \end{itemize}
 
 \subsection{StackGuard}
