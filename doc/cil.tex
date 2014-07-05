@@ -1935,15 +1935,14 @@ before invoking the Dataflow module.
 \subsection{Points-to Analysis}
 
 The module \t{ptranal.ml} contains two interprocedural points-to
-analyses for CIL: \t{Olf} and \t{Golf}.  \t{Olf} is the default.
-(Switching from \t{olf.ml} to \t{golf.ml} requires a change in
-\t{Ptranal} and a recompiling \t{cilly}.)
+analyses for CIL: \t{Olf} and \t{Golf}.  \t{Golf} is the default.
+Switch to \t{Olf} with {\bf -{}-ptr\_use\_olf}.
 
 The analyses have the following characteristics:
 \begin{itemize}
 \item Not based on C types (inferred pointer relationships are sound
   despite most kinds of C casts)
-\item One level of subtyping 
+\item One level of subtyping
 \item One level of context sensitivity (Golf only)
 \item Monomorphic type structures
 \item Field insensitive (fields of structs are conflated)
@@ -1992,6 +1991,10 @@ The precision of the analysis can be customized by changing the values
 of several flags:
 
 \begin{itemize}
+\item \t{Ptranal.olf\_backend: bool ref}.
+  If \t{true}, module \t{Olf} performs the analysis.  The default is
+  \t{false} and module \t{Golf} is used.  Associated commandline option:
+  {\bf -{}-ptr\_use\_olf}.
 \item \t{Ptranal.no\_sub: bool ref}.
   If \t{true}, subtyping is disabled.  Associated commandline option:
   {\bf -{}-ptr\_unify}.
