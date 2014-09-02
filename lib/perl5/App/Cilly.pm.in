@@ -96,7 +96,7 @@ sub new {
     my $self = bless $ref, $class;
 
     if(! @args) {
-        print "No arguments passed\n";
+        print STDERR "No arguments passed\n";
         $self->printHelp();
         exit 0;
     }
@@ -199,7 +199,7 @@ sub collectArgumentList {
 #
 #        my $arg = shift @args; # Grab the next one
         if(! $self->collectOneArgument($arg, \@args)) {
-            print "Warning: Unknown argument $arg\n";
+            if (! $arg eq "-") { print STDERR "Warning: Unknown argument $arg\n"; }
             push @{$self->{CCARGS}}, $arg;
         }
     }
@@ -318,7 +318,7 @@ sub collectOneArgument {
                 } else {
                     push @respArgs, $middle;
                 }
-#                print "Arg:$middle\n";
+#                print STDERR "Arg:$middle\n";
             }
         }
         close(RF) or die;
@@ -541,25 +541,38 @@ sub preprocess_compile {
     &mydebug("preprocess_compile(src=$src, dest=$dest)\n");
     Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
 
-    my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
-    if($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc") {
-        if($self->leaveAlone($src)) {
-            print "Leaving alone $src\n";
-            # We leave this alone. So just compile as usual
-            return $self->straight_compile($src, $dest, [@{$early_ppargs}, @{$ppargs}], $ccargs);
-        }
-        my $out    = $self->preprocessOutputFile($src);
-        $out = $self->preprocess($src, $out, 
-                                 [@{$early_ppargs}, @{$ppargs},
-                                  "$self->{DEFARG}CIL=1"]);
-        return $self->compile($out, $dest, $ppargs, $ccargs);
+    if (! $src eq "-") {
+      my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
+      # check that they're sane
+      die "preprocess_compile requires an unpreprocessed source file! got $src\n"
+         unless ($ext eq ".c" || $ext eq ".cpp" || $ext eq ".cc");
     }
-    if($ext eq ".i") {
-        return $self->compile($src, $dest, $ppargs, $ccargs);
+
+    if($self->leaveAlone($src)) {
+        print STDERR "Leaving alone $src\n";
+        # We leave this alone. So just compile as usual
+        return $self->straight_compile($src, $dest, [@{$early_ppargs}, @{$ppargs}], $ccargs);
     }
-    if($ext eq ".$::cilbin") {
-        return $self->compile($src, $dest, $ppargs, $ccargs);
+    my $out    = $self->preprocessOutputFile($src);
+    $out = $self->preprocess($src, $out,
+                             [@{$early_ppargs}, @{$ppargs},
+                              "$self->{DEFARG}CIL=1"]);
+    return $self->compile($out, $dest, $ppargs, $ccargs);
+}
+
+sub compile_nopp {
+    my ($self, $src, $dest, $early_ppargs, $ppargs, $ccargs) = @_;
+    &mydebug("compile_nopp(src=$src, dest=$dest)\n");
+    Carp::confess "bad dest: $dest" unless $dest->isa('App::Cilly::OutputFile');
+
+    if (! $src eq "-") {
+      my ($base, $dir, $ext) = fileparse($src, "\\.[^.]+");
+      # check that they're sane
+      die "compile_nopp requires a preprocessed source file! got $src\n"
+         unless ($ext eq ".i" || $ext eq ".$::cilbin");
     }
+
+    return $self->compile($src, $dest, $ppargs, $ccargs);
 }
 
 # THIS IS THE ENTRY POINT FOR JUST PREPROCESSING A FILE
@@ -785,7 +798,7 @@ sub expandLibraries {
     my @tolink1 = ();
     while($#tolink >= 0) {
         my $src = shift @tolink;
-#        print "Looking at $src\n";
+#        print STDERR "Looking at $src\n";
         # See if the source is a library. Then maybe we should get instead the 
         # list of files
         if($src =~ m|\.$self->{LIBEXT}$| && -f "$src.files") {
@@ -814,7 +827,7 @@ sub separateTrueObjects {
     my ($self, $psrcs, $ccargs) = @_;
 
     my @sources = @{$psrcs};
-#    print "Sources are @sources\n";
+#    print STDERR "Sources are @sources\n";
     my @tomerge = ();
     my @othersources = ();
 
@@ -1095,8 +1108,8 @@ sub doit {
     # we can go ahead with the compilation, without having to save 
     # files
     if(! $self->{SEPARATE} && # Not already separate mode
-       $self->{OPERATION} eq "TOEXE" &&  # We are linking to an executable
-       @{$self->{CFILES}} + @{$self->{IFILES}} <= 1) { # At most one source
+       @{$self->{CFILES}} + @{$self->{IFILES}} <= 1 &&  # At most one source
+       ($self->{OPERATION} eq "TOEXE" || defined $self->{OUTARG})) {  # We are linking to an executable
         # If we have object files, we should keep merging if at least one 
         # object file is a disguised source
         my $turnOffMerging = 0;
@@ -1117,12 +1130,18 @@ sub doit {
         }
     }
 
-    # Turn everything into OBJ files
+    # Turn everything into OBJ files (or assembly, if the user asked for that)
     my @tolink = ();
-
-    foreach $file (@{$self->{IFILES}}, @{$self->{CFILES}}) {
+    foreach $file (@{$self->{CFILES}}) {
         $out = $self->compileOutputFile($file);
         $self->preprocess_compile($file, $out,
+				  $self->{EARLY_PPARGS},
+                                  $self->{PPARGS}, $self->{CCARGS});
+        push @tolink, $out;
+    }
+    foreach $file (@{$self->{IFILES}}) {
+        $out = $self->compileOutputFile($file);
+        $self->compile_nopp($file, $out,
 				  $self->{EARLY_PPARGS},
                                   $self->{PPARGS}, $self->{CCARGS});
         push @tolink, $out;
@@ -1195,12 +1214,14 @@ sub compilerArgument {
     my($self, $options, $arg, $pargs) = @_;
     &classifyArgDebug("Classifying arg: $arg\n");
     my $idx = 0;
+    my $matched = 0;
     for($idx=0; $idx < $#$options; $idx += 2) {
         my $key = ${$options}[$idx];
         my $action = ${$options}[$idx + 1];
         &classifyArgDebug("Try match with $key\n");
         if($arg =~ m|^$key|) {
           &classifyArgDebug(" match with $key\n");
+          $matched = 1;
           my @fullarg = ($arg);
           my $onemore;
           if(defined $action->{'ONEMORE'}) {
@@ -1217,6 +1238,22 @@ sub compilerArgument {
                   $onemore = &quoteIfNecessary($onemore);
               }
               &classifyArgDebug(" onemore=$onemore\n");
+          }
+          # If we have CURLANG, it might override the action the caller
+          # supplied.
+          if (defined $self->{'CURLANG'}) {
+            print STDERR "curlang is $self->{CURLANG}\n";
+            if ($action->{TYPE} =~ /.*SOURCE$/) {
+              if    ($self->{CURLANG} =~ /^c$|^c-header$/)          { $action->{TYPE} = "CSOURCE"; }
+              elsif ($self->{CURLANG} =~ /^cpp-output$/)          { $action->{TYPE} = "ISOURCE"; }
+              elsif ($self->{CURLANG} =~ /^assembler$/)           { $action->{TYPE} = "ASMSOURCE"; }
+              elsif ($self->{CURLANG} =~ /^assembler-with-cpp$/)  { $action->{TYPE} = "ASMSOURCE"; }
+              else {
+                print STDERR "Warning: didn't understand current language $self->{CURLANG}\n";
+              }
+            }
+          } elsif ($action->{TYPE} eq "UNKNOWNSOURCE") {
+            print STDERR "Warning: saw source of unknown language, with no preceding -x <lang>\n";
           }
           # Now see what action we must perform
           my $argument_done = 1;
@@ -1240,7 +1277,22 @@ sub compilerArgument {
               elsif($action->{TYPE} eq "CC") {
                   push @{$self->{CCARGS}}, @fullarg; return 1;
               }
-              elsif($action->{TYPE} eq "LINKCC") {
+              elsif($action->{TYPE} eq "SETLANG") {
+                  # We pass it to the C compiler, and also to the preprocessor.
+                  # but we also keep some state so we can classify input files.
+                  # NOTE that we must pass it to the preprocessor, because in the case
+                  # where we're just assembling, we will invoke the compiler but
+                  # without passing CCARGS.
+                  if ($onemore eq "none") {
+                    delete $self->{CURLANG};
+                  } else {
+                    $self->{CURLANG} = $onemore;
+                  }
+                  push @{$self->{CCARGS}}, @fullarg;
+                  push @{$self->{PPARGS}}, @fullarg;
+                 return 1;
+              }
+            elsif($action->{TYPE} eq "LINKCC") {
                   push @{$self->{CCARGS}}, @fullarg; 
                   push @{$self->{LINKARGS}}, @fullarg; return 1;
               }
@@ -1274,17 +1326,18 @@ sub compilerArgument {
               }
               elsif($action->{TYPE} eq 'OUT') {
                   if(defined($self->{OUTARG})) {
-                      print "Warning: output file is multiply defined: @{$self->{OUTARG}} and @fullarg\n";
+                      print STDERR "Warning: output file is multiply defined: @{$self->{OUTARG}} and @fullarg\n";
                   }
                   $fullarg[0] = &normalizeFileName($fullarg[0]);
                   $self->{OUTARG} = [@fullarg]; return 1;
               }
-              print "  Do not understand TYPE\n"; return 1;
+              print STDERR "  Do not understand TYPE\n"; return 1;
           }
           if($argument_done) { return 1; }
-          print "Don't know what to do with option $arg\n"; 
+          print STDERR "Don't know what to do with option $arg\n";
           return 0;
       }
+
    }
    return 0;
 }
@@ -1472,7 +1525,7 @@ sub new {
                                      @{$_[3]} = (); } },
            "-cbstring" => { TYPE => "CC" },
            "/"  => { RUN => 
-                         sub { print "Unimplemented MSVC argument $_[1]\n";}},
+                         sub { print STDERR "Unimplemented MSVC argument $_[1]\n";}},
            ],
       };
     bless $self, $class;
@@ -1513,7 +1566,7 @@ sub msvc_preprocess {
     if($msvcout ne $dest->{filename}) {
         while($#st1 >= 0) {
             if(shift @st1 != shift @st2) {
-#                print "$msvcout is NOT the same as $afterpp\n";
+#                print STDERR "$msvcout is NOT the same as $afterpp\n";
                 if($self->{VERBOSE}) {
                     print STDERR "Copying $msvcout to $dest->{filename} (MSVC_preprocess)\n";
                 }
@@ -1799,7 +1852,7 @@ sub arArguments {
     # We got here for the first non -- argument. 
     # Will handle all arguments at once
     if($self->{VERBOSE}) {
-        print "AR called with $arg @{$pargs}\n";
+        print STDERR "AR called with $arg @{$pargs}\n";
     }
 
     #The r flag is required:
@@ -1837,7 +1890,7 @@ sub arArguments {
 
             my $temp_name = $out . "_old.a";
             if($self->{VERBOSE}) {
-        	print "Copying $out to $temp_name so we can add "
+            print STDERR "Copying $out to $temp_name so we can add "
                     . "to it.\n";
             }
             if(-f $temp_name) {
@@ -1901,7 +1954,7 @@ sub new {
       # sm: removed -O to ease debugging; will address "inline extern" elsewhere
       CC => [@native_cc, '-D_GNUCC', '-c'],
       LD => [@native_cc, '-D_GNUCC'],
-      LDLIB => ['ld', '-r', '-o'],
+      LDLIB => [@native_cc, '-r', '-o'],
       CPP =>  [@native_cc, '-D_GNUCC', '-E'],
       DEFARG  => "-D",
       INCARG => "-I",
@@ -1924,6 +1977,7 @@ sub new {
             "[^-].*\\.($::cilbin|c|cpp|cc)\$" => { TYPE => 'CSOURCE' },
             "[^-].*\\.(s|S)\$" => { TYPE => 'ASMSOURCE' },
             "[^-].*\\.i\$" => { TYPE => 'ISOURCE' },
+            "-\$" => { TYPE => 'UNKNOWNSOURCE' },
             # .o files can be linker scripts
             "[^-]" => { RUN => sub { &GNUCC::parseLinkerScript(@_); }},
 
@@ -1935,7 +1989,7 @@ sub new {
             "-o" => { ONEMORE => 1, TYPE => 'OUT' },
 	    "-combine\$" => { TYPE => 'ALLARGS' },
 	    "-pipe\$" => { TYPE => 'ALLARGS' },
-            "-x" => { ONEMORE => 1, TYPE => "CC" },
+	    "-x" => { ONEMORE => 1, TYPE => "SETLANG" },
 	    "-v" => { TYPE => 'ALLARGS',
 		      RUN => sub { $stub->{TRACE_COMMANDS} = 1; } },
 	    # skipping -###, --help, --target-help, --version
@@ -2128,7 +2182,7 @@ sub parseLinkerScript {
         # the separators will be tokens as well
         push @tokens, split(/([(),\s])/, $line);
     }
-    print "Found tokens:", join(':', @tokens), "\n" 
+    print STDERR "Found tokens:", join(':', @tokens), "\n"
         if $linker_script_debug;
     # Now parse the file
     my $state = 0;
@@ -2176,13 +2230,16 @@ sub lineDirective {
 sub compileOutputFile {
     my($self, $src) = @_;
 
-    die "objectOutputFile: not a C source file: $src\n"
+    # in the "-" case we will have an OUTARG
+    if ($src eq "-") { die "input is '-' but no outarg\n" unless defined $self->{OUTARG}; }
+    else { die "objectOutputFile: not a C source file: $src\n"
 	unless $src =~ /\.($::cilbin|c|cc|cpp|i|s|S)$/;
+    }
     
     if ($self->{OPERATION} eq 'TOOBJ'
         || ($self->{OPERATION} eq 'TOASM')) {
 	if (defined $self->{OUTARG} 
-            && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.+)$|) {
+            && "@{$self->{OUTARG}}" =~ m|^-o\s*(\S.*)$|) {
 	    return new App::Cilly::OutputFile($src, $1);
 	} else {
 	    return new App::Cilly::KeptFile($src, $self->{OBJEXT}, '.');

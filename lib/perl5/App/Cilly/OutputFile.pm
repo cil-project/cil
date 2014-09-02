@@ -17,6 +17,14 @@ my $debug = 0;
 sub new {
     croak 'bad argument count' unless @_ == 3;
     my ($proto, $basis, $filename) = @_;
+
+    # If we're asked to create an output filename beginning "-",
+    # it will confuse the commands we run, unless it is exactly "-"
+    # (denoting stdout). In other cases, prepend "./".
+    if ($filename =~ /^-.+/) {
+        $filename = "./$filename";
+    }
+
     my $class = ref($proto) || $proto;
 
     $basis = $basis->basis if ref $basis;
@@ -84,8 +92,10 @@ sub checkProtected {
 
 sub protect {
     my ($self, @precious) = @_;
-    push @protected, File::Spec->rel2abs($_)
-	foreach @precious;
+    # Never protect "-" because it denotes stdin/stdout
+    foreach (@precious) {
+        if ($_ != "-") { push @protected, File::Spec->rel2abs($_); }
+    }
 }
 
 
