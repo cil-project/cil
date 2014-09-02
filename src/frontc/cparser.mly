@@ -1545,8 +1545,8 @@ asmclobber:
 | COLON asmcloberlst_ne                 { $2 }
 ;
 asmcloberlst_ne:
-   one_string_constant                           { [$1] }
-|  one_string_constant COMMA asmcloberlst_ne     { $1 :: $3 }
+   string_constant                           { [fst $1] }
+|  string_constant COMMA asmcloberlst_ne     { fst $1 :: $3 }
 ;
   
 %%
