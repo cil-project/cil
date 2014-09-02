@@ -3027,6 +3027,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_strncmp" (intType, [ charConstPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strncpy" (charPtrType, [ charPtrType; charConstPtrType; sizeType ], false);
   H.add h "__builtin_strspn" (sizeType, [ charConstPtrType; charConstPtrType ], false);
+  H.add h "__builtin_strstr" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   H.add h "__builtin_strpbrk" (charPtrType, [ charConstPtrType; charConstPtrType ], false);
   (* When we parse builtin_types_compatible_p, we change its interface *)
   H.add h "__builtin_types_compatible_p"
