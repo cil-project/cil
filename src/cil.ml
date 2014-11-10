@@ -3052,10 +3052,7 @@ let initGccBuiltins () : unit =
      These builtins have an overloaded return type, hence the "magic" void type
      with __overloaded__ attribute, used to infer return type from parameters in
      cabs2cil.ml.
-     For the same reason, we do not specify the type of the parameters.  Note
-     that the __atomic functions are not really va_arg, but we set the
-     va_arg flag nonetheless because it prevents CIL from trying to check the
-     type of parameters against the prototype. *)
+     For the same reason, we do not specify the type of the parameters. *)
   H.add h "__sync_fetch_and_add" (TVoid[Attr("overloaded",[])], [ ], true);
   H.add h "__sync_fetch_and_sub" (TVoid[Attr("overloaded",[])], [ ], true);
   H.add h "__sync_fetch_and_or" (TVoid[Attr("overloaded",[])], [ ], true);
@@ -3075,26 +3072,49 @@ let initGccBuiltins () : unit =
   H.add h "__sync_lock_test_and_set" (TVoid[Attr("overloaded",[])], [ ], true);
   H.add h "__sync_lock_release" (voidType, [ ], true);
 
-  H.add h "__atomic_load_n" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_load" (voidType, [ ], true);
-  H.add h "__atomic_store_n" (voidType, [ ], true);
-  H.add h "__atomic_store" (voidType, [ ], true);
-  H.add h "__atomic_exchange_n" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_exchange" (voidType, [ ], true);
-  H.add h "__atomic_compare_exchange_n" (boolType, [ ], true);
-  H.add h "__atomic_compare_exchange" (boolType, [ ], true);
-  H.add h "__atomic_add_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_sub_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_and_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_xor_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_or_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_nand_fetch" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_add" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_sub" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_and" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_xor" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_or" (TVoid[Attr("overloaded",[])], [ ], true);
-  H.add h "__atomic_fetch_nand" (TVoid[Attr("overloaded",[])], [ ], true);
+  (* __atomic builtins for various bit widths
+
+     Most __atomic functions are offered for various bit widths, using
+     a different suffix for each concrete bit width:  "_1", "_2", and
+     so on up to "_16".  Each of these functions also exists in a form
+     with no bit width specified, and occasionally with a bit width
+     suffix of "_n".
+
+     Note that these __atomic functions are not really va_arg, but we
+     set the va_arg flag nonetheless because it prevents CIL from
+     trying to check the type of parameters against the prototype.
+   *)
+
+  let addAtomicForWidths baseName ?n ~none ~num () =
+    let addWithSuffix suffix returnType =
+      let identifier = "__atomic_" ^ baseName ^ suffix in
+      H.add h identifier (returnType, [], true)
+    in
+    List.iter begin
+	fun bitWidth ->
+	let suffix = "_" ^ (string_of_int bitWidth) in
+	addWithSuffix suffix num
+      end [1; 2; 4; 8; 16];
+    addWithSuffix "" none;
+    match n with
+    | None -> ()
+    | Some typ -> addWithSuffix "_n" typ
+  in
+
+  let anyType = TVoid[Attr("overloaded",[])] in
+
+  (* binary operations combined with a fetch of either the old or new value *)
+  List.iter begin
+      fun operation ->
+      addAtomicForWidths ("fetch_" ^ operation) ~none:anyType ~num:anyType ();
+      addAtomicForWidths (operation ^ "_fetch") ~none:anyType ~num:anyType ()
+    end ["add"; "and"; "nand"; "or"; "sub"; "xor"];
+
+  (* other atomic operations provided at various bit widths *)
+  addAtomicForWidths "compare_exchange" ~none:boolType ~n:boolType ~num:boolType ();
+  addAtomicForWidths "exchange" ~none:voidType ~n:anyType ~num:anyType ();
+  addAtomicForWidths "load" ~none:voidType ~n:anyType ~num:anyType ();
+  addAtomicForWidths "store" ~none:voidType ~n:voidType ~num:voidType ();
 
   (* Some atomic builtins actually have a decent, C-compatible type *)
   H.add h "__atomic_test_and_set" (boolType, [voidPtrType; intType], false);
@@ -3103,6 +3123,7 @@ let initGccBuiltins () : unit =
   H.add h "__atomic_signal_fence" (voidType, [intType], false);
   H.add h "__atomic_always_lock_free" (boolType, [sizeType; voidPtrType], false);
   H.add h "__atomic_is_lock_free" (boolType, [sizeType; voidPtrType], false);
+  H.add h "__atomic_feraiseexcept" (voidType, [intType], false);
 
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
