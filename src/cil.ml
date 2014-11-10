@@ -3086,6 +3086,9 @@ let initGccBuiltins () : unit =
    *)
 
   let addAtomicForWidths baseName ?n ~none ~num () =
+    (* ?n gives the return type to be used with the "_n" suffix, if any *)
+    (* ~none gives the return type to be used with no suffix *)
+    (* ~num gives the return type to be used with the "_1" through "_16" suffixes *)
     let addWithSuffix suffix returnType =
       let identifier = "__atomic_" ^ baseName ^ suffix in
       H.add h identifier (returnType, [], true)
