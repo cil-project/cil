@@ -3101,7 +3101,7 @@ let initGccBuiltins () : unit =
     | Some typ -> addWithSuffix "_n" typ
   in
 
-  let anyType = TVoid[Attr("overloaded",[])] in
+  let anyType = TVoid [Attr("overloaded", [])] in
 
   (* binary operations combined with a fetch of either the old or new value *)
   List.iter begin
