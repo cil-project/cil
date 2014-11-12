@@ -2891,6 +2891,7 @@ let initGccBuiltins () : unit =
     with Not_found ->
       ()
   in
+  addSwap 16;
   addSwap 32;
   addSwap 64;
 
