@@ -4035,7 +4035,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
     | A.CALL(f, args) -> 
         if asconst then
-          ignore (warn "CALL in constant");
+          ignore (warnOpt "CALL in constant");
         let (sf, f', ft') = 
           match f with                  (* Treat the VARIABLE case separate 
                                          * because we might be calling a 
@@ -6145,7 +6145,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 match unrollType !currentReturnType with
                   TVoid _ -> None
                 | (TInt _ | TEnum _ | TFloat _ | TPtr _) as rt -> 
-                    ignore (warn "Body of function %s falls-through. Adding a return statement"  !currentFunctionFDEC.svar.vname);
+                    ignore (warnOpt "Body of function %s falls-through. Adding a return statement"  !currentFunctionFDEC.svar.vname);
                     Some (makeCastT zero intType rt)
                 | _ ->
                     ignore (warn "Body of function %s falls-through and cannot find an appropriate return value" !currentFunctionFDEC.svar.vname);
@@ -6452,7 +6452,7 @@ and doStatement (s : A.statement) : chunk =
         currentLoc := loc';
         (* Sometimes we return the result of a void function call *)
         if isVoidType !currentReturnType then begin
-          ignore (warn "Return statement with a value in function returning void");
+          ignore (warnOpt "Return statement with a value in function returning void");
           let (se, _, _) = doExp false e ADrop in
           se @@ returnChunk None loc'
         end else begin
