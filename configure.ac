@@ -156,6 +156,7 @@ AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h stdbool.h)
 AC_C_CONST
 AC_C_INLINE
 AC_HEADER_TIME
+AC_TYPE_INTPTR_T
 
 # checks for library functions; more autoscan stuff
 AC_FUNC_MEMCMP
