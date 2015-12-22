@@ -54,6 +54,14 @@
 typedef int bool;
 #endif
 
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
 #define THREAD_IS_KEYWORD "@THREAD_IS_KEYWORD@"
 #define HAVE_BUILTIN_VA_LIST "@HAVE_BUILTIN_VA_LIST@"
 
@@ -103,7 +111,7 @@ int main(int argc, char **argv)
       char c;
       short s;
     };
-    alignof_short = (int)(&((struct shortstruct*)0)->s);
+    alignof_short = (intptr_t)(&((struct shortstruct*)0)->s);
   }
 
   // The alignment of an int
@@ -112,7 +120,7 @@ int main(int argc, char **argv)
       char c;
       int i;
     };
-    alignof_int = (int)(&((struct intstruct*)0)->i);
+    alignof_int = (intptr_t)(&((struct intstruct*)0)->i);
   }
   
   // The alignment of a bool
@@ -121,7 +129,7 @@ int main(int argc, char **argv)
       char c;
       bool b;
     };
-    alignof_bool = (int)(&((struct boolstruct*)0)->b);
+    alignof_bool = (intptr_t)(&((struct boolstruct*)0)->b);
   }
   
   // The alignment of a long
@@ -130,7 +138,7 @@ int main(int argc, char **argv)
       char c;
       long l;
     };
-    alignof_long = (int)(&((struct longstruct*)0)->l);
+    alignof_long = (intptr_t)(&((struct longstruct*)0)->l);
   }
     
   // The alignment of long long
@@ -139,7 +147,7 @@ int main(int argc, char **argv)
       char c;
       LONGLONG ll;
     };
-    alignof_longlong = (int)(&((struct longlong*)0)->ll);
+    alignof_longlong = (intptr_t)(&((struct longlong*)0)->ll);
   }
 
   // The alignment of a ptr
@@ -148,7 +156,7 @@ int main(int argc, char **argv)
       char c; 
       int * p;
     };
-    alignof_ptr = (int)(&((struct ptrstruct*)0)->p);
+    alignof_ptr = (intptr_t)(&((struct ptrstruct*)0)->p);
   }
 
   // The alignment of an enum
@@ -157,7 +165,7 @@ int main(int argc, char **argv)
       char c; 
       enum e2 { THREE, FOUR, FIVE } e;
     };
-    alignof_enum = (int)(&((struct enumstruct*)0)->e);
+    alignof_enum = (intptr_t)(&((struct enumstruct*)0)->e);
   }
     
   // The alignment of a float
@@ -166,7 +174,7 @@ int main(int argc, char **argv)
       char c;
       float f;
     };
-    alignof_float = (int)(&((struct floatstruct*)0)->f);
+    alignof_float = (intptr_t)(&((struct floatstruct*)0)->f);
   }
   
   // The alignment of double
@@ -175,7 +183,7 @@ int main(int argc, char **argv)
       char c;
       double d;
     };
-    alignof_double = (int)(&((struct s1*)0)->d);
+    alignof_double = (intptr_t)(&((struct s1*)0)->d);
   }    
 
   // The alignment of long  double
@@ -184,7 +192,7 @@ int main(int argc, char **argv)
       char c;
       long double ld;
     };
-    alignof_longdouble = (int)(&((struct s1*)0)->ld);
+    alignof_longdouble = (intptr_t)(&((struct s1*)0)->ld);
   }    
     
   alignof_str = __alignof("a string");
