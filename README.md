@@ -80,7 +80,7 @@ To (re)build the doc, you need [Hevea][] and run:
 You can also [browse the documentation online][doc].
 
 [hevea]: http://hevea.inria.fr/ "Hevea - LaTex to HTML translator"
-[doc]:   http://kerneis.github.com/cil/doc/html/cil "Cil online doc"
+[doc]:   http://cil-project.github.io/cil/doc/html/cil/ "Cil online doc"
 
 Ressources
 ----------
