@@ -1792,7 +1792,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
 
     (* New-style extern inline handling: the real definition replaces the extern
        inline one *)
-    if (not !Cil.oldstyleExternInline) && oldvi.vstorage = Extern && oldvi.vinline then begin
+    if (not !Cil.oldstyleExternInline) && oldvi.vstorage = Extern && oldvi.vinline && isadef then begin
       H.remove alreadyDefined oldvi.vname;
       theFile := Util.list_map (fun g -> match g with
 	   | GFun (fi, l) when fi.svar == oldvi -> GVarDecl(fi.svar, l)
