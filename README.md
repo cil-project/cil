@@ -1,6 +1,8 @@
 C Intermediate Language (CIL)
 ============================
 
+[![Build Status](https://travis-ci.org/cil-project/cil.svg?branch=develop)](https://travis-ci.org/cil-project/cil)
+
 CIL is a front-end for the C programming language that facilitates
 program analysis and transformation. CIL will parse and typecheck a
 program, and compile it into a simplified subset of C.

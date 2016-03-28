@@ -227,7 +227,7 @@ $(CILLYDIR)/App/$(CILLYMOD).pm: $(CILLYDIR)/App/$(CILLYMOD).pm.in src/machdep-ml
 # You should usually run this twice to get all of the references linked
 # correctly.
 .PHONY: doc
-doc: texdoc pdfdoc odoc
+doc: texdoc odoc
 
 .PHONY: odoc texdoc pdfdoc
 

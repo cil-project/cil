@@ -8,4 +8,3 @@ env:
   - OCAML_VERSION=4.02
 os:
   - linux
-  - osx
