@@ -654,6 +654,9 @@ addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on so
 # tests of things implemented for EDG compatibility
 addTest("mergestruct");
 
+# Test for a merge bug in global variables initializations
+addTest("mergeinit");
+
 # a few things that should fail
 addTest("test-bad/trivial-tb");
 addTest("runall/runall_misc");
