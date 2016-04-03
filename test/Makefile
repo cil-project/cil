@@ -363,6 +363,14 @@ mergestruct: $(TESTDIR)/small2/mergestruct1.c $(TESTDIR)/small2/mergestruct2.c
 	  $(CILLY) mergestruct1.c mergestruct2.c -o mergestruct.exe
 	$(TESTDIR)/small2/mergestruct.exe
 
+# sc: this tests for a merger bug in global variables initializations
+mergeinit: $(TESTDIR)/small2/mergeinit1.h $(TESTDIR)/small2/mergeinit1.c \
+           $(TESTDIR)/small2/mergeinit2.h $(TESTDIR)/small2/mergeinit2_1_reftable.c $(TESTDIR)/small2/mergeinit2_2_definition.c \
+           $(TESTDIR)/small2/mergeinit3.h $(TESTDIR)/small2/mergeinit3.c \
+           $(TESTDIR)/small2/mergeinit4.c
+	cd $(TESTDIR)/small2; \
+	  $(CILLY) --merge --strictcheck --keepunused mergeinit1.c mergeinit2_1_reftable.c mergeinit2_2_definition.c mergeinit3.c mergeinit4.c
+
 # sm: yet another merger test (I know there's a target somewhere)
 mergeinline: $(TESTDIR)/small2/mergeinline1.c $(TESTDIR)/small2/mergeinline2.c
 	cd $(TESTDIR)/small2; \
