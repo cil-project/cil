@@ -387,6 +387,7 @@ addTest("testrun/scope9 ");
 addTest("testrun/scope10 ");
 addTest("testrun/scope11 ");
 addTest("test/scope12 ");
+addTest("testrun/scope13 ");
 addTest("test/voidstar");
 addTest("testrun/memcpy1");
 

@@ -334,7 +334,8 @@ let genv : (string, envdata * location) H.t = H.create 307
   * hash table easily *)
 type undoScope =
     UndoRemoveFromEnv of string
-  | UndoResetAlphaCounter of location AL.alphaTableData ref * 
+  | UndoResetAlphaCounter of string *
+                             location AL.alphaTableData ref *
                              location AL.alphaTableData
   | UndoRemoveFromAlphaTable of string
 
@@ -409,14 +410,35 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
         let prefix = AL.getAlphaPrefix lookupname in
         try
           let countref = H.find alphaTable prefix in
-          s := (UndoResetAlphaCounter (countref, !countref)) :: !s
+          s := (UndoResetAlphaCounter (prefix, countref, !countref)) :: !s
         with Not_found ->
           s := (UndoRemoveFromAlphaTable prefix) :: !s
     end
     | _ :: rest -> findEnclosingFun rest
   in
   if not globalscope then 
-    findEnclosingFun !scopes;
+    findEnclosingFun !scopes
+    else (
+        (* If we've previously marked the state to be reset, weed this out.
+         * This is a bit nasty: better would be to process static locals
+         * before doing formals/locals, so that all the globals are detected
+         * *first* and we never have to undo the decision to reset the alpha
+         * state. That'd be a more invasive change, though. *)
+        let rec checkScopes = (function
+            [s] ->
+              let prefix = AL.getAlphaPrefix lookupname in
+              (* s is a reference to a list *)
+              s := List.filter (function
+                UndoResetAlphaCounter (p, _, _) when p = prefix -> false
+              | UndoRemoveFromAlphaTable p when p = prefix -> false
+              | _ -> true
+              ) !s
+         | _ :: rest -> checkScopes rest
+         | _ -> ()
+        )
+        in
+        checkScopes !scopes
+  );
   let newname, oldloc = 
            AL.newAlphaName alphaTable None lookupname !currentLoc in
   stripKind kind newname, oldloc
@@ -494,7 +516,7 @@ let exitScope () =
     | UndoRemoveFromEnv n :: t -> 
         H.remove env n; loop t
     | UndoRemoveFromAlphaTable n :: t -> H.remove alphaTable n; loop t
-    | UndoResetAlphaCounter (vref, oldv) :: t -> 
+    | UndoResetAlphaCounter (_, vref, oldv) :: t ->
         vref := oldv;
         loop t
   in
