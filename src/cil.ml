@@ -5039,44 +5039,6 @@ let dummyFile =
     globinit = None;
     globinitcalled = false;}
 
-(***** Load and store files as unmarshalled Ocaml binary data. ****)
-type savedFile = 
-    { savedFile: file;
-      savedNextVID: int;
-      savedNextCompinfoKey: int}
-
-let saveBinaryFileChannel (cil_file : file) (outchan : out_channel) =
-  let save = {savedFile = cil_file; 
-              savedNextVID = !nextGlobalVID;
-              savedNextCompinfoKey = !nextCompinfoKey} in
-  Marshal.to_channel outchan save [] 
-
-let saveBinaryFile (cil_file : file) (filename : string) =
-  let outchan = open_out_bin filename in
-  saveBinaryFileChannel cil_file outchan;
-  close_out outchan 
-
-(** Read a {!Cil.file} in binary form from the filesystem. The first
- * argument is the name of a file previously created by
- * {!Cil.saveBinaryFile}. Because this also reads some global state,
- * this should be called before any other CIL code is parsed or generated. *)
-let loadBinaryFile (filename : string) : file = 
-  let inchan = open_in_bin filename in
-  let loaded : savedFile = (Marshal.from_channel inchan : savedFile) in
-  close_in inchan ;
-  (* nextGlobalVID = 11 because CIL initialises many dummy variables *)
-  if !nextGlobalVID != 11 || !nextCompinfoKey != 1 then begin
-    (* In this case, we should change all of the varinfo and compinfo
-       keys in loaded.savedFile to prevent conflicts.  But since that hasn't
-       been implemented yet, just print a warning.  If you do implement this,
-       please send it to the CIL maintainers. *)
-    ignore (E.warn "You are possibly loading a binary file after another file has been loaded.  This isn't currently supported, so varinfo and compinfo id numbers may conflict.")
-  end;
-  nextGlobalVID := max loaded.savedNextVID !nextGlobalVID;
-  nextCompinfoKey := max loaded.savedNextCompinfoKey !nextCompinfoKey;
-  loaded.savedFile
-
-
 (* Take the name of a file and make a valid symbol name out of it. There are 
  * a few characters that are not valid in symbols *)
 let makeValidSymbolName (s: string) = 
@@ -5823,6 +5785,44 @@ let mapGlobals (fl: file)
         GFun(g', _) -> fl.globinit <- Some g'
       | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
   end)
+
+
+(***** Load and store files as unmarshalled Ocaml binary data. ****)
+type savedFile = 
+    { savedFile: file;
+      savedNextVID: int;
+      savedNextCompinfoKey: int}
+
+let saveBinaryFileChannel (cil_file : file) (outchan : out_channel) =
+  let save = {savedFile = cil_file; 
+              savedNextVID = !nextGlobalVID;
+              savedNextCompinfoKey = !nextCompinfoKey} in
+  Marshal.to_channel outchan save [] 
+
+let saveBinaryFile (cil_file : file) (filename : string) =
+  let outchan = open_out_bin filename in
+  saveBinaryFileChannel cil_file outchan;
+  close_out outchan 
+
+(** Read a {!Cil.file} in binary form from the filesystem. The first
+ * argument is the name of a file previously created by
+ * {!Cil.saveBinaryFile}. Because this also reads some global state,
+ * this should be called before any other CIL code is parsed or generated. *)
+let loadBinaryFile (filename : string) : file = 
+  let inchan = open_in_bin filename in
+  let loaded : savedFile = (Marshal.from_channel inchan : savedFile) in
+  close_in inchan ;
+  (* nextGlobalVID = 11 because CIL initialises many dummy variables *)
+  if !nextGlobalVID != 11 || !nextCompinfoKey != 1 then begin
+    (* In this case, we should change all of the varinfo and compinfo
+       keys in loaded.savedFile to prevent conflicts.  But since that hasn't
+       been implemented yet, just print a warning.  If you do implement this,
+       please send it to the CIL maintainers. *)
+    ignore (E.warn "You are possibly loading a binary file after another file has been loaded.  This isn't currently supported, so varinfo and compinfo id numbers may conflict.")
+  end;
+  nextGlobalVID := max loaded.savedNextVID !nextGlobalVID;
+  nextCompinfoKey := max loaded.savedNextCompinfoKey !nextCompinfoKey;
+  loaded.savedFile
 
 
 
