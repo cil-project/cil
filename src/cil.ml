@@ -5786,43 +5786,205 @@ let mapGlobals (fl: file)
       | _ -> E.s (E.bug "mapGlobals: globinit is not a function")
   end)
 
-
 (***** Load and store files as unmarshalled Ocaml binary data. ****)
-type savedFile = 
+type savedFile =
     { savedFile: file;
       savedNextVID: int;
       savedNextCompinfoKey: int}
+(* Note: savedNextVID and savedNextCompinfoKey are not needed
+   anymore because of the way saved files are loaded now (vid and ckey
+   are remapped at loading time) but they are kept for backward
+   compatibility *)
+
 
 let saveBinaryFileChannel (cil_file : file) (outchan : out_channel) =
-  let save = {savedFile = cil_file; 
+  let save = {savedFile = cil_file;
               savedNextVID = !nextGlobalVID;
               savedNextCompinfoKey = !nextCompinfoKey} in
-  Marshal.to_channel outchan save [] 
+  Marshal.to_channel outchan save []
 
 let saveBinaryFile (cil_file : file) (filename : string) =
   let outchan = open_out_bin filename in
   saveBinaryFileChannel cil_file outchan;
-  close_out outchan 
+  close_out outchan
+
+
+(* The re-mapping of varinfo vid fields and compinfo ckey fields is
+  simple:
+- A first visit get all the vid and ckey from the file
+- A new mapping is built from the current values of the nextGlobalVID
+  and nextCompinfoKey references. These references are increased. The
+  new mapping tries not to overlap the old values (because we do not
+  know in what order the second visit happends)
+- A second visit uses the mapping built previously to give the vid and ckey
+  fields their new values
+ *)
+
+(* This class visits a file and adds the vid and ckey found to the
+maps (implemented as int hashes) in argument *)
+class harvestUidsClass vid_imap ckey_imap =
+object(self)
+  inherit nopCilVisitor
+
+  method vvrbl vi = if not(IH.mem vid_imap vi.vid) then IH.add vid_imap vi.vid 0; SkipChildren
+  method vvdec vi = if not(IH.mem vid_imap vi.vid) then IH.add vid_imap vi.vid 0; DoChildren
+
+  method vglob g =
+    match g with
+    | GCompTag(ci,_)
+    | GCompTagDecl(ci,_) -> (if not(IH.mem ckey_imap ci.ckey) then IH.add ckey_imap ci.ckey 0; DoChildren)
+    | _ -> DoChildren
+
+  method vtype typ =
+    match typ with
+    | TComp(ci,_) -> (if not(IH.mem ckey_imap ci.ckey) then IH.add ckey_imap ci.ckey 0; DoChildren)
+    | _ -> DoChildren
+
+end
+
+(* Given a list of uids and a reference counter, this function builds
+   a map of the old uids to the new uids, starting from the value
+   given by the counter. At the end of the function the counter has
+   been increased just above the list of uids that are to be
+   considered not usable anymore.
+   Let [x;y;z] be a map of uids and !c the counter:
+   [1;2;3] !4 will yield [(1,4); (2,5); (3,6)] !7
+   [1;2;3] !2 will yield [(1,4); (2,5); (3,6)] !7 too
+   because with (1,2), "2" is already taken and if the visit
+   encounters "1" before "2", then "1" and "2" will be mapped to the
+   same value. Hence when a new potential mapping corresponds to a uid
+   already used, we must try with another uid.
+   This also depends on the order in which [1;2;3] is visited. If the mapping
+   had been visited as [2;3;1] !2 the result would be [(2,2);(3,3);(1,4)]
+   because not changing a uid is not dangerous.
+   In the end, this algorithm is a reasonable trade-off between simplicity and
+   soundness.
+ *)
+let build_remapping imap counter =
+  let risks_more_mapping i = IH.mem imap i in
+  let rec find_suitable_uid i counter =
+    if i <> !counter                  (* Re-mapping i to i is acceptable *)
+       && risks_more_mapping !counter (* Re-mapping will work if the counter
+                                         is not a remappable uid *)
+    then (incr counter; find_suitable_uid i counter)
+  in
+  (* The inverse map is there as a debugging aid, to check that if we can
+  not re-map a vid/ckey, this is because it was already re-mapped.
+  A property of the mapping is that it is bijective.
+   *)
+  let add_inverse k v map =
+    if IH.mem map v
+    then E.s (bug "Could not build the new uids map into a bijection")
+    else IH.add map v k
+  in
+  let remap counter new_imap inverse i =
+    if IH.mem imap i
+    then begin
+        find_suitable_uid i counter;
+        IH.add new_imap i !counter;
+        add_inverse i !counter inverse;
+        incr counter
+      end
+    else E.s (bug "Trying to find a new uid for a uid that was not even discovered in the first visit")
+  in
+  let inverse = IH.create (IH.length imap) in
+(* We have to create a new map because iterating over a hash and changing it
+   on-the-fly is no recommended *)
+  let new_imap = IH.create (IH.length imap) in
+  let () = IH.iter (fun k _ -> remap counter new_imap inverse k) imap in
+  (new_imap, inverse)
+
+(* This function updates the vid/ckey field (we abstracted it a bit
+   to use it for both fields). *)
+let remap imap imap_inv entity e_update e_uid e_name e_type =
+  let entity_uid = e_uid entity in
+  try
+    if !E.debugFlag
+    then begin
+        ignore (E.log "Trying %s mapping for %s (%d)\n" e_type (e_name entity) entity_uid)
+      end;
+    let new_uid = IH.find imap entity_uid in
+    if entity_uid <> new_uid
+    then begin
+        if !E.debugFlag
+        then begin
+            ignore (E.log "Remap: %d -> %d\n" entity_uid new_uid)
+          end;
+        e_update entity new_uid
+      end
+    else
+      if !E.debugFlag
+      then begin
+          ignore (E.log "No change: %d -> %d\n" entity_uid new_uid)
+        end
+  with Not_found ->
+       if not(IH.mem imap_inv entity_uid)
+       then begin
+           E.s (E.bug "Error: could not find %s mapping for %s (%d)" e_type (e_name entity) entity_uid)
+         end
+       else
+         if !E.debugFlag
+         then ignore (E.log "Already remapped: %s (%d)\n" (e_name entity) entity_uid)
+
+
+let remap_varinfo imap imap_inv vi =
+  remap imap imap_inv vi (fun v i -> v.vid <- i) (fun v -> v.vid) (fun v -> v.vname) "varinfo"
+
+let remap_compinfo imap imap_inv ci =
+  remap imap imap_inv ci (fun c i -> c.ckey <- i) (fun c -> c.ckey) (fun c -> c.cname) "compinfo"
+
+(* This class updates the vid/ckey fields with the new values given in
+   the maps in arguments *)
+class remapperClass vid_imap vid_imap_inv ckey_imap ckey_imap_inv =
+object(self)
+  inherit nopCilVisitor
+
+  method vvrbl vi = remap_varinfo vid_imap vid_imap_inv vi; SkipChildren
+  method vvdec vi = remap_varinfo vid_imap vid_imap_inv vi; DoChildren
+
+  method vglob g =
+    match g with
+    | GCompTag(ci,_)
+    | GCompTagDecl(ci,_) -> (remap_compinfo ckey_imap ckey_imap_inv ci; DoChildren)
+    | _ -> DoChildren
+
+  method vtype typ =
+    match typ with
+    | TComp(ci,_) -> (remap_compinfo ckey_imap ckey_imap_inv ci; DoChildren)
+    | _ -> DoChildren
+
+end
+
+(* This function takes a CIL file, visits it for extracting all the
+   possible values for its varinfo vid fiels and compinfo ckey fields,
+   builds a mapping from these values to new values compatible with
+   the nextGlobalVID and nextCompinfoKey counters, and visits the file
+   a second time to applying this mapping. The counters at the end of
+   the function are updated to the next value not conflicting with
+   this mapping *)
+let remap cil =
+  begin
+    let vid_imap = IH.create 1000 in
+    let ckey_imap = IH.create 10 in
+    let harvestUids = new harvestUidsClass vid_imap ckey_imap in
+    let () = visitCilFile harvestUids cil in
+    let (vid_imap_final, vid_imap_inv) = build_remapping vid_imap nextGlobalVID in
+    let (ckey_imap_final, ckey_imap_inv) = build_remapping ckey_imap nextCompinfoKey in
+    let remapper = new remapperClass vid_imap_final vid_imap_inv ckey_imap_final ckey_imap_inv in
+    let () = visitCilFile remapper cil in
+    cil
+  end
+
 
 (** Read a {!Cil.file} in binary form from the filesystem. The first
  * argument is the name of a file previously created by
  * {!Cil.saveBinaryFile}. Because this also reads some global state,
  * this should be called before any other CIL code is parsed or generated. *)
-let loadBinaryFile (filename : string) : file = 
+let loadBinaryFile (filename : string) : file =
   let inchan = open_in_bin filename in
   let loaded : savedFile = (Marshal.from_channel inchan : savedFile) in
   close_in inchan ;
-  (* nextGlobalVID = 11 because CIL initialises many dummy variables *)
-  if !nextGlobalVID != 11 || !nextCompinfoKey != 1 then begin
-    (* In this case, we should change all of the varinfo and compinfo
-       keys in loaded.savedFile to prevent conflicts.  But since that hasn't
-       been implemented yet, just print a warning.  If you do implement this,
-       please send it to the CIL maintainers. *)
-    ignore (E.warn "You are possibly loading a binary file after another file has been loaded.  This isn't currently supported, so varinfo and compinfo id numbers may conflict.")
-  end;
-  nextGlobalVID := max loaded.savedNextVID !nextGlobalVID;
-  nextCompinfoKey := max loaded.savedNextCompinfoKey !nextCompinfoKey;
-  loaded.savedFile
+  remap loaded.savedFile
 
 
 
