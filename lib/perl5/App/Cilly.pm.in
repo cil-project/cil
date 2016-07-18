@@ -1962,7 +1962,7 @@ sub new {
             "-pedantic-errors\$" => { TYPE => 'ALLARGS' },
             "-Wall" => { TYPE => 'CC', 
 			 RUN => sub { push @{$stub->{CILARGS}},"--warnall";}},
-            "-W[-a-z0-9]*\$" => { TYPE => 'CC' },
+            "-W[-a-z0-9=]*\$" => { TYPE => 'CC' },
             "-w\$" => { TYPE => 'ALLARGS' },
 
 	    # Debugging Options

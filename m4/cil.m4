@@ -32,6 +32,7 @@ AC_DEFUN([CIL_CHECK_INTEGER_TYPE], [
   real_type=''
   __CIL_CHECK_INTEGER_TYPE_SIGNS([$1], int)
   __CIL_CHECK_INTEGER_TYPE_SIGNS([$1], long)
+  __CIL_CHECK_INTEGER_TYPE_SIGNS([$1], long long)
   __CIL_CHECK_INTEGER_TYPE_SIGNS([$1], short)
   __CIL_CHECK_INTEGER_TYPE_SIGNS([$1], char)
   if test -z "$real_type"; then
