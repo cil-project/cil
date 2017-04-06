@@ -2028,7 +2028,12 @@ let kintegerCilint (k: ikind) (i: cilint) : exp =
   if truncated = BitTruncation && !warnTruncate then 
     ignore (warnOpt "Truncating integer %s to %s" 
               (string_of_cilint i) (string_of_cilint i'));
-  Const (CInt64(int64_of_cilint i', k,  None))
+  let str =
+    if string_of_cilint i <> string_of_cilint i' then
+      Some (string_of_cilint i)
+    else None
+  in
+  Const (CInt64(int64_of_cilint i', k, str))
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp = 
