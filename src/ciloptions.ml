@@ -236,7 +236,7 @@ let options : (string * Arg.spec * string) list =
 
     (* sm: some more debugging options *)
     "--tr",
-    Arg.String Trace.traceAddMulti,
+    Arg.String Ciltrace.traceAddMulti,
     "<sys> Subsystem to show debug printfs for";
 
     "--extrafiles",

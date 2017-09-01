@@ -37,7 +37,7 @@
 
 
 module E = Errormsg
-open Trace
+open Ciltrace
 open Pretty
 
 (* Output management *)

@@ -35,7 +35,7 @@
  *
  *)
 
-(* Trace module
+(* Ciltrace module
  * Scott McPeak, 5/4/00
  *
  * The idea is to pepper the source with debugging printfs,

@@ -41,7 +41,7 @@
 
 open Cabs
 open Cabshelper
-open Trace
+open Ciltrace
 open Pretty
 open Cabsvisit
 

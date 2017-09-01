@@ -50,7 +50,7 @@ let keepUnused = ref false
 let rmUnusedInlines = ref false
 
 
-let trace = Trace.trace "rmtmps"
+let trace = Ciltrace.trace "rmtmps"
 
 
 
@@ -802,14 +802,14 @@ type rootsFilter = global -> bool
 let isDefaultRoot = isExportedRoot
 
 let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
-  if !keepUnused || Trace.traceActive "disableTmpRemoval" then
-    Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
+  if !keepUnused || Ciltrace.traceActive "disableTmpRemoval" then
+    Ciltrace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else
     begin
       if !E.verboseFlag then 
         ignore (E.log "Removing unused temporaries\n" );
 
-      if Trace.traceActive "printCilTree" then
+      if Ciltrace.traceActive "printCilTree" then
 	dumpFile defaultCilPrinter stdout "stdout" file;
 
       (* digest any pragmas that would create additional roots *)

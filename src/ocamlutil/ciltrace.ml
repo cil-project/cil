@@ -35,7 +35,7 @@
  *
  *)
 
-(* Trace module implementation
+(* Ciltrace module implementation
  * see trace.mli
  *)
 
