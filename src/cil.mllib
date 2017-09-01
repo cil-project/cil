@@ -10,6 +10,7 @@ Cil
 Cilint
 Cillower
 Ciloptions
+Ciltrace
 Cilutil
 Cilversion
 Clexer
@@ -37,6 +38,5 @@ Patch
 Pretty
 Rmtmps
 Stats
-Trace
 Util
 Whitetrack
