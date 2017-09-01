@@ -39,7 +39,7 @@
 open Escape
 open Pretty
 open Cilint
-(* open Trace      (\* sm: 'trace' function *\) *)
+(* open Ciltrace      (\* sm: 'trace' function *\) *)
 module E = Errormsg
 module H = Hashtbl
 module IH = Inthash

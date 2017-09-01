@@ -47,7 +47,7 @@ open Cil
 module E = Errormsg
 module H = Hashtbl
 module A = Alpha
-open Trace
+open Ciltrace
 
 let debugMerge = false
 let debugInlines = false

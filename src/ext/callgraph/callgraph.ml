@@ -5,7 +5,7 @@
 
 open Cil
 open Feature
-open Trace
+open Ciltrace
 open Printf
 module P = Pretty
 module IH = Inthash

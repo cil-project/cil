@@ -1,7 +1,7 @@
 
 open Escape
 open Pretty
-open Trace
+open Ciltrace
 open Cil
 open Feature
 

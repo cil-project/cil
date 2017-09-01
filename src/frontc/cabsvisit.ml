@@ -40,7 +40,7 @@
 
 open Cabs
 open Cabshelper
-open Trace
+open Ciltrace
 open Pretty
 module E = Errormsg
 

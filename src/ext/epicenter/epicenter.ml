@@ -7,7 +7,7 @@
 open Callgraph
 open Cil
 open Feature
-open Trace
+open Ciltrace
 open Pretty
 module H = Hashtbl
 module IH = Inthash

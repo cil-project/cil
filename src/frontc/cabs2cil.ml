@@ -51,7 +51,7 @@ open Cabshelper
 open Pretty
 open Cil
 open Cilint
-open Trace
+open Ciltrace
 
 
 let mydebugfunction () = 
