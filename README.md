@@ -1,6 +1,10 @@
 C Intermediate Language (CIL)
 ============================
 
+Linux [![Linux build Status](https://travis-ci.org/cil-project/cil.svg?branch=develop)](https://travis-ci.org/cil-project/cil)
+Windows [![Windows build status](https://ci.appveyor.com/api/projects/status/jtgf72r03jnge7jw/branch/develop?svg=true)](https://ci.appveyor.com/project/kerneis/cil/branch/develop)
+
+
 CIL is a front-end for the C programming language that facilitates
 program analysis and transformation. CIL will parse and typecheck a
 program, and compile it into a simplified subset of C.
@@ -21,7 +25,7 @@ Install the latest release of CIL with [opam][]:
 Read the excellent [CIL tutorial][tuto] by Zachary Anderson, and
 check out the accompanying [project template][template].
 
-[tuto]: http://www.inf.ethz.ch/personal/azachary/teaching/ciltut.pdf
+[tuto]: https://bitbucket.org/zanderso/cil-template/downloads/ciltut.pdf
 [template]: https://bitbucket.org/zanderso/cil-template
 
 Installation
@@ -42,7 +46,7 @@ If you want to install to some other directory, you can tweak the prefix
 during the configure step.  For instance, to install in your local [opam][]
 directory:
 
-    FORCE_PERL_PREFIX=1 ./configure --prefix=`opam config var prefix`
+    ./configure --prefix=`opam config var prefix`
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 [opam]: http://opam.ocamlpro.com/
@@ -80,7 +84,7 @@ To (re)build the doc, you need [Hevea][] and run:
 You can also [browse the documentation online][doc].
 
 [hevea]: http://hevea.inria.fr/ "Hevea - LaTex to HTML translator"
-[doc]:   http://kerneis.github.com/cil/doc/html/cil "Cil online doc"
+[doc]:   http://cil-project.github.io/cil/doc/html/cil/ "Cil online doc"
 
 Ressources
 ----------

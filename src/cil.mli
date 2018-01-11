@@ -430,10 +430,6 @@ and enuminfo = {
       * should always be IInt, but gcc allows other integer kinds *)
 }
 
-(** {b Enumerations.} Information about an enumeration. This is shared by all 
- * references to an enumeration. Make sure you have a [GEnumTag] for each of 
- * of these. *)
-
 (** Information about a defined type *)
 and typeinfo = {
     mutable tname: string;              
@@ -1113,7 +1109,7 @@ and typsig =
     TSArray of typsig * int64 option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
+  | TSFun of typsig * typsig list option * bool * attribute list
   | TSEnum of string * attribute list
   | TSBase of typ
 
@@ -1126,32 +1122,6 @@ val lowerConstants: bool ref
 
 val insertImplicitCasts: bool ref
     (** Do insert implicit casts (default true) *)
-
-(** To be able to add/remove features easily, each feature should be package 
-   * as an interface with the following interface. These features should be *)
-type featureDescr = {
-    fd_enabled: bool ref; 
-    (** The enable flag. Set to default value  *)
-
-    fd_name: string; 
-    (** This is used to construct an option "--doxxx" and "--dontxxx" that 
-     * enable and disable the feature  *)
-
-    fd_description: string; 
-    (** A longer name that can be used to document the new options  *)
-
-    fd_extraopt: (string * Arg.spec * string) list; 
-    (** Additional command line options.  The description strings should
-        usually start with a space for Arg.align to print the --help nicely. *)
-
-    fd_doit: (file -> unit);
-    (** This performs the transformation *)
-
-    fd_post_check: bool; 
-    (** Whether to perform a CIL consistency checking after this stage, if 
-     * checking is enabled (--check is passed to cilly). Set this to true if 
-     * your feature makes any changes for the program. *)
-}
 
 (** Comparison function for locations.
  ** Compares first by filename, then line, then byte *)
@@ -1377,7 +1347,7 @@ val doubleType: typ
  *  and is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
-(** An unsigned integer type that fits pointer difference. Depends on
+(** An signed integer type that fits pointer difference. Depends on
  *  {!Cil.msvcMode} and is set when you call {!Cil.initCIL}. *)
 val ptrdiffType: typ ref
 

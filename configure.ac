@@ -69,7 +69,7 @@ DEFAULT_CIL_MODE=GNUCC
 # sometimes people have Common Lisp's interpreter called 'cl' ..
 AC_MSG_CHECKING(for msvc cl.exe (optional))
 # See if CC points to the MS compiler
-if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then 
+if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
   AC_MSG_RESULT([found, set as default])
   HAS_MSVC=yes
   DEFAULT_COMPILER=_MSVC
@@ -118,6 +118,10 @@ if test "$PERL" = "no"; then
   AC_MSG_ERROR([You must install perl])
 fi
 
+# ------------------- Cygpath -------------
+
+AC_CHECK_PROG([CYGPATH],[cygpath],[cygpath])
+
 #
 # -------------------- GCC --------------
 #
@@ -152,6 +156,7 @@ AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h stdbool.h)
 AC_C_CONST
 AC_C_INLINE
 AC_HEADER_TIME
+AC_TYPE_INTPTR_T
 
 # checks for library functions; more autoscan stuff
 AC_FUNC_MEMCMP
@@ -160,96 +165,6 @@ AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 # Find out the true definitions of some integer types
 CIL_CHECK_INTEGER_TYPE(size_t, TYPE_SIZE_T)
 CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
-
-
-# ----------- platform-specific code -------------
-# $target is typically processor-vendor-os
-case "$target" in
-
-  # cygwin
-  *86*cygwin*)
-    AC_MSG_RESULT(configuring for Cygwin on win32/x86)
-
-    CC=`which $CC`
-    CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
-    ;;
-
-  # MinGW
-  *86*mingw32*)
-    AC_MSG_RESULT(configuring for MinGW on win32/x86)
-
-    CC=`which $CC`
-    ;;
-
-  *mipsel*linux*)
-    AC_MSG_RESULT(configuring for MIPSel/Linux)
-
-    if test $cross_compiling = "yes"; then
-      AC_PATH_PROG([EMUL], [qemu-mipsel])
-    fi
-    ;;
-
-  *mips*linux*)
-    AC_MSG_RESULT(configuring for MIPS/Linux)
-
-    if test $cross_compiling = "yes"; then
-      AC_PATH_PROG([EMUL], [qemu-mips])
-    fi
-    ;;
-
-  *)
-    ;;
-esac
-
-#
-# CIL features
-#
-#
-   
-# Set the defaults
-
-
-# Give a space-separated list of features with the defaults
-features="blockinggraph=no zrapp=no llvm=no"
-
-AC_ARG_WITH(blockinggraph,
-    AS_HELP_STRING([--with-blockinggraph],[enable the blocking graph feature]))
-AC_ARG_WITH(zrapp,
-    AS_HELP_STRING([--with-zrapp],[enable the zrapp pretty-printer]))
-
-AC_ARG_WITH(llvm,
-    AS_HELP_STRING([--with-llvm],[enable the LLVM code generator]))
-
-# Now add any features specified in the command-line
-
-features="$features $EXTRAFEATURES"
-
-rm -f Makefile.features
-echo "# -*- Mode: makefile -*-">Makefile.features
-echo "# This file was generated automatically by ./configure.in">>Makefile.features
-echo "# We will not need this once configure supports multiline variables">>Makefile.features
-
-for f_val in $features
-do
-   # If there is no =, then we default to yes
-   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
-   # echo "Testing feature $f_val"
-   f=`echo $f_val | sed -e s%=.*$%%`
-   AC_MSG_CHECKING(whether to use CIL feature $f)
-   # default value from "features"
-   defval=`echo $f_val | sed -e s%^.*=%%`
-   # current value
-   getcurval="echo \${with_$f:=$defval}"
-   curval=`eval $getcurval`
-   AC_MSG_RESULT($curval)
-   if test $curval = yes ;then
-      CIL_FEATURES="$CIL_FEATURES $f"
-      f_up=`echo $f | tr a-z A-Z`
-      echo "export USE_$f_up=yes">>Makefile.features
-   fi
-done
-chmod -w Makefile.features
-
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
@@ -265,10 +180,6 @@ AC_SUBST(CIL_VERSION)
 AC_SUBST(HAVE_BUILTIN_VA_LIST)
 AC_SUBST(THREAD_IS_KEYWORD)
 AC_SUBST(UNDERSCORE_NAME)
-AC_SUBST(EXTRAFEATURES)
-AC_SUBST(EXTRASRCDIRS)
-
-AC_ARG_VAR(FORCE_PERL_PREFIX, [Install cilly wrapper in PREFIX/bin and PREFIX/lib])
 
 # finish the configure script and generate various files; ./configure
 # will apply variable substitutions to <filename>.in to generate <filename>;
@@ -277,10 +188,11 @@ CIL_CONFIG_FILES(Makefile)
 CIL_CONFIG_FILES(META)
 CIL_CONFIG_FILES(config.mk)
 CIL_CONFIG_FILES(test/Makefile)
-CIL_CONFIG_FILES(lib/App/Cilly/CilConfig.pm)
+CIL_CONFIG_FILES(lib/perl5/App/Cilly/CilConfig.pm)
 CIL_CONFIG_FILES(doc/index.html)
 CIL_CONFIG_FILES(doc/header.html)
 CIL_CONFIG_FILES(src/machdep-ml.c)
+CIL_CONFIG_FILES(src/cilversion.ml)
 
 AC_OUTPUT
 
@@ -292,6 +204,5 @@ CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
-  CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
+  Native OCaml CIL libs                          $OCAMLNATDYNLINK
 EOF

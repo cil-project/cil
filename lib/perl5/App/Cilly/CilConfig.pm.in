@@ -1,0 +1,4 @@
+package App::Cilly::CilConfig;
+
+$::cc        = "@CC@";
+$::default_mode = "@DEFAULT_CIL_MODE@";

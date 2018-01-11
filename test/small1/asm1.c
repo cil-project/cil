@@ -7,9 +7,14 @@ __inline static char * __wes_memset_generic(char *s, char c, unsigned int count)
     int d0;
     int d1;
 
+#if defined(i386) || defined(__x86_64__)
     __asm__ __volatile__("rep\n\t"
     			 "stosb": "=&c" (d0), "=&D" (d1): "a" (c), "1" (s),
 			 "0" (count): "memory");
+#else
+    /* fallback for platforms where this test does not compile */
+    memset(s,c,count);
+#endif
     return s;
 }
 

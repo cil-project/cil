@@ -4,6 +4,7 @@
 // problems with sizeof and chars
   
 #include <assert.h>    // assert
+#include <limits.h>    // CHAR_MIN
 
 int main()
 {
@@ -18,7 +19,10 @@ int main()
 
   //character constants are ints, so this should be sign-extended to 0xFFFFFFFF
   i = '\xff';
-  assert((int)i == (int)-1);
+  if(CHAR_MIN == 0) /* char is unsigned */
+    assert((int)i == (int)255);
+  else              /* char is signed */
+    assert((int)i == (int)-1);
 
   {
     //Test CIL's understanding of '\xff' by forcing it to do constant folding:

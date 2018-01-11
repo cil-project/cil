@@ -5,10 +5,12 @@ static __inline__ int atomic_dec_and_test(atomic_t *v)
 {
 	unsigned char c;
 
+#if defined(i386) || defined(__x86_64__)
 	__asm__ __volatile__(
 		""  "decl %0; sete %1"
 		:"=m" (v->counter), "=qm" (c)
 		:"m" (v->counter) : "memory");
+#endif
 	return c != 0;
 }
 

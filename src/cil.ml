@@ -862,36 +862,9 @@ and typsig =
     TSArray of typsig * int64 option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
-  | TSFun of typsig * typsig list * bool * attribute list
+  | TSFun of typsig * typsig list option * bool * attribute list
   | TSEnum of string * attribute list
   | TSBase of typ
-
-
-
-(** To be able to add/remove features easily, each feature should be packaged 
-   * as an interface with the following interface. These features should be *)
-type featureDescr = {
-    fd_enabled: bool ref; 
-    (** The enable flag. Set to default value  *)
-
-    fd_name: string; 
-    (** This is used to construct an option "--doxxx" and "--dontxxx" that 
-     * enable and disable the feature  *)
-
-    fd_description: string; 
-    (* A longer name that can be used to document the new options  *)
-
-    fd_extraopt: (string * Arg.spec * string) list; 
-    (** Additional command line options.  The description strings should
-        usually start with a space for Arg.align to print the --help nicely. *)
-
-    fd_doit: (file -> unit);
-    (** This performs the transformation *)
-
-    fd_post_check: bool; 
-    (* Whether to perform a CIL consistency checking after this stage, if 
-     * checking is enabled (--check is passed to cilly) *)
-}
 
 let locUnknown = { line = -1; 
 		   file = ""; 
@@ -1270,6 +1243,7 @@ let stringLiteralType = ref charPtrType
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
 let uintPtrType = TPtr(uintType, [])
+let boolPtrType = TPtr(boolType, [])
 
 let doubleType = TFloat(FDouble, [])
 
@@ -1418,7 +1392,7 @@ let attributeHash: (string, attributeClass) H.t =
 
   List.iter (fun a -> H.add table a (AttrFunType false))
     [ "format"; "regparm"; "longcall"; 
-      "noinline"; "always_inline"; "leaf";
+      "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
@@ -2917,6 +2891,7 @@ let initGccBuiltins () : unit =
     with Not_found ->
       ()
   in
+  addSwap 16;
   addSwap 32;
   addSwap 64;
 
@@ -2945,6 +2920,9 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_expl" (longDoubleType, [ longDoubleType ], false);
 
   H.add h "__builtin_expect" (longType, [ longType; longType ], false);
+
+  H.add h "__builtin_trap" (voidType, [], false);
+  H.add h "__builtin_unreachable" (voidType, [], false);
 
   H.add h "__builtin_fabs" (doubleType, [ doubleType ], false);
   H.add h "__builtin_fabsf" (floatType, [ floatType ], false);
@@ -3024,6 +3002,8 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_prefetch" (voidType, [ voidConstPtrType ], true);
   H.add h "__builtin_return" (voidType, [ voidConstPtrType ], false);
   H.add h "__builtin_return_address" (voidPtrType, [ uintType ], false);
+  H.add h "__builtin_extract_return_addr" (voidPtrType, [ voidPtrType ], false);
+  H.add h "__builtin_frob_return_address" (voidPtrType, [ voidPtrType ], false);
 
   H.add h "__builtin_sin" (doubleType, [ doubleType ], false);
   H.add h "__builtin_sinf" (floatType, [ floatType ], false);
@@ -3069,9 +3049,10 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
 
-  (* Atomic Builtins *)
-  (* These builtins are overloaded, hence the "magic" void type with
-     __overloaded__ attribute, used to suppress warnings in cabs2cil.ml.
+  (* Atomic Builtins
+     These builtins have an overloaded return type, hence the "magic" void type
+     with __overloaded__ attribute, used to infer return type from parameters in
+     cabs2cil.ml.
      For the same reason, we do not specify the type of the parameters. *)
   H.add h "__sync_fetch_and_add" (TVoid[Attr("overloaded",[])], [ ], true);
   H.add h "__sync_fetch_and_sub" (TVoid[Attr("overloaded",[])], [ ], true);
@@ -3091,6 +3072,62 @@ let initGccBuiltins () : unit =
   H.add h "__sync_synchronize" (voidType, [ ], true);
   H.add h "__sync_lock_test_and_set" (TVoid[Attr("overloaded",[])], [ ], true);
   H.add h "__sync_lock_release" (voidType, [ ], true);
+
+  (* __atomic builtins for various bit widths
+
+     Most __atomic functions are offered for various bit widths, using
+     a different suffix for each concrete bit width:  "_1", "_2", and
+     so on up to "_16".  Each of these functions also exists in a form
+     with no bit width specified, and occasionally with a bit width
+     suffix of "_n".
+
+     Note that these __atomic functions are not really va_arg, but we
+     set the va_arg flag nonetheless because it prevents CIL from
+     trying to check the type of parameters against the prototype.
+   *)
+
+  let addAtomicForWidths baseName ?n ~none ~num () =
+    (* ?n gives the return type to be used with the "_n" suffix, if any *)
+    (* ~none gives the return type to be used with no suffix *)
+    (* ~num gives the return type to be used with the "_1" through "_16" suffixes *)
+    let addWithSuffix suffix returnType =
+      let identifier = "__atomic_" ^ baseName ^ suffix in
+      H.add h identifier (returnType, [], true)
+    in
+    List.iter begin
+	fun bitWidth ->
+	let suffix = "_" ^ (string_of_int bitWidth) in
+	addWithSuffix suffix num
+      end [1; 2; 4; 8; 16];
+    addWithSuffix "" none;
+    match n with
+    | None -> ()
+    | Some typ -> addWithSuffix "_n" typ
+  in
+
+  let anyType = TVoid [Attr("overloaded", [])] in
+
+  (* binary operations combined with a fetch of either the old or new value *)
+  List.iter begin
+      fun operation ->
+      addAtomicForWidths ("fetch_" ^ operation) ~none:anyType ~num:anyType ();
+      addAtomicForWidths (operation ^ "_fetch") ~none:anyType ~num:anyType ()
+    end ["add"; "and"; "nand"; "or"; "sub"; "xor"];
+
+  (* other atomic operations provided at various bit widths *)
+  addAtomicForWidths "compare_exchange" ~none:boolType ~n:boolType ~num:boolType ();
+  addAtomicForWidths "exchange" ~none:voidType ~n:anyType ~num:anyType ();
+  addAtomicForWidths "load" ~none:voidType ~n:anyType ~num:anyType ();
+  addAtomicForWidths "store" ~none:voidType ~n:voidType ~num:voidType ();
+
+  (* Some atomic builtins actually have a decent, C-compatible type *)
+  H.add h "__atomic_test_and_set" (boolType, [voidPtrType; intType], false);
+  H.add h "__atomic_clear" (voidType, [boolPtrType; intType], false);
+  H.add h "__atomic_thread_fence" (voidType, [intType], false);
+  H.add h "__atomic_signal_fence" (voidType, [intType], false);
+  H.add h "__atomic_always_lock_free" (boolType, [sizeType; voidPtrType], false);
+  H.add h "__atomic_is_lock_free" (boolType, [sizeType; voidPtrType], false);
+  H.add h "__atomic_feraiseexcept" (voidType, [intType], false);
 
   if hasbva then begin
     H.add h "__builtin_va_end" (voidType, [ TBuiltin_va_list [] ], false);
@@ -3960,7 +3997,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | GEnumTagDecl (enum, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
-          text ("enum " ^ enum.ename ^ ";\n")
+          text "enum " ++ text enum.ename ++ chr ' '
+          ++ self#pAttrs () enum.eattr ++ text ";\n"
 
     | GCompTag (comp, l) -> (* This is a definition of a tag *)
         let n = comp.cname in
@@ -3980,8 +4018,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           (self#pAttrs () rest_attr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
-        self#pLineDirective l ++
-          text (compFullName comp) ++ text ";\n"
+        let su = if comp.cstruct then "struct " else "union " in
+        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
+        self#pLineDirective l
+          ++ text su ++ self#pAttrs () sto_mod
+          ++ text comp.cname ++ chr ' '
+          ++ self#pAttrs () rest_attr ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -4812,9 +4854,14 @@ let rec d_typsig () = function
         (if iss then "struct" else "union") name
         d_attrlist al
   | TSFun (rt, args, isva, al) -> 
-      dprintf "TSFun(@[%a,@?%a,%b,@?%a@])"
+      dprintf "TSFun(@[%a,@?%a,%B,@?%a@])"
         d_typsig rt
-        (docList ~sep:(chr ',' ++ break) (d_typsig ())) args isva
+        insert
+        (match args with
+        | None -> text "None"
+        | Some args ->
+            docList ~sep:(chr ',' ++ break) (d_typsig ()) () args)
+        isva
         d_attrlist al
   | TSEnum (n, al) -> 
       dprintf "TSEnum(@[%s,@?%a@])"
@@ -5088,21 +5135,25 @@ let doVisit (vis: cilVisitor)
 
 (* mapNoCopy is like map but avoid copying the list if the function does not 
  * change the elements. *)
-let rec mapNoCopy (f: 'a -> 'a) = function
-    [] -> []
-  | (i :: resti) as li -> 
+let mapNoCopy (f: 'a -> 'a) l =
+  let rec aux acc changed = function
+    [] -> if changed then List.rev acc else l
+  | i :: resti -> 
       let i' = f i in
-      let resti' = mapNoCopy f resti in
-      if i' != i || resti' != resti then i' :: resti' else li 
+      aux (i' :: acc) (changed || i != i') resti
+  in aux [] false l
 
-let rec mapNoCopyList (f: 'a -> 'a list) = function
-    [] -> []
-  | (i :: resti) as li -> 
+let rec mapNoCopyList (f: 'a -> 'a list) l =
+  let rec aux acc changed = function
+    [] -> if changed then List.rev acc else l
+  | i :: resti -> 
       let il' = f i in
-      let resti' = mapNoCopyList f resti in
-      match il' with
-        [i'] when i' == i && resti' == resti -> li
-      | _ -> il' @ resti'
+      let has_changed =
+        match il' with
+          [i'] when i' == i -> false
+        | _ -> true in
+      aux (List.rev_append il' acc) (changed || has_changed) resti
+  in aux [] false l
 
 (* A visitor for lists *)
 let doVisitList  (vis: cilVisitor)
@@ -5947,9 +5998,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
   | TComp (comp, a) -> 
       TSComp (comp.cstruct, comp.cname, doattr (addAttributes comp.cattr a))
   | TFun(rt,args,isva,a) -> 
-      TSFun(typeSig rt, 
-            Util.list_map (fun (_, atype, _) -> (typeSig atype)) (argsToList args),
-            isva, doattr a)
+      TSFun(typeSig rt, (Util.list_map_opt (fun (_, atype, _) -> (typeSig atype)) args), isva, doattr a)
   | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
   | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))      
 
@@ -6826,6 +6875,8 @@ let initCIL () =
       else if name = "unsigned int" then IUInt
       else if name = "long" then ILong
       else if name = "unsigned long" then IULong
+      else if name = "long long" then ILongLong
+      else if name = "unsigned long long" then IULongLong
       else if name = "short" then IShort
       else if name = "unsigned short" then IUShort
       else if name = "char" then IChar

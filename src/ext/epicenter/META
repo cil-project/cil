@@ -1,0 +1,2 @@
+requires = "cil.callgraph"
+description = "remove all functions except those within some number"

@@ -1,0 +1,12 @@
+S src/
+S src/ext/
+S src/ext/pta/
+S src/frontc/
+S ocamlutil/
+B _build/
+B _build/src/
+B _build/src/ext/
+B _build/src/ext/pta/
+B _build/src/frontc/
+B _build/ocamlutil/
+PKG findlib

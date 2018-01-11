@@ -16,7 +16,7 @@ use RegTest;
 
 $ENV{LANG} = 'C';
 
-print "Test infrastructure for CIL\n";
+print "Test infrastructure for CIL on $^O\n";
 
 # Create our customized test harness
 my $TEST = CilRegTest->new(AvailParams => { 'RUN' => 1,
@@ -34,7 +34,7 @@ my $inferbox="none";
 my $win32 = ($^O eq 'MSWin32' || $^O eq 'cygwin');
 my $unix = !$win32;
 my $solaris = $^O eq 'solaris';
-
+my $freebsd = $^O eq 'freebsd';
 
 # operating modes
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
@@ -47,7 +47,7 @@ my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
 my $manju = $unix && system("hostname | grep manju >/dev/null")==0;
 
 my $make;
-if ($solaris) {
+if ($solaris || $freebsd) {
     $make = "gmake";
 } else {
     $make = "make";
@@ -163,12 +163,12 @@ sub addToGroup {
 $TEST->newTest(
     Name => "!inittests0",
     Dir => "..",
-    Cmd => "$make cilly cillib",
+    Cmd => "$make all",
     Group => ['ALWAYS']);
 $TEST->newTest(
     Name => "!inittests2",
     Dir => "..",
-    Cmd => "$make cilly cillib _GNUCC=1",
+    Cmd => "$make all _GNUCC=1",
     Group => ['ALWAYS']);
 
 
@@ -198,6 +198,7 @@ addTest("testrun/asm1 _GNUCC=1");
 addTest("test/asm2 _GNUCC=1");
 addTest("test/asm3 _GNUCC=1");
 addTest("test/asm4 _GNUCC=1");
+addTest("test/asm_emptyclobberallowed _GNUCC=1");
 addTest("testobj/asm5 _GNUCC=1");
 
 addTest("testrun/offsetof");
@@ -495,6 +496,9 @@ addTest("testrun/voidarg ");
 addTest("testrun/union2 ");
 addTest("testrun/union3 ");
 addTest("test/union5 ");
+addTest("testrun/union6 ");
+addBadComment("testrun/union6",
+  "Bug. Unsupported C11 implicit initialization of union padding.");
 addTest("runall/extinline ");
 
 addTest("testrun/rmtmps-attr ");
@@ -569,6 +573,7 @@ addTest("merge-ar ");
 addTest("testrun/sizeof1");
 addTest("testrun/sizeof2");
 addTest("test/sizeof3");
+addBadComment("test/sizeof3", "Bug. Constant-folding of very large arrays does not work on 32-bit machines.");
 addTest("test/outofmem ");
 addTest("testrun/builtin ");
 addTest("test/builtin2 ");
@@ -619,7 +624,8 @@ addTest("scott/open $gcc");
 addTest("scott/constfold");
 addTest("scott/mode_sizes $gcc");       # mode(__QI__) stuff
 addTest("scott-nolink/brlock $gcc");
-addTest("scott/regparm0 $gcc");         # this works, unfortunately... but the bug has been fixed nonetheless
+addTest("scott/regparm0 $gcc");         # this works, unfortunately...  but the bug has been fixed in CIL
+addBadComment("scott/regparm0", "Notbug. Some gcc versions fail to compile this test on i386");
 addTest("scott/unscomp");               # kernel/fs/buffer.c
 addTest("scott/thing");
 
@@ -647,6 +653,9 @@ addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on so
 
 # tests of things implemented for EDG compatibility
 addTest("mergestruct");
+
+# Test for a merge bug in global variables initializations
+addTest("mergeinit");
 
 # a few things that should fail
 addTest("test-bad/trivial-tb");
@@ -709,6 +718,7 @@ addTest("testrun/compound1");
 addBadComment("testrun/compound1", "Notbug. Undefined behavior (probably).");
 addTest("testrun/compound2");
 
+addTest("test/shell-escape SHELL_ESCAPE=1");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

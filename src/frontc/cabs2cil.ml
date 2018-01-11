@@ -441,12 +441,29 @@ let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
 let currentReturnType : typ ref = ref (TVoid([]))
 let currentFunctionFDEC: fundec ref = ref dummyFunDec
 
-  
-let lastStructId = ref 0
-let anonStructName (k: string) (suggested: string) = 
-  incr lastStructId;
-  "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "") 
-  ^ "_" ^ (string_of_int (!lastStructId))
+
+(* Generate unique ids for structs, with a best-effort to base them on the
+ * structure of the type, so that the same anonymous struct in different
+ * compilation units gets the same name - this is important to preserve
+ * compatible types. This is not bullet-proof because we do not
+ * normalize the context at all. *)
+let structIds = ref []
+let newStructId id =
+  assert(id >= 0);
+  let rec find_fresh id max_id = function
+    | [] -> id
+    | x :: xs ->
+        let max' = max x max_id in
+        find_fresh (if id = x then max' + 1 else id) max' xs in
+  let id' = find_fresh id (-1) !structIds in
+  assert(id' >= 0);
+  assert(List.for_all ((<>) id') !structIds);
+  structIds := id' :: !structIds ;
+  id'
+let anonStructName (k: string) (suggested: string) (context: 'a) =
+  let id = newStructId (Hashtbl.hash_param 100 1000 context) in
+  "__anon" ^ k ^ (if suggested <> "" then "_"  ^ suggested else "")
+  ^ "_" ^ (string_of_int id)
 
 
 let constrExprId = ref 0
@@ -456,7 +473,7 @@ let startFile () =
   H.clear env;
   H.clear genv;
   H.clear alphaTable;
-  lastStructId := 0
+  structIds := []
 
 
 
@@ -1227,45 +1244,65 @@ let defaultArgumentPromotion (t : typ) : typ = (* c.f. ISO 6.5.2.2:6 *)
 
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
-    (t2: typ) : typ = 
-  let checkToInt _ = () in  (* dummies for now *)
-  let checkToFloat _ = () in
+    (t2: typ) : typ =
   match unrollType t1, unrollType t2 with
-    TFloat(FLongDouble, _), _ -> checkToFloat t2; t1
-  | _, TFloat(FLongDouble, _) -> checkToFloat t1; t2
-  | TFloat(FDouble, _), _ -> checkToFloat t2; t1
-  | _, TFloat (FDouble, _) -> checkToFloat t1; t2
-  | TFloat(FFloat, _), _ -> checkToFloat t2; t1
-  | _, TFloat (FFloat, _) -> checkToFloat t1; t2
+    TFloat(FLongDouble, _), _ -> t1
+  | _, TFloat(FLongDouble, _) -> t2
+  | TFloat(FDouble, _), _ -> t1
+  | _, TFloat (FDouble, _) -> t2
+  | TFloat(FFloat, _), _ -> t1
+  | _, TFloat (FFloat, _) -> t2
   | _, _ -> begin
       let t1' = integralPromotion t1 in
       let t2' = integralPromotion t2 in
       match unrollType t1', unrollType t2' with
-        TInt(IULongLong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IULongLong, _) -> checkToInt t1'; t2'
-            
-      (* We assume a long long is always larger than a long  *)
-      | TInt(ILongLong, _), _ -> checkToInt t2'; t1'  
-      | _, TInt(ILongLong, _) -> checkToInt t1'; t2'
-            
-      | TInt(IULong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IULong, _) -> checkToInt t1'; t2'
 
-                    
-      | TInt(ILong,_), TInt(IUInt,_) 
-            when bitsSizeOf t1' <= bitsSizeOf t2' -> TInt(IULong,[])
-      | TInt(IUInt,_), TInt(ILong,_) 
-            when bitsSizeOf t2' <= bitsSizeOf t1' -> TInt(IULong,[])
-            
-      | TInt(ILong, _), _ -> checkToInt t2'; t1'
-      | _, TInt(ILong, _) -> checkToInt t1'; t2'
+      (* If both operands have the same type, then no further
+       * conversion is needed.  *)
+      | TInt(ik1, _), TInt(ik2, _) when ik1 = ik2 -> t1'
 
-      | TInt(IUInt, _), _ -> checkToInt t2'; t1'
-      | _, TInt(IUInt, _) -> checkToInt t1'; t2'
-            
-      | TInt(IInt, _), TInt (IInt, _) -> t1'
+      (* Otherwise, if both operands have signed integer types or
+       * both have unsigned integer types, the operand with the type
+       * of lesser integer conversion rank is converted to the type
+       * of the operand with greater rank. *)
+      | TInt(ik1, _), TInt(ik2, _) when isSigned ik1 = isSigned ik2 ->
+          assert(intRank ik1 <> intRank ik2);
+          if intRank ik1 < intRank ik2 then t2' else t1'
+
+      (* We need to know which one is signed for the next cases *)
+      | TInt(ik1, a1), TInt(ik2, a2) -> begin
+
+        let signedKind, unsignedKind, signedType, unsignedType, signedAttrs =
+          if isSigned ik1
+          then ik1, ik2, t1', t2', a1
+          else ik2, ik1, t2', t1', a2 in
+        assert(isSigned signedKind);
+        assert(not(isSigned unsignedKind));
+
+        (* Otherwise, if the operand that has unsigned integer type has
+         * rank greater or equal to the rank of the type of the other
+         * operand, then the operand with signed integer type is converted
+         * to the type of the operand with unsigned integer type. *)
+        if (intRank unsignedKind >= intRank signedKind)
+        then unsignedType
+
+        (* Otherwise, if the type of the operand with signed integer type
+         * can represent all of the values of the type of the operand with
+         * unsigned integer type, then the operand with unsigned integer
+         * type is converted to the type of the operand with signed integer
+         * type. *)
+        else if bytesSizeOfInt signedKind > bytesSizeOfInt unsignedKind
+        then signedType
+
+        (* Otherwise, both operands are converted to the unsigned integer
+         * type corresponding to the type of the operand with signed
+         * integer type.  *)
+        else TInt(unsignedVersionOf signedKind, signedAttrs)
+
+      end
 
       | _, _ -> E.s (error "arithmeticConversion")
+
   end
 
   
@@ -1998,11 +2035,10 @@ and collectFieldInitializer
     (isconst: bool)
     (this: preInit)
     (f: fieldinfo) : init =
-  (* collect, and rewrite type *)
-  let init,newtype = (collectInitializer true isconst this f.ftype) in
-  f.ftype <- newtype;
-  init
-            
+  (* Do NOT rewrite type. We need to keep type incomplete for flexible array
+   * members in fields, and incomplete types otherwise cannot appear in a
+   * structure declaration. *)
+  fst (collectInitializer true isconst this f.ftype)
 
 type stackElem = 
     InArray of offset * typ * int * int ref (* offset of parent, base type, 
@@ -2391,8 +2427,9 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing struct tag on incomplete struct");
         findCompType "struct" n []
     | [A.Tstruct (n, Some nglist, extraAttrs)] -> (* A definition of a struct *)
+      let (specs, names) = List.split nglist in
       let n' =
-        if n <> "" then n else anonStructName "struct" suggestedAnonName in
+        if n <> "" then n else anonStructName "struct" suggestedAnonName specs in
       (* Use the (non-cv, non-name) attributes in !attrs now *)
       let a = extraAttrs @ (getTypeAttrs ()) in
       makeCompType true n' nglist (doAttributes a)
@@ -2401,8 +2438,9 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         if n = "" then E.s (error "Missing union tag on incomplete union");
         findCompType "union" n []
     | [A.Tunion (n, Some nglist, extraAttrs)] -> (* A definition of a union *)
+        let (specs, names) = List.split nglist in
         let n' =
-          if n <> "" then n else anonStructName "union" suggestedAnonName in
+          if n <> "" then n else anonStructName "union" suggestedAnonName specs in
         (* Use the attributes now *)
         let a = extraAttrs @ (getTypeAttrs ()) in
         makeCompType false n' nglist (doAttributes a)
@@ -2412,8 +2450,13 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         findCompType "enum" n []
 
     | [A.Tenum (n, Some eil, extraAttrs)] -> (* A definition of an enum *)
+        let rec justNames eil = match eil with
+            [] -> []
+          | (str, expr, loc) :: eis -> str :: justNames eis
+        in
+        let names = justNames eil in
         let n' =
-          if n <> "" then n else anonStructName "enum" suggestedAnonName in
+          if n <> "" then n else anonStructName "enum" suggestedAnonName names in
         (* make a new name for this enumeration *)
         let n'', _  = newAlphaName true "enum" n' in
 
@@ -4166,47 +4209,28 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Try to intercept some builtins *)
         (match !pf with 
           Lval(Var fv, NoOffset) -> begin
-            (* Atomic builtins are overloaded: check the type of the
-               arguments and fix the return type accordingly.
-               No trick needed for __sync_synchronize,
-               __sync_bool_compare_and_swap and __sync_lock_release.
+            (* Most atomic builtins are overloaded: check the type of the
+               first argument and fix the return type accordingly for those
+               annotated with "overloaded" in src/cil.ml.
                Some consistency checks are left to the compiler, we do
-               as few as we can here to ensure a correct translation. *)
-            if fv.vname = "__sync_fetch_and_add" ||
-               fv.vname = "__sync_fetch_and_sub" ||
-               fv.vname = "__sync_fetch_and_or"  ||
-               fv.vname = "__sync_fetch_and_and" ||
-               fv.vname = "__sync_fetch_and_xor" ||
-               fv.vname = "__sync_fetch_and_nand"||
-               fv.vname = "__sync_add_and_fetch" ||
-               fv.vname = "__sync_sub_and_fetch" ||
-               fv.vname = "__sync_or_and_fetch"  ||
-               fv.vname = "__sync_and_and_fetch" ||
-               fv.vname = "__sync_xor_and_fetch" ||
-               fv.vname = "__sync_nand_and_fetch" ||
-               fv.vname = "__sync_lock_test_and_set" then begin
+               as few as we can here to ensure a correct translation.
+               References:
+               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
+               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
+             *)
+            if !resType' = TVoid[Attr("overloaded",[])] then begin
               match !pargs  with
-                ptr :: value :: q -> begin match typeOf ptr with
+                ptr :: _ -> begin match typeOf ptr with
                 TPtr (vtype, _) ->
-                    let cast v = snd (castTo (typeOf v) vtype v) in
-                    resType' := vtype;
-                    pargs := ptr :: cast value :: q
+                    resType' := vtype
                 | _ ->
                   ignore (warn "Invalid call to %s" fv.vname) end
               | _ ->
                   ignore (warn "Invalid call to %s" fv.vname)
-            end else if fv.vname = "__sync_val_compare_and_swap" then begin
-              match !pargs  with
-                ptr :: oldval :: newval :: q -> begin match typeOf ptr with
-                TPtr (vtype, _) ->
-                    let cast v = snd (castTo (typeOf v) vtype v) in
-                    resType' := vtype;
-                    pargs := ptr :: cast oldval :: cast newval :: q
-                | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname) end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname)
-            end else if fv.vname = "__builtin_va_arg" then begin
+            end
+            
+            (* Builtins for va_arg functions *)
+            else if fv.vname = "__builtin_va_arg" then begin
               match !pargs with 
                 [ marker ; SizeOf resTyp ] -> begin
                   (* Make a variable of the desired type *)
@@ -4267,7 +4291,20 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to %s" fv.vname);
-            end else if fv.vname = "__builtin_object_size" then begin
+            end else if fv.vname = "__builtin_va_arg_pack" then begin
+
+              (match !pargs with 
+                [  ] -> begin 
+                  piscall := false; 
+		  pres := SizeOfE !pf;
+		  prestype := !typeOfSizeOf
+                end
+              | _ -> 
+                  ignore (warn "Invalid call to builtin_va_arg_pack"));
+            end
+             
+            (* More weird buitins *)
+            else if fv.vname = "__builtin_object_size" then begin
               (* Side-effects make __builtin_object_size return -1 or 0 *)
               if (not (isEmpty (!prechunk ()))) then
               (match !pargs with
@@ -4306,16 +4343,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 end
               | _ -> 
                   ignore (warn "Invalid call to builtin_constant_p"));
-            end else if fv.vname = "__builtin_va_arg_pack" then begin
-
-              (match !pargs with 
-                [  ] -> begin 
-                  piscall := false; 
-		  pres := SizeOfE !pf;
-		  prestype := !typeOfSizeOf
-                end
-              | _ -> 
-                  ignore (warn "Invalid call to builtin_va_arg_pack"));
             end else if fv.vname = "__builtin_choose_expr" then begin
 
               (* Constant-fold the argument and see if it is a constant *)
@@ -4989,7 +5016,7 @@ and doInit
 	  (* ISO 6.7.8 para 14: final NUL added only if no size specified, or
 	   * if there is room for it; btw, we can't rely on zero-init of
 	   * globals, since this array might be a local variable *)
-          if ((isNone leno) or ((String.length s) < (integerArrayLength leno)))
+          if ((isNone leno) || ((String.length s) < (integerArrayLength leno)))
             then ref [init Int64.zero]
             else ref []  
         in
@@ -5051,7 +5078,7 @@ and doInit
 	  (* ISO 6.7.8 para 14: final NUL added only if no size specified, or
 	   * if there is room for it; btw, we can't rely on zero-init of
 	   * globals, since this array might be a local variable *)
-          if ((isNone leno) or ((List.length s) < (integerArrayLength leno)))
+          if ((isNone leno) || ((List.length s) < (integerArrayLength leno)))
             then [init Int64.zero]
             else [])
 (*
@@ -6216,29 +6243,11 @@ and doOnlyTypedef (specs: A.spec_elem list) : unit =
     if nattr <> [] then
       ignore (warn "Ignoring identifier attribute");
            (* doSpec will register the type. *)
-    (* See if we are defining a composite or enumeration type, and in that 
-     * case move the attributes from the defined type into the composite type 
-     * *)
-    let isadef = 
-      List.exists 
-        (function 
-            A.SpecType(A.Tstruct(_, Some _, _)) -> true
-          | A.SpecType(A.Tunion(_, Some _, _)) -> true
-          | A.SpecType(A.Tenum(_, Some _, _)) -> true
-          | _ -> false) specs
-    in
     match restyp with 
       TComp(ci, al) -> 
-        if isadef then begin
           ci.cattr <- cabsAddAttributes ci.cattr al; 
-          (* The GCompTag was already added *)
-        end else (* Add a GCompTagDecl *)
-          cabsPushGlobal (GCompTagDecl(ci, !currentLoc))
     | TEnum(ei, al) -> 
-        if isadef then begin
           ei.eattr <- cabsAddAttributes ei.eattr al;
-        end else
-          cabsPushGlobal (GEnumTagDecl(ei, !currentLoc))
     | _ -> 
         ignore (warn "Ignoring un-named typedef that does not introduce a struct or enumeration type")
             
@@ -6522,13 +6531,13 @@ and doStatement (s : A.statement) : chunk =
         match !gotoTargetData with
           Some (switchv, switch) -> (* We have already generated this one  *)
             se 
-            @@ i2c(Set (var switchv, makeCast e' intType, loc'))
+            @@ i2c(Set (var switchv, makeCast e' !upointType, loc'))
             @@ s2c(mkStmt(Goto (ref switch, loc')))
 
         | None -> begin
             (* Make a temporary variable *)
             let vchunk = createLocal 
-                (intType, NoStorage, false, [])
+                (!upointType, NoStorage, false, [])
                 (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT) 
             in
             if not (isEmpty vchunk) then 
@@ -6544,7 +6553,7 @@ and doStatement (s : A.statement) : chunk =
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);
-            se @@ i2c (Set(var switchv, makeCast e' intType, loc')) @@
+            se @@ i2c (Set(var switchv, makeCast e' !upointType, loc')) @@
             s2c switch
         end
       end

@@ -1,6 +1,6 @@
 #include "testharness.h"
 
-#define MAXINT (1ull << ((8 * sizeof(int)) - 1))
+#define MAXINT (1ull << ((8 * sizeof(int)) - 2))
 
 int g1[ MAXINT / sizeof(int)  ];
 char g2[ MAXINT / sizeof(char) ];

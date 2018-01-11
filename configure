@@ -620,9 +620,6 @@ ac_includes_default="\
 #endif"
 
 ac_subst_vars='LTLIBOBJS
-FORCE_PERL_PREFIX
-EXTRASRCDIRS
-EXTRAFEATURES
 UNDERSCORE_NAME
 THREAD_IS_KEYWORD
 HAVE_BUILTIN_VA_LIST
@@ -638,6 +635,7 @@ LIBOBJS
 EGREP
 GREP
 CPP
+CYGPATH
 PERL
 OCAMLFIND
 OCAMLYACC
@@ -649,6 +647,7 @@ OCAMLMKLIB
 OCAMLMKTOP
 OCAMLDEP
 OCAML
+OCAMLNATDYNLINK
 OCAMLOPTDOTOPT
 OCAMLCDOTOPT
 OCAMLBEST
@@ -719,9 +718,6 @@ SHELL'
 ac_subst_files=''
 ac_user_opts='
 enable_option_checking
-with_blockinggraph
-with_zrapp
-with_llvm
 '
       ac_precious_vars='build_alias
 host_alias
@@ -731,8 +727,7 @@ CFLAGS
 LDFLAGS
 LIBS
 CPPFLAGS
-CPP
-FORCE_PERL_PREFIX'
+CPP'
 
 
 # Initialize some variables set by options.
@@ -1341,13 +1336,6 @@ if test -n "$ac_init_help"; then
 
   cat <<\_ACEOF
 
-Optional Packages:
-  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
-  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-blockinggraph    enable the blocking graph feature
-  --with-zrapp            enable the zrapp pretty-printer
-  --with-llvm             enable the LLVM code generator
-
 Some influential environment variables:
   CC          C compiler command
   CFLAGS      C compiler flags
@@ -1357,8 +1345,6 @@ Some influential environment variables:
   CPPFLAGS    (Objective) C/C++ preprocessor flags, e.g. -I<include dir> if
               you have headers in a nonstandard directory <include dir>
   CPP         C preprocessor
-  FORCE_PERL_PREFIX
-              Install cilly wrapper in PREFIX/bin and PREFIX/lib
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -3383,7 +3369,7 @@ fi
 $as_echo "OCaml version is $OCAMLVERSION" >&6; }
      # If OCAMLLIB is set, use it
      if test "$OCAMLLIB" = ""; then
-        OCAMLLIB=`$OCAMLC -where 2>/dev/null || $OCAMLC -v|tail -1|cut -d ' ' -f 4`
+        OCAMLLIB=`$OCAMLC -where 2>/dev/null | tr -d '\015' || $OCAMLC -v|tail -1|cut -d ' ' -f 4`
      else
         { $as_echo "$as_me:${as_lineno-$LINENO}: result: OCAMLLIB previously set; preserving it." >&5
 $as_echo "OCAMLLIB previously set; preserving it." >&6; }
@@ -3489,17 +3475,17 @@ fi
 
      OCAMLBEST=byte
      if test "$OCAMLOPT" = "no"; then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find ocamlopt; bytecode compilation only." >&5
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find ocamlopt; bytecode compilation only." >&5
 $as_echo "$as_me: WARNING: Cannot find ocamlopt; bytecode compilation only." >&2;}
      else
-	TMPVERSION=`$OCAMLOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlopt discarded." >&5
+        TMPVERSION=`$OCAMLOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+        if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+           { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlopt discarded." >&5
 $as_echo "versions differs from ocamlc; ocamlopt discarded." >&6; }
-	    OCAMLOPT=no
-	else
-	    OCAMLBEST=opt
-	fi
+           OCAMLOPT=no
+        else
+           OCAMLBEST=opt
+        fi
      fi
 
 
@@ -3598,18 +3584,18 @@ else
 fi
 
      if test "$OCAMLCDOTOPT" != "no"; then
-	TMPVERSION=`$OCAMLCDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlc.opt discarded." >&5
+        TMPVERSION=`$OCAMLCDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+        if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+           { $as_echo "$as_me:${as_lineno-$LINENO}: result: versions differs from ocamlc; ocamlc.opt discarded." >&5
 $as_echo "versions differs from ocamlc; ocamlc.opt discarded." >&6; }
-	else
-	    OCAMLC=$OCAMLCDOTOPT
-	fi
+        else
+           OCAMLC=$OCAMLCDOTOPT
+        fi
      fi
 
      # checking for ocamlopt.opt
      if test "$OCAMLOPT" != "no" ; then
-	if test -n "$ac_tool_prefix"; then
+        if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ocamlopt.opt", so it can be a program name with args.
 set dummy ${ac_tool_prefix}ocamlopt.opt; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -3701,18 +3687,33 @@ else
   OCAMLOPTDOTOPT="$ac_cv_prog_OCAMLOPTDOTOPT"
 fi
 
-	if test "$OCAMLOPTDOTOPT" != "no"; then
-	   TMPVERSION=`$OCAMLOPTDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
-	   if test "$TMPVERSION" != "$OCAMLVERSION" ; then
-	      { $as_echo "$as_me:${as_lineno-$LINENO}: result: version differs from ocamlc; ocamlopt.opt discarded." >&5
+        if test "$OCAMLOPTDOTOPT" != "no"; then
+           TMPVERSION=`$OCAMLOPTDOTOPT -v | sed -n -e 's|.*version* *\(.*\)$|\1|p' `
+           if test "$TMPVERSION" != "$OCAMLVERSION" ; then
+              { $as_echo "$as_me:${as_lineno-$LINENO}: result: version differs from ocamlc; ocamlopt.opt discarded." >&5
 $as_echo "version differs from ocamlc; ocamlopt.opt discarded." >&6; }
-	   else
-	      OCAMLOPT=$OCAMLOPTDOTOPT
-	   fi
-        fi
+           else
+              OCAMLOPT=$OCAMLOPTDOTOPT
+           fi
+       fi
      fi
 
 
+  fi
+
+
+
+  # checking for native dynlink
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dynlink.cmxa" >&5
+$as_echo_n "checking for dynlink.cmxa... " >&6; }
+  if test -f "$OCAMLLIB/dynlink.cmxa" ; then
+     OCAMLNATDYNLINK=yes
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+  else
+     OCAMLNATDYNLINK=no
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
   fi
 
 
@@ -4383,7 +4384,7 @@ else
 fi
 
   if test "$OCAMLLEX" != "no"; then
-    if test -n "$ac_tool_prefix"; then
+     if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ocamllex.opt", so it can be a program name with args.
 set dummy ${ac_tool_prefix}ocamllex.opt; ac_word=$2
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
@@ -4475,9 +4476,9 @@ else
   OCAMLLEXDOTOPT="$ac_cv_prog_OCAMLLEXDOTOPT"
 fi
 
-    if test "$OCAMLLEXDOTOPT" != "no"; then
-	OCAMLLEX=$OCAMLLEXDOTOPT
-    fi
+     if test "$OCAMLLEXDOTOPT" != "no"; then
+        OCAMLLEX=$OCAMLLEXDOTOPT
+     fi
   fi
 
 
@@ -4780,6 +4781,46 @@ fi
 if test "$PERL" = "no"; then
   as_fn_error $? "You must install perl" "$LINENO" 5
 fi
+
+# ------------------- Cygpath -------------
+
+# Extract the first word of "cygpath", so it can be a program name with args.
+set dummy cygpath; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_prog_CYGPATH+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$CYGPATH"; then
+  ac_cv_prog_CYGPATH="$CYGPATH" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_prog_CYGPATH="cygpath"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+fi
+fi
+CYGPATH=$ac_cv_prog_CYGPATH
+if test -n "$CYGPATH"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $CYGPATH" >&5
+$as_echo "$CYGPATH" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
 
 #
 # -------------------- GCC --------------
@@ -5516,6 +5557,42 @@ $as_echo "#define TIME_WITH_SYS_TIME 1" >>confdefs.h
 fi
 
 
+  ac_fn_c_check_type "$LINENO" "intptr_t" "ac_cv_type_intptr_t" "$ac_includes_default"
+if test "x$ac_cv_type_intptr_t" = xyes; then :
+
+$as_echo "#define HAVE_INTPTR_T 1" >>confdefs.h
+
+else
+  for ac_type in 'int' 'long int' 'long long int'; do
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+static int test_array [1 - 2 * !(sizeof (void *) <= sizeof ($ac_type))];
+test_array [0] = 0;
+return test_array [0];
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+cat >>confdefs.h <<_ACEOF
+#define intptr_t $ac_type
+_ACEOF
+
+	  ac_type=
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+       test -z "$ac_type" && break
+     done
+fi
+
+
+
 # checks for library functions; more autoscan stuff
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for working memcmp" >&5
 $as_echo_n "checking for working memcmp... " >&6; }
@@ -5672,6 +5749,46 @@ size_t foo(size_t x) { return x; }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   real_type='unsigned long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+long long foo(long long x);
+size_t foo(size_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  real_type='long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long long foo(unsigned long long x);
+size_t foo(size_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  real_type='unsigned long long'
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   fi
@@ -5863,6 +5980,46 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
+long long foo(long long x);
+wchar_t foo(wchar_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  real_type='long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long long foo(unsigned long long x);
+wchar_t foo(wchar_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  real_type='unsigned long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
 short foo(short x);
 wchar_t foo(wchar_t x) { return x; }
 _ACEOF
@@ -5944,199 +6101,9 @@ _ACEOF
 $as_echo "$real_type" >&6; }
 
 
-
-# ----------- platform-specific code -------------
-# $target is typically processor-vendor-os
-case "$target" in
-
-  # cygwin
-  *86*cygwin*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for Cygwin on win32/x86" >&5
-$as_echo "configuring for Cygwin on win32/x86" >&6; }
-
-    CC=`which $CC`
-    CC=`cygpath -wa "$CC"  | sed -e "s/\\\\\/\\//g"`
-    ;;
-
-  # MinGW
-  *86*mingw32*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MinGW on win32/x86" >&5
-$as_echo "configuring for MinGW on win32/x86" >&6; }
-
-    CC=`which $CC`
-    ;;
-
-  *mipsel*linux*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MIPSel/Linux" >&5
-$as_echo "configuring for MIPSel/Linux" >&6; }
-
-    if test $cross_compiling = "yes"; then
-      # Extract the first word of "qemu-mipsel", so it can be a program name with args.
-set dummy qemu-mipsel; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_EMUL+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $EMUL in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_EMUL="$EMUL" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_path_EMUL="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-EMUL=$ac_cv_path_EMUL
-if test -n "$EMUL"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $EMUL" >&5
-$as_echo "$EMUL" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-    fi
-    ;;
-
-  *mips*linux*)
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: configuring for MIPS/Linux" >&5
-$as_echo "configuring for MIPS/Linux" >&6; }
-
-    if test $cross_compiling = "yes"; then
-      # Extract the first word of "qemu-mips", so it can be a program name with args.
-set dummy qemu-mips; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if ${ac_cv_path_EMUL+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $EMUL in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_EMUL="$EMUL" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
-    ac_cv_path_EMUL="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-EMUL=$ac_cv_path_EMUL
-if test -n "$EMUL"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $EMUL" >&5
-$as_echo "$EMUL" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-    fi
-    ;;
-
-  *)
-    ;;
-esac
-
-#
-# CIL features
-#
-#
-
-# Set the defaults
-
-
-# Give a space-separated list of features with the defaults
-features="blockinggraph=no zrapp=no llvm=no"
-
-
-# Check whether --with-blockinggraph was given.
-if test "${with_blockinggraph+set}" = set; then :
-  withval=$with_blockinggraph;
-fi
-
-
-# Check whether --with-zrapp was given.
-if test "${with_zrapp+set}" = set; then :
-  withval=$with_zrapp;
-fi
-
-
-
-# Check whether --with-llvm was given.
-if test "${with_llvm+set}" = set; then :
-  withval=$with_llvm;
-fi
-
-
-# Now add any features specified in the command-line
-
-features="$features $EXTRAFEATURES"
-
-rm -f Makefile.features
-echo "# -*- Mode: makefile -*-">Makefile.features
-echo "# This file was generated automatically by ./configure.in">>Makefile.features
-echo "# We will not need this once configure supports multiline variables">>Makefile.features
-
-for f_val in $features
-do
-   # If there is no =, then we default to yes
-   if ! (echo $f_val | grep "=" >/dev/null) ;then f_val="$f_val=yes"; fi
-   # echo "Testing feature $f_val"
-   f=`echo $f_val | sed -e s%=.*$%%`
-   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to use CIL feature $f" >&5
-$as_echo_n "checking whether to use CIL feature $f... " >&6; }
-   # default value from "features"
-   defval=`echo $f_val | sed -e s%^.*=%%`
-   # current value
-   getcurval="echo \${with_$f:=$defval}"
-   curval=`eval $getcurval`
-   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $curval" >&5
-$as_echo "$curval" >&6; }
-   if test $curval = yes ;then
-      CIL_FEATURES="$CIL_FEATURES $f"
-      f_up=`echo $f | tr a-z A-Z`
-      echo "export USE_$f_up=yes">>Makefile.features
-   fi
-done
-chmod -w Makefile.features
-
-
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
-
-
-
-
 
 
 
@@ -6189,12 +6156,12 @@ chmod -w Makefile.features
   fi
 }
 {
-  if test -f lib/App/Cilly/CilConfig.pm.in; then
-    ac_config_files="$ac_config_files lib/App/Cilly/CilConfig.pm"
+  if test -f lib/perl5/App/Cilly/CilConfig.pm.in; then
+    ac_config_files="$ac_config_files lib/perl5/App/Cilly/CilConfig.pm"
 
   else
     true
-    #echo "skipping [lib/App/Cilly/CilConfig.pm] because it's not in this distribution"
+    #echo "skipping [lib/perl5/App/Cilly/CilConfig.pm] because it's not in this distribution"
   fi
 }
 {
@@ -6222,6 +6189,15 @@ chmod -w Makefile.features
   else
     true
     #echo "skipping [src/machdep-ml.c] because it's not in this distribution"
+  fi
+}
+{
+  if test -f src/cilversion.ml.in; then
+    ac_config_files="$ac_config_files src/cilversion.ml"
+
+  else
+    true
+    #echo "skipping [src/cilversion.ml] because it's not in this distribution"
   fi
 }
 
@@ -6921,10 +6897,11 @@ do
     "META") CONFIG_FILES="$CONFIG_FILES META" ;;
     "config.mk") CONFIG_FILES="$CONFIG_FILES config.mk" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
-    "lib/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES lib/App/Cilly/CilConfig.pm" ;;
+    "lib/perl5/App/Cilly/CilConfig.pm") CONFIG_FILES="$CONFIG_FILES lib/perl5/App/Cilly/CilConfig.pm" ;;
     "doc/index.html") CONFIG_FILES="$CONFIG_FILES doc/index.html" ;;
     "doc/header.html") CONFIG_FILES="$CONFIG_FILES doc/header.html" ;;
     "src/machdep-ml.c") CONFIG_FILES="$CONFIG_FILES src/machdep-ml.c" ;;
+    "src/cilversion.ml") CONFIG_FILES="$CONFIG_FILES src/cilversion.ml" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac
@@ -7482,10 +7459,11 @@ $as_echo "$as_me: $ac_file is unchanged" >&6;}
     "META":F) chmod a-w META ;;
     "config.mk":F) chmod a-w config.mk ;;
     "test/Makefile":F) chmod a-w test/Makefile ;;
-    "lib/App/Cilly/CilConfig.pm":F) chmod a-w lib/App/Cilly/CilConfig.pm ;;
+    "lib/perl5/App/Cilly/CilConfig.pm":F) chmod a-w lib/perl5/App/Cilly/CilConfig.pm ;;
     "doc/index.html":F) chmod a-w doc/index.html ;;
     "doc/header.html":F) chmod a-w doc/header.html ;;
     "src/machdep-ml.c":F) chmod a-w src/machdep-ml.c ;;
+    "src/cilversion.ml":F) chmod a-w src/cilversion.ml ;;
 
   esac
 done # for ac_tag
@@ -7533,6 +7511,5 @@ CIL configuration:
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
-  CIL features                CIL_FEATURES       $CIL_FEATURES
-  Extra source directories    EXTRASRCDIRS       $EXTRASRCDIRS
+  Native OCaml CIL libs                          $OCAMLNATDYNLINK
 EOF

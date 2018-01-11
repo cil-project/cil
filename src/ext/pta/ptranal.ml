@@ -38,6 +38,7 @@ exception Bad_function
 
 
 open Cil
+open Feature
 
 module H = Hashtbl
 
@@ -284,7 +285,7 @@ let analyze_instr (i : instr ) : unit =
           List.iter (fun e -> ignore (analyze_expr e)) actuals
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
-            if is_undefined_fun fexpr & !conservative_undefineds then
+            if is_undefined_fun fexpr && !conservative_undefineds then
               A.apply_undefined (Util.list_map analyze_expr actuals)
             else
               A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
@@ -561,16 +562,15 @@ let absloc_eq a b = A.absloc_eq (a, b)
 let d_absloc: unit -> absloc -> Pretty.doc = A.d_absloc
 
 
-let ptrAnalysis = ref false
 let ptrResults = ref false
 let ptrTypes = ref false
 
 
 
 (** Turn this into a CIL feature *)
-let feature : featureDescr = {
+let feature = {
   fd_name = "ptranal";
-  fd_enabled = ptrAnalysis;
+  fd_enabled = false;
   fd_description = "alias analysis";
   fd_extraopt = [
     ("--ptr_may_aliases",
@@ -596,3 +596,5 @@ let feature : featureDescr = {
                if !ptrTypes then print_types ());
   fd_post_check = false (* No changes *)
 }
+
+let () = Feature.register feature

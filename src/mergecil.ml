@@ -124,9 +124,8 @@ let mkSelfNode (eq: (int * string, 'a node) H.t) (* The equivalence table *)
                (syn: (string, 'a node) H.t) (* The synonyms table *)
                (fidx: int) (name: string) (data: 'a) 
                (l: (location * int) option) = 
-  let res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
-              nrep  = Obj.magic 1; nmergedSyns = false; } in
-  res.nrep <- res; (* Make the self cycle *)
+  let rec res = { nname = name; nfidx = fidx; ndata = data; nloc = l;
+              nrep  = res; nmergedSyns = false; } in
   H.add eq (fidx, name) res; (* Add it to the proper table *)
   if mergeSynonyms && not (prefix "__anon" name) then 
     H.add syn name res; 
@@ -993,6 +992,34 @@ class renameVisitorClass = object (self)
       (* This is either a global variable which we took care of, or a local 
        * variable. Must do its type and attributes. *)
   method vvdec (vi: varinfo) = DoChildren
+
+  method vglob (g: global) : global list visitAction =
+    match g with
+    | GVar(v, init, loc) ->
+       let update_init glob =
+	 match glob with
+	 | GVar(u, uinit, loc) -> GVar(u, u.vinit, loc)
+	 | _ -> glob
+       in
+       let update_all_inits = List.map update_init in
+       let () =
+	 match v.vinit.init, init.init with
+	 | None, None -> ()
+	 (* This case may happen when a definition is encountered, but
+	    the variable was already seen through a declaration and thus
+	    has no definition *)
+	 | None, Some(_) -> v.vinit.init <- init.init
+	 (* The following case should never happen because it should never be emitted *)
+	 | Some(_), None -> assert false
+	 (* The following case is either never emitted (same
+	    initializations, or different initializations but an error is
+	    thrown) or emitted when first encountering a definition
+	    (hence the initializations are supposed to be identical) *)
+	 | Some(_), Some(_) -> ()
+       in
+       ChangeDoChildrenPost([g], update_all_inits)
+    | _ -> DoChildren
+
 
       (* This is a variable use. See if we must change it *)
   method vvrbl (vi: varinfo) : varinfo visitAction = 
