@@ -220,7 +220,9 @@ let theMain () =
       E.s (E.error "Cabs2cil had some errors");
 
     (* process the CIL file (merged if necessary) *)
-    processOneFile one
+    processOneFile one;
+    Flt.doit one;
+    ()
   end
 ;;
                                         (* Define a wrapper for main to 
