@@ -17,12 +17,21 @@ let find_modules builder mllib =
   (String.concat " " built_files) ^ " "
 ;;
 
+let ocamlfind_query pkg =
+  let cmd = Printf.sprintf "ocamlfind query %s" (Filename.quote pkg) in
+  Ocamlbuild_pack.My_unix.run_and_open cmd (fun ic ->
+      input_line ic
+    )
+
 let cil_version =
   try Printf.sprintf "(version %s)" (Sys.getenv "CIL_VERSION")
   with Not_found -> "" ;;
 
 dispatch begin function
 | After_rules ->
+    (* zarith exists *)
+  ocaml_lib ~extern:true ~dir:(ocamlfind_query "zarith") "zarith";
+
     (* the main CIL library *)
     ocaml_lib "src/cil";
 

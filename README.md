@@ -31,8 +31,8 @@ check out the accompanying [project template][template].
 Installation
 -----------
 
-To build and install CIL, you need the OCaml compiler, perl, and
-[ocamlfind][findlib].  (Of course, you also need some C compiler,
+To build and install CIL, you need the OCaml compiler, perl, the [zarith]
+module and [ocamlfind][findlib].  (Of course, you also need some C compiler,
 preferably gcc.)
 
 Run the following commands to build and install CIL:
@@ -50,6 +50,7 @@ directory:
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 [opam]: http://opam.ocamlpro.com/
+[zarith]: https://github.com/ocaml/Zarith
 
 Usage
 -----

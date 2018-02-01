@@ -1,4 +1,5 @@
 <ext> or <ext/*> or <frontc> or <ocamlutil>: include
 
 <feature.ml>: package(findlib)
-<main.{byte,native}>: use_unix, use_str, use_nums, use_dynlink, use_cil, linkall, package(findlib)
+<main.{byte,native}>: use_unix, use_str, use_dynlink, use_cil, use_zarith, linkall, package(findlib)
+<cilint.*>: use_zarith
