@@ -21,9 +21,9 @@
    bitwise operations on big_ints, and bug-fixed versions of int64_of_big_int
    and big_int_of_int64. *)
 
-open Big_int
-  
-type cilint = Small of int | Big of big_int
+open Z
+
+type cilint = Small of int | Big of Z.t
 type truncation = NoTruncation | ValueTruncation | BitTruncation
 
 let zero_cilint = Small 0
