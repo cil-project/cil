@@ -20,9 +20,6 @@
    The implementation can be simplified once OCaml 3.11.1 shows up, with
    bitwise operations on big_ints, and bug-fixed versions of int64_of_big_int
    and big_int_of_int64. *)
-(* CLG notes: it's not obvious to me that we need all this; it might make
-   more sense to just transition all of Cil to Z/Zarith.  However, I'm making
-   the small/local change for now *)
 
 type cilint = Small of int | Big of Z.t
 type truncation = NoTruncation | ValueTruncation | BitTruncation
@@ -36,7 +33,7 @@ let m1 = Z.minus_one
 let two = Z.of_int 2
 
 (* True if 'b' is all 0's or all 1's *)
-let nobits (b:Z.t) : bool = (* CLG: the equality b/w minus 1 and b here isn't obvious to me, double-check *)
+let nobits (b:Z.t) : bool = 
   Z.sign b = 0 || Z.equal b m1
 
 let big_int_of_cilint (c:cilint) : Z.t = 
@@ -66,7 +63,7 @@ let add_cilint = b Z.add
 let sub_cilint = b Z.sub
 let mul_cilint = b Z.mul
 let div_cilint = b Z.div
-let mod_cilint = b Z.rem (* CLG: remember to check when sinus headache goes away that rem <--> mod *) 
+let mod_cilint = b Z.rem 
 
 
 let compare_cilint (c1:cilint) (c2:cilint) : int = 
@@ -89,7 +86,7 @@ let cilint_of_int (i:int) : cilint = Small i
 let int_of_cilint (c:cilint) : int = 
   match c with 
   | Small i -> i
-  | Big b -> Z.to_int b (* CLG: to_int might overflow, was that true of bigint? I assume yes? *)
+  | Big b -> Z.to_int b
 
 let rec cilint_of_int64 (i64:int64) : cilint = 
   if Int64.compare i64 (Int64.of_int min_int) >= 0 && 
