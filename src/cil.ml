@@ -3964,15 +3964,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     match g with 
     | GFun (fundec, l) ->
         (* If the function has attributes then print a prototype because 
-        * GCC cannot accept function attributes in a definition *)
+         * GCC cannot accept function attributes in a definition. Also,
+         * for inline functions, always print a prototype because this
+         * affects their linkage semantics (C11 section 6.7.4). *)
         let oldattr = fundec.svar.vattr in
         (* Always pring the file name before function declarations *)
         let proto = 
-          if oldattr <> [] then 
+          (* we always print a prototype for funs with attrs,
+           * and for definitions of extern inlines. *)
+          if oldattr <> [] || (fundec.svar.vinline && fundec.svar.vstorage = Extern) then
             (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) 
               ++ chr ';' ++ line 
-          else nil in
-        (* Temporarily remove the function attributes *)
+          else nil (* empty string *) in
+        (* Temporarily remove the function attributes to print the body.
+         * Note that 'pFunDecl' prints the body, not the prototype. *)
         fundec.svar.vattr <- [];
         let body = (self#pLineDirective ~forcefile:true l) 
                       ++ (self#pFunDecl () fundec) in
