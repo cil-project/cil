@@ -717,6 +717,10 @@ addTest("testrun/compound2");
 addTest("test/shell-escape SHELL_ESCAPE=1");
 addTest("testpipe/simple");
 
+addTest("testrun/inline-srk-gnu89 $gcc");
+addTest("testrun/inline-srk-c11 $gcc");
+addTest("testrun/inline-srk-c11+oldinline $gcc");
+
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
 ## But only if the ctorture group was specfied

@@ -386,6 +386,22 @@ testpipe/simple:
 	cd "$(TESTDIR)"/small1 && $(CILLY) -o pipesimple.exe pipesimple.o
 	$(TESTDIR)/small1/pipesimple.exe
 
+# inline tests
+testrun/inline-srk-gnu89: mustbegcc
+	$(CILLY) -g -O2 -Wl,--export-dynamic -ldl \
+          -std=gnu89 "$(TESTDIR)"/small1/inline-srk.c \
+          -o "$(TESTDIR)"/small1/inline-srk-gnu89
+	"$(TESTDIR)"/small1/inline-srk-gnu89
+testrun/inline-srk-c11:
+	$(CILLY) -g -O2 -Wl,--export-dynamic -ldl \
+          -std=c11 "$(TESTDIR)"/small1/inline-srk.c \
+          -o "$(TESTDIR)"/small1/inline-srk-c11
+	"$(TESTDIR)"/small1/inline-srk-c11
+testrun/inline-srk-c11+oldinline:
+	$(CILLY) -g -O2 -Wl,--export-dynamic -ldl \
+          -std=c11 -fgnu89-inline "$(TESTDIR)"/small1/inline-srk.c \
+          -o "$(TESTDIR)"/small1/inline-srk-c11+oldinline
+	"$(TESTDIR)"/small1/inline-srk-c11+oldinline
 
 ### Generic test
 testfile/% : 

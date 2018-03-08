@@ -418,6 +418,8 @@ and varinfo = {
     (* The other fields are not used in varinfo when they appear in the formal 
      * argument list in a [TFun] type *)
 
+    (** All globals that share this varinfo, if it's global *)
+    mutable vvardecls : (global * storage * bool) list;
 
     mutable vglob: bool;	        (** True if this is a global variable*)
 
@@ -3187,7 +3189,7 @@ class type cilPrinter = object
   method setPrintInstrTerminator : string -> unit
   method getPrintInstrTerminator : unit -> string
 
-  method pVDecl: unit -> varinfo -> doc
+  method pVDecl: ?beginsFunDef:bool -> unit -> varinfo -> doc
     (** Invoked for each variable declaration. Note that variable 
      * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo] 
      * in formals of function types, and the formals and locals for function 
@@ -3294,14 +3296,23 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pVar (v:varinfo) = text v.vname
 
   (* variable declaration *)
-  method pVDecl () (v:varinfo) =
+  method pVDecl ?(beginsFunDef = false) () (v:varinfo) =
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
+    (* If we're printing a function definition, we handle inlines specially.
+     * Getting this right is a bit hairy. Let's try as follows. The definition
+     * should take the "max" of *)
     text (if v.vinline then "__inline " else "")
-      ++ d_storage () v.vstorage
+      (* suppress extern on a function definition if it's not inline,;
+         suppress extern on a function prototype if it's not been used consistently *)
+      ++ (let suppressExtern = (beginsFunDef && not v.vinline) || (not beginsFunDef)
+         in (*if v.vstorage = Extern && suppressExtern then text " " else *) d_storage () v.vstorage)
       ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
-      ++ text " "
+      ++ text (if beginsFunDef then " /* comes from pVDecl with beginsFunDef; vinline is really "
+        ^ (if v.vinline then "true" else "false")
+        ^ " and the varinfo, magic " ^ (string_of_int (Obj.magic v))
+        ^ ", also has " ^ (string_of_int (List.length v.vvardecls))^ " entries in vvardecls */ " else " ")
       ++ self#pAttrs () rest
 
   (*** L-VALUES ***)
@@ -3968,21 +3979,41 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          * for inline functions, always print a prototype because this
          * affects their linkage semantics (C11 section 6.7.4). *)
         let oldattr = fundec.svar.vattr in
-        (* Always pring the file name before function declarations *)
-        let proto = 
-          (* we always print a prototype for funs with attrs,
-           * and for definitions of extern inlines. *)
-          if oldattr <> [] || (fundec.svar.vinline && fundec.svar.vstorage = Extern) then
-            (self#pLineDirective l) ++ (self#pVDecl () fundec.svar) 
-              ++ chr ';' ++ line 
-          else nil (* empty string *) in
+        (* Always print the file name before function declarations *)
+        let maybeExtraProtos =
+          (* We always print a prototype for funs with attrs,
+           * and for definitions of extern inlines.
+           * For a function declared inline anywhere, we prototype *all* of the
+           * declaration cases found in its vvardecls. *)
+          let declaredInline = List.fold_left (fun acc -> fun (_, _, inl) -> acc || inl) false
+                 fundec.svar.vvardecls
+          in
+          if oldattr <> [] && not declaredInline then
+            (self#pLineDirective l) ++ (self#pVDecl () fundec.svar)
+              ++ chr ';' ++ text "/* comes from extra-prototyping a GFun */" ++ line
+          else if declaredInline then
+            List.fold_left (fun acc -> fun (glob, storage, inl) ->
+                     let (oldinl, oldsto) = (fundec.svar.vinline, fundec.svar.vstorage)
+                     in
+                     (fundec.svar.vinline <- inl;
+                     fundec.svar.vstorage <- storage;
+                     let res = acc ++ (self#pVDecl () fundec.svar) ++ (text "; /* comes from inline extra-prototyping */") ++ line
+                     in
+                     fundec.svar.vinline <- oldinl;
+                     fundec.svar.vstorage <- oldsto;
+                     res)
+                 )
+                 (text "")
+                 fundec.svar.vvardecls
+          else nil (* empty string *)
+          in
         (* Temporarily remove the function attributes to print the body.
          * Note that 'pFunDecl' prints the body, not the prototype. *)
         fundec.svar.vattr <- [];
-        let body = (self#pLineDirective ~forcefile:true l) 
+        let body = (self#pLineDirective ~forcefile:true l)
                       ++ (self#pFunDecl () fundec) in
         fundec.svar.vattr <- oldattr;
-        proto ++ body ++ line
+        maybeExtraProtos ++ body ++ line
           
     | GType (typ, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -4062,7 +4093,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         end else
           self#pLineDirective l ++
             (self#pVDecl () vi)
-            ++ text ";\n"
+            ++ text ("; /* comes from a real GVarDecl in the globals list; the varinfo, magic " ^ (string_of_int (Obj.magic vi))
+        ^ ", also has " ^ (string_of_int (List.length vi.vvardecls)) ^ " entries in vvardecls */ \n")
 
     | GAsm (s, l) ->
         self#pLineDirective l ++
@@ -4108,21 +4140,37 @@ class defaultCilPrinterClass : cilPrinter = object (self)
      (* For all except functions and variable with initializers, use the 
       * pGlobal *)
      match g with 
-       GFun (fdec, l) -> 
+       GFun (fundec, l) ->
          (* If the function has attributes then print a prototype because 
           * GCC cannot accept function attributes in a definition *)
-         let oldattr = fdec.svar.vattr in
-         let proto = 
-           if oldattr <> [] then 
-             (self#pLineDirective l) ++ (self#pVDecl () fdec.svar) 
-               ++ chr ';' ++ line
-           else nil in
+         let oldattr = fundec.svar.vattr in
+         let maybeExtraProtos =
+           let declaredInline = List.fold_left (fun acc -> fun (_, _, inl) -> acc || inl) false
+                 fundec.svar.vvardecls
+           in
+           if oldattr <> [] && not declaredInline then
+             (self#pLineDirective l) ++ (self#pVDecl () fundec.svar)
+               ++ text"; /* comes from extra-prototyping a GFun in dGlobal */" ++ line
+           else if declaredInline then
+            List.fold_left (fun acc -> fun (glob, storage, inl) ->
+                     let oldinl, oldsto = (fundec.svar.vinline, fundec.svar.vstorage) in
+                     (fundec.svar.vinline <- inl;
+                     fundec.svar.vstorage <- storage;
+                     let res = acc ++ (self#pVDecl () fundec.svar) ++ (text "; /* comes from inline extra-prototyping in dGlobal */") ++ line
+                     in
+                     fundec.svar.vinline <- oldinl;
+                     fundec.svar.vstorage <- oldsto;
+                     res)
+                 )
+                 (text "")
+                 fundec.svar.vvardecls
+            else nil in
          fprint out !lineLength
-           (proto ++ (self#pLineDirective ~forcefile:true l));
+           (maybeExtraProtos ++ (self#pLineDirective ~forcefile:true l));
          (* Temporarily remove the function attributes *)
-         fdec.svar.vattr <- [];
-         fprint out !lineLength (self#pFunDecl () fdec);               
-         fdec.svar.vattr <- oldattr;
+         fundec.svar.vattr <- [];
+         fprint out !lineLength (self#pFunDecl () fundec);
+         fundec.svar.vattr <- oldattr;
          output_string out "\n"
 
      | GVar (vi, {init = Some i}, l) -> begin
@@ -4156,7 +4204,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        ++ text ";"
        
   method private pFunDecl () f =
-      self#pVDecl () f.svar
+      self#pVDecl ~beginsFunDef:true () f.svar
       ++  line
       ++ text "{ "
       ++ (align
@@ -4164,8 +4212,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             ++ line
             ++ (docList ~sep:line
                 (fun vi -> match vi.vinit.init with
-                | None -> self#pVDecl () vi ++ text ";"
-                | Some i -> self#pVDecl () vi ++ text " = " ++
+                | None -> self#pVDecl ~beginsFunDef:false () vi ++ text ";"
+                | Some i -> self#pVDecl ~beginsFunDef:false () vi ++ text " = " ++
                     self#pInit () i ++ text ";")
                 () f.slocals)
             ++ line ++ line
@@ -4892,6 +4940,7 @@ let makeVarinfo global name ?init typ =
       vdecl = lu;
       vinit = {init=init};
       vinline = false;
+      vvardecls = [];
       vattr = [];
       vstorage = NoStorage;
       vaddrof = false;
