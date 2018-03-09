@@ -334,7 +334,8 @@ let genv : (string, envdata * location) H.t = H.create 307
   * hash table easily *)
 type undoScope =
     UndoRemoveFromEnv of string
-  | UndoResetAlphaCounter of location AL.alphaTableData ref * 
+  | UndoResetAlphaCounter of string *
+                             location AL.alphaTableData ref *
                              location AL.alphaTableData
   | UndoRemoveFromAlphaTable of string
 
@@ -409,14 +410,35 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
         let prefix = AL.getAlphaPrefix lookupname in
         try
           let countref = H.find alphaTable prefix in
-          s := (UndoResetAlphaCounter (countref, !countref)) :: !s
+          s := (UndoResetAlphaCounter (prefix, countref, !countref)) :: !s
         with Not_found ->
           s := (UndoRemoveFromAlphaTable prefix) :: !s
     end
     | _ :: rest -> findEnclosingFun rest
   in
   if not globalscope then 
-    findEnclosingFun !scopes;
+    findEnclosingFun !scopes
+    else (
+        (* If we've previously marked the state to be reset, weed this out.
+         * This is a bit nasty: better would be to process static locals
+         * before doing formals/locals, so that all the globals are detected
+         * *first* and we never have to undo the decision to reset the alpha
+         * state. That'd be a more invasive change, though. *)
+        let rec checkScopes = (function
+            [s] ->
+              let prefix = AL.getAlphaPrefix lookupname in
+              (* s is a reference to a list *)
+              s := List.filter (function
+                UndoResetAlphaCounter (p, _, _) when p = prefix -> false
+              | UndoRemoveFromAlphaTable p when p = prefix -> false
+              | _ -> true
+              ) !s
+         | _ :: rest -> checkScopes rest
+         | _ -> ()
+        )
+        in
+        checkScopes !scopes
+  );
   let newname, oldloc = 
            AL.newAlphaName alphaTable None lookupname !currentLoc in
   stripKind kind newname, oldloc
@@ -494,7 +516,7 @@ let exitScope () =
     | UndoRemoveFromEnv n :: t -> 
         H.remove env n; loop t
     | UndoRemoveFromAlphaTable n :: t -> H.remove alphaTable n; loop t
-    | UndoResetAlphaCounter (vref, oldv) :: t -> 
+    | UndoResetAlphaCounter (_, vref, oldv) :: t ->
         vref := oldv;
         loop t
   in
@@ -5661,32 +5683,7 @@ and createLocal ((_, sto, _, _) as specs)
             (* otherwise create assignments instead of the initialization *)
             se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
-          
-and doAliasFun vtype (thisname:string) (othername:string) 
-  (sname:single_name) (loc: cabsloc) : unit =
-  (* This prototype declares that name is an alias for 
-     othername, which must be defined in this file *)
-(*   E.log "%s is alias for %s at %a\n" thisname othername  *)
-(*     d_loc !currentLoc; *)
-  let rt, formals, isva, _ = splitFunctionType vtype in
-  if isva then E.s (error "%a: alias unsupported with varargs."
-                      d_loc !currentLoc);
-  let args = Util.list_map 
-               (fun (n,_,_) -> A.VARIABLE n)
-               (argsToList formals) in
-  let call = A.CALL (A.VARIABLE othername, args) in
-  let stmt = if isVoidType rt then A.COMPUTATION(call, loc)
-                              else A.RETURN(call, loc)
-  in
-  let body = { A.blabels = []; A.battrs = []; A.bstmts = [stmt] } in
-  let fdef = A.FUNDEF (sname, body, loc, loc) in
-  ignore (doDecl true fdef);
-  (* get the new function *)
-  let v,_ = try lookupGlobalVar thisname
-            with Not_found -> E.s (bug "error in doDecl") in
-  v.vattr <- dropAttribute "alias" v.vattr
 
-          
 (* Do one declaration *)
 and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.DECDEF ((s, nl), loc) ->
@@ -5705,20 +5702,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
           let bt,_,_,attrs = spec_res in
           let vtype, nattr = 
             doType (AttrName false) bt (A.PARENTYPE(attrs, ndt, a)) in
-          (match filterAttributes "alias" nattr with
-             [] -> (* ordinary prototype. *)
-               ignore (createGlobal spec_res name)
-              (*  E.log "%s is not aliased\n" name *)
-           | [Attr("alias", [AStr othername])] ->
-               if not (isFunctionType vtype) then begin
-                 ignore (warn 
-                   "%a: CIL only supports attribute((alias)) for functions.\n"
-                   d_loc !currentLoc);
-                 ignore (createGlobal spec_res name)
-               end else
-                 doAliasFun vtype n othername (s, (n,ndt,a,l)) loc
-           | _ -> E.s (error "Bad alias attribute at %a" d_loc !currentLoc));
-          acc
+            ignore (createGlobal spec_res name);
+            acc
         end else 
           acc @@ createLocal spec_res name
       in
