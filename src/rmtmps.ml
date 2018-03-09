@@ -422,6 +422,25 @@ class markReachableVisitor
     | GVarDecl (varinfo, _)
     | GFun ({svar = varinfo}, _) ->
 	varinfo.vreferenced <- true;
+	(* If we're a builtin, but we've seen a prototype for the
+	 * corresponding non-builtin function, then mark that one
+	 * used too. Use the visitor, because we also have to mark
+	 * its children, and so on. This matters particularly when
+	 * they're not the same, e.g. if we mark alloca(size_t), we
+	 * have to mark size_t which matters because __builtin_alloca
+	 * has argument type unsigned long. *)
+	let isBuiltin = H.mem builtinFunctions varinfo.vname in
+	if isBuiltin then begin
+	  let nonBuiltinName = Str.replace_first (Str.regexp "^__builtin_") "" varinfo.vname in
+	  try
+        let descend global =
+          ignore (visitCilGlobal (self :> cilVisitor) global)
+        in
+	    let gv = H.find globalMap nonBuiltinName in
+		descend gv
+	  with Not_found -> ()
+	end
+	;
 	DoChildren
     | _ ->
 	SkipChildren

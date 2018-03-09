@@ -200,6 +200,7 @@ addTest("test/asm3 _GNUCC=1");
 addTest("test/asm4 _GNUCC=1");
 addTest("test/asm_emptyclobberallowed _GNUCC=1");
 addTest("testobj/asm5 _GNUCC=1");
+addTest("testobj/asm-clobber-concat _GNUCC=1");
 
 addTest("testrun/offsetof");
 addTest("testrun/offsetof1");
@@ -227,6 +228,7 @@ addTest("testrun/strloop3");
 addTest("testrun/percentm");
 addTest("testrun/percent400");
 addTest("testrun/caserange _GNUCC=1");
+addTest("testrun/alias");
 addTest("test/attr");
 addTest("test/attr2 _GNUCC=1");
 addTest("test/attr3 _GNUCC=1");
@@ -387,6 +389,7 @@ addTest("testrun/scope9 ");
 addTest("testrun/scope10 ");
 addTest("testrun/scope11 ");
 addTest("test/scope12 ");
+addTest("testrun/scope13 ");
 addTest("test/voidstar");
 addTest("testrun/memcpy1");
 
@@ -587,7 +590,7 @@ addTest("test/sync-2 _GNUCC=1");
 addTest("test/sync-3 _GNUCC=1");
 addTest("testrun/comparisons");
 addTest("testrun/assign");
-    
+addTest("testrun/preempt-builtin");    
 
 
 
@@ -711,6 +714,7 @@ addTest("runall/alpha");
 addTest("testrun/blockattr2 USECFG=1");
 addTest("testrun/extinline2");
 addTest("test/extinline3");
+addTest("test/extinline4");
 addTest("testrun/bool");
 addTest("testrun/booleanOp USE_LOGICAL_OPERATORS=1");
 addTest("test/va_arg_pack");
@@ -719,6 +723,11 @@ addBadComment("testrun/compound1", "Notbug. Undefined behavior (probably).");
 addTest("testrun/compound2");
 
 addTest("test/shell-escape SHELL_ESCAPE=1");
+addTest("testpipe/simple");
+
+addTest("testrun/inline-srk-gnu89 $gcc");
+addTest("testrun/inline-srk-c11 $gcc");
+addTest("testrun/inline-srk-c11+oldinline $gcc");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

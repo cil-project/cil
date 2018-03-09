@@ -174,7 +174,8 @@ let theMain () =
           "--mergedout", Arg.String (openFile "merged output"
                                        (fun oc -> mergedChannel := Some oc)),
               " specify the name of the merged file";
-          "--load", Arg.String ignore, "" (* ignore --load because they have been processed above already *)
+          "--load", Arg.String ignore, ""; (* ignore --load because they have been processed above already *)
+          "-", Arg.Unit (fun () -> Ciloptions.recordFile "-"), "" (* Permit the string "-" as an input file, denoting stdin *)
         ]
         @ F.args @ featureArgs in
   begin
