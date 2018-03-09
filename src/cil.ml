@@ -3990,14 +3990,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           in
           if oldattr <> [] && not declaredInline then
             (self#pLineDirective l) ++ (self#pVDecl () fundec.svar)
-              ++ chr ';' ++ text "/* comes from extra-prototyping a GFun */" ++ line
+              ++ chr ';' ++ text "/* extra prototype for attrs */" ++ line
           else if declaredInline then
             List.fold_left (fun acc -> fun (glob, storage, inl) ->
                      let (oldinl, oldsto) = (fundec.svar.vinline, fundec.svar.vstorage)
                      in
                      (fundec.svar.vinline <- inl;
                      fundec.svar.vstorage <- storage;
-                     let res = acc ++ (self#pVDecl () fundec.svar) ++ (text "; /* comes from inline extra-prototyping */") ++ line
+                     let res = acc ++ (self#pVDecl () fundec.svar) ++ (text "; /* extra prototype for inline */") ++ line
                      in
                      fundec.svar.vinline <- oldinl;
                      fundec.svar.vstorage <- oldsto;
@@ -4093,8 +4093,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         end else
           self#pLineDirective l ++
             (self#pVDecl () vi)
-            ++ text ("; /* comes from a real GVarDecl in the globals list; the varinfo, magic " ^ (string_of_int (Obj.magic vi))
-        ^ ", also has " ^ (string_of_int (List.length vi.vvardecls)) ^ " entries in vvardecls */ \n")
+            ++ text ("; /* has total " ^ (string_of_int (List.length vi.vvardecls)) ^ " decls */ \n")
 
     | GAsm (s, l) ->
         self#pLineDirective l ++
@@ -4150,13 +4149,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
            in
            if oldattr <> [] && not declaredInline then
              (self#pLineDirective l) ++ (self#pVDecl () fundec.svar)
-               ++ text"; /* comes from extra-prototyping a GFun in dGlobal */" ++ line
+               ++ text"; /* attrs: extra prototype dump */" ++ line
            else if declaredInline then
             List.fold_left (fun acc -> fun (glob, storage, inl) ->
                      let oldinl, oldsto = (fundec.svar.vinline, fundec.svar.vstorage) in
                      (fundec.svar.vinline <- inl;
                      fundec.svar.vstorage <- storage;
-                     let res = acc ++ (self#pVDecl () fundec.svar) ++ (text "; /* comes from inline extra-prototyping in dGlobal */") ++ line
+                     let res = acc ++ (self#pVDecl () fundec.svar)
+						++ (text "; /* inline: extra prototype dump */") ++ line
                      in
                      fundec.svar.vinline <- oldinl;
                      fundec.svar.vstorage <- oldsto;
