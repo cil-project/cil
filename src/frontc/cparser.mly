@@ -1326,6 +1326,7 @@ attribute:
 |   CONST                               { ("const", []), $1 }
 |   RESTRICT                            { ("restrict",[]), $1 }
 |   VOLATILE                            { ("volatile",[]), $1 }
+|   STATIC                              { ("static",[]), $1 }
 ;
 
 /* (* sm: I need something that just includes __attribute__ and nothing more,
