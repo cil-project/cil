@@ -21,7 +21,7 @@
    bitwise operations on big_ints, and bug-fixed versions of int64_of_big_int
    and big_int_of_int64. *)
 
-open Big_int
+open Big_int_Z
   
 type cilint = Small of int | Big of big_int
 type truncation = NoTruncation | ValueTruncation | BitTruncation

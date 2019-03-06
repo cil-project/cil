@@ -3,7 +3,7 @@
 (** The cilint type is public and not just big_int to make life with ocamldebug
     easier. Please do not rely on this representation, use the ..._of_cilint
     functions to get at a cilint's value. *)
-type cilint = Small of int | Big of Big_int.big_int
+type cilint = Small of int | Big of Big_int_Z.big_int
 
 (** 0 as a cilint *)
 val zero_cilint : cilint
@@ -85,7 +85,7 @@ val int_of_cilint : cilint -> int
 val int64_of_cilint : cilint -> int64
 
 (** Return the cilint's value as a big_int *)
-val big_int_of_cilint : cilint -> Big_int.big_int
+val big_int_of_cilint : cilint -> Big_int_Z.big_int
 
 (** Return the cilint's value as a string *)
 val string_of_cilint : cilint -> string
@@ -97,7 +97,7 @@ val cilint_of_int : int -> cilint
 val cilint_of_int64 : int64 -> cilint
 
 (** Make a cilint from a big_int *)
-val cilint_of_big_int : Big_int.big_int -> cilint
+val cilint_of_big_int : Big_int_Z.big_int -> cilint
 
 (** Make a cilint from a string *)
 val cilint_of_string : string -> cilint

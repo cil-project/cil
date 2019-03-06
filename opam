@@ -23,6 +23,6 @@ remove: [
 depends: [
   "ocamlfind"
   "ocamlbuild" {build}
-  "num"
+  "zarith"
   "hevea" {with-doc | with-test}
 ]
