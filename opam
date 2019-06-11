@@ -1,5 +1,4 @@
 opam-version: "2.0"
-synopsis: "A front-end for the C programming language that facilitates program analysis and transformation"
 authors: ["gabriel@kerneis.info"]
 maintainer: "ralf.vogler@gmail.com"
 homepage: "https://cil-project.github.io/cil/"
@@ -21,8 +20,18 @@ remove: [
   [make "uninstall"]
 ]
 depends: [
+  "ocaml" {>= "4.02.3"}
   "ocamlfind"
   "ocamlbuild" {build}
-  "zarith"
+  "zarith" {build}
   "hevea" {with-doc | with-test}
 ]
+conflicts: ["cil"]
+synopsis:
+  "A front-end for the C programming language that facilitates program analysis and transformation"
+description: """
+This is a fork of the 'cil' package needed to build 'goblint'.
+Changes:
+- some warnings are made optional
+- truncated integer constants have a string representation
+- compiles with OCaml >=4.06.0, use zarith instead of num"""
