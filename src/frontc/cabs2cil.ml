@@ -183,7 +183,7 @@ let transparentUnionArgs : (int * typ) list ref = ref []
 let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then
-    ignore (E.log "convLoc at %s: line %d, btye %d\n" l.filename l.lineno l.byteno);
+    ignore (E.log "convLoc at %s: line %d, byte %d\n" l.filename l.lineno l.byteno);
   {line = l.lineno; file = l.filename; byte = l.byteno;}
 
 
@@ -1687,7 +1687,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
 
   | TFun (oldrt, oldargs, oldva, olda), TFun (rt, args, va, a) ->
       if oldva != va then
-        raise (Failure "diferent vararg specifiers");
+        raise (Failure "different vararg specifiers");
       let defrt = combineTypes
           (if what = CombineFundef then CombineFunret else CombineOther)
           oldrt rt in
@@ -1883,7 +1883,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
   in
   tresult
 
-(* Some utilitites for doing initializers *)
+(* Some utilities for doing initializers *)
 
 let debugInit = false
 
@@ -4295,7 +4295,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   ignore (warn "Invalid call to builtin_va_arg_pack"));
             end
 
-            (* More weird buitins *)
+            (* More weird builtins *)
             else if fv.vname = "__builtin_object_size" then begin
               (* Side-effects make __builtin_object_size return -1 or 0 *)
               if (not (isEmpty (!prechunk ()))) then
@@ -4629,7 +4629,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         finishExp empty (AddrOfLabel gref) voidPtrType
     end
     | A.LABELADDR l -> begin
-        let l = lookupLabel l in (* To support locallly declared labels *)
+        let l = lookupLabel l in (* To support locally declared labels *)
         let addrval =
           try H.find gotoTargetHash l
           with Not_found -> begin
@@ -4662,7 +4662,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   in
   let doArithmeticComp () =
     let tres = arithmeticConversion t1 t2 in
-    (* Keep the operator since it is arithemtic *)
+    (* Keep the operator since it is arithmetic *)
     intType,
     optConstFoldBinOp false bop
       (makeCastT e1 t1 tres) (makeCastT e2 t2 tres) intType
@@ -4928,7 +4928,7 @@ and doInitializer
  * tail-recursion because these things can be big.  *)
 and doInit
     (isconst: bool)
-    (setone: offset -> exp -> unit) (* Use to announce an intializer *)
+    (setone: offset -> exp -> unit) (* Use to announce an initializer *)
     (so: subobj)
     (acc: chunk)
     (initl: (A.initwhat * A.init_expression) list)
@@ -5715,7 +5715,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
        else begin
          (* Otherwise, the previous entry is an ordinary function that
             happens to be named __extinline.  Renaming n to n__extinline
-            would confict with other, so report an error. *)
+            would conflict with other, so report an error. *)
          E.s (unimp("Trying to rename %s to\n %s__extinline, but %s__extinline"
                      ^^ " already exists in the env.\n  \"__extinline\" is"
                      ^^ " reserved for CIL.\n") n n n)
