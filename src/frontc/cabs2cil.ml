@@ -2613,9 +2613,6 @@ and makeVarInfoCabs
       : varinfo =
   let vtype, nattr =
     doType (AttrName false)
-      ~allowVarSizeArrays:isformal  (* For locals we handle var-sized arrays
-                                       before makeVarInfoCabs; for formals
-                                       we do it afterwards *)
       bt (A.PARENTYPE(attrs, ndt, a)) in
   if inline && not (isFunctionType vtype) then
     ignore (error "inline for a non-function: %s" n);
@@ -2646,7 +2643,7 @@ and makeVarSizeVarInfo (ldecl : location)
                        (n,ndt,a)
    : varinfo * chunk * exp * bool =
   if not !msvcMode then
-    match isVariableSizedArray ndt with
+    match isVariableSizedArray ndt with (* TODO-GOBLINT: If we end up removing this altogether, we can get rid of this as well *)
       None ->
         makeVarInfoCabs ~isformal:false
                         ~isglobal:false
@@ -2790,7 +2787,6 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                                          * the type for a name, or AttrType
                                          * if we are doing this type in a
                                          * typedef *)
-           ?(allowVarSizeArrays=false)
            (bt: typ)                    (* The base type *)
            (dt: A.decl_type)
   (* Returns the new type and the accumulated name (or type attribute
@@ -2877,34 +2873,28 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
     | A.ARRAY (d, al, len) ->
         let lo =
           match len with
-            A.NOTHING -> None
+          | A.NOTHING -> None
           | _ ->
+            begin
               (* Check that len is a constant expression.
-                 We used to also cast the length to int here, but that's
-                 theoretically too restrictive on 64-bit machines. *)
+                  We used to also cast the length to int here, but that's
+                  theoretically too restrictive on 64-bit machines. *)
               let len' = doPureExp len in
               if not (isIntegralType (typeOf len')) then
-                E.s (error "Array length %a does not have an integral type.");
-              if not allowVarSizeArrays then begin
-                (* Assert that len' is a constant *)
-                (match constFold true len' with
-                   Const(CInt64(i, ik, _)) ->
-		     (* We want array sizes to be positive *)
-		     let elems = mkCilint ik i in
-                     if compare_cilint elems zero_cilint < 0 then
-                       E.s (error "Length of array is negative");
-                 | l ->
-                     if isConstant l then
-                       (* e.g., there may be a float constant involved.
-                        * We'll leave it to the user to ensure the length is
-                        * non-negative, etc.*)
-                       ignore(warn "Unable to do constant-folding on array length %a.  Some CIL operations on this array may fail."
-                                d_exp l)
-                     else
-                       E.s (error "Length of array is not a constant: %a"
-                              d_exp l))
-              end;
-              Some len'
+                E.s (error "Array length %a does not have an integral type.")
+              else
+                match constFold true len' with
+                  | Const(CInt64(i, ik, _)) ->
+                    (* If len' is a constant, we check that the array size is constant *)
+                    let elems = mkCilint ik i in
+                    if compare_cilint elems zero_cilint < 0 then
+                      E.s (error "Length of array is negative")
+                    else
+                      Some len'
+                  | _ ->
+                    (* otherwise we proceed and it is up to the user to ensure that the value is ok *)
+                    Some len'
+            end
         in
 	let al' = doAttributes al in
         doDeclType (TArray(bt, lo, al')) acc d
@@ -3018,8 +3008,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
 (* If this is a declarator for a variable size array then turn it into a
    pointer type and a length *)
 and isVariableSizedArray (dt: A.decl_type)
-    : (A.decl_type * chunk * exp) option =
-  let res = ref None in
+    : (A.decl_type * chunk * exp) option = None
+  (* TODO-GOBLINT This would be the place if we need special treatment for these vars *)
+  (* let res = ref None in
   let rec findArray = function
     ARRAY (JUSTBASE, al, lo) when lo != A.NOTHING ->
       (* Try to compile the expression to a constant *)
@@ -3038,7 +3029,7 @@ and isVariableSizedArray (dt: A.decl_type)
   let dt' = findArray dt in
   match !res with
     None -> None
-  | Some (se, e) -> Some (dt', se, e)
+  | Some (se, e) -> Some (dt', se, e) *)
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
   let bt',sto,inl,attrs = doSpecList "" specs in
@@ -5539,7 +5530,7 @@ and createLocal ((_, sto, _, _) as specs)
         makeVarSizeVarInfo loc specs (n, ndt, a) in
 
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
-      let se1 =
+      let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           (* Make a local variable to keep the length *)
