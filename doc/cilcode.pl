@@ -45,12 +45,12 @@ binmode STDOUT;
 my $lineno = 0;
 while(<>) {
     $lineno ++;
-    if(! $incode && $_ =~ m|^\\begin{cilcode}\[(.*)\](.*)$|) {
+    if(! $incode && $_ =~ m|^\\begin\{cilcode}\[(.*)\](.*)$|) {
         $opt = $1;
         $cil_options = $2;
         $incode = 1;
         print STDERR "\n***Found CIL code at line $lineno\n";
-        open(TSTSRC, ">$tmpdir/ex$testnr.c") 
+        open(TSTSRC, ">$tmpdir/ex$testnr.c")
             || die "Cannot create source $testnr";
         if($opt eq 'local') {
             print TSTSRC $preambleLocal;
@@ -60,7 +60,7 @@ while(<>) {
         print "\\begin{code}\n";
         next;
     }
-    if($incode && $_ =~ m|^\\end{cilcode}$|) {
+    if($incode && $_ =~ m|^\\end\{cilcode}$|) {
         $incode = 0;
         if($opt eq 'local') {
             print TSTSRC $postambleLocal;
@@ -96,7 +96,6 @@ code fragment\n";
     }
     if($incode) {
         print TSTSRC $_;
-    } 
+    }
     print $_;
 }
-
