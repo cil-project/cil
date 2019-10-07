@@ -2029,7 +2029,9 @@ let kintegerCilint (k: ikind) (i: cilint) : exp =
     ignore (warnOpt "Truncating integer %s to %s" 
               (string_of_cilint i) (string_of_cilint i'));
   let str =
-    if string_of_cilint i <> string_of_cilint i' then
+    (* if the resulting value can not be represented by an Int64, store its string representation *)
+    let is_repr_as_int64 = function ILong | IULong | ILongLong | IULongLong -> false | _ -> true in
+    if not (is_repr_as_int64 k) && string_of_cilint i <> string_of_cilint i' then
       Some (string_of_cilint i)
     else None
   in
@@ -6682,7 +6684,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
        * label_break: ; // break_stmt
        *
        * The default case, if present, must be used only if *all*
-       * non-default cases fail [ISO/IEC 9899:1999, §6.8.4.2, ¶5]. As
+       * non-default cases fail [ISO/IEC 9899:1999, ï¿½6.8.4.2, ï¿½5]. As
        * a result, we test all cases first, and hit 'default' only if
        * no case matches. However, we do not reorder the switch's
        * body, so fall-through still works as expected.
