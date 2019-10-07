@@ -523,6 +523,8 @@ and varinfo = {
     (** Indicates whether the vdescr above is a pure expression or call.
      *  Printing a non-pure vdescr more than once may yield incorrect
      *  results. *)
+
+    mutable vvladummy: bool;
 }
 
 (** Storage-class information *)

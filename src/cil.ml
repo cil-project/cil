@@ -459,6 +459,7 @@ and varinfo = {
                                             Printing a non-pure vdescr more
                                             than once may yield incorrect
                                             results. *)
+    mutable vvladummy: bool;
 }
 
 (** Storage-class information *)
@@ -4900,6 +4901,7 @@ let makeVarinfo global name ?init typ =
       vreferenced = false;
       vdescr = nil;
       vdescrpure = true;
+      vvladummy = false;
     } in
   vi
 

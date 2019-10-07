@@ -5532,6 +5532,7 @@ and createLocal ((_, sto, _, _) as specs)
       let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
+          vi.vvladummy <- true;
           (* Make a local variable to keep the length *)
           if inite != A.NO_INIT then
             E.s (error "Variable-sized array cannot have initializer");
