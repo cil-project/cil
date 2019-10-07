@@ -1075,6 +1075,7 @@ let get_instrLoc (inst : instr) =
       Set(_, _, loc) -> loc
     | Call(_, _, _, loc) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
+    | MakeVLA(_,_,loc) -> loc
 let get_globalLoc (g : global) =
   match g with
   | GFun(_,l) -> (l)
@@ -3201,6 +3202,12 @@ class type cilPrinter = object
      * in formals of function types, and the formals and locals for function
      * definitions. *)
 
+  method pVDeclPhony: unit -> varinfo -> bool -> doc
+    (** Invoked for each variable declaration. Note that variable
+     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo]
+     * in formals of function types, and the formals and locals for function
+     * definitions. *)
+
   method pVar: varinfo -> doc
     (** Invoked on each variable use. *)
 
@@ -3303,14 +3310,32 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    let stom, rest = separateStorageModifiers v.vattr in
-    (* First the storage modifiers *)
-    text (if v.vinline then "__inline " else "")
-      ++ d_storage () v.vstorage
-      ++ (self#pAttrs () stom)
-      ++ (self#pType (Some (text v.vname)) () v.vtype)
-      ++ text " "
-      ++ self#pAttrs () rest
+    if not v.vvladummy then
+      let stom, rest = separateStorageModifiers v.vattr in
+      (* First the storage modifiers *)
+      text (if v.vinline then "__inline " else "")
+        ++ d_storage () v.vstorage
+        ++ (self#pAttrs () stom)
+        ++ (self#pType (Some (text v.vname)) () v.vtype)
+        ++ text " "
+        ++ self#pAttrs () rest
+    else
+      text " "
+
+
+  (* variable declaration *)
+  method pVDeclPhony () (v:varinfo) ph =
+    if ph || not v.vvladummy then
+      let stom, rest = separateStorageModifiers v.vattr in
+      (* First the storage modifiers *)
+      text (if v.vinline then "__inline " else "")
+        ++ d_storage () v.vstorage
+        ++ (self#pAttrs () stom)
+        ++ (self#pType (Some (text v.vname)) () v.vtype)
+        ++ text " "
+        ++ self#pAttrs () rest
+    else
+      text " "
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
@@ -3565,6 +3590,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               ++ text printInstrTerminator
 
     end
+    | MakeVLA(varinfo,_,l) ->
+      self#pLineDirective l
+      ++ self#pVDeclPhony () varinfo true
+      ++ chr ';'
       (* In cabs2cil we have turned the call to builtin_va_arg into a
        * three-argument call: the last argument is the address of the
        * destination *)

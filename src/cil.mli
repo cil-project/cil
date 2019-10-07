@@ -2151,6 +2151,8 @@ class type cilPrinter = object
      * in formals of function types, and the formals and locals for function
      * definitions. *)
 
+  method pVDeclPhony: unit -> varinfo -> bool -> Pretty.doc
+
   method pVar: varinfo -> Pretty.doc
     (** Invoked on each variable use. *)
 
