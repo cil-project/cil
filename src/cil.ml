@@ -1017,7 +1017,7 @@ class nopCilVisitor : cilVisitor = object
   method voffs (o:offset) = DoChildren      (* lval or recursive offset *)
   method vinitoffs (o:offset) = DoChildren  (* initializer offset *)
   method vinst (i:instr) = DoChildren       (* imperative instruction *)
-  method vstmt (s:stmt) = DoChildren        (* constrol-flow statement *)
+  method vstmt (s:stmt) = DoChildren        (* control-flow statement *)
   method vblock (b: block) = DoChildren
   method vfunc (f:fundec) = DoChildren      (* function definition *)
   method vglob (g:global) = DoChildren      (* global (vars, types, etc.) *)
@@ -1109,7 +1109,7 @@ let rec get_stmtLoc (statement : stmtkind) =
 (* The next variable identifier to use. Counts up *)
 let nextGlobalVID = ref 1
 
-(* The next compindo identifier to use. Counts up. *)
+(* The next compinfo identifier to use. Counts up. *)
 let nextCompinfoKey = ref 1
 
 (* Some error reporting functions *)
@@ -2125,7 +2125,7 @@ type offsetAcc =
 (* Hack to prevent infinite recursion in alignments *)
 let ignoreAlignmentAttrs = ref false
 
-(* Get the minimum aligment in bytes for a given type *)
+(* Get the minimum alignment in bytes for a given type *)
 let rec alignOf_int t =
   let alignOfType () =
     match t with
@@ -2509,7 +2509,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
         loopOff f.ftype (bitsSizeOf f.ftype) start off
 
     | Field(f, off) ->
-        (* Construct a list of fields preceeding and including this one *)
+        (* Construct a list of fields preceding and including this one *)
         let prevflds =
           let rec loop = function
               [] -> E.s (E.bug "bitsOffset: Cannot find field %s in %s\n"
@@ -4366,7 +4366,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* text "/*[" ++ self#pAttrParam () a ++ text "]*/" *) nil, false
 
 
-    | _ -> (* This is the dafault case *)
+    | _ -> (* This is the default case *)
         (* Add underscores to the name *)
         let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
         if args = [] then
@@ -4506,7 +4506,7 @@ let printStmt (pp: cilPrinter) () (s: stmt) : doc =
   pp#pStmt () s
 
 let printBlock (pp: cilPrinter) () (b: block) : doc =
-  (* We must add the alignment ourselves, beucase pBlock will pop it *)
+  (* We must add the alignment ourselves, because pBlock will pop it *)
   align ++ pp#pBlock () b
 
 let dumpStmt (pp: cilPrinter) (out: out_channel) (ind: int) (s: stmt) : unit =
@@ -5638,7 +5638,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 
   | GCompTag (comp, _) ->
       (* (trace "visit" (dprintf "visiting global comp %s\n" comp.cname)); *)
-      (* Do the types and attirbutes of the fields *)
+      (* Do the types and attributes of the fields *)
       let fieldVisit = fun fi ->
         fi.ftype <- visitCilType vis fi.ftype;
         fi.fattr <- visitCilAttributes vis fi.fattr
@@ -6930,7 +6930,7 @@ let initCIL () =
 let pullTypesForward = true
 
 
-    (* Scan a type and collect the variables that are refered *)
+    (* Scan a type and collect the variables that are referred *)
 class getVarsInGlobalClass (pacc: varinfo list ref) = object
   inherit nopCilVisitor
   method vvrbl (vi: varinfo) =
