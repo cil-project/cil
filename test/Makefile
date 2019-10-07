@@ -181,7 +181,7 @@ SMALL1 := $(TESTDIR)/small1
 
 test/% : $(SMALL1)/%.c 
 	cd $(SMALL1); $(CILLY) --nomerge --commPrintLn \
-	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.c 
+	       $(CONLY) -std=gnu90 $(CFLAGS) $(ASMONLY)$*.s $*.c
 	echo SUCCESS
 
 testobj/% : $(SMALL1)/%.c  
@@ -190,7 +190,7 @@ testobj/% : $(SMALL1)/%.c
 
 testrun/% : $(SMALL1)/%.c  
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
-	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
+	       $(CFLAGS) -std=gnu90 $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
