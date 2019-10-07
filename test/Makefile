@@ -262,7 +262,7 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -I $(OBJDIR) unix.$(CMXA) str.$(CMXA) nums.$(CMXA) \
+	$(CAMLC) -I $(OBJDIR) -I +../zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
                  cil.$(CMXA) \
                  $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
