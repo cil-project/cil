@@ -5528,51 +5528,16 @@ and createLocal ((_, sto, _, _) as specs)
        * it is a variable size variable *)
       let vi,se0,len,isvarsize =
         makeVarSizeVarInfo loc specs (n, ndt, a) in
-
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           (* Make a local variable to keep the length *)
-          let savelen =
-            makeVarInfoCabs
-                        ~isformal:false
-                        ~isglobal:false
-	                loc
-                        (!typeOfSizeOf, NoStorage, false, [])
-                        ("__lengthof" ^ vi.vname,JUSTBASE, [])
-          in
-          (* Register it *)
-          let savelen = alphaConvertVarAndAddToEnv true savelen in
-          (* Compute the sizeof *)
-          let sizeof =
-            BinOp(Mult,
-                  SizeOfE (Lval(Mem(Lval(var vi)), NoOffset)),
-                  Lval (var savelen), !typeOfSizeOf) in
-          (* Register the length *)
-          IH.add varSizeArrays vi.vid sizeof;
-          (* There can be no initializer for this *)
           if inite != A.NO_INIT then
             E.s (error "Variable-sized array cannot have initializer");
-          let setlen =  se0 +++
-              (Set(var savelen, makeCast len savelen.vtype, !currentLoc)) in
-          (* Initialize the variable *)
-          let alloca: varinfo = allocaFun () in
-          if !doCollapseCallCast then
-            (* do it in one step *)
-            setlen +++ (Call(Some(var vi), Lval(var alloca),
-                             [ sizeof  ], !currentLoc))
-          else begin
-            (* do it in two *)
-            let rt, _, _, _ = splitFunctionType alloca.vtype in
-            let tmp = newTempVar (dprintf "alloca(%a)" d_exp sizeof) false rt in
-            setlen
-            +++ (Call(Some(var tmp), Lval(var alloca),
-                      [ sizeof  ], !currentLoc))
-            +++ (Set((var vi),
-                     makeCast (Lval(var tmp)) vi.vtype, !currentLoc))
-           end
-        end else empty
+          se0 +++ MakeVLA(vi, [], !currentLoc)
+        end else
+        empty
       in
       if inite = A.NO_INIT then
         se1 (* skipChunk *)
@@ -6050,6 +6015,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 else true
             | Call _ -> true
             | Asm _ -> true
+            | MakeVLA _ -> true
             in
             let rec stmtFallsThrough (s: stmt) : bool =
               match s.skind with
