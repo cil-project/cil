@@ -271,7 +271,7 @@ testrun/% : $(SMALL1)/%.ml
 
 combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
-          $(CILLY) $(CFLAGS) \
+          $(CILLY) $(CFLAGS) -std=gnu90 \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
