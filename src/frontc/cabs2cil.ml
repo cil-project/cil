@@ -2642,6 +2642,11 @@ and makeVarSizeVarInfo (ldecl : location)
                        spec_res
                        (n,ndt,a)
    : varinfo * chunk * exp * bool =
+  let insertArrayLength (t:typ) (e:exp):typ =
+    match t with
+    | TArray (t, None, a) -> TArray(t,Some e,a)
+    | a -> a
+  in
   if not !msvcMode then
     match isVariableSizedArray ndt with (* TODO-GOBLINT: If we end up removing this altogether, we can get rid of this as well *)
       None ->
@@ -2649,9 +2654,10 @@ and makeVarSizeVarInfo (ldecl : location)
                         ~isglobal:false
                         ldecl spec_res (n,ndt,a), empty, zero, false
     | Some (ndt', se, len) ->
-        makeVarInfoCabs ~isformal:false
-                        ~isglobal:false
-                        ldecl spec_res (n,ndt',a), se, len, true
+        let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
+        vi.vvladummy <- true;
+        vi.vtype <- insertArrayLength vi.vtype len; (* patch the correct length for the array back-in *)
+        vi, se, len, true
   else
     makeVarInfoCabs ~isformal:false
                     ~isglobal:false
@@ -5534,11 +5540,6 @@ and createLocal ((_, sto, _, _) as specs)
 
   | _ ->
     begin
-      let insertArrayLength (t:typ) (e:exp):typ =
-        match t with
-        | TArray (t, None, a) -> TArray(t,Some e,a)
-        | a -> a
-      in
       (* Make a variable of potentially variable size. If se0 <> empty then
        * it is a variable size variable *)
       let vi,se0,len,isvarsize =
@@ -5547,9 +5548,6 @@ and createLocal ((_, sto, _, _) as specs)
       let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
-          vi.vvladummy <- true;
-          vi.vtype <- insertArrayLength vi.vtype len; (* patch the correct length for the array back-in *)
-          (* Make a local variable to keep the length *)
           if inite != A.NO_INIT then
             E.s (error "Variable-sized array cannot have initializer");
           se0 +++ MakeVLA(vi, [], !currentLoc)
