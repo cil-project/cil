@@ -3029,7 +3029,7 @@ and isVariableSizedArray (dt: A.decl_type): (A.decl_type * chunk * exp list) opt
     | ARRAY (dt, al, lo) when lo != A.NOTHING ->
       let dt', chunk', exp' = handleTopLevel dt in
       (* Try to compile the expression to a constant *)
-      let (se, e', _) = doExp true lo (AExp (Some intType)) in
+      let (se, e', _) = doExp false lo (AExp (Some intType)) in
       if isNotEmpty se || not (isConstant e') then
         begin
           isVLA := true;
@@ -4902,16 +4902,10 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
     compileCondExp (doCondExp isconst e) st sf
 
 
-and doPureExp (e : A.expression) : exp option = (* TODO-GOBLINT: Explain new restrictions for this *)
-  let (se, e', _) = doExp true e (AExp None) in
+and doPureExp (e : A.expression) : exp option =
+  let (se, e', _) = doExp false e (AExp None) in (* false because we don't want warnings here, we are doing this to find out if it is pure *)
   if isNotEmpty se then begin
       None
-      (* let msg =
-          if !useLogicalOperators then
-               error "doPureExp: not pure"
-          else
-               error "doPureExp: could not compute array length, try --useLogicalOperators"
-      in E.s msg; *)
   end
   else
     Some e'
