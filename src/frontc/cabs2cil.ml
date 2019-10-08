@@ -1674,7 +1674,11 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
               ignore (warn "Array type comparison succeeds only based on machine-dependent constant evaluation: %a and %a"
                        d_exp oldsz' d_exp sz');
               oldsz
-           end else
+           end else if what = CombineFunarg then begin
+              ignore (warn "Array type comparison succeeds based on being lenient for funargs, proceed with caution: %a %a" d_exp oldsz' d_exp sz');
+              oldsz
+           end
+           else
               raise (Failure "different array lengths")
 
       in
