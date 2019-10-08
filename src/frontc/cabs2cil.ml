@@ -2641,27 +2641,30 @@ and makeVarInfoCabs
 and makeVarSizeVarInfo (ldecl : location)
                        spec_res
                        (n,ndt,a)
-   : varinfo * chunk * exp * bool =
-  let insertArrayLength (t:typ) (e:exp):typ =
-    match t with
-    | TArray (t, None, a) -> TArray(t,Some e,a)
-    | a -> a
+   : varinfo * chunk * bool =
+  let rec insertArrayLengths (t:typ) (e:exp list):typ =
+    match t, e with
+    | TArray (t, None, a), e::es -> TArray(insertArrayLengths t es, Some e, a)
+    | TArray (t, Some e, a), es -> TArray(insertArrayLengths t es, Some e, a)
+    | TPtr (t, a), es -> TPtr(insertArrayLengths t es, a)
+    | a, [] -> a
+    | a, _ -> E.s (error "Something phishy is going on with VLAs, typ does not have as many arrays of length None as exp we want to subsitute");
   in
   if not !msvcMode then
     match isVariableSizedArray ndt with (* TODO-GOBLINT: If we end up removing this altogether, we can get rid of this as well *)
       None ->
         makeVarInfoCabs ~isformal:false
                         ~isglobal:false
-                        ldecl spec_res (n,ndt,a), empty, zero, false
+                        ldecl spec_res (n,ndt,a), empty, false
     | Some (ndt', se, len) ->
         let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
         vi.vvladummy <- true;
-        vi.vtype <- insertArrayLength vi.vtype len; (* patch the correct length for the array back-in *)
-        vi, se, len, true
+        vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
+        vi, se, true
   else
     makeVarInfoCabs ~isformal:false
                     ~isglobal:false
-                    ldecl spec_res (n,ndt,a), empty, zero, false
+                    ldecl spec_res (n,ndt,a), empty, false
 
 and doAttr (a: A.attribute) : attribute list =
   (* Strip the leading and trailing underscore *)
@@ -3020,29 +3023,42 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
 
 (* If this is a declarator for a variable size array then turn it into a
    pointer type and a length *)
-and isVariableSizedArray (dt: A.decl_type)
-    : (A.decl_type * chunk * exp) option =
-  (* TODO-GOBLINT This would be the place if we need special treatment for these vars *)
-  let res = ref None in
-  let rec findArray = function
-    ARRAY (JUSTBASE, al, lo) when lo != A.NOTHING ->
+and isVariableSizedArray (dt: A.decl_type): (A.decl_type * chunk * exp list) option =
+  let isVLA = ref false in
+  let rec handleTopLevel (dt: A.decl_type): (A.decl_type * chunk * exp list) =
+    match dt with
+    | ARRAY (dt, al, lo) when lo != A.NOTHING ->
+      let dt', chunk', exp' = handleTopLevel dt in
       (* Try to compile the expression to a constant *)
       let (se, e', _) = doExp true lo (AExp (Some intType)) in
-      if isNotEmpty se || not (isConstant e') then begin
-        res := Some (se, e');
-        ARRAY (JUSTBASE, al, lo) (* here we need this to be replaced with the size we just computed *)
-      end else
-        ARRAY (JUSTBASE, al, lo)
-    | ARRAY (dt, al, lo) -> ARRAY (findArray dt, al, lo)
-    | PTR (al, dt) -> PTR (al, findArray dt)
-    | JUSTBASE -> JUSTBASE
-    | PARENTYPE (prea, dt, posta) -> PARENTYPE (prea, findArray dt, posta)
-    | PROTO (dt, f, a) -> PROTO (findArray dt, f, a)
+      if isNotEmpty se || not (isConstant e') then
+        begin
+          isVLA := true;
+          let new_e = if doPureExp lo = None then [e'] else [] in
+          ARRAY (dt', al, lo),  se @@ chunk', new_e @ exp' (* here we need this to be replaced with the size we just computed *)
+        end
+      else
+        ARRAY (dt', al, lo), chunk', exp'
+    | ARRAY (dt, al, lo) ->
+        let dt', chunk', exp' = handleTopLevel dt in
+        ARRAY (dt', al, lo), chunk', exp'
+    | PTR (al, dt) ->
+      let dt', chunk', exp' = handleTopLevel dt in
+      PTR (al, dt'), chunk', exp'
+    | JUSTBASE ->
+      JUSTBASE, empty, []
+    | PARENTYPE (prea, dt, posta) ->
+      let dt', chunk', exp' = handleTopLevel dt in
+      PARENTYPE (prea, dt', posta), chunk', exp'
+    | PROTO (dt, f, a) ->
+      let dt', chunk', exp' = handleTopLevel dt in
+      PROTO (dt', f, a), chunk', exp'
   in
-  let dt' = findArray dt in
-  match !res with
-    None -> None
-  | Some (se, e) -> Some (dt', se, e)
+  let dt', c, es = handleTopLevel dt in
+  if !isVLA then
+    Some(dt', c, es)
+  else
+    None
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
   let bt',sto,inl,attrs = doSpecList "" specs in
@@ -5542,7 +5558,7 @@ and createLocal ((_, sto, _, _) as specs)
     begin
       (* Make a variable of potentially variable size. If se0 <> empty then
        * it is a variable size variable *)
-      let vi,se0,len,isvarsize =
+      let vi,se0,isvarsize =
         makeVarSizeVarInfo loc specs (n, ndt, a) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
       let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
