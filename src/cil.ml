@@ -4003,7 +4003,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* If the function has attributes then print a prototype because
         * GCC cannot accept function attributes in a definition *)
         let oldattr = fundec.svar.vattr in
-        (* Always pring the file name before function declarations *)
+        (* Always print the file name before function declarations *)
         let proto =
           if oldattr <> [] then
             (self#pLineDirective l) ++ (self#pVDecl () fundec.svar)

@@ -2891,7 +2891,6 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               match doPureExp len with
               | Some len' ->
                 begin
-                  let (chunk, len'', _) = doExp true len (ADrop) in
                   if not (isIntegralType (typeOf len')) then
                     E.s (error "Array length %a does not have an integral type.")
                   else
