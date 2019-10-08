@@ -5341,6 +5341,7 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp e = visitCilExpr vis e in
   let fLval lv = visitCilLval vis lv in
   match i with
+  | MakeVLA(v,_,_) -> i
   | Set(lv,e,l) ->
       let lv' = fLval lv in let e' = fExp e in
       if lv' != lv || e' != e then Set(lv',e',l) else i

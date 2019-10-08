@@ -260,7 +260,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
       (match len with
         None -> ()
       | Some l -> begin
-          let t = checkExp true l in
+          let t = checkExp false l in
           if not (isIntegralType t) then
             E.s (bug "Type of array length is not integer")
       end)

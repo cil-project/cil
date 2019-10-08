@@ -3008,16 +3008,16 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
 (* If this is a declarator for a variable size array then turn it into a
    pointer type and a length *)
 and isVariableSizedArray (dt: A.decl_type)
-    : (A.decl_type * chunk * exp) option = None
+    : (A.decl_type * chunk * exp) option =
   (* TODO-GOBLINT This would be the place if we need special treatment for these vars *)
-  (* let res = ref None in
+  let res = ref None in
   let rec findArray = function
     ARRAY (JUSTBASE, al, lo) when lo != A.NOTHING ->
       (* Try to compile the expression to a constant *)
       let (se, e', _) = doExp true lo (AExp (Some intType)) in
       if isNotEmpty se || not (isConstant e') then begin
         res := Some (se, e');
-        PTR (al, JUSTBASE)
+        ARRAY (JUSTBASE, al, lo)
       end else
         ARRAY (JUSTBASE, al, lo)
     | ARRAY (dt, al, lo) -> ARRAY (findArray dt, al, lo)
@@ -3029,7 +3029,7 @@ and isVariableSizedArray (dt: A.decl_type)
   let dt' = findArray dt in
   match !res with
     None -> None
-  | Some (se, e) -> Some (dt', se, e) *)
+  | Some (se, e) -> Some (dt', se, e)
 
 and doOnlyType (specs: A.spec_elem list) (dt: A.decl_type) : typ =
   let bt',sto,inl,attrs = doSpecList "" specs in
