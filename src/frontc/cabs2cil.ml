@@ -2879,21 +2879,28 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               (* Check that len is a constant expression.
                   We used to also cast the length to int here, but that's
                   theoretically too restrictive on 64-bit machines. *)
-              let len' = doPureExp len in
-              if not (isIntegralType (typeOf len')) then
-                E.s (error "Array length %a does not have an integral type.")
-              else
-                match constFold true len' with
-                  | Const(CInt64(i, ik, _)) ->
-                    (* If len' is a constant, we check that the array size is constant *)
-                    let elems = mkCilint ik i in
-                    if compare_cilint elems zero_cilint < 0 then
-                      E.s (error "Length of array is negative")
-                    else
-                      Some len'
-                  | _ ->
-                    (* otherwise we proceed and it is up to the user to ensure that the value is ok *)
-                    Some len'
+              match doPureExp len with
+              | Some len' ->
+                begin
+                  let (chunk, len'', _) = doExp true len (ADrop) in
+                  if not (isIntegralType (typeOf len')) then
+                    E.s (error "Array length %a does not have an integral type.")
+                  else
+                    match constFold true len' with
+                      | Const(CInt64(i, ik, _)) ->
+                        (* If len' is a constant, we check that the array size is constant *)
+                        let elems = mkCilint ik i in
+                        if compare_cilint elems zero_cilint < 0 then
+                          E.s (error "Length of array is negative")
+                        else
+                          Some len'
+                      | _ ->
+                        (* otherwise we proceed and it is up to the user to ensure that the value is ok *)
+                        Some len'
+                  end
+              | None ->
+                (*  If this expression is not pure here, we will later patch in the correct expression *)
+                None
             end
         in
 	let al' = doAttributes al in
@@ -3017,7 +3024,7 @@ and isVariableSizedArray (dt: A.decl_type)
       let (se, e', _) = doExp true lo (AExp (Some intType)) in
       if isNotEmpty se || not (isConstant e') then begin
         res := Some (se, e');
-        ARRAY (JUSTBASE, al, lo)
+        ARRAY (JUSTBASE, al, lo) (* here we need this to be replaced with the size we just computed *)
       end else
         ARRAY (JUSTBASE, al, lo)
     | ARRAY (dt, al, lo) -> ARRAY (findArray dt, al, lo)
@@ -4874,17 +4881,19 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
     compileCondExp (doCondExp isconst e) st sf
 
 
-and doPureExp (e : A.expression) : exp =
+and doPureExp (e : A.expression) : exp option = (* TODO-GOBLINT: Explain new restrictions for this *)
   let (se, e', _) = doExp true e (AExp None) in
   if isNotEmpty se then begin
-      let msg =
+      None
+      (* let msg =
           if !useLogicalOperators then
                error "doPureExp: not pure"
           else
                error "doPureExp: could not compute array length, try --useLogicalOperators"
-      in E.s msg;
-  end;
-  e'
+      in E.s msg; *)
+  end
+  else
+    Some e'
 
 and doInitializer
     (vi: varinfo)
@@ -5524,6 +5533,12 @@ and createLocal ((_, sto, _, _) as specs)
       empty
 
   | _ ->
+    begin
+      let insertArrayLength (t:typ) (e:exp):typ =
+        match t with
+        | TArray (t, None, a) -> TArray(t,Some e,a)
+        | a -> a
+      in
       (* Make a variable of potentially variable size. If se0 <> empty then
        * it is a variable size variable *)
       let vi,se0,len,isvarsize =
@@ -5533,6 +5548,7 @@ and createLocal ((_, sto, _, _) as specs)
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           vi.vvladummy <- true;
+          vi.vtype <- insertArrayLength vi.vtype len; (* patch the correct length for the array back-in *)
           (* Make a local variable to keep the length *)
           if inite != A.NO_INIT then
             E.s (error "Variable-sized array cannot have initializer");
@@ -5565,6 +5581,7 @@ and createLocal ((_, sto, _, _) as specs)
             (* otherwise create assignments instead of the initialization *)
             se1 @@ se4 @@ (assignInit (Var vi, NoOffset) ie' et empty)
       end
+    end
 
 and doAliasFun vtype (thisname:string) (othername:string)
   (sname:single_name) (loc: cabsloc) : unit =

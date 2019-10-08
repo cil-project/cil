@@ -160,7 +160,7 @@ let statements: stmt list ref = ref []
 let gotoTargets: (string * stmt) list ref = ref []
 
 (*** TYPES ***)
-(* Cetain types can only occur in some contexts, so keep a list of context *)
+(* Certain types can only occur in some contexts, so keep a list of context *)
 type ctxType =
     CTStruct                            (* In a composite type *)
   | CTUnion
@@ -883,6 +883,7 @@ and checkInstr (i: instr) =
         loopArgs (argsToList formals) args
 
   | Asm _ -> ()  (* Not yet implemented *)
+  | MakeVLA _ -> ()
 
 let rec checkGlobal = function
     GAsm _ -> ()
