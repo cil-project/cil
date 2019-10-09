@@ -2662,7 +2662,7 @@ and makeVarSizeVarInfo (ldecl : location)
                         ldecl spec_res (n,ndt,a), empty, false
     | Some (ndt', se, len) ->
         let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
-        vi.vvladummy <- true;
+        vi.vdeclinstgenerated <- true;
         vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
         vi, se, true
   else
@@ -5569,7 +5569,7 @@ and createLocal ((_, sto, _, _) as specs)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           if inite != A.NO_INIT then
             E.s (error "Variable-sized array cannot have initializer");
-          se0 +++ MakeVLA(vi, [], !currentLoc)
+          se0 +++ VarDecl(vi, !currentLoc)
         end else
         empty
       in
@@ -6050,7 +6050,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 else true
             | Call _ -> true
             | Asm _ -> true
-            | MakeVLA _ -> true
+            | VarDecl _ -> true
             in
             let rec stmtFallsThrough (s: stmt) : bool =
               match s.skind with

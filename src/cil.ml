@@ -459,7 +459,7 @@ and varinfo = {
                                             Printing a non-pure vdescr more
                                             than once may yield incorrect
                                             results. *)
-    mutable vvladummy: bool;
+    mutable vdeclinstgenerated: bool;
 }
 
 (** Storage-class information *)
@@ -809,8 +809,7 @@ and instr =
     Set        of lval * exp * location  (** An assignment. A cast is present
                                              if the exp has different type
                                              from lval *)
-  | MakeVLA    of varinfo * exp list * location (** Generation of a VLA (i.e.
-                                             where its length is set ) *)
+  | VarDecl    of varinfo * location (** Decleration of varinfo *)
   | Call       of lval option * exp * exp list * location
  			 (** optional: result is an lval. A cast might be
                              necessary if the declared result type of the
@@ -1075,7 +1074,7 @@ let get_instrLoc (inst : instr) =
       Set(_, _, loc) -> loc
     | Call(_, _, _, loc) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
-    | MakeVLA(_,_,loc) -> loc
+    | VarDecl(_,loc) -> loc
 let get_globalLoc (g : global) =
   match g with
   | GFun(_,l) -> (l)
@@ -3333,7 +3332,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    if not v.vvladummy then
+    if not v.vdeclinstgenerated then
       let stom, rest = separateStorageModifiers v.vattr in
       (* First the storage modifiers *)
       text (if v.vinline then "__inline " else "")
@@ -3348,7 +3347,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDeclPhony () (v:varinfo) ph =
-    if ph || not v.vvladummy then
+    if ph || not v.vdeclinstgenerated then
       let stom, rest = separateStorageModifiers v.vattr in
       (* First the storage modifiers *)
       text (if v.vinline then "__inline " else "")
@@ -3613,7 +3612,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               ++ text printInstrTerminator
 
     end
-    | MakeVLA(varinfo,_,l) ->
+    | VarDecl(varinfo,l) ->
       self#pLineDirective l
       ++ self#pVDeclPhony () varinfo true
       ++ chr ';'
@@ -4966,7 +4965,7 @@ let makeVarinfo global name ?init typ =
       vreferenced = false;
       vdescr = nil;
       vdescrpure = true;
-      vvladummy = false;
+      vdeclinstgenerated = false;
     } in
   vi
 
@@ -5377,7 +5376,7 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fExp e = visitCilExpr vis e in
   let fLval lv = visitCilLval vis lv in
   match i with
-  | MakeVLA(v,_,_) -> i
+  | VarDecl(v,l) -> i
   | Set(lv,e,l) ->
       let lv' = fLval lv in let e' = fExp e in
       if lv' != lv || e' != e then Set(lv',e',l) else i

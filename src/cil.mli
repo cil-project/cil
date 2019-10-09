@@ -524,7 +524,7 @@ and varinfo = {
      *  Printing a non-pure vdescr more than once may yield incorrect
      *  results. *)
 
-    mutable vvladummy: bool;
+    mutable vdeclinstgenerated: bool;
 }
 
 (** Storage-class information *)
@@ -1020,7 +1020,7 @@ and instr =
   Set        of lval * exp * location
    (** An assignment. The type of the expression is guaranteed to be the same
     * with that of the lvalue *)
-  | MakeVLA    of varinfo * exp list * location (** Generation of a VLA (i.e.
+  | VarDecl    of varinfo * location (** Generation of a VLA (i.e.
                                              where its length is set ) *)
   | Call       of lval option * exp * exp list * location
    (** A function call with the (optional) result placed in an lval. It is

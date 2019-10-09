@@ -883,7 +883,7 @@ and checkInstr (i: instr) =
         loopArgs (argsToList formals) args
 
   | Asm _ -> ()  (* Not yet implemented *)
-  | MakeVLA _ -> ()
+  | VarDecl _ -> ()
 
 let rec checkGlobal = function
     GAsm _ -> ()
