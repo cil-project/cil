@@ -1647,7 +1647,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         end
 
   | TArray (oldbt, oldsz, olda), TArray (bt, sz, a) ->
-      let newbt = combineTypes CombineOther oldbt bt in
+      let newbt = combineTypes what oldbt bt in
       let newsz =
         match oldsz, sz with
           None, Some _ -> sz
@@ -1685,7 +1685,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
       TArray (newbt, newsz, cabsAddAttributes olda a)
 
   | TPtr (oldbt, olda), TPtr (bt, a) ->
-      TPtr (combineTypes CombineOther oldbt bt, cabsAddAttributes olda a)
+      TPtr (combineTypes what oldbt bt, cabsAddAttributes olda a)
 
   | TFun (_, _, _, [Attr("missingproto",_)]), TFun _ -> t
 

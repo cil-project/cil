@@ -259,11 +259,11 @@ let rec checkType (t: typ) (ctx: ctxType) =
       checkType bt CTArray;
       (match len with
         None -> ()
-      | Some l -> begin
+      | Some l -> () (* TODO-GOBLINT: What we want here is checking that len is actually ok here after adding all the args that came before *) (* begin
           let t = checkExp false l in
           if not (isIntegralType t) then
             E.s (bug "Type of array length is not integer")
-      end)
+      end*) )
 
   | TFun (rt, targs, isva, a) ->
       checkAttributes a;
