@@ -3692,6 +3692,19 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
 
     | Call(dest,e,args,l) ->
+        let rec patchTypeNotVLA t =
+          match t with
+          | TPtr(t, args) -> TPtr(patchTypeNotVLA t, args)
+          | TArray(t, None, args) -> TArray(patchTypeNotVLA t, None, args)
+          | TArray(t, Some exp, args) when isConstant exp -> TArray(patchTypeNotVLA t, Some exp, args)
+          | TArray(t, Some exp, args) -> TArray(patchTypeNotVLA t, None, args)
+          | _ -> t
+        in
+        let patchArgNotUseVLACast exp =
+          match exp with
+          | CastE(t, e) -> CastE(patchTypeNotVLA t, e)
+          | e -> e
+        in
         self#pLineDirective l
           ++ (match dest with
             None -> nil
@@ -3714,7 +3727,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           (align
              (* Now the arguments *)
              ++ (docList ~sep:(chr ',' ++ break)
-                   (self#pExp ()) () args)
+                   (fun x -> self#pExp () (patchArgNotUseVLACast x)) () args) (* here we would need to remove casts to array types that are not ok *)
              ++ unalign)
         ++ text (")" ^ printInstrTerminator)
 
