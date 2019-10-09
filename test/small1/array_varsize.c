@@ -2,12 +2,20 @@
 
 // Variable-sized arrays
 void foo(int n, int a[n]);
+void foo2(int n, int a[30][n]);
+void foo3(int n, int a[n][30]);
 
 int main(void)
 {
   int a[40];
   foo(40, a);
   SUCCESS;
+
+  int n = 30;
+  int b[n][n];
+  b[29][0] = 0;
+  foo2(30, b);
+  foo3(30, b);
 }
 
 int somefunction() {
@@ -38,4 +46,12 @@ void foo(int n, int a[n]) {
   //locals should keep their array type.  CIL rewrites sizeof(b)
   // as (n * sizeof(*b))
   if (sizeof(b) != (n * sizeof(double))) E(3);
+}
+
+void foo2(int n, int a[30][n]) {
+  if(a[29][0] != 0) E(4);
+}
+
+void foo3(int n, int a[n][30]) {
+  if(a[29][0] != 0) E(4);
 }
