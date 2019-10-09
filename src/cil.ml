@@ -2717,7 +2717,30 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
   end else
     BinOp(bop, e1', e2', tres)
 
+let isArrayType t =
+  match unrollType t with
+    TArray _ -> true
+  | _ -> false
 
+let rec isConstant = function
+  | Const _ -> true
+  | UnOp (_, e, _) -> isConstant e
+  | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
+  | Question (e1, e2, e3, _) -> isConstant e1 && isConstant e2 && isConstant e3
+  | Lval (Var vi, NoOffset) ->
+      (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
+  | Lval _ -> false
+  | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
+  | CastE (_, e) -> isConstant e
+  | AddrOf (Var vi, off) | StartOf (Var vi, off)
+        -> vi.vglob && isConstantOffset off
+  | AddrOf (Mem e, off) | StartOf(Mem e, off)
+        -> isConstant e && isConstantOffset off
+  | AddrOfLabel _ -> true
+and isConstantOffset = function
+    NoOffset -> true
+  | Field(fi, off) -> isConstantOffset off
+  | Index(e, off) -> isConstant e && isConstantOffset off
 
 let parseInt (str: string) : exp =
   let hasSuffix str =
@@ -6129,33 +6152,6 @@ let splitFunctionTypeVI (fvi: varinfo)
   match unrollType fvi.vtype with
     TFun (rt, args, isva, a) -> rt, args, isva, a
   | _ -> E.s (bug "Function %s invoked on a non function type" fvi.vname)
-
-let isArrayType t =
-  match unrollType t with
-    TArray _ -> true
-  | _ -> false
-
-
-let rec isConstant = function
-  | Const _ -> true
-  | UnOp (_, e, _) -> isConstant e
-  | BinOp (_, e1, e2, _) -> isConstant e1 && isConstant e2
-  | Question (e1, e2, e3, _) -> isConstant e1 && isConstant e2 && isConstant e3
-  | Lval (Var vi, NoOffset) ->
-      (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
-  | Lval _ -> false
-  | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
-  | CastE (_, e) -> isConstant e
-  | AddrOf (Var vi, off) | StartOf (Var vi, off)
-        -> vi.vglob && isConstantOffset off
-  | AddrOf (Mem e, off) | StartOf(Mem e, off)
-        -> isConstant e && isConstantOffset off
-  | AddrOfLabel _ -> true
-
-and isConstantOffset = function
-    NoOffset -> true
-  | Field(fi, off) -> isConstantOffset off
-  | Index(e, off) -> isConstant e && isConstantOffset off
 
 
 let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
