@@ -6064,8 +6064,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
           Some l -> begin
             match constFold true l with
               Const(CInt64(i, _, _)) -> Some i
-            | e -> None (*TODO-GOBLINT: Do we want to modify the type signatures here/  E.s (E.bug "Invalid length in array type: %a\n"
-                          (!pd_exp) e) *)
+            | e -> None (* Returning None for length in a typesig if the length is not a constant (VLA) *)
           end
         | None -> None
       in

@@ -2655,7 +2655,7 @@ and makeVarSizeVarInfo (ldecl : location)
     | a, _ -> E.s (error "Something phishy is going on with VLAs, typ does not have as many arrays of length None as exp we want to subsitute");
   in
   if not !msvcMode then
-    match isVariableSizedArray ndt with (* TODO-GOBLINT: If we end up removing this altogether, we can get rid of this as well *)
+    match isVariableSizedArray ndt with
       None ->
         makeVarInfoCabs ~isformal:false
                         ~isglobal:false
@@ -2900,7 +2900,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                   else
                     match constFold true len' with
                       | Const(CInt64(i, ik, _)) ->
-                        (* If len' is a constant, we check that the array size is constant *)
+                        (* If len' is a constant, we check that the array size is non-negative *)
                         let elems = mkCilint ik i in
                         if compare_cilint elems zero_cilint < 0 then
                           E.s (error "Length of array is negative")
@@ -4905,20 +4905,10 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
   else
     compileCondExp (doCondExp isconst e) st sf
 
-
-and doPureExp (e : A.expression) : exp option = (* TODO-GOBLINT: Explain new restrictions for this *)
+(* Returns pure expression if there exists one, None otherwise. *)
+and doPureExp (e : A.expression) : exp option =
   let (se, e', _) = doExp true e (AExp None) in
-  if isNotEmpty se then begin
-      None
-      (* let msg =
-          if !useLogicalOperators then
-               error "doPureExp: not pure"
-          else
-               error "doPureExp: could not compute array length, try --useLogicalOperators"
-      in E.s msg; *)
-  end
-  else
-    Some e'
+  if isEmpty se then Some e' else None
 
 and doInitializer
     (vi: varinfo)
@@ -5564,7 +5554,7 @@ and createLocal ((_, sto, _, _) as specs)
       let vi,se0,isvarsize =
         makeVarSizeVarInfo loc specs (n, ndt, a) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
-      let se1 = (* TODO-GOBLINT: We are currently never entering this as makeVarSizeVarInfo always returns false for isVarSize *)
+      let se1 =
         if isvarsize then begin (* Variable-sized array *)
           ignore (warn "Variable-sized local variable %s" vi.vname);
           if inite != A.NO_INIT then
