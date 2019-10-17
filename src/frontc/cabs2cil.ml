@@ -1928,7 +1928,7 @@ let rec setOneInit (this: preInit)
       let pMaxIdx, pArray =
         match this  with
           NoInitPre  -> (* No initializer so far here *)
-            ref idx, ref (Array.create (max 32 (idx + 1)) NoInitPre)
+            ref idx, ref (Array.make (max 32 (idx + 1)) NoInitPre)
 
         | CompoundPre (pMaxIdx, pArray) ->
             if !pMaxIdx < idx then begin
@@ -3441,7 +3441,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           let l = String.length str in
           fun s ->
             let ls = String.length s in
-            l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
+            l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
         in
         match ct with
           A.CONST_INT str -> begin
