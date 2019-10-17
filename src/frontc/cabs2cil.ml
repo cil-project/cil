@@ -2652,7 +2652,7 @@ and makeVarSizeVarInfo (ldecl : location)
     | TArray (t, Some e, a), es -> TArray(insertArrayLengths t es, Some e, a)
     | TPtr (t, a), es -> TPtr(insertArrayLengths t es, a)
     | a, [] -> a
-    | a, _ -> E.s (error "Something phishy is going on with VLAs, typ does not have as many arrays of length None as exp we want to subsitute");
+    | a, _ -> E.s (error "Something phishy is going on with VLAs, typ does not have as many arrays of length None as exp we want to substitute");
   in
   if not !msvcMode then
     match isVariableSizedArray ndt with
