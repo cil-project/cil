@@ -881,8 +881,11 @@ and checkInstr (i: instr) =
       if formals <> None then
         loopArgs (argsToList formals) args
 
+  | VarDecl (v,_) ->
+      if not v.vhasdeclinstruction then
+        E.s (bug "Encountered a VarDecl, but vhasdeclinstruction for the varinfo is not set")
+
   | Asm _ -> ()  (* Not yet implemented *)
-  | VarDecl _ -> ()
 
 let rec checkGlobal = function
     GAsm _ -> ()
