@@ -151,7 +151,7 @@ let prefix p s =
  * accomplish this we'll add a local variable to store the target of the
  * goto. *)
 
-(* The local variable in which to put the detination of the goto and the
+(* The local variable in which to put the destination of the goto and the
  * statement where to jump *)
 let gotoTargetData: (varinfo * stmt) option ref = ref None
 
@@ -271,7 +271,7 @@ let alreadyDefined: (string, location) H.t = H.create 117
 let staticLocals: (string, varinfo) H.t = H.create 13
 
 
-(* Typedefs. We chose their names to be distinct from any global encounterd
+(* Typedefs. We chose their names to be distinct from any global encountered
  * at the time. But we might see a global with conflicting name later in the
  * file *)
 let typedefs: (string, typeinfo) H.t = H.create 13
@@ -1773,7 +1773,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
        * local. This can happen when we declare an extern variable with
        * global scope but we are in a local scope. *)
 
-    (* We lookup in the environement. If this is extern inline then the name
+    (* We lookup in the environment. If this is extern inline then the name
      * was already changed to foo__extinline. We lookup with the old name *)
     let lookupname =
       if vi.vstorage = Static then
@@ -1872,7 +1872,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
     | TPtr _, TInt _  -> t2 (* most likely comparison with 0 *)
     | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
 
-          (* When we compare two pointers of diffent type, we combine them
+          (* When we compare two pointers of different type, we combine them
            * using the same algorithm when combining multiple declarations of
            * a global *)
     | (TPtr _) as t2', (TPtr _ as t3') -> begin
@@ -3152,7 +3152,7 @@ and makeCompType (isstruct: bool)
     (* This appears to be a multiply defined structure. This can happen from
     * a construct like "typedef struct foo { ... } A, B;". This is dangerous
     * because at the time B is processed some forward references in { ... }
-    * appear as backward references, which coild lead to circularity in
+    * appear as backward references, which could lead to circularity in
     * the type structure. We do a thourough check and then we reuse the type
     * for A *)
     let fieldsSig fs = Util.list_map (fun f -> typeSig f.ftype) fs in
@@ -6710,7 +6710,7 @@ let convFile (f : A.file) : Cil.file =
           flush (Whitetrack.getOutput());
           Whitetrack.setOutput  old;
           close_out temp_cabs;
-          (* Now read everythign in *and create a GText from it *)
+          (* Now read everything in *and create a GText from it *)
           let temp_cabs = open_in temp_cabs_name in
           let buff = Buffer.create 1024 in
           Buffer.add_string buff "// Start of CABS form\n";

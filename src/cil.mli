@@ -1642,7 +1642,7 @@ val isZero: exp -> bool
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extened c, IInt, None) *)
+  Returns CInt64(sign-extended c, IInt, None) *)
 val charConstToInt: char -> constant
 
 (** Do constant folding on an expression. If the first argument is true then
@@ -1917,7 +1917,7 @@ class type cilVisitor = object
   method vattrparam: attrparam -> attrparam visitAction
     (** Attribute parameters. *)
 
-    (** Add here instructions while visiting to queue them to preceede the
+    (** Add here instructions while visiting to queue them to precede the
      * current statement or instruction being processed. Use this method only
      * when you are visiting an expression that is inside a function body, or
      * a statement, because otherwise there will no place for the visitor to
@@ -1925,7 +1925,7 @@ class type cilVisitor = object
   method queueInstr: instr list -> unit
 
     (** Gets the queue of instructions and resets the queue. This is done
-     * automatically for you when you visit statments. *)
+     * automatically for you when you visit statements. *)
   method unqueueInstr: unit -> instr list
 
 end
@@ -2481,7 +2481,7 @@ val dd_lval: unit -> lval -> Pretty.doc
  * downstream might be confused. You might
  * have added a new global that happens to have the same name as a local in
  * some function. Rename the local to ensure that there would never be
- * confusioin. Or, viceversa, you might have added a local with a name that
+ * confusion. Or, viceversa, you might have added a local with a name that
  * conflicts with a global *)
 val uniqueVarNames: file -> unit
 

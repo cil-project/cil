@@ -159,7 +159,7 @@ and comment = location * string
 and global =
   | GType of typeinfo * location
     (** A typedef. All uses of type names (through the [TNamed] constructor)
-        must be preceeded in the file by a definition of the name. The string
+        must be preceded in the file by a definition of the name. The string
         is the defined name and always not-empty. *)
 
   | GCompTag of compinfo * location
@@ -243,7 +243,7 @@ and typ =
 
   | TNamed of typeinfo * attributes
           (** The use of a named type. All uses of the same type name must
-           * share the typeinfo. Each such type name must be preceeded
+           * share the typeinfo. Each such type name must be preceded
            * in the file by a [GType] global. This is printed as just the
            * type name. The actual referred type is not printed here and is
            * carried only to simplify processing. To see through a sequence
@@ -253,7 +253,7 @@ and typ =
   | TComp of compinfo * attributes
           (** A reference to a struct or a union type. All references to the
              same struct or union must share the same compinfo among them and
-             with a [GCompTag] global that preceeds all uses (except maybe
+             with a [GCompTag] global that precedes all uses (except maybe
              those that are pointers to the composite type). The attributes
              given are those pertaining to this use of the type and are in
              addition to the attributes that were given at the definition of
@@ -262,7 +262,7 @@ and typ =
   | TEnum of enuminfo * attributes
            (** A reference to an enumeration type. All such references must
                share the enuminfo among them and with a [GEnumTag] global that
-               preceeds all uses. The attributes refer to this use of the
+               precedes all uses. The attributes refer to this use of the
                enumeration and are in addition to the attributes of the
                enumeration itself, which are stored inside the enuminfo  *)
 
@@ -395,7 +395,7 @@ and enuminfo = {
 and typeinfo = {
     mutable tname: string;
     (** The name. Can be empty only in a [GType] when introducing a composite
-     * or enumeration tag. If empty cannot be refered to from the file *)
+     * or enumeration tag. If empty cannot be referred to from the file *)
     mutable ttype: typ;
     (** The actual type. *)
     mutable treferenced: bool;
@@ -951,12 +951,12 @@ class type cilVisitor = object
      * variable use *)
 
   method vexpr: exp -> exp visitAction
-    (** Invoked on each expression occurence. The subtrees are the
+    (** Invoked on each expression occurrence. The subtrees are the
      * subexpressions, the types (for a [Cast] or [SizeOf] expression) or the
      * variable use. *)
 
   method vlval: lval -> lval visitAction
-    (** Invoked on each lvalue occurence *)
+    (** Invoked on each lvalue occurrence *)
 
   method voffs: offset -> offset visitAction
     (** Invoked on each offset occurrence that is *not* as part
@@ -997,7 +997,7 @@ class type cilVisitor = object
     (** Attribute parameters. *)
 
     (** Add here instructions while visiting to queue them to
-     * preceede the current statement or instruction being processed *)
+     * precede the current statement or instruction being processed *)
   method queueInstr: instr list -> unit
 
     (** Gets the queue of instructions and resets the queue *)
@@ -1208,7 +1208,7 @@ let zero      = Const(CInt64(Int64.zero, IInt, None))
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extened c, IInt, None) *)
+  Returns CInt64(sign-extended c, IInt, None) *)
 let charConstToInt (c: char) : constant =
   let c' = Char.code c in
   let value =
@@ -1384,7 +1384,7 @@ let attributeHash: (string, attributeClass) H.t =
     [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak";
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
-      "aconst"; "__asm__" (* Gcc uses this to specifiy the name to be used in
+      "aconst"; "__asm__" (* Gcc uses this to specify the name to be used in
                            * assembly for a global  *)];
 
   (* Now come the MSVC declspec attributes *)
@@ -2080,7 +2080,7 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     else ILongLong
 
 (** If the given expression is an integer constant or a CastE'd
-    integer constant, return that constant's value as an ikint, int64 pair.
+    integer constant, return that constant's value as an ikind, int64 pair.
     Otherwise return None. *)
 let rec getInteger (e:exp) : cilint option =
   match e with
@@ -2149,7 +2149,7 @@ let rec alignOf_int t =
         (* On GCC the zero-width fields do not contribute to the alignment.
          * On MSVC only those zero-width that _do_ appear after other
          * bitfields contribute to the alignment. So we drop those that
-         * do not occur after othe bitfields *)
+         * do not occur after the bitfields *)
         let rec dropZeros (afterbitfield: bool) = function
           | f :: rest when f.fbitfield = Some 0 && not afterbitfield ->
               dropZeros afterbitfield rest
@@ -3234,10 +3234,10 @@ class type cilPrinter = object
     (** Invoked on each variable use. *)
 
   method pLval: unit -> lval -> doc
-    (** Invoked on each lvalue occurence *)
+    (** Invoked on each lvalue occurrence *)
 
   method pOffset: doc -> offset -> doc
-    (** Invoked on each offset occurence. The second argument is the base. *)
+    (** Invoked on each offset occurrence. The second argument is the base. *)
 
   method pInstr: unit -> instr -> doc
     (** Invoked on each instruction occurrence. *)
@@ -3280,7 +3280,7 @@ class type cilPrinter = object
       * printed inside the __attribute__ list or not. *)
 
   method pAttrParam: unit -> attrparam -> doc
-    (** Attribute paramter *)
+    (** Attribute parameter *)
 
   method pAttrs: unit -> attributes -> doc
     (** Attribute lists *)
@@ -6582,7 +6582,7 @@ let trylink source dest_option = match dest_option with
 | Some(dest) -> link source dest
 
 
-(** Cmopute the successors and predecessors of a block, given a fallthrough *)
+(** Compute the successors and predecessors of a block, given a fallthrough *)
 let rec succpred_block b fallthrough rlabels =
   let rec handle sl = match sl with
     [] -> ()
@@ -6999,7 +6999,7 @@ let pushGlobal (g: global)
     variables := g :: !variables
   else
     begin
-      (* Collect a list of variables that are refered from the type. Return
+      (* Collect a list of variables that are referred from the type. Return
        * Some if the global should go with the types and None if it should go
        * to the variables. *)
       let varsintype : (varinfo list * location) option =
