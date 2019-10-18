@@ -524,7 +524,14 @@ and varinfo = {
      *  Printing a non-pure vdescr more than once may yield incorrect
      *  results. *)
 
-    mutable vdeclinstgenerated: bool;
+    mutable vhasdeclinstruction: bool;
+    (** Indicates whether a VarDecl instruction was generated for this variable.
+     *  Only applies to local variables.
+     *  Currently, this is relevant for when to print the declaration. If this is
+     *  true, it might be incorrect to print the declaration at the beginning of the
+     *  function, rather than were the VarDecl instruction is. This was introduced to
+     *  handle VLAs.
+     *)
 }
 
 (** Storage-class information *)

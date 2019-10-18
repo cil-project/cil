@@ -2662,7 +2662,7 @@ and makeVarSizeVarInfo (ldecl : location)
                         ldecl spec_res (n,ndt,a), empty, false
     | Some (ndt', se, len) ->
         let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
-        vi.vdeclinstgenerated <- true;
+        vi.vhasdeclinstruction <- true;
         vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
         vi, se, true
   else

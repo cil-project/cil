@@ -459,7 +459,16 @@ and varinfo = {
                                             Printing a non-pure vdescr more
                                             than once may yield incorrect
                                             results. *)
-    mutable vdeclinstgenerated: bool;
+    mutable vhasdeclinstruction: bool;  (** Indicates whether a VarDecl instruction
+                                            was generated for this variable.
+                                            Only applies to local variables.
+                                            Currently, this is relevant for when to
+                                            print the declaration. If this is
+                                            true, it might be incorrect to print the
+                                            declaration at the beginning of the
+                                            function, rather than were the VarDecl
+                                            instruction is. This was originally
+                                            introduced to handle VLAs. *)
 }
 
 (** Storage-class information *)
@@ -3332,7 +3341,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    if not v.vdeclinstgenerated then
+    if not v.vhasdeclinstruction then
       let stom, rest = separateStorageModifiers v.vattr in
       (* First the storage modifiers *)
       text (if v.vinline then "__inline " else "")
@@ -3347,7 +3356,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDeclPhony () (v:varinfo) ph =
-    if ph || not v.vdeclinstgenerated then
+    if ph || not v.vhasdeclinstruction then
       let stom, rest = separateStorageModifiers v.vattr in
       (* First the storage modifiers *)
       text (if v.vinline then "__inline " else "")
@@ -4965,7 +4974,7 @@ let makeVarinfo global name ?init typ =
       vreferenced = false;
       vdescr = nil;
       vdescrpure = true;
-      vdeclinstgenerated = false;
+      vhasdeclinstruction = false;
     } in
   vi
 
