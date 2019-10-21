@@ -529,7 +529,7 @@ and varinfo = {
      *  Only applies to local variables.
      *  Currently, this is relevant for when to print the declaration. If this is
      *  true, it might be incorrect to print the declaration at the beginning of the
-     *  function, rather than were the VarDecl instruction is. This was introduced to
+     *  function, rather than where the VarDecl instruction is. This was introduced to
      *  handle VLAs.
      *)
 }
