@@ -609,7 +609,9 @@ struct
                      if debug then
                        ignore (Pretty.printf "Instr %a@!" d_instr i);
                      match i with
-                         Set (l, e, loc) ->
+                        | VarDecl(l,e) ->
+                          [VarDecl(l,e)]
+                        | Set (l, e, loc) ->
                            let e', state' = S.assign !state l e in
                              state := state';
                              [Set (l, e', loc)]
