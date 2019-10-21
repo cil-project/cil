@@ -3238,12 +3238,6 @@ class type cilPrinter = object
      * in formals of function types, and the formals and locals for function
      * definitions. *)
 
-  method pVDeclPhony: unit -> varinfo -> bool -> doc
-    (** Invoked for each variable declaration. Note that variable
-     * declarations are all the [GVar], [GVarDecl], [GFun], all the [varinfo]
-     * in formals of function types, and the formals and locals for function
-     * definitions. *)
-
   method pVar: varinfo -> doc
     (** Invoked on each variable use. *)
 
@@ -3346,32 +3340,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    if not v.vhasdeclinstruction then
-      let stom, rest = separateStorageModifiers v.vattr in
-      (* First the storage modifiers *)
-      text (if v.vinline then "__inline " else "")
-        ++ d_storage () v.vstorage
-        ++ (self#pAttrs () stom)
-        ++ (self#pType (Some (text v.vname)) () v.vtype)
-        ++ text " "
-        ++ self#pAttrs () rest
-    else
-      text " "
-
-
-  (* variable declaration *)
-  method pVDeclPhony () (v:varinfo) ph =
-    if ph || not v.vhasdeclinstruction then
-      let stom, rest = separateStorageModifiers v.vattr in
-      (* First the storage modifiers *)
-      text (if v.vinline then "__inline " else "")
-        ++ d_storage () v.vstorage
-        ++ (self#pAttrs () stom)
-        ++ (self#pType (Some (text v.vname)) () v.vtype)
-        ++ text " "
-        ++ self#pAttrs () rest
-    else
-      text " "
+    let stom, rest = separateStorageModifiers v.vattr in
+    (* First the storage modifiers *)
+    text (if v.vinline then "__inline " else "")
+      ++ d_storage () v.vstorage
+      ++ (self#pAttrs () stom)
+      ++ (self#pType (Some (text v.vname)) () v.vtype)
+      ++ text " "
+      ++ self#pAttrs () rest
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
@@ -3626,10 +3602,13 @@ class defaultCilPrinterClass : cilPrinter = object (self)
               ++ text printInstrTerminator
 
     end
-    | VarDecl(varinfo,l) ->
-      self#pLineDirective l
-      ++ self#pVDeclPhony () varinfo true
-      ++ chr ';'
+    | VarDecl(v, l) ->
+        self#pLineDirective l
+        ++ self#pVDecl () v
+        ++ (match v.vinit.init with
+            | None -> text ";"
+            | Some i -> text " = " ++
+                self#pInit () i ++ text ";")
       (* In cabs2cil we have turned the call to builtin_va_arg into a
        * three-argument call: the last argument is the address of the
        * destination *)
@@ -3813,15 +3792,21 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
-    ((docList ~sep:line (fun l -> self#pLabel () l)) () s.labels)
-      (* print the statement itself. If the labels are non-empty and the
-      * statement is empty, print a semicolon  *)
-      ++
-      (if s.skind = Instr [] && s.labels <> [] then
-        text ";"
-      else
-        (if s.labels <> [] then line else nil)
-          ++ self#pStmtKind next () s.skind)
+    let labels = ((docList ~sep:line (fun l -> self#pLabel () l)) () s.labels) in
+    if s.skind = Instr [] && s.labels <> [] then
+      (* If the labels are non-empty and the statement is empty, print a semicolon  *)
+      labels ++ text ";"
+    else
+      let pre =
+        if s.labels <> [] then
+          (match s.skind with
+          | Instr (VarDecl(_)::_)-> text ";" (* first instruction is VarDecl, insert semicolon *)
+          | _ -> nil)
+          ++ line
+        else
+          nil (* no labels, no new line needed *)
+      in
+      labels ++ pre ++ self#pStmtKind next () s.skind
 
   method private pLabel () = function
       Label (s, _, true) -> text (s ^ ": ")
@@ -4248,7 +4233,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 | None -> self#pVDecl () vi ++ text ";"
                 | Some i -> self#pVDecl () vi ++ text " = " ++
                     self#pInit () i ++ text ";")
-                () f.slocals)
+                () (List.filter (fun v -> not v.vhasdeclinstruction) f.slocals))
             ++ line ++ line
             (* the body *)
             ++ ((* remember the declaration *) currentFormals <- f.sformals;

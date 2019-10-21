@@ -67,6 +67,15 @@ let forceRLArgEval = ref false
 (** Leave a certain global alone. Use a negative number to disable. *)
 let nocil: int ref = ref (-1)
 
+(** Set to true to generate VarDecl "instructions" for all local variables
+  * In some circumstances, it is unavoidable to generate VarDecls (namely
+  * for variable length arrays (VLAs)). In these cases, we generate a VarDecl
+  * even if alwaysGenerateVarDecl is false.
+  * Under certain conditions (involving GNU computed gotos), it is not possible
+  * to generate VarDecls for all locals, in these cases we do not generate them
+  * *)
+let alwaysGenerateVarDecl = true
+
 (** Indicates whether we're allowed to duplicate small chunks. *)
 let allowDuplication: bool ref = ref true
 
@@ -2662,7 +2671,6 @@ and makeVarSizeVarInfo (ldecl : location)
                         ldecl spec_res (n,ndt,a), empty, false
     | Some (ndt', se, len) ->
         let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
-        vi.vhasdeclinstruction <- true;
         vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
         vi, se, true
   else
@@ -5467,7 +5475,7 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
 *)
 
 (* Must catch the Static local variables. Make them global *)
-and createLocal ((_, sto, _, _) as specs)
+and createLocal ?allow_var_decl:(allow_var_decl=true) ((_, sto, _, _) as specs)
                 ((((n, ndt, a, cloc) : A.name),
                   (inite: A.init_expression)) as init_name)
   : chunk =
@@ -5554,15 +5562,23 @@ and createLocal ((_, sto, _, _) as specs)
       let vi,se0,isvarsize =
         makeVarSizeVarInfo loc specs (n, ndt, a) in
       let vi = alphaConvertVarAndAddToEnv true vi in        (* Replace vi *)
-      let se1 =
-        if isvarsize then begin (* Variable-sized array *)
-          ignore (warn "Variable-sized local variable %s" vi.vname);
-          if inite != A.NO_INIT then
-            E.s (error "Variable-sized array cannot have initializer");
-          se0 +++ VarDecl(vi, !currentLoc)
-        end else
-        empty
+      let sevarsize = (* Chunk that is needed to pull out things for variable-length arrays *)
+        if isvarsize then
+          begin
+            ignore (warn "Variable-sized local variable %s" vi.vname);
+            if inite != A.NO_INIT then
+              E.s (error "Variable-sized array cannot have initializer")
+            else if not allow_var_decl then
+              E.s (error "VLAs in conjunction with computed gotos are unsupported.")
+            else
+              se0
+          end
+        else
+          empty
       in
+      let makevdecl = (isvarsize || alwaysGenerateVarDecl && allow_var_decl) in
+      let se1 = if makevdecl then sevarsize +++ VarDecl(vi, !currentLoc) else sevarsize in
+      vi.vhasdeclinstruction <- makevdecl;
       if inite = A.NO_INIT then
         se1 (* skipChunk *)
       else begin
@@ -6518,8 +6534,9 @@ and doStatement (s : A.statement) : chunk =
             @@ s2c(mkStmt(Goto (ref switch, loc')))
 
         | None -> begin
-            (* Make a temporary variable *)
-            let vchunk = createLocal
+            (* Make a temporary variable, avoiding generation of VarDecl if possible *)
+            (* as this is unsupported (see below)                                    *)
+            let vchunk = createLocal ~allow_var_decl:false
                 (!upointType, NoStorage, false, [])
                 (("__compgoto", A.JUSTBASE, [], loc), A.NO_INIT)
             in
