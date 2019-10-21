@@ -1027,8 +1027,13 @@ and instr =
   Set        of lval * exp * location
    (** An assignment. The type of the expression is guaranteed to be the same
     * with that of the lvalue *)
-  | VarDecl    of varinfo * location (** Generation of a VLA (i.e.
-                                             where its length is set ) *)
+  | VarDecl    of varinfo * location
+   (** "Instruction" in the location where a varinfo was declared.
+    *  All varinfos for which such a VarDecl instruction exists have
+    *  vhasdeclinstruction set to true.
+    *  The motivation for the addition of this instruction was to support VLAs
+    *  for which declerations can not be pulled up like CIL used to do.
+    *)
   | Call       of lval option * exp * exp list * location
    (** A function call with the (optional) result placed in an lval. It is
     * possible that the returned type of the function is not identical to

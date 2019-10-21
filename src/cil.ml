@@ -505,7 +505,7 @@ and exp =
 
   | BinOp      of binop * exp * exp * typ
                                         (** Binary operation. Includes the
-                                            type of the result. The arithemtic
+                                            type of the result. The arithmetic
                                             conversions are made  explicit
                                             for the arguments *)
   | Question   of exp * exp * exp * typ
@@ -818,7 +818,12 @@ and instr =
     Set        of lval * exp * location  (** An assignment. A cast is present
                                              if the exp has different type
                                              from lval *)
-  | VarDecl    of varinfo * location (** Decleration of varinfo *)
+  | VarDecl    of varinfo * location     (** "Instruction" in the location where a varinfo was declared.
+                                             All varinfos for which such a VarDecl instruction exists have
+                                             vhasdeclinstruction set to true.
+                                             The motivation for the addition of this instruction was to
+                                             support VLAs for which declarations can not be pulled up like
+                                             CIL used to do. *)
   | Call       of lval option * exp * exp list * location
  			 (** optional: result is an lval. A cast might be
                              necessary if the declared result type of the
