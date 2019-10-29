@@ -1,11 +1,11 @@
-(* 
+(*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -43,16 +43,16 @@ open Pretty
 
 
 (* A few parameters to customize the checking *)
-type checkFlags = 
-    NoCheckGlobalIds   (* Do not check that the global ids have the proper 
+type checkFlags =
+    NoCheckGlobalIds   (* Do not check that the global ids have the proper
                         * hash value *)
     | IgnoreInstructions of (instr -> bool) (* Ignore the specified instructions *)
-        
+
 let checkGlobalIds = ref true
 let ignoreInstr = ref (fun i -> false)
 
   (* Attributes must be sorted *)
-type ctxAttr = 
+type ctxAttr =
     CALocal                             (* Attribute of a local variable *)
   | CAGlobal                            (* Attribute of a global variable *)
   | CAType                              (* Attribute of a type *)
@@ -67,10 +67,10 @@ let warnContext fmt =
   valid := false;
   Cil.warnContext fmt
 
-let checkAttributes (attrs: attribute list) : unit = 
+let checkAttributes (attrs: attribute list) : unit =
   let rec loop lastname = function
       [] -> ()
-    | Attr(an, _) :: resta -> 
+    | Attr(an, _) :: resta ->
         if an < lastname then
           ignore (warn "Attributes not sorted");
         loop an resta
@@ -85,25 +85,25 @@ let typeDefs : (string, typ) H.t = H.create 117
   (* Keep track of all variables names, enum tags and type names *)
 let varNamesEnv : (string, unit) H.t = H.create 117
 
-  (* We also keep a map of variables indexed by id, to ensure that only one 
+  (* We also keep a map of variables indexed by id, to ensure that only one
    * varinfo has a given id *)
 let varIdsEnv: (int, varinfo) H.t = H.create 117
 
-  (* And keep track of all varinfo's to check the uniqueness of the 
+  (* And keep track of all varinfo's to check the uniqueness of the
    * identifiers *)
 let allVarIds: (int, varinfo) H.t = H.create 117
 
- (* Also keep a list of environments. We place an empty string in the list to 
+ (* Also keep a list of environments. We place an empty string in the list to
   * mark the start of a local environment (i.e. a function) *)
 let varNamesList : (string * int) list ref = ref []
-let defineName s = 
+let defineName s =
   if s = "" then
-    E.s (bug "Empty name\n"); 
+    E.s (bug "Empty name\n");
   if H.mem varNamesEnv s then
     ignore (warn "Multiple definitions for %s" s);
   H.add varNamesEnv s ()
 
-let defineVariable vi = 
+let defineVariable vi =
   (* E.log "saw %s: %d\n" vi.vname vi.vid; *)
   defineName vi.vname;
   varNamesList := (vi.vname, vi.vid) :: !varNamesList;
@@ -115,7 +115,7 @@ let defineVariable vi =
   H.add varIdsEnv vi.vid vi
 
 (* Check that a varinfo has already been registered *)
-let checkVariable vi = 
+let checkVariable vi =
   try
     (* Check in the current scope only *)
     let old = H.find varIdsEnv vi.vid in
@@ -126,14 +126,14 @@ let checkVariable vi =
         ignore (warnContext "variables %s and %s share id %d"
                   vi.vname old.vname vi.vid )
     end
-  with Not_found -> 
+  with Not_found ->
     ignore (warn "Unknown id (%d) for %s" vi.vid vi.vname)
 
 
-let startEnv () = 
+let startEnv () =
   varNamesList := ("", -1) :: !varNamesList
 
-let endEnv () = 
+let endEnv () =
   let rec loop = function
       [] -> E.s (bug "Cannot find start of env")
     | ("", _) :: rest -> varNamesList := rest
@@ -144,9 +144,9 @@ let endEnv () =
     end
   in
   loop !varNamesList
-    
 
-    
+
+
 (* The current function being checked *)
 let currentReturnType : typ ref = ref voidType
 
@@ -160,16 +160,16 @@ let statements: stmt list ref = ref []
 let gotoTargets: (string * stmt) list ref = ref []
 
 (*** TYPES ***)
-(* Cetain types can only occur in some contexts, so keep a list of context *)
-type ctxType = 
+(* Certain types can only occur in some contexts, so keep a list of context *)
+type ctxType =
     CTStruct                            (* In a composite type *)
   | CTUnion
   | CTFArg                              (* In a function argument type *)
   | CTFRes                              (* In a function result type *)
   | CTArray                             (* In an array type *)
   | CTPtr                               (* In a pointer type *)
-  | CTExp                               (* In an expression, as the type of 
-                                         * the result of binary operators, or 
+  | CTExp                               (* In an expression, as the type of
+                                         * the result of binary operators, or
                                          * in a cast *)
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
@@ -186,21 +186,21 @@ let d_context () = function
   | CTDecl -> text "CTDecl"
 
 
-(* Keep track of all tags that we use. For each tag remember also the info 
- * structure and a flag whether it was actually defined or just used. A 
+(* Keep track of all tags that we use. For each tag remember also the info
+ * structure and a flag whether it was actually defined or just used. A
  * forward declaration acts as a definition. *)
-type defuse = 
+type defuse =
     Defined (* We actually have seen a definition of this tag *)
-  | Forward (* We have seen a forward declaration for it. This is done using 
+  | Forward (* We have seen a forward declaration for it. This is done using
              * a GType with an empty type name *)
   | Used    (* Only uses *)
 let compUsed : (int, compinfo * defuse ref) H.t = H.create 117
 let enumUsed : (string, enuminfo * defuse ref) H.t = H.create 117
 let typUsed  : (string, typeinfo * defuse ref) H.t = H.create 117
- 
+
 (* For composite types we also check that the names are unique *)
 let compNames : (string, unit) H.t = H.create 17
-    
+
 
 let typeSigIgnoreConst (t : typ) : typsig =
   let attrFilter (attr : attribute) : bool =
@@ -212,22 +212,22 @@ let typeSigIgnoreConst (t : typ) : typsig =
 
 
   (* Check a type *)
-let rec checkType (t: typ) (ctx: ctxType) = 
+let rec checkType (t: typ) (ctx: ctxType) =
   (* Check that it appears in the right context *)
   let rec checkContext = function
       TVoid _ -> ctx = CTPtr || ctx = CTFRes || ctx = CTDecl || ctx = CTSizeof
     | TNamed (ti, a) -> checkContext ti.ttype
-    | TArray _ -> 
-        (ctx = CTStruct || ctx = CTUnion 
+    | TArray _ ->
+        (ctx = CTStruct || ctx = CTUnion
          || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
-    | TFun _ -> 
+    | TFun _ ->
         if ctx = CTSizeof && !msvcMode then
           (ignore(warn "sizeof(function) is not defined in MSVC."); false)
         else
           ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
     | _ -> true
   in
-  if not (checkContext t) then 
+  if not (checkContext t) then
     ignore (warn "Type (%a) used in wrong context. Expected context: %a"
               d_plaintype t d_context ctx);
   match t with
@@ -238,13 +238,13 @@ let rec checkType (t: typ) (ctx: ctxType) =
 
   | TNamed (ti, a) ->
       checkAttributes a;
-      if ti.tname = "" then 
+      if ti.tname = "" then
         ignore (warnContext "Using a typeinfo for an empty-named type");
       checkTypeInfo Used ti
 
   | TComp (comp, a) ->
       checkAttributes a;
-      (* Mark it as a forward. We'll check it later. If we try to check it 
+      (* Mark it as a forward. We'll check it later. If we try to check it
        * now we might encounter undefined types *)
       checkCompInfo Used comp
 
@@ -254,51 +254,50 @@ let rec checkType (t: typ) (ctx: ctxType) =
       checkEnumInfo Used enum
   end
 
-  | TArray(bt, len, a) -> 
+  | TArray(bt, len, a) ->
       checkAttributes a;
       checkType bt CTArray;
       (match len with
         None -> ()
-      | Some l -> begin
-          let t = checkExp true l in
+      | Some l ->
+          let t = typeOf l in
           if not (isIntegralType t) then
-            E.s (bug "Type of array length is not integer")
-      end)
+            E.s (bug "Type of array length is not integer"))
 
-  | TFun (rt, targs, isva, a) -> 
+  | TFun (rt, targs, isva, a) ->
       checkAttributes a;
       checkType rt CTFRes;
-      List.iter 
-        (fun (an, at, aa) -> 
+      List.iter
+        (fun (an, at, aa) ->
           checkType at CTFArg;
           checkAttributes aa) (argsToList targs)
 
 (* Check that a type is a promoted integral type *)
-and checkIntegralType (t: typ) = 
+and checkIntegralType (t: typ) =
   checkType t CTExp;
   if not (isIntegralType t) then
     ignore (warn "Non-integral type")
 
 (* Check that a type is a promoted arithmetic type *)
-and checkArithmeticType (t: typ) = 
+and checkArithmeticType (t: typ) =
   checkType t CTExp;
   if not (isArithmeticType t) then
     ignore (warn "Non-arithmetic type")
 
 (* Check that a type is a pointer type *)
-and checkPointerType (t: typ) = 
+and checkPointerType (t: typ) =
   checkType t CTExp;
   if not (isPointerType t) then
     ignore (warn "Non-pointer type")
 
 (* Check that a type is a scalar type *)
-and checkScalarType (t: typ) = 
+and checkScalarType (t: typ) =
   checkType t CTExp;
   if not (isScalarType t) then
     ignore (warn "Non-scalar type")
 
 
-and typeMatch (t1: typ) (t2: typ) = 
+and typeMatch (t1: typ) (t2: typ) =
   if !Cil.insertImplicitCasts then begin
     (* Allow mismatches in const-ness, so that string literals can be used
        as char*s *)
@@ -307,7 +306,7 @@ and typeMatch (t1: typ) (t2: typ) =
         (* Allow free interchange of TInt and TEnum *)
         TInt (ik, _), TEnum (ei, _) when ik = ei.ekind -> ()
       | TEnum (ei, _), TInt (ik, _) when ik = ei.ekind -> ()
-          
+
       (* Allow unspecified array lengths - this happens with
        * flexible array members *)
       | TArray (t, None, _), TArray (t', _, _)
@@ -318,15 +317,15 @@ and typeMatch (t1: typ) (t2: typ) =
     (* Many casts are missing.  For now, just skip this check. *)
   end
 
-and checkCompInfo (isadef: defuse) comp = 
+and checkCompInfo (isadef: defuse) comp =
   let fullname = compFullName comp in
   try
     let oldci, olddef = H.find compUsed comp.ckey in
     (* Check that it is the same *)
-    if oldci != comp then 
+    if oldci != comp then
       ignore (warnContext "compinfo for %s not shared" fullname);
-    (match !olddef, isadef with 
-    | Defined, Defined -> 
+    (match !olddef, isadef with
+    | Defined, Defined ->
         ignore (warnContext "Multiple definition of %s" fullname)
     | _, Defined -> olddef := Defined
     | Defined, _ -> ()
@@ -334,7 +333,7 @@ and checkCompInfo (isadef: defuse) comp =
     | _, _ -> ())
   with Not_found -> begin (* This is the first time we see it *)
     (* Check that the name is not empty *)
-    if comp.cname = "" then 
+    if comp.cname = "" then
       E.s (bug "Compinfo with empty name");
     (* Check that the name is unique *)
     if H.mem compNames fullname then
@@ -342,26 +341,26 @@ and checkCompInfo (isadef: defuse) comp =
     (* Add it to the map before we go on *)
     H.add compUsed comp.ckey (comp, ref isadef);
     H.add compNames fullname ();
-    (* Do not check the compinfo unless this is a definition. Otherwise you 
+    (* Do not check the compinfo unless this is a definition. Otherwise you
      * might run into undefined types. *)
     if isadef = Defined then begin
       checkAttributes comp.cattr;
       let fctx = if comp.cstruct then CTStruct else CTUnion in
       let rec checkField f =
-        if not 
-            (f.fcomp == comp &&  (* Each field must share the self cell of 
+        if not
+            (f.fcomp == comp &&  (* Each field must share the self cell of
              * the host *)
              f.fname <> "") then
-          ignore (warn "Self pointer not set in field %s of %s" 
+          ignore (warn "Self pointer not set in field %s of %s"
                     f.fname fullname);
         checkType f.ftype fctx;
         (* Check the bitfields *)
         (match unrollType f.ftype, f.fbitfield with
-        | TInt (ik, a), Some w -> 
+        | TInt (ik, a), Some w ->
             checkAttributes a;
             if w < 0 || w > bitsSizeOf (TInt(ik, a)) then
               ignore (warn "Wrong width (%d) in bitfield" w)
-        | _, Some w -> 
+        | _, Some w ->
             ignore (E.error "Bitfield on a non integer type")
         | _ -> ());
         checkAttributes f.fattr
@@ -371,16 +370,16 @@ and checkCompInfo (isadef: defuse) comp =
   end
 
 
-and checkEnumInfo (isadef: defuse) enum = 
-  if enum.ename = "" then 
+and checkEnumInfo (isadef: defuse) enum =
+  if enum.ename = "" then
     E.s (bug "Enuminfo with empty name");
   try
     let oldei, olddef = H.find enumUsed enum.ename in
     (* Check that it is the same *)
-    if oldei != enum then 
+    if oldei != enum then
       ignore (warnContext "enuminfo for %s not shared" enum.ename);
-    (match !olddef, isadef with 
-      Defined, Defined -> 
+    (match !olddef, isadef with
+      Defined, Defined ->
         ignore (warnContext "Multiple definition of enum %s" enum.ename)
     | _, Defined -> olddef := Defined
     | Defined, _ -> ()
@@ -393,19 +392,19 @@ and checkEnumInfo (isadef: defuse) enum =
     List.iter (fun (tn, _, _) -> defineName tn) enum.eitems;
   end
 
-and checkTypeInfo (isadef: defuse) ti = 
+and checkTypeInfo (isadef: defuse) ti =
   try
     let oldti, olddef = H.find typUsed ti.tname in
     (* Check that it is the same *)
-    if oldti != ti then 
+    if oldti != ti then
       ignore (warnContext "typeinfo for %s not shared" ti.tname);
-    (match !olddef, isadef with 
-      Defined, Defined -> 
+    (match !olddef, isadef with
+      Defined, Defined ->
         ignore (warnContext "Multiple definition of type %s" ti.tname)
     | Defined, Used -> ()
-    | Used, Defined -> 
+    | Used, Defined ->
         ignore (warnContext "Use of type %s before its definition" ti.tname)
-    | _, _ -> 
+    | _, _ ->
         ignore (warnContext "Bug in checkTypeInfo for %s" ti.tname))
   with Not_found -> begin (* This is the first time we see it *)
     if ti.tname = "" then
@@ -415,13 +414,13 @@ and checkTypeInfo (isadef: defuse) ti =
     H.add typUsed ti.tname (ti, ref isadef);
   end
 
-(* Check an lvalue. If isconst then the lvalue appears in a context where 
- * only a compile-time constant can appear. Return the type of the lvalue. 
+(* Check an lvalue. If isconst then the lvalue appears in a context where
+ * only a compile-time constant can appear. Return the type of the lvalue.
  * See the typing rule from cil.mli *)
-and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ = 
+and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ =
   match lv with
-    Var vi, off -> 
-      checkVariable vi; 
+    Var vi, off ->
+      checkVariable vi;
       checkOffset vi.vtype off
 
   | Mem addr, off -> begin
@@ -433,12 +432,12 @@ and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ =
       | _ -> E.s (bug "Mem on a non-pointer")
   end
 
-(* Check an offset. The basetype is the type of the object referenced by the 
- * base. Return the type of the lvalue constructed from a base value of right 
+(* Check an offset. The basetype is the type of the object referenced by the
+ * base. Return the type of the lvalue constructed from a base value of right
  * type and the offset. See the typing rules from cil.mli *)
 and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
-  | Index (ei, o) -> 
+  | Index (ei, o) ->
       checkIntegralType (checkExp false ei);
       begin
         match unrollType basetyp with
@@ -446,31 +445,31 @@ and checkOffset basetyp : offset -> typ = function
         | t -> E.s (bug "typeOffset: Index on a non-array: %a" d_plaintype t)
       end
 
-  | Field (fi, o) -> 
+  | Field (fi, o) ->
       (* Now check that the host is shared propertly *)
       checkCompInfo Used fi.fcomp;
       (* Check that this exact field is part of the host *)
       if not (List.exists (fun f -> f == fi) fi.fcomp.cfields) then
-        ignore (warn "Field %s not part of %s" 
+        ignore (warn "Field %s not part of %s"
                   fi.fname (compFullName fi.fcomp));
       checkOffset fi.ftype o
-        
+
 and checkExpType (isconst: bool) (e: exp) (t: typ) =
   let t' = checkExp isconst e in (* compute the type *)
   (* ignore(E.log "checkType %a %a\n" d_plainexp e d_plaintype t); *)
   typeMatch t' t
 
-(* Check an expression. isconst specifies if the expression occurs in a 
- * context where only a compile-time constant can occur. Return the computed 
+(* Check an expression. isconst specifies if the expression occurs in a
+ * context where only a compile-time constant can occur. Return the computed
  * type of the expression *)
-and checkExp (isconst: bool) (e: exp) : typ = 
-  E.withContext 
-    (fun _ -> dprintf "check%s: %a" 
+and checkExp (isconst: bool) (e: exp) : typ =
+  E.withContext
+    (fun _ -> dprintf "check%s: %a"
         (if isconst then "Const" else "Exp") d_exp e)
     (fun _ ->
       match e with
       | Const(_) -> typeOf e
-      | Lval(lv) -> 
+      | Lval(lv) ->
           if isconst then
             ignore (warn "Lval in constant");
           checkLval isconst false lv
@@ -479,7 +478,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;
           (match unrollType t with
-            (TFun _ ) -> 
+            (TFun _ ) ->
               ignore (warn "Invalid operand for sizeof")
           | _ ->());
           typeOf e
@@ -503,13 +502,13 @@ and checkExp (isconst: bool) (e: exp) : typ =
           checkType te CTSizeof;
           typeOf e
 
-      | UnOp (Neg, e, tres) -> 
+      | UnOp (Neg, e, tres) ->
           checkArithmeticType tres; checkExpType isconst e tres; tres
 
-      | UnOp (BNot, e, tres) -> 
+      | UnOp (BNot, e, tres) ->
           checkIntegralType tres; checkExpType isconst e tres; tres
 
-      | UnOp (LNot, e, tres) -> 
+      | UnOp (LNot, e, tres) ->
           let te = checkExp isconst e in
           checkScalarType te;
           checkIntegralType tres; (* Must check that t is well-formed *)
@@ -520,30 +519,30 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let t1 = checkExp isconst e1 in
           let t2 = checkExp isconst e2 in
           match bop with
-            (Mult | Div) -> 
-              typeMatch t1 t2; checkArithmeticType tres; 
+            (Mult | Div) ->
+              typeMatch t1 t2; checkArithmeticType tres;
               typeMatch t1 tres; tres
-          | (Eq|Ne|Lt|Le|Ge|Gt) -> 
-              typeMatch t1 t2; checkArithmeticType t1; 
+          | (Eq|Ne|Lt|Le|Ge|Gt) ->
+              typeMatch t1 t2; checkArithmeticType t1;
               typeMatch tres intType; tres
-          | Mod|BAnd|BOr|BXor -> 
+          | Mod|BAnd|BOr|BXor ->
               typeMatch t1 t2; checkIntegralType tres;
               typeMatch t1 tres; tres
-          | LAnd | LOr -> 
+          | LAnd | LOr ->
               checkScalarType t1; checkScalarType t2;
               typeMatch tres intType; tres
-          | Shiftlt | Shiftrt -> 
-              typeMatch t1 tres; checkIntegralType t1; 
+          | Shiftlt | Shiftrt ->
+              typeMatch t1 tres; checkIntegralType t1;
               checkIntegralType t2; tres
-          | (PlusA | MinusA) -> 
+          | (PlusA | MinusA) ->
                 typeMatch t1 t2; typeMatch t1 tres;
                 checkArithmeticType tres; tres
-          | (PlusPI | MinusPI | IndexPI) -> 
+          | (PlusPI | MinusPI | IndexPI) ->
               checkPointerType tres;
               typeMatch t1 tres;
               checkIntegralType t2;
               tres
-          | MinusPP  -> 
+          | MinusPP  ->
               checkPointerType t1; checkPointerType t2;
               typeMatch t1 t2;
               typeMatch tres !ptrdiffType;
@@ -564,10 +563,10 @@ and checkExp (isconst: bool) (e: exp) : typ =
           let tlv = checkLval isconst true lv in
           (* Only certain types can be in AddrOf *)
           match unrollType tlv with
-          | TVoid _ -> 
+          | TVoid _ ->
               E.s (bug "AddrOf on improper type");
-              
-          | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ | TArray _ ) -> 
+
+          | (TInt _ | TFloat _ | TPtr _ | TComp _ | TFun _ | TArray _ ) ->
               TPtr(tlv, [])
 
           | TEnum (ei, _) -> TPtr(TInt(ei.ekind, []), [])
@@ -594,7 +593,7 @@ and checkExp (isconst: bool) (e: exp) : typ =
             TArray (t,_, _) -> TPtr(t, [])
           | _ -> E.s (bug "StartOf on a non-array")
       end
-            
+
       | CastE (tres, e) -> begin
           let et = checkExp isconst e in
           checkType tres CTExp;
@@ -609,8 +608,8 @@ and checkExp (isconst: bool) (e: exp) : typ =
       end)
     () (* The argument of withContext *)
 
-and checkInit  (i: init) : typ = 
-  E.withContext 
+and checkInit  (i: init) : typ =
+  E.withContext
     (fun _ -> dprintf "checkInit: %a" d_init i)
     (fun _ ->
       match i with
@@ -618,7 +617,7 @@ and checkInit  (i: init) : typ =
 (*
       | ArrayInit (bt, len, initl) -> begin
           checkType bt CTSizeof;
-          if List.length initl > len then 
+          if List.length initl > len then
             ignore (warn "Too many initializers in array");
           List.iter (fun i -> checkInitType i bt) initl;
           TArray(bt, Some (integer len), [])
@@ -627,98 +626,98 @@ and checkInit  (i: init) : typ =
       | CompoundInit (ct, initl) -> begin
           checkType ct CTSizeof;
           (match unrollType ct with
-            TArray(bt, elen, _) -> 
+            TArray(bt, elen, _) ->
               let len =
                 match elen with
                 | None -> 0L
                 | Some e -> (ignore (checkExp true e);
                 match isInteger (constFold true e) with
                   Some len -> len
-                | None -> 
+                | None ->
                     ignore (warn "Array length is not a constant");
                     0L)
               in
               let rec loopIndex i = function
-                  [] -> 
-                    if i > len then 
+                  [] ->
+                    if i > len then
                       ignore (warn "Wrong number of initializers in array")
 
-                | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest -> 
-                    if i' <> i then 
+                | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest ->
+                    if i' <> i then
                       ignore (warn "Initializer for index %s when %s was expected"
                                 (Int64.format "%d" i') (Int64.format "%d" i));
                     checkInitType ei bt;
                     loopIndex (Int64.succ i) rest
-                | _ :: rest -> 
+                | _ :: rest ->
                     ignore (warn "Malformed initializer for array element")
               in
               loopIndex Int64.zero initl
-          | TComp (comp, _) -> 
+          | TComp (comp, _) ->
               if comp.cstruct then
-                let rec loopFields 
-                    (nextflds: fieldinfo list) 
-                    (initl: (offset * init) list) : unit = 
-                  match nextflds, initl with 
+                let rec loopFields
+                    (nextflds: fieldinfo list)
+                    (initl: (offset * init) list) : unit =
+                  match nextflds, initl with
                     [], [] -> ()   (* We are done *)
-                  | f :: restf, (Field(f', NoOffset), i) :: resti -> 
-                      if f.fname <> f'.fname then 
+                  | f :: restf, (Field(f', NoOffset), i) :: resti ->
+                      if f.fname <> f'.fname then
                         ignore (warn "Expected initializer for field %s and found one for %s" f.fname f'.fname);
                       checkInitType i f.ftype;
                       loopFields restf resti
-                  | [], _ :: _ -> 
+                  | [], _ :: _ ->
                       ignore (warn "Too many initializers for struct")
-                  | _ :: _, [] -> 
+                  | _ :: _, [] ->
                       ignore (warn "Too few initializers for struct")
-                  | _, _ -> 
+                  | _, _ ->
                       ignore (warn "Malformed initializer for struct")
                 in
                 loopFields
-                  (List.filter (fun f -> f.fname <> missingFieldName) 
-                     comp.cfields) 
+                  (List.filter (fun f -> f.fname <> missingFieldName)
+                     comp.cfields)
                   initl
 
               else (* UNION *)
                 if comp.cfields == [] then begin
-                  if initl != [] then 
+                  if initl != [] then
                     ignore (warn "Initializer for empty union not empty");
                 end else begin
-                  match initl with 
-                    [(Field(f, NoOffset), ei)] -> 
-                      if f.fcomp != comp then 
+                  match initl with
+                    [(Field(f, NoOffset), ei)] ->
+                      if f.fcomp != comp then
                         ignore (bug "Wrong designator for union initializer");
                       if !msvcMode && f != List.hd comp.cfields then
                         ignore (warn "On MSVC you can only initialize the first field of a union");
                       checkInitType ei f.ftype
-                      
-                  | _ -> 
+
+                  | _ ->
                       ignore (warn "Malformed initializer for union")
                 end
-          | _ -> 
+          | _ ->
               E.s (warn "Type of Compound is not array or struct or union"));
           ct
       end)
     () (* The arguments of withContext *)
 
 
-and checkInitType (i: init) (t: typ) : unit = 
+and checkInitType (i: init) (t: typ) : unit =
   let it = checkInit i in
   typeMatch it t
-  
-and checkStmt (s: stmt) = 
-  E.withContext 
-    (fun _ -> 
+
+and checkStmt (s: stmt) =
+  E.withContext
+    (fun _ ->
       (* Print context only for certain small statements *)
-      match s.skind with 
+      match s.skind with
         Loop _ | If _ | Switch _  -> nil
       | _ -> dprintf "checkStmt: %a" d_stmt s)
-    (fun _ -> 
+    (fun _ ->
       (* Check the labels *)
       let checkLabel = function
-          Label (ln, l, _) -> 
+          Label (ln, l, _) ->
             if H.mem labels ln then
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
-        | Case (e, _) -> 
+        | Case (e, _) ->
            let t = checkExp true e in
            if not (isIntegralType t) then
                E.s (bug "Type of case expression is not integer");
@@ -733,20 +732,20 @@ and checkStmt (s: stmt) =
       in
       List.iter checkLabel s.labels;
       (* See if we have seen this statement before *)
-      if List.memq s !statements then 
+      if List.memq s !statements then
         ignore (warn "Statement is shared");
       (* Remember that we have seen this one *)
       statements := s :: !statements;
       match s.skind with
         Break _ | Continue _ -> ()
-      | Goto (gref, l) -> 
+      | Goto (gref, l) ->
           currentLoc := l;
           (* Find a label *)
-          let lab = 
-            match List.filter (function Label _ -> true | _ -> false) 
+          let lab =
+            match List.filter (function Label _ -> true | _ -> false)
                   !gref.labels with
               Label (lab, _, _) :: _ -> lab
-            | _ -> 
+            | _ ->
                 ignore (warn "Goto to block without a label");
                 "<missing label>"
           in
@@ -766,13 +765,13 @@ and checkStmt (s: stmt) =
         end
       | Loop (b, l, _, _) -> checkBlock b
       | Block b -> checkBlock b
-      | If (e, bt, bf, l) -> 
+      | If (e, bt, bf, l) ->
           currentLoc := l;
           let te = checkExp false e in
           checkScalarType te;
           checkBlock bt;
           checkBlock bf
-      | Switch (e, b, cases, l) -> 
+      | Switch (e, b, cases, l) ->
           currentLoc := l;
           let t = checkExp false e in
           if not (isIntegralType t) then
@@ -784,16 +783,16 @@ and checkStmt (s: stmt) =
              and that no case is listed twice. *)
           let casesVisited : stmt list ref = ref [] in
           List.iter
-            (fun c -> 
+            (fun c ->
                (if List.memq c !casesVisited then
-                  ignore (warnContext 
+                  ignore (warnContext
                             "Duplicate stmt in \"cases\" list of Switch.")
                 else
                   casesVisited := c::!casesVisited);
               (* Make sure it is in there *)
               let rec findCase = function
                 | l when l == prevStatements -> (* Not found *)
-                    ignore (warnContext 
+                    ignore (warnContext
                               "Cannot find target of switch statement")
                 | [] -> E.s (E.bug "Check: findCase")
                 | c' :: rest when c == c' -> () (* Found *)
@@ -801,12 +800,12 @@ and checkStmt (s: stmt) =
               in
               findCase !statements)
             cases;
-      | TryFinally (b, h, l) -> 
+      | TryFinally (b, h, l) ->
           currentLoc := l;
           checkBlock b;
           checkBlock h
 
-      | TryExcept (b, (il, e), h, l) -> 
+      | TryExcept (b, (il, e), h, l) ->
           currentLoc := l;
           checkBlock b;
           List.iter checkInstr il;
@@ -816,15 +815,15 @@ and checkStmt (s: stmt) =
       | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
 
-and checkBlock (b: block) : unit = 
+and checkBlock (b: block) : unit =
   List.iter checkStmt b.bstmts
 
 
-and checkInstr (i: instr) = 
+and checkInstr (i: instr) =
   if !ignoreInstr i then ()
   else
-  match i with 
-  | Set (dest, e, l) -> 
+  match i with
+  | Set (dest, e, l) ->
       currentLoc := l;
       let t = checkLval false false dest in
       (* Not all types can be assigned to *)
@@ -834,10 +833,10 @@ and checkInstr (i: instr) =
       | TVoid _ -> ignore (warn "Assignment to a void type")
       | _ -> ());
       checkExpType false e t
-            
-  | Call(dest, what, args, l) -> 
+
+  | Call(dest, what, args, l) ->
       currentLoc := l;
-      let (rt, formals, isva, fnAttrs) = 
+      let (rt, formals, isva, fnAttrs) =
         match unrollType (checkExp false what) with
           TFun(rt, formals, isva, fnAttrs) -> rt, formals, isva, fnAttrs
         | _ -> E.s (bug "Call to a non-function")
@@ -849,7 +848,7 @@ and checkInstr (i: instr) =
       | Some _, TVoid [Attr ("overloaded", [])] -> ()
       | Some _, TVoid _ -> ignore (warn "void value is assigned")
       | None, _ -> () (* "Call of function is not assigned" *)
-      | Some destlv, rt' -> 
+      | Some destlv, rt' ->
           let desttyp = checkLval false false destlv in
           if typeSig desttyp <> typeSig rt then begin
             if not !Cabs2cil.doCollapseCallCast then
@@ -867,28 +866,32 @@ and checkInstr (i: instr) =
             | TFun _ -> ignore (warn "Cast of a function type")
             | TComp _ -> ignore (warn "Cast of a composite type")
             | TVoid _ -> ignore (warn "Cast of a void type")
-                  
+
             | _ -> ())
           end);
           (* Now check the arguments *)
-      let rec loopArgs formals args = 
+      let rec loopArgs formals args =
         match formals, args with
           [], _ when (isva || args = []) -> ()
-        | (fn,ft,_) :: formals, a :: args -> 
+        | (fn,ft,_) :: formals, a :: args ->
             checkExpType false a ft;
             loopArgs formals args
         | _, _ -> ignore (warn "Not enough arguments")
       in
       if formals <> None then
         loopArgs (argsToList formals) args
-        
+
+  | VarDecl (v,_) ->
+      if not v.vhasdeclinstruction then
+        E.s (bug "Encountered a VarDecl, but vhasdeclinstruction for the varinfo is not set")
+
   | Asm _ -> ()  (* Not yet implemented *)
-  
+
 let rec checkGlobal = function
     GAsm _ -> ()
   | GPragma _ -> ()
   | GText _ -> ()
-  | GType (ti, l) -> 
+  | GType (ti, l) ->
       currentLoc := l;
       E.withContext (fun _ -> dprintf "GType(%s)" ti.tname)
         (fun _ ->
@@ -896,33 +899,33 @@ let rec checkGlobal = function
           if ti.tname <> "" then defineName ti.tname)
         ()
 
-  | GCompTag (comp, l) -> 
+  | GCompTag (comp, l) ->
       currentLoc := l;
       checkCompInfo Defined comp;
 
-  | GCompTagDecl (comp, l) -> 
+  | GCompTagDecl (comp, l) ->
       currentLoc := l;
       checkCompInfo Forward comp;
 
-  | GEnumTag (enum, l) -> 
+  | GEnumTag (enum, l) ->
       currentLoc := l;
       checkEnumInfo Defined enum
 
-  | GEnumTagDecl (enum, l) -> 
+  | GEnumTagDecl (enum, l) ->
       currentLoc := l;
       checkEnumInfo Forward enum
 
-  | GVarDecl (vi, l) -> 
+  | GVarDecl (vi, l) ->
       currentLoc := l;
       (* We might have seen it already *)
       E.withContext (fun _ -> dprintf "GVarDecl(%s)" vi.vname)
-        (fun _ -> 
-          (* If we have seen this vid already then it must be for the exact 
+        (fun _ ->
+          (* If we have seen this vid already then it must be for the exact
            * same varinfo *)
           if H.mem varIdsEnv vi.vid then
             checkVariable vi
           else begin
-            defineVariable vi; 
+            defineVariable vi;
             checkAttributes vi.vattr;
             checkType vi.vtype CTDecl;
             if not (vi.vglob &&
@@ -930,12 +933,12 @@ let rec checkGlobal = function
               E.s (bug "Invalid declaration of %s" vi.vname)
           end)
         ()
-        
-  | GVar (vi, init, l) -> 
+
+  | GVar (vi, init, l) ->
       currentLoc := l;
       (* Maybe this is the first occurrence *)
       E.withContext (fun _ -> dprintf "GVar(%s)" vi.vname)
-        (fun _ -> 
+        (fun _ ->
           checkGlobal (GVarDecl (vi, l));
           (* Check the initializer *)
           if vi.vinit != init then
@@ -949,7 +952,7 @@ let rec checkGlobal = function
             E.s (bug "GVar for a function (%s)\n" vi.vname);
           )
         ()
-        
+
 
   | GFun (fd, l) -> begin
       currentLoc := l;
@@ -957,29 +960,29 @@ let rec checkGlobal = function
       let vi = fd.svar in
       let fname = vi.vname in
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
-        (fun _ -> 
+        (fun _ ->
           checkGlobal (GVarDecl (vi, l));
-          (* Check that the argument types in the type are identical to the 
+          (* Check that the argument types in the type are identical to the
            * formals *)
-          let rec loopArgs targs formals = 
+          let rec loopArgs targs formals =
             match targs, formals with
               [], [] -> ()
-            | (fn, ft, fa) :: targs, fo :: formals -> 
-                if fn <> fo.vname then 
-                  ignore (warnContext 
-                            "Formal %s not shared (expecting name %s) in %s" 
+            | (fn, ft, fa) :: targs, fo :: formals ->
+                if fn <> fo.vname then
+                  ignore (warnContext
+                            "Formal %s not shared (expecting name %s) in %s"
                             fo.vname fn fname);
                 E.withContext (fun () -> text "formal "++ text fo.vname)
                   (fun () -> typeMatch ft fo.vtype)
                   ();
-                if fa != fo.vattr then 
-                  ignore (warnContext 
-                            "Formal %s not shared (different attrs) in %s" 
+                if fa != fo.vattr then
+                  ignore (warnContext
+                            "Formal %s not shared (different attrs) in %s"
                             fo.vname fname);
                 loopArgs targs formals
 
-            | _ -> 
-                E.s (bug "Type has different number of formals for %s" 
+            | _ ->
+                E.s (bug "Type has different number of formals for %s"
                        fname)
           in
           begin match unrollType vi.vtype with
@@ -987,7 +990,7 @@ let rec checkGlobal = function
               currentReturnType := rt;
               loopArgs (argsToList args) fd.sformals
             end
-          | _ -> E.s (bug "Function %s does not have a function type" 
+          | _ -> E.s (bug "Function %s does not have a function type"
                         fname)
           end;
           ignore (fd.smaxid >= 0 || E.s (bug "smaxid < 0 for %s" fname));
@@ -995,7 +998,7 @@ let rec checkGlobal = function
           begin try
             startEnv ();
             (* Do the locals *)
-            let doLocal tctx v = 
+            let doLocal tctx v =
               if v.vglob then
                 ignore (warnContext
                           "Local %s has the vglob flag set" v.vname);
@@ -1014,8 +1017,8 @@ let rec checkGlobal = function
             checkBlock fd.sbody;
             H.clear labels;
             (* Now verify that we have scanned all targets *)
-            List.iter 
-              (fun (lab, t) -> if not (List.memq t !statements) then 
+            List.iter
+              (fun (lab, t) -> if not (List.memq t !statements) then
                 ignore (warnContext
                           "Target of \"goto %s\" statement does not appear in function body" lab))
               !gotoTargets;
@@ -1023,7 +1026,7 @@ let rec checkGlobal = function
             gotoTargets := [];
             (* Done *)
             endEnv ()
-          with e -> 
+          with e ->
             endEnv ();
             raise e
           end;
@@ -1032,10 +1035,10 @@ let rec checkGlobal = function
   end
 
 
-let checkFile flags fl = 
+let checkFile flags fl =
   if !E.verboseFlag then ignore (E.log "Checking file %s\n" fl.fileName);
   valid := true;
-  List.iter 
+  List.iter
     (function
         NoCheckGlobalIds -> checkGlobalIds := false
       | IgnoreInstructions f -> ignoreInstr := f
@@ -1043,22 +1046,22 @@ let checkFile flags fl =
     flags;
   iterGlobals fl (fun g -> try checkGlobal g with _ -> ());
   (* Check that for all struct/union tags there is a definition *)
-  H.iter 
-    (fun k (comp, isadef) -> 
-      if !isadef = Used then 
+  H.iter
+    (fun k (comp, isadef) ->
+      if !isadef = Used then
 	begin
 	  valid := false;
-          ignore (E.warn "Compinfo %s is referenced but not defined" 
+          ignore (E.warn "Compinfo %s is referenced but not defined"
                     (compFullName comp))
 	end)
     compUsed;
   (* Check that for all enum tags there is a definition *)
-  H.iter 
-    (fun k (enum, isadef) -> 
-      if !isadef = Used then 
+  H.iter
+    (fun k (enum, isadef) ->
+      if !isadef = Used then
 	begin
 	  valid := false;
-          ignore (E.warn "Enuminfo %s is referenced but not defined" 
+          ignore (E.warn "Enuminfo %s is referenced but not defined"
                     enum.ename)
 	end)
     enumUsed;
@@ -1072,7 +1075,6 @@ let checkFile flags fl =
   H.clear enumUsed;
   H.clear typUsed;
   varNamesList := [];
-  if !E.verboseFlag then 
+  if !E.verboseFlag then
     ignore (E.log "Finished checking file %s\n" fl.fileName);
   !valid
-  

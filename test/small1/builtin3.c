@@ -7,7 +7,7 @@ int main (void)
     int x = 0;
     int b = __builtin_constant_p (x++);
 
-    int arr[];
+    int* arr;
 
     __builtin_constant_p (x++);
     
