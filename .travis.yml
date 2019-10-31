@@ -9,3 +9,5 @@ env:
   - OCAML_VERSION=4.07
 os:
   - linux
+  - osx
+osx_image: xcode10
