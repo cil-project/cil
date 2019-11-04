@@ -904,6 +904,8 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       when vi.vname = "__builtin_va_arg" -> iVaArg valist targ dest
     | Call (r, fn, args, _) -> iCall r fn args
     | Asm _ -> raise (Unimplemented "Asm")
+    | VarDecl _ -> raise (Unimplemented "VarDecl") (* VarDecl instruction is not supported for LLVMGen, to make LLVMGen work for programs without VLA *)
+                                                   (* make sure to set alwaysGenerateVarDecl in cabs2cil.ml to false. To support VLA, implement this.  *)
 
     and iSet (lv:lval) (e:exp) : llvmInstruction list = 
       let (il,v) = iExp e in

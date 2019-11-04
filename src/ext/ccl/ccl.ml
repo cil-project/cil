@@ -38,6 +38,8 @@ open Feature
 open Pretty
 module E = Errormsg
 
+exception Unimplemented of string
+
 let debug : bool ref = ref false
 let verbose : bool ref = ref false
 let suppress : bool ref = ref false
@@ -1554,6 +1556,8 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
            | Asm (_, _, _, _, _, l) ->
                if not !suppress then
                  ignore (warning "ignoring asm")
+           | VarDecl _ ->   raise (Unimplemented "VarDecl") (* VarDecl instruction is not supported for ccl, to make ccl work for programs without VLA *)
+                                                   (* make sure to set alwaysGenerateVarDecl in cabs2cil.ml to false. To support VLA, implement this.  *)
            end)
         instrs
   | Return (eo, l) ->

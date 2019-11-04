@@ -15,6 +15,8 @@ module H = Hashtbl
 module U = Util
 module S = Stats
 
+exception Unimplemented of string
+
 let debug = ref false
 let doTime = ref false
 
@@ -309,6 +311,8 @@ let lvh_handle_inst i lvh =
 	lvh_kill_vi lvh vi) d;
       lvh
   end
+  | VarDecl _ ->   raise (Unimplemented "VarDecl") (* VarDecl instruction is not supported for availexpslv, to make availexpslv work for programs without VLA *)
+                                                   (* make sure to set alwaysGenerateVarDecl in cabs2cil.ml to false. To support VLA, implement this.  *)
 
 module AvailableExps =
   struct

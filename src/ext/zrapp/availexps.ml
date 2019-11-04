@@ -14,6 +14,8 @@ module IH = Inthash
 module U = Util
 module S = Stats
 
+exception Unimplemented of string
+
 let debug = ref false
 let doTime = ref false
 
@@ -246,6 +248,8 @@ let eh_handle_inst i eh =
       (UD.VS.iter (fun vi ->
 	eh_kill_vi eh vi) d;
        eh)
+  | VarDecl _ ->   raise (Unimplemented "VarDecl") (* VarDecl instruction is not supported for availexps, to make availexps work for programs without VLA *)
+                                                   (* make sure to set alwaysGenerateVarDecl in cabs2cil.ml to false. To support VLA, implement this.  *)
 
 module AvailableExps =
   struct

@@ -300,6 +300,7 @@ let analyze_instr (i : instr ) : unit =
                 | None -> ()
             end
     | Asm _ -> ()
+    | VarDecl _ -> ()
 
 let rec analyze_stmt (s : stmt ) : unit =
   match s.skind with
