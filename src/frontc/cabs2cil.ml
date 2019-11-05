@@ -5565,7 +5565,6 @@ and createLocal ?allow_var_decl:(allow_var_decl=true) ((_, sto, _, _) as specs)
       let sevarsize = (* Chunk that is needed to pull out things for variable-length arrays *)
         if isvarsize then
           begin
-            ignore (warn "Variable-sized local variable %s" vi.vname);
             if inite != A.NO_INIT then
               E.s (error "Variable-sized array cannot have initializer")
             else if not allow_var_decl then
