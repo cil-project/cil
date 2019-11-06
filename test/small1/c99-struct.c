@@ -1,3 +1,4 @@
+#include<stdlib.h>
 struct point {
 	int x, y;
 };
