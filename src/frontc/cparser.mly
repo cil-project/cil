@@ -255,9 +255,10 @@ let transformOffsetOf (speclist, dtype) member =
 
 %token EOF
 %token<Cabs.cabsloc> CHAR INT BOOL DOUBLE FLOAT VOID INT64 INT32
+%token<Cabs.cabsloc> INT128 FLOAT128 COMPLEX /* C99 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
-%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER COMPLEX HIDDEN
+%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER HIDDEN
 %token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
@@ -977,8 +978,13 @@ type_spec:   /* ISO 6.7.2 */
 |   INT             { Tint, $1 }
 |   LONG            { Tlong, $1 }
 |   INT64           { Tint64, $1 }
+|   INT128          { Tint128, $1 }
 |   FLOAT           { Tfloat, $1 }
+|   FLOAT128        { Tfloat128, $1 }
 |   DOUBLE          { Tdouble, $1 }
+/* |   COMPLEX FLOAT   { Tfloat, $2 } */
+/* |   COMPLEX FLOAT128{ Tfloat128, $2 } */
+/* |   COMPLEX DOUBLE  { Tdouble, $2 } */
 |   SIGNED          { Tsigned, $1 }
 |   UNSIGNED        { Tunsigned, $1 }
 |   STRUCT                 id_or_typename
