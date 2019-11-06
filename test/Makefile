@@ -194,6 +194,12 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+testrunc99/% : $(SMALL1)/%.c
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
+	       $(CFLAGS) -std=c99 $(EXEOUT)$*.exe $*.c
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
 testrungcc/% : $(SMALL1)/%.c mustbegcc
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c

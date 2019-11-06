@@ -720,6 +720,12 @@ addTest("testrun/compound2");
 
 addTest("test/shell-escape SHELL_ESCAPE=1");
 
+# c99 readiness tests
+addTest("testrunc99/c99-bool");
+addTest("testrunc99/c99-predefined");
+addTest("testrunc99/c99-struct");
+addTest("testrunc99/c99-complex");
+
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
 ## But only if the ctorture group was specfied
