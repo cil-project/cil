@@ -60,8 +60,10 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tshort
   | Tint
   | Tlong
-  | Tint64
+  | Tint64 (* TODO needed? *)
+  | Tint128 (* TODO needed? *)
   | Tfloat
+  | Tfloat128 (* TODO needed? *)
   | Tdouble
   | Tsigned
   | Tsizet    (* used temporarily to translate offsetof() *)

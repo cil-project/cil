@@ -37,7 +37,7 @@
  *)
 (* FrontC -- lexical analyzer
 **
-** 1.0	3.22.99	Hugues Cassé	First version.
+** 1.0	3.22.99	Hugues Cassï¿½	First version.
 ** 2.0  George Necula 12/12/00: Many extensions
 *)
 {
@@ -138,6 +138,8 @@ let init_lexicon _ =
       ("char", fun loc -> CHAR loc);
       ("int", fun loc -> INT loc);
       ("float", fun loc -> FLOAT loc);
+      ("__float128", fun loc -> FLOAT128 loc);
+      ("_Float128", fun loc -> FLOAT128 loc);
       ("double", fun loc -> DOUBLE loc);
       ("void", fun loc -> VOID loc);
       ("enum", fun loc -> ENUM loc);
@@ -193,8 +195,9 @@ let init_lexicon _ =
       ("restrict", fun loc -> RESTRICT loc);
 (*      ("__extension__", EXTENSION); *)
       (**** MS VC ***)
-      ("__int64", fun _ -> INT64 (currentLoc ()));
       ("__int32", fun loc -> INT loc);
+      ("__int64", fun _ -> INT64 (currentLoc ()));
+      ("__int128", fun _ -> INT128 (currentLoc ()));
       ("_cdecl",  fun _ -> MSATTR ("_cdecl", currentLoc ())); 
       ("__cdecl", fun _ -> MSATTR ("__cdecl", currentLoc ()));
       ("_stdcall", fun _ -> MSATTR ("_stdcall", currentLoc ())); 

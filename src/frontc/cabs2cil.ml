@@ -2421,6 +2421,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tdouble] -> TFloat(FDouble, [])
 
     | [A.Tlong; A.Tdouble] -> TFloat(FLongDouble, [])
+    | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)
 
      (* Now the other type specifiers *)
     | [A.Tnamed n] -> begin
@@ -2541,8 +2542,8 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
               let e'' =
                 match getInteger (constFold true e') with
                   Some n ->
-		    let ik = updateEnum n in
-		    if !lowerConstants then kintegerCilint ik n else e'
+		                let ik = updateEnum n in
+		                if !lowerConstants then kintegerCilint ik n else e'
                 | _ -> E.s (error "Constant initializer %a not an integer" d_exp e')
               in
               processName kname e'' (convLoc cloc) rest
