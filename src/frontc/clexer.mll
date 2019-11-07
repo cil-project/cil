@@ -37,7 +37,7 @@
  *)
 (* FrontC -- lexical analyzer
 **
-** 1.0	3.22.99	Hugues Cassé	First version.
+** 1.0	3.22.99	Hugues Cassï¿½	First version.
 ** 2.0  George Necula 12/12/00: Many extensions
 *)
 {
@@ -139,6 +139,7 @@ let init_lexicon _ =
       ("int", fun loc -> INT loc);
       ("float", fun loc -> FLOAT loc);
       ("__float128", fun loc -> FLOAT128 loc);
+      ("_Float128", fun loc -> FLOAT128 loc);
       ("double", fun loc -> DOUBLE loc);
       ("void", fun loc -> VOID loc);
       ("enum", fun loc -> ENUM loc);
