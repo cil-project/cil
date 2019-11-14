@@ -1,5 +1,7 @@
 language: c
 sudo: required
+before_install:
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew install gcc; fi
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-opam.sh
 script: OPAMWITHDOC=false bash -ex .travis-opam.sh
 env:
@@ -10,4 +12,4 @@ env:
 os:
   - linux
   - osx
-osx_image: xcode10
+osx_image: xcode11.2
