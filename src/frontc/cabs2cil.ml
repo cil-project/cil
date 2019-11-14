@@ -74,7 +74,7 @@ let nocil: int ref = ref (-1)
   * Under certain conditions (involving GNU computed gotos), it is not possible
   * to generate VarDecls for all locals, in these cases we do not generate them
   * *)
-let alwaysGenerateVarDecl = true
+let alwaysGenerateVarDecl = false
 
 (** Indicates whether we're allowed to duplicate small chunks. *)
 let allowDuplication: bool ref = ref true
