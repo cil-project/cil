@@ -726,6 +726,8 @@ addTest("testrunc99/c99-predefined");
 addTest("testrunc99/c99-struct");
 addTest("testrunc99/c99-complex");
 addTest("testrunc99/c99-universal-character-names");
+addTest("combinec99inline ");
+
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

@@ -290,6 +290,13 @@ arcombine: mustbegcc
 	cd $(SMALL1); ./matrix.exe
 
 
+combinec99%: $(SMALL1)/combine-c99%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -std=c99 --merge \
+                    $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \
+	            $(EXEOUT)combine-c99$*.exe
+	cd $(SMALL1); ./combine-c99$*.exe
+
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju
 	cd /usr/src/big-examples/; $(CILLY) --nomerge \
