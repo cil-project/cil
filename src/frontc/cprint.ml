@@ -1,4 +1,4 @@
-(* 
+(*
  *
  * Copyright (c) 2001-2003,
  *  George C. Necula    <necula@cs.berkeley.edu>
@@ -6,7 +6,7 @@
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  *  Ben Liblit          <liblit@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -41,20 +41,20 @@
 ** File:	cprint.ml
 ** Version:	2.1e
 ** Date:	9.1.99
-** Author:	Hugues Cassé
+** Author:	Hugues CassÃ©
 **
-**	1.0		2.22.99	Hugues Cassé	First version.
-**	2.0		3.18.99	Hugues Cassé	Compatible with Frontc 2.1, use of CAML
+**	1.0		2.22.99	Hugues CassÃ©	First version.
+**	2.0		3.18.99	Hugues CassÃ©	Compatible with Frontc 2.1, use of CAML
 **									pretty printer.
-**	2.1		3.22.99	Hugues Cassé	More efficient custom pretty printer used.
-**	2.1a	4.12.99	Hugues Cassé	Correctly handle:
+**	2.1		3.22.99	Hugues CassÃ©	More efficient custom pretty printer used.
+**	2.1a	4.12.99	Hugues CassÃ©	Correctly handle:
 **									char *m, *m, *p; m + (n - p)
-**	2.1b	4.15.99	Hugues Cassé	x + (y + z) stays x + (y + z) for
+**	2.1b	4.15.99	Hugues CassÃ©	x + (y + z) stays x + (y + z) for
 **									keeping computation order.
-**	2.1c	7.23.99	Hugues Cassé	Improvement of case and default display.
-**	2.1d	8.25.99	Hugues Cassé	Rebuild escape sequences in string and
+**	2.1c	7.23.99	Hugues CassÃ©	Improvement of case and default display.
+**	2.1d	8.25.99	Hugues CassÃ©	Rebuild escape sequences in string and
 **									characters.
-**	2.1e	9.1.99	Hugues Cassé	Fix, recognize and correctly display '\0'.
+**	2.1e	9.1.99	Hugues CassÃ©	Fix, recognize and correctly display '\0'.
 *)
 
 (* George Necula: I changed this pretty dramatically since CABS changed *)
@@ -62,13 +62,13 @@ open Cabs
 open Escape
 open Whitetrack
 
-let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
+let version = "Cprint 2.1e 9.1.99 Hugues CassÃ©"
 
 type loc = { line : int; file : string }
 
 let lu = {line = -1; file = "loc unknown";}
-let cabslu = {lineno = -10; 
-	      filename = "cabs loc unknown"; 
+let cabslu = {lineno = -10;
+	      filename = "cabs loc unknown";
 	      byteno = -10;
               ident = 0;}
 
@@ -96,7 +96,7 @@ let current_len = ref 0
 let spaces = ref 0
 let follow = ref 0
 let roll = ref 0
-    
+
 
 
 (* stub out the old-style manual space functions *)
@@ -116,7 +116,7 @@ let print_unescaped_string str = print str
 (*
 ** Useful primitives
 *)
-let print_list print_sep print_elt lst = 
+let print_list print_sep print_elt lst =
   let _ = List.fold_left
       (fun com elt ->
 	if com then print_sep ();
@@ -129,7 +129,7 @@ let print_list print_sep print_elt lst =
 let print_commas nl fct lst =
   print_list (fun () -> print ","; if nl then new_line() else space()) fct lst;
   print_maybe ","
-	
+
 let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
 
@@ -152,7 +152,7 @@ let rec print_specifiers (specs: spec_elem list) =
         | STATIC -> "static"
         | EXTERN -> "extern"
         | REGISTER -> "register")
-    | SpecCV cv -> 
+    | SpecCV cv ->
         printu (match cv with
         | CV_CONST -> "const"
         | CV_VOLATILE -> "volatile"
@@ -212,10 +212,10 @@ begin
 end
 
 
-(* This is the main printer for declarations. It is easy bacause the 
+(* This is the main printer for declarations. It is easy because the
  * declarations are laid out as they need to be printed. *)
 and print_decl (n: string) = function
-    JUSTBASE -> if n <> "___missing_field_name" then 
+    JUSTBASE -> if n <> "___missing_field_name" then
                   print n
                 else
                   comprint "missing field name"
@@ -274,11 +274,11 @@ and print_enum_items items =
     print "} ";
   end
 
-  
+
 and print_onlytype (specs, dt) =
   print_specifiers specs;
   print_decl "" dt
-    
+
 and print_name ((n, decl, attrs, _) : name) =
   print_decl n decl;
   space ();
@@ -291,26 +291,26 @@ and print_init_name ((n, i) : init_name) =
     print "= ";
     print_init_expression i
   end
-            
+
 and print_name_group (specs, names) =
   print_specifiers specs;
   print_commas false print_name names
-    
+
 and print_field_group (specs, fields) =
   print_specifiers specs;
   print_commas false print_field fields
-    
 
-and print_field (name, widtho) = 
+
+and print_field (name, widtho) =
   print_name name;
-  (match widtho with 
+  (match widtho with
     None -> ()
   | Some w -> print " : ";  print_expression w)
 
 and print_init_name_group (specs, names) =
   print_specifiers specs;
   print_commas false print_init_name names
-    
+
 and print_single_name (specs, name) =
   print_specifiers specs;
   print_name name
@@ -318,11 +318,11 @@ and print_single_name (specs, name) =
 and print_params (pars : single_name list) (ell : bool) =
   print_commas false print_single_name pars;
   if ell then printl (if pars = [] then ["..."] else [",";"..."]) else ()
-    
+
 and print_old_params pars ell =
   print_commas false (fun id -> print id) pars;
   if ell then printl (if pars = [] then ["..."] else [",";"..."]) else ()
-    
+
 
 (*
 ** Expression printing
@@ -343,7 +343,7 @@ and print_old_params pars ell =
 **		3	||
 **		2	? :
 **		1	= ?=
-**		0	,				
+**		0	,
 *)
 and get_operator exp =
   match exp with
@@ -411,31 +411,31 @@ and get_operator exp =
 
 and print_comma_exps exps =
   print_commas false print_expression exps
-    
-and print_init_expression (iexp: init_expression) : unit = 
-  match iexp with 
+
+and print_init_expression (iexp: init_expression) : unit =
+  match iexp with
     NO_INIT -> ()
   | SINGLE_INIT e -> print_expression e
   | COMPOUND_INIT  initexps ->
       let doinitexp = function
           NEXT_INIT, e -> print_init_expression e
-        | i, e -> 
+        | i, e ->
             let rec doinit = function
                 NEXT_INIT -> ()
               | INFIELD_INIT (fn, i) -> printl [".";fn]; doinit i
-              | ATINDEX_INIT (e, i) -> 
+              | ATINDEX_INIT (e, i) ->
                   print "[";
                   print_expression e;
                   print "]";
                   doinit i
-              | ATINDEXRANGE_INIT (s, e) -> 
-                  print "["; 
+              | ATINDEXRANGE_INIT (s, e) ->
+                  print "[";
                   print_expression s;
                   print " ... ";
                   print_expression e;
                   print "]"
                 in
-            doinit i; print " = "; 
+            doinit i; print " = ";
             print_init_expression e
       in
       print "{";
@@ -465,7 +465,7 @@ and print_expression_level (lvl: int) (exp : expression) =
       print txt;
       space ();
 			(*print_expression exp2 (if op = SUB then (lvl' + 1) else lvl');*)
-      print_expression_level (lvl' + 1) exp2 
+      print_expression_level (lvl' + 1) exp2
 			(*if (op = SUB) && (lvl <= lvl') then print ")"*)
   | QUESTION (exp1, exp2, exp3) ->
       print_expression_level 2 exp1;
@@ -478,17 +478,17 @@ and print_expression_level (lvl: int) (exp : expression) =
   | CAST (typ, iexp) ->
       print "(";
       print_onlytype typ;
-      print ")"; 
-     (* Always print parentheses. In a small number of cases when we print 
+      print ")";
+     (* Always print parentheses. In a small number of cases when we print
       * constants we don't need them  *)
       (match iexp with
         SINGLE_INIT e -> print_expression_level 15 e
-      | COMPOUND_INIT _ -> (* print "("; *) 
-          print_init_expression iexp 
+      | COMPOUND_INIT _ -> (* print "("; *)
+          print_init_expression iexp
           (* ; print ")" *)
       | NO_INIT -> print "<NO_INIT in cast. Should never arise>")
 
-  | CALL (VARIABLE "__builtin_va_arg", [arg; TYPE_SIZEOF (bt, dt)]) -> 
+  | CALL (VARIABLE "__builtin_va_arg", [arg; TYPE_SIZEOF (bt, dt)]) ->
       comprint "variable";
       print "__builtin_va_arg";
       print "(";
@@ -548,7 +548,7 @@ and print_expression_level (lvl: int) (exp : expression) =
       printl ["@expr";"(";name;")"]
   in
   ()
-    
+
 
 (*
 ** Statement printing
@@ -665,7 +665,7 @@ and print_statement stat =
       setLoc(loc);
       printl ["goto";name;";"];
       new_line ()
-  | COMPGOTO (exp, loc) -> 
+  | COMPGOTO (exp, loc) ->
       setLoc(loc);
       print ("goto *"); print_expression exp; print ";"; new_line ()
   | DEFINITION d ->
@@ -680,7 +680,7 @@ and print_statement stat =
         print_list (fun () -> new_line()) print tlist; (* templates *)
         print "};"
       end else begin
-        print "__asm__ "; 
+        print "__asm__ ";
         print_attributes attrs;
         print "(";
         print_list (fun () -> new_line()) print_string tlist; (* templates *)
@@ -702,21 +702,21 @@ and print_statement stat =
         print ");"
       end;
       new_line ()
-  | TRY_FINALLY (b, h, loc) -> 
+  | TRY_FINALLY (b, h, loc) ->
       setLoc loc;
       print "__try ";
       print_block b;
       print "__finally ";
       print_block h
 
-  | TRY_EXCEPT (b, e, h, loc) -> 
+  | TRY_EXCEPT (b, e, h, loc) ->
       setLoc loc;
       print "__try ";
       print_block b;
       printl ["__except";"("]; print_expression e; print ")";
       print_block h
-      
-and print_block blk = 
+
+and print_block blk =
   new_line();
   print "{";
   indent ();
@@ -734,7 +734,7 @@ and print_block blk =
   unindent ();
   print "}";
   new_line ()
-  
+
 and print_substatement stat =
   match stat with
     IF _
@@ -758,7 +758,7 @@ and print_substatement stat =
 (*
 ** GCC Attributes
 *)
-and print_attribute (name,args) = 
+and print_attribute (name,args) =
   if args = [] then printu name
   else begin
     print name;
@@ -848,7 +848,7 @@ and print_def def =
       width := oldwidth;
       force_new_line ()
 
-  | LINKAGE (n, loc, dl) -> 
+  | LINKAGE (n, loc, dl) ->
       setLoc (loc);
       force_new_line ();
       print "extern "; print_string n; print_string "  {";
@@ -918,4 +918,3 @@ let printFile (result : out_channel) ((fname, defs) : file) =
 
 let set_tab t = tab := t
 let set_width w = width := w
-
