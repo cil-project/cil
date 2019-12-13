@@ -4389,6 +4389,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     match an, args with
       "const", [] -> text "const", false
           (* Put the aconst inside the attribute list *)
+    | "complex", [] when !c99Mode -> text "_Complex", false
+    | "complex", [] when not !msvcMode -> text "__complex__", false
     | "aconst", [] when not !msvcMode -> text "__const__", true
     | "thread", [] when not !msvcMode -> text "__thread", false
 (*
