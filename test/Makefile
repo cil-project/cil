@@ -196,7 +196,7 @@ testrun/% : $(SMALL1)/%.c
 
 testrunc99/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
-	       $(CFLAGS) -std=c99 $(EXEOUT)$*.exe $*.c
+	       $(CFLAGS) -std=c99 $(EXEOUT)$*.exe $*.c -lm
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 

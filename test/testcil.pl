@@ -726,6 +726,7 @@ addTest("testrunc99/c99-predefined");
 addTest("testrunc99/c99-struct");
 addTest("testrunc99/c99-complex");
 addTest("testrunc99/c99-universal-character-names");
+addTest("testrunc99/c99-tgmath");
 addTest("combinec99inline ");
 
 
