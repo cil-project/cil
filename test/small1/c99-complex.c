@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <complex.h>
 #include <tgmath.h>
+#include "testharness.h"
 
 int main(void)
 {
-    double complex z1 = I * I;     // imaginary unit squared
+    double complex z1 = 1.0iF + 0.5;     // imaginary unit squared
     printf("I * I = %.1f%+.1fi\n", creal(z1), cimag(z1));
+
+    double d = creal(z1);
+
+    if(d != 0.5)
+        E(1);
 
     double complex z2 = pow(I, 2); // imaginary unit squared
     printf("pow(I, 2) = %.1f%+.1fi\n", creal(z2), cimag(z2));
