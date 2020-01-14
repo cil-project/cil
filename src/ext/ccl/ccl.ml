@@ -1078,6 +1078,8 @@ let rec evaluateExp (e : exp) (state : state) : summary =
   | StartOf lv -> evaluateLval lv state
   | Question _ -> E.s (E.unimp "ternary operator ?:")
   | AddrOfLabel _ -> E.s (E.unimp "address of label")
+  | Real _ -> E.s (E.unimp "real")
+  | Imag _ -> E.s (E.unimp "imag")
 
 and evaluateLval (lv : lval) (state : state) : summary =
   match lv with

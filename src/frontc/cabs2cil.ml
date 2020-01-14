@@ -3641,7 +3641,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> SizeOfE e'
         in
         finishExp empty size !typeOfSizeOf
-
+    | A.REAL e ->
+      let (se, e', t) = doExp false e (AExp None) in
+      let real = Real e' in
+      finishExp se real (typeOfReal t)
+    | A.IMAG e -> E.s (bug "cabs2cil: unsupported")
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
         finishExp empty (AlignOf(typ)) !typeOfSizeOf

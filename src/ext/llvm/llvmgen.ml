@@ -1000,6 +1000,8 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     | CastE (t, e) -> iCast t e
     | AddrOf lv -> iAddrOf lv
     | StartOf lv -> iStartOf lv
+    | Imag e -> raise (Unimplemented "Imag")
+    | Real e -> raise (Unimplemented "Real")
     | AddrOfLabel _ -> raise (Unimplemented "AddrOfLabel")
     | Question _ -> raise (Unimplemented "Question")
 

@@ -586,7 +586,8 @@ and exp =
     (** sizeof(<type>). Has [unsigned int] type (ISO 6.5.3.4). This is not
      * turned into a constant because some transformations might want to
      * change types *)
-
+  | Real       of exp                   (** __real__(<expression>) *)
+  | Imag       of exp                   (** __imag__(<expression>) *)
   | SizeOfE    of exp
     (** sizeof(<expression>) *)
 
@@ -1322,6 +1323,9 @@ val isVoidType: typ -> bool
 
 (** is the given type "void *"? *)
 val isVoidPtrType: typ -> bool
+
+(** for numerical __complex types return type of corresponding real part *)
+val typeOfReal: typ -> typ
 
 (** int *)
 val intType: typ

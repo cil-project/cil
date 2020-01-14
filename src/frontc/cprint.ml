@@ -403,6 +403,8 @@ and get_operator exp =
   | TYPE_SIZEOF _ -> ("", 16)
   | EXPR_ALIGNOF exp -> ("", 16)
   | TYPE_ALIGNOF _ -> ("", 16)
+  | IMAG exp -> ("", 16)
+  | REAL exp -> ("", 16)
   | INDEX (exp, idx) -> ("", 15)
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
@@ -529,6 +531,14 @@ and print_expression_level (lvl: int) (exp : expression) =
   | TYPE_ALIGNOF (bt,dt) ->
       printl ["__alignof__";"("];
       print_onlytype (bt, dt);
+      print ")"
+  | IMAG exp ->
+      printl ["__imag__";"("];
+      print_expression_level 0 exp;
+      print ")"
+  | REAL exp ->
+      printl ["__real__";"("];
+      print_expression_level 0 exp;
       print ")"
   | INDEX (exp, idx) ->
       print_expression_level 16 exp;

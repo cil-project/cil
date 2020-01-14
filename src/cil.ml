@@ -492,7 +492,8 @@ and exp =
                                          * not turned into a constant because
                                          * some transformations might want to
                                          * change types *)
-
+  | Real       of exp                   (** __real__(<expression>) *)
+  | Imag       of exp                   (** __imag__(<expression>) *)
   | SizeOfE    of exp                   (** sizeof(<expression>) *)
   | SizeOfStr  of string
     (** sizeof(string_literal). We separate this case out because this is the
@@ -1596,6 +1597,21 @@ let isVoidPtrType t =
     TPtr(tau,_) when isVoidType tau -> true
   | _ -> false
 
+(* get the typ of __real__(e) for e of typ t*)
+let typeOfReal t =
+  match unrollType t with
+  | TInt _ -> t
+  | TFloat (fkind, attrs) ->
+    let newfkind = function
+      | FFloat -> FFloat      (** [float] *)
+      | FDouble -> FDouble     (** [double] *)
+      | FLongDouble -> FLongDouble (** [long double] *)
+      | FComplexFloat -> FFloat
+      | FComplexDouble -> FDouble
+      | FComplexLongDouble -> FLongDouble
+    in TFloat (newfkind fkind, attrs)
+  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
+
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
@@ -1798,6 +1814,8 @@ let getParenthLevel (e: exp) =
   | BinOp((Div|Mod|Mult),_,_,_) -> 40
 
                                         (* Unary *)
+  | Real _ -> 30
+  | Imag _ -> 30
   | CastE(_,_) -> 30
   | AddrOf(_) -> 30
   | AddrOfLabel(_) -> 30
@@ -1892,7 +1910,8 @@ let rec typeOf (e: exp) : typ =
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-
+  | Real e -> typeOfReal @@ typeOf e
+  | Imag e -> E.s (E.bug "unsupported")
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
@@ -2755,6 +2774,8 @@ let rec isConstant = function
   | Lval (Var vi, NoOffset) ->
       (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
   | Lval _ -> false
+  | Real e -> isConstant e
+  | Imag e -> isConstant e
   | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
   | CastE (_, e) -> isConstant e
   | AddrOf (Var vi, off) | StartOf (Var vi, off)
@@ -3432,7 +3453,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "__builtin_va_arg_pack()"
     | SizeOfE (e) ->
         text "sizeof(" ++ self#pExp () e ++ chr ')'
-
+    | Imag e ->
+        text "__imag__(" ++ self#pExp () e ++ chr ')'
+    | Real e ->
+        text "__real__(" ++ self#pExp () e ++ chr ')'
     | SizeOfStr s ->
         text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
 
@@ -4800,7 +4824,10 @@ class plainCilPrinterClass =
       text "__alignof__(" ++ self#pType None () t ++ chr ')'
   | AlignOfE (e) ->
       text "__alignof__(" ++ self#pExp () e ++ chr ')'
-
+  | Imag e ->
+      text "__imag__(" ++ self#pExp () e ++ chr ')'
+  | Real e ->
+      text "__real__(" ++ self#pExp () e ++ chr ')'
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
   | AddrOfLabel (sref) -> dprintf "AddrOfLabel(%a)" self#pStmt !sref
@@ -5283,7 +5310,12 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
       let e1' = vExp e1 in
       if e1' != e1 then SizeOfE e1' else e
   | SizeOfStr s -> e
-
+  | Real e1 ->
+    let e1' = vExp e1 in
+    if e1' != e1 then Real e1' else e
+  | Imag e1 ->
+    let e1' = vExp e1 in
+    if e1' != e1 then Imag e1' else e
   | AlignOf t ->
       let t' = vTyp t in
       if t' != t then AlignOf t' else e

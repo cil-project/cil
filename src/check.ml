@@ -173,6 +173,7 @@ type ctxType =
                                          * in a cast *)
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
+  | CTNumeric                           (* As an argument to __real__ or __imag__ *)
 
 let d_context () = function
     CTStruct -> text "CTStruct"
@@ -184,6 +185,7 @@ let d_context () = function
   | CTExp -> text "CTExp"
   | CTSizeof -> text "CTSizeof"
   | CTDecl -> text "CTDecl"
+  | CTNumeric -> text "CTNumeric"
 
 
 (* Keep track of all tags that we use. For each tag remember also the info
@@ -225,7 +227,9 @@ let rec checkType (t: typ) (ctx: ctxType) =
           (ignore(warn "sizeof(function) is not defined in MSVC."); false)
         else
           ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
-    | _ -> true
+    | TInt _ -> true
+    | TFloat _ -> true
+    | _ -> ctx <> CTNumeric
   in
   if not (checkContext t) then
     ignore (warn "Type (%a) used in wrong context. Expected context: %a"
@@ -490,6 +494,11 @@ and checkExp (isconst: bool) (e: exp) : typ =
           typeOf e
 
       | SizeOfStr s ->  typeOf e
+
+      | Real e ->
+          let te = checkExp isconst e in
+          typeOfReal te
+      | Imag e -> E.s (E.bug "unimplemented")
 
       | AlignOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)

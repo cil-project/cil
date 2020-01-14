@@ -131,6 +131,10 @@ let rec makeThreeAddress
       BinOp(bo, makeBasic setTemp e1, makeBasic setTemp e2, tres)
   | Question _ ->
       E.s (bug "Simplify: There should not be a \"?:\" operator here.")
+  | Real e1 ->
+      Real (makeBasic setTemp e1)
+  | Imag e1 ->
+      Imag (makeBasic setTemp e1)
   | UnOp(uo, e1, tres) -> 
       UnOp(uo, makeBasic setTemp e1, tres)
   | CastE(t, e) -> 
