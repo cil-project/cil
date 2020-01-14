@@ -1256,11 +1256,17 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t2: typ) : typ =
   match unrollType t1, unrollType t2 with
     TFloat(FLongDouble, _), _ -> t1
+  | TFloat(FComplexLongDouble, _), _ -> t1
   | _, TFloat(FLongDouble, _) -> t2
+  | _, TFloat(FComplexLongDouble, _) -> t2
   | TFloat(FDouble, _), _ -> t1
+  | TFloat(FComplexDouble, _), _ -> t1
   | _, TFloat (FDouble, _) -> t2
+  | _, TFloat (FComplexDouble, _) -> t2
   | TFloat(FFloat, _), _ -> t1
+  | TFloat(FComplexFloat, _), _ -> t1
   | _, TFloat (FFloat, _) -> t2
+  | _, TFloat (FComplexFloat, _) -> t2
   | _, _ -> begin
       let t1' = integralPromotion t1 in
       let t2' = integralPromotion t2 in
@@ -3446,11 +3452,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         finishExp se lv' field_type
 
     | A.CONSTANT ct -> begin
-        let hasSuffix str =
+        let hasSuffix str suffix =
           let l = String.length str in
-          fun s ->
-            let ls = String.length s in
-            l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
+          let ls = String.length suffix in
+          l >= ls && String.uppercase_ascii suffix = String.uppercase_ascii (String.sub str (l - ls) ls)
         in
         match ct with
           A.CONST_INT str -> begin
@@ -3533,13 +3538,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
-            let hasSuffix = hasSuffix str in
             let baseint, kind =
-              if  hasSuffix "L" then
+              if hasSuffix str "L" then
                 String.sub str 0 (l - 1), FLongDouble
-              else if hasSuffix "F" then
+              else if hasSuffix str "F" then
                 String.sub str 0 (l - 1), FFloat
-              else if hasSuffix "D" then
+              else if hasSuffix str "D" then
                 String.sub str 0 (l - 1), FDouble
               else
                 str, FDouble
@@ -3555,6 +3559,36 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 (TFloat(kind,[]))
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str
+                        (Printexc.to_string e));
+              E.hadErrors := true;
+              let res = Const(CStr "booo CONS_FLOAT") in
+              finishExp empty res (typeOf res)
+            end
+        end
+        | A.CONST_COMPLEX str -> begin
+            (* Maybe it ends in U or UL. Strip those *)
+            let l = String.length str in
+            let baseint, kind =
+              if hasSuffix str "iL" then
+                String.sub str 0 (l - 2), FComplexLongDouble
+              else if hasSuffix str "iF" then
+                String.sub str 0 (l - 2), FComplexFloat
+              else if hasSuffix str "iD" then
+                String.sub str 0 (l - 2), FComplexDouble
+              else
+                str, FComplexDouble (* this is not ok *)
+            in
+            if kind = FLongDouble then
+              (* We only have 64-bit values in Ocaml *)
+              E.log "treating long double constant %s as double constant at %a.\n"
+                str d_loc !currentLoc;
+            try
+              finishExp empty
+                (Const(CReal(float_of_string baseint, kind,
+                             Some str)))
+                (TFloat(kind,[]))
+            with e -> begin
+              ignore (E.log "float_of_string_2 %s (%s)\n" baseint
                         (Printexc.to_string e));
               E.hadErrors := true;
               let res = Const(CStr "booo CONS_FLOAT") in

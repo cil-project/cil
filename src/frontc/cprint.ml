@@ -507,6 +507,7 @@ and print_expression_level (lvl: int) (exp : expression) =
       (match cst with
 	CONST_INT i -> print i
       | CONST_FLOAT r -> print r
+      | CONST_COMPLEX r -> print r
       | CONST_CHAR c -> print ("'" ^ escape_wstring c ^ "'")
       | CONST_WCHAR c -> print ("L'" ^ escape_wstring c ^ "'")
       | CONST_STRING s -> print_string s

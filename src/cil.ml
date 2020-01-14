@@ -62,7 +62,7 @@ let cilVersionRevision = Cilversion.cilVersionRev
 let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC
                                        * compiler. Default is GCC *)
-let c99Mode = ref false (* True to handle ISO C 99 vs 90 changes.
+let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes. (* TODO: This should be exposed *)
 			   So far only affects integer parsing. *)
 
 (* Set this to true to get old-style handling of gcc's extern inline C extension:
@@ -292,6 +292,9 @@ and fkind =
     FFloat      (** [float] *)
   | FDouble     (** [double] *)
   | FLongDouble (** [long double] *)
+  | FComplexFloat
+  | FComplexDouble
+  | FComplexLongDouble
 
 (** An attribute has a name and some optional parameters *)
 and attribute = Attr of string * attrparam list
@@ -1664,6 +1667,9 @@ let d_fkind () = function
     FFloat -> text "float"
   | FDouble -> text "double"
   | FLongDouble -> text "long double"
+  | FComplexFloat -> text "_Complex float"
+  | FComplexDouble -> text "_Complex double"
+  | FComplexLongDouble -> text "_Complex long double"
 
 let d_storage () = function
     NoStorage -> nil
@@ -1751,7 +1757,10 @@ let d_const () c =
       (match fsize with
          FFloat -> chr 'f'
        | FDouble -> nil
-       | FLongDouble -> chr 'L')
+       | FLongDouble -> chr 'L'
+       | FComplexFloat -> text "iF"
+       | FComplexDouble -> chr 'i'
+       | FComplexLongDouble -> text "iL")
   | CEnum(_, s, ei) -> text s
 
 
@@ -2154,6 +2163,9 @@ let rec alignOf_int t =
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
     | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
+    | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_float (* TODO! *)
+    | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_double (* TODO! *)
+    | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdouble (* TODO! *)
     | TNamed (t, _) -> alignOf_int t.ttype
     | TArray (t, _, _) -> alignOf_int t
     | TPtr _ | TBuiltin_va_list _ -> !M.theMachine.M.alignof_ptr
@@ -2962,6 +2974,9 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ctzl" (intType, [ ulongType ], false);
   H.add h "__builtin_ctzll" (intType, [ ulongLongType ], false);
 
+  (* Do sth smart here, such as add a spurious cast to void *)
+  (* H.add h "__builtin_classify_type" (intType, [ voidType], false); *)
+
   H.add h "__builtin_exp" (doubleType, [ doubleType ], false);
   H.add h "__builtin_expf" (floatType, [ floatType ], false);
   H.add h "__builtin_expl" (longDoubleType, [ longDoubleType ], false);
@@ -3340,6 +3355,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
+    (* These were treated as if they were functions but they are not *)
+    (* if v.vname = "__real__" || v.vname = "__imag__" then
+      nil
+    else *)
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
