@@ -623,7 +623,7 @@ and hash = parse
                  let s = Lexing.lexeme lexbuf in
                  let lineno = try
                    int_of_string s
-                 with Failure ("int_of_string") ->
+                 with Failure _ ->
                    (* the int is too big. *)
                    E.warn "Bad line number in preprocessed file: %s" s;
                    (-1)
