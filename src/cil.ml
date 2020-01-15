@@ -2766,6 +2766,12 @@ let isArrayType t =
     TArray _ -> true
   | _ -> false
 
+(** 6.3.2.3 subsection 3 *)
+(** An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
+let isNullPtrConstant = function
+  | CastE(TPtr(TVoid _,_), e) -> isZero @@ constFold true e
+  | e -> isZero @@ constFold true e
+
 let rec isConstant = function
   | Const _ -> true
   | UnOp (_, e, _) -> isConstant e

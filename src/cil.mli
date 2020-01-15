@@ -1657,6 +1657,9 @@ val isConstantOffset: offset -> bool
     constant with value zero *)
 val isZero: exp -> bool
 
+(** True if the given expression is a null-pointer constant. As per 6.3.2.3 subsection 3 *)
+val isNullPtrConstant: exp -> bool
+
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
