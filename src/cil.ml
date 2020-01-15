@@ -1609,7 +1609,9 @@ let typeOfReal t =
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
-    in TFloat (newfkind fkind, attrs)
+    in
+    let newattrs = dropAttribute "complex" attrs in
+    TFloat (newfkind fkind, newattrs)
   | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
 
 let var vi : lval = (Var vi, NoOffset)
@@ -3000,9 +3002,6 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ctz" (intType, [ uintType ], false);
   H.add h "__builtin_ctzl" (intType, [ ulongType ], false);
   H.add h "__builtin_ctzll" (intType, [ ulongLongType ], false);
-
-  (* Do sth smart here, such as add a spurious cast to void *)
-  (* H.add h "__builtin_classify_type" (intType, [ voidType], false); *)
 
   H.add h "__builtin_exp" (doubleType, [ doubleType ], false);
   H.add h "__builtin_expf" (floatType, [ floatType ], false);
