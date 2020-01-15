@@ -1873,24 +1873,26 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     alphaConvertVarAndAddToEnv true vi, false
   end
 
-let conditionalConversion (t2: typ) (t3: typ) : typ =
+let conditionalConversion (t2: typ) (t3: typ) (e2: exp option) (e3:exp) : typ =
   let tresult =  (* ISO 6.5.15 *)
-    match unrollType t2, unrollType t3 with
+    match unrollType t2, unrollType t3, e2 with
       (TInt _ | TEnum _ | TFloat _),
-      (TInt _ | TEnum _ | TFloat _) ->
+      (TInt _ | TEnum _ | TFloat _), _ ->
         arithmeticConversion t2 t3
-    | TComp (comp2,_), TComp (comp3,_)
+    | TComp (comp2,_), TComp (comp3,_), _
           when comp2.ckey = comp3.ckey -> t2
-    | TPtr(_, _), TPtr(TVoid _, _) -> t2
-    | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr _, TPtr _ when Util.equals (typeSig t2) (typeSig t3) -> t2
-    | TPtr _, TInt _  -> t2 (* most likely comparison with 0 *)
-    | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
+    | TPtr(_, _), TPtr(TVoid _, _), _ ->
+      if isNullPtrConstant e3 then t2 else t3
+    | TPtr(TVoid _, _), TPtr(_, _), Some e2' ->
+      if isNullPtrConstant e2' then t3 else t2
+    | TPtr _, TPtr _, _ when Util.equals (typeSig t2) (typeSig t3) -> t2
+    | TPtr _, TInt _, _  -> t2 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
+    | TInt _, TPtr _, _ -> t3 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
 
           (* When we compare two pointers of different type, we combine them
            * using the same algorithm when combining multiple declarations of
            * a global *)
-    | (TPtr _) as t2', (TPtr _ as t3') -> begin
+    | (TPtr _) as t2', (TPtr _ as t3'), _ -> begin
         try combineTypes CombineOther t2' t3'
         with Failure msg -> begin
           ignore (warn "A.QUESTION: %a does not match %a (%s)"
@@ -1898,7 +1900,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
           t2 (* Just pick one *)
         end
     end
-    | _, _ -> E.s (error "A.QUESTION for invalid combination of types")
+    | _, _,_ -> E.s (error "A.QUESTION for invalid combination of types")
   in
   tresult
 
@@ -4541,22 +4543,22 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let ce1 = doCondExp asconst e1 in
         (* Now we must find the type of both branches, in order to compute
          * the type of the result *)
-        let se2, e2'o (* is an option. None means use e1 *), t2 =
+        let se2, e2'o (* is an option. None means use e1 *), e_of_t2, t2 =
           match e2 with
             A.NOTHING -> begin (* The same as the type of e1 *)
               match ce1 with
-                CEExp (_, e1') -> empty, None, typeOf e1' (* Do not promote
+                CEExp (_, e1') -> empty, None, Some e1', typeOf e1' (* Do not promote
                                                              to bool *)
-              | _ -> empty, None, intType
+              | _ -> empty, None, None, intType
             end
           | _ ->
               let se2, e2', t2 = doExp asconst e2 (AExp None) in
-              se2, Some e2', t2
+              se2, Some e2', Some e2', t2
         in
         (* Do e3 for real *)
         let se3, e3', t3 = doExp asconst e3 (AExp None) in
         (* Compute the type of the result *)
-        let tresult = conditionalConversion t2 t3 in
+        let tresult = conditionalConversion t2 t3 e_of_t2 e3' in
         match ce1 with
           CEExp (se1, e1') when isConstFalse e1' && canDrop se2 ->
              finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult
