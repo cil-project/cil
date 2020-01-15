@@ -405,6 +405,7 @@ and get_operator exp =
   | TYPE_ALIGNOF _ -> ("", 16)
   | IMAG exp -> ("", 16)
   | REAL exp -> ("", 16)
+  | CLASSIFYTYPE exp -> ("", 16)
   | INDEX (exp, idx) -> ("", 15)
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
@@ -502,6 +503,11 @@ and print_expression_level (lvl: int) (exp : expression) =
       print_expression_level 16 exp;
       print "(";
       print_comma_exps args;
+      print ")"
+  | CLASSIFYTYPE exp ->
+      print "__builtin_classify_type";
+      print "(";
+      print_expression_level 1 exp;
       print ")"
   | COMMA exps ->
       print_comma_exps exps

@@ -292,7 +292,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> IF TRY EXCEPT FINALLY
 %token ELSE
 
-%token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__
+%token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
 %token LABEL__
 %token<Cabs.cabsloc> BUILTIN_VA_ARG ATTRIBUTE_USED
 %token BUILTIN_VA_LIST
@@ -327,7 +327,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
 %left	STAR SLASH PERCENT CONST RESTRICT VOLATILE COMPLEX HIDDEN
-%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF IMAG REAL
+%right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF IMAG REAL CLASSIFYTYPE
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
 %right  NAMED_TYPE     /* We'll use this to handle redefinitions of
@@ -532,6 +532,8 @@ unary_expression:   /*(* 6.5.3 *)*/
 		        {REAL (fst $2), $1}
 |	 	IMAG cast_expression
 		        {IMAG (fst $2), $1}
+|   CLASSIFYTYPE cast_expression
+            {CLASSIFYTYPE (fst $2), $1}
 |		ALIGNOF unary_expression
 		        {EXPR_ALIGNOF (fst $2), $1}
 |	 	ALIGNOF LPAREN type_name RPAREN
@@ -1414,6 +1416,7 @@ unary_attr:
 |   SIZEOF unary_expression              { EXPR_SIZEOF (fst $2) }
 |   REAL unary_expression                { REAL (fst $2) }
 |   IMAG unary_expression                { IMAG (fst $2) }
+|   CLASSIFYTYPE unary_expression        { CLASSIFYTYPE (fst $2) }
 |   SIZEOF LPAREN type_name RPAREN
 		                         {let b, d = $3 in TYPE_SIZEOF (b, d)}
 

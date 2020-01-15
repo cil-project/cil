@@ -3648,6 +3648,37 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
       let real = Real e' in
       finishExp se real (typeOfReal t)
     | A.IMAG e -> E.s (bug "cabs2cil: unsupported")
+    | A.CLASSIFYTYPE e ->
+      let classify_type t =
+        match unrollTypeDeep t with (* See gcc/typeclass.h *)
+        | TVoid _ -> 0
+        | TInt (ikind, _)   ->begin
+          match ikind with
+          | IChar -> 2
+          | IBool -> 4
+          | _ -> 1
+          end
+        | TFloat (fkind, _)  -> begin
+          match fkind with
+          | FFloat
+          | FDouble
+          | FLongDouble -> 8
+          | FComplexFloat
+          | FComplexDouble
+          | FComplexLongDouble -> 9
+          end
+        | TEnum _ -> 3
+        | TPtr _ -> 5
+        | TArray _ -> 14
+        | TFun _ -> 10
+        | _ -> E.s (E.bug "cabs2cil: failed to classify for __builtin_classify_type")
+(* no_type_class = -1, void_type_class 0, integer_type_class 1, char_type_class 2, enumeral_type_class 3, boolean_type_class 4,
+  pointer_type_class 5, reference_type_class 6, offset_type_class 7, real_type_class 8,
+  complex_type_class 9, function_type_class 10, method_type_class 11, record_type_class 12, union_type_class 13,  array_type_class 14, string_type_class 15, lang_type_class 16 *)
+      in
+      let _,_, t = doExp true e (AType) in
+      let res = Cil.integer (classify_type t) in
+      finishExp empty (res) (Cil.typeOf res)
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
         finishExp empty (AlignOf(typ)) !typeOfSizeOf

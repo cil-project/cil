@@ -186,6 +186,7 @@ let init_lexicon _ =
       ("__volatile", fun loc -> VOLATILE loc);
       ("__real__", fun loc -> REAL loc);
       ("__imag__", fun loc -> IMAG loc);
+      ("__builtin_classify_type", fun loc -> CLASSIFYTYPE loc);
       ("__FUNCTION__", fun loc -> FUNCTION__ loc);
       ("__func__", fun loc -> FUNCTION__ loc); (* ISO 6.4.2.2 *)
       ("__PRETTY_FUNCTION__", fun loc -> PRETTY_FUNCTION__ loc);

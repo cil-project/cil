@@ -270,6 +270,7 @@ and expression =
   | VARIABLE of string
   | REAL of expression
   | IMAG of expression
+  | CLASSIFYTYPE of expression
   | EXPR_SIZEOF of expression
   | TYPE_SIZEOF of specifier * decl_type
   | EXPR_ALIGNOF of expression

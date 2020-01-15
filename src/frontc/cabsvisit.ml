@@ -512,6 +512,9 @@ and childrenExpression vis e =
   | IMAG e1 ->
       let e1' = ve e1 in
       if e1' != e1 then IMAG (e1') else e
+  | CLASSIFYTYPE e1 ->
+      let e1' = ve e1 in
+      if e1' != e1 then CLASSIFYTYPE (e1') else e
   | TYPE_SIZEOF (s, dt) -> 
       let s' = visitCabsSpecifier vis s in
       let dt' = visitCabsDeclType vis false dt in
