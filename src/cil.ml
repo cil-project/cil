@@ -2184,9 +2184,9 @@ let rec alignOf_int t =
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
     | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
-    | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_float (* TODO! *)
-    | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_double (* TODO! *)
-    | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdouble (* TODO! *)
+    | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_floatcomplex
+    | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_doublecomplex
+    | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdoublecomplex
     | TNamed (t, _) -> alignOf_int t.ttype
     | TArray (t, _, _) -> alignOf_int t
     | TPtr _ | TBuiltin_va_list _ -> !M.theMachine.M.alignof_ptr
@@ -2446,7 +2446,10 @@ and bitsSizeOf t =
   | TInt (ik,_) -> 8 * (bytesSizeOfInt ik)
   | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
-  | TFloat _ -> 8 * !M.theMachine.M.sizeof_float
+  | TFloat(FFloat, _) -> 8 * !M.theMachine.M.sizeof_float
+  | TFloat(FComplexDouble, _) ->  8 * !M.theMachine.M.sizeof_doublecomplex
+  | TFloat(FComplexLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdoublecomplex
+  | TFloat(FComplexFloat, _) -> 8 * !M.theMachine.M.sizeof_floatcomplex
   | TEnum (ei, _) -> bitsSizeOf (TInt(ei.ekind, []))
   | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
