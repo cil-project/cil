@@ -20,7 +20,9 @@ void forlong() {
 
 int main(void)
 {
+    double complex x0 = 1.0i + 17;
     double complex x1 = 1.0iF + 0.5;
+    double complex x00 = 1.0Fi + 0.5;
 
     if(sizeof(double complex) != sizeof(1.0iF + 0.5)) {
         E(1);

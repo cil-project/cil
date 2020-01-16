@@ -3583,14 +3583,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
             let baseint, kind =
-              if hasSuffix str "iL" then
+              if hasSuffix str "iL" || hasSuffix str "Li" then
                 String.sub str 0 (l - 2), FComplexLongDouble
-              else if hasSuffix str "iF" then
+              else if hasSuffix str "iF" || hasSuffix str "Fi" then
                 String.sub str 0 (l - 2), FComplexFloat
-              else if hasSuffix str "iD" then
+              else if hasSuffix str "iD" || hasSuffix str "Di" then
                 String.sub str 0 (l - 2), FComplexDouble
-              else
-                str, FComplexDouble (* this is not ok *)
+              else (* A.CONST_COMPLEX always has the suffix i *)
+                String.sub str 0 (l - 1), FComplexDouble
             in
             if kind = FLongDouble then
               (* We only have 64-bit values in Ocaml *)

@@ -438,7 +438,7 @@ let hexfloat = hexprefix hexfraction binexponent
 let floatsuffix = ['f' 'F' 'l' 'L']
 let floatnum = (decfloat | hexfloat) floatsuffix?
 
-let complexnum = (decfloat | hexfloat) ['i' 'I'] floatsuffix
+let complexnum = (decfloat | hexfloat) ((['i' 'I'] floatsuffix) | (floatsuffix? ['i' 'I']))
 
 
 let ident = (letter|'_'|'$')(letter|decdigit|'_'|'$')*
