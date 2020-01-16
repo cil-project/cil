@@ -61,10 +61,10 @@ if ($solaris || $freebsd) {
 #  1001 - Parsing
 #  1002 - cabs2cil
 #  1003 - Compilation
-#  1004 - Running 
+#  1004 - Running
 
 
-my %commonerrors = 
+my %commonerrors =
     ("^Parsing " => sub { $_[1]->{instage} = 1001; },
 
      "^Converting CABS" => sub { $_[1]->{instage} = 1002; },
@@ -73,27 +73,27 @@ my %commonerrors =
 
 # We are seeing an error from make. Try to classify it based on the stage
 # in which we are
-     "^make: \\*\\*\\*" => 
-     sub { 
+     "^make: \\*\\*\\*" =>
+     sub {
          if($_[1]->{ErrorCode} == 0) {
              $_[1]->{ErrorCode} = $_[1]->{instage};
          }},
-    
+
     #"[sS]yntax error" => sub { $_[1]->{ErrorCode} = 1000; },
-    
+
          # Collect some more parameters
          # Now error messages
-    "^((Error|Bug|Unimplemented): .+)\$" 
+    "^((Error|Bug|Unimplemented): .+)\$"
                       => sub { if(! defined $_[1]->{ErrorMsg}) {
                                  $_[1]->{ErrorMsg} = $_[2];} },
     "^(.+ : error .+)\$" => sub { if(! defined $_[1]->{ErrorMsg}) {
                                      $_[1]->{ErrorMsg} = $_[2];} },
-    "^(.+:\\d+: (Error|Unimplemented|Bug):.+)\$" 
+    "^(.+:\\d+: (Error|Unimplemented|Bug):.+)\$"
                      => sub { if(! defined $_[1]->{ErrorMsg}) {
                                        $_[1]->{ErrorMsg} = $_[2];} },
     "^(.+: fatal error.+)\$" => sub { if(! defined $_[1]->{ErrorMsg}) {
                                          $_[1]->{ErrorMsg} = $_[2];} },
-    "^stackdump: Dumping stack trace" => 
+    "^stackdump: Dumping stack trace" =>
                    sub { if(! defined $_[1]->{ErrorMsg}) {
                          $_[1]->{ErrorMsg} = $_[2];} },
 
@@ -104,7 +104,7 @@ my %commonerrors =
     "^TOTAL\\s+([\\d.]+) s" => sub { $_[1]->{CURE} = $_[2]; },
     );
 
-                                         
+
 # Add a test.
 # command is the base name of the tests + space separated arguments
 # extrargs are passed on the command line for each test
@@ -113,7 +113,7 @@ sub addTest {
     my($command, %extrafields) = @_;
 
     my $self = $main::globalTEST;
-    my ($name, $extraargs) = 
+    my ($name, $extraargs) =
         ($command =~ /^(\S+) ?(.*)$/);     # name is first word
 
     my $theargs = $self->testCommandExtras($extraargs);
@@ -178,7 +178,7 @@ $TEST->newTest(
     Dir => "..",
     Cmd => "$make doc",
     Group => ["doc"]);
-    
+
 # Now add tests
 addTest("testrun/const-array-init WARNINGS_ARE_ERRORS=1");
 addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
@@ -210,7 +210,7 @@ addTest("testrun/question");
 addTest("testrun/question2");
 addTest("testrun/question3 USE_LOGICAL_OPERATORS=1");
 addTest("test/argcast");
-addBadComment("test/argcast", 
+addBadComment("test/argcast",
 	      "Notbug. CIL bases type for implicit functions based on first call's argument.");
 addTest("test/array1");
 addTest("test/array2");
@@ -244,7 +244,7 @@ addTest("testrun/packed _GNUCC=1 WARNINGS_ARE_ERRORS=1");
 addTest("test/packed2 _GNUCC=1");
 addTest("test/bitfield");
 addTest("testrun/bitfield3");
-     
+
 addTest("testrun/bitfield2");
 addTest("testrun/call2 ");
 addTest("test/cast1");
@@ -275,14 +275,14 @@ addTest("test/enum");
 addTest("testrun/enum2");
 addTest("test/func");
 addTest("test/funcarg ");
-addBadComment("test/funcarg", 
+addBadComment("test/funcarg",
                         "Bug. In parser (argument of function type)");
 
 addTest("testrun/func2");
 addTest("testrun/func3");
 addTest("testrun/func4");
 addTest("test/func10 ");
-addBadComment("test/func10", 
+addBadComment("test/func10",
                      "Bug. Cannot parse some strange K&R function definition");
 addTest("test/globals");
 addTest("test/globals2 ");
@@ -325,7 +325,7 @@ addBadComment("testrun/inline1", "Notbug. CIL now matches gcc's new behavior for
 addTest("testrun/inline2 _GNUCC=1");
 addTest("test/inline3 _GNUCC=1");
 addTest("test/decl2 _GNUCC=1");
-addBadComment("test/decl2", 
+addBadComment("test/decl2",
 	      "Bug. An old-style argument type should go through the default type conversion before being added to the function's type.");
 addTest("test/jmp_buf");
 addTest("test/linux_atomic _GNUCC=1");
@@ -340,7 +340,7 @@ addTest("testrun/perror");
 addTest("testrun/perror1");
 addTest("test/pure");
 addTest("testrun/post-assign ");
-addBadComment("testrun/post-assign", 
+addBadComment("testrun/post-assign",
                         "Minor. CIL does not have the same evaluation order for ++ as gcc");
 addTest("test/printf ");
 addTest("test/printf_const ");
@@ -391,7 +391,7 @@ addTest("test/voidstar");
 addTest("testrun/memcpy1");
 
 addTest("test/noreturn ");
-                
+
 addTest("test/constrexpr ");
 
 addTest("testrun/flexible-array-member ");
@@ -417,8 +417,8 @@ addTest("testrun/wchar2");
 addTest("testrun/wchar3");
 addTest("testrun/wchar4");
 addTest("testrun/wchar5 ");
-addTest("testrun/wchar6"); 
-addTest("testrun/wchar7"); 
+addTest("testrun/wchar6");
+addTest("testrun/wchar7");
 addTest("testrun/escapes");
 addTest("test-bad1/wchar-bad ");
 addTest("testrun/addrof3 _GNUCC=1");
@@ -470,7 +470,7 @@ addTest("test/linuxcombine1_1 ");
 addTest("arcombine _GNUCC=1");
 addTest("testrun/funptr1");
 addTest("testrun/typespec1 _GNUCC=1");
-addBadComment("testrun/typespec1", 
+addBadComment("testrun/typespec1",
                         "Notbug. GCC 4 no longer allows this, so the error is fine.");
 addTest("testrun/returnvoid ");
 addTest("testrun/returnvoid1 ");
@@ -479,17 +479,17 @@ addTest("testrun/for1 ");
 addTest("testrun/void _GNUCC=1");
 addTest("test/voidtypedef ");
 addTest("testrun/wrongnumargs ");
-addBadComment("testrun/wrongnumargs", 
+addBadComment("testrun/wrongnumargs",
                         "Notbug. Should fail since we don't pad argument lists");
 addTest("test/restrict EXTRAARGS=-std=c9x _GNUCC=1");
 addTest("test/restrict1 _GNUCC=1");
 addTest("testrun/rmtmps1 ");
 addTest("testrun/rmtmps2 _GNUCC=1");
 addTest("test/proto1 ");
-addBadComment("test/proto1", 
+addBadComment("test/proto1",
 	      "Bug. CIL doesn't like pointers to old-style functions...");
 addTest("test/proto2 ");
-addBadComment("test/proto2", 
+addBadComment("test/proto2",
                         "Bug. In parser (precedences)");
 addTest("testrun/struct1 ");
 addTest("testrun/voidarg ");
@@ -502,13 +502,13 @@ addBadComment("testrun/union6",
 addTest("runall/extinline ");
 
 addTest("testrun/rmtmps-attr ");
-addBadComment("testrun/rmtmps-attr", 
+addBadComment("testrun/rmtmps-attr",
                         "Bug. A limitation of our support for attributes");
- 
+
 addTest("testrun/vsp");
 
 addTest("test/cpp-2 ");
-addBadComment("test/cpp-2", 
+addBadComment("test/cpp-2",
                         "Bug. In parser (empty pragmas)");
 addTest("test/cpp-3 _GNUCC=1");
 
@@ -516,7 +516,7 @@ addTest("testrungcc/enum3 _GNUCC=1");
 addTest("testrungcc/enum3a _GNUCC=1");
 addTest("testrungcc/enum3b _GNUCC=1");
 addTest("testrungcc/enum3c _GNUCC=1");
-addBadComment("testrungcc/enum3c", 
+addBadComment("testrungcc/enum3c",
                         "Limitation. CIL constant folder doesn't consider x << y constant if y is strange (negative or bigger than #bits in x's type)");
 addTest("testrungcc/enum3d _GNUCC=1");
 addTest("testrungcc/enum3e _GNUCC=1");
@@ -530,7 +530,7 @@ addTest("testrungcc/enum3l _GNUCC=1");
 
 
 if($win32) {
-    addTest("testrun/extern_init _MSVC=1");   
+    addTest("testrun/extern_init _MSVC=1");
     addTest("testrun/msvc2 _MSVC=1");
     addTest("testrun/msvc3 _MSVC=1");
     addTest("testrun/msvc4 _MSVC=1");
@@ -549,7 +549,7 @@ addTest("testrun/extern1 ");
 addTest("test/duplicate ");
 
 addTest("testrun/simon6");
-    
+
 addTest("testrun/stringsize");
 addTest("testrun/min ");
 
@@ -587,7 +587,7 @@ addTest("test/sync-2 _GNUCC=1");
 addTest("test/sync-3 _GNUCC=1");
 addTest("testrun/comparisons");
 addTest("testrun/assign");
-    
+
 
 
 
@@ -724,44 +724,44 @@ addTest("test/shell-escape SHELL_ESCAPE=1");
 ## if we have the c-torture tests add them
 ## But only if the ctorture group was specfied
 my $ctorture = '/usr/local/src/gcc/gcc/testsuite/gcc.c-torture';
-if(-d $ctorture && 
+if(-d $ctorture &&
    defined $TEST->{option}->{group} &&
     grep { $_ eq 'ctorture'} @{$TEST->{option}->{group}}) {
-    
+
     # Omit some tests because they use __complex__
     my @omit = ('compile/20000804-1', 'compile/20001222-1', 'compile/941019-1',
                 'compile/981223-1', 'compile/991213-1', 'compile/20010605-2',
-                'compile/960512-1', 'compile/complex-1', 
-                'compile/complex-2', 'compile/complex-4', 
+                'compile/960512-1', 'compile/complex-1',
+                'compile/complex-2', 'compile/complex-4',
                 'compile/complex-5', 'execute/complex-2', 'execute/complex-5',
-                'execute/960512-1', 'execute/complex-4', 
+                'execute/960512-1', 'execute/complex-4',
                 'execute/complex-1', 'execute/20010605-2');
 
     # Also omit those with inner functions
-    push @omit, 
+    push @omit,
     ('compile/951116-1', 'compile/920415-1',
-     'execute/920415-1', 'compile/20010605-1', 
+     'execute/920415-1', 'compile/20010605-1',
      'execute/20010605-1', 'compile/20011023-1',
      'compile/20010903-2', 'execute/comp-goto-2', 'execute/nestfunc-2',
      'execute/921215-1', 'execute/920428-2', 'execute/921017-1',
-     'execute/nest-stdar-1', 'execute/nestfunc-3', 'execute/920501-7', 
-     'execute/920721-4', 'execute/920612-2', 'execute/20010209', 
+     'execute/nest-stdar-1', 'execute/nestfunc-3', 'execute/920501-7',
+     'execute/920721-4', 'execute/920612-2', 'execute/20010209',
      'execute/931002-1', 'execute/nestfunc-1', 'execute/20000822-1',
      'compile/930506-2', 'execute/20010209-1');
 
-    # Read the compile tests 
+    # Read the compile tests
    my @tortures;
-   foreach my $tortdir ('compile', 'execute', 'compat') { 
-       @tortures = 
-           map { $_ =~ m|$ctorture/$tortdir/(.+)\.c|; $1 } 
+   foreach my $tortdir ('compile', 'execute', 'compat') {
+       @tortures =
+           map { $_ =~ m|$ctorture/$tortdir/(.+)\.c|; $1 }
                  (glob "$ctorture/$tortdir/*.c");
        # Remove those that were produced in previous runs
        @tortures = grep { $_ !~ m|cil$| } @tortures;
        # Remove those that we know should fail
-       @tortures = grep { my $t = "$tortdir/$_"; 
+       @tortures = grep { my $t = "$tortdir/$_";
                           ! grep { $_ =~ m|$t|} @omit } @tortures;
        foreach my $tst (@tortures) {
-           addTest("tort/$tortdir/$tst _GNUCC=1"); 
+           addTest("tort/$tortdir/$tst _GNUCC=1");
            $TEST->addGroups("tort/$tortdir/$tst", 'ctorture');
        }
    }
@@ -815,14 +815,14 @@ sub extraOptions {
     return (
         @supopt,
         "--cildebug!",
-        "--noremake!", 
+        "--noremake!",
             );
 }
 
 
 sub extraHelpMessage {
     my($self) = @_;
-    
+
     my ($scriptname, $extra) = $self->SUPER::extraHelpMessage();
     return ("testcil",
             $extra . << "EOF");
@@ -830,7 +830,7 @@ sub extraHelpMessage {
 Additional arguments for SafeC test harness
   --cildebug           Use the debug versions of everything (default is false)
   --noremake           Does not try to remake the executable before each test.
-                       (so that you can modify the sources while the test 
+                       (so that you can modify the sources while the test
                        is running)
   Default log file is safec.log
 EOF
