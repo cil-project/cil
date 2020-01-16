@@ -237,7 +237,10 @@ let rec checkType (t: typ) (ctx: ctxType) =
   match t with
     (TVoid a | TBuiltin_va_list a) -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
-  | TFloat (_, a) -> checkAttributes a
+  | TFloat (_, a) ->
+      checkAttributes a;
+      if hasAttribute "complex" a then
+        E.s (E.bug "float type has attribute complex, this should never be the case as there are fkinds for this");
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr
 
   | TNamed (ti, a) ->

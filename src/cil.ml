@@ -1614,6 +1614,15 @@ let typeOfReal t =
     TFloat (newfkind fkind, newattrs)
   | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
 
+(** for an fkind, return the corresponding complex fkind *)
+let getComplexFkind = function
+  | FFloat -> FComplexFloat
+  | FDouble -> FComplexDouble
+  | FLongDouble -> FComplexLongDouble
+  | FComplexFloat -> FComplexFloat
+  | FComplexDouble -> FComplexDouble
+  | FComplexLongDouble -> FComplexLongDouble
+
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 

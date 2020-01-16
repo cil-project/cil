@@ -1496,9 +1496,9 @@ let cabsTypeAddAttributes a0 t =
           t
     | _ ->
         (* anything else: add a0 to existing attributes *)
-          let add (a: attributes) = cabsAddAttributes a0 a in
+          let addA0To (a: attributes) = cabsAddAttributes a0 a in
           match t with
-            TVoid a -> TVoid (add a)
+            TVoid a -> TVoid (addA0To a)
           | TInt (ik, a) ->
               (* Here we have to watch for the mode attribute *)
 (* sm: This stuff is to handle a GCC extension where you can request integers*)
@@ -1512,7 +1512,7 @@ let cabsTypeAddAttributes a0 t =
 (* A consequence of this handling is that we throw away the mode          *)
 (* attribute, which we used to go out of our way to avoid printing anyway.*)
 (* DG: Use machine model to pick correct type                             *)
-              let ik', a0' =
+              let ik', a0' = begin
                 (* Go over the list of new attributes and come back with a
                  * filtered list and a new integer kind *)
                 List.fold_left
@@ -1544,17 +1544,22 @@ let cabsTypeAddAttributes a0 t =
                     | _ -> (ik', a0one :: a0'))
                   (ik, [])
                   a0
+      end
               in
               TInt (ik', cabsAddAttributes a0' a)
 
-          | TFloat (fk, a) -> TFloat (fk, add a)
-          | TEnum (enum, a) -> TEnum (enum, add a)
-          | TPtr (t, a) -> TPtr (t, add a)
-          | TArray (t, l, a) -> TArray (t, l, add a)
-          | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-          | TComp (comp, a) -> TComp (comp, add a)
-          | TNamed (t, a) -> TNamed (t, add a)
-          | TBuiltin_va_list a -> TBuiltin_va_list (add a)
+          | TFloat (fk, a) ->
+            if Cil.hasAttribute "complex" a0 then
+              TFloat (Cil.getComplexFkind fk, cabsAddAttributes (Cil.dropAttribute "complex" a0) a)
+            else
+              TFloat (fk, addA0To a)
+          | TEnum (enum, a) -> TEnum (enum, addA0To a)
+          | TPtr (t, a) -> TPtr (t, addA0To a)
+          | TArray (t, l, a) -> TArray (t, l, addA0To a)
+          | TFun (t, args, isva, a) -> TFun(t, args, isva, addA0To a)
+          | TComp (comp, a) -> TComp (comp, addA0To a)
+          | TNamed (t, a) -> TNamed (t, addA0To a)
+          | TBuiltin_va_list a -> TBuiltin_va_list (addA0To a)
   end
 
 
