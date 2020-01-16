@@ -1324,8 +1324,8 @@ val isVoidType: typ -> bool
 (** is the given type "void *"? *)
 val isVoidPtrType: typ -> bool
 
-(** for numerical __complex types return type of corresponding real part *)
-val typeOfReal: typ -> typ
+(** for numerical __complex types return type of corresponding real part and imaginary parts *)
+val typeOfRealAndImagComponents: typ -> typ
 
 (** for an fkind, return the corresponding complex fkind *)
 val getComplexFkind: fkind -> fkind

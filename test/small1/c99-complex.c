@@ -29,9 +29,15 @@ int main(void)
     }
 
     double d = creal(x1);
+    double i = cimag(x1);
+
+    double j = __imag__(1.0if);
 
     if(d != 0.5)
         E(2);
+
+    if(i != 1.0 || j != 1.0)
+        E(3);
 
     double complex z1 = 1.0iF + 1;
     printf("I * I = %.1f%+.1fi\n", creal(z1), cimag(z1));

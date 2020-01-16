@@ -3658,8 +3658,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     | A.REAL e ->
       let (se, e', t) = doExp false e (AExp None) in
       let real = Real e' in
-      finishExp se real (typeOfReal t)
-    | A.IMAG e -> E.s (bug "cabs2cil: unsupported")
+      finishExp se real (typeOfRealAndImagComponents t)
+    | A.IMAG e ->
+      let (se, e', t) = doExp false e (AExp None) in
+      let imag = Imag e' in
+      finishExp se imag (typeOfRealAndImagComponents t)
     | A.CLASSIFYTYPE e ->
       let classify_type t =
         match unrollTypeDeep t with (* See gcc/typeclass.h *)

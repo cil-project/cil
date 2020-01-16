@@ -500,9 +500,10 @@ and checkExp (isconst: bool) (e: exp) : typ =
 
       | Real e ->
           let te = checkExp isconst e in
-          typeOfReal te
-      | Imag e -> E.s (E.bug "unimplemented")
-
+          typeOfRealAndImagComponents te
+      | Imag e ->
+          let te = checkExp isconst e in
+          typeOfRealAndImagComponents te
       | AlignOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;

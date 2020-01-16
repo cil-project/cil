@@ -1597,8 +1597,8 @@ let isVoidPtrType t =
     TPtr(tau,_) when isVoidType tau -> true
   | _ -> false
 
-(* get the typ of __real__(e) for e of typ t*)
-let typeOfReal t =
+(* get the typ of __real__(e) or __imag__(e) for e of typ t*)
+let typeOfRealAndImagComponents t =
   match unrollType t with
   | TInt _ -> t
   | TFloat (fkind, attrs) ->
@@ -1920,8 +1920,8 @@ let rec typeOf (e: exp) : typ =
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-  | Real e -> typeOfReal @@ typeOf e
-  | Imag e -> E.s (E.bug "unsupported")
+  | Real e -> typeOfRealAndImagComponents @@ typeOf e
+  | Imag e -> typeOfRealAndImagComponents @@ typeOf e
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
