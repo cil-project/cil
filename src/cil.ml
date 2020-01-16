@@ -1610,8 +1610,7 @@ let typeOfReal t =
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
     in
-    let newattrs = dropAttribute "complex" attrs in
-    TFloat (newfkind fkind, newattrs)
+    TFloat (newfkind fkind, attrs)
   | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
 
 (** for an fkind, return the corresponding complex fkind *)
@@ -3393,10 +3392,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    (* These were treated as if they were functions but they are not *)
-    (* if v.vname = "__real__" || v.vname = "__imag__" then
-      nil
-    else *)
     let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
