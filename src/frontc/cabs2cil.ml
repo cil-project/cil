@@ -1254,19 +1254,26 @@ let defaultArgumentPromotion (t : typ) : typ = (* c.f. ISO 6.5.2.2:6 *)
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
     (t2: typ) : typ =
+  let resultingFType fkind1 t1 fkind2 t2 =
+    (* t1 and t2 are the original types before unrollType, so TNamed is preserved if possible *)
+    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble in
+    match fkind1, fkind2 with
+    | FComplexLongDouble, _ -> t1
+    | _, FComplexLongDouble -> t2
+    | FLongDouble, other -> if isComplex other then TFloat(FComplexLongDouble, []) else t1
+    | other, FLongDouble -> if isComplex other then TFloat(FComplexLongDouble, []) else t2
+    | FComplexDouble, other -> t1
+    | other, FComplexDouble -> t2
+    | FDouble, other -> if isComplex other then TFloat(FComplexDouble, []) else t1
+    | other, FDouble -> if isComplex other then TFloat(FComplexDouble, []) else t2
+    | FComplexFloat, other -> t1
+    | other, FComplexFloat -> t2
+    | FFloat, FFloat -> t1
+  in
   match unrollType t1, unrollType t2 with
-    TFloat(FLongDouble, _), _ -> t1
-  | TFloat(FComplexLongDouble, _), _ -> t1
-  | _, TFloat(FLongDouble, _) -> t2
-  | _, TFloat(FComplexLongDouble, _) -> t2
-  | TFloat(FDouble, _), _ -> t1
-  | TFloat(FComplexDouble, _), _ -> t1
-  | _, TFloat (FDouble, _) -> t2
-  | _, TFloat (FComplexDouble, _) -> t2
-  | TFloat(FFloat, _), _ -> t1
-  | TFloat(FComplexFloat, _), _ -> t1
-  | _, TFloat (FFloat, _) -> t2
-  | _, TFloat (FComplexFloat, _) -> t2
+  | TFloat(fkind1, _), TFloat(fkind2, _) -> resultingFType fkind1 t1 fkind2 t2
+  | TFloat(_, _), _ -> t1
+  | _, TFloat(_, _) -> t2
   | _, _ -> begin
       let t1' = integralPromotion t1 in
       let t2' = integralPromotion t2 in

@@ -22,10 +22,14 @@ int main(void)
 {
     double complex x1 = 1.0iF + 0.5;
 
+    if(sizeof(double complex) != sizeof(1.0iF + 0.5)) {
+        E(1);
+    }
+
     double d = creal(x1);
 
     if(d != 0.5)
-        E(1);
+        E(2);
 
     double complex z1 = 1.0iF + 1;
     printf("I * I = %.1f%+.1fi\n", creal(z1), cimag(z1));
