@@ -726,8 +726,10 @@ addTest("testrunc99/c99-predefined");
 addTest("testrunc99/c99-struct");
 addTest("testrunc99/c99-complex");
 addTest("testrunc99/c99-universal-character-names");
+addBadComment("testrunc99/c99-universal-character-names", "Universal character names are not yet supported");
 addTest("testrunc99/c99-tgmath");
-addTest("combinec99inline ");
+addTest("combinec99inline");
+addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
 
 # ---------------- c-torture -------------
