@@ -62,8 +62,14 @@ let cilVersionRevision = Cilversion.cilVersionRev
 let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC
                                        * compiler. Default is GCC *)
-let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes. (* TODO: This should be exposed *)
-			   So far only affects integer parsing. *)
+let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes.
+      c99mode only affects parsing of decimal integer constants without suffix
+          a) on machines where long and long long do not have the same size
+             (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux):
+             giving constants that are bigger than max long type long long in c99mode vs. unsigned long
+             if c99mode is off.
+          b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
+             warning in C99 mode vs. unsigned long long if c99mode is off. *)
 
 (* Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is
@@ -289,12 +295,12 @@ and ikind =
 
 (** Various kinds of floating-point numbers*)
 and fkind =
-    FFloat      (** [float] *)
-  | FDouble     (** [double] *)
-  | FLongDouble (** [long double] *)
-  | FComplexFloat
-  | FComplexDouble
-  | FComplexLongDouble
+    FFloat              (** [float] *)
+  | FDouble             (** [double] *)
+  | FLongDouble         (** [long double] *)
+  | FComplexFloat       (** [float _Complex] *)
+  | FComplexDouble      (** [double _Complex] *)
+  | FComplexLongDouble  (** [long double _Complex]*)
 
 (** An attribute has a name and some optional parameters *)
 and attribute = Attr of string * attrparam list
@@ -2840,6 +2846,13 @@ let parseInt (str: string) : exp =
       0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
       else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
       else [IInt; ILong; ILongLong]
+      (* c99mode only affects parsing of decimal integer constants without suffix
+          a) on machines where long and long long do not have the same size
+             (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux:
+             giving constants that are bigger than max long type long long in c99mode vs. unsigned long
+             if c99mode is off.
+          b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
+             warning in C99 mode vs. unsigned long long if c99mode is off. *)
   in
     (* Convert to integer. To prevent overflow we do the arithmetic on
      * cilints. We work only with positive integers since the lexer
