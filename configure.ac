@@ -53,10 +53,10 @@ AC_CANONICAL_HOST
 # Detect the target system
 case "${host_os}" in
     *darwin*)
-        list_of_compilers="gcc-9 gcc-8 gcc-7 clang gcc"
+        list_of_compilers="gcc-9 gcc-8 gcc-7 clang"
         ;;
     *macos*)
-        list_of_compilers="gcc-9 gcc-8 gcc-7 clang gcc"
+        list_of_compilers="gcc-9 gcc-8 gcc-7 clang"
         ;;
     *)
         list_of_compilers="gcc cl cc"
