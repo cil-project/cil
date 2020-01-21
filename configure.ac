@@ -46,7 +46,22 @@ fi
 # for @CC@ in output files; you have to do this even if you don't
 # care about @CC@, because system feature tests later on in
 # the ./configure script will expect $CC to be set right
-AC_PROG_CC
+
+# AC_CANONICAL_HOST is needed to access the 'host_os' variable
+AC_CANONICAL_HOST
+
+# Detect the target system
+case "${host_os}" in
+    darwin*)
+        list_of_compilers="gcc-9 gcc-8 gcc-7 clang gcc"
+        ;;
+    *)
+        list_of_compilers="gcc cl cc"
+        ;;
+esac
+
+AC_PROG_CC([$list_of_compilers])
+
 
 AC_PROG_INSTALL
 
