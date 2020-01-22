@@ -121,10 +121,17 @@ sub addTest {
     my %patterns = %commonerrors;
     my $kind;
 
+    my $ccvar;
+    if ($ENV{'CC'} ne "gcc") {
+        $ccvar = "CC=$ENV{'CC'}";
+    } else {
+        $ccvar = "";
+    }
+
     my $tst =
         $self->newTest(Name => $name,
                        Dir => ".",
-                       Cmd => "$make " . $name . $theargs,
+                       Cmd => "$ccvar $make " . $name . $theargs,
                        Group => [ ],
                        Patterns => \%patterns);
     # Add the extra fields

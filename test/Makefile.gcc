@@ -4,7 +4,9 @@
 
 COMPILERNAME := GNUCC
 
-CC := gcc
+ifeq (,$(findstring gcc,$(CC)))
+  CC := gcc
+endif
 ifdef RELEASELIB
   # sm: I will leave this here, but only use it for compiling our runtime lib
   CFLAGS := -D_GNUCC -Wall -O3
