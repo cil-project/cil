@@ -4220,13 +4220,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               fv.vname = "__builtin_va_arg" ||
               fv.vname = "__builtin_va_start" ||
               fv.vname = "__builtin_expect" ||
-              fv.vname = "__builtin_next_arg"
+              fv.vname = "__builtin_next_arg" ||
+              fv.vname = "__builtin_tgmath"
             | _ -> false
         in
-        let isBuiltinChooseExpr =
+        let isBuiltinChooseExprOrTgmath =
           match f'' with
             Lval (Var fv, NoOffset) ->
-              fv.vname = "__builtin_choose_expr"
+              fv.vname = "__builtin_choose_expr" || fv.vname = "__builtin_tgmath"
             | _ -> false
         in
 
@@ -4282,7 +4283,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                       let (ss, args') = loop args in
                       let (sa, a', at) = force_right_to_left_evaluation
                           (doExp false a (AExp None)) in
-                      if isBuiltinChooseExpr then
+                      if isBuiltinChooseExprOrTgmath then
                           (* This built-in function is analogous to the `? :'
                            * operator in C, except that the expression returned
                            * has its type unaltered by promotion rules.
@@ -4337,7 +4338,64 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
              *)
-            if !resType' = TVoid[Attr("overloaded",[])] then begin
+            if !resType' = TVoid[Attr("overloaded",[])] then
+              if fv.vname = "__builtin_tgmath" then
+                match !pargs with
+                | ptr :: _ ->
+                  begin match typeOf ptr with
+                  (* as per https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html *)
+                  | TPtr (TFun (r, args,  _, _), _) ->
+                    (* the first pointer to a function determines how many arguments all functions take *)
+                    let numArgs = List.length (argsToList args) in
+                    if numArgs = 0 then
+                      ignore (warn "EINS Invalid call to %s" fv.vname)
+                    else
+                      let rec lastn n list acc =
+                        if n = 0 then
+                          acc
+                        else
+                          lastn (n-1) list ((List.nth list (List.length list -n)) :: acc)
+                      in
+                      let rec firstn n list acc =
+                        if n = 0 then
+                          acc
+                        else
+                        match list with
+                        | l::ls -> firstn (n-1) ls (l :: acc)
+                        | [] -> acc
+                      in
+                      (* to determine the return type, there are several options: *)
+                      let retTypes e = match typeOf e with | TPtr(TFun(r, _, _ , _), _) ->  r | _ -> E.s("Invalid call to __builtin_tgmath") in
+                      let retTypes = List.map retTypes (firstn (List.length !pargs - numArgs) !pargs []) in
+                      if List.for_all (fun x -> typeSig x = typeSig r) retTypes then
+                        (* a) all function pointers have the same return type     *)
+                        resType' := r
+                      else
+                        (* b) all function pointers have return type t, so we need to determine which one is called *)
+                        (*    to get the correct return type *)
+                        (* the arguments passed to the function are the last numArgs arguments. Get their types  *)
+                        let argTypes = List.map typeOf (lastn numArgs !pargs []) in
+                        (* the return type is determined by the resulting arithmetic conversion of the argument types       *)
+                        (* at least for the uses of this to realize tgmath.h. This could be potentially incorrect for other *)
+                        (* uses of __builtin_tgmath *)
+                        let r = List.fold_left arithmeticConversion (List.nth argTypes 0) argTypes in
+                        (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
+                        (* type should not be complex *)
+                        let isComplex t = match t with
+                          | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
+                          | _ -> false
+                        in
+                        if List.for_all (fun x -> not (isComplex x)) retTypes then
+                          resType' := typeOfRealAndImagComponents r
+                        else
+                          resType' := r
+                  | _ ->
+                    ignore (warn "Invalid call to %s" fv.vname)
+                  end
+                | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname)
+              else
+              begin
               match !pargs  with
                 ptr :: _ -> begin match typeOf ptr with
                 TPtr (vtype, _) ->

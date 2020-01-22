@@ -3161,6 +3161,9 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
 
+  (** tgmath in newer versions of GCC *)
+  H.add h "__builtin_tgmath" (TVoid[Attr("overloaded",[])], [ ], true);
+
   (* Atomic Builtins
      These builtins have an overloaded return type, hence the "magic" void type
      with __overloaded__ attribute, used to infer return type from parameters in
