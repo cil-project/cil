@@ -268,7 +268,7 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -I $(OBJDIR) -I +../zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
+	ocamlfind $(CAMLC) -I $(OBJDIR) -package zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
                  cil.$(CMXA) \
                  $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
