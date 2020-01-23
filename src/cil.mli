@@ -290,10 +290,12 @@ and ikind =
 
 (** Various kinds of floating-point numbers*)
 and fkind =
-    FFloat      (** [float] *)
-  | FDouble     (** [double] *)
-  | FLongDouble (** [long double] *)
-
+    FFloat              (** [float] *)
+  | FDouble             (** [double] *)
+  | FLongDouble         (** [long double] *)
+  | FComplexFloat       (** [float _Complex] *)
+  | FComplexDouble      (** [double _Complex] *)
+  | FComplexLongDouble  (** [long double _Complex]*)
 
 (** {b Attributes.} *)
 
@@ -584,7 +586,8 @@ and exp =
     (** sizeof(<type>). Has [unsigned int] type (ISO 6.5.3.4). This is not
      * turned into a constant because some transformations might want to
      * change types *)
-
+  | Real       of exp                   (** __real__(<expression>) *)
+  | Imag       of exp                   (** __imag__(<expression>) *)
   | SizeOfE    of exp
     (** sizeof(<expression>) *)
 
@@ -1321,6 +1324,12 @@ val isVoidType: typ -> bool
 (** is the given type "void *"? *)
 val isVoidPtrType: typ -> bool
 
+(** for numerical __complex types return type of corresponding real part and imaginary parts *)
+val typeOfRealAndImagComponents: typ -> typ
+
+(** for an fkind, return the corresponding complex fkind *)
+val getComplexFkind: fkind -> fkind
+
 (** int *)
 val intType: typ
 
@@ -1650,6 +1659,9 @@ val isConstantOffset: offset -> bool
 (** True if the given expression is a (possibly cast'ed) integer or character
     constant with value zero *)
 val isZero: exp -> bool
+
+(** True if the given expression is a null-pointer constant. As per 6.3.2.3 subsection 3 *)
+val isNullPtrConstant: exp -> bool
 
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to

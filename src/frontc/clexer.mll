@@ -184,7 +184,9 @@ let init_lexicon _ =
       ("__alignof__", fun loc -> ALIGNOF loc);
       ("__volatile__", fun loc -> VOLATILE loc);
       ("__volatile", fun loc -> VOLATILE loc);
-
+      ("__real__", fun loc -> REAL loc);
+      ("__imag__", fun loc -> IMAG loc);
+      ("__builtin_classify_type", fun loc -> CLASSIFYTYPE loc);
       ("__FUNCTION__", fun loc -> FUNCTION__ loc);
       ("__func__", fun loc -> FUNCTION__ loc); (* ISO 6.4.2.2 *)
       ("__PRETTY_FUNCTION__", fun loc -> PRETTY_FUNCTION__ loc);
@@ -436,6 +438,9 @@ let hexfloat = hexprefix hexfraction binexponent
 let floatsuffix = ['f' 'F' 'l' 'L']
 let floatnum = (decfloat | hexfloat) floatsuffix?
 
+let complexnum = (decfloat | hexfloat) ((['i' 'I'] floatsuffix) | (floatsuffix? ['i' 'I']))
+
+
 let ident = (letter|'_'|'$')(letter|decdigit|'_'|'$')*
 let blank = [' ' '\t' '\012' '\r']+
 let escape = '\\' _
@@ -502,6 +507,7 @@ rule initial =
                                                      ("wide string: " ^
                                                       Printexc.to_string e))}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
+|   complexnum  {CST_COMPLEX (Lexing.lexeme lexbuf, currentLoc ())}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		intnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
@@ -618,7 +624,7 @@ and hash = parse
                  let s = Lexing.lexeme lexbuf in
                  let lineno = try
                    int_of_string s
-                 with Failure ("int_of_string") ->
+                 with Failure _ ->
                    (* the int is too big. *)
                    E.warn "Bad line number in preprocessed file: %s" s;
                    (-1)

@@ -143,6 +143,9 @@ and gType (t:typ) : doc = match t with
 | TFloat (FFloat, _) -> text "float"
 | TFloat (FDouble, _) -> text "double"
 | TFloat (FLongDouble, _) -> text "fp128"
+| TFloat (FComplexFloat, _) -> text "float" (* TODO: Incorrect *)
+| TFloat (FComplexDouble, _) -> text "double"  (* TODO: Incorrect *)
+| TFloat (FComplexLongDouble, _) -> text "fp128"  (* TODO: Incorrect *)
 | TPtr (t, _) -> 
     (* LLVM uses "i8 *" for 'void *' *)
     if isVoidType t then text "i8 *"

@@ -194,6 +194,12 @@ testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); ./$*.exe
 	echo SUCCESS
 
+testrunc99/% : $(SMALL1)/%.c
+	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
+	       $(CFLAGS) -std=c99 $(EXEOUT)$*.exe $*.c -lm
+	cd $(SMALL1); ./$*.exe
+	echo SUCCESS
+
 testrungcc/% : $(SMALL1)/%.c mustbegcc
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) $(EXEOUT)$*.exe $*.c
@@ -262,7 +268,7 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	$(CAMLC) -I $(OBJDIR) -I +../zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
+	ocamlfind $(CAMLC) -I $(OBJDIR) -package zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
                  cil.$(CMXA) \
                  $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe
@@ -283,6 +289,13 @@ arcombine: mustbegcc
 	cd $(SMALL1); $(CILLY) -o matrix.exe array.a matrix.c
 	cd $(SMALL1); ./matrix.exe
 
+
+combinec99%: $(SMALL1)/combine-c99%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -std=c99 --merge \
+                    $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \
+	            $(EXEOUT)combine-c99$*.exe
+	cd $(SMALL1); ./combine-c99$*.exe
 
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju

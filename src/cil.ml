@@ -62,8 +62,14 @@ let cilVersionRevision = Cilversion.cilVersionRev
 let msvcMode = ref false              (* Whether the pretty printer should
                                        * print output for the MS VC
                                        * compiler. Default is GCC *)
-let c99Mode = ref false (* True to handle ISO C 99 vs 90 changes.
-			   So far only affects integer parsing. *)
+let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes.
+      c99mode only affects parsing of decimal integer constants without suffix
+          a) on machines where long and long long do not have the same size
+             (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux):
+             giving constants that are bigger than max long type long long in c99mode vs. unsigned long
+             if c99mode is off.
+          b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
+             warning in C99 mode vs. unsigned long long if c99mode is off. *)
 
 (* Set this to true to get old-style handling of gcc's extern inline C extension:
    old-style: the extern inline definition is used until the actual definition is
@@ -289,9 +295,12 @@ and ikind =
 
 (** Various kinds of floating-point numbers*)
 and fkind =
-    FFloat      (** [float] *)
-  | FDouble     (** [double] *)
-  | FLongDouble (** [long double] *)
+    FFloat              (** [float] *)
+  | FDouble             (** [double] *)
+  | FLongDouble         (** [long double] *)
+  | FComplexFloat       (** [float _Complex] *)
+  | FComplexDouble      (** [double _Complex] *)
+  | FComplexLongDouble  (** [long double _Complex]*)
 
 (** An attribute has a name and some optional parameters *)
 and attribute = Attr of string * attrparam list
@@ -489,7 +498,8 @@ and exp =
                                          * not turned into a constant because
                                          * some transformations might want to
                                          * change types *)
-
+  | Real       of exp                   (** __real__(<expression>) *)
+  | Imag       of exp                   (** __imag__(<expression>) *)
   | SizeOfE    of exp                   (** sizeof(<expression>) *)
   | SizeOfStr  of string
     (** sizeof(string_literal). We separate this case out because this is the
@@ -1593,6 +1603,31 @@ let isVoidPtrType t =
     TPtr(tau,_) when isVoidType tau -> true
   | _ -> false
 
+(* get the typ of __real__(e) or __imag__(e) for e of typ t*)
+let typeOfRealAndImagComponents t =
+  match unrollType t with
+  | TInt _ -> t
+  | TFloat (fkind, attrs) ->
+    let newfkind = function
+      | FFloat -> FFloat      (** [float] *)
+      | FDouble -> FDouble     (** [double] *)
+      | FLongDouble -> FLongDouble (** [long double] *)
+      | FComplexFloat -> FFloat
+      | FComplexDouble -> FDouble
+      | FComplexLongDouble -> FLongDouble
+    in
+    TFloat (newfkind fkind, attrs)
+  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
+
+(** for an fkind, return the corresponding complex fkind *)
+let getComplexFkind = function
+  | FFloat -> FComplexFloat
+  | FDouble -> FComplexDouble
+  | FLongDouble -> FComplexLongDouble
+  | FComplexFloat -> FComplexFloat
+  | FComplexDouble -> FComplexDouble
+  | FComplexLongDouble -> FComplexLongDouble
+
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
@@ -1664,6 +1699,9 @@ let d_fkind () = function
     FFloat -> text "float"
   | FDouble -> text "double"
   | FLongDouble -> text "long double"
+  | FComplexFloat -> text "_Complex float"
+  | FComplexDouble -> text "_Complex double"
+  | FComplexLongDouble -> text "_Complex long double"
 
 let d_storage () = function
     NoStorage -> nil
@@ -1751,7 +1789,10 @@ let d_const () c =
       (match fsize with
          FFloat -> chr 'f'
        | FDouble -> nil
-       | FLongDouble -> chr 'L')
+       | FLongDouble -> chr 'L'
+       | FComplexFloat -> text "iF"
+       | FComplexDouble -> chr 'i'
+       | FComplexLongDouble -> text "iL")
   | CEnum(_, s, ei) -> text s
 
 
@@ -1789,6 +1830,8 @@ let getParenthLevel (e: exp) =
   | BinOp((Div|Mod|Mult),_,_,_) -> 40
 
                                         (* Unary *)
+  | Real _ -> 30
+  | Imag _ -> 30
   | CastE(_,_) -> 30
   | AddrOf(_) -> 30
   | AddrOfLabel(_) -> 30
@@ -1883,7 +1926,8 @@ let rec typeOf (e: exp) : typ =
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-
+  | Real e -> typeOfRealAndImagComponents @@ typeOf e
+  | Imag e -> typeOfRealAndImagComponents @@ typeOf e
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
@@ -2154,6 +2198,9 @@ let rec alignOf_int t =
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
     | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
+    | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_floatcomplex
+    | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_doublecomplex
+    | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdoublecomplex
     | TNamed (t, _) -> alignOf_int t.ttype
     | TArray (t, _, _) -> alignOf_int t
     | TPtr _ | TBuiltin_va_list _ -> !M.theMachine.M.alignof_ptr
@@ -2413,7 +2460,10 @@ and bitsSizeOf t =
   | TInt (ik,_) -> 8 * (bytesSizeOfInt ik)
   | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
-  | TFloat _ -> 8 * !M.theMachine.M.sizeof_float
+  | TFloat(FFloat, _) -> 8 * !M.theMachine.M.sizeof_float
+  | TFloat(FComplexDouble, _) ->  8 * !M.theMachine.M.sizeof_doublecomplex
+  | TFloat(FComplexLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdoublecomplex
+  | TFloat(FComplexFloat, _) -> 8 * !M.theMachine.M.sizeof_floatcomplex
   | TEnum (ei, _) -> bitsSizeOf (TInt(ei.ekind, []))
   | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
@@ -2735,6 +2785,12 @@ let isArrayType t =
     TArray _ -> true
   | _ -> false
 
+(** 6.3.2.3 subsection 3 *)
+(** An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
+let isNullPtrConstant = function
+  | CastE(TPtr(TVoid _,_), e) -> isZero @@ constFold true e
+  | e -> isZero @@ constFold true e
+
 let rec isConstant = function
   | Const _ -> true
   | UnOp (_, e, _) -> isConstant e
@@ -2743,6 +2799,8 @@ let rec isConstant = function
   | Lval (Var vi, NoOffset) ->
       (vi.vglob && isArrayType vi.vtype || isFunctionType vi.vtype)
   | Lval _ -> false
+  | Real e -> isConstant e
+  | Imag e -> isConstant e
   | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ -> true
   | CastE (_, e) -> isConstant e
   | AddrOf (Var vi, off) | StartOf (Var vi, off)
@@ -2788,6 +2846,13 @@ let parseInt (str: string) : exp =
       0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
       else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
       else [IInt; ILong; ILongLong]
+      (* c99mode only affects parsing of decimal integer constants without suffix
+          a) on machines where long and long long do not have the same size
+             (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux:
+             giving constants that are bigger than max long type long long in c99mode vs. unsigned long
+             if c99mode is off.
+          b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
+             warning in C99 mode vs. unsigned long long if c99mode is off. *)
   in
     (* Convert to integer. To prevent overflow we do the arithmetic on
      * cilints. We work only with positive integers since the lexer
@@ -3095,6 +3160,9 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ia32_unpckhps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
+
+  (** tgmath in newer versions of GCC *)
+  H.add h "__builtin_tgmath" (TVoid[Attr("overloaded",[])], [ ], true);
 
   (* Atomic Builtins
      These builtins have an overloaded return type, hence the "magic" void type
@@ -3413,7 +3481,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         text "__builtin_va_arg_pack()"
     | SizeOfE (e) ->
         text "sizeof(" ++ self#pExp () e ++ chr ')'
-
+    | Imag e ->
+        text "__imag__(" ++ self#pExp () e ++ chr ')'
+    | Real e ->
+        text "__real__(" ++ self#pExp () e ++ chr ')'
     | SizeOfStr s ->
         text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
 
@@ -4389,6 +4460,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     match an, args with
       "const", [] -> text "const", false
           (* Put the aconst inside the attribute list *)
+    | "complex", [] when !c99Mode -> text "_Complex", false
+    | "complex", [] when not !msvcMode -> text "__complex__", false
     | "aconst", [] when not !msvcMode -> text "__const__", true
     | "thread", [] when not !msvcMode -> text "__thread", false
 (*
@@ -4779,7 +4852,10 @@ class plainCilPrinterClass =
       text "__alignof__(" ++ self#pType None () t ++ chr ')'
   | AlignOfE (e) ->
       text "__alignof__(" ++ self#pExp () e ++ chr ')'
-
+  | Imag e ->
+      text "__imag__(" ++ self#pExp () e ++ chr ')'
+  | Real e ->
+      text "__real__(" ++ self#pExp () e ++ chr ')'
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
   | AddrOfLabel (sref) -> dprintf "AddrOfLabel(%a)" self#pStmt !sref
@@ -5262,7 +5338,12 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
       let e1' = vExp e1 in
       if e1' != e1 then SizeOfE e1' else e
   | SizeOfStr s -> e
-
+  | Real e1 ->
+    let e1' = vExp e1 in
+    if e1' != e1 then Real e1' else e
+  | Imag e1 ->
+    let e1' = vExp e1 in
+    if e1' != e1 then Imag e1' else e
   | AlignOf t ->
       let t' = vTyp t in
       if t' != t then AlignOf t' else e

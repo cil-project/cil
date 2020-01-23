@@ -268,6 +268,9 @@ and expression =
   | CONSTANT of constant
   | PAREN of expression
   | VARIABLE of string
+  | REAL of expression
+  | IMAG of expression
+  | CLASSIFYTYPE of expression
   | EXPR_SIZEOF of expression
   | TYPE_SIZEOF of specifier * decl_type
   | EXPR_ALIGNOF of expression
@@ -281,6 +284,7 @@ and expression =
 and constant =
   | CONST_INT of string   (* the textual representation *)
   | CONST_FLOAT of string (* the textual representaton *)
+  | CONST_COMPLEX of string (* the textual representation *)
   | CONST_CHAR of int64 list
   | CONST_WCHAR of int64 list
   | CONST_STRING of string

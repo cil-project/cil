@@ -255,6 +255,8 @@ and analyze_expr (e : exp ) : A.tau =
       | StartOf l -> A.address (analyze_lval l)
       | AlignOfE _ -> A.bottom ()
       | SizeOfE _ -> A.bottom ()
+      | Imag __ -> failwith "not implemented yet"
+      | Real __ -> failwith "not implemented yet"
  in
   H.add expressions e result;
   result

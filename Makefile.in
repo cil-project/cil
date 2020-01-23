@@ -167,6 +167,9 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@echo "  sizeof_float: int;      (* Size of \"float\" *)"       >> $@
 	@echo "  sizeof_double: int;     (* Size of \"double\" *)"      >> $@
 	@echo "  sizeof_longdouble: int; (* Size of \"long double\" *)" >> $@
+	@echo "  sizeof_floatcomplex: int;      (* Size of \"float _Complex\" *)"       >> $@
+	@echo "  sizeof_doublecomplex: int;     (* Size of \"double _Complex\" *)"      >> $@
+	@echo "  sizeof_longdoublecomplex: int; (* Size of \"long double _Complex\" *)" >> $@
 	@echo "  sizeof_void: int;       (* Size of \"void\" *)"        >> $@
 	@echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
 	@echo "  size_t: string;         (* Type of \"sizeof(T)\" *)"   >> $@
@@ -181,6 +184,9 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@echo "  alignof_float: int;     (* Alignment of \"float\" *)"  >> $@
 	@echo "  alignof_double: int;    (* Alignment of \"double\" *)" >> $@
 	@echo "  alignof_longdouble: int;  (* Alignment of \"long double\" *)" >> $@
+	@echo "  alignof_floatcomplex: int;     (* Alignment of \"float _Complex\" *)"  >> $@
+	@echo "  alignof_doublecomplex: int;    (* Alignment of \"double _Complex\" *)" >> $@
+	@echo "  alignof_longdoublecomplex: int;  (* Alignment of \"long double _Complex\" *)" >> $@
 	@echo "  alignof_str: int;       (* Alignment of strings *)" >> $@
 	@echo "  alignof_fun: int;       (* Alignment of function *)" >> $@
 	@echo "  alignof_aligned: int;   (* Alignment of anything with the \"aligned\" attribute *)" >> $@

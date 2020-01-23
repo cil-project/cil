@@ -121,10 +121,17 @@ sub addTest {
     my %patterns = %commonerrors;
     my $kind;
 
+    my $ccvar;
+    if ($ENV{'CC'} ne "gcc") {
+        $ccvar = "CC=$ENV{'CC'}";
+    } else {
+        $ccvar = "";
+    }
+
     my $tst =
         $self->newTest(Name => $name,
                        Dir => ".",
-                       Cmd => "$make " . $name . $theargs,
+                       Cmd => "$ccvar $make " . $name . $theargs,
                        Group => [ ],
                        Patterns => \%patterns);
     # Add the extra fields
@@ -719,6 +726,18 @@ addBadComment("testrun/compound1", "Notbug. Undefined behavior (probably).");
 addTest("testrun/compound2");
 
 addTest("test/shell-escape SHELL_ESCAPE=1");
+
+# c99 readiness tests
+addTest("testrunc99/c99-bool");
+addTest("testrunc99/c99-predefined");
+addTest("testrunc99/c99-struct");
+addTest("testrunc99/c99-complex");
+addTest("testrunc99/c99-universal-character-names");
+addBadComment("testrunc99/c99-universal-character-names", "Universal character names are not yet supported");
+addTest("testrunc99/c99-tgmath");
+addTest("combinec99inline");
+addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
+
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

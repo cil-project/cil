@@ -392,3 +392,4 @@ _opam/
 /test/small2/merge-ar
 /test/small2/libmerge.a
 /test/small2/*.o
+.vscode/settings.json

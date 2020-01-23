@@ -173,6 +173,7 @@ type ctxType =
                                          * in a cast *)
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
+  | CTNumeric                           (* As an argument to __real__ or __imag__ *)
 
 let d_context () = function
     CTStruct -> text "CTStruct"
@@ -184,6 +185,7 @@ let d_context () = function
   | CTExp -> text "CTExp"
   | CTSizeof -> text "CTSizeof"
   | CTDecl -> text "CTDecl"
+  | CTNumeric -> text "CTNumeric"
 
 
 (* Keep track of all tags that we use. For each tag remember also the info
@@ -225,7 +227,9 @@ let rec checkType (t: typ) (ctx: ctxType) =
           (ignore(warn "sizeof(function) is not defined in MSVC."); false)
         else
           ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
-    | _ -> true
+    | TInt _ -> true
+    | TFloat _ -> true
+    | _ -> ctx <> CTNumeric
   in
   if not (checkContext t) then
     ignore (warn "Type (%a) used in wrong context. Expected context: %a"
@@ -233,7 +237,10 @@ let rec checkType (t: typ) (ctx: ctxType) =
   match t with
     (TVoid a | TBuiltin_va_list a) -> checkAttributes a
   | TInt (ik, a) -> checkAttributes a
-  | TFloat (_, a) -> checkAttributes a
+  | TFloat (_, a) ->
+      checkAttributes a;
+      if hasAttribute "complex" a then
+        E.s (E.bug "float type has attribute complex, this should never be the case as there are fkinds for this");
   | TPtr (t, a) -> checkAttributes a;  checkType t CTPtr
 
   | TNamed (ti, a) ->
@@ -491,6 +498,12 @@ and checkExp (isconst: bool) (e: exp) : typ =
 
       | SizeOfStr s ->  typeOf e
 
+      | Real e ->
+          let te = checkExp isconst e in
+          typeOfRealAndImagComponents te
+      | Imag e ->
+          let te = checkExp isconst e in
+          typeOfRealAndImagComponents te
       | AlignOf(t) -> begin
           (* Sizeof cannot be applied to certain types *)
           checkType t CTSizeof;

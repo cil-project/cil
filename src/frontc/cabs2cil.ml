@@ -1254,13 +1254,26 @@ let defaultArgumentPromotion (t : typ) : typ = (* c.f. ISO 6.5.2.2:6 *)
 let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t1: typ)
     (t2: typ) : typ =
+  let resultingFType fkind1 t1 fkind2 t2 =
+    (* t1 and t2 are the original types before unrollType, so TNamed is preserved if possible *)
+    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble in
+    match fkind1, fkind2 with
+    | FComplexLongDouble, _ -> t1
+    | _, FComplexLongDouble -> t2
+    | FLongDouble, other -> if isComplex other then TFloat(FComplexLongDouble, []) else t1
+    | other, FLongDouble -> if isComplex other then TFloat(FComplexLongDouble, []) else t2
+    | FComplexDouble, other -> t1
+    | other, FComplexDouble -> t2
+    | FDouble, other -> if isComplex other then TFloat(FComplexDouble, []) else t1
+    | other, FDouble -> if isComplex other then TFloat(FComplexDouble, []) else t2
+    | FComplexFloat, other -> t1
+    | other, FComplexFloat -> t2
+    | FFloat, FFloat -> t1
+  in
   match unrollType t1, unrollType t2 with
-    TFloat(FLongDouble, _), _ -> t1
-  | _, TFloat(FLongDouble, _) -> t2
-  | TFloat(FDouble, _), _ -> t1
-  | _, TFloat (FDouble, _) -> t2
-  | TFloat(FFloat, _), _ -> t1
-  | _, TFloat (FFloat, _) -> t2
+  | TFloat(fkind1, _), TFloat(fkind2, _) -> resultingFType fkind1 t1 fkind2 t2
+  | TFloat(_, _), _ -> t1
+  | _, TFloat(_, _) -> t2
   | _, _ -> begin
       let t1' = integralPromotion t1 in
       let t2' = integralPromotion t2 in
@@ -1483,9 +1496,9 @@ let cabsTypeAddAttributes a0 t =
           t
     | _ ->
         (* anything else: add a0 to existing attributes *)
-          let add (a: attributes) = cabsAddAttributes a0 a in
+          let addA0To (a: attributes) = cabsAddAttributes a0 a in
           match t with
-            TVoid a -> TVoid (add a)
+            TVoid a -> TVoid (addA0To a)
           | TInt (ik, a) ->
               (* Here we have to watch for the mode attribute *)
 (* sm: This stuff is to handle a GCC extension where you can request integers*)
@@ -1499,7 +1512,7 @@ let cabsTypeAddAttributes a0 t =
 (* A consequence of this handling is that we throw away the mode          *)
 (* attribute, which we used to go out of our way to avoid printing anyway.*)
 (* DG: Use machine model to pick correct type                             *)
-              let ik', a0' =
+              let ik', a0' = begin
                 (* Go over the list of new attributes and come back with a
                  * filtered list and a new integer kind *)
                 List.fold_left
@@ -1531,17 +1544,22 @@ let cabsTypeAddAttributes a0 t =
                     | _ -> (ik', a0one :: a0'))
                   (ik, [])
                   a0
+      end
               in
               TInt (ik', cabsAddAttributes a0' a)
 
-          | TFloat (fk, a) -> TFloat (fk, add a)
-          | TEnum (enum, a) -> TEnum (enum, add a)
-          | TPtr (t, a) -> TPtr (t, add a)
-          | TArray (t, l, a) -> TArray (t, l, add a)
-          | TFun (t, args, isva, a) -> TFun(t, args, isva, add a)
-          | TComp (comp, a) -> TComp (comp, add a)
-          | TNamed (t, a) -> TNamed (t, add a)
-          | TBuiltin_va_list a -> TBuiltin_va_list (add a)
+          | TFloat (fk, a) ->
+            if Cil.hasAttribute "complex" a0 then
+              TFloat (Cil.getComplexFkind fk, cabsAddAttributes (Cil.dropAttribute "complex" a0) a)
+            else
+              TFloat (fk, addA0To a)
+          | TEnum (enum, a) -> TEnum (enum, addA0To a)
+          | TPtr (t, a) -> TPtr (t, addA0To a)
+          | TArray (t, l, a) -> TArray (t, l, addA0To a)
+          | TFun (t, args, isva, a) -> TFun(t, args, isva, addA0To a)
+          | TComp (comp, a) -> TComp (comp, addA0To a)
+          | TNamed (t, a) -> TNamed (t, addA0To a)
+          | TBuiltin_va_list a -> TBuiltin_va_list (addA0To a)
   end
 
 
@@ -1867,24 +1885,26 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     alphaConvertVarAndAddToEnv true vi, false
   end
 
-let conditionalConversion (t2: typ) (t3: typ) : typ =
+let conditionalConversion (t2: typ) (t3: typ) (e2: exp option) (e3:exp) : typ =
   let tresult =  (* ISO 6.5.15 *)
-    match unrollType t2, unrollType t3 with
+    match unrollType t2, unrollType t3, e2 with
       (TInt _ | TEnum _ | TFloat _),
-      (TInt _ | TEnum _ | TFloat _) ->
+      (TInt _ | TEnum _ | TFloat _), _ ->
         arithmeticConversion t2 t3
-    | TComp (comp2,_), TComp (comp3,_)
+    | TComp (comp2,_), TComp (comp3,_), _
           when comp2.ckey = comp3.ckey -> t2
-    | TPtr(_, _), TPtr(TVoid _, _) -> t2
-    | TPtr(TVoid _, _), TPtr(_, _) -> t3
-    | TPtr _, TPtr _ when Util.equals (typeSig t2) (typeSig t3) -> t2
-    | TPtr _, TInt _  -> t2 (* most likely comparison with 0 *)
-    | TInt _, TPtr _ -> t3 (* most likely comparison with 0 *)
+    | TPtr(_, _), TPtr(TVoid _, _), _ ->
+      if isNullPtrConstant e3 then t2 else t3
+    | TPtr(TVoid _, _), TPtr(_, _), Some e2' ->
+      if isNullPtrConstant e2' then t3 else t2
+    | TPtr _, TPtr _, _ when Util.equals (typeSig t2) (typeSig t3) -> t2
+    | TPtr _, TInt _, _  -> t2 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
+    | TInt _, TPtr _, _ -> t3 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
 
           (* When we compare two pointers of different type, we combine them
            * using the same algorithm when combining multiple declarations of
            * a global *)
-    | (TPtr _) as t2', (TPtr _ as t3') -> begin
+    | (TPtr _) as t2', (TPtr _ as t3'), _ -> begin
         try combineTypes CombineOther t2' t3'
         with Failure msg -> begin
           ignore (warn "A.QUESTION: %a does not match %a (%s)"
@@ -1892,7 +1912,7 @@ let conditionalConversion (t2: typ) (t3: typ) : typ =
           t2 (* Just pick one *)
         end
     end
-    | _, _ -> E.s (error "A.QUESTION for invalid combination of types")
+    | _, _,_ -> E.s (error "A.QUESTION for invalid combination of types")
   in
   tresult
 
@@ -3446,11 +3466,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         finishExp se lv' field_type
 
     | A.CONSTANT ct -> begin
-        let hasSuffix str =
+        let hasSuffix str suffix =
           let l = String.length str in
-          fun s ->
-            let ls = String.length s in
-            l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
+          let ls = String.length suffix in
+          l >= ls && String.uppercase_ascii suffix = String.uppercase_ascii (String.sub str (l - ls) ls)
         in
         match ct with
           A.CONST_INT str -> begin
@@ -3533,13 +3552,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | A.CONST_FLOAT str -> begin
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
-            let hasSuffix = hasSuffix str in
             let baseint, kind =
-              if  hasSuffix "L" then
+              if hasSuffix str "L" then
                 String.sub str 0 (l - 1), FLongDouble
-              else if hasSuffix "F" then
+              else if hasSuffix str "F" then
                 String.sub str 0 (l - 1), FFloat
-              else if hasSuffix "D" then
+              else if hasSuffix str "D" then
                 String.sub str 0 (l - 1), FDouble
               else
                 str, FDouble
@@ -3555,6 +3573,36 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 (TFloat(kind,[]))
             with e -> begin
               ignore (E.log "float_of_string %s (%s)\n" str
+                        (Printexc.to_string e));
+              E.hadErrors := true;
+              let res = Const(CStr "booo CONS_FLOAT") in
+              finishExp empty res (typeOf res)
+            end
+        end
+        | A.CONST_COMPLEX str -> begin
+            (* Maybe it ends in U or UL. Strip those *)
+            let l = String.length str in
+            let baseint, kind =
+              if hasSuffix str "iL" || hasSuffix str "Li" then
+                String.sub str 0 (l - 2), FComplexLongDouble
+              else if hasSuffix str "iF" || hasSuffix str "Fi" then
+                String.sub str 0 (l - 2), FComplexFloat
+              else if hasSuffix str "iD" || hasSuffix str "Di" then
+                String.sub str 0 (l - 2), FComplexDouble
+              else (* A.CONST_COMPLEX always has the suffix i *)
+                String.sub str 0 (l - 1), FComplexDouble
+            in
+            if kind = FLongDouble then
+              (* We only have 64-bit values in Ocaml *)
+              E.log "treating long double constant %s as double constant at %a.\n"
+                str d_loc !currentLoc;
+            try
+              finishExp empty
+                (Const(CReal(float_of_string baseint, kind,
+                             Some str)))
+                (TFloat(kind,[]))
+            with e -> begin
+              ignore (E.log "float_of_string_2 %s (%s)\n" baseint
                         (Printexc.to_string e));
               E.hadErrors := true;
               let res = Const(CStr "booo CONS_FLOAT") in
@@ -3607,7 +3655,45 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> SizeOfE e'
         in
         finishExp empty size !typeOfSizeOf
-
+    | A.REAL e ->
+      let (se, e', t) = doExp false e (AExp None) in
+      let real = Real e' in
+      finishExp se real (typeOfRealAndImagComponents t)
+    | A.IMAG e ->
+      let (se, e', t) = doExp false e (AExp None) in
+      let imag = Imag e' in
+      finishExp se imag (typeOfRealAndImagComponents t)
+    | A.CLASSIFYTYPE e ->
+      let classify_type t =
+        match unrollTypeDeep t with (* See gcc/typeclass.h *)
+        | TVoid _ -> 0
+        | TInt (ikind, _)   ->begin
+          match ikind with
+          | IChar -> 2
+          | IBool -> 4
+          | _ -> 1
+          end
+        | TFloat (fkind, _)  -> begin
+          match fkind with
+          | FFloat
+          | FDouble
+          | FLongDouble -> 8
+          | FComplexFloat
+          | FComplexDouble
+          | FComplexLongDouble -> 9
+          end
+        | TEnum _ -> 3
+        | TPtr _ -> 5
+        | TArray _ -> 14
+        | TFun _ -> 10
+        | _ -> E.s (E.bug "cabs2cil: failed to classify for __builtin_classify_type")
+(* no_type_class = -1, void_type_class 0, integer_type_class 1, char_type_class 2, enumeral_type_class 3, boolean_type_class 4,
+  pointer_type_class 5, reference_type_class 6, offset_type_class 7, real_type_class 8,
+  complex_type_class 9, function_type_class 10, method_type_class 11, record_type_class 12, union_type_class 13,  array_type_class 14, string_type_class 15, lang_type_class 16 *)
+      in
+      let _,_, t = doExp true e (AType) in
+      let res = Cil.integer (classify_type t) in
+      finishExp empty (res) (Cil.typeOf res)
     | A.TYPE_ALIGNOF (bt, dt) ->
         let typ = doOnlyType bt dt in
         finishExp empty (AlignOf(typ)) !typeOfSizeOf
@@ -4134,13 +4220,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               fv.vname = "__builtin_va_arg" ||
               fv.vname = "__builtin_va_start" ||
               fv.vname = "__builtin_expect" ||
-              fv.vname = "__builtin_next_arg"
+              fv.vname = "__builtin_next_arg" ||
+              fv.vname = "__builtin_tgmath"
             | _ -> false
         in
-        let isBuiltinChooseExpr =
+        let isBuiltinChooseExprOrTgmath =
           match f'' with
             Lval (Var fv, NoOffset) ->
-              fv.vname = "__builtin_choose_expr"
+              fv.vname = "__builtin_choose_expr" || fv.vname = "__builtin_tgmath"
             | _ -> false
         in
 
@@ -4196,7 +4283,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                       let (ss, args') = loop args in
                       let (sa, a', at) = force_right_to_left_evaluation
                           (doExp false a (AExp None)) in
-                      if isBuiltinChooseExpr then
+                      if isBuiltinChooseExprOrTgmath then
                           (* This built-in function is analogous to the `? :'
                            * operator in C, except that the expression returned
                            * has its type unaltered by promotion rules.
@@ -4251,7 +4338,64 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
              *)
-            if !resType' = TVoid[Attr("overloaded",[])] then begin
+            if !resType' = TVoid[Attr("overloaded",[])] then
+              if fv.vname = "__builtin_tgmath" then
+                match !pargs with
+                | ptr :: _ ->
+                  begin match typeOf ptr with
+                  (* as per https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html *)
+                  | TPtr (TFun (r, args,  _, _), _) ->
+                    (* the first pointer to a function determines how many arguments all functions take *)
+                    let numArgs = List.length (argsToList args) in
+                    if numArgs = 0 then
+                      ignore (warn "EINS Invalid call to %s" fv.vname)
+                    else
+                      let rec lastn n list acc =
+                        if n = 0 then
+                          acc
+                        else
+                          lastn (n-1) list ((List.nth list (List.length list -n)) :: acc)
+                      in
+                      let rec firstn n list acc =
+                        if n = 0 then
+                          acc
+                        else
+                        match list with
+                        | l::ls -> firstn (n-1) ls (l :: acc)
+                        | [] -> acc
+                      in
+                      (* to determine the return type, there are several options: *)
+                      let retTypes e = match typeOf e with | TPtr(TFun(r, _, _ , _), _) ->  r | _ -> E.s("Invalid call to __builtin_tgmath") in
+                      let retTypes = List.map retTypes (firstn (List.length !pargs - numArgs) !pargs []) in
+                      if List.for_all (fun x -> typeSig x = typeSig r) retTypes then
+                        (* a) all function pointers have the same return type     *)
+                        resType' := r
+                      else
+                        (* b) all function pointers have return type t, so we need to determine which one is called *)
+                        (*    to get the correct return type *)
+                        (* the arguments passed to the function are the last numArgs arguments. Get their types  *)
+                        let argTypes = List.map typeOf (lastn numArgs !pargs []) in
+                        (* the return type is determined by the resulting arithmetic conversion of the argument types       *)
+                        (* at least for the uses of this to realize tgmath.h. This could be potentially incorrect for other *)
+                        (* uses of __builtin_tgmath *)
+                        let r = List.fold_left arithmeticConversion (List.nth argTypes 0) argTypes in
+                        (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
+                        (* type should not be complex *)
+                        let isComplex t = match t with
+                          | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
+                          | _ -> false
+                        in
+                        if List.for_all (fun x -> not (isComplex x)) retTypes then
+                          resType' := typeOfRealAndImagComponents r
+                        else
+                          resType' := r
+                  | _ ->
+                    ignore (warn "Invalid call to %s" fv.vname)
+                  end
+                | _ ->
+                  ignore (warn "Invalid call to %s" fv.vname)
+              else
+              begin
               match !pargs  with
                 ptr :: _ -> begin match typeOf ptr with
                 TPtr (vtype, _) ->
@@ -4503,22 +4647,22 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let ce1 = doCondExp asconst e1 in
         (* Now we must find the type of both branches, in order to compute
          * the type of the result *)
-        let se2, e2'o (* is an option. None means use e1 *), t2 =
+        let se2, e2'o (* is an option. None means use e1 *), e_of_t2, t2 =
           match e2 with
             A.NOTHING -> begin (* The same as the type of e1 *)
               match ce1 with
-                CEExp (_, e1') -> empty, None, typeOf e1' (* Do not promote
+                CEExp (_, e1') -> empty, None, Some e1', typeOf e1' (* Do not promote
                                                              to bool *)
-              | _ -> empty, None, intType
+              | _ -> empty, None, None, intType
             end
           | _ ->
               let se2, e2', t2 = doExp asconst e2 (AExp None) in
-              se2, Some e2', t2
+              se2, Some e2', Some e2', t2
         in
         (* Do e3 for real *)
         let se3, e3', t3 = doExp asconst e3 (AExp None) in
         (* Compute the type of the result *)
-        let tresult = conditionalConversion t2 t3 in
+        let tresult = conditionalConversion t2 t3 e_of_t2 e3' in
         match ce1 with
           CEExp (se1, e1') when isConstFalse e1' && canDrop se2 ->
              finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult

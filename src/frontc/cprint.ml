@@ -403,6 +403,9 @@ and get_operator exp =
   | TYPE_SIZEOF _ -> ("", 16)
   | EXPR_ALIGNOF exp -> ("", 16)
   | TYPE_ALIGNOF _ -> ("", 16)
+  | IMAG exp -> ("", 16)
+  | REAL exp -> ("", 16)
+  | CLASSIFYTYPE exp -> ("", 16)
   | INDEX (exp, idx) -> ("", 15)
   | MEMBEROF (exp, fld) -> ("", 15)
   | MEMBEROFPTR (exp, fld) -> ("", 15)
@@ -501,12 +504,18 @@ and print_expression_level (lvl: int) (exp : expression) =
       print "(";
       print_comma_exps args;
       print ")"
+  | CLASSIFYTYPE exp ->
+      print "__builtin_classify_type";
+      print "(";
+      print_expression_level 1 exp;
+      print ")"
   | COMMA exps ->
       print_comma_exps exps
   | CONSTANT cst ->
       (match cst with
 	CONST_INT i -> print i
       | CONST_FLOAT r -> print r
+      | CONST_COMPLEX r -> print r
       | CONST_CHAR c -> print ("'" ^ escape_wstring c ^ "'")
       | CONST_WCHAR c -> print ("L'" ^ escape_wstring c ^ "'")
       | CONST_STRING s -> print_string s
@@ -528,6 +537,14 @@ and print_expression_level (lvl: int) (exp : expression) =
   | TYPE_ALIGNOF (bt,dt) ->
       printl ["__alignof__";"("];
       print_onlytype (bt, dt);
+      print ")"
+  | IMAG exp ->
+      printl ["__imag__";"("];
+      print_expression_level 0 exp;
+      print ")"
+  | REAL exp ->
+      printl ["__real__";"("];
+      print_expression_level 0 exp;
       print ")"
   | INDEX (exp, idx) ->
       print_expression_level 16 exp;
