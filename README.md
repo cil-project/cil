@@ -15,7 +15,7 @@ either gcc or Microsoft's cl, and allows merging of the source files in
 your project. Other features include support for control-flow and
 points-to analyses.
 
-Quick start
+Quick start (Attention, this installs the upstream CIL, not the version in this repository)
 -----------
 
 Install the latest release of CIL with [opam][]:
@@ -28,7 +28,7 @@ check out the accompanying [project template][template].
 [tuto]: https://bitbucket.org/zanderso/cil-template/downloads/ciltut.pdf
 [template]: https://bitbucket.org/zanderso/cil-template
 
-Installation
+Installation (for the version in this repository)
 -----------
 
 To build and install CIL, you need the OCaml compiler, perl, and
