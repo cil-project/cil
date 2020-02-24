@@ -6,6 +6,12 @@
   (libraries zarith)
 )
 
+(rule
+  (targets machdep.ml)
+  (deps ../Makefile ../configure.ac machdep-ml.c)
+  (action (chdir .. (progn (run make machdep) (run cp _build/machdep.ml src))))
+)
+
 ; (executable
 ;   (libraries cil)
 ;   (public_name main)

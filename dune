@@ -1,0 +1,9 @@
+(rule
+ (targets Makefile)
+ (deps Makefile.in install-sh config.sub config.guess config.h.in stamp-h.in src/cil.mli)
+ (action (run ./configure)))
+
+; (rule
+;  (targets machdep.ml)
+;  (deps Makefile configure.ac src/machdep-ml.c)
+;  (action (progn (run make machdep) (run cp _build/machdep.ml .))))
