@@ -1,0 +1,18 @@
+(include_subdirs unqualified)
+
+(library
+  (public_name cil)
+  (wrapped false)
+  (libraries zarith)
+)
+
+; (executable
+;   (libraries cil)
+;   (public_name main)
+; )
+
+(env
+  (dev
+    (flags (:standard -warn-error -A)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)

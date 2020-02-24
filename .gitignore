@@ -1,4 +1,5 @@
 _opam/
+src/.merlin
 # /
 /camlprim0.obj
 /*.a
