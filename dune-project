@@ -1,2 +1,2 @@
 (lang dune 1.11)
-(name cil)
+(name goblint-cil)

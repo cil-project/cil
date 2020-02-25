@@ -1,9 +1,10 @@
 (include_subdirs unqualified)
 
 (library
-  (public_name cil)
+  (public_name goblint-cil)
+  (name cil)
   (wrapped false)
-  (libraries zarith)
+  (libraries zarith findlib)
 )
 
 (rule
@@ -11,6 +12,9 @@
   (deps ../Makefile ../configure.ac machdep-ml.c)
   (action (chdir .. (progn (run make machdep) (run cp _build/machdep.ml src))))
 )
+
+(ocamllex formatlex)
+(ocamlyacc formatparse)
 
 ; (executable
 ;   (libraries cil)
