@@ -1,10 +1,10 @@
 (*
  *
- * Copyright (c) 2004, 
+ * Copyright (c) 2004,
  *  Jeremy Condit       <jcondit@cs.berkeley.edu>
  *  George C. Necula    <necula@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -163,7 +163,7 @@ let d_summary () (sum : summary) : doc =
 class cclPrinterClass = object
   inherit defaultCilPrinterClass as super
 
-  method pAttr (attr : attribute) : doc * bool =
+  method! pAttr (attr : attribute) : doc * bool =
     match attr with
     | Attr ("out", []) -> text "OUT", false
     | Attr ("inout", []) -> text "INOUT", false
@@ -734,7 +734,7 @@ class normVisitor = object
 
   val mapping : (string, string) Hashtbl.t ref = ref (Hashtbl.create 1)
 
-  method vtype (t : typ) : typ visitAction =
+  method! vtype (t : typ) : typ visitAction =
     match t with
     | TFun (rtype, args, vararg, attrs) ->
         let oldMapping = !mapping in
@@ -753,7 +753,7 @@ class normVisitor = object
     | _ ->
         DoChildren
 
-  method vattr (attr : attribute) : attribute list visitAction =
+  method! vattr (attr : attribute) : attribute list visitAction =
     match attr with
     | Attr ("count", [ACons (s, [])]) ->
         begin
@@ -777,12 +777,12 @@ class normVisitor2 subst = object
 
   val subst = subst
 
-  method vtype (t : typ) : typ visitAction =
+  method! vtype (t : typ) : typ visitAction =
     match t with
     | TFun _ -> SkipChildren
     | _ -> DoChildren
 
-  method vattr (attr : attribute) : attribute list visitAction =
+  method! vattr (attr : attribute) : attribute list visitAction =
     match attr with
     | Attr (aname, [ACons (s, [])])
           when aname = "count" || aname = "countof" ->
@@ -1604,7 +1604,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
 class preFunctionVisitor = object
   inherit nopCilVisitor
 
-  method vlval ((host, offset) : lval) =
+  method! vlval ((host, offset) : lval) =
     begin
       match host with
       | Var vi -> addVar vi
@@ -1784,7 +1784,7 @@ let analyzeFundec (fd : fundec) : unit =
 class preVisitor = object
   inherit nopCilVisitor
 
-  method vinst (inst : instr) =
+  method! vinst (inst : instr) =
     begin
       match inst with
       | Call (ret, fn, args, attrs) ->
@@ -1814,7 +1814,7 @@ class preVisitor = object
           DoChildren
     end
 
-  method vlval ((host, offset) : lval) =
+  method! vlval ((host, offset) : lval) =
     begin
       match host with
       | Var vi -> addVar vi
@@ -1841,7 +1841,7 @@ class outVisitor = object
   val mapping : (string, varinfo) Hashtbl.t = Hashtbl.create 5
   val retStmt : stmt ref = ref dummyStmt
 
-  method vfunc (fd : fundec) =
+  method! vfunc (fd : fundec) =
     let instrs = ref [] in
     let retInstrs = ref [] in
     Hashtbl.clear mapping;
@@ -1870,7 +1870,7 @@ class outVisitor = object
     retStmt := mkStmt (Instr !retInstrs);
     ChangeDoChildrenPost (fd, replace)
 
-  method vstmt (stmt : stmt) =
+  method! vstmt (stmt : stmt) =
     match stmt.skind with
     (*
     TODO
@@ -1883,7 +1883,7 @@ class outVisitor = object
     | _ ->
         DoChildren
 
-  method vinst (inst : instr) =
+  method! vinst (inst : instr) =
     match inst with
     | Call (ret, fn, args, attrs) ->
         let newArgs =
@@ -1899,7 +1899,7 @@ class outVisitor = object
     | _ ->
         DoChildren
 
-  method vlval (lv : lval) =
+  method! vlval (lv : lval) =
     match lv with
     | Mem (Lval (Var vi, NoOffset)), NoOffset
           when Hashtbl.mem mapping vi.vname ->
@@ -1912,7 +1912,7 @@ end
 class ptrArithVisitor = object
   inherit nopCilVisitor
 
-  method vfunc (fd : fundec) =
+  method! vfunc (fd : fundec) =
     prepareCFG fd;
     computeCFGInfo fd false;
     analyzeFundec fd;
@@ -1939,7 +1939,7 @@ let analyzeFile (f : file) : unit =
   if !E.hadErrors then
     E.s (E.error "Verification failed")
 
-let feature = 
+let feature =
   { fd_name = "CCL";
     fd_enabled = false;
     fd_description = "CCured Lite";
@@ -1949,4 +1949,4 @@ let feature =
     ];
     fd_doit = analyzeFile;
     fd_post_check = true;
-  } 
+  }

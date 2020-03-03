@@ -17,11 +17,11 @@ let printFunctionName = ref "printf"
 let addProto = ref false
 
 let printf: varinfo option ref = ref None
-let makePrintfFunction () : varinfo = 
-    match !printf with 
+let makePrintfFunction () : varinfo =
+    match !printf with
       Some v -> v
-    | None -> begin 
-        let v = makeGlobalVar !printFunctionName 
+    | None -> begin
+        let v = makeGlobalVar !printFunctionName
                      (TFun(voidType, Some [("format", charPtrType, [])],
                              true, [])) in
         printf := Some v;
@@ -29,16 +29,16 @@ let makePrintfFunction () : varinfo =
         v
     end
 
-let mkPrint (format: string) (args: exp list) : instr = 
-  let p: varinfo = makePrintfFunction () in 
+let mkPrint (format: string) (args: exp list) : instr =
+  let p: varinfo = makePrintfFunction () in
   Call(None, Lval(var p), (mkString format) :: args, !currentLoc)
-  
 
-let d_string (fmt : ('a,unit,doc,string) format4) : 'a = 
-  let f (d: doc) : string = 
+
+let d_string (fmt : ('a,unit,doc,string) format4) : 'a =
+  let f (d: doc) : string =
     Pretty.sprint 200 d
   in
-  Pretty.gprintf f fmt 
+  Pretty.gprintf f fmt
 
 let currentFunc: string ref = ref ""
 
@@ -46,8 +46,8 @@ class logCallsVisitorClass = object
   inherit nopCilVisitor
 
   (* Watch for a declaration for our printer *)
-  
-  method vinst i = begin
+
+  method! vinst i = begin
     match i with
     | Call(lo,e,al,l) ->
         let pre = mkPrint (d_string "call %a\n" d_exp e) [] in
@@ -76,14 +76,14 @@ class logCallsVisitorClass = object
                                 locUnknown)) : instr )in
       let ilist = ([ (newinst str1 log_args) ; i ; (newinst str2 []) ] : instr list) in
  *)
-    ChangeTo [ pre; i; post ] 
+    ChangeTo [ pre; i; post ]
 
     | _ -> DoChildren
   end
-  method vstmt (s : stmt) = begin
+  method! vstmt (s : stmt) = begin
     match s.skind with
-      Return _ -> 
-        let pre = mkPrint (d_string "exit %s\n" !currentFunc) [] in 
+      Return _ ->
+        let pre = mkPrint (d_string "exit %s\n" !currentFunc) [] in
         ChangeTo (mkStmt (Block (mkBlock [ mkStmtOneInstr pre; s ])))
     | _ -> DoChildren
 
@@ -117,7 +117,7 @@ let logCallsVisitor = new logCallsVisitorClass
 let logCalls (f: file) : unit =
 
   let doGlobal = function
-    | GVarDecl (v, _) when v.vname = !printFunctionName -> 
+    | GVarDecl (v, _) when v.vname = !printFunctionName ->
           if !printf = None then
              printf := Some v
 
@@ -126,8 +126,8 @@ let logCalls (f: file) : unit =
         (* do the body *)
         ignore (visitCilFunction logCallsVisitor fdec);
         (* Now add the entry instruction *)
-        let pre = mkPrint (d_string "enter %s\n" !currentFunc) [] in 
-        fdec.sbody <- 
+        let pre = mkPrint (d_string "enter %s\n" !currentFunc) [] in
+        fdec.sbody <-
           mkBlock [ mkStmtOneInstr pre;
                     mkStmt (Block fdec.sbody) ]
 (*
@@ -203,7 +203,7 @@ let logCalls (f: file) : unit =
         );
         fdec.sbody.bstmts <-
               mkStmt (Instr [Call (None, Lval(var printfFun.svar),
-                                ( (* one :: *) mkString formatstr 
+                                ( (* one :: *) mkString formatstr
                                    :: actargs),
                                 loc)]) :: fdec.sbody.bstmts
  *)
@@ -211,35 +211,35 @@ let logCalls (f: file) : unit =
   in
   Stats.time "logCalls" (iterGlobals f) doGlobal;
   if !addProto then begin
-     let p = makePrintfFunction () in 
+     let p = makePrintfFunction () in
      E.log "Adding prototype for call logging function %s\n" p.vname;
      f.globals <- GVarDecl (p, locUnknown) :: f.globals
-  end  
+  end
 
-let feature = 
+let feature =
   { fd_name = "logcalls";
     fd_enabled = false;
     fd_description = "generation of code to log function calls";
     fd_extraopt = [
-      ("--logcallprintf", Arg.String (fun s -> printFunctionName := s), 
+      ("--logcallprintf", Arg.String (fun s -> printFunctionName := s),
        " the name of the printf function to use");
-      ("--logcalladdproto", Arg.Unit (fun s -> addProto := true), 
+      ("--logcalladdproto", Arg.Unit (fun s -> addProto := true),
        " whether to add the prototype for the printf function")
     ];
     fd_doit = logCalls;
     fd_post_check = true
-  } 
+  }
 
 let () = Feature.register feature
 
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:

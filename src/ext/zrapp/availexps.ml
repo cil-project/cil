@@ -20,7 +20,7 @@ let debug = ref false
 let doTime = ref false
 
 
-let time s f a = 
+let time s f a =
   if !doTime then
     S.time s f a
   else f a
@@ -88,7 +88,7 @@ let eh_combine eh1 eh2 =
 class memReadOrAddrOfFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vexpr e = match e with
+  method! vexpr e = match e with
   | Lval(Mem _, _) -> begin
       br := true;
       SkipChildren
@@ -98,7 +98,7 @@ class memReadOrAddrOfFinderClass br = object(self)
       SkipChildren
   | _ -> DoChildren
 
-  method vvrbl vi =
+  method! vvrbl vi =
     if vi.vaddrof || vi.vglob then
       (br := true;
        SkipChildren)
@@ -113,7 +113,7 @@ let exp_has_mem_read e =
   ignore(visitCilExpr vis e);
   !br
 
-   
+
 let eh_kill_mem eh =
   IH.iter (fun vid e ->
     if exp_has_mem_read e
@@ -123,8 +123,8 @@ let eh_kill_mem eh =
 (* need to kill exps containing a particular vi sometimes *)
 class viFinderClass vi br = object(self)
   inherit nopCilVisitor
-      
-  method vvrbl vi' = 
+
+  method! vvrbl vi' =
     if vi.vid = vi'.vid
     then (br := true; SkipChildren)
     else DoChildren
@@ -147,7 +147,7 @@ let eh_kill_vi eh vi =
 class lvalFinderClass lv br = object(self)
   inherit nopCilVisitor
 
-  method vlval l =
+  method! vlval l =
     if compareLval l lv
     then (br := true; SkipChildren)
     else DoChildren
@@ -170,8 +170,8 @@ let eh_kill_lval eh lv =
 class volatileFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vexpr e =
-    if (hasAttribute "volatile" (typeAttrs (typeOf e))) 
+  method! vexpr e =
+    if (hasAttribute "volatile" (typeAttrs (typeOf e)))
     then (br := true; SkipChildren)
     else DoChildren
 end
@@ -202,7 +202,7 @@ let eh_kill_addrof_or_global eh =
     end
     with Not_found -> ()) eh
 
-let eh_handle_inst i eh = 
+let eh_handle_inst i eh =
   if (!ignore_inst) i then eh else
   match i with
     (* if a pointer write, kill things with read in them.
@@ -210,11 +210,11 @@ let eh_handle_inst i eh =
        and globals.
        otherwise kill things with lv in them and add e *)
     Set(lv,e,_) -> (match lv with
-      (Mem _, _) -> 
-	(eh_kill_mem eh; 
+      (Mem _, _) ->
+	(eh_kill_mem eh;
 	 eh_kill_addrof_or_global eh;
 	 eh)
-    | (Var vi, NoOffset) when not (exp_is_volatile e) -> 
+    | (Var vi, NoOffset) when not (exp_is_volatile e) ->
 	(match e with
 	  Lval(Var vi', NoOffset) -> (* ignore x = x *)
 	    if vi'.vid = vi.vid then eh else
@@ -273,7 +273,7 @@ module AvailableExps =
       if time "eh_equals" (eh_equals old) eh then None else
       Some(time "eh_combine" (eh_combine old) eh)
 
-    let doInstr i eh = 
+    let doInstr i eh =
       let action = eh_handle_inst i in
       DF.Post(action)
 
@@ -293,9 +293,9 @@ module AE = DF.ForwardsDataFlow(AvailableExps)
 class varHashMakerClass = object(self)
   inherit nopCilVisitor
 
-  method vvrbl vi =
+  method! vvrbl vi =
     (if not(IH.mem varHash vi.vid)
-    then 
+    then
       (if !debug && vi.vglob then ignore(E.log "%s is global\n" vi.vname);
        if !debug && not(vi.vglob) then ignore(E.log "%s is not global\n" vi.vname);
        IH.add varHash vi.vid vi));
@@ -355,7 +355,7 @@ class aeVisitorClass = object(self)
 
   val mutable cur_ae_dat = None
 
-  method vstmt stm =
+  method! vstmt stm =
     sid <- stm.sid;
     match getAEs sid with
       None ->
@@ -373,7 +373,7 @@ class aeVisitorClass = object(self)
 	    cur_ae_dat <- None;
 	    DoChildren
 
-  method vinst i =
+  method! vinst i =
     if !debug then ignore(E.log "aeVist: before %a, ae_dat_lst is %d long\n"
 			    d_instr i (List.length ae_dat_lst));
     try

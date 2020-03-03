@@ -661,7 +661,7 @@ let rec stripConstLocalType (t: typ) : typ =
 
 let constFoldTypeVisitor = object (self)
   inherit nopCilVisitor
-  method vtype t: typ visitAction =
+  method! vtype t: typ visitAction =
     match t with
       TArray(bt, Some len, a) ->
         let len' = constFold true len in
@@ -798,14 +798,14 @@ let findCompType (kind: string) (n: string) (a: attributes) =
 class canDropStmtClass pRes = object
   inherit nopCilVisitor
 
-  method vstmt s =
+  method! vstmt s =
     if s.labels != [] then
       (pRes := false; SkipChildren)
     else
       if !pRes then DoChildren else SkipChildren
 
-  method vinst _ = SkipChildren
-  method vexpr _ = SkipChildren
+  method! vinst _ = SkipChildren
+  method! vexpr _ = SkipChildren
 
 end
 let canDropStatement (s: stmt) : bool =
@@ -1170,7 +1170,7 @@ let lookupLabel (l: string) =
 class registerLabelsVisitor = object
   inherit V.nopCabsVisitor
 
-  method vstmt s =
+  method! vstmt s =
     currentLoc := convLoc (C.get_statementloc s);
     (match s with
        | A.LABEL (lbl,_,_) ->
@@ -6804,7 +6804,7 @@ let rec stripParenLocal e = match e with
 class stripParenClass : V.cabsVisitor = object (self)
   inherit V.nopCabsVisitor as super
 
-  method vexpr e = match e with
+  method! vexpr e = match e with
   | A.PAREN e2 ->
         V.ChangeDoChildrenPost (stripParenLocal e2,stripParenLocal)
   | _ -> V.DoChildren

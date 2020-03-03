@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -40,9 +40,9 @@
 (************************************************************************
  * canonicalize performs several transformations to correct differences
  * between C and C++, so that the output is (hopefully) valid C++ code.
- * This is incomplete -- certain fixes which are necessary 
+ * This is incomplete -- certain fixes which are necessary
  * for some programs are not yet implemented.
- * 
+ *
  * #1) C allows global variables to have multiple declarations and multiple
  *     (equivalent) definitions. This transformation removes all but one
  *     declaration and all but one definition.
@@ -79,12 +79,12 @@ class canonicalizeVisitor = object(self)
   val alreadyDeclared: (varinfo, unit) H.t = H.create 111
   val alreadyDefined: (varinfo, unit) H.t = H.create 111
 
-  (* move variable declarations around *) 
-  method vglob g = match g with 
+  (* move variable declarations around *)
+  method! vglob g = match g with
     GVar(v, ({init = Some _} as inito), l) ->
       (* A definition.  May have been moved to an earlier position. *)
       if H.mem alreadyDefined v then begin
-	ignore (E.warn "Duplicate definition of %s at %a." 
+	ignore (E.warn "Duplicate definition of %s at %a."
 		        v.vname d_loc !currentLoc);
 	ChangeTo [] (* delete from here. *)
       end else begin
@@ -92,9 +92,9 @@ class canonicalizeVisitor = object(self)
 	if H.mem alreadyDeclared v then begin
 	  (* Change the earlier declaration to Extern *)
 	  let oldS = v.vstorage in
-	  ignore (E.log "changing storage of %s from %a\n" 
+	  ignore (E.log "changing storage of %s from %a\n"
 		    v.vname d_storage oldS);
-	  v.vstorage <- Extern;	  
+	  v.vstorage <- Extern;
 	  let newv = {v with vstorage = oldS} in
 	  ChangeDoChildrenPost([GVar(newv, inito, l)], (fun g -> g) )
 	end else
@@ -103,7 +103,7 @@ class canonicalizeVisitor = object(self)
   | GVar(v, {init=None}, l)
   | GVarDecl(v, l) when not (isFunctionType v.vtype) -> begin
       (* A declaration.  May have been moved to an earlier position. *)
-      if H.mem alreadyDefined v || H.mem alreadyDeclared v then 
+      if H.mem alreadyDefined v || H.mem alreadyDeclared v then
 	ChangeTo [] (* delete from here. *)
       else begin
 	H.add alreadyDeclared v ();
@@ -111,13 +111,13 @@ class canonicalizeVisitor = object(self)
       end
   end
   | GFun(f, l) ->
-      currentFunction <- f; 
+      currentFunction <- f;
       DoChildren
   | _ ->
       DoChildren
 
 (* #2. rename any identifiers whose names are C++ keywords *)
-  method vvdec v = 
+  method! vvdec v =
     match v.vname with
     | "bool"
     | "catch"
@@ -155,47 +155,47 @@ class canonicalizeVisitor = object(self)
 	DoChildren
     | _ -> DoChildren
 
-  method vinst i = 
+  method! vinst i =
 (* #5. If an assignment or function call uses expressions as enum values,
    add an explicit cast. *)
-    match i with 
+    match i with
       Set (dest, exp, l) -> begin
 	let typeOfDest = typeOfLval dest in
-	match unrollType typeOfDest with 
+	match unrollType typeOfDest with
 	  TEnum _ -> (* add an explicit cast *)
 	    let newI = Set(dest, mkCast exp typeOfDest, l) in
-	    ChangeTo [newI] 
+	    ChangeTo [newI]
 	| _ -> SkipChildren
       end
     | Call (dest, f, args, l) -> begin
 	let rt, formals, isva, attrs = splitFunctionType (typeOf f) in
 	if isva then
 	  SkipChildren (* ignore vararg functions *)
-	else 
+	else
 	  match formals with
 	    Some formals' -> begin
 	      let newArgs = try
 		(*Iterate over the arguments, looking for formals that
 		   expect enum types, and insert casts where necessary. *)
-		List.map2 
+		List.map2
 		  (fun (actual: exp) (formalName, formalType, _) ->
 		    match unrollType formalType with
 		      TEnum _ -> mkCast actual formalType
 		    | _ ->  actual)
 		  args
-		  formals' 	
-	      with Invalid_argument _ -> 
+		  formals'
+	      with Invalid_argument _ ->
 		E.s (error "Number of arguments to %a doesn't match type."
 		       d_exp f)
-	      in	  
+	      in
 	      let newI = Call(dest, f, newArgs, l) in
-	      ChangeTo [newI] 
+	      ChangeTo [newI]
 	    end
 	  | None -> begin
   (* #4. No arguments were specified for this type.  To fix this, infer the
          type from the arguments that are used n this instruction, and insert
          a cast to that type.*)
-	      match f with 
+	      match f with
 		Lval(Mem(fp), off) ->
 		  let counter: int ref = ref 0 in
 		  let newFormals = Util.list_map
@@ -207,19 +207,19 @@ class canonicalizeVisitor = object(self)
 		  let newFuncPtrType =
 		    TPtr((TFun (rt, Some newFormals, false, attrs)), []) in
 		  let newFuncPtr = Lval(Mem(mkCast fp newFuncPtrType), off) in
-		  ChangeTo [Call(dest, newFuncPtr, args, l)] 
-	      | _ -> 
+		  ChangeTo [Call(dest, newFuncPtr, args, l)]
+	      | _ ->
 		  ignore (warn "cppcanon: %a has no specified arguments, but it's not a function pointer." d_exp f);
 		  SkipChildren
 	  end
     end
     | _ -> SkipChildren
 
-  method vinit (forg: varinfo) (off: offset) i = 
+  method! vinit (forg: varinfo) (off: offset) i =
 (* #5. If an initializer uses expressions as enum values,
    add an explicit cast. *)
-    match i with 
-      SingleInit e -> DoChildren (* we don't handle simple initializers here, 
+    match i with
+      SingleInit e -> DoChildren (* we don't handle simple initializers here,
 				  because we don't know what type is expected.
 				  This should be done in vglob if needed. *)
     | CompoundInit(t, initList) ->
@@ -248,17 +248,17 @@ class canonicalizeVisitor = object(self)
 	  ChangeDoChildrenPost(CompoundInit(t, initList'), (fun x -> x))
 	end else
 	  DoChildren
-   
+
 
 (* #5. If a function returns an enum type, add an explicit cast to the
        return type. *)
-  method vstmt stmt = 
+  method! vstmt stmt =
     (match stmt.skind with
       Return (Some exp, l) -> begin
-	let typeOfDest, _, _, _ = 
+	let typeOfDest, _, _, _ =
 	  splitFunctionType currentFunction.svar.vtype in
-	match unrollType typeOfDest with 
-	  TEnum _ -> 
+	match unrollType typeOfDest with
+	  TEnum _ ->
 	    stmt.skind <- Return (Some (mkCast exp typeOfDest), l)
 	| _ -> ()
       end
@@ -272,7 +272,7 @@ end (* class canonicalizeVisitor *)
 let canonicalize (f:file) =
   visitCilFile (new canonicalizeVisitor) f;
 
-  (* #3. Finally, add some #defines to change C keywords to their C++ 
+  (* #3. Finally, add some #defines to change C keywords to their C++
      equivalents: *)
   f.globals <-
     GText( "#ifdef __cplusplus\n"
@@ -283,13 +283,13 @@ let canonicalize (f:file) =
 
 
 
-let feature = 
+let feature =
   { fd_name = "canonicalize";
     fd_enabled = false;
     fd_description = "fixing some C-isms so that the result is C++ compliant.";
     fd_extraopt = [];
     fd_doit = canonicalize;
     fd_post_check = true;
-  } 
+  }
 
 let () = Feature.register feature

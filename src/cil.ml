@@ -4732,12 +4732,12 @@ class plainCilPrinterClass =
   inherit defaultCilPrinterClass as super
 
   (*** PLAIN TYPES ***)
-  method pType (dn: doc option) () (t: typ) =
+  method! pType (dn: doc option) () (t: typ) =
     match dn with
       None -> self#pOnlyType () t
     | Some d -> d ++ text " : " ++ self#pOnlyType () t
 
- method private pOnlyType () = function
+  method private pOnlyType () = function
      TVoid a -> dprintf "TVoid(@[%a@])" self#pAttrs a
    | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])"
          d_ikind ikind self#pAttrs a
@@ -4785,7 +4785,7 @@ class plainCilPrinterClass =
 
   (* Some plain pretty-printers. Unlike the above these expose all the
    * details of the internal representation *)
-  method pExp () = function
+  method! pExp () = function
     Const(c) ->
       let d_plainconst () c =
         match c with
@@ -4870,7 +4870,7 @@ class plainCilPrinterClass =
      | Index(e, o) ->
          dprintf "Index(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
 
-  method pInit () = function
+  method! pInit () = function
       SingleInit e -> dprintf "SI(%a)" d_exp e
     | CompoundInit (t, initl) ->
         let d_plainoneinit (o, i) =
@@ -4888,7 +4888,7 @@ class plainCilPrinterClass =
         dprintf "AI(@[%a,%d,@?%a@])" self#pOnlyType t len
           (docList ~sep:(chr ',' ++ break) d_plainoneinit) initl
 *)
-  method pLval () (lv: lval) =
+  method! pLval () (lv: lval) =
     match lv with
     | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname self#d_plainoffset o
     | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
@@ -4964,7 +4964,7 @@ object (self)
      (Other occurrences of lvalues are the left-hand sides of assignments,
       but we shouldn't substitute there since "foo(a,b) = foo(a,b)"
       would make no sense to the user.)  *)
-  method pExp () (e:exp) : doc =
+  method! pExp () (e:exp) : doc =
     if enable then
       match e with
         Lval (Var vi, o)
@@ -5814,7 +5814,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 class constFoldVisitorClass (machdep: bool) : cilVisitor = object
   inherit nopCilVisitor
 
-  method vinst i =
+  method! vinst i =
     match i with
       (* Skip two functions to which we add Sizeof to the type arguments.
          See the comments for these above. *)
@@ -5823,7 +5823,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
     | _ -> DoChildren
-  method vexpr (e: exp) =
+  method! vexpr (e: exp) =
     (* Do it bottom up *)
     ChangeDoChildrenPost (e, constFold machdep)
 
@@ -6103,7 +6103,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
 (* Helper class for typeSig: replace any types in attributes with typsigs *)
 class typeSigVisitor(typeSigConverter: typ->typsig) = object
   inherit nopCilVisitor
-  method vattrparam ap =
+  method! vattrparam ap =
     match ap with
       | ASizeOf t -> ChangeTo (ASizeOfS (typeSigConverter t))
       | AAlignOf t -> ChangeTo (AAlignOfS (typeSigConverter t))
@@ -6545,7 +6545,7 @@ class copyFunctionVisitor (newname: string) = object (self)
   val argid = ref 0
 
       (* This is the main function *)
-  method vfunc (f: fundec) : fundec visitAction =
+  method! vfunc (f: fundec) : fundec visitAction =
     (* We need a map from the old locals/formals to the new ones *)
     H.clear map;
     argid := 0;
@@ -6580,7 +6580,7 @@ class copyFunctionVisitor (newname: string) = object (self)
 
       (* We must create a new varinfo for each declaration. Memoize to
        * maintain sharing *)
-  method vvdec (v: varinfo) =
+  method! vvdec (v: varinfo) =
     (* Some varinfo have empty names. Give them some name *)
     if v.vname = "" then begin
       v.vname <- "arg" ^ string_of_int !argid; incr argid
@@ -6594,7 +6594,7 @@ class copyFunctionVisitor (newname: string) = object (self)
     end
 
       (* We must replace references to local variables *)
-  method vvrbl (v: varinfo) =
+  method! vvrbl (v: varinfo) =
     if v.vglob then SkipChildren else
     try
       ChangeTo (H.find map v.vname)
@@ -6603,7 +6603,7 @@ class copyFunctionVisitor (newname: string) = object (self)
 
 
         (* Replace statements. *)
-  method vstmt (s: stmt) : stmt visitAction =
+  method! vstmt (s: stmt) : stmt visitAction =
     s.sid <- !sid; incr sid;
     let s' = {s with sid = s.sid} in
     H.add stmtmap s.sid s'; (* Remember where we copied this *)
@@ -6615,11 +6615,11 @@ class copyFunctionVisitor (newname: string) = object (self)
     ChangeDoChildrenPost (s', fun x -> x)
 
       (* Copy blocks since they are mutable *)
-  method vblock (b: block) =
+  method! vblock (b: block) =
     ChangeDoChildrenPost ({b with bstmts = b.bstmts}, fun x -> x)
 
 
-  method vglob _ = E.s (bug "copyFunction should not be used on globals")
+  method! vglob _ = E.s (bug "copyFunction should not be used on globals")
 end
 
 (* We need a function that copies a CIL function. *)
@@ -6638,7 +6638,7 @@ let statements : stmt list ref = ref []
 (* Clear all info about the CFG in statements *)
 class clear : cilVisitor = object
   inherit nopCilVisitor
-  method vstmt s = begin
+  method! vstmt s = begin
     s.sid <- !sid_counter ;
     incr sid_counter ;
     statements := s :: !statements;
@@ -6646,9 +6646,9 @@ class clear : cilVisitor = object
     s.preds <- [] ;
     DoChildren
   end
-  method vexpr _ = SkipChildren
-  method vtype _ = SkipChildren
-  method vinst _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vtype _ = SkipChildren
+  method! vinst _ = SkipChildren
 end
 
 let link source dest = begin
@@ -6917,7 +6917,7 @@ end and xform_switch_block b break_dest cont_dest =
    statements. *)
 class registerLabelsVisitor : cilVisitor = object
   inherit nopCilVisitor
-  method vstmt { labels = labels } = begin
+  method! vstmt { labels = labels } = begin
     List.iter
       (function
            Label (name,_,_) -> A.registerAlphaName labelAlphaTable None name ()
@@ -6925,9 +6925,9 @@ class registerLabelsVisitor : cilVisitor = object
       labels;
     DoChildren
   end
-  method vexpr _ = SkipChildren
-  method vtype _ = SkipChildren
-  method vinst _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vtype _ = SkipChildren
+  method! vinst _ = SkipChildren
 end
 
 (* Find all labels-as-value in a function to use them as successors of computed
@@ -6935,7 +6935,7 @@ end
 class addrOfLabelFinder slr = object(self)
     inherit nopCilVisitor
 
-    method vexpr e = match e with
+    method! vexpr e = match e with
     | AddrOfLabel sref ->
         slr := !sref :: (!slr);
         SkipChildren
@@ -7052,11 +7052,11 @@ let pullTypesForward = true
     (* Scan a type and collect the variables that are referred *)
 class getVarsInGlobalClass (pacc: varinfo list ref) = object
   inherit nopCilVisitor
-  method vvrbl (vi: varinfo) =
+  method! vvrbl (vi: varinfo) =
     pacc := vi :: !pacc;
     SkipChildren
 
-  method vglob = function
+  method! vglob = function
       GType _ | GCompTag _ -> DoChildren
     | _ -> SkipChildren
 

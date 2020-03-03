@@ -160,7 +160,7 @@ struct
 
     val the_fun = ref None
 
-    method vinst i =
+    method! vinst i =
       begin
         match i with
             Call (_, Lval (Var callee, NoOffset), _, _) ->
@@ -185,7 +185,7 @@ struct
       end;
       SkipChildren
 
-    method vfunc f =
+    method! vfunc f =
       the_fun := Some f.svar;
       DoChildren
   end
@@ -243,7 +243,7 @@ struct
   class rewriteExpClass (regFile : t) =
   object
     inherit nopCilVisitor
-    method vexpr = function
+    method! vexpr = function
         Lval (Var v, NoOffset) ->
           begin
             try
@@ -287,7 +287,7 @@ struct
   class findLval lv contains =
   object
     inherit nopCilVisitor
-    method vlval l =
+    method! vlval l =
       if Util.equals l lv then
         begin
           contains := true;
@@ -415,7 +415,7 @@ class callBBVisitor =
 object
   inherit nopCilVisitor
 
-  method vstmt s =
+  method! vstmt s =
     match s.skind with
         Instr il when contains_call il ->
           begin
@@ -427,10 +427,10 @@ object
           end
       | _ -> DoChildren
 
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 let calls_end_basic_blocks f =
@@ -444,7 +444,7 @@ class vidVisitor = object
   inherit nopCilVisitor
   val count = ref 0
 
-  method vvdec vi =
+  method! vvdec vi =
     vi.vid <- !count;
     incr count;
     SkipChildren
@@ -1075,7 +1075,7 @@ object
 
   val mutable init_const : (lval * exp) list = []
 
-  method vglob g =
+  method! vglob g =
     let is_const vi = hasAttribute "const" (typeAttrs vi.vtype) in
       match g with
           GVar (vi, ii, loc) ->

@@ -1,10 +1,10 @@
 (*
  *
- * Copyright (c) 2004, 
+ * Copyright (c) 2004,
  *  Jeremy Condit       <jcondit@cs.berkeley.edu>
  *  George C. Necula    <necula@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -89,7 +89,7 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
  * expression.
  *
  * We remove casts from pointer types to unsigned int or unsigned long.
- * 
+ *
  * We also prune casts between equivalent integer types, such as a
  * difference in sign or int vs long.  But we keep other arithmetic casts,
  * since they actually change the value of the expression. *)
@@ -101,8 +101,8 @@ let rec stripNopCasts (e:exp): exp =
           when isConstType bt1 = isConstType bt2 ->
           stripNopCasts e'
       (* strip casts from pointers to unsigned int/long*)
-      | (TPtr _ as t1), (TInt(ik,_) as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 
+      | (TPtr _ as t1), (TInt(ik,_) as t2)
+          when bitsSizeOf t1 = bitsSizeOf t2
             && not (isSigned ik) ->
           stripNopCasts e'
       | (TInt(ik1,_) as t1), (TInt(ik2,_) as t2)
@@ -140,17 +140,17 @@ let rec stripCastsForPtrArith (e:exp): exp =
             if bitsSizeOf bt1 = bitsSizeOf bt2 &&
                isConstType bt1 = isConstType bt2 then
               stripCastsForPtrArith e'
-            else 
+            else
               e
           with SizeOfError _ -> (* bt1 or bt2 is abstract; don't strip. *)
             e
         end
       (* strip casts from pointers to unsigned int/long*)
-      | (TPtr _ as t1), (TInt(ik,_) as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 
+      | (TPtr _ as t1), (TInt(ik,_) as t2)
+          when bitsSizeOf t1 = bitsSizeOf t2
             && not (isSigned ik) ->
           stripCastsForPtrArith e'
-      | (TInt(ik1,_) as t1), (TInt(ik2,_) as t2) 
+      | (TInt(ik1,_) as t1), (TInt(ik2,_) as t2)
           (*when bitsSizeOf t1 = bitsSizeOf t2 ->*) (* Okay to strip.*)
           when bitsSizeOf t1 = bitsSizeOf t2 ||
                (isSigned ik1 = isSigned ik2 &&
@@ -190,7 +190,7 @@ let compareTypesNoAttributes ?(ignoreSign=true) (t1 : typ) (t2 : typ) : bool =
 class volatileFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vtype (t : typ)  =
+  method! vtype (t : typ)  =
     if hasAttribute "volatile" (typeAttrs t) then begin
       br := true;
       SkipChildren
@@ -223,20 +223,20 @@ let rec stripCastsDeepForPtrArith (e:exp): exp =
             if bitsSizeOf bt1 = bitsSizeOf bt2 &&
                isConstType bt1 = isConstType bt2 then
               e'
-            else 
+            else
               CastE(t,e')
           with SizeOfError _ -> (* bt1 or bt2 is abstract; don't strip. *)
             CastE(t,e')
         end
       | _, _ -> CastE(t,e')
     end
-  | UnOp(op,e,t) -> 
+  | UnOp(op,e,t) ->
       let e = stripCastsDeepForPtrArith e in
       UnOp(op, e, t)
   | BinOp(MinusPP,e1,e2,t) ->
       let e1 = stripCastsDeepForPtrArith e1 in
       let e2 = stripCastsDeepForPtrArith e2 in
-      if not(compareTypesNoAttributes ~ignoreSign:false 
+      if not(compareTypesNoAttributes ~ignoreSign:false
 	       (typeOf e1) (typeOf e2))
       then BinOp(MinusPP, mkCast ~e:e1 ~newt:(typeOf e2), e2, t)
       else BinOp(MinusPP, e1, e2, t)
@@ -296,4 +296,3 @@ let rec compareAttrParam (ap1 : attrparam) (ap2 : attrparam) : bool =
         compareAttrParam ap11 ap21 && compareAttrParam ap12 ap22 &&
         compareAttrParam ap13 ap23
     | _, _ -> false
-

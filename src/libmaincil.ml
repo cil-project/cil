@@ -57,7 +57,7 @@ class unrollVisitorClass = object (self)
   inherit nopCilVisitor
 
   (* variable declaration *)
-  method vvdec (vi : varinfo) : varinfo visitAction = 
+  method! vvdec (vi : varinfo) : varinfo visitAction = 
     begin
       vi.vtype <- unrollTypeDeep vi.vtype;
       (*ignore (E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte);*)
@@ -65,7 +65,7 @@ class unrollVisitorClass = object (self)
     end
     
   (* global: need to unroll fields of compinfo *)
-  method vglob (g : global) : global list visitAction =
+  method! vglob (g : global) : global list visitAction =
     begin
       match g with
           GCompTag(ci, loc) as g ->

@@ -1,13 +1,13 @@
 (*
  *
- * Copyright (c) 2001-2003, 
+ * Copyright (c) 2001-2003,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  *  Simon Goldsmith     <sfg@cs.berkeley.edu>
  *  S.P Rahul, Aman Bhargava
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -48,7 +48,7 @@ module E=Errormsg
 (* entry points: cfgFun, printCfgChannel, printCfgFilename *)
 
 (* known issues:
- * -sucessors of if somehow end up with two edges each 
+ * -sucessors of if somehow end up with two edges each
  *)
 
 (*------------------------------------------------------------*)
@@ -76,8 +76,8 @@ let start_id = ref 0 (* for unique ids across many functions *)
 
 class caseLabeledStmtFinder slr = object(self)
     inherit nopCilVisitor
-    
-    method vstmt s =
+
+    method! vstmt s =
         if List.exists (fun l ->
             match l with | Case _ | CaseRange _ | Default _ -> true | _ -> false)
             s.labels
@@ -100,7 +100,7 @@ let findCaseLabeledStmts (b : block) : stmt list =
 class addrOfLabelFinder slr = object(self)
     inherit nopCilVisitor
 
-    method vexpr e = match e with
+    method! vexpr e = match e with
     | AddrOfLabel sref ->
         slr := !sref :: (!slr);
         SkipChildren
@@ -118,7 +118,7 @@ let findAddrOfLabelStmts (b : block) : stmt list =
 
 (** Compute a control flow graph for fd.  Stmts in fd have preds and succs
   filled in *)
-let rec cfgFun (fd : fundec): int = 
+let rec cfgFun (fd : fundec): int =
   begin
     let initial_id = !start_id in
     let nodeList = ref [] in
@@ -133,7 +133,7 @@ let rec cfgFun (fd : fundec): int =
   end
 
 
-and cfgStmts (ss: stmt list) 
+and cfgStmts (ss: stmt list)
              (next:stmt option) (break:stmt option) (cont:stmt option)
              (nodeList:stmt list ref) (rlabels: stmt list) =
   match ss with
@@ -143,7 +143,7 @@ and cfgStmts (ss: stmt list)
       cfgStmt hd (Some (List.hd tl))  break cont nodeList rlabels;
       cfgStmts tl next break cont nodeList rlabels
 
-and cfgBlock  (blk: block) 
+and cfgBlock  (blk: block)
               (next:stmt option) (break:stmt option) (cont:stmt option)
               (nodeList:stmt list ref) (rlabels: stmt list) =
    cfgStmts blk.bstmts next break cont nodeList rlabels
@@ -180,15 +180,15 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
     | hd::_ -> addSucc hd
   in
   let instrFallsThrough (i : instr) : bool = match i with
-      Call (_, Lval (Var vf, NoOffset), _, _) -> 
+      Call (_, Lval (Var vf, NoOffset), _, _) ->
         (* See if this has the noreturn attribute *)
         not (hasAttribute "noreturn" vf.vattr)
-    | Call (_, f, _, _) -> 
+    | Call (_, f, _, _) ->
         not (hasAttribute "noreturn" (typeAttrs (typeOf f)))
     | _ -> true
   in
   match s.skind with
-    Instr il  -> 
+    Instr il  ->
       if List.for_all instrFallsThrough il then
         addOptionSucc next
       else
@@ -204,19 +204,19 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
       addBlockSucc blk1 next;
       cfgBlock blk1 next break cont nodeList rlabels;
       cfgBlock blk2 next break cont nodeList rlabels
-  | Block b -> 
+  | Block b ->
       addBlockSucc b next;
       cfgBlock b next break cont nodeList rlabels
   | Switch(_,blk,l,_) ->
       let bl = findCaseLabeledStmts blk in
       List.iter addSucc (List.rev bl(*l*)); (* Add successors in order *)
       (* sfg: if there's no default, need to connect s->next *)
-      if not (List.exists 
-                (fun stmt -> List.exists 
+      if not (List.exists
+                (fun stmt -> List.exists
                    (function Default _ -> true | _ -> false)
-                   stmt.labels) 
-                bl) 
-      then 
+                   stmt.labels)
+                bl)
+      then
         addOptionSucc next;
       cfgBlock blk next next cont nodeList rlabels
   | Loop(blk, loc, s1, s2) ->
@@ -225,7 +225,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
       cfgBlock blk (Some s) next (Some s) nodeList rlabels
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
-  | TryExcept _ | TryFinally _ -> 
+  | TryExcept _ | TryFinally _ ->
       E.s (E.unimp "try/except/finally")
 
 (*------------------------------------------------------------*)
@@ -233,7 +233,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
 (**************************************************************)
 (* do something for all stmts in a fundec *)
 
-let rec forallStmts (todo) (fd : fundec) = 
+let rec forallStmts (todo) (fd : fundec) =
   begin
     fasBlock todo fd.sbody;
   end
@@ -261,7 +261,7 @@ let d_cfgnodename () (s : stmt) =
   dprintf "%d" s.sid
 
 let d_cfgnodelabel () (s : stmt) =
-  let label = 
+  let label =
   begin
     match s.skind with
       | If (e, _, _, _)  -> "if" (*sprint ~width:999 (dprintf "if %a" d_exp e)*)
@@ -284,7 +284,7 @@ let d_cfgedge (src) () (dest) =
     d_cfgnodename dest
 
 let d_cfgnode () (s : stmt) =
-    dprintf "%a [label=\"%a\"]\n\t%a" 
+    dprintf "%a [label=\"%a\"]\n\t%a"
     d_cfgnodename s
     d_cfgnodelabel s
     (d_list "\n\t" (d_cfgedge s)) s.succs

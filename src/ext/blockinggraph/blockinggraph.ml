@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -110,15 +110,15 @@ let myTypeSig (t: typ) : typsig =
   removeFunPtrs (typeSigWithAttrs (fun _ -> []) t)
 
 
-(* We add a dummy function whose name is "@@functionPointer@@" that is called 
- * at all invocations of function pointers and itself calls all functions 
+(* We add a dummy function whose name is "@@functionPointer@@" that is called
+ * at all invocations of function pointers and itself calls all functions
  * whose address is taken.  *)
 let functionPointerName = "@@functionPointer@@"
 
 (* We map names to nodes *)
-let functionNodes: (string, node) Hashtbl.t = Hashtbl.create 113 
-let getFunctionNode (n: string) : node = 
-  Util.memoize 
+let functionNodes: (string, node) Hashtbl.t = Hashtbl.create 113
+let getFunctionNode (n: string) : node =
+  Util.memoize
     functionNodes
     n
     (fun _ -> newNode n false false)
@@ -136,11 +136,11 @@ let startNode: node = newNode "@@startNode@@" true false
 
 (*
 (** Dump the function call graph. *)
-let dumpFunctionCallGraph (start: node) = 
+let dumpFunctionCallGraph (start: node) =
   Hashtbl.iter (fun _ x -> x.scanned <- false) functionNodes;
-  let rec dumpOneNode (ind: int) (n: node) : unit = 
+  let rec dumpOneNode (ind: int) (n: node) : unit =
     output_string !E.logChannel "\n";
-    for i = 0 to ind do 
+    for i = 0 to ind do
       output_string !E.logChannel "  "
     done;
     output_string !E.logChannel (n.name ^ " ");
@@ -163,7 +163,7 @@ let dumpFunctionCallGraph (start: node) =
   output_string !E.logChannel "\n\n"
 *)
 
-let dumpFunctionCallGraphToFile () = 
+let dumpFunctionCallGraphToFile () =
   let channel = open_out "graph" in
   let dumpNode _ (n: node) : unit =
     let first = ref true in
@@ -190,7 +190,7 @@ let dumpFunctionCallGraphToFile () =
   Hashtbl.iter dumpNode functionNodes;
   Hashtbl.iter dumpNode functionPtrNodes;
   close_out channel
-  
+
 
 let addCall (callerNode: node) (calleeNode: node) (sopt: stmt option) =
   if not (List.exists (fun n -> n.name = calleeNode.name)
@@ -213,13 +213,13 @@ class findCallsVisitor (host: node) : cilVisitor = object
 
   val mutable curStmt : stmt ref = ref (mkEmptyStmt ())
 
-  method vstmt s =
+  method! vstmt s =
     curStmt := s;
     DoChildren
 
-  method vinst i =
+  method! vinst i =
     match i with
-    | Call(_,Lval(Var(vi),NoOffset),args,l) -> 
+    | Call(_,Lval(Var(vi),NoOffset),args,l) ->
         addCall host (getFunctionNode vi.vname) (Some !curStmt);
         SkipChildren
 
@@ -229,9 +229,9 @@ class findCallsVisitor (host: node) : cilVisitor = object
 
     | _ -> SkipChildren (* No calls in other instructions *)
 
-  (* There are no calls in expressions and types *)          
-  method vexpr e = SkipChildren
-  method vtype t = SkipChildren
+  (* There are no calls in expressions and types *)
+  method! vexpr e = SkipChildren
+  method! vtype t = SkipChildren
 
 end
 
@@ -275,7 +275,7 @@ let getStmtNode (s: stmt) : node option =
       let len = List.length instrs in
       if len > 0 then
         match List.nth instrs (len - 1) with
-          Call (_, Lval (Var vi, NoOffset), args, _) -> 
+          Call (_, Lval (Var vi, NoOffset), args, _) ->
             Some (getFunctionNode vi.vname)
         | Call (_, e, _, _) -> (* Calling a function pointer *)
             Some (getFunctionPtrNode (typeOf e))
@@ -433,10 +433,10 @@ let startNodeStacks =
   vi
 
 let startNodeAddrsArray =
-  makeGlobalVar "start_node_addrs_array" (TArray (voidPtrType, None, [])) 
+  makeGlobalVar "start_node_addrs_array" (TArray (voidPtrType, None, []))
 
 let startNodeStacksArray =
-  makeGlobalVar "start_node_stacks_array" (TArray (intType, None, [])) 
+  makeGlobalVar "start_node_stacks_array" (TArray (intType, None, []))
 
 let insertInstr (newInstr: instr) (s: stmt) : unit =
   match s.skind with
@@ -504,8 +504,8 @@ let markBlockingFunctions () : unit =
   in
   List.iter (fun n -> List.iter markFunction n.preds) !blockingNodes
 
-let hasFunctionTypeAttribute (n: string) (t: typ) : bool = 
-  let _, _, _, a = splitFunctionType t in 
+let hasFunctionTypeAttribute (n: string) (t: typ) : bool =
+  let _, _, _, a = splitFunctionType t in
   hasAttribute n a
 
 let markVar (vi: varinfo) : unit =
@@ -531,12 +531,12 @@ let markVar (vi: varinfo) : unit =
     end
   end
 
-let makeFunctionCallGraph (f: Cil.file) : unit = 
+let makeFunctionCallGraph (f: Cil.file) : unit =
   Hashtbl.clear functionNodes;
   (* Scan the file and construct the control-flow graph *)
   List.iter
     (function
-        GFun(fdec, _) -> 
+        GFun(fdec, _) ->
           let curNode = getFunctionNode fdec.svar.vname in
           if fdec.svar.vaddrof then begin
             addCall (getFunctionPtrNode fdec.svar.vtype)
@@ -561,8 +561,8 @@ let makeStartNodeLinks () : unit =
   addCall startNode (getFunctionNode "main") None;
   List.iter (fun n -> addCall startNode n None) !startNodes
 
-let funType (ret_t: typ) (args: (string * typ) list) = 
-  TFun(ret_t, 
+let funType (ret_t: typ) (args: (string * typ) list) =
+  TFun(ret_t,
       Some (Util.list_map (fun (n,t) -> (n, t, [])) args),
       false, [])
 
@@ -574,7 +574,7 @@ class instrumentClass = object
 
   val mutable funId : int ref = ref 0
 
-  method vfunc (fdec: fundec) : fundec visitAction = begin
+  method! vfunc (fdec: fundec) : fundec visitAction = begin
     (* Remember the current function. *)
     curNode := getFunctionNode fdec.svar.vname;
     seenRet := false;
@@ -605,7 +605,7 @@ class instrumentClass = object
     ChangeDoChildrenPost (fdec, addEntryNode)
   end
 
-  method vstmt (s: stmt) : stmt visitAction = begin
+  method! vstmt (s: stmt) : stmt visitAction = begin
     begin
       match s.skind with
         Instr instrs -> begin
@@ -755,7 +755,7 @@ let feature =
     fd_enabled = false;
     fd_description = "computing and printing a static call graph";
     fd_extraopt = [];
-    fd_doit = 
+    fd_doit =
     (function (f : file) ->
       Random.init 0; (* Use the same seed so that results are predictable. *)
       gatherPragmas f;
@@ -766,4 +766,4 @@ let feature =
       instrumentProgram f;
       dumpFunctionCallGraphToFile ());
     fd_post_check = true;
-  } 
+  }
