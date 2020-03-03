@@ -1,6 +1,7 @@
 (rule
   (targets Makefile)
-  (deps Makefile.in install-sh config.sub config.guess config.h.in stamp-h.in src/cil.mli)
+  ; (targets stamp-h Makefile config.mk lib/perl5/App/Cilly/CilConfig.pm doc/index.html doc/header.html src/machdep-ml.c src/cilversion.ml config.h)
+  (deps Makefile.in install-sh config.sub config.guess config.h.in stamp-h.in src/cil.mli src/machdep-ml.c.in src/cilversion.ml.in)
   (action (run ./configure)))
 
 ; (rule
