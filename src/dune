@@ -8,15 +8,9 @@
 )
 
 (rule
-  (targets machdep-ml.c cilversion.ml) ; created by ./configure which creates Makefile, but dune needs to know about it
-  (deps ../Makefile)
-  (action (chdir .. (run ./configure)))
-)
-
-(rule
-  (targets machdep.ml)
-  (deps ../Makefile ../configure.ac machdep-ml.c)
-  (action (chdir .. (progn (run make machdep) (run cp _build/machdep.ml src))))
+  (targets machdep.ml cilversion.ml)
+  (deps ../configure.ac ../Makefile.in ../install-sh ../config.sub ../config.guess ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in)
+  (action (chdir .. (progn (run ./configure) (run make machdep) (run cp _build/machdep.ml src))))
 )
 
 (ocamllex formatlex)
