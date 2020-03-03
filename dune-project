@@ -25,7 +25,7 @@ Changes:
     zarith
     (hevea :with-doc)
     (dune (>= 2.3.0))
-    ; (odoc :with-doc)
+    (odoc :with-doc)
   )
   (conflicts cil)
 )
