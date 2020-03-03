@@ -36,8 +36,6 @@
 
 open Cil
 open Cilint
-open Cilint
-open Pretty
 
 module E = Errormsg
 

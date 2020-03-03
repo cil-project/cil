@@ -36,7 +36,6 @@
  *)
 open Cil
 open Feature
-open Pretty
 module E = Errormsg
 
 let debug = false

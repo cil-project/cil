@@ -46,7 +46,6 @@ module C = Cil
 module Fe = Feature
 module CK = Check
 module E = Errormsg
-open Pretty
 
 type outfile = 
     { fname: string;

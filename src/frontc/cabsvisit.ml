@@ -40,8 +40,6 @@
 
 open Cabs
 open Cabshelper
-open Trace
-open Pretty
 module E = Errormsg
 
 (* basic interface for a visitor object *)

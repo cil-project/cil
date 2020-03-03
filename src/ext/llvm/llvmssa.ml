@@ -42,7 +42,6 @@ open List
 open Printf
 open Llvmutils
 open Llvmgen
-open Pretty
 module H = Hashtbl
 module S = String
 

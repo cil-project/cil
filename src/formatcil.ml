@@ -35,8 +35,6 @@
  *
  *)
 open Cil
-open Pretty
-open Trace      (* sm: 'trace' function *)
 module E = Errormsg
 module H = Hashtbl
 

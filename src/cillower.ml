@@ -38,7 +38,6 @@
 
 (** A number of lowering passes over CIL *)
 open Cil
-open Pretty
 module E = Errormsg
 
 (** Lower CEnum constants *)

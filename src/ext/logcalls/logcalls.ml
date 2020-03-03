@@ -5,7 +5,6 @@
 open Pretty
 open Cil
 open Feature
-open Trace
 module E = Errormsg
 module H = Hashtbl
 

@@ -47,7 +47,6 @@
  
  *)
 
-open Pretty
 open Cil
 open Feature
 module E = Errormsg

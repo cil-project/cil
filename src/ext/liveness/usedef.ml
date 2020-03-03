@@ -1,6 +1,5 @@
 
 open Cil
-open Pretty
 
 module E = Errormsg
 

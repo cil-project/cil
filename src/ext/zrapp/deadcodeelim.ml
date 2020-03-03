@@ -2,8 +2,6 @@
    used *)
 
 open Cil
-open Cilint
-open Pretty
 open Expcompare
 
 module E = Errormsg

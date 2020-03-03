@@ -36,7 +36,6 @@
 (** This is a module that inserts runtime checks for memory reads/writes and 
  * allocations *)
 
-open Pretty
 open Cil
 open Feature
 module E = Errormsg

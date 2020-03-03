@@ -3,8 +3,6 @@
    others must wait until pretty printing *)
 
 open Cil
-open Pretty
-open Expcompare
 
 module E = Errormsg
 module RD = Reachingdefs

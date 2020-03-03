@@ -38,7 +38,6 @@
 */
 %{
 open Cil
-open Pretty
 module E = Errormsg
 
 let parse_error msg : 'a =           (* sm: c++-mode highlight hack: -> ' <- *)

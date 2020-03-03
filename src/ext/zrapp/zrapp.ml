@@ -1,7 +1,6 @@
 
 open Escape
 open Pretty
-open Trace
 open Cil
 open Feature
 
