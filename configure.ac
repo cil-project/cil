@@ -110,9 +110,9 @@ if test "$OCAMLC" = "no"; then
   AC_MSG_ERROR([You must install the OCaml compiler])
 fi
 
-if test "$OCAMLBUILD" = "no"; then
-  AC_MSG_ERROR([You must install ocamlbuild])
-fi
+# if test "$OCAMLBUILD" = "no"; then
+#   AC_MSG_ERROR([You must install ocamlbuild])
+# fi
 
 AC_PROG_OCAMLLEX
 if test "$OCAMLLEX" = "no"; then

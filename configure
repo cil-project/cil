@@ -4123,9 +4123,9 @@ if test "$OCAMLC" = "no"; then
   as_fn_error $? "You must install the OCaml compiler" "$LINENO" 5
 fi
 
-if test "$OCAMLBUILD" = "no"; then
-  as_fn_error $? "You must install ocamlbuild" "$LINENO" 5
-fi
+# if test "$OCAMLBUILD" = "no"; then
+#   as_fn_error $? "You must install ocamlbuild" "$LINENO" 5
+# fi
 
   # checking for ocamllex
   if test -n "$ac_tool_prefix"; then
