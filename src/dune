@@ -3,7 +3,7 @@
 (library
   (public_name goblint-cil)
   (name cil)
-  (wrapped false)
+  (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
   (libraries zarith findlib dynlink unix str)
 )
 

@@ -1,5 +1,6 @@
 (lang dune 1.11)
 (name goblint-cil)
+(implicit_transitive_deps false)
 (generate_opam_files true)
 
 (source (github goblint/cil))
