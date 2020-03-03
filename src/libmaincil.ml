@@ -49,7 +49,7 @@ open Cil
 (* print a Cil 'file' to stdout *)
 let unparseToStdout (cil : file) : unit =
 begin
-  dumpFile defaultCilPrinter stdout cil
+  dumpFile defaultCilPrinter stdout cil.fileName cil
 end;;
 
 (* a visitor to unroll all types - may need to do some magic to keep attributes *)
