@@ -4,7 +4,7 @@
   (public_name goblint-cil)
   (name cil)
   (wrapped false)
-  (libraries zarith findlib)
+  (libraries zarith findlib dynlink unix str)
 )
 
 (rule
