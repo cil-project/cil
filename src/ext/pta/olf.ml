@@ -72,7 +72,7 @@ module B = S.Make (Bound)
 type 'a boundset = 'a B.t
 
 (** Abslocs, which identify elements in points-to sets *)
-(** jk : I'd prefer to make this an 'a absloc and specialize it to
+(* jk : I'd prefer to make this an 'a absloc and specialize it to
     varinfo for use with the Cil frontend, but for now, this will do *)
 type absloc = int * string * Cil.varinfo option
 
@@ -703,7 +703,8 @@ and unify_c_abslocs (l, l' : c_absloc * c_absloc) : unit =
 and merge_v_lbounds (vi, vi' : vinfo * vinfo) : unit =
   vi'.v_lbounds <- B.union vi.v_lbounds vi'.v_lbounds;
 and merge_v_ubounds (vi, vi' : vinfo * vinfo) : unit =
-  vi'.v_ubounds <- B.union vi.v_ubounds vi'.v_ubounds;
+  vi'.v_ubounds <- B.union vi.v_ubounds vi'.v_ubounds
+
 (** Pick the representative info for two tinfo's. This function
     prefers the first argument when both arguments are the same
     structure, but when one type is a structure and the other is a
@@ -786,6 +787,7 @@ and fetch_constraint () : tconstraint option =
       try Some (Q.take leq_worklist)
       with Q.Empty -> None
     end
+    
 (** The main solver loop. *)
 and solve_constraints () : unit =
   match fetch_constraint () with

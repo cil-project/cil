@@ -1447,7 +1447,7 @@ let oneFilePass2 (f: file) =
             (* Reflect them in the type *)
             setFormals fdec fdec.sformals
           end;
-          (** See if we can remove this inline function *)
+          (* See if we can remove this inline function *)
           if fdec'.svar.vinline && mergeInlines then begin
             let printout =
               (* Temporarily turn of printing of lines *)

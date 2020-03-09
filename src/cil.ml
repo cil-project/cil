@@ -96,6 +96,7 @@ let envMachine : M.mach option ref = ref None
 
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
+
 let insertImplicitCasts: bool ref = ref true
     (** Do insert implicit casts (default true) *)
 
@@ -1000,14 +1001,18 @@ class type cilVisitor = object
 
   method vblock: block -> block visitAction     (** Block. Replaced in
                                                     place. *)
+
   method vfunc: fundec -> fundec visitAction    (** Function definition.
                                                     Replaced in place. *)
+
   method vglob: global -> global list visitAction (** Global (vars, types,
                                                       etc.)  *)
+
   method vinit: varinfo -> offset -> init -> init visitAction
                                                 (** Initializers for globals,
                                                  * pass the global where this
                                                  * occurs, and the offset *)
+
   method vtype: typ -> typ visitAction          (** Use of some type. Note
                                                  * that for structure/union
                                                  * and enumeration types the
@@ -1015,8 +1020,10 @@ class type cilVisitor = object
                                                  * composite type is not
                                                  * visited. Use [vglob] to
                                                  * visit it.  *)
+
   method vattr: attribute -> attribute list visitAction
     (** Attribute. Each attribute can be replaced by a list *)
+    
   method vattrparam: attrparam -> attrparam visitAction
     (** Attribute parameters. *)
 

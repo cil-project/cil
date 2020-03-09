@@ -130,7 +130,7 @@ type 'a boundset = 'a B.t
 type 'a pathset = 'a P.t
 
 (** Constants, which identify elements in points-to sets *)
-(** jk : I'd prefer to make this an 'a constant and specialize it to varinfo
+(* jk : I'd prefer to make this an 'a constant and specialize it to varinfo
     for use with the Cil frontend, but for now, this will do *)
 type constant = int * string * Cil.varinfo
 
@@ -915,6 +915,7 @@ and trigger_vhole (vi : vinfo) (t : tau) =
       | _ -> ()
   in
     iter_tau add_self_loops t
+
 (** Pick the representative info for two tinfo's. This function prefers the
   first argument when both arguments are the same structure, but when
   one type is a structure and the other is a var, it picks the structure.
@@ -1020,6 +1021,7 @@ and fetch_constraint () : tconstraint option =
   try Some (Q.take eq_worklist)
   with Q.Empty -> (try Some (Q.take leq_worklist)
                    with Q.Empty -> None)
+
 (** The main solver loop. *)
 and solve_constraints () : unit =
   match fetch_constraint () with

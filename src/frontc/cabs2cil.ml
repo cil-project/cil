@@ -1407,7 +1407,7 @@ let rec castTo ?(fromsource=false)
     | TComp (comp1, a1), TComp (comp2, a2) when comp1.ckey = comp2.ckey ->
         result
 
-          (** If we try to pass a transparent union value to a function
+          (* If we try to pass a transparent union value to a function
            * expecting a transparent union argument, the argument type would
            * have been changed to the type of the first argument, and we'll
            * see a cast from a union to the type of the first argument. Turn
@@ -1831,7 +1831,7 @@ let makeGlobalVarinfo (isadef: bool) (vi: varinfo) : varinfo * bool =
     end;
     (* It was already defined. We must reuse the varinfo. But clean up the
      * storage.  *)
-    let newstorage = (** See 6.2.2 *)
+    let newstorage = (* See 6.2.2 *)
       match oldvi.vstorage, vi.vstorage with
         (* Extern and something else is that thing *)
       | Extern, other
@@ -2250,7 +2250,7 @@ let convBinOp (bop: A.binary_operator) : binop =
 let afterConversion (c: chunk) : chunk =
   (* Now scan the statements and find Instr blocks *)
 
-  (** We want to collapse sequences of the form "tmp = f(); v = tmp". This
+  (* We want to collapse sequences of the form "tmp = f(); v = tmp". This
    * will help significantly with the handling of calls to malloc, where it
    * is important to have the cast at the same place as the call *)
   let collapseCallCast = function
@@ -2727,7 +2727,7 @@ and doAttr (a: A.attribute) : attribute list =
         match a with
           A.VARIABLE n -> begin
             let n' = if strip then stripUnderscore n else n in
-            (** See if this is an enumeration *)
+            (* See if this is an enumeration *)
             try
               if not foldenum then raise Not_found;
 
@@ -4231,7 +4231,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             | _ -> false
         in
 
-        (** If the "--forceRLArgEval" flag was used, make sure
+        (* If the "--forceRLArgEval" flag was used, make sure
           we evaluate args right-to-left.
           Added by Nathan Cooprider. **)
         let force_right_to_left_evaluation (c, e, t) =
@@ -4935,7 +4935,7 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
 (* Constant fold a conditional. This is because we want to avoid having
  * conditionals in the initializers. So, we try very hard to avoid creating
  * new statements. *)
-and doCondExp (asconst: bool) (** Try to evaluate the conditional expression
+and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
                                 * to TRUE or FALSE, because it occurs in a
                                 * constant *)
               (e: A.expression) : condExpRes =

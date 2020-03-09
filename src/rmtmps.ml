@@ -231,7 +231,7 @@ let categorizePragmas file =
 	    | _ ->
 		badPragma location directive
 	  end
-      (** end CCured-specific stuff **)
+      (***  end CCured-specific stuff ***)
       |	_ ->
 	  ()
   in

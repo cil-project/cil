@@ -336,7 +336,7 @@ let splitArguments = true
  * it is faster and it generates nicer names *)
 let lu = locUnknown
 
-(* Go over the code and split some temporary variables of stucture type into
+(* Go over the code and split some temporary variables of structure type into
  * several separate variables. The hope is that the compiler will have an
  * easier time to do standard optimizations with the resulting scalars *)
 (* Unfortunately, implementing this turns out to be more complicated than I
@@ -349,7 +349,7 @@ let lu = locUnknown
 let rec foldRightStructFields
     (doit: offset -> string -> typ -> 'a) (* Invoked on non-struct fields *)
     (off: offset)
-    (post: 'a list) (** A suffix to what you compute *)
+    (post: 'a list) (* A suffix to what you compute *)
     (fields: fieldinfo list) : 'a list =
   List.fold_right
     (fun f post ->

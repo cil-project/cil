@@ -105,7 +105,7 @@ module ForwardsDataFlow =
       let loc = get_stmtLoc s.skind in
       if loc != locUnknown then
         currentLoc := get_stmtLoc s.skind;
-      (** see if we know about it already *)
+      (* see if we know about it already *)
       E.pushContext (fun _ -> dprintf "Reached statement %d with %a"
           s.sid T.pretty d);
       let newdata: T.t option =
@@ -190,7 +190,7 @@ module ForwardsDataFlow =
             E.s (E.bug "FF(%s): processing block without data" T.name)
       in
 
-      (** See what the custom says *)
+      (* See what the custom says *)
       match T.doStmt s init with
         SDone  -> ()
       | (SDefault | SUse _) as act -> begin
@@ -268,7 +268,7 @@ module ForwardsDataFlow =
       Queue.clear worklist;
       List.iter (fun s -> Queue.add s worklist) sources;
 
-      (** All initial stmts must have non-bottom data *)
+      (* All initial stmts must have non-bottom data *)
       List.iter (fun s ->
          if not (IH.mem T.stmtStartData s.sid) then
            E.s (E.error "FF(%s): initial stmt %d does not have data"

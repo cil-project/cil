@@ -1919,16 +1919,21 @@ class type cilVisitor = object
      * statement. If you use the [ChangeTo] action then you should take care
      * of preserving that sharing yourself.  *)
 
-  method vblock: block -> block visitAction     (** Block. *)
-  method vfunc: fundec -> fundec visitAction    (** Function definition.
-                                                    Replaced in place. *)
-  method vglob: global -> global list visitAction (** Global (vars, types,
-                                                      etc.)  *)
+  method vblock: block -> block visitAction
+    (** Block. *)
+
+  method vfunc: fundec -> fundec visitAction
+    (** Function definition. Replaced in place. *)
+
+  method vglob: global -> global list visitAction
+    (** Global (vars, types, etc.)  *)
+
   method vinit: varinfo -> offset -> init -> init visitAction
                                                 (** Initializers for static,
                                                  * const and global variables,
                                                  * pass the variable where this
                                                  * occurs, and the offset *)
+
   method vtype: typ -> typ visitAction          (** Use of some type. Note
                                                  * that for structure/union
                                                  * and enumeration types the
@@ -1936,8 +1941,10 @@ class type cilVisitor = object
                                                  * composite type is not
                                                  * visited. Use [vglob] to
                                                  * visit it.  *)
+
   method vattr: attribute -> attribute list visitAction
     (** Attribute. Each attribute can be replaced by a list *)
+
   method vattrparam: attrparam -> attrparam visitAction
     (** Attribute parameters. *)
 
@@ -2485,6 +2492,7 @@ val d_plaintype: unit -> typ -> Pretty.doc
 (** Pretty-print an expression while printing descriptions rather than names
   of temporaries. *)
 val dd_exp: unit -> exp -> Pretty.doc
+
 (** Pretty-print an lvalue on the left side of an assignment.
     If there is an offset or memory dereference, temporaries will
     be replaced by descriptions as in dd_exp.  If the lval is a temp var,
