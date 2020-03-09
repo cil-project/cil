@@ -24,7 +24,7 @@ let split_idx (idx: int) : int option =
 
 let rec create (len: int) (init: 'a) : 'a t =
   let len1, len2 = split_len len in
-  (Array.create len1 init) :: (if len2 > 0 then create len2 init else [])
+  (Array.make len1 init) :: (if len2 > 0 then create len2 init else [])
 
 let rec init (len: int) (fn: int -> 'a) : 'a t =
   let len1, len2 = split_len len in
@@ -90,7 +90,7 @@ let rec map (fn: 'a -> 'b) (a: 'a t) : 'b t =
 let docArray ?(sep = chr ',') (doit: int -> 'a -> doc)
              () (elements: 'a t) =
   let len = length elements in
-  if len = 0 then 
+  if len = 0 then
     nil
   else
     let rec loop (acc: doc) i =
