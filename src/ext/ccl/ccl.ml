@@ -1397,7 +1397,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      let removeNames = ref [] in
                      let inOutSubst = Hashtbl.create 7 in
                      let inFacts, outFacts = getFunctionFacts fnType in
-                     let rec argIter fn : unit =
+                     let argIter fn : unit =
                        let rec argIterRec i formals actuals : unit =
                          match formals, actuals with
                          | fcur :: frest, acur :: arest ->
@@ -1416,14 +1416,14 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                        in
                        argIterRec 1 formals actuals
                      in
-                     let rec showWarnings i (fName, fType, _) aExp : unit =
+                     let showWarnings i (fName, fType, _) aExp : unit =
                        let fFacts = typeToFacts "*" fType in
                        if FactSet.is_empty fFacts && isPointerType fType then
                          ignore (warning ("formal parameter %d of " ^^
                                           "%s has no annotations\n")
                                          i fnName)
                      in
-                     let rec prepFakeVars i (fname, ftype, _) aExp : unit =
+                     let prepFakeVars i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname
@@ -1449,7 +1449,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          doSetNames [fakeName] aFacts
                        end
                      in
-                     let rec checkIn i (fname, ftype, _) aExp : unit =
+                     let checkIn i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname
@@ -1486,7 +1486,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          | _ -> ()
                        end
                      in
-                     let rec checkOut i (fname, ftype, _) aExp : unit =
+                     let checkOut i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname

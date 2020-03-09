@@ -3315,7 +3315,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
     end
   in
-  let rec findField (n: string) (fidlist: fieldinfo list) : offset =
+  let findField (n: string) (fidlist: fieldinfo list) : offset =
     (* Depth first search for the field. This appears to be what GCC does.
      * MSVC checks that there are no ambiguous field names, so it does not
      * matter how we search *)
@@ -4769,7 +4769,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     | A.GNU_BODY b -> begin
         (* Find the last A.COMPUTATION and remember it. This one is invoked
          * on the reversed list of statements. *)
-        let rec findLastComputation = function
+        let findLastComputation = function
             s :: _  ->
               let rec findLast = function
                   A.SEQUENCE (_, s, loc) -> findLast s
@@ -5412,7 +5412,7 @@ and doInit
    (* We have a designator *)
   | _, (what, ie) :: restil when what != A.NEXT_INIT ->
       (* Process a designator and position to the designated subobject *)
-      let rec addressSubobj
+      let addressSubobj
           (so: subobj)
           (what: A.initwhat)
           (acc: chunk) : chunk =

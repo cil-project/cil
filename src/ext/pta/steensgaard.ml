@@ -1,9 +1,9 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -62,21 +62,21 @@ module H = Hashtbl
 module Q = Queue
 
 (** Polarity kinds-- positive, negative, or nonpolar. *)
-type polarity = Pos 
-		| Neg 
+type polarity = Pos
+		| Neg
 		| Non
 
-(** Label bounds. The polymorphic type is a hack for recursive modules *)  
-type 'a bound = {index : int; info : 'a} 
+(** Label bounds. The polymorphic type is a hack for recursive modules *)
+type 'a bound = {index : int; info : 'a}
 
 (** The 'a type may in general contain urefs, which makes Pervasives.compare
   incorrect. However, the bounds will always be correct because if two tau's
-  get unified, their cached instantiations will be re-entered into the 
+  get unified, their cached instantiations will be re-entered into the
   worklist, ensuring that any labels find the new bounds *)
 module Bound =
-struct 
+struct
   type 'a t = 'a bound
-  let compare (x : 'a t) (y : 'a t) = 
+  let compare (x : 'a t) (y : 'a t) =
     Pervasives.compare x y
 end
 
@@ -97,7 +97,7 @@ end
 
 module C = Set.Make(Constant)
 
-(** Sets of constants. Set union is used when two labels containing 
+(** Sets of constants. Set union is used when two labels containing
   constant sets are unified *)
 type constantset = C.t
 
@@ -106,9 +106,9 @@ type lblinfo = {
   (** Name of this label *)
   mutable aliases: constantset;
   (** Set of constants (tags) for checking aliases *)
-  p_bounds: label boundset U.uref; 
+  p_bounds: label boundset U.uref;
   (** Set of umatched (p) lower bounds *)
-  n_bounds: label boundset U.uref; 
+  n_bounds: label boundset U.uref;
   (** Set of unmatched (n) lower bounds *)
   mutable p_cached: bool;
   (** Flag indicating whether all reachable p edges have been locally cached *)
@@ -119,43 +119,43 @@ type lblinfo = {
 }
 
 (** Constructor labels *)
-and label = lblinfo U.uref 
+and label = lblinfo U.uref
 
 (** The type of lvalues. *)
 type lvalue = {
-  l: label; 
+  l: label;
   contents: tau
 }
 
 (** Data for variables. *)
 and vinfo = {
-  v_name: string; 
-  mutable v_global: bool; 
+  v_name: string;
+  mutable v_global: bool;
   v_cache: cache
-} 
+}
 
 (** Data for ref constructors.  *)
 and rinfo = {
-  rl: label; 
-  mutable r_global: bool; 
-  points_to: tau; 
+  rl: label;
+  mutable r_global: bool;
+  points_to: tau;
   r_cache: cache
 }
 
 (** Data for fun constructors. *)
 and finfo = {
-  fl: label; 
-  mutable f_global: bool; 
-  args: tau list ref; 
-  ret: tau; 
+  fl: label;
+  mutable f_global: bool;
+  args: tau list ref;
+  ret: tau;
   f_cache: cache
 }
 
 (* Data for pairs. Note there is no label. *)
 and pinfo = {
-  mutable p_global: bool; 
-  ptr: tau; 
-  lam: tau; 
+  mutable p_global: bool;
+  ptr: tau;
+  lam: tau;
   p_cache: cache
 }
 
@@ -164,8 +164,8 @@ and tinfo = Wild
             | Var of vinfo
 	    | Ref of rinfo
 	    | Fun of finfo
-	    | Pair of pinfo 
- 
+	    | Pair of pinfo
+
 (** The top-level points-to type. *)
 and tau = tinfo U.uref
 
@@ -176,18 +176,18 @@ and cache = (int,polarity * tau) H.t
 type su_constraint = Instantiation of tau * (int * polarity) * tau
 		     | Unification of tau * tau
 
-(** Association lists, used for printing recursive types. The first element 
+(** Association lists, used for printing recursive types. The first element
   is a type that has been visited. The second element is the string
-  representation of that type (so far). If the string option is set, then 
+  representation of that type (so far). If the string option is set, then
   this type occurs within itself, and is associated with the recursive var
-  name stored in the option. When walking a type, add it to an association 
-  list. 
+  name stored in the option. When walking a type, add it to an association
+  list.
 
   Example : suppose we have the constraint 'a = ref('a). The type is unified
   via cyclic unification, and would loop infinitely if we attempted to print
   it. What we want to do is print the type u rv. ref(rv). This is accomplished
   in the following manner:
-  
+
   -- ref('a) is visited. It is not in the association list, so it is added
   and the string "ref(" is stored in the second element. We recurse to print
   the first argument of the constructor.
@@ -203,11 +203,11 @@ type su_constraint = Instantiation of tau * (int * polarity) * tau
   complete the type by printing the result of the call, "rv", and ")"
 
   In a type where the recursive variable appears twice, e.g. 'a = pair('a,'a),
-  the second time we hit 'a, the string option will be set, so we know to 
+  the second time we hit 'a, the string option will be set, so we know to
   reuse the same recursive variable name.
 *)
 type association = tau * string ref * string option ref
-  
+
 (***********************************************************************)
 (*                                                                     *)
 (* Global Variables                                                    *)
@@ -221,9 +221,9 @@ let print_constraints : bool ref = ref false
   are solved in batch fashion at calls to solveConstraints. *)
 let solve_online : bool ref = ref true
 
-(** If true, print all constraints (including induced) and show additional 
+(** If true, print all constraints (including induced) and show additional
  debug output. *)
-let debug = ref false			       
+let debug = ref false
 let debug_constraints = debug
 
 (** If true, print out extra verbose debug information (including contents
@@ -255,7 +255,7 @@ let inst_worklist : su_constraint Q.t = Q.create()
 (***********************************************************************)
 
 (** Consistency check for inferred types *)
-let  pair_or_var (t : tau) = 
+let  pair_or_var (t : tau) =
   match (U.deref t) with
     | Pair _ -> true
     | Var _ -> true
@@ -274,8 +274,8 @@ let fun_or_var (t : tau) =
     |  _ -> false
 
 (** Generate a unique integer. *)
-let fresh_index () : int = 
-  incr counter; 
+let fresh_index () : int =
+  incr counter;
   !counter
 
 (** Negate a polarity. *)
@@ -286,25 +286,25 @@ let negate (p : polarity) : polarity =
     | Non -> Non
 
 (** Compute the least-upper-bounds of two polarities. *)
-let lub (p,p' : polarity * polarity) : polarity = 
+let lub (p,p' : polarity * polarity) : polarity =
   match p with
-    | Pos -> 
+    | Pos ->
 	begin
-	  match p' with 
+	  match p' with
 	    | Pos -> Pos
 	    | _ -> Non
 	end
-    | Neg -> 
+    | Neg ->
 	begin
 	  match p' with
-	    | Neg -> Neg 
+	    | Neg -> Neg
 	    | _ -> Non
 	end
     | Non -> Non
 
 (** Extract the cache from a type *)
 let get_cache (t : tau) : cache =
-  match U.deref t with 
+  match U.deref t with
     | Wild -> raise Bad_cache
     | Var v -> v.v_cache
     | Ref r -> r.r_cache
@@ -312,7 +312,7 @@ let get_cache (t : tau) : cache =
     | Fun f -> f.f_cache
 
 (** Determine whether or not a type is global *)
-let get_global (t : tau) : bool = 
+let get_global (t : tau) : bool =
   match U.deref t with
     |  Wild -> false
     | Var v -> v.v_global
@@ -329,17 +329,17 @@ let global_lvalue lv = get_global lv.contents
 let rec ulist_mem e l =
   match l with
     | [] -> false
-    | h :: t -> if (U.equal(h,e)) then true else ulist_mem e t 
+    | h :: t -> if (U.equal(h,e)) then true else ulist_mem e t
 
 (** Convert a polarity to a string *)
-let string_of_polarity p = 
-    match p with 
+let string_of_polarity p =
+    match p with
       | Pos -> "+"
       | Neg -> "-"
       | Non -> "T"
 
 (** Convert a label to a string, short representation *)
-let string_of_label2 (l : label) : string = 
+let string_of_label2 (l : label) : string =
   "\"" ^ (U.deref l).l_name ^ "\""
 
 (** Convert a label to a string, long representation *)
@@ -352,29 +352,29 @@ let string_of_label (l : label ) : string =
   let aliases = constset_to_string (C.elements ((U.deref l).aliases))
   in
     if ( (aliases = "") || (not !verbose_debug))
-    then string_of_label2 l 
+    then string_of_label2 l
     else aliases
 
 (** Return true if the element [e] is present in the association list *)
 let rec assoc_list_mem (e : tau) (l : association list) =
   match l with
     | [] -> None
-    | (h,s,so) :: t -> 
+    | (h,s,so) :: t ->
 	if (U.equal(h,e)) then (Some (s,so)) else assoc_list_mem e t
-	
+
 (** Given a tau, create a unique recursive variable name. This should always
   return the same name for a given tau *)
-let fresh_recvar_name (t : tau) : string =	    
+let fresh_recvar_name (t : tau) : string =
   match U.deref t with
-    | Pair p -> "rvp" ^ string_of_int((Hashtbl.hash p)) 
-    | Ref r -> "rvr" ^ string_of_int((Hashtbl.hash r)) 
+    | Pair p -> "rvp" ^ string_of_int((Hashtbl.hash p))
+    | Ref r -> "rvr" ^ string_of_int((Hashtbl.hash r))
     | Fun f -> "rvf" ^ string_of_int((Hashtbl.hash f))
     | _ -> raise (Inconsistent ("recvar_name"))
 
 (** Return a string representation of a tau, using association lists. *)
-let string_of_tau (t : tau ) : string = 
+let string_of_tau (t : tau ) : string =
   let tau_map : association list ref = ref [] in
-  let rec string_of_tau' t = 
+  let rec string_of_tau' t =
     match (assoc_list_mem t (!tau_map)) with
       | Some (s,so) -> (* recursive type. see if a var name has been set *)
 	  begin
@@ -395,9 +395,9 @@ let string_of_tau (t : tau ) : string =
 	      tau_map := (t,s,so) :: (!tau_map);
 
 	      (match (U.deref t) with
-		| Wild -> s := "_"; 
+		| Wild -> s := "_";
 		| Var v -> s := v.v_name;
-		| Pair p -> 
+		| Pair p ->
 		    begin
 		      assert (ref_or_var(p.ptr));
 		      assert (fun_or_var(p.lam));
@@ -406,7 +406,7 @@ let string_of_tau (t : tau ) : string =
 		      s := (!s) ^ ",";
 		      s := (!s) ^ (string_of_tau' p.lam);
 		      s := (!s) ^"}"
-		
+
 		    end
 		| Ref r ->
 		    begin
@@ -416,7 +416,7 @@ let string_of_tau (t : tau ) : string =
 		      s := (!s) ^ "|,";
 		      s := (!s) ^ (string_of_tau' r.points_to);
 		      s := (!s) ^ ")"
-		    
+
 		    end
 		| Fun f ->
 		    begin
@@ -427,7 +427,7 @@ let string_of_tau (t : tau ) : string =
 			      assert(pair_or_var(h));
 			      s := (!s) ^ (string_of_tau' h)
 			    end
-			| h :: t -> 
+			| h :: t ->
 			    begin
 			      assert(pair_or_var(h));
 			      s := (!s) ^ (string_of_tau' h) ^ ",";
@@ -439,7 +439,7 @@ let string_of_tau (t : tau ) : string =
 			s := (!s) ^ (string_of_label f.fl);
 			s := (!s) ^ "|,";
 			s := (!s) ^ "<";
-			if (List.length !(f.args) > 0) 
+			if (List.length !(f.args) > 0)
 			then
 			  string_of_args !(f.args)
 			else
@@ -454,15 +454,15 @@ let string_of_tau (t : tau ) : string =
   in
     string_of_tau' t
 
-(** Convert an lvalue to a string *)	
-let rec string_of_lvalue (lv : lvalue) : string =
+(** Convert an lvalue to a string *)
+let string_of_lvalue (lv : lvalue) : string =
   let contents = (string_of_tau(lv.contents)) in
   let l = (string_of_label lv.l) in
     assert(pair_or_var(lv.contents));
     Printf.sprintf "[%s]^(%s)" contents l
-	      
+
 (** Print a list of tau elements, comma separated *)
-let rec print_tau_list (l : tau list) : unit = 
+let print_tau_list (l : tau list) : unit =
   let t_strings = Util.list_map string_of_tau l in
   let rec print_t_strings = function
     | h :: [] -> print_string h; print_newline();
@@ -472,11 +472,11 @@ let rec print_tau_list (l : tau list) : unit =
     print_t_strings t_strings
 
 (** Print a constraint. *)
-let print_constraint (c : su_constraint) = 
-  match c with 
-    | Unification (t,t') -> 
+let print_constraint (c : su_constraint) =
+  match c with
+    | Unification (t,t') ->
 	let lhs = string_of_tau t in
-	let rhs = string_of_tau t' in 
+	let rhs = string_of_tau t' in
 	  Printf.printf "%s == %s\n" lhs rhs
     | Instantiation (t,(i,p),t') ->
 	let lhs = string_of_tau t in
@@ -486,7 +486,7 @@ let print_constraint (c : su_constraint) =
 	  Printf.printf "%s <={%s,%s} %s\n" lhs index pol rhs
 
 (* If [positive] is true, return the p-edge bounds, otherwise, return
-   the n-edge bounds. *)    
+   the n-edge bounds. *)
 let get_bounds (positive : bool) (l : label) : label boundset U.uref =
   if (positive) then
     (U.deref l).p_bounds
@@ -499,14 +499,14 @@ let on_path (l : label) : bool =
   (U.deref l).on_path
 
 (** Used for cycle detection during the flow step. Identifies [l] as being
-  on/off the current path. *) 
+  on/off the current path. *)
 let set_on_path (l : label) (b : bool) : unit =
   (U.deref l).on_path <- b
 
 (** Make the type a global type *)
 let set_global (t : tau) (b : bool) : bool =
-  if (!debug && b) 
-  then 
+  if (!debug && b)
+  then
     Printf.printf "Setting a new global : %s\n" (string_of_tau t);
   begin
     assert ( (not (get_global(t)) ) || b );
@@ -521,7 +521,7 @@ let set_global (t : tau) (b : bool) : bool =
 
 (** Return a label's bounds as a string *)
 let string_of_bounds (is_pos : bool) (l : label) : string =
-  let bounds = 
+  let bounds =
     if (is_pos) then
       U.deref ((U.deref l).p_bounds)
     else
@@ -529,7 +529,7 @@ let string_of_bounds (is_pos : bool) (l : label) : string =
   in
     B.fold (fun b -> fun res -> res ^ (string_of_label2 b.info) ^ " "
 	   ) bounds ""
-    
+
 (***********************************************************************)
 (*                                                                     *)
 (* Type Operations -- these do not create any constraints              *)
@@ -543,28 +543,28 @@ let wild () : tau =
   wild_val
 
 (** Create an lvalue with label [lbl] and tau contents [t]. *)
-let make_lval (lbl,t : label * tau) : lvalue = 
+let make_lval (lbl,t : label * tau) : lvalue =
   {l = lbl; contents = t}
 
 (** Create a new label with name [name]. Also adds a fresh constant
- with name [name] to this label's aliases set. *)  
+ with name [name] to this label's aliases set. *)
 let make_label (name : string) : label =
   U.uref {
     l_name = name;
-    aliases = (C.add (fresh_index(),name) C.empty); 
-    p_bounds = U.uref (B.empty); 
+    aliases = (C.add (fresh_index(),name) C.empty);
+    p_bounds = U.uref (B.empty);
     n_bounds = U.uref (B.empty);
     p_cached = false;
     n_cached = false;
     on_path = false
  }
 
-(** Create a new label with an unspecified name and an empty alias set. *) 
+(** Create a new label with an unspecified name and an empty alias set. *)
 let fresh_label () : label =
   U.uref {
     l_name = "l_" ^ (string_of_int (fresh_index()));
-    aliases = (C.empty); 
-    p_bounds = U.uref (B.empty); 
+    aliases = (C.empty);
+    p_bounds = U.uref (B.empty);
     n_bounds = U.uref (B.empty);
     p_cached = false;
     n_cached = false;
@@ -572,13 +572,13 @@ let fresh_label () : label =
  }
 
 (** Create a fresh bound. *)
-let make_bound (i,a : int * 'a) : 'a bound = 
+let make_bound (i,a : int * 'a) : 'a bound =
   {index = i; info = a }
 
 (** Create a fresh named variable with name '[name]. *)
 let make_var (b: bool) (name : string) : tau =
-   U.uref (Var {v_name = ("'" ^name); 
-		v_global = b; 
+   U.uref (Var {v_name = ("'" ^name);
+		v_global = b;
 		v_cache = H.create 4})
 
 (** Create a fresh unnamed variable (name will be 'fv). *)
@@ -586,40 +586,40 @@ let fresh_var () : tau =
   make_var false ("fv" ^ (string_of_int (fresh_index())) )
 
 (** Create a fresh unnamed variable (name will be 'fi). *)
-let fresh_var_i () : tau = 
+let fresh_var_i () : tau =
  make_var false ("fi" ^ (string_of_int (fresh_index())) )
 
 (** Create a Fun constructor. *)
 let make_fun (lbl,a,r : label * (tau list) * tau) : tau =
-  U.uref (Fun {fl = lbl ; 
-	       f_global = false; 
-	       args = ref a; 
+  U.uref (Fun {fl = lbl ;
+	       f_global = false;
+	       args = ref a;
 	       ret = r;
 	       f_cache = H.create 4})
 
 (** Create a Ref constructor. *)
 let make_ref (lbl,pt : label * tau) : tau =
-  U.uref (Ref {rl = lbl ; 
-	       r_global = false; 
-	       points_to = pt; 
+  U.uref (Ref {rl = lbl ;
+	       r_global = false;
+	       points_to = pt;
 	       r_cache = H.create 4})
 
 (** Create a Pair constructor. *)
 let make_pair (p,f : tau * tau) : tau =
-  U.uref (Pair {ptr = p; 
+  U.uref (Pair {ptr = p;
 		p_global = false;
-		lam = f; 
+		lam = f;
 		p_cache = H.create 4})
 
 (** Copy the toplevel constructor of [t], putting fresh variables in each
   argement of the constructor. *)
-let copy_toplevel (t : tau) : tau = 
+let copy_toplevel (t : tau) : tau =
   match U.deref t with
-    | Pair _ -> 
+    | Pair _ ->
 	make_pair (fresh_var_i(), fresh_var_i())
-    | Ref  _ -> 
+    | Ref  _ ->
 	make_ref (fresh_label(),fresh_var_i())
-    | Fun  f -> 
+    | Fun  f ->
 	let fresh_fn = fun _ -> fresh_var_i()
 	in
 	  make_fun (fresh_label(), Util.list_map fresh_fn !(f.args) , fresh_var_i())
@@ -629,8 +629,8 @@ let pad_args (l,l' : (tau list ref) * (tau list ref)) : unit =
   let padding = ref ((List.length (!l)) - (List.length (!l')))
   in
     if (!padding == 0) then ()
-    else 
-      let to_pad = 
+    else
+      let to_pad =
 	if (!padding > 0) then l' else (padding := -(!padding);l)
       in
 	for i = 1 to (!padding)  do
@@ -645,7 +645,7 @@ let pad_args (l,l' : (tau list ref) * (tau list ref)) : unit =
 
 (** Returns true if the constraint has no effect, i.e. either the left-hand
   side or the right-hand side is wild. *)
-let wild_constraint (t,t' : tau * tau) : bool = 
+let wild_constraint (t,t' : tau * tau) : bool =
   let ti,ti' = U.deref t, U.deref t' in
     match ti,ti' with
       | Wild, _ -> true
@@ -667,17 +667,17 @@ let exists_cycle (t,t' : tau * tau) : bool =
 	print_newline();
 	print_string (string_of_tau t);
 	print_newline(); *)
-	(* raise Instantiation_cycle *) 
+	(* raise Instantiation_cycle *)
 	(* visited := List.tl (!visited) *) (* check *)
       end
     else
       begin
 	visited := t :: (!visited);
-	if (U.equal(t,t')) 
+	if (U.equal(t,t'))
 	then raise Cycle_found
 	else
-	  H.iter (fun _ -> fun (_,t'') -> 
-		    if (U.equal (t,t'')) then () 
+	  H.iter (fun _ -> fun (_,t'') ->
+		    if (U.equal (t,t'')) then ()
 		    else
 		      ignore (exists_cycle' t'')
 		 ) (get_cache t) ;
@@ -689,14 +689,14 @@ let exists_cycle (t,t' : tau * tau) : bool =
       false
     with
       | Cycle_found -> true
-	
+
 exception Subterm
-  
+
 (** Returns true if [t'] is a proper subterm of [t] *)
-let proper_subterm (t,t') = 
+let proper_subterm (t,t') =
   let visited : tau list ref = ref [] in
-  let rec proper_subterm' t = 
-    if (ulist_mem t (!visited)) 
+  let rec proper_subterm' t =
+    if (ulist_mem t (!visited))
     then () (* recursive type *)
     else
       if (U.equal (t,t'))
@@ -721,7 +721,7 @@ let proper_subterm (t,t') =
 	  end
   in
     try
-      if (U.equal(t,t')) then false 
+      if (U.equal(t,t')) then false
       else
 	begin
 	  proper_subterm' t;
@@ -741,24 +741,24 @@ let eoc (t,t') : bool =
       then
 	Printf.printf "Occurs check : %s occurs within %s\n" (string_of_tau t')
 	  (string_of_tau t)
-      else 
+      else
 	();
-      true 
+      true
     end
   else
    false
-  
+
 (** Resolve an instantiation constraint *)
 let rec instantiate_int (t,(i,p),t' : tau * (int * polarity) * tau) =
-  if  ( wild_constraint(t,t') || (not (store(t,(i,p),t'))) || 
+  if  ( wild_constraint(t,t') || (not (store(t,(i,p),t'))) ||
 	U.equal(t,t') )
   then ()
-  else 
+  else
     let ti,ti' = U.deref t, U.deref t' in
-      match ti,ti' with 
-	| Ref r, Ref r' -> 
+      match ti,ti' with
+	| Ref r, Ref r' ->
 	    instantiate_ref(r,(i,p),r')
-	| Fun f, Fun f' -> 
+	| Fun f, Fun f' ->
 	    instantiate_fun(f,(i,p),f')
 	| Pair pr, Pair pr' ->
 	    begin
@@ -766,15 +766,15 @@ let rec instantiate_int (t,(i,p),t' : tau * (int * polarity) * tau) =
 	      add_constraint_int (Instantiation (pr.lam,(i,p),pr'.lam))
 	    end
 	| Var v, _ -> ()
-	| _,Var v' -> 
+	| _,Var v' ->
 	    if eoc(t,t')
-	    then 
+	    then
 	      add_constraint_int (Unification (t,t'))
 	    else
 	      begin
 		unstore(t,i);
 		add_constraint_int (Unification ((copy_toplevel t),t'));
-		add_constraint_int (Instantiation (t,(i,p),t')) 
+		add_constraint_int (Instantiation (t,(i,p),t'))
 	      end
 	| _ -> raise (Inconsistent("instantiate"))
 
@@ -784,76 +784,76 @@ and instantiate_ref (ri,(i,p),ri') : unit =
   add_constraint_int (Instantiation(ri.points_to,(i,Non),ri'.points_to));
   instantiate_label (ri.rl,(i,p),ri'.rl)
 
-(** Apply instantiations to the fun's label, and structurally down the type. 
+(** Apply instantiations to the fun's label, and structurally down the type.
    Flip the polarity for the function's args. If the lengths of the argument
    lists don't match, extend the shorter list as necessary.  *)
 and instantiate_fun (fi,(i,p),fi') : unit =
     pad_args (fi.args, fi'.args);
     assert(List.length !(fi.args) == List.length !(fi'.args));
     add_constraint_int (Instantiation (fi.ret,(i,p),fi'.ret));
-    List.iter2 (fun t ->fun t' -> 
-		  add_constraint_int (Instantiation(t,(i,negate p),t'))) 
+    List.iter2 (fun t ->fun t' ->
+		  add_constraint_int (Instantiation(t,(i,negate p),t')))
       !(fi.args) !(fi'.args);
     instantiate_label (fi.fl,(i,p),fi'.fl)
 
-(** Instantiate a label. Update the label's bounds with new flow edges. 
+(** Instantiate a label. Update the label's bounds with new flow edges.
  *)
 and instantiate_label (l,(i,p),l' : label * (int * polarity) * label) : unit =
   if (!debug) then
-    Printf.printf "%s <= {%d,%s} %s\n" (string_of_label l) i 
+    Printf.printf "%s <= {%d,%s} %s\n" (string_of_label l) i
       (string_of_polarity p) (string_of_label l');
   let li,li' = U.deref l, U.deref l' in
     match p with
       | Pos ->
-	  U.update (li'.p_bounds, 
+	  U.update (li'.p_bounds,
 		    B.add(make_bound (i,l)) (U.deref li'.p_bounds)
 		   )
-      | Neg -> 
-	  U.update (li.n_bounds, 
+      | Neg ->
+	  U.update (li.n_bounds,
 		    B.add(make_bound (i,l')) (U.deref li.n_bounds)
 		   )
       | Non ->
 	  begin
-	    U.update (li'.p_bounds, 
+	    U.update (li'.p_bounds,
 		      B.add(make_bound (i,l)) (U.deref li'.p_bounds)
 		     );
-	    U.update (li.n_bounds, 
+	    U.update (li.n_bounds,
 		      B.add(make_bound (i,l')) (U.deref li.n_bounds)
 		     )
 	  end
-	     
+
 (** Resolve a unification constraint. Does the uref unification after grabbing
-  a copy of the information before the two infos are unified. The other 
+  a copy of the information before the two infos are unified. The other
   interesting feature of this function is the way 'globalness' is propagated.
-  If a non-global is unified with a global, the non-global becomes global. 
-  If the ecr became global, there is a problem because none of its cached 
+  If a non-global is unified with a global, the non-global becomes global.
+  If the ecr became global, there is a problem because none of its cached
   instantiations know that the type became monomorphic. In this case, they
   must be re-inserted via merge-cache. Merge-cache always reinserts cached
   instantiations from the non-ecr type, i.e. the type that was 'killed' by the
   unification. *)
-and unify_int (t,t' : tau * tau) : unit = 
-  if (wild_constraint(t,t') || U.equal(t,t')) 
+and unify_int (t,t' : tau * tau) : unit =
+  if (wild_constraint(t,t') || U.equal(t,t'))
   then ()
-  else 
+  else
     let ti, ti' = U.deref t, U.deref t' in
       begin
 	U.unify combine (t,t');
 	match ti,ti' with
-	  | Var v, _ -> 
-	      begin 
+	  | Var v, _ ->
+	      begin
 		if (set_global t' (v.v_global || (get_global t')))
 		then (H.iter (merge_cache t') (get_cache t'))
 		else ();
 		H.iter (merge_cache t') v.v_cache
 	      end
 	  | _, Var v ->
-	      begin 
+	      begin
 		if (set_global t (v.v_global || (get_global t)))
 		then (H.iter (merge_cache t) (get_cache t))
 		else ();
 		H.iter (merge_cache t) v.v_cache
 	      end
-	  | Ref r, Ref r' -> 
+	  | Ref r, Ref r' ->
 	      begin
 		if (set_global t (r.r_global || r'.r_global))
 		then (H.iter (merge_cache t) (get_cache t))
@@ -861,11 +861,11 @@ and unify_int (t,t' : tau * tau) : unit =
 		H.iter (merge_cache t) r'.r_cache;
 		unify_ref(r,r')
 	      end
-	  | Fun f, Fun f' -> 
+	  | Fun f, Fun f' ->
 	      begin
 		if (set_global t (f.f_global || f'.f_global))
 		then (H.iter (merge_cache t) (get_cache t))
-		else (); 
+		else ();
 		H.iter (merge_cache t) f'.f_cache;
 		unify_fun (f,f');
 	      end
@@ -873,7 +873,7 @@ and unify_int (t,t' : tau * tau) : unit =
 	      begin
 		if (set_global t (p.p_global || p'.p_global))
 		then (H.iter (merge_cache t) (get_cache t))
-		else (); 
+		else ();
 		H.iter (merge_cache t) p'.p_cache;
 		add_constraint_int (Unification (p.ptr,p'.ptr));
 		add_constraint_int (Unification (p.lam,p'.lam))
@@ -884,30 +884,30 @@ and unify_int (t,t' : tau * tau) : unit =
 (** Unify the ref's label, and apply unification structurally down the type. *)
 and unify_ref (ri,ri' : rinfo * rinfo) : unit =
   add_constraint_int (Unification (ri.points_to,ri'.points_to));
-  unify_label(ri.rl,ri'.rl) 
+  unify_label(ri.rl,ri'.rl)
 
-(** Unify the fun's label, and apply unification structurally down the type, 
+(** Unify the fun's label, and apply unification structurally down the type,
   at arguments and return value. When combining two lists of different lengths,
   always choose the longer list for the representative. *)
-and unify_fun (li,li' : finfo * finfo) : unit = 
+and unify_fun (li,li' : finfo * finfo) : unit =
   let rec union_args  = function
     | _, [] -> false
     | [], _ -> true
-    | h :: t, h' :: t' -> 
-	add_constraint_int (Unification (h,h')); union_args(t,t') 
+    | h :: t, h' :: t' ->
+	add_constraint_int (Unification (h,h')); union_args(t,t')
   in
     begin
       unify_label(li.fl,li'.fl);
       add_constraint_int (Unification (li.ret,li'.ret));
-      if (union_args(!(li.args),!(li'.args))) 
+      if (union_args(!(li.args),!(li'.args)))
       then li.args := !(li'.args);
     end
 
 (** Unify two labels, combining the set of constants denoting aliases. *)
 and unify_label (l,l' : label * label) : unit =
-  let pick_name (li,li' : lblinfo * lblinfo) = 
-    if ( (String.length li.l_name) > 1 && (String.sub (li.l_name) 0 2) = "l_") 
-    then 
+  let pick_name (li,li' : lblinfo * lblinfo) =
+    if ( (String.length li.l_name) > 1 && (String.sub (li.l_name) 0 2) = "l_")
+    then
       li.l_name <- li'.l_name
     else ()
   in
@@ -915,7 +915,7 @@ and unify_label (l,l' : label * label) : unit =
     let p_bounds = U.deref (li.p_bounds) in
     let p_bounds' = U.deref (li'.p_bounds) in
     let n_bounds = U.deref (li.n_bounds) in
-    let n_bounds' = U.deref (li'.n_bounds) in 
+    let n_bounds' = U.deref (li'.n_bounds) in
       begin
 	pick_name(li,li');
 	li.aliases <- C.union (li.aliases) (li'.aliases);
@@ -926,7 +926,7 @@ and unify_label (l,l' : label * label) : unit =
   in(*
     if (!debug) then
       begin
-	Printf.printf "Unifying %s with %s...\n" 
+	Printf.printf "Unifying %s with %s...\n"
 	  (string_of_label l) (string_of_label l');
 	Printf.printf "pbounds : %s\n" (string_of_bounds true l);
 	Printf.printf "nbounds : %s\n" (string_of_bounds false l);
@@ -940,22 +940,22 @@ and unify_label (l,l' : label * label) : unit =
 	Printf.printf "nbounds : %s\n" (string_of_bounds false l)
       end *)
 
-(** Re-assert a cached instantiation constraint, since the old type was 
+(** Re-assert a cached instantiation constraint, since the old type was
   killed by a unification *)
 and merge_cache (rep : tau) (i : int) (p,t' : polarity * tau) : unit =
   add_constraint_int (Instantiation (rep,(i,p),t'))
-      
+
 (** Pick the representative info for two tinfo's. This function prefers the
   first argument when both arguments are the same structure, but when
   one type is a structure and the other is a var, it picks the structure. *)
-and combine (ti,ti' : tinfo * tinfo) : tinfo = 
+and combine (ti,ti' : tinfo * tinfo) : tinfo =
   match ti,ti' with
     | Var _, _ -> ti'
-    | _,_ -> ti 
+    | _,_ -> ti
 
 (** Add a new constraint induced by other constraints. *)
 and add_constraint_int (c : su_constraint) =
-  if (!print_constraints && !debug) then print_constraint c else (); 
+  if (!print_constraints && !debug) then print_constraint c else ();
   begin
     match c with
       | Instantiation _ ->
@@ -964,13 +964,13 @@ and add_constraint_int (c : su_constraint) =
 	  Q.add c eq_worklist
   end;
   if (!debug) then solve_constraints() else ()
-  
-(** Add a new constraint introduced through this module's interface (a 
+
+(** Add a new constraint introduced through this module's interface (a
   top-level constraint). *)
 and add_constraint (c : su_constraint) =
   begin
     add_constraint_int (c);
-    if (!print_constraints && not (!debug)) then print_constraint c else (); 
+    if (!print_constraints && not (!debug)) then print_constraint c else ();
     if (!solve_online) then solve_constraints() else ()
   end
 
@@ -978,24 +978,24 @@ and add_constraint (c : su_constraint) =
 (* Fetch constraints, preferring equalities. *)
 and fetch_constraint () : su_constraint option =
   if (Q.length eq_worklist > 0)
-  then 
+  then
     Some (Q.take eq_worklist)
   else if (Q.length inst_worklist > 0)
   then
     Some (Q.take inst_worklist)
   else
-    None 
+    None
 
 (** Returns the target of a cached instantiation, if it exists. *)
 and target (t,i,p : tau * int * polarity) : (polarity * tau) option =
   let cache = get_cache t in
-    if (global_tau t) then Some (Non,t) 
+    if (global_tau t) then Some (Non,t)
     else
       try
 	Some (H.find cache i)
-      with 
+      with
 	| Not_found -> None
-	  
+
 (** Caches a new instantiation, or applies well-formedness. *)
 and store ( t,(i,p),t' : tau * (int * polarity) * tau) : bool =
   let cache = get_cache t in
@@ -1009,14 +1009,14 @@ and store ( t,(i,p),t' : tau * (int * polarity) * tau) : bool =
 	      add_constraint_int (Unification (t',t''));
 	      H.replace cache i (lub(p,p''),t'');
 	      (* add a new forced instantiation as well *)
-	      if (lub(p,p'') = p'') 
+	      if (lub(p,p'') = p'')
 	      then ()
 	      else
 		begin
 		  unstore(t,i);
 		  add_constraint_int (Instantiation (t,(i,lub(p,p'')),t''))
 		end;
-	      false 
+	      false
 	    end
       | None ->
 	  begin
@@ -1030,7 +1030,7 @@ let cache = get_cache t in
   H.remove cache i
 
 (** The main solver loop. *)
-and solve_constraints () : unit = 
+and solve_constraints () : unit =
   match fetch_constraint () with
     | Some c ->
 	begin
@@ -1048,23 +1048,23 @@ and solve_constraints () : unit =
 (* Interface Functions                                                 *)
 (*                                                                     *)
 (***********************************************************************)
-    
+
 (** Return the contents of the lvalue. *)
-let rvalue (lv : lvalue) : tau = 
+let rvalue (lv : lvalue) : tau =
   lv.contents
 
 (** Dereference the rvalue. If it does not have enough structure to support
   the operation, then the correct structure is added via new unification
   constraints. *)
 let rec deref (t : tau) : lvalue =
-  match U.deref t with 
+  match U.deref t with
     | Pair p ->
 	(
 	  match U.deref (p.ptr) with
 	    | Var _ ->
-		begin 
+		begin
 		 (* let points_to = make_pair(fresh_var(),fresh_var()) in *)
-		  let points_to = fresh_var() in 
+		  let points_to = fresh_var() in
 		  let l = fresh_label() in
 		  let r = make_ref(l,points_to)
 		  in
@@ -1074,7 +1074,7 @@ let rec deref (t : tau) : lvalue =
 	    | Ref r -> make_lval(r.rl, r.points_to)
 	    | _ -> raise (Inconsistent("deref"))
 	)
-    | Var v -> 
+    | Var v ->
 	begin
 	  add_constraint (Unification (t,make_pair(fresh_var(),fresh_var())));
 	  deref t
@@ -1082,7 +1082,7 @@ let rec deref (t : tau) : lvalue =
     | _ -> raise (Inconsistent("deref -- no top level pair"))
 
 (** Form the union of [t] and [t']. *)
-let join (t : tau) (t' : tau) : tau = 
+let join (t : tau) (t' : tau) : tau =
   let t''  = fresh_var() in
     add_constraint (Unification (t,t''));
     add_constraint (Unification (t',t''));
@@ -1090,7 +1090,7 @@ let join (t : tau) (t' : tau) : tau =
 
 (** Form the union of a list [tl], expected to be the initializers of some
   structure or array type. *)
-let join_inits (tl : tau list) : tau = 
+let join_inits (tl : tau list) : tau =
   let t' = fresh_var() in
     begin
       List.iter (function t'' -> add_constraint (Unification(t',t''))) tl;
@@ -1098,12 +1098,12 @@ let join_inits (tl : tau list) : tau =
     end
 
 (** Take the address of an lvalue. Does not add constraints. *)
-let address (lv  : lvalue) : tau = 
+let address (lv  : lvalue) : tau =
   make_pair (make_ref (lv.l, lv.contents), fresh_var() )
-    
-(** Instantiate a type with index i. By default, uses positive polarity. 
+
+(** Instantiate a type with index i. By default, uses positive polarity.
  Adds an instantiation constraint. *)
-let instantiate (lv : lvalue) (i : int) : lvalue = 
+let instantiate (lv : lvalue) (i : int) : lvalue =
   if (!analyze_mono) then lv
   else
     begin
@@ -1112,16 +1112,16 @@ let instantiate (lv : lvalue) (i : int) : lvalue =
 	instantiate_label(lv.l,(i,Pos),l');
 	add_constraint (Instantiation (lv.contents,(i,Pos),t'));
 	make_lval(l',t') (* check -- fresh label ?? *)
-    end 
-    
+    end
+
 (** Constraint generated from assigning [t] to [lv]. *)
-let assign (lv : lvalue) (t : tau) : unit = 
+let assign (lv : lvalue) (t : tau) : unit =
   add_constraint (Unification (lv.contents,t))
-    
+
 
 (** Project out the first (ref) component or a pair. If the argument [t] has
   no discovered structure, raise No_contents. *)
-let proj_ref (t : tau) : tau = 
+let proj_ref (t : tau) : tau =
   match U.deref t with
     | Pair p -> p.ptr
     | Var v -> raise No_contents
@@ -1129,34 +1129,34 @@ let proj_ref (t : tau) : tau =
 
 (* Project out the second (fun) component of a pair. If the argument [t] has
  no discovered structure, create it on the fly by adding constraints. *)
-let proj_fun (t : tau) : tau = 
+let proj_fun (t : tau) : tau =
   match U.deref t with
     | Pair p -> p.lam
-    | Var v -> 
+    | Var v ->
 	let p,f = fresh_var(), fresh_var() in
 	  add_constraint (Unification (t,make_pair(p,f)));
 	  f
     | _ -> raise Bad_proj
 
 let get_args (t : tau) : tau list ref =
-  match U.deref t with 
+  match U.deref t with
     | Fun f -> f.args
     | _ -> raise (Inconsistent("get_args"))
 
-(** Function type [t] is applied to the arguments [actuals]. Unifies the 
-  actuals with the formals of [t]. If no functions have been discovered for 
+(** Function type [t] is applied to the arguments [actuals]. Unifies the
+  actuals with the formals of [t]. If no functions have been discovered for
   [t] yet, create a fresh one and unify it with t. The result is the return
   value of the function. *)
-let apply (t : tau) (al : tau list) : tau = 
+let apply (t : tau) (al : tau list) : tau =
   let f = proj_fun(t) in
-  let actuals = ref al in 
+  let actuals = ref al in
   let formals,ret =
     match U.deref f with
       | Fun fi -> (fi.args),fi.ret
       | Var v ->
-	  let new_l,new_ret,new_args = 
-	    fresh_label(), fresh_var (), 
-	    Util.list_map (function _ -> fresh_var()) (!actuals) 
+	  let new_l,new_ret,new_args =
+	    fresh_label(), fresh_var (),
+	    Util.list_map (function _ -> fresh_var()) (!actuals)
 	  in
 	  let new_fun = make_fun(new_l,new_args,new_ret) in
 	    add_constraint (Unification(new_fun,f));
@@ -1166,35 +1166,35 @@ let apply (t : tau) (al : tau list) : tau =
       | Wild -> raise (Inconsistent("apply_wild"))
   in
     pad_args(formals,actuals);
-    List.iter2 (fun actual -> fun formal -> 
+    List.iter2 (fun actual -> fun formal ->
 		  add_constraint (Unification (actual,formal))
 	       ) !actuals !formals;
-    ret 
-    
-(** Create a new function type with name [name], list of formal arguments 
+    ret
+
+(** Create a new function type with name [name], list of formal arguments
   [formals], and return value [ret]. Adds no constraints. *)
-let make_function (name : string) (formals : lvalue list) (ret : tau) : tau = 
-  let 
-    f = make_fun(make_label(name),Util.list_map (fun x -> rvalue x) formals, ret) 
+let make_function (name : string) (formals : lvalue list) (ret : tau) : tau =
+  let
+    f = make_fun(make_label(name),Util.list_map (fun x -> rvalue x) formals, ret)
   in
     make_pair(fresh_var(),f)
 
-(** Create an lvalue. If [is_global] is true, the lvalue will be treated 
+(** Create an lvalue. If [is_global] is true, the lvalue will be treated
     monomorphically. *)
-let make_lvalue (is_global : bool) (name : string) : lvalue = 
-  if (!debug && is_global) 
-  then 
+let make_lvalue (is_global : bool) (name : string) : lvalue =
+  if (!debug && is_global)
+  then
     Printf.printf "Making global lvalue : %s\n" name
   else ();
   make_lval(make_label(name), make_var is_global name)
- 
+
 
 (** Create a fresh non-global named variable. *)
 let make_fresh (name : string) : tau =
   make_var false (name)
 
 (** The default type for constants. *)
-let bottom () : tau = 
+let bottom () : tau =
   make_var false ("bottom")
 
 (** Unify the result of a function with its return value. *)
@@ -1212,19 +1212,19 @@ let return (t : tau) (t' : tau) =
 let combine_lbounds (s,s' : label boundset * label boundset) =
   B.union s s'
 
-(** Truncates a list of urefs [l] to those elements up to and including the 
+(** Truncates a list of urefs [l] to those elements up to and including the
   first occurence of the specified element [elt].  *)
-let truncate l elt = 
+let truncate l elt =
   let keep = ref true in
-    List.filter 
-      (fun x -> 
-	 if (not (!keep)) 
-	 then 
+    List.filter
+      (fun x ->
+	 if (not (!keep))
+	 then
 	     false
 	 else
 	   begin
-	     if  (U.equal(x,elt)) 
-	     then 
+	     if  (U.equal(x,elt))
+	     then
 	       keep := false
 	     else ();
 	     true
@@ -1233,8 +1233,8 @@ let truncate l elt =
 
 let debug_cycle_bounds is_pos c =
   let rec debug_cycle_bounds' = function
-    | h :: [] -> 
-	Printf.printf "%s --> %s\n" (string_of_bounds is_pos h) 
+    | h :: [] ->
+	Printf.printf "%s --> %s\n" (string_of_bounds is_pos h)
 	(string_of_label2 h)
     | h :: t ->
 	begin
@@ -1249,7 +1249,7 @@ let debug_cycle_bounds is_pos c =
 (** For debugging, print a cycle of instantiations *)
 let debug_cycle (is_pos,c,l,p) =
   let kind = if is_pos then "P" else "N" in
-  let rec string_of_cycle = function 
+  let rec string_of_cycle = function
     | h :: [] -> string_of_label2 h
     | [] -> ""
     | h :: t -> Printf.sprintf "%s,%s" (string_of_label2 h) (string_of_cycle t)
@@ -1263,26 +1263,26 @@ let debug_cycle (is_pos,c,l,p) =
 
 (** Compute pos or neg flow, depending on [is_pos]. Searches for cycles in the
   instantiations (can these even occur?) and unifies either the positive or
-  negative edge sets for the labels on the cycle. Note that this does not 
-  ever unify the labels themselves. The return is the new bounds of the 
+  negative edge sets for the labels on the cycle. Note that this does not
+  ever unify the labels themselves. The return is the new bounds of the
   argument label *)
 let rec flow (is_pos : bool) (path : label list) (l : label) : label boundset =
-  let collapse_cycle () = 
+  let collapse_cycle () =
     let cycle = truncate path l in
       debug_cycle (is_pos,cycle,l,path);
-      List.iter (fun x -> U.unify combine_lbounds 
+      List.iter (fun x -> U.unify combine_lbounds
 		   ((get_bounds is_pos x),get_bounds is_pos l)
 		) cycle
   in
-    if (on_path l) 
+    if (on_path l)
     then
       begin
-	collapse_cycle (); 
+	collapse_cycle ();
 	(* set_on_path l false; *)
 	B.empty
       end
     else
-      if ( (is_pos && (U.deref l).p_cached) || 
+      if ( (is_pos && (U.deref l).p_cached) ||
 	   ( (not is_pos) && (U.deref l).n_cached) ) then
 	begin
 	  U.deref (get_bounds is_pos l)
@@ -1292,42 +1292,42 @@ let rec flow (is_pos : bool) (path : label list) (l : label) : label boundset =
 	  let newbounds = ref B.empty in
 	  let base = get_bounds is_pos l in
 	    set_on_path l true;
-	    if (is_pos) then 
-	      (U.deref l).p_cached <- true 
-	    else 
+	    if (is_pos) then
+	      (U.deref l).p_cached <- true
+	    else
 	      (U.deref l).n_cached <- true;
-	    B.iter 
-	      (fun x -> 
-		 if (U.equal(x.info,l)) then () 
+	    B.iter
+	      (fun x ->
+		 if (U.equal(x.info,l)) then ()
 		 else
-		   (newbounds := 
+		   (newbounds :=
 		    (B.union (!newbounds) (flow is_pos (l :: path) x.info)))
-	      ) (U.deref base); 
+	      ) (U.deref base);
 	    set_on_path l false;
 	    U.update (base,(B.union (U.deref base) !newbounds));
 	    U.deref base
 	end
-	
+
 (** Compute and cache any positive flow. *)
-let pos_flow l : constantset  = 
-  let result = ref C.empty in 
+let pos_flow l : constantset  =
+  let result = ref C.empty in
     begin
       ignore (flow true [] l);
       B.iter (fun x -> result := C.union (!result) (U.deref(x.info)).aliases )
-	(U.deref (get_bounds true l)); 
+	(U.deref (get_bounds true l));
       !result
     end
-    
+
 (** Compute and cache any negative flow. *)
 let neg_flow l : constantset =
   let result = ref C.empty in
     begin
-      ignore (flow false [] l); 
+      ignore (flow false [] l);
       B.iter (fun x -> result := C.union (!result) (U.deref(x.info)).aliases )
 	(U.deref (get_bounds false l));
       !result
     end
-    
+
 (** Compute and cache any pos-neg flow. Assumes that both pos_flow and
   neg_flow have been computed for the label [l]. *)
 let pos_neg_flow(l : label) : constantset  =
@@ -1343,7 +1343,7 @@ let pos_neg_flow(l : label) : constantset  =
 let points_to_int (lv : lvalue) : constantset =
   let visited_caches : cache list ref  = ref [] in
   let rec points_to_tau (t : tau) : constantset =
-    try 
+    try
       begin
 	match U.deref (proj_ref t) with
 	  | Var v -> C.empty
@@ -1364,7 +1364,7 @@ let points_to_int (lv : lvalue) : constantset =
 	      | Var v -> rebuild_flow v.v_cache
 	      | _ -> raise (Inconsistent ("points_to"))
 	  end
-  and rebuild_flow (c : cache) : constantset = 
+  and rebuild_flow (c : cache) : constantset =
     if (List.mem c (!visited_caches) ) (* cyclic instantiations *)
     then
       begin
@@ -1375,40 +1375,40 @@ let points_to_int (lv : lvalue) : constantset =
       begin
 	visited_caches :=  c :: (!visited_caches);
 	let result = ref (C.empty) in
-	  H.iter (fun _ -> fun(p,t) -> 
-		    match p with 
-		      | Pos -> () 
+	  H.iter (fun _ -> fun(p,t) ->
+		    match p with
+		      | Pos -> ()
 		      | _ -> result := C.union (!result) (points_to_tau t)
 		 ) c;
 	  visited_caches := List.tl (!visited_caches);
 	  !result
       end
   in
-    if (!no_flow) then 
+    if (!no_flow) then
       (U.deref lv.l).aliases
-    else 
+    else
       points_to_tau (lv.contents)
 
 let points_to (lv : lvalue) : string list =
   Util.list_map snd (C.elements (points_to_int lv))
 
-let alias_query (a_progress : bool) (lv : lvalue list) : int * int = 
+let alias_query (a_progress : bool) (lv : lvalue list) : int * int =
   (0,0) (* todo *)
 (*
   let a_count = ref 0 in
   let ptsets = Util.list_map points_to_int lv in
   let total_sets = List.length ptsets in
-  let counted_sets = ref 0 in 
-  let record_alias s s' = 
-    if (C.is_empty (C.inter s s')) 
+  let counted_sets = ref 0 in
+  let record_alias s s' =
+    if (C.is_empty (C.inter s s'))
     then ()
     else (incr a_count)
   in
   let rec check_alias = function
     | h :: t ->
 	begin
-	  List.iter (record_alias h) ptsets; 
-	  check_alias t 
+	  List.iter (record_alias h) ptsets;
+	  check_alias t
 	end
     | [] -> ()
   in

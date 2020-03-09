@@ -311,7 +311,7 @@ let traceNonRoot reason global =
 
 
 let hasExportingAttribute funvar =
-  let rec isExportingAttribute = function
+  let isExportingAttribute = function
     | Attr ("constructor", []) -> true
     | Attr ("destructor", []) -> true
     | _ -> false
@@ -758,7 +758,7 @@ let removeUnmarked file =
 
     (* retained functions may wish to discard some unused locals *)
     | GFun (func, _) ->
-	let rec filterLocal local =
+	let filterLocal local =
 	  if not local.vreferenced then
 	    begin
 	      (* along the way, record the interesting locals that were removed *)
@@ -801,7 +801,7 @@ type rootsFilter = global -> bool
 
 let isDefaultRoot = isExportedRoot
 
-let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
+let removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
   if !keepUnused || Trace.traceActive "disableTmpRemoval" then
     Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else

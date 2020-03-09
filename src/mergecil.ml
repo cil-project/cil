@@ -765,7 +765,7 @@ and matchTypeInfo (oldfidx: int) (oldti: typeinfo)
  * enumeration tags  *)
 (* 3. We clean the referenced flags *)
 
-let rec oneFilePass1 (f:file) : unit =
+let oneFilePass1 (f:file) : unit =
   H.add fileNames !currentFidx f.fileName;
   if debugMerge || !E.verboseFlag then
     ignore (E.log "Pre-merging (%d) %s\n" !currentFidx f.fileName);
@@ -922,7 +922,7 @@ let doMergeSynonyms
     if not node.nmergedSyns then begin
       (* find all the nodes for the same name *)
       let all = H.find_all syn n in
-      let rec tryone (classes: 'a node list) (* A number of representatives
+      let tryone (classes: 'a node list) (* A number of representatives
                                               * for this name *)
                      (nd: 'a node) : 'a node list (* Returns an expanded set
                                                    * of classes *) =

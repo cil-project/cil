@@ -469,7 +469,7 @@ let string_of_tau (t : tau) : string =
     string_of_tau' t
 
 (** Convert an lvalue to a string *)
-let rec string_of_lvalue (lv : lvalue) : string =
+let string_of_lvalue (lv : lvalue) : string =
   let contents = string_of_tau lv.contents
   and l = string_of_c_absloc lv.l
   in
@@ -478,7 +478,7 @@ let rec string_of_lvalue (lv : lvalue) : string =
     Printf.sprintf "[%s]^(%s)" contents l
 
 (** Print a list of tau elements, comma separated *)
-let rec print_tau_list (l : tau list) : unit =
+let print_tau_list (l : tau list) : unit =
   let rec print_t_strings = function
       [] -> ()
     | h :: [] -> print_endline h
@@ -760,7 +760,7 @@ and add_constraint_int (c : tconstraint) (toplev : bool) =
     end
   else
     if !debug_constraints then print_constraint c else ();
-  insist (can_add_constraints ()) 
+  insist (can_add_constraints ())
     "can't add constraints after compute_results is called";
   begin
     match c with

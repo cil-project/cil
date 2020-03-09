@@ -5293,7 +5293,7 @@ let mapNoCopy (f: 'a -> 'a) l =
       aux (i' :: acc) (changed || i != i') resti
   in aux [] false l
 
-let rec mapNoCopyList (f: 'a -> 'a list) l =
+let mapNoCopyList (f: 'a -> 'a list) l =
   let rec aux acc changed = function
     [] -> if changed then List.rev acc else l
   | i :: resti ->
@@ -5375,7 +5375,7 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
 
 and visitCilInit (vis: cilVisitor) (forglob: varinfo)
                  (atoff: offset) (i: init) : init =
-  let rec childrenInit (vis: cilVisitor) (i: init) : init =
+  let childrenInit (vis: cilVisitor) (i: init) : init =
     let fExp e = visitCilExpr vis e in
     let fTyp t = visitCilType vis t in
     match i with
@@ -6249,7 +6249,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
   (List.find (fun fi -> fi.fname = fieldName) cinfo.cfields)
 
 
-let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
+let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
   (* Do not remove old casts because they are conversions !!! *)
   if Util.equals (typeSig oldt) (typeSig newt) then begin
     e

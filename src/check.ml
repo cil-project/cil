@@ -353,7 +353,7 @@ and checkCompInfo (isadef: defuse) comp =
     if isadef = Defined then begin
       checkAttributes comp.cattr;
       let fctx = if comp.cstruct then CTStruct else CTUnion in
-      let rec checkField f =
+      let checkField f =
         if not
             (f.fcomp == comp &&  (* Each field must share the self cell of
              * the host *)

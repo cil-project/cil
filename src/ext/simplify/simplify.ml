@@ -372,7 +372,7 @@ let rec foldRightStructFields
     post
 
 
-let rec foldStructFields
+let foldStructFields
     (t: typ)
     (doit: offset -> string -> typ -> 'a)
     : 'a list =
