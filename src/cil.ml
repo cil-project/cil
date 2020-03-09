@@ -1340,14 +1340,14 @@ let compactStmts (b: stmt list) : stmt list =
     in
     match body with
       [] -> finishLast []
-    | ({skind=Instr il} as s) :: rest ->
+    | ({skind=Instr il; _} as s) :: rest ->
         let ils = Clist.fromList il in
         if lastinstrstmt != dummyStmt && s.labels == [] then
           compress lastinstrstmt (Clist.append lastinstrs ils) rest
         else
           finishLast (compress s ils rest)
 
-    | {skind=Block b;labels = []} :: rest when b.battrs = [] ->
+    | {skind=Block b;labels = []; _} :: rest when b.battrs = [] ->
         compress lastinstrstmt lastinstrs (b.bstmts@rest)
     | s :: rest ->
         let res = s :: compress dummyStmt Clist.empty rest in
@@ -4001,7 +4001,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
         self#pIfConditionThen l be t
 
-    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
+    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                 battrs=[]},l)
      when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l be t
@@ -4009,7 +4009,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
           self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
-    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
+    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
            battrs=[]},e,l)
       when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l (UnOp(LNot,be,intType)) e
@@ -4017,7 +4017,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,t,e,l) ->
         self#pIfConditionThen l be t
           ++ (match e with
-                { bstmts=[{skind=If _} as elsif]; battrs=[] } ->
+                { bstmts=[{skind=If _; _} as elsif]; battrs=[] } ->
                     text " else"
                     ++ line (* Don't indent else-ifs *)
                     ++ self#pStmtNext next () elsif
@@ -4040,16 +4040,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           let term, bodystmts =
             let rec skipEmpty = function
                 [] -> []
-              | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
+              | {skind=Instr [];labels=[]; _} :: rest -> skipEmpty rest
               | x -> x
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]} :: rest
+              {skind=If(e,tb,fb,_); labels=[]; _} :: rest
                                               when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
-                  [], {skind=Break _; labels=[]} :: _  -> e, rest
-                | {skind=Break _; labels=[]} :: _, []
+                  [], {skind=Break _; labels=[]; _} :: _  -> e, rest
+                | {skind=Break _; labels=[]; _} :: _, []
                                      -> UnOp(LNot, e, intType), rest
                 | _ -> raise Not_found
               end
@@ -5865,7 +5865,7 @@ let foldGlobals (fl: file)
 let findOrCreateFunc (f:file) (name:string) (t:typ) : varinfo =
   let rec search glist =
     match glist with
-	GVarDecl(vi,_) :: rest | GFun ({svar = vi},_) :: rest when vi.vname = name ->
+	GVarDecl(vi,_) :: rest | GFun ({svar = vi; _},_) :: rest when vi.vname = name ->
           if not (isFunctionType vi.vtype) then
             E.s (error ("findOrCreateFunc: can't create %s because another "
                         ^^"global exists with that name.") name);
@@ -6479,7 +6479,7 @@ let uniqueVarNames (f: file) : unit =
     (function
         GVarDecl(vi, l)
       | GVar(vi, _, l)
-      | GFun({svar = vi}, l) ->
+      | GFun({svar = vi; _}, l) ->
           (* See if we have used this name already for something else *)
           (try
             let oldid = H.find globalNames vi.vname in
@@ -6917,7 +6917,7 @@ end and xform_switch_block b break_dest cont_dest =
    statements. *)
 class registerLabelsVisitor : cilVisitor = object
   inherit nopCilVisitor
-  method! vstmt { labels = labels } = begin
+  method! vstmt { labels = labels; _ } = begin
     List.iter
       (function
            Label (name,_,_) -> A.registerAlphaName labelAlphaTable None name ()

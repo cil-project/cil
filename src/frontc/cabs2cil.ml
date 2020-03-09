@@ -850,7 +850,7 @@ module BlockChunk =
       if c.postins = [] then c.stmts
       else
         let rec toLast = function
-            [{skind=Instr il} as s] as stmts ->
+            [{skind=Instr il; _} as s] as stmts ->
               s.skind <- Instr (il @ (List.rev c.postins));
               stmts
 

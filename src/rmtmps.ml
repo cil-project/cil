@@ -78,12 +78,12 @@ let clearReferencedBits file =
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.creferenced <- false
 
-    | GVar ({vname = name} as info, _, _)
-    | GVarDecl ({vname = name} as info, _) ->
+    | GVar ({vname = name; _} as info, _, _)
+    | GVarDecl ({vname = name; _} as info, _) ->
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false
 
-    | GFun ({svar = info} as func, _) ->
+    | GFun ({svar = info; _} as func, _) ->
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false;
 	let clearMark local =
@@ -255,7 +255,7 @@ let categorizePragmas file =
 
 let amputateFunctionBodies keptGlobals file =
   let considerGlobal = function
-    | GFun ({svar = {vname = name} as info}, location)
+    | GFun ({svar = {vname = name; _} as info; _}, location)
       when not (H.mem keptGlobals name) ->
 	trace (dprintf "slicing: reducing to prototype: function %s\n" name);
 	GVarDecl (info, location)
@@ -274,18 +274,18 @@ let amputateFunctionBodies keptGlobals file =
 
 
 let isPragmaRoot keepers = function
-  | GType ({tname = name}, _) ->
+  | GType ({tname = name; _}, _) ->
       H.mem keepers.typedefs name
-  | GEnumTag ({ename = name}, _)
-  | GEnumTagDecl ({ename = name}, _) ->
+  | GEnumTag ({ename = name; _}, _)
+  | GEnumTagDecl ({ename = name; _}, _) ->
       H.mem keepers.enums name
-  | GCompTag ({cname = name; cstruct = structure}, _)
-  | GCompTagDecl ({cname = name; cstruct = structure}, _) ->
+  | GCompTag ({cname = name; cstruct = structure; _}, _)
+  | GCompTagDecl ({cname = name; cstruct = structure; _}, _) ->
       let collection = if structure then keepers.structs else keepers.unions in
       H.mem collection name
-  | GVar ({vname = name; vattr = attrs}, _, _)
-  | GVarDecl ({vname = name; vattr = attrs}, _)
-  | GFun ({svar = {vname = name; vattr = attrs}}, _) ->
+  | GVar ({vname = name; vattr = attrs; _}, _, _)
+  | GVarDecl ({vname = name; vattr = attrs; _}, _)
+  | GFun ({svar = {vname = name; vattr = attrs; _}; _}, _) ->
       H.mem keepers.defines name ||
       hasAttribute "used" attrs
   | _ ->
@@ -341,11 +341,11 @@ let hasExportingAttribute funvar =
 
 let isExportedRoot global =
   let result, reason = match global with
-  | GVar ({vstorage = Static}, _, _) ->
+  | GVar ({vstorage = Static; _}, _, _) ->
       false, "static variable"
   | GVar _ ->
       true, "non-static variable"
-  | GFun ({svar = v}, _) -> begin
+  | GFun ({svar = v; _}, _) -> begin
       if hasExportingAttribute v then
 	true, "constructor or destructor function"
       else if v.vstorage = Static then
@@ -381,7 +381,7 @@ let isExportedRoot global =
 
 let isCompleteProgramRoot global =
   let result = match global with
-  | GFun ({svar = {vname = "main"; vstorage = vstorage}}, _) ->
+  | GFun ({svar = {vname = "main"; vstorage = vstorage; _}; _}, _) ->
       vstorage <> Static
   | GFun (fundec, _)
     when hasExportingAttribute fundec.svar ->
@@ -420,7 +420,7 @@ class markReachableVisitor
 	DoChildren
     | GVar (varinfo, _, _)
     | GVarDecl (varinfo, _)
-    | GFun ({svar = varinfo}, _) ->
+    | GFun ({svar = varinfo; _}, _) ->
 	varinfo.vreferenced <- true;
 	DoChildren
     | _ ->
@@ -541,7 +541,7 @@ let markReachable file isRoot =
   let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
     match global with
-    | GFun ({svar = info}, _)
+    | GFun ({svar = info; _}, _)
     | GVar (info, _, _)
     | GVarDecl (info, _) ->
 	Hashtbl.add globalMap info.vname global
@@ -620,12 +620,12 @@ class removeUnusedGoto = object(self)
 
   method private pStmtNext (next: stmt) (s: stmt) = match s.skind with
         (* Else-if: don't call visitCilStmt, recurse manually instead *)
-      | If(_,t,{ bstmts=[{skind=If _} as elsif]; battrs=[] },_) ->
+      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_) ->
               ignore(visitCilBlock (self:>cilVisitor) t);
               self#pStmtNext next elsif
-      | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
+      | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                   battrs=[]} as b),_)
-      | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
+      | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                   battrs=[]} as b),_,_)
                 when !gref == next ->
               b.bstmts <- [];
@@ -745,14 +745,14 @@ let removeUnmarked file =
   let filterGlobal global =
     match global with
     (* unused global types, variables, and functions are simply removed *)
-    | GType ({treferenced = false}, _)
-    | GCompTag ({creferenced = false}, _)
-    | GCompTagDecl ({creferenced = false}, _)
-    | GEnumTag ({ereferenced = false}, _)
-    | GEnumTagDecl ({ereferenced = false}, _)
-    | GVar ({vreferenced = false}, _, _)
-    | GVarDecl ({vreferenced = false}, _)
-    | GFun ({svar = {vreferenced = false}}, _) ->
+    | GType ({treferenced = false; _}, _)
+    | GCompTag ({creferenced = false; _}, _)
+    | GCompTagDecl ({creferenced = false; _}, _)
+    | GEnumTag ({ereferenced = false; _}, _)
+    | GEnumTagDecl ({ereferenced = false; _}, _)
+    | GVar ({vreferenced = false; _}, _, _)
+    | GVarDecl ({vreferenced = false; _}, _)
+    | GFun ({svar = {vreferenced = false; _}; _}, _) ->
 	trace (dprintf "removing global: %a\n" d_shortglobal global);
 	false
 

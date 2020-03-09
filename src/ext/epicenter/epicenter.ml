@@ -21,7 +21,7 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
 
   (* when removing "unused" symbols, keep all seen functions *)
   let isRoot : global -> bool = function
-    | GFun ({svar = {vname = vname}}, _) ->
+    | GFun ({svar = {vname = vname; _}; _}, _) ->
 	H.mem seen vname
     | _ ->
 	false
@@ -37,13 +37,13 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
         (* add this node *)
 	H.add seen (nodeName node.cnInfo) ();
 	trace "epicenter" (dprintf "will keep %s\n" (nodeName node.cnInfo));
-	
+
         (* if we cannot do any more hops, stop *)
 	if (hops > 0) then
 
           (* recurse on all the node's callers and callees *)
 	  let recurse _ (adjacent:callnode) : unit =
-	    (dfs adjacent (hops - 1)) 
+	    (dfs adjacent (hops - 1))
           in
 	  IH.iter recurse node.cnCallees;
 	  IH.iter recurse node.cnCallers
@@ -58,14 +58,14 @@ let sliceFile (f:file) (epicenter:string) (maxHops:int) : unit =
 let epicenterName = ref ""
 let epicenterHops = ref 0
 
-let feature = 
+let feature =
   { fd_name = "epicenter";
     fd_enabled = false;
     fd_description = "remove all functions except those within some number" ^
                 "\n\t\t\t\tof hops (in the call graph) from a given function";
-    fd_extraopt = 
+    fd_extraopt =
     [
-    ("--epicenter-name", 
+    ("--epicenter-name",
      Arg.String (fun s -> epicenterName := s),
                "<name> do an epicenter slice starting from function <name>");
     ("--epicenter-hops", Arg.Int (fun n -> epicenterHops := n),
@@ -73,11 +73,11 @@ let feature =
     ];
 
     fd_doit =
-    (fun f -> 
+    (fun f ->
       sliceFile f !epicenterName !epicenterHops);
 
     fd_post_check = true;
-  } 
+  }
 
 let () = Feature.register feature
 
