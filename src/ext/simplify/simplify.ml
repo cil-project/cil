@@ -252,12 +252,12 @@ and simplifyLval
       let offidx, restoff = offsetToInt (typeOfLval (Mem a, NoOffset)) off in
       let a' =
         if offidx <> zero then
-          add (mkCast a !upointType) offidx
+          add (mkCast ~e:a ~newt:!upointType) offidx
         else
           a
       in
       let a' = if !simpleMem then makeBasic setTemp a' else a' in
-      Mem (mkCast a' (typeForCast restoff)), restoff
+      Mem (mkCast ~e:a' ~newt:(typeForCast restoff)), restoff
   (* We are taking this variable's address; but suppress simplification if it's a simple function
    * call in no-convert-function-calls mode*)
   | Var v, off when v.vaddrof && (!convertDirectCalls || not (isFunctionType (typeOfLval lv) ))  ->
@@ -269,11 +269,11 @@ and simplifyLval
       let a' =
         if offidx = zero then a else
         if !simpleMem then
-	        add (mkCast a !upointType) (makeBasic setTemp offidx)
-	    else add (mkCast a !upointType) offidx
+	        add (mkCast ~e:a ~newt:!upointType) (makeBasic setTemp offidx)
+	    else add (mkCast ~e:a ~newt:!upointType) offidx
       in
       let a' = if !simpleMem then setTemp a' else a' in
-      Mem (mkCast a' (typeForCast restoff)), restoff
+      Mem (mkCast ~e:a' ~newt:(typeForCast restoff)), restoff
 
   | Var v, off ->
       (Var v, simplifyOffset setTemp off)
@@ -559,7 +559,7 @@ class splitVarVisitorClass(func:fundec option) : cilVisitor = object (self)
   method! vinst (i: instr) : instr list visitAction =
     match i with
       (* Split into several instructions and then do children inside
-       * the rhs.  Howver, v might appear in the rhs and if we
+       * the rhs.  However, v might appear in the rhs and if we
        * duplicate the instruction we might get bad
        * results. (e.g. test/small1/simplify_Structs2.c). So first copy
        * the rhs to temp variables, then to v.

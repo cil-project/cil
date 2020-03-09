@@ -36,7 +36,7 @@ let mkPrint (format: string) (args: exp list) : instr =
 
 let d_string (fmt : ('a,unit,doc,string) format4) : 'a =
   let f (d: doc) : string =
-    Pretty.sprint 200 d
+    Pretty.sprint ~width:200 d
   in
   Pretty.gprintf f fmt
 

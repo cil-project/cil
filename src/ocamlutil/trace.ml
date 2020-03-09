@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -62,9 +62,9 @@ let traceActive (subsys : string) : bool =
 
 let rec parseString (str : string) (delim : char) : string list =
 begin
-  if (not (String.contains str delim)) then 
+  if (not (String.contains str delim)) then
     if ((String.length str) = 0) then
-      [] 
+      []
     else
       [str]
 
@@ -131,7 +131,7 @@ let trace
   (* see if the subsystem's tracing is turned on *)
   if (traceActive subsys) then
     begin
-      (fprint stderr 80			(* print it *)
+      (fprint stderr ~width:80			(* print it *)
          ((traceTag subsys) ++ d));	(* with prepended subsys tag *)
       (* mb: flush after every message; useful if the program hangs in an
 	 infinite loop... *)

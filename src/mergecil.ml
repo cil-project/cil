@@ -581,7 +581,7 @@ let rec combineTypes (what: combineWhat)
 
   | _ -> (
       (* raise (Failure "(different type constructors)") *)
-      let msg:string = (P.sprint 1000 (P.dprintf "(different type constructors: %a vs. %a)"
+      let msg:string = (P.sprint ~width:1000 (P.dprintf "(different type constructors: %a vs. %a)"
                                                  d_type oldt  d_type t)) in
       raise (Failure msg)
     )
@@ -777,7 +777,7 @@ let oneFilePass1 (f:file) : unit =
    * with the same name have been encountered before and we merge those types
    * *)
   let matchVarinfo (vi: varinfo) (l: location * int) =
-    ignore (Alpha.registerAlphaName vtAlpha None vi.vname !currentLoc);
+    ignore (Alpha.registerAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc);
     (* Make a node for it and put it in vEq *)
     let vinode = mkSelfNode vEq vSyn !currentFidx vi.vname vi (Some l) in
     try
@@ -1335,7 +1335,7 @@ let oneFilePass2 (f: file) =
       else begin
         (* Maybe it is static. Rename it then *)
         if vi.vstorage = Static then begin
-          let newName, _ = A.newAlphaName vtAlpha None vi.vname !currentLoc in
+          let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in
           (* Remember the original name *)
           H.add originalVarNames newName vi.vname;
           if debugMerge then ignore (E.log "renaming %s at %a to %s\n"
@@ -1599,7 +1599,7 @@ let oneFilePass2 (f: file) =
                          ci.cname !currentFidx);
                 end);
                 let newname, _ =
-                  A.newAlphaName sAlpha None ci.cname !currentLoc in
+                  A.newAlphaName ~alphaTable:sAlpha ~undolist:None ~lookupname:ci.cname ~data:!currentLoc in
                 ci.cname <- newname;
                 ci.creferenced <- true;
                 ci.ckey <- H.hash (compFullName ci);
@@ -1623,7 +1623,7 @@ let oneFilePass2 (f: file) =
             match findReplacement true eEq !currentFidx ei.ename with
               None -> (* We must rename it *)
                 let newname, _ =
-                  A.newAlphaName eAlpha None ei.ename !currentLoc in
+                  A.newAlphaName ~alphaTable:eAlpha ~undolist:None ~lookupname:ei.ename ~data:!currentLoc in
                 ei.ename <- newname;
                 ei.ereferenced <- true;
                 (* And we must rename the items to using the same name space
@@ -1632,7 +1632,7 @@ let oneFilePass2 (f: file) =
                    Util.list_map
                      (fun (n, i, loc) ->
                        let newname, _ =
-                         A.newAlphaName vtAlpha None n !currentLoc in
+                         A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:n ~data:!currentLoc in
                        newname, i, loc)
                      ei.eitems;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
@@ -1673,7 +1673,7 @@ let oneFilePass2 (f: file) =
             match findReplacement true tEq !currentFidx ti.tname with
               None -> (* We must rename it and keep it *)
                 let newname, _ =
-                  A.newAlphaName vtAlpha None ti.tname !currentLoc in
+                  A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:ti.tname ~data:!currentLoc in
                 ti.tname <- newname;
                 ti.treferenced <- true;
                 mergePushGlobals (visitCilGlobal renameVisitor g);
@@ -1684,12 +1684,12 @@ let oneFilePass2 (f: file) =
       end
       | g -> mergePushGlobals (visitCilGlobal renameVisitor g)
   with e -> begin
-    let globStr:string = (P.sprint 1000 (P.dprintf
+    let globStr:string = (P.sprint ~width:1000 (P.dprintf
       "error when merging global %a: %s"
       d_global g  (Printexc.to_string e))) in
     ignore (E.log "%s" globStr);
     (*"error when merging global: %s" (Printexc.to_string e);*)
-    mergePushGlobal (GText (P.sprint 80
+    mergePushGlobal (GText (P.sprint ~width:80
                               (P.dprintf "/* error at %t:" d_thisloc)));
     mergePushGlobal g;
     mergePushGlobal (GText ("*************** end of error*/"));

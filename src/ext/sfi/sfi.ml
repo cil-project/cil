@@ -80,7 +80,7 @@ let extractData (dl: dataLocation) (args: exp list) (res: lval option) : exp =
             mkCast ~e:a2 ~newt:longType, longType)
   | PointedToByArg n ->
       let a = getArg n in
-      Lval (mkMem a NoOffset)
+      Lval (mkMem ~addr:a ~off:NoOffset)
 
 
 
@@ -163,7 +163,7 @@ let logReads = mkProto "logRead" [ ("addr", voidPtrType, []);
                                    ("file", charPtrType, []);
                                    ("line", intType, []) ]
 let callLogRead (lv: lval) =
-  let what = Pretty.sprint 80 (d_lval () lv) in
+  let what = Pretty.sprint ~width:80 (d_lval () lv) in
   Call(None,
        Lval(Var(logReads.svar),NoOffset),
        [ addr_of_lv lv; mkString what; mkString !currentLoc.file;
@@ -174,7 +174,7 @@ let logWrites = mkProto "logWrite" [ ("addr", voidPtrType, []);
                                      ("file", charPtrType, []);
                                      ("line", intType, []) ]
 let callLogWrite (lv: lval) =
-  let what = Pretty.sprint 80 (d_lval () lv) in
+  let what = Pretty.sprint ~width:80 (d_lval () lv) in
   Call(None,
        Lval(Var(logWrites.svar), NoOffset),
        [ addr_of_lv lv; mkString what; mkString !currentLoc.file;

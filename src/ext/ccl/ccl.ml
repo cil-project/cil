@@ -134,13 +134,13 @@ let d_annot () (annot : annot) : doc =
   | AEI s -> dprintf "AEI %s" s
 
 let d_annots () (annots : annot list) : doc =
-  seq (text ", ") (d_annot ()) annots
+  seq ~sep:(text ", ") ~doit:(d_annot ()) ~elements:annots
 
 let d_fact () ((s, a) : fact) : doc =
   dprintf "(%s %a)" s d_annot a
 
 let d_facts () (facts : FactSet.t) : doc =
-  seq (text ", ") (d_fact ()) (FactSet.elements facts)
+  seq ~sep:(text ", ") ~doit:(d_fact ()) ~elements:(FactSet.elements facts)
 
 let d_state () (state : state) : doc =
   d_facts () state.facts
@@ -219,7 +219,7 @@ let warning (fmt : ('a, unit, doc, unit) format4) : 'a =
 let showStmtErrors (stmt : stmt) : unit =
   List.iter
     (fun d ->
-       fprint !E.logChannel 1000000 d;
+       fprint !E.logChannel ~width:1000000 d;
        flush !E.logChannel)
     (List.rev (Hashtbl.find_all errorTable stmt.sid))
 

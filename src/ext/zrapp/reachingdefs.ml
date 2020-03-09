@@ -296,7 +296,7 @@ let getDefRhs didstmh stmdat defId =
 	(*None*)
 
 let prettyprint didstmh stmdat () (_,s,iosh) = (*text ""*)
-  seq line (fun (vid,ios) ->
+  seq ~sep:line ~doit:(fun (vid,ios) ->
     num vid ++ text ": " ++
       IOS.fold (fun io d -> match io with
 	None -> d ++ text "None "
@@ -309,7 +309,7 @@ let prettyprint didstmh stmdat () (_,s,iosh) = (*text ""*)
 	  | Some(RDCall(c),_,_) ->
 	      d ++ num i ++ text " " ++ (d_instr () c))
       ios nil)
-    (IH.tolist iosh)
+    ~elements:(IH.tolist iosh)
 
 module ReachingDef =
   struct
@@ -508,9 +508,9 @@ let isDefInstr i defId =
 (* Pretty print the reaching definition data for
    a function *)
 let ppFdec fdec =
-  seq line (fun stm ->
+  seq ~sep:line ~doit:(fun stm ->
     let ivih = IH.find ReachingDef.stmtStartData stm.sid in
-    ReachingDef.pretty () ivih) fdec.sbody.bstmts
+    ReachingDef.pretty () ivih) ~elements:fdec.sbody.bstmts
 
 
 (* If this class is extended with a visitor on expressions,

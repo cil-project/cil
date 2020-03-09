@@ -95,7 +95,7 @@ class logWriteVisitor = object
         (* Check if we need to log *)
         match lv with
           (Var(v), off) when not v.vglob -> SkipChildren
-        | _ -> let str = Pretty.sprint 80
+        | _ -> let str = Pretty.sprint ~width:80
                 (Pretty.dprintf "Write %%p to 0x%%08x at %%s:%%d (%a)\n" d_lval lv)
               in
               ChangeTo
@@ -110,7 +110,7 @@ class logWriteVisitor = object
         (* Check if we need to log *)
         match lv with
           (Var(v), off) when not v.vglob -> SkipChildren
-        | _ -> let str = Pretty.sprint 80
+        | _ -> let str = Pretty.sprint ~width:80
                 (Pretty.dprintf "Write retval to 0x%%08x at %%s:%%d (%a)\n" d_lval lv)
               in
               ChangeTo

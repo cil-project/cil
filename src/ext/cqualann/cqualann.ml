@@ -214,7 +214,7 @@ let quotedLabel s: doc =
      text ("\"" ^ s ^ "\"")
 
 let strOf (d:doc):string =
-  sprint 1024 d
+  sprint ~width:1024 d
 
 
 let globalAnn label args:  global =

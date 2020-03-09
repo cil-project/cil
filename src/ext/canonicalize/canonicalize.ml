@@ -163,7 +163,7 @@ class canonicalizeVisitor = object(self)
 	let typeOfDest = typeOfLval dest in
 	match unrollType typeOfDest with
 	  TEnum _ -> (* add an explicit cast *)
-	    let newI = Set(dest, mkCast exp typeOfDest, l) in
+	    let newI = Set(dest, mkCast ~e:exp ~newt:typeOfDest, l) in
 	    ChangeTo [newI]
 	| _ -> SkipChildren
       end
@@ -180,7 +180,7 @@ class canonicalizeVisitor = object(self)
 		List.map2
 		  (fun (actual: exp) (formalName, formalType, _) ->
 		    match unrollType formalType with
-		      TEnum _ -> mkCast actual formalType
+		      TEnum _ -> mkCast ~e:actual ~newt:formalType
 		    | _ ->  actual)
 		  args
 		  formals'
@@ -206,7 +206,7 @@ class canonicalizeVisitor = object(self)
 			  args in
 		  let newFuncPtrType =
 		    TPtr((TFun (rt, Some newFormals, false, attrs)), []) in
-		  let newFuncPtr = Lval(Mem(mkCast fp newFuncPtrType), off) in
+		  let newFuncPtr = Lval(Mem(mkCast ~e:fp ~newt:newFuncPtrType), off) in
 		  ChangeTo [Call(dest, newFuncPtr, args, l)]
 	      | _ ->
 		  ignore (warn "cppcanon: %a has no specified arguments, but it's not a function pointer." d_exp f);
@@ -231,7 +231,7 @@ class canonicalizeVisitor = object(self)
 	      (Field(fi, off), SingleInit e) -> begin
 		match unrollType fi.ftype with
 		  TEnum _ -> (* add an explicit cast *)
-		    let newE = mkCast e fi.ftype in
+		    let newE = mkCast ~e:e ~newt:fi.ftype in
 		    changed := true;
 		    (Field(fi, off), SingleInit newE)
 		| _ -> (* not enum, no cast needed *)
@@ -259,7 +259,7 @@ class canonicalizeVisitor = object(self)
 	  splitFunctionType currentFunction.svar.vtype in
 	match unrollType typeOfDest with
 	  TEnum _ ->
-	    stmt.skind <- Return (Some (mkCast exp typeOfDest), l)
+	    stmt.skind <- Return (Some (mkCast ~e:exp ~newt:typeOfDest), l)
 	| _ -> ()
       end
     | _ -> ());

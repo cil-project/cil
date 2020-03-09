@@ -511,15 +511,15 @@ class zraCilPrinterClass : cilPrinter = object (self)
              (self#pLineDirective l) ++ (self#pVDecl () fdec.svar)
                ++ chr ';' ++ line
            else nil in
-         fprint out 80 (proto ++ (self#pLineDirective ~forcefile:true l));
+         fprint out ~width:80 (proto ++ (self#pLineDirective ~forcefile:true l));
          (* Temporarily remove the function attributes *)
          fdec.svar.vattr <- [];
-         fprint out 80 (self#pFunDecl () fdec);
+         fprint out ~width:80 (self#pFunDecl () fdec);
          fdec.svar.vattr <- oldattr;
          output_string out "\n"
 
      | GVar (vi, {init = Some i}, l) -> begin
-         fprint out 80
+         fprint out ~width:80
            (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
               ++ text " = "
@@ -535,7 +535,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
          output_string out ";\n"
      end
 
-     | g -> fprint out 80 (self#pGlobal () g)
+     | g -> fprint out ~width:80 (self#pGlobal () g)
 
   method! pFieldDecl () fi =
     self#pLineDirective fi.floc ++
