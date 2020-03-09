@@ -624,7 +624,9 @@ class removeUnusedGoto = object(self)
               ignore(visitCilBlock (self:>cilVisitor) t);
               self#pStmtNext next elsif
       | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                  battrs=[]} as b),_)
+                  battrs=[]} as b),_)when !gref == next ->
+              b.bstmts <- [];
+              ignore(visitCilStmt (self:>cilVisitor) s)
       | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                   battrs=[]} as b),_,_)
                 when !gref == next ->
