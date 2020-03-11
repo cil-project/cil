@@ -265,7 +265,7 @@ end
 
 (* ok_to_replace_with_incdec *)
 (* Find out if it is alright to replace the use of a variable
-   with a post-incrememnt/decrement of the variable it is assigned to be *)
+   with a post-increment/decrement of the variable it is assigned to be *)
 (* Takes the definitions reaching the variable use, the definitions
    reaching the place where the variable was defined, the fundec,
    the varinfo for the variable being considered and the right
@@ -837,7 +837,7 @@ class callTempElimClass (fd:fundec) = object (self)
     (try
       cur_rd_dat <- Some(List.hd rd_dat_lst);
       rd_dat_lst <- List.tl rd_dat_lst
-    with Failure "hd" ->
+    with Failure _ ->
       if !debug then ignore(E.log "rdVis: il rd_dat_lst mismatch\n"));
     match i with
       Set((Var vi,off),_,_) ->

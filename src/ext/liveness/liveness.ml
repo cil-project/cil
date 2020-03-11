@@ -1,6 +1,6 @@
 
 (* Calculate which variables are live at
- * each statememnt.
+ * each statement.
  *
  *
  *
@@ -195,7 +195,7 @@ class livenessVisitorClass (out : bool) = object(self)
             if !debug then E.log "livVis: at %a, data is %a\n"
                 d_instr i debug_print data;
             DoChildren
-        with Failure "hd" ->
+        with Failure _ ->
             if !debug then E.log "livnessVisitor: il liv_dat_lst mismatch\n";
             DoChildren
 end
@@ -233,7 +233,7 @@ class deadnessVisitorClass = object(self)
             let (dead,live) =
                 List.fold_left (fun (dead,live) stm ->
                     let dvs =
-                        (* things can die in non instr statemnts *)
+                        (* things can die in non instr statements *)
                         match stm.skind with
                         | Instr _
                         | Block _ -> VS.diff (getPostLiveness stm) vs
@@ -274,7 +274,7 @@ class deadnessVisitorClass = object(self)
                 E.log "deadVis: at %a, liveout: %a, inlive: %a, post_dead_vars: %a\n"
                   d_instr i debug_print data debug_print inlive debug_print post_dead_vars;
             DoChildren
-        with Failure "hd" ->
+        with Failure _ ->
             if !debug then E.log "deadnessVisitor: il liv_dat_lst mismatch\n";
             post_dead_vars <- VS.empty;
             post_live_vars <- VS.empty;

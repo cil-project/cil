@@ -282,7 +282,7 @@ let getSizeIndex (t : typ) : int =
     match List.hd (filterAttributes "cclmalloc" (typeAttrs t)) with
     | Attr ("cclmalloc", [AInt n]) -> n
     | a -> 0
-  with Failure "hd" ->
+  with Failure _ ->
     0
 
 let listToFactSet (facts : fact list) : FactSet.t =
@@ -870,7 +870,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
       FactSet.empty
   | SInt i ->
       let annots =
-        (* TODO: refacor the following *)
+        (* TODO: refactor the following *)
         if i = 0 then
           FactSet.fold
             (fun fact rest ->
@@ -1702,7 +1702,7 @@ let analyzeFundec (fd : fundec) : unit =
         let getBranchStmt (branch : block) : stmt =
           try
             List.hd branch.bstmts
-          with Failure "hd" ->
+          with Failure _ ->
             dummyStmt
         in
         let thenStmt = getBranchStmt thenBranch in

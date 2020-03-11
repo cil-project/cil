@@ -321,7 +321,7 @@ let computeAEs fd =
   IH.clear AvailableExps.stmtStartData;
   IH.add AvailableExps.stmtStartData first_stm.sid (IH.create 4);
   time "compute" AE.compute [first_stm]
-  with Failure "hd" -> if !debug then ignore(E.log "fn w/ no stmts?\n")
+  with Failure _ -> if !debug then ignore(E.log "fn w/ no stmts?\n")
   | Not_found -> if !debug then ignore(E.log "no data for first_stm?\n")
 
 
@@ -382,7 +382,7 @@ class aeVisitorClass = object(self)
       ae_dat_lst <- List.tl ae_dat_lst;
       if !debug then ignore(E.log "aeVisit: data is %a\n" eh_pretty data);
       DoChildren
-    with Failure "hd" ->
+    with Failure _ ->
       if !debug then ignore(E.log "aeVis: il ae_dat_lst mismatch\n");
       DoChildren
 
