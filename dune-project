@@ -1,4 +1,4 @@
-(lang dune 1.11)
+(lang dune 2.00)
 (name goblint-cil)
 (implicit_transitive_deps false)
 (generate_opam_files true)

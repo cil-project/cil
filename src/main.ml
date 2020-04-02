@@ -134,7 +134,7 @@ let theMain () =
 
   (* Load plugins. This needs to be done before command-line arguments are
    * built. *)
-  Feature.loadFromEnv "CIL_FEATURES" ["cil.default-features"];
+  Feature.loadFromEnv "CIL_FEATURES" ["goblint-cil.default-features"];
   Feature.loadFromArgv "--load";
 
 

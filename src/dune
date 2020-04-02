@@ -5,6 +5,7 @@
   (name cil)
   (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
   (libraries zarith findlib dynlink unix str)
+  (modules (:standard \ main))
 )
 
 (rule
@@ -13,13 +14,34 @@
   (action (chdir .. (progn (run ./configure) (run make machdep) (run cp _build/machdep.ml src))))
 )
 
+(rule
+ (deps (source_tree ../lib/perl5/App/Cilly) (source_tree ../test) ../bin/cilly ../configure.ac ../Makefile.in ../install-sh ../config.sub ../config.guess ../lib/perl5/App/Cilly.pm.in ../lib/perl5/Makefile.PL  ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in)
+ (action (chdir ..  (progn
+    (run ./configure)
+    (run make machdep)
+    (run make lib/perl5/App/Cilly.pm)
+    (chdir lib/perl5 (progn
+      (run perl Makefile.PL)
+      (run make)
+    ))
+    (run cp src/main.exe bin/cilly.native)
+    (bash "mkdir -p share/cil && readlink -f ../install/default/lib > share/cil/ocamlpath")
+    (chdir test (progn
+     (run ./testcil -r --regrtest)
+    ))
+ )))
+ (alias runtest)
+)
+
 (ocamllex formatlex)
 (ocamlyacc formatparse)
 
-; (executable
-;   (libraries cil)
-;   (public_name main)
-; )
+(executable
+   (name main)
+   (modes exe)
+   (modules main)
+   (libraries goblint-cil)
+)
 
 (env
   (dev

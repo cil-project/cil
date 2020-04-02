@@ -166,19 +166,6 @@ sub addToGroup {
 }
 
 
-# Start with a few tests that must be run first
-$TEST->newTest(
-    Name => "!inittests0",
-    Dir => "..",
-    Cmd => "$make all",
-    Group => ['ALWAYS']);
-$TEST->newTest(
-    Name => "!inittests2",
-    Dir => "..",
-    Cmd => "$make all _GNUCC=1",
-    Group => ['ALWAYS']);
-
-
 # build the documentation, to make sure that it still builds
 $TEST->newTest(
     Name => "doc",

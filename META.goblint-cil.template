@@ -1,0 +1,6 @@
+# DUNE_GEN
+
+package "default-features" (
+requires=""
+version = "1.7.3"
+)
