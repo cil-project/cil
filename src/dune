@@ -15,7 +15,7 @@
 )
 
 (rule
- (deps (source_tree ../lib/perl5/App/Cilly) (source_tree ../test) ../bin/cilly ../configure.ac ../Makefile.in ../install-sh ../config.sub ../config.guess ../lib/perl5/App/Cilly.pm.in ../lib/perl5/Makefile.PL  ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in)
+ (deps ../src/main.exe (source_tree ../lib/perl5/App/Cilly) (source_tree ../test) ../bin/cilly ../configure.ac ../Makefile.in ../install-sh ../config.sub ../config.guess ../lib/perl5/App/Cilly.pm.in ../lib/perl5/Makefile.PL  ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in ../config.mk)
  (action (chdir ..  (progn
     (run ./configure)
     (run make machdep)
@@ -37,7 +37,7 @@
 (ocamlyacc formatparse)
 
 (executable
-   (name main)
+   (public_name main)
    (modes exe)
    (modules main)
    (libraries goblint-cil)
