@@ -413,3 +413,4 @@ src/ext/epicenter/.merlin
 src/ext/dataslicing/.merlin
 src/ext/ccl/.merlin
 src/ext/canonicalize/.merlin
+src/ext/cqualann/.merlin
