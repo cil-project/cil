@@ -1,4 +1,4 @@
-# -*- Mode: makefile -*- 
+# -*- Mode: makefile -*-
 # Makefile.in for running the test cases for the CIL compiler
 # Use from the test directory !!!
 # author: George Necula
@@ -99,7 +99,7 @@ ifdef KEEPMERGED
   CILLY+= --keepmerged
 endif
 ifdef MERGEONLY
-  CILLY+= --keepmerged  --onlyMerge --mergeKeepAnnotations 
+  CILLY+= --keepmerged  --onlyMerge --mergeKeepAnnotations
 endif
 ifdef CABSONLY
   CILLY+= --cabsonly
@@ -179,16 +179,16 @@ endif
 ############ Small tests
 SMALL1 := $(TESTDIR)/small1
 
-test/% : $(SMALL1)/%.c 
+test/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CILLY) --nomerge --commPrintLn \
 	       $(CONLY) -std=gnu90 $(CFLAGS) $(ASMONLY)$*.s $*.c
 	echo SUCCESS
 
-testobj/% : $(SMALL1)/%.c  
+testobj/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
-	       $(CONLY) $(CFLAGS) $(OBJOUT)$*.o $*.c 
+	       $(CONLY) $(CFLAGS) $(OBJOUT)$*.o $*.c
 
-testrun/% : $(SMALL1)/%.c  
+testrun/% : $(SMALL1)/%.c
 	cd $(SMALL1); $(CILLY) --nomerge  --commPrintLn  \
 	       $(CFLAGS) -std=gnu90 $(EXEOUT)$*.exe $*.c
 	cd $(SMALL1); ./$*.exe
@@ -207,7 +207,7 @@ testrungcc/% : $(SMALL1)/%.c mustbegcc
 	echo SUCCESS
 
 #preprocessed files:
-test_i/% : $(SMALL1)/%.i 
+test_i/% : $(SMALL1)/%.i
 	cd $(SMALL1); $(CILLY) --nomerge --commPrintLn \
 	       $(CONLY) $(CFLAGS) $(ASMONLY)$*.s $*.i
 	echo SUCCESS
@@ -219,7 +219,7 @@ test_i/% : $(SMALL1)/%.i
 ifdef TARGETS_DEP_QUICKBUILD
   # with switch to test/Makefile, doesn't do what I want, so no-op
   #TARGET_DEP := quickbuild
-  TARGET_DEP := 
+  TARGET_DEP :=
 endif
 
 ifndef NOPRINTLN
@@ -258,7 +258,7 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-OBJDIR := $(CILHOME)/_build/src
+OBJDIR := $(CILHOME)/../install/default/lib/goblint-cil
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
@@ -300,7 +300,7 @@ combinec99%: $(SMALL1)/combine-c99%_1.c
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju
 	cd /usr/src/big-examples/; $(CILLY) --nomerge \
-	       $(CONLY) $(CFLAGS) structs-edg-stl.c 
+	       $(CONLY) $(CFLAGS) structs-edg-stl.c
 	echo SUCCESS
 
 
@@ -349,7 +349,7 @@ runall_syntax/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 # sm: trivial test of combiner
 MYSAFECC := $(CILLY)
-comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
+comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
 	  $(MYSAFECC)  comb1.c $(CONLY) $(OBJOUT) comb1.o; \
@@ -361,7 +361,7 @@ comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 
 #call cilly on a .c file, a .i file, a .s file, and a .o file.
 #Of course, only the first two are merged.
-mixedcomb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c 
+mixedcomb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
 	  gcc -E -o comb2.i comb2.c; \
@@ -391,7 +391,7 @@ mergeinline: $(TESTDIR)/small2/mergeinline1.c $(TESTDIR)/small2/mergeinline2.c
 	$(TESTDIR)/small2/mergeinline.exe
 
 # sm: test of combiner's ability to report inconsistencies
-baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c 
+baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 	cd $(TESTDIR)/small2; $(CC) baddef1.c baddef2.c -o baddef.exe \
            && ./baddef.exe
 	rm -f $(TESTDIR)/small2/baddef.exe
@@ -405,10 +405,10 @@ baddef: $(TESTDIR)/small2/baddef1.c $(TESTDIR)/small2/baddef2.c
 
 
 ### Generic test
-testfile/% : 
+testfile/% :
 	$(CILLY) /TC $*
 
-testdir/% : 
+testdir/% :
 	make -C CC="ccured" $*
 
 
@@ -416,6 +416,3 @@ merge-ar:
 	cd small2; $(CILHOME)/bin/cilly --merge -c merge-ar.c merge-twice-1.c
 	cd small2; $(CILHOME)/bin/cilly --merge --mode=AR cr libmerge.a merge-ar.o merge-twice-1.o
 	cd small2; $(CILHOME)/bin/cilly --merge libmerge.a -o merge-ar
-
-
-
