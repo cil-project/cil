@@ -39,12 +39,12 @@ module D = Dynlink
 module F = Findlib
 
 type t = {
-    mutable fd_enabled: bool; 
-    fd_name: string; 
-    fd_description: string; 
-    fd_extraopt: (string * Arg.spec * string) list; 
+    mutable fd_enabled: bool;
+    fd_name: string;
+    fd_description: string;
+    fd_extraopt: (string * Arg.spec * string) list;
     fd_doit: (file -> unit);
-    fd_post_check: bool; 
+    fd_post_check: bool;
 }
 
 let features = ref []
@@ -96,7 +96,9 @@ let adapt_filename f = try
 let findlib_lookup pkg =
   try
     let preds = [ if D.is_native then "native" else "byte"; "plugin" ] in
+    let cil_deps = F.package_ancestors preds "goblint-cil" in
     let deps = F.package_deep_ancestors preds [pkg] in
+    let deps = List.filter (fun x -> not (List.mem x cil_deps)) deps in
     let find_modules pkg =
       let base = F.package_directory pkg in
       let archives =
@@ -128,7 +130,7 @@ let add_plugin path =
   load path;
   plugins := path :: !plugins
 
-(** Look for plugin and depencies and add them *)
+(** Look for plugin and dependencies and add them *)
 let loadWithDeps s =
   let paths = find_plugin s in
   List.iter add_plugin paths
