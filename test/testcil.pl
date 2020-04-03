@@ -165,14 +165,6 @@ sub addToGroup {
     $self->addGroups($name, @groups);
 }
 
-
-# build the documentation, to make sure that it still builds
-$TEST->newTest(
-    Name => "doc",
-    Dir => "..",
-    Cmd => "$make doc",
-    Group => ["doc"]);
-
 # Now add tests
 addTest("testrun/const-array-init WARNINGS_ARE_ERRORS=1");
 addTest("testrun/const-struct-init WARNINGS_ARE_ERRORS=1");
