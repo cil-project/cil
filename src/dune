@@ -41,6 +41,7 @@
    (modes exe)
    (modules main)
    (libraries goblint-cil)
+   (link_flags (-linkall))
 )
 
 (env
