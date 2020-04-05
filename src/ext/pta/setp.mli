@@ -69,7 +69,7 @@ module type PolyOrderedType =
           [f e1 e2] is strictly negative if [e1] is smaller than [e2],
           and [f e1 e2] is strictly positive if [e1] is greater than [e2].
           Example: a suitable ordering function is
-          the generic structural comparison function {!Pervasives.compare}. *)
+          the generic structural comparison function {!Stdlib.compare}. *)
   end
 (** Input signature of the functor {!Set.Make}. *)
 

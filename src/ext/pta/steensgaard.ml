@@ -69,7 +69,7 @@ type polarity = Pos
 (** Label bounds. The polymorphic type is a hack for recursive modules *)
 type 'a bound = {index : int; info : 'a}
 
-(** The 'a type may in general contain urefs, which makes Pervasives.compare
+(** The 'a type may in general contain urefs, which makes Stdlib.compare
   incorrect. However, the bounds will always be correct because if two tau's
   get unified, their cached instantiations will be re-entered into the
   worklist, ensuring that any labels find the new bounds *)
@@ -77,7 +77,7 @@ module Bound =
 struct
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) =
-    Pervasives.compare x y
+    Stdlib.compare x y
 end
 
 module B = S.Make(Bound)
@@ -92,7 +92,7 @@ struct
   type t = constant
 
   let compare ((xid,_) : t) ((yid,_) : t) =
-    Pervasives.compare xid yid
+    Stdlib.compare xid yid
 end
 
 module C = Set.Make(Constant)

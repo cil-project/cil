@@ -50,7 +50,7 @@ let debug = false
 (* For each statement we maintain a set of statements that dominate it *)
 module BS = Set.Make(struct
                         type t = Cil.stmt
-                        let compare v1 v2 = Pervasives.compare v1.sid v2.sid
+                        let compare v1 v2 = Stdlib.compare v1.sid v2.sid
                      end)
 
 

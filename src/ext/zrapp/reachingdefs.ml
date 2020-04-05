@@ -41,7 +41,7 @@ module IOS =
     type t = int option
     let compare io1 io2 =
       match io1, io2 with
-	Some i1, Some i2 -> Pervasives.compare i1 i2
+	Some i1, Some i2 -> Stdlib.compare i1 i2
       | Some i1, None -> 1
       | None, Some i2 -> -1
       | None, None -> 0

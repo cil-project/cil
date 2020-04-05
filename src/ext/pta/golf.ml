@@ -101,7 +101,7 @@ struct
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) =
     if U.equal (x.info, y.info) then x.index - y.index
-    else Pervasives.compare (U.deref x.info) (U.deref y.info)
+    else Stdlib.compare (U.deref x.info) (U.deref y.info)
 end
 
 module Path =
@@ -113,12 +113,12 @@ struct
         if U.equal (x.tail, y.tail) then
           begin
             if x.reached_global = y.reached_global then
-              Pervasives.compare x.kind y.kind
-            else Pervasives.compare x.reached_global y.reached_global
+              Stdlib.compare x.kind y.kind
+            else Stdlib.compare x.reached_global y.reached_global
           end
-        else Pervasives.compare (U.deref x.tail) (U.deref y.tail)
+        else Stdlib.compare (U.deref x.tail) (U.deref y.tail)
       end
-    else Pervasives.compare (U.deref x.head) (U.deref y.head)
+    else Stdlib.compare (U.deref x.head) (U.deref y.head)
 end
 
 module B = S.Make (Bound)

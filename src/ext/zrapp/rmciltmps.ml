@@ -14,7 +14,7 @@ module S = Stats
 module IS =
   Set.Make(struct
     type t = int
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
   end)
 
 let debug = RD.debug

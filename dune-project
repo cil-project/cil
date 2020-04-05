@@ -25,6 +25,7 @@ Changes:
     zarith
     (hevea :with-doc)
     (dune (>= 2.3.0))
+    stdlib-shims
     ; (odoc :with-doc)
   )
   (conflicts cil)
