@@ -25,7 +25,7 @@
       (run make)
     ))
     (run cp src/main.exe bin/cilly.native)
-    (bash "mkdir -p share/cil && readlink -f ../install/default/lib > share/cil/ocamlpath")
+    (bash "mkdir -p share/cil && echo $(cd ../install/default/lib; pwd) > share/cil/ocamlpath")
     (chdir test (progn
      (run ./testcil -r --regrtest)
     ))
