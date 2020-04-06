@@ -2,8 +2,6 @@
    used *)
 
 open Cil
-open Cilint
-open Pretty
 open Expcompare
 
 module E = Errormsg
@@ -32,7 +30,7 @@ let time s f a =
  * knows of functions returning a result that have
  * no side effects. If the result is not used, then
  * the call will be eliminated. *)
-let callHasNoSideEffects : (instr -> bool) ref = 
+let callHasNoSideEffects : (instr -> bool) ref =
   ref (fun _ -> false)
 
 
@@ -58,19 +56,19 @@ class usedDefsCollectorClass = object(self)
 
   method add_defids iosh e u =
     UD.VS.iter (fun vi ->
-      if IH.mem iosh vi.vid then 
+      if IH.mem iosh vi.vid then
 	let ios = IH.find iosh vi.vid in
-	if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n" 
+	if !debug then ignore(E.log "DCE: IOS size for vname=%s at stmt=%d: %d\n"
 				vi.vname sid (RD.IOS.cardinal ios));
 	RD.IOS.iter (function
-	    Some(i) -> 
+	    Some(i) ->
 	      if !debug then ignore(E.log "DCE: def %d used: %a\n" i d_exp e);
 	      usedDefsSet := IS.add i (!usedDefsSet)
 	  | None -> ()) ios
       else if !debug then ignore(E.log "DCE: vid %d:%s not in stm:%d iosh at %a\n"
 				   vi.vid vi.vname sid d_plainexp e)) u
 
-  method vexpr e =
+  method! vexpr e =
     let u = UD.computeUseExp e in
     match self#get_cur_iosh() with
       Some(iosh) -> self#add_defids iosh e u; DoChildren
@@ -78,7 +76,7 @@ class usedDefsCollectorClass = object(self)
 	if !debug then ignore(E.log "DCE: use but no rd data: %a\n" d_plainexp e);
 	DoChildren
 
-  method vstmt s =
+  method! vstmt s =
     ignore(super#vstmt s);
     match s.skind with
     | Instr _ -> DoChildren
@@ -102,7 +100,7 @@ class usedDefsCollectorClass = object(self)
 	| None -> DoChildren
     end
 
-  method vinst i =
+  method! vinst i =
     let handle_inst iosh i = match i with
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
@@ -121,7 +119,7 @@ class usedDefsCollectorClass = object(self)
 		      let set = IH.find sidUseSetHash i in
 		      IH.replace sidUseSetHash i (IS.add sid set)
 		    with Not_found ->
-		      IH.add sidUseSetHash i (IS.singleton sid)  
+		      IH.add sidUseSetHash i (IS.singleton sid)
 		end
 		| None -> ()) ios) u) (ce::el)
     | Set((Mem _,_) as lh, rhs,l) ->
@@ -136,14 +134,14 @@ class usedDefsCollectorClass = object(self)
 		      let set = IH.find sidUseSetHash i in
 		      IH.replace sidUseSetHash i (IS.add sid set)
 		    with Not_found ->
-		      IH.add sidUseSetHash i (IS.singleton sid)  
+		      IH.add sidUseSetHash i (IS.singleton sid)
 		end
 		| None -> ()) ios) u) ([Lval(lh);rhs])
     | _ -> ()
     in
     ignore(super#vinst i);
     match cur_rd_dat with
-    | None -> begin 
+    | None -> begin
 	if !debug then ignore(E.log "DCE: instr with no cur_rd_dat\n");
 	(* handle_inst *)
 	DoChildren
@@ -158,7 +156,7 @@ class usedDefsCollectorClass = object(self)
 		let ios = IH.find iosh vi.vid in
 		RD.IOS.iter (function
 		  | Some i -> begin (* add n + s to set for i *)
-		      try 
+		      try
 			let set = IH.find defUseSetHash i in
 			IH.replace defUseSetHash i (IS.add (n+s) set)
 		      with Not_found ->
@@ -177,24 +175,24 @@ class usedDefsCollectorClass = object(self)
 end
 
 (***************************************************
- * Also need to find reads from volatiles 
- * uses two functions I've put in ciltools which 
- * are basically what Zach wrote, except one is for 
+ * Also need to find reads from volatiles
+ * uses two functions I've put in ciltools which
+ * are basically what Zach wrote, except one is for
  * types and one is for vars. Another difference is
- * they filter out pointers to volatiles. This 
- * handles DMA 
+ * they filter out pointers to volatiles. This
+ * handles DMA
  ***************************************************)
 class hasVolatile flag = object (self)
-  inherit nopCilVisitor   
-  method vlval l = 
+  inherit nopCilVisitor
+  method! vlval l =
     let tp = typeOfLval l in
     if (Ciltools.is_volatile_tp tp) then flag := true;
     DoChildren
-  method vexpr e =
+  method! vexpr e =
     DoChildren
 end
 
-let exp_has_volatile e = 
+let exp_has_volatile e =
   let flag = ref false in
   ignore (visitCilExpr (new hasVolatile flag) e);
   !flag
@@ -212,7 +210,7 @@ let rec compareExp (e1: exp) (e2: exp) : bool =
   | Lval lv1, Lval lv2
   | StartOf lv1, StartOf lv2
   | AddrOf lv1, AddrOf lv2 -> compareLval lv1 lv2
-  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) -> 
+  | BinOp(bop1, l1, r1, _), BinOp(bop2, l2, r2, _) ->
       bop1 = bop2 && compareExp l1 l2 && compareExp r1 r2
   | _ -> begin
       match getInteger (constFold true e1), getInteger (constFold true e2) with
@@ -245,17 +243,17 @@ let rec stripNopCasts (e:exp): exp =
         TPtr _, TPtr _ -> (* okay to strip *)
           stripNopCasts e'
       (* strip casts from pointers to unsigned int/long*)
-      | (TPtr _ as t1), (TInt(ik,_) as t2) 
-          when bitsSizeOf t1 = bitsSizeOf t2 
+      | (TPtr _ as t1), (TInt(ik,_) as t2)
+          when bitsSizeOf t1 = bitsSizeOf t2
             && not (isSigned ik) ->
           stripNopCasts e'
-      | (TInt _ as t1), (TInt _ as t2) 
+      | (TInt _ as t1), (TInt _ as t2)
           when bitsSizeOf t1 = bitsSizeOf t2 -> (* Okay to strip.*)
           stripNopCasts e'
       |  _ -> e
     end
   | _ -> e
-      
+
 let compareExpStripCasts (e1: exp) (e2: exp) : bool =
   compareExp (stripNopCasts e1) (stripNopCasts e2)
 *)
@@ -266,7 +264,7 @@ let removedCount = ref 0
 class uselessInstrElim : cilVisitor = object(self)
   inherit nopCilVisitor
 
-  method vstmt stm =
+  method! vstmt stm =
 
     (* give a set of varinfos and an iosh and get
      * the set of definition ids definining the vars *)
@@ -294,7 +292,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	   * something from defuses is in instruses and is also used somewhere else *)
 	  if UD.VS.exists (fun vi -> vi.vglob) instruses then true else
 	  let instruses = viSetToDefIdSet iosh instruses in
-	  IS.fold (fun i' b -> 
+	  IS.fold (fun i' b ->
 	    if not(IS.mem i' instruses) then begin
 	      if !debug then ignore(E.log "i not in instruses: %a\n" d_instr i);
 	      true
@@ -304,11 +302,11 @@ class uselessInstrElim : cilVisitor = object(self)
 	      IH.mem sidUseSetHash i' ||
 	      if not(IS.equal i'_uses (IS.singleton defid)) then begin
 		IS.iter (fun iu -> match RD.getSimpRhs iu with
-		| Some(RD.RDExp e) -> 
-		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n" 
+		| Some(RD.RDExp e) ->
+		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n"
 			     (IS.cardinal i'_uses) d_exp e)
 		| Some(RD.RDCall i) ->
-		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n" 
+		    if !debug then ignore(E.log "i' had other than one use: %d: %a\n"
 			     (IS.cardinal i'_uses) d_instr i)
 		| None -> ()) i'_uses;
 		true
@@ -318,7 +316,7 @@ class uselessInstrElim : cilVisitor = object(self)
     in
 
     let test (i,(_,s,iosh)) =
-      match i with 
+      match i with
       | Call(Some(Var vi,NoOffset),Lval(Var vf,NoOffset),el,l) ->
 	  if not(!callHasNoSideEffects i) then begin
 	    if !debug then ignore(E.log "found call w/ side effects: %a\n" d_instr i);
@@ -362,7 +360,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	    stm.skind <- Instr(filter il ((),s,iosh));
 	    SkipChildren
 	| _ -> DoChildren
-	    
+
 end
 
 (* until fixed point is reached *)
@@ -390,7 +388,7 @@ let elim_dead_code (fd : fundec) :  fundec =
   removedCount := 0;
   time "reaching definitions" RD.computeRDs fd;
   if !debug then ignore(E.log "DCE: collecting used definitions\n");
-  ignore(time "ud-collector" 
+  ignore(time "ud-collector"
 	   (visitCilFunction (new usedDefsCollectorClass :> cilVisitor)) fd);
   if !debug then ignore(E.log "DCE: eliminating useless instructions\n");
   let fd' = time "useless-elim" (visitCilFunction (new uselessInstrElim)) fd in
@@ -399,7 +397,7 @@ let elim_dead_code (fd : fundec) :  fundec =
 class deadCodeElimClass : cilVisitor = object(self)
     inherit nopCilVisitor
 
-  method vfunc fd =
+  method! vfunc fd =
     let fd' = elim_dead_code(*_fp*) fd in
     ChangeTo(fd')
 

@@ -1,9 +1,9 @@
-(* Copyright (c) 2008 Intel Corporation 
- * All rights reserved. 
+(* Copyright (c) 2008 Intel Corporation
+ * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  * 	Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  * 	Redistributions in binary form must reproduce the above copyright
@@ -12,7 +12,7 @@
  *     Neither the name of the Intel Corporation nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
@@ -47,7 +47,7 @@ type llvmBlock = {
     mutable lbterminator: llvmTerminator;
 
     (* predecessor blocks, use llvmDestinations to get successors *)
-    mutable lbpreds : llvmBlock list; 
+    mutable lbpreds : llvmBlock list;
   }
 
 and llvmInstruction = {
@@ -56,7 +56,7 @@ and llvmInstruction = {
     mutable liargs: llvmValue list;
   }
 
-and llvmTerminator = 
+and llvmTerminator =
   | TUnreachable
   | TDead (* not a real LLVM terminator, used to mark blocks that should be removed *)
   | TRet of llvmValue list
@@ -65,7 +65,7 @@ and llvmTerminator =
   | TSwitch of llvmValue * llvmBlock * (int64 * llvmBlock) list
 
 (* Note that LLVM values are typed; use llvmTypeOf to get the type of one of these *)
-and llvmValue = 
+and llvmValue =
   | LGlobal of llvmGlobal
   | LLocal of llvmLocal
   | LBool of bool
@@ -92,11 +92,11 @@ and llvmGlobal = string * llvmType
    don't use the vector types and can fudge the uses of i1. *)
 and llvmType = typ
 
-and llvmOp = 
+and llvmOp =
   | LIassign (* for use before SSA transformation *)
   | LIphi
   | LIgetelementptr
-  | LIload 
+  | LIload
   | LIstore
   | LIcall
   | LIalloca
@@ -124,7 +124,7 @@ and llvmBinop =
   | LBor
   | LBxor
 
-and llvmCmp = 
+and llvmCmp =
   | LCeq
   | LCne
   | LCslt
@@ -136,7 +136,7 @@ and llvmCmp =
   | LCsge
   | LCuge
 
-and llvmFCmp = 
+and llvmFCmp =
   | LCFoeq
   | LCFone
   | LCFolt
@@ -151,7 +151,7 @@ and llvmFCmp =
   | LCFugt
   | LCFuge
 
-and llvmCast = 
+and llvmCast =
   | LAtrunc
   | LAzext
   | LAsext
@@ -193,7 +193,7 @@ and cmpName op = match op with
 | LCugt -> "ugt"
 | LCsge -> "sge"
 | LCuge -> "uge"
-      
+
 and fcmpName op = match op with
 | LCFoeq -> "oeq"
 | LCFone -> "one"
@@ -208,7 +208,7 @@ and fcmpName op = match op with
 | LCFule -> "ule"
 | LCFugt -> "ugt"
 | LCFuge -> "uge"
-      
+
 and castName op = match op with
 | LAtrunc -> "trunc"
 | LAzext -> "zext"
@@ -241,7 +241,7 @@ let rec llvmTypeOf (v:llvmValue) : llvmType = match v with
    location) *)
 | LGetelementptr [ base ] -> llvmTypeOf base
 | LGetelementptr (base :: index :: path) ->
-    let accessed (t:llvmType) (v:llvmValue) : llvmType = 
+    let accessed (t:llvmType) (v:llvmValue) : llvmType =
       match v with
       | LInt(i, _) -> begin
 	  match unrollType t with
@@ -252,7 +252,7 @@ let rec llvmTypeOf (v:llvmValue) : llvmType = match v with
 	  | _ -> raise Bug
       end
       | _ -> raise Bug
-    in 
+    in
     let t = fold_left accessed (typePointsTo (llvmTypeOf base)) path in
     TPtr(t, [])
 | LCast (_, _, t) -> t
@@ -265,20 +265,20 @@ let rec llvmTypeOf (v:llvmValue) : llvmType = match v with
 | _ -> voidType
 
 (* True if t can be the type of an LLVM local *)
-let llvmLocalType (t:typ) : bool = 
+let llvmLocalType (t:typ) : bool =
   match unrollType t with
   | (TInt _ | TFloat _ | TPtr _ | TEnum _) -> true
   | _ -> false
 
 (* True if local variable 'vi' should be represented by an LLVM local *)
-let llvmUseLocal (vi:varinfo) = 
+let llvmUseLocal (vi:varinfo) =
   not vi.vaddrof && llvmLocalType vi.vtype
 
 (* True if 'vi's address is taken, and it would've been represented by
    an LLVM local if that had not been the case.
    Include hack for __builtin_va_list... *)
 let llvmDoNotUseLocal (vi:varinfo) =
-  vi.vaddrof && llvmLocalType vi.vtype || 
+  vi.vaddrof && llvmLocalType vi.vtype ||
   (match unrollType vi.vtype with
    | TBuiltin_va_list _ -> true
    | _ -> false)
@@ -302,7 +302,7 @@ let rec llvmValueEqual (v1:llvmValue) (v2:llvmValue) = match (v1, v2) with
 | (LPhi (v1, b1), LPhi (v2, b2)) -> llvmValueEqual v1 v2 && b1.lblabel = b2.lblabel
 | (LType t1, LType t2) -> compareTypes t1 t2
 | (LGetelementptr vl1, LGetelementptr vl2) -> for_all2 llvmValueEqual vl1 vl2
-| (LCast (op1, v1, t1), LCast (op2, v2, t2)) -> 
+| (LCast (op1, v1, t1), LCast (op2, v2, t2)) ->
     op1 = op2 && llvmValueEqual v1 v2 && compareTypes t1 t2
 | (LBinary (op1, v1, w1, t1), LBinary (op2, v2, w2, t2)) ->
     op1 = op2 && llvmValueEqual v1 v2 && llvmValueEqual w1 w2 && compareTypes t1 t2
@@ -315,11 +315,11 @@ let rec llvmValueEqual (v1:llvmValue) (v2:llvmValue) = match (v1, v2) with
 | _ -> v1 = v2
 
 (* Return the LLVM local for local variable 'vi' *)
-let llocal (vi:varinfo) : llvmLocal = 
+let llocal (vi:varinfo) : llvmLocal =
   (* If the variable can be stored directly in a LLVM local, do so. Otherwise,
      the LLVM local is a pointer to the actual variable (and will be stack
      allocated with alloca at the entry to the function) *)
-  if llvmUseLocal vi then 
+  if llvmUseLocal vi then
     (vi.vname, vi.vtype)
   else if llvmDoNotUseLocal vi then
     ("address." ^ vi.vname, TPtr (vi.vtype, []))
@@ -327,19 +327,19 @@ let llocal (vi:varinfo) : llvmLocal =
     (vi.vname, TPtr (vi.vtype, []))
 
 (* Return the LLVM global for global variable 'vi' *)
-let lglobal (vi:varinfo) : llvmGlobal = 
+let lglobal (vi:varinfo) : llvmGlobal =
     (vi.vname, vi.vtype)
 
 (* Return the LLVM value representing variable 'vi' *)
 let lvar (vi:varinfo) : llvmValue =
-  if vi.vglob then LGlobal (lglobal vi) else LLocal (llocal vi) 
+  if vi.vglob then LGlobal (lglobal vi) else LLocal (llocal vi)
 
 (* Return the LLVM value representing integer 'n' of integer type 't' *)
 let lint (n:int) (t:typ) : llvmValue = LInt (Int64.of_int n, integralKind t)
 
 (* Return the LLVM value corresponding to '(t)0' (this is the implicit
    comparison target in C conditions (if, &&, ||, !) *)
-let lzero (t:typ) : llvmValue = 
+let lzero (t:typ) : llvmValue =
   match unrollType t with
   | TInt (ik, _) -> LInt (Int64.zero, ik)
   | TFloat (fk, _) -> LFloat (0.0, fk)
@@ -354,7 +354,7 @@ let mkVoidIns op args = { liresult = None; liargs = args; liop = op }
 
 (* Build the LLVM instruction that compares 'v' to zero, storing the boolean
    result in 'res' *)
-let mkTrueIns (res:llvmLocal) (v:llvmValue) : llvmInstruction = 
+let mkTrueIns (res:llvmLocal) (v:llvmValue) : llvmInstruction =
   let t = llvmTypeOf v in
   if isFloatingType t then
     mkIns (LIfcmp LCFune) res [ v; lzero t ]
@@ -363,7 +363,7 @@ let mkTrueIns (res:llvmLocal) (v:llvmValue) : llvmInstruction =
 
 (* Build escaaped version of string s using LLVM's escaped string syntax *)
 let llvmEscape (s:string) : string =
-  let digit i = 
+  let digit i =
     if i < 10 then Char.chr (48 + i)
     else Char.chr (55 + i) in
   let l = S.length s in
@@ -389,7 +389,7 @@ let llvmValueNegate (v:llvmValue) : llvmValue =  match v with
 (* Return the LLVM cast operator for casting from 'tfrom' to 'tto *)
 let llvmCastOp (tfrom:typ) (tto:typ) : llvmCast =
   if isIntegralType tfrom && isIntegralType tto then
-    let frombits = bitsSizeOf tfrom 
+    let frombits = bitsSizeOf tfrom
     and tobits = bitsSizeOf tto in
     if tobits < frombits then
       LAtrunc
@@ -402,7 +402,7 @@ let llvmCastOp (tfrom:typ) (tto:typ) : llvmCast =
   else if isFloatingType tfrom && isIntegralType tto then
     if isSignedType tto then LAfptosi else LAfptoui
   else if isFloatingType tfrom && isFloatingType tto then
-    let frombits = bitsSizeOf tfrom 
+    let frombits = bitsSizeOf tfrom
     and tobits = bitsSizeOf tto in
     if tobits < frombits then
       LAfptrunc
@@ -443,13 +443,13 @@ class llvmGeneratorClass : llvmGenerator = object (self)
   (* A zero of pointer size *)
   val lzerop = lzero !upointType
 
-   (* LLVM intrinsics, in doc string and LLVM value form. 
+   (* LLVM intrinsics, in doc string and LLVM value form.
       The doc strings could be generated from the LLVM values *)
-  val intrinsics = 
+  val intrinsics =
     (text "declare void @llvm.memcpy.i32(i8*, i8*, i32, i32) nounwind\n") ++
     (text "declare void @llvm.va_start(i8*)\n") ++
     (text "declare void @llvm.va_copy(i8*, i8*)\n") ++
-    (text "declare void @llvm.va_end(i8*)\n") 
+    (text "declare void @llvm.va_end(i8*)\n")
 
   val intrinsic_memcpy : llvmValue =
     let a t = ("", t, []) in
@@ -473,13 +473,13 @@ class llvmGeneratorClass : llvmGenerator = object (self)
   val mutable vaIntrinsics = []
 
   (* Return a new global label *)
-  method private newGLabel () : string = 
+  method private newGLabel () : string =
     let nglabel = sprintf ".G%d" nextGLabel in
     nextGLabel <- nextGLabel + 1;
     nglabel
 
   (* Record a new string and return the global value that references it *)
-  method addString (s:string) : llvmGlobal = 
+  method addString (s:string) : llvmGlobal =
     let reals = s ^ "\000" in (* CIL strings are missing the trailing nul *)
     let strt = TArray(charType, Some (kinteger IInt (S.length reals)), []) in
     let g = (self#newGLabel (), strt) in
@@ -487,7 +487,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     g
 
   (* Record a new wide string and return the global value that references it *)
-  method addWString (ws:int64 list) : llvmGlobal = 
+  method addWString (ws:int64 list) : llvmGlobal =
     let realws = ws @ [ Int64.zero ] in (* CIL strings are missing the trailing nul *)
     let wstrt = TArray(!wcharType, Some (kinteger IInt (length realws)), []) in
     let g = (self#newGLabel (), wstrt) in
@@ -496,19 +496,19 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
   (* Print all global symbols and intrinsics used in the functions and
      constant expressions seen so far *)
-  method printGlobals () : doc = 
+  method printGlobals () : doc =
     let p1s ((glabel, t), s) = (* print string def *)
       dprintf "@@%s = internal constant %a c\"%s\"\n" glabel dgType t (llvmEscape s)
     and p1ws ((glabel, t), ws) = (* print wide string def *)
       let value wc = LInt (wc, !wcharKind) in
-      dprintf "@@%s = internal constant %a [ %a ]\n" glabel dgType t 
+      dprintf "@@%s = internal constant %a [ %a ]\n" glabel dgType t
 	(d_list ", " self#printValue) (map value ws)
-    in intrinsics ++ 
+    in intrinsics ++
       (fold_left (++) nil (map p1s strings)) ++
       (fold_left (++) nil (map p1ws wstrings))
 
   (* Print an LLVM value without it's associated LLVM type *)
-  method printValueNoType () (v:llvmValue) : doc = 
+  method printValueNoType () (v:llvmValue) : doc =
     match v with
     | LGlobal (s,t) -> dprintf "@@%s" s
     | LLocal (s,t) -> dprintf "%%%s" s
@@ -539,13 +539,13 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
   (* Print an LLVM block list *)
   method printBlocks () (bl:llvmBlock list) : doc =
-    let rec llvmPrintIns (i:llvmInstruction) : doc =  
+    let rec llvmPrintIns (i:llvmInstruction) : doc =
       let (ddest, dtype) = match i.liresult with
       | Some (s, t) -> (dprintf "%%%s = " s, t)
       | None -> (nil, voidType)
       and p n () = self#printValue () (nth i.liargs n) (* print nth arg *)
       and pnt n () = self#printValueNoType () (nth i.liargs n) (* print nth arg w/o type *)
-      in ddest ++ match i.liop with 
+      in ddest ++ match i.liop with
       | LIassign -> dprintf "[%t]\n" (p 0)
       | LIload -> dprintf "load %t\n" (p 0)
       | LIstore -> dprintf "store %t, %t\n" (p 0) (p 1)
@@ -560,7 +560,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | LIgetelementptr -> dprintf "getelementptr %a\n" (d_list ", " self#printValue) i.liargs
       | LIalloca -> dprintf "alloca %a\n" (d_list ", " self#printValue) i.liargs
 
-    and llvmPrintTerm (term:llvmTerminator) : doc = 
+    and llvmPrintTerm (term:llvmTerminator) : doc =
       match term with
       | TUnreachable -> text "unreachable\n"
       | TDead -> text "unreachable\n"
@@ -568,15 +568,15 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | TCond (v, b1, b2) -> dprintf "br i1 %a, label %%%s, label %%%s\n"
 	    self#printValueNoType v b1.lblabel b2.lblabel
       | TSwitch (v, def, cases) ->
-	  let printOneCase () (n, b) = 
+	  let printOneCase () (n, b) =
 	    dprintf "%a %a, label %%%s" dgType (llvmTypeOf v) f_int64 n b.lblabel in
 	  dprintf "switch %a, label %%%s [ %a ]\n" self#printValue v def.lblabel
 	    (d_list " " printOneCase) cases
       | TRet [] -> text "ret void\n"
       | TRet rl -> dprintf "ret %a\n" (d_list ", " self#printValue) rl
 
-    and llvmPrint1 (b:llvmBlock) : doc = 
-      let label = 
+    and llvmPrint1 (b:llvmBlock) : doc =
+      let label =
 	if b.lblabel <> "" then dprintf "%s:\n" b.lblabel
 	else nil
       and body = fold_left (++) nil (map llvmPrintIns b.lbbody)
@@ -586,7 +586,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     in fold_left (++) nil (map llvmPrint1 bl)
 
   (* Build the LLVM value for CIL constant 'c' *)
-  method mkConstant (c:constant) : llvmValue = 
+  method mkConstant (c:constant) : llvmValue =
     match c with
     | CInt64 (i, ik, _) -> LInt (i, ik)
     | CStr s -> LGetelementptr [ LGlobal (self#addString s); lzerop; lzerop ]
@@ -597,37 +597,37 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
   (* Build the LLVM value for CIL constant expression 'e' - this includes constant
      lvalues like &s[3].a.b[2].c which CIL doesn't constant fold *)
-  method mkConstantExp (e:exp) : llvmValue = 
+  method mkConstantExp (e:exp) : llvmValue =
     (* This is a simplified, restricted version of the code generation case... *)
-    let rec accessPath (o:offset) : llvmValue list = 
+    let rec accessPath (o:offset) : llvmValue list =
       match o with
       | NoOffset -> []
       | Field (fi, o') -> (lint (fieldIndexOf fi) i32Type) :: accessPath o'
       | Index (e, o') -> (self#mkConstantExp e) :: accessPath o'
 
-    and iStartOf (h, o) : llvmValue = 
+    and iStartOf (h, o) : llvmValue =
       let opath = (accessPath o) @ [ lzerop ] in
       match h with
       | Var vi when vi.vglob -> LGetelementptr (lvar vi :: lzerop :: opath)
       | _ -> raise NotConstant
 
-    and iAddrOf (h, o) : llvmValue = 
+    and iAddrOf (h, o) : llvmValue =
       let opath = accessPath o in
       match h with
-      | Var vi when vi.vglob -> 
+      | Var vi when vi.vglob ->
 	  if opath = [] then
 	    lvar vi
 	  else
 	    LGetelementptr (lvar vi :: lzerop :: opath)
       | _ -> raise NotConstant
 
-    and plusPI (p:llvmValue) (offset:llvmValue) : llvmValue = 
+    and plusPI (p:llvmValue) (offset:llvmValue) : llvmValue =
       (* Add 'offset' to the last offset in getelementptr value 'p' *)
       match (p, offset) with
       | (LGetelementptr vl, LInt(i, _)) ->
 	  (* The current offset is at the end of the getelementptr value... *)
 	  let rev_vl = rev vl in
-	  let newoffset = 
+	  let newoffset =
 	    match hd rev_vl with
 	    | LInt(j, jk) -> LInt(Int64.add i j, jk)
 	    | _ -> raise NotConstant
@@ -637,58 +637,58 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
     and minusPI (p:llvmValue) (offset:llvmValue) = plusPI p (llvmValueNegate offset)
 
-    and mkConstantCast (v:llvmValue) (tto:typ) : llvmValue = 
+    and mkConstantCast (v:llvmValue) (tto:typ) : llvmValue =
       let castop = llvmCastOp (llvmTypeOf v) tto in
       LCast (castop, v, tto)
 
-    and iCast (tto:typ) (e:exp) : llvmValue = 
+    and iCast (tto:typ) (e:exp) : llvmValue =
       let castop = llvmCastOp (typeOf e) tto in
       LCast (castop, (self#mkConstantExp e), tto)
 
-    and iUnop op (e:exp) (t:typ) : llvmValue = 
+    and iUnop op (e:exp) (t:typ) : llvmValue =
       let v = self#mkConstantExp e in
       let targ = typeOf e in
-      match op with 
+      match op with
       | Neg -> LBinary (LBsub, lzero targ, v, t)
       | BNot -> LBinary (LBxor, v, lint (-1) targ, t)
-      | LNot -> 
+      | LNot ->
 	  let t = llvmTypeOf v in
-	  let cond = 
+	  let cond =
 	    if isFloatingType t then
 	      LFcmp (LCFune, v, lzero t)
 	    else
 	      LCmp (LCne, v, lzero t)
 	  in LSelect (cond, lzero t, lint 1 t)
 
-    and iBinop op (e1:exp) (e2:exp) (t:typ) : llvmValue = 
+    and iBinop op (e1:exp) (e2:exp) (t:typ) : llvmValue =
       let v1 = self#mkConstantExp e1 in
       let v2 = self#mkConstantExp e2 in
       let targ1 = typeOf e1 in
       (* generate constant for an arithmetic operator *)
       let arith op = LBinary (op, v1, v2, t) in
       (* generate constant for a comparison operator *)
-      let compare sop uop fop = 
-	let cond = 
-	  if isIntegralType targ1 then 
-	    if isSignedType targ1 then LCmp (sop, v1, v2) 
+      let compare sop uop fop =
+	let cond =
+	  if isIntegralType targ1 then
+	    if isSignedType targ1 then LCmp (sop, v1, v2)
 	    else LCmp (uop, v1, v2)
 	  else LFcmp (fop, v1, v2)
 	in LSelect(cond, lint 1 t, lint 0 t)
       in
-      match op with 
+      match op with
       | PlusA -> arith LBadd
       | MinusA -> arith LBsub
       | (PlusPI | IndexPI) -> plusPI v1 v2
       | MinusPI -> minusPI v1 v2
-      | MinusPP -> 
+      | MinusPP ->
           let asint1 = mkConstantCast v1 t in
           let asint2 = mkConstantCast v2 t in
 	  let elemsize = bitsSizeOf (typePointsTo targ1) / 8 in
 	  let diff = LBinary (LBsub, asint1, asint2, t) in
 	  LBinary (LBsdiv, diff, lint elemsize t, t)
       | Mult -> arith LBmul
-      | Div -> 
-	  let op = 
+      | Div ->
+	  let op =
 	    if isIntegralType t then
 	      if isSignedType t then LBsdiv else LBudiv
 	    else LBfdiv
@@ -699,7 +699,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | BAnd -> arith LBand
       | BOr -> arith LBor
       | BXor -> arith LBxor
-            (* for floating point, llvm-gcc believes in unordered !=, ordered 
+            (* for floating point, llvm-gcc believes in unordered !=, ordered
 	       everything else *)
       | Lt -> compare LCslt LCult LCFolt
       | Gt -> compare LCsgt LCugt LCFogt
@@ -722,11 +722,11 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     | _ -> raise NotConstant
 
   (* Generate LLVM code for function 'f'.
-     Note: this code assumes that the statement ids (sid field of stmt) 
-     have either not been set (< 0), or are set to unique values. After 
-     mkFunction returns, the statement ids will have unique positive 
+     Note: this code assumes that the statement ids (sid field of stmt)
+     have either not been set (< 0), or are set to unique values. After
+     mkFunction returns, the statement ids will have unique positive
      values. *)
-  method mkFunction (f:fundec) : llvmBlock list = 
+  method mkFunction (f:fundec) : llvmBlock list =
     (* Set up the GCC vararg intrinsic mapping (once) *)
     if vaIntrinsics = [] then
       vaIntrinsics <- [ "__builtin_va_start", intrinsic_va_start;
@@ -739,7 +739,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     let blabels = H.create 32 in
     let nextLabel = ref 0 in
     (* Return a new label *)
-    let newLabel () = 
+    let newLabel () =
       let nlabel = sprintf "L%d" !nextLabel in
       nextLabel := !nextLabel + 1;
       nlabel
@@ -760,17 +760,17 @@ class llvmGeneratorClass : llvmGenerator = object (self)
        getNamedBlock with the same label (courtesy of labelOf), get
        the "empty" block we created earlier, and fill it in (see
        mkBlock) *)
-    let rec getNamedBlock (label:string) : llvmBlock = 
+    let rec getNamedBlock (label:string) : llvmBlock =
       try
 	H.find blabels label
       with Not_found -> (* create the empty block *)
 	let nb = { lblabel = label; lbbody = []; lbterminator = TUnreachable; lbpreds = [] } in
 	H.add blabels label nb;
 	blocks := nb :: !blocks;
-	nb 
-    (* Let X be the block identified by 'label'. Sets the instructions for 
+	nb
+    (* Let X be the block identified by 'label'. Sets the instructions for
        block X to 'il' and its terminator to 'term X'. Returns X. *)
-    and mkBlock (label:string) (il:llvmInstruction list) (term: llvmTerminator) : llvmBlock = 
+    and mkBlock (label:string) (il:llvmInstruction list) (term: llvmTerminator) : llvmBlock =
       let nb = getNamedBlock label in
       nb.lbbody <- il;
       nb.lbterminator <- term;
@@ -780,7 +780,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     let tmp = ref 0 in
     (* Return a new LLVM temporary. These must be assigned exactly once (we do
        not run the SSA transform on temporaries). *)
-    let nextTemp (t:llvmType) : llvmLocal = 
+    let nextTemp (t:llvmType) : llvmLocal =
       tmp := !tmp + 1;
       (sprintf ".t%d" !tmp, t)
     in
@@ -792,7 +792,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
     (* Compile CIL statements to LLVM blocks - each statement becomes
        a separate LLVM block (we do some block merging as a cleanup
-       pass at the end of code generation - see simplifyBlock). 
+       pass at the end of code generation - see simplifyBlock).
 
        These functions take three terminator arguments. When compiling
        a statement s, the first (XXterm) is used when s terminates
@@ -801,13 +801,13 @@ class llvmGeneratorClass : llvmGenerator = object (self)
        continue statement. *)
 
     let rec gBlock (label:string) (b:block) bterm bbrk bcont : llvmBlock =
-      let rec connectStmts (s:stmt) sterm = 
+      let connectStmts (s:stmt) sterm =
 	let sblock = gStmt s sterm bbrk bcont in
 	TBranch sblock (* Our predecessor should branch to us... *)
       in let eblock = fold_right connectStmts b.bstmts bterm in
       mkBlock label [] eblock
 
-    and gStmt (s:stmt) = 
+    and gStmt (s:stmt) =
       let slabel = labelOf s in
       match s.skind with
       | Instr il -> gIList slabel il
@@ -815,8 +815,8 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | Return (Some e, _) -> gReturn slabel e
       | Goto (sref, _) -> gGoto slabel sref
       | ComputedGoto _ -> raise (Unimplemented "ComputedGoto")
-      | Break _ -> gBreak slabel 
-      | Continue _ -> gContinue slabel 
+      | Break _ -> gBreak slabel
+      | Continue _ -> gContinue slabel
       | If (e, b1, b2, _) -> gIf slabel e b1 b2
       | Switch (e, b, slist, _) -> gSwitch slabel e b slist
       | Loop (b, _, _, _) -> gLoop slabel b
@@ -824,10 +824,10 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | TryFinally (_, _, _) -> raise (Unimplemented "TryFinally")
       | TryExcept (_, _, _, _) -> raise (Unimplemented "TryExcept")
 
-    and gReturnVoid (label:string) sterm sbrk scont : llvmBlock = 
+    and gReturnVoid (label:string) sterm sbrk scont : llvmBlock =
       mkBlock label [] (TRet [])
 
-    and gReturn (label:string) (e:exp) sterm sbrk scont : llvmBlock = 
+    and gReturn (label:string) (e:exp) sterm sbrk scont : llvmBlock =
       let tret = typeOf e in
         if isCompType tret then
           (* X86: structures returned by copy into distinguished first argument *)
@@ -838,17 +838,17 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	  let retterm (v:llvmValue) : llvmTerminator = TRet [v] in
 	  gExp label e retterm sbrk scont
 
-    and gBreak (label:string) sterm sbrk scont : llvmBlock = 
+    and gBreak (label:string) sterm sbrk scont : llvmBlock =
       mkBlock label [] sbrk
 
-    and gContinue (label:string) sterm sbrk scont : llvmBlock = 
+    and gContinue (label:string) sterm sbrk scont : llvmBlock =
       mkBlock label [] scont
 
     and gGoto (label:string) (sref:stmt ref) sterm sbrk scont : llvmBlock =
       let target = getNamedBlock (labelOf !sref) in
       mkBlock label [] (TBranch target)
 
-    and gIf (label:string) (e:exp) (b1:block) (b2:block) sterm sbrk scont : llvmBlock = 
+    and gIf (label:string) (e:exp) (b1:block) (b2:block) sterm sbrk scont : llvmBlock =
       let lb1 = gBlock (newLabel ()) b1 sterm sbrk scont in
       let lb2 = gBlock (newLabel ()) b2 sterm sbrk scont in
       let (ilcond, vcond) = iExp e in
@@ -856,9 +856,9 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       let test = mkTrueIns istrue vcond in
       mkBlock label (ilcond @ [ test ]) (TCond (LLocal istrue, lb1, lb2))
 
-    and gSwitch (label:string) (e:exp) (b:block) (slist:stmt list) sterm sbrk scont : llvmBlock = 
+    and gSwitch (label:string) (e:exp) (b:block) (slist:stmt list) sterm sbrk scont : llvmBlock =
       ignore(gBlock (newLabel ()) b sterm sterm scont);
-      let switchterm (v:llvmValue) : llvmTerminator = 
+      let switchterm (v:llvmValue) : llvmTerminator =
 	let defblock = ref (mkBlock (newLabel ()) [] sterm) in
 	let cases = ref [] in
 	let addCase (target:llvmBlock) (l:label) = match l with
@@ -868,10 +868,10 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	| Default _ -> defblock := target
 	in iter (fun s -> iter (addCase (getNamedBlock (labelOf s))) (caseRangeFold s.labels)) slist;
 	TSwitch (v, !defblock, !cases)
-      in 
+      in
       gExp label e switchterm sbrk scont
 
-    and gLoop (label:string) (b:block) sterm sbrk scont : llvmBlock = 
+    and gLoop (label:string) (b:block) sterm sbrk scont : llvmBlock =
       let loop = getNamedBlock label in
       let loopback = TBranch loop in
       gBlock label b loopback sterm loopback
@@ -880,7 +880,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       let il_instrs = flatten (map iIns instrs) in
       mkBlock label il_instrs sterm
 
-    and gExp (label:string) (e:exp) (eterm:llvmValue -> llvmTerminator) ebrk econt : llvmBlock = 
+    and gExp (label:string) (e:exp) (eterm:llvmValue -> llvmTerminator) ebrk econt : llvmBlock =
       let (il,v) = iExp e in
       mkBlock label il (eterm v)
 
@@ -897,25 +897,25 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     and iIns (i:instr) : llvmInstruction list = match i with
     | Set (lv, e, _) -> iSet lv e
     (* GCC: recognize and handle gcc's intrinsic vararg functions *)
-    | Call (None, Lval(Var vi, NoOffset), args, _) 
+    | Call (None, Lval(Var vi, NoOffset), args, _)
       when mem_assoc vi.vname vaIntrinsics -> iVaIntrinsic vi.vname args
     (* GCC: recognize and handle gcc's intrinsic va_arg function *)
-    | Call (None, Lval(Var vi, NoOffset), [valist; SizeOf targ; dest], _) 
+    | Call (None, Lval(Var vi, NoOffset), [valist; SizeOf targ; dest], _)
       when vi.vname = "__builtin_va_arg" -> iVaArg valist targ dest
     | Call (r, fn, args, _) -> iCall r fn args
     | Asm _ -> raise (Unimplemented "Asm")
     | VarDecl _ -> raise (Unimplemented "VarDecl") (* VarDecl instruction is not supported for LLVMGen, to make LLVMGen work for programs without VLA *)
                                                    (* make sure to set alwaysGenerateVarDecl in cabs2cil.ml to false. To support VLA, implement this.  *)
 
-    and iSet (lv:lval) (e:exp) : llvmInstruction list = 
+    and iSet (lv:lval) (e:exp) : llvmInstruction list =
       let (il,v) = iExp e in
       il @ iWLval lv v
 
-    (* Handle one of gcc's intrinsic vararg functions (va_start, va_end, va_copy) 
+    (* Handle one of gcc's intrinsic vararg functions (va_start, va_end, va_copy)
        by calling the corresponding LLVM intrinsic. This latter expects all
        arguments to be of type i8 *, and be the address of the va_list arguments. *)
     and iVaIntrinsic (name:string) (args:exp list) : llvmInstruction list =
-      let vaExp (e:exp) = 
+      let vaExp (e:exp) =
 	let (il, v) = iExp (mkAddrOfExp e) in
         let (iv_cast, vi8) = mkCast v i8starType in
 	(il @ [ iv_cast ], vi8)
@@ -925,7 +925,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       (flatten ilargs) @ [ call ]
 
     (* Handle gcc's intrinsic va_arg function by using LLVM's va_arg instruction *)
-    and iVaArg (valist:exp) (targ:typ) (dest:exp) = 
+    and iVaArg (valist:exp) (targ:typ) (dest:exp) =
       let destlv = match dest with
       | CastE(_, AddrOf lv) -> lv
       | _ -> raise Bug in
@@ -937,10 +937,10 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       if compareTypes targ destt then
 	il @ (va_arg_ins :: iWLval destlv (LLocal tmpdest))
       else
-        let (cast_ins, vcast) = mkCast (LLocal tmpdest) destt in 
+        let (cast_ins, vcast) = mkCast (LLocal tmpdest) destt in
 	il @ (va_arg_ins :: cast_ins :: iWLval destlv vcast)
 
-    and iCall (r:lval option) (fn:exp) (args:exp list) : llvmInstruction list = 
+    and iCall (r:lval option) (fn:exp) (args:exp list) : llvmInstruction list =
       let (ret, argst, _, _) = splitFunctionType (typeOf fn) in
       let (ilargs, vargs) = split (iArgs args (argsToList argst)) in
       let (ilfn, vfn) = iExp (mkAddrOfExp fn) in
@@ -955,19 +955,19 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	| None ->
 	    let resptr = nextTemp (TPtr(ret, [])) in
 	    tmp_allocas := mkIns LIalloca resptr [ LType ret ] :: !tmp_allocas;
-	    let call = mkVoidIns LIcall (vfn :: (LLocal resptr) :: vargs) in 
+	    let call = mkVoidIns LIcall (vfn :: (LLocal resptr) :: vargs) in
 	    (flatten ilargs) @ ilfn @ [ call ]
       else
-	match r with 
+	match r with
 	| Some rv ->
 	    let callResult = nextTemp ret in
 	    let call = mkIns LIcall callResult (vfn :: vargs) in
 	    (flatten ilargs) @ ilfn @ [ call ] @ iWLval rv (LLocal callResult)
 	| None ->
-	    let call = mkVoidIns LIcall (vfn :: vargs) in 
+	    let call = mkVoidIns LIcall (vfn :: vargs) in
 	    (flatten ilargs) @ ilfn @ [ call ]
 
-    and iArgs (args:exp list) (argts: (string * typ * attributes) list) : (llvmInstruction list * llvmValue) list = 
+    and iArgs (args:exp list) (argts: (string * typ * attributes) list) : (llvmInstruction list * llvmValue) list =
       (* compile argument list - this would be just "map iExp", except that
 	 CIL doesn't include the default promotions for varargs and oldstyle
 	 functions *)
@@ -983,7 +983,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	  end
       | _ -> raise Bug
 
-    and iExp (e:exp) : llvmInstruction list * llvmValue = 
+    and iExp (e:exp) : llvmInstruction list * llvmValue =
       try ([], self#mkConstantExp e)
       with NotConstant -> iExpNotConstant e
 
@@ -1005,21 +1005,21 @@ class llvmGeneratorClass : llvmGenerator = object (self)
     | AddrOfLabel _ -> raise (Unimplemented "AddrOfLabel")
     | Question _ -> raise (Unimplemented "Question")
 
-    and iUnop op (e:exp) (t:typ) : llvmInstruction list * llvmValue = 
+    and iUnop op (e:exp) (t:typ) : llvmInstruction list * llvmValue =
       let (il,v) = iExp e in
       let targ = typeOf e in
       let res = nextTemp t in
-      let ins = 
-	match op with 
+      let ins =
+	match op with
 	| Neg -> [ mkIns (LIbinary LBsub) res [ lzero targ; v ] ]
 	| BNot -> [ mkIns (LIbinary LBxor) res [ v; lint (-1) targ ] ]
-	| LNot -> 
+	| LNot ->
 	    let istrue = nextTemp i1Type in
 	    [ mkTrueIns istrue v;
 	      mkIns LIselect res [ LLocal istrue; lzero t; lint 1 t ] ]
       in (il @ ins, LLocal res)
 
-    and iBinop op (e1:exp) (e2:exp) (t:typ) : llvmInstruction list * llvmValue = 
+    and iBinop op (e1:exp) (e2:exp) (t:typ) : llvmInstruction list * llvmValue =
       let (il1,v1) = iExp e1 in
       let (il2,v2) = iExp e2 in
       let targ1 = typeOf e1 in
@@ -1028,9 +1028,9 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       (* generate code for an arithmetic operator *)
       let arith op = [ mkIns (LIbinary op) res [ v1; v2 ] ] in
       (* generate code for a comparison operator *)
-      let compare sop uop fop = 
-	let cmpop = 
-	  if isIntegralType targ1 then 
+      let compare sop uop fop =
+	let cmpop =
+	  if isIntegralType targ1 then
 	    if isSignedType targ1 then LIcmp sop else LIcmp uop
 	  else LIfcmp fop
 	in
@@ -1038,18 +1038,18 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	[ mkIns cmpop istrue [ v1; v2 ];
 	  mkIns LIselect res [ LLocal istrue; lint 1 t; lint 0 t ] ]
       in
-      let il = 
-	match op with 
+      let il =
+	match op with
 	| PlusA -> arith LBadd
 	| MinusA -> arith LBsub
-	| (PlusPI | IndexPI) -> 
+	| (PlusPI | IndexPI) ->
 	    (* CIL doesn't cast the 2nd arg to int (could be viewed as a bug) *)
 	    if compareTypesNoAttributes targ2 intType then
 	      [ mkIns LIgetelementptr res [ v1; v2 ] ]
 	    else
 	      let (icast, v2') = mkCast v2 intType in
 	      [ icast; mkIns LIgetelementptr res [ v1; v2' ] ]
-	| MinusPI -> 
+	| MinusPI ->
 	    let tmp = nextTemp targ2 in
 	    (* CIL doesn't cast the 2nd arg to int (could be viewed as a bug) *)
 	    if compareTypesNoAttributes targ2 intType then
@@ -1059,17 +1059,17 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	      let (icast, v2') = mkCast v2 intType in
 	      [ icast; mkIns (LIbinary LBsub) tmp [ lzero targ2; v2' ];
 		mkIns LIgetelementptr res [ v1; LLocal tmp ] ]
-	| MinusPP -> 
+	| MinusPP ->
             let (cast1_ins, asint1) = mkCast v1 t in
             let (cast2_ins, asint2) = mkCast v2 t in
 	    let diff = nextTemp t in
 	    let elemsize = bitsSizeOf (typePointsTo targ1) / 8 in
-	    [ cast1_ins; cast2_ins; 
+	    [ cast1_ins; cast2_ins;
 	      mkIns (LIbinary LBsub) diff [ asint1; asint2 ];
 	      mkIns (LIbinary LBsdiv) res [ LLocal diff; lint elemsize t ] ]
 	| Mult -> arith LBmul
-	| Div -> 
-	    let op = 
+	| Div ->
+	    let op =
 	      if isIntegralType t then
 		if isSignedType t then LBsdiv else LBudiv
 	      else LBfdiv
@@ -1080,7 +1080,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	| BAnd -> arith LBand
 	| BOr -> arith LBor
 	| BXor -> arith LBxor
-        (* for floating point, llvm-gcc believes in unordered !=, ordered 
+        (* for floating point, llvm-gcc believes in unordered !=, ordered
 	   everything else *)
 	| Lt -> compare LCslt LCult LCFolt
 	| Gt -> compare LCsgt LCugt LCFogt
@@ -1092,14 +1092,14 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	| LOr -> raise (Unimplemented "Lor") (* not normally used by CIL *)
       in (il1 @ il2 @ il, LLocal res)
 
-    and iCast (tto:typ) (e:exp) : llvmInstruction list * llvmValue = 
+    and iCast (tto:typ) (e:exp) : llvmInstruction list * llvmValue =
       let (il, v) = iExp e in
       let (cast_ins, vc) = mkCast v tto in
       (il @ [ cast_ins ], vc)
 
     (* Return the instructions, getelementptr access path and result type for
        evaluating CIL access path 'o' from base type 't' *)
-    and accessPath (o:offset) (t:typ) : llvmInstruction list * llvmValue list * typ = 
+    and accessPath (o:offset) (t:typ) : llvmInstruction list * llvmValue list * typ =
       match o with
       | NoOffset -> ([], [], t)
       | Field (fi, o') ->
@@ -1116,18 +1116,18 @@ class llvmGeneratorClass : llvmGenerator = object (self)
       | Var vi -> ([], lvar vi)
       | Mem e -> iExp e
 
-    and lvalPtr (h:lhost) (o:offset) : llvmInstruction list * llvmValue * typ = 
+    and lvalPtr (h:lhost) (o:offset) : llvmInstruction list * llvmValue * typ =
       if o = NoOffset then
 	match h with
 	| Var vi -> ([], lvar vi, vi.vtype)
 	| Mem e -> let (il, v) = iExp e in (il, v, typePointsTo (typeOf e))
       else
-	let (ilo, opath, t) = accessPath o (typeOfLhost h) in 
+	let (ilo, opath, t) = accessPath o (typeOfLhost h) in
 	let ptr = nextTemp (TPtr(t, [])) in
 	let (ilh, vh) = iLhost h in
 	(ilo @ ilh @ [ mkIns LIgetelementptr ptr (vh :: lzerop :: opath) ], LLocal ptr, t)
 
-    and isSimpleLval (h:lhost) (o:offset) = 
+    and isSimpleLval (h:lhost) (o:offset) =
       o = NoOffset && match h with
       | Var vi when isFunctionType vi.vtype -> true
       | Var vi when not vi.vglob && llvmUseLocal vi -> true
@@ -1140,7 +1140,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
    (* Return instructions to write 'v' to lvalue '(h, o)'.
       Handling NoOffset separately makes this code clearer, as it's
       always fairly different than the offset case *)
-    and iWLval (h, o) (v:llvmValue) : llvmInstruction list = 
+    and iWLval (h, o) (v:llvmValue) : llvmInstruction list =
       if isSimpleLval h o then
 	[ mkIns LIassign (llocal (varinfoOf h)) [ v ] ]
       else
@@ -1151,7 +1151,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
    (* Read  lvalue '(h, o)', returns instructions and the LLVM value of the result.
       Handling NoOffset separately makes this code clearer, as it's
       always fairly different than the offset case *)
-    and iRLval (h, o) : llvmInstruction list * llvmValue = 
+    and iRLval (h, o) : llvmInstruction list * llvmValue =
       if isSimpleLval h o then
 	([], lvar (varinfoOf h))
       else
@@ -1163,18 +1163,18 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	  (ilptr @ [ mkIns LIload res [ ptr ]], LLocal res)
 
     (* Get a pointer to the start of an lvalue representing an array *)
-    and iStartOf (h, o) : llvmInstruction list * llvmValue = 
+    and iStartOf (h, o) : llvmInstruction list * llvmValue =
       iAddrOf (h, (addOffset (Index (zero, NoOffset)) o))
 
     (* Get a pointer to lvalue '(h, o)'.
       Handling NoOffset separately makes this code clearer, as it's
       always fairly different than the offset case *)
-    and iAddrOf (h, o)  : llvmInstruction list * llvmValue = 
+    and iAddrOf (h, o)  : llvmInstruction list * llvmValue =
       let (ilptr, ptr, t) = lvalPtr h o in (ilptr, ptr)
 
     (* stack allocate locals that aren't ssa'ed *)
     and allocateLocals (locals:varinfo list) : llvmInstruction list =
-      let genLocal (il:llvmInstruction list) (vi:varinfo) = 
+      let genLocal (il:llvmInstruction list) (vi:varinfo) =
 	if not (llvmUseLocal vi) then
 	  mkIns LIalloca (llocal vi) [ LType vi.vtype ] :: il
 	else
@@ -1183,11 +1183,11 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
     (* stack allocate and save formals whose address is taken, if they would
        normally be ssa'ed *)
-    and saveFormals (formals:varinfo list) : llvmInstruction list = 
-      let saveFormal (il:llvmInstruction list) (vi:varinfo) = 
+    and saveFormals (formals:varinfo list) : llvmInstruction list =
+      let saveFormal (il:llvmInstruction list) (vi:varinfo) =
 	if llvmDoNotUseLocal vi then
 	  let lvi = llocal vi in
-	  mkIns LIalloca lvi [ LType vi.vtype ] :: 
+	  mkIns LIalloca lvi [ LType vi.vtype ] ::
 	  mkVoidIns LIstore [ LLocal (vi.vname, vi.vtype); LLocal lvi ] :: il
 	else
 	  il
@@ -1197,7 +1197,7 @@ class llvmGeneratorClass : llvmGenerator = object (self)
        blocks with a single predecessor into that predecessor when possible.
        This is not strictly necessary, but makes output more readable. *)
     and simplifyBlock (b:llvmBlock) : bool =
-      if b.lbterminator = TDead then 
+      if b.lbterminator = TDead then
 	false
       else if length b.lbpreds = 1 then
 	let pred = hd b.lbpreds in
@@ -1213,11 +1213,11 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 
     (* Change the terminator of all blocks in 'bl' not reachable from 'entry'
        to TDead, so that simplifyBlock can remove them *)
-    and markReachable (entry:llvmBlock) (bl:llvmBlock list) : unit = 
+    and markReachable (entry:llvmBlock) (bl:llvmBlock list) : unit =
       let reachable = H.create 32 in
       H.add reachable entry.lblabel true;
       let worklist = ref [ entry ] in
-      let mark b = 
+      let mark b =
 	if not (H.mem reachable b.lblabel) then begin
 	  H.add reachable b.lblabel true;
 	  worklist := b :: !worklist
@@ -1228,12 +1228,12 @@ class llvmGeneratorClass : llvmGenerator = object (self)
 	worklist := tl !worklist;
 	iter mark (llvmDestinations work.lbterminator)
       done;
-      let kill b = 
+      let kill b =
 	if not (H.mem reachable b.lblabel) then b.lbterminator <- TDead
       in iter kill bl
 
     (* Add 'b' to the lbpreds (predecessors) set of its successors *)
-    and setPredecessors (b:llvmBlock) : unit = 
+    and setPredecessors (b:llvmBlock) : unit =
       let addPred (succ:llvmBlock) =
 	if not (memq b succ.lbpreds) then succ.lbpreds <- b :: succ.lbpreds
       in

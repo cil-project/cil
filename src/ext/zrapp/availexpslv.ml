@@ -21,7 +21,7 @@ let debug = ref false
 let doTime = ref false
 
 
-let time s f a = 
+let time s f a =
   if !doTime then
     S.time s f a
   else f a
@@ -46,7 +46,7 @@ let registerIgnoreCall (f : instr -> bool) : unit =
   ignore_call := (fun i -> (f i) || (f' i))
 
 
-module LvExpHash = 
+module LvExpHash =
   H.Make(struct
     type t = lval
     let equal lv1 lv2 = compareLval lv1 lv2
@@ -97,7 +97,7 @@ let lvh_combine lvh1 lvh2 =
 class memReadOrAddrOfFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vexpr e = match e with
+  method! vexpr e = match e with
   | AddrOf(Mem _, _)
   | StartOf(Mem _, _)
   | Lval(Mem _, _) -> begin
@@ -109,7 +109,7 @@ class memReadOrAddrOfFinderClass br = object(self)
       SkipChildren
   | _ -> DoChildren
 
-  method vvrbl vi =
+  method! vvrbl vi =
     if vi.vaddrof || vi.vglob then
       (br := true;
        SkipChildren)
@@ -149,8 +149,8 @@ let lvh_kill_mem lvh =
 (* need to kill exps containing a particular vi sometimes *)
 class viFinderClass vi br = object(self)
   inherit nopCilVisitor
-      
-  method vvrbl vi' = 
+
+  method! vvrbl vi' =
     if vi.vid = vi'.vid
     then (br := true; SkipChildren)
     else DoChildren
@@ -185,7 +185,7 @@ let lvh_kill_vi lvh vi =
 class lvalFinderClass lv br = object(self)
   inherit nopCilVisitor
 
-  method vlval l =
+  method! vlval l =
     if compareLval l lv
     then (br := true; SkipChildren)
     else DoChildren
@@ -217,8 +217,8 @@ let lvh_kill_lval lvh lv =
 class volatileFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vexpr e =
-    if (hasAttribute "volatile" (typeAttrs (typeOf e))) 
+  method! vexpr e =
+    if (hasAttribute "volatile" (typeAttrs (typeOf e)))
     then (br := true; SkipChildren)
     else DoChildren
 end
@@ -234,7 +234,7 @@ let exp_is_volatile e : bool =
 class addrOfOrGlobalFinderClass br = object(self)
   inherit nopCilVisitor
 
-  method vvrbl vi =
+  method! vvrbl vi =
     if vi.vaddrof || vi.vglob
     then (br := true; SkipChildren)
     else DoChildren
@@ -260,10 +260,10 @@ let lvh_kill_addrof_or_global lvh =
     lvh
 
 
-let lvh_handle_inst i lvh = 
+let lvh_handle_inst i lvh =
   if (!ignore_inst) i then lvh else
   match i with
-    Set(lv,e,_) -> begin 
+    Set(lv,e,_) -> begin
       match lv with
       | (Mem _, _) -> begin
 	  LvExpHash.replace lvh lv e;
@@ -273,7 +273,7 @@ let lvh_handle_inst i lvh =
       end
       | _ when not (exp_is_volatile e) -> begin
 	  (* ignore x = x *)
-	  if compareExpStripCasts (Lval lv) e then lvh 
+	  if compareExpStripCasts (Lval lv) e then lvh
 	  else begin
 	    LvExpHash.replace lvh lv e;
 	    lvh_kill_lval lvh lv;
@@ -336,7 +336,7 @@ module AvailableExps =
       if time "lvh_equals" (lvh_equals old) lvh then None else
       Some(time "lvh_combine" (lvh_combine old) lvh)
 
-    let doInstr i lvh = 
+    let doInstr i lvh =
       let action = lvh_handle_inst i in
       DF.Post(action)
 
@@ -363,7 +363,7 @@ let computeAEs fd =
   IH.clear AvailableExps.stmtStartData;
   IH.add AvailableExps.stmtStartData first_stm.sid (LvExpHash.create 4);
   time "compute" AE.compute [first_stm]
-  with Failure "hd" -> if !debug then ignore(E.log "fn w/ no stmts?\n")
+  with Failure _ -> if !debug then ignore(E.log "fn w/ no stmts?\n")
   | Not_found -> if !debug then ignore(E.log "no data for first_stm?\n")
 
 
@@ -398,7 +398,7 @@ class aeVisitorClass = object(self)
 
   val mutable cur_ae_dat = None
 
-  method vstmt stm =
+  method! vstmt stm =
     sid <- stm.sid;
     match getAEs sid with
       None ->
@@ -416,7 +416,7 @@ class aeVisitorClass = object(self)
 	    cur_ae_dat <- None;
 	    DoChildren
 
-  method vinst i =
+  method! vinst i =
     if !debug then ignore(E.log "aeVist: before %a, ae_dat_lst is %d long\n"
 			    d_instr i (List.length ae_dat_lst));
     try
@@ -425,7 +425,7 @@ class aeVisitorClass = object(self)
       ae_dat_lst <- List.tl ae_dat_lst;
       if !debug then ignore(E.log "aeVisit: data is %a\n" lvh_pretty data);
       DoChildren
-    with Failure "hd" ->
+    with Failure _ ->
       if !debug then ignore(E.log "aeVis: il ae_dat_lst mismatch\n");
       DoChildren
 

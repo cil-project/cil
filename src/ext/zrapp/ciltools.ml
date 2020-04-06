@@ -3,7 +3,7 @@ open Cilint
 
 (* Contributed by Nathan Cooprider *)
 
-let isOne e = 
+let isOne e =
   match getInteger e with
   | Some n -> compare_cilint n one_cilint = 0
   | _ -> false
@@ -11,37 +11,37 @@ let isOne e =
 
 (* written by Zach *)
 let is_volatile_tp tp =
-  List.exists (function (Attr("volatile",_)) -> true 
-    | _ -> false) (typeAttrs tp) 
-    
+  List.exists (function (Attr("volatile",_)) -> true
+    | _ -> false) (typeAttrs tp)
+
 (* written by Zach *)
 let is_volatile_vi vi =
   let vi_vol =
-    List.exists (function (Attr("volatile",_)) -> true 
+    List.exists (function (Attr("volatile",_)) -> true
       | _ -> false) vi.vattr in
   let typ_vol = is_volatile_tp vi.vtype in
   vi_vol || typ_vol
 
 (*****************************************************************************
- * A collection of useful functions that were not already in CIL as far as I 
- * could tell. However, I have been surprised before . . . 
+ * A collection of useful functions that were not already in CIL as far as I
+ * could tell. However, I have been surprised before . . .
  ****************************************************************************)
 
-type sign = Signed | Unsigned 
+type sign = Signed | Unsigned
 
 exception Not_an_integer
 
 (*****************************************************************************
- * A bunch of functions for accessing integers. Originally written for 
- * somebody who didn't know CIL and just wanted to mess with it at the 
- * OCaml level. 
+ * A bunch of functions for accessing integers. Originally written for
+ * somebody who didn't know CIL and just wanted to mess with it at the
+ * OCaml level.
  ****************************************************************************)
 
 let unbox_int_type (ye : typ) : (int * sign) =
   let tp = unrollType ye in
-  let s = 
-    match tp with 
-      TInt (i, _) -> 
+  let s =
+    match tp with
+      TInt (i, _) ->
 	if (isSigned i) then
 	  Signed
 	else
@@ -49,20 +49,20 @@ let unbox_int_type (ye : typ) : (int * sign) =
     | _ -> raise Not_an_integer
   in
   (bitsSizeOf tp), s
-  
+
 exception Weird_bitwidth
 
 (* (int64 * int * sign) : exp *)
 let ocaml_int_to_cil v n s =
-  let char_size = bitsSizeOf charType in 
+  let char_size = bitsSizeOf charType in
   let int_size = bitsSizeOf intType in
-  let short_size = bitsSizeOf (TInt(IShort,[]))in 
+  let short_size = bitsSizeOf (TInt(IShort,[]))in
   let long_size = bitsSizeOf longType in
   let longlong_size = bitsSizeOf (TInt(ILongLong,[])) in
-  let i = 
+  let i =
     match s with
       Signed ->
-	if (n = char_size) then 
+	if (n = char_size) then
 	  ISChar
 	else if (n = int_size) then
 	  IInt
@@ -75,7 +75,7 @@ let ocaml_int_to_cil v n s =
 	else
 	  raise Weird_bitwidth
     | Unsigned ->
-	if (n = char_size) then 
+	if (n = char_size) then
 	  IUChar
 	else if (n = int_size) then
 	  IUInt
@@ -104,23 +104,23 @@ let rec isCompositeType tp =
   | _ -> false
 
 (** START OF deepHasAttribute ************************************************)
-let visited = ref [] 
+let visited = ref []
 class attribute_checker target rflag = object (self)
   inherit nopCilVisitor
-  method vtype t =
-    match t with 
+  method! vtype t =
+    match t with
       TComp(cinfo, a) ->
 	if(not (List.exists (fun x -> cinfo.cname = x) !visited )) then begin
 	  visited := cinfo.cname :: !visited;
-	  List.iter 
-	    (fun f -> 
-	      if (hasAttribute target f.fattr) then 
+	  List.iter
+	    (fun f ->
+	      if (hasAttribute target f.fattr) then
 		rflag := true
 	      else
-		ignore(visitCilType (new attribute_checker target rflag) 
+		ignore(visitCilType (new attribute_checker target rflag)
 			 f.ftype)) cinfo.cfields;
 	end;
-	DoChildren	
+	DoChildren
     | TNamed(t1, a) ->
 	if(not (List.exists (fun x -> t1.tname = x) !visited )) then begin
 	  visited := t1.tname :: !visited;
@@ -129,7 +129,7 @@ class attribute_checker target rflag = object (self)
 	DoChildren
     | _ ->
 	DoChildren
-  method vattr (Attr(name,params)) =
+  method! vattr (Attr(name,params)) =
     if (name = target) then rflag := true;
     DoChildren
 end
@@ -144,17 +144,17 @@ let deepHasAttribute s t =
 (** Stuff from ptranal, slightly modified ************************************)
 
 (*****************************************************************************
- * A transformation to make every instruction be in its own statement.  
+ * A transformation to make every instruction be in its own statement.
  ****************************************************************************)
 
 class callBBVisitor = object
-  inherit nopCilVisitor 
+  inherit nopCilVisitor
 
-  method vstmt s =
+  method! vstmt s =
     match s.skind with
       Instr(il) -> begin
-	if (List.length il > 1) then 
-          let list_of_stmts = Util.list_map (fun one_inst -> 
+	if (List.length il > 1) then
+          let list_of_stmts = Util.list_map (fun one_inst ->
             mkStmtOneInstr one_inst) il in
           let block = mkBlock list_of_stmts in
 	  s.skind <- Block block;
@@ -164,51 +164,50 @@ class callBBVisitor = object
       end
     | _ -> DoChildren
 
-  method vvdec _ = SkipChildren
-  method vexpr _ = SkipChildren
-  method vlval _ = SkipChildren
-  method vtype _ = SkipChildren
-end 
+  method! vvdec _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vlval _ = SkipChildren
+  method! vtype _ = SkipChildren
+end
 
 let one_instruction_per_statement f =
   let thisVisitor = new callBBVisitor in
-  visitCilFileSameGlobals thisVisitor f  
+  visitCilFileSameGlobals thisVisitor f
 
 (*****************************************************************************
- * A transformation that gives each variable a unique identifier. 
+ * A transformation that gives each variable a unique identifier.
  ****************************************************************************)
 
 class vidVisitor = object
-  inherit nopCilVisitor 
-  val count = ref 0 
+  inherit nopCilVisitor
+  val count = ref 0
 
-  method vvdec vi = 
+  method! vvdec vi =
     vi.vid <- !count ;
     incr count ; SkipChildren
-end 
+end
 
 let globally_unique_vids f =
   let thisVisitor = new vidVisitor in
-  visitCilFileSameGlobals thisVisitor f 
+  visitCilFileSameGlobals thisVisitor f
 
 (** End of stuff from ptranal ************************************************)
 
 class sidVisitor = object
-  inherit nopCilVisitor 
-  val count = ref 0 
+  inherit nopCilVisitor
+  val count = ref 0
 
-  method vstmt s = 
+  method! vstmt s =
     s.sid <- !count ;
     incr count ;
     DoChildren
-end 
+end
 
 let globally_unique_sids f =
   let thisVisitor = new sidVisitor in
-  visitCilFileSameGlobals thisVisitor f 
+  visitCilFileSameGlobals thisVisitor f
 
 (** Comparing expressions without a Out_of_memory error **********************)
 
 let compare_exp x y =
   compare x y
-    

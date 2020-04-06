@@ -1,9 +1,9 @@
-(* Copyright (c) 2008 Intel Corporation 
- * All rights reserved. 
+(* Copyright (c) 2008 Intel Corporation
+ * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  * 	Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  * 	Redistributions in binary form must reproduce the above copyright
@@ -12,7 +12,7 @@
  *     Neither the name of the Intel Corporation nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
@@ -63,7 +63,7 @@ open Llvmssa
 
 (* Generate LLVM code (as a doc string) for file 'f'. Currently x86+gcc specific,
    and missing bitfield support (plus a few minor gcc-specific features, see above) *)
-let generate (f:file) : doc = 
+let generate (f:file) : doc =
 
   (* Implementation overview:
      - For all top-level declarations except function definitions, we directly
@@ -94,13 +94,13 @@ let generate (f:file) : doc =
     | Extern when vi.vinline -> "internal "
     | _ -> ""
 
-  and gVarDecl (vi:varinfo) : doc = 
+  and gVarDecl (vi:varinfo) : doc =
     dprintf "@@%s =%s global %a\n" vi.vname (gLinkage vi " weak") dgType vi.vtype
 
-  and gFunctionDecl (fi:varinfo) : doc = 
+  and gFunctionDecl (fi:varinfo) : doc =
     dprintf "declare %a\n" dgFunctionSig fi
 
-  and gFunctionDef (f:fundec) : doc = 
+  and gFunctionDef (f:fundec) : doc =
     let hdr = dprintf "define %s%a " (fLinkage f.svar) dgFunctionSig f.svar in
     let blocks = globals#mkFunction f in
     (*fprint ~width:80 stderr ((dprintf "%s\n" f.svar.vname) ++ (globals#printBlocks () blocks));*)
@@ -108,20 +108,20 @@ let generate (f:file) : doc =
     let ssaBlocks = llvmSsa globals blocks f.sformals ssaLocals in
     hdr ++ (text "{\n") ++ (globals#printBlocks () ssaBlocks) ++ (text "}\n")
 
-  and gStruct (ci:compinfo) : doc = 
+  and gStruct (ci:compinfo) : doc =
     let pfield f = gType f.ftype in
     dprintf "%%struct.%s = type { %a }\n" ci.cname (docList pfield) ci.cfields
 
   (* Generate LLVM initializer from CIL initializer 'i' for type 't' *)
-  and giInit (t:typ) (initexp:init) : doc = 
+  and giInit (t:typ) (initexp:init) : doc =
     let tdoc = gType t in
     let idoc = match initexp with
-    | SingleInit e -> 
+    | SingleInit e ->
 	(*ignore(Pretty.eprintf "%a\n" (printExp plainCilPrinter) e);*)
 	globals#printValueNoType () (globals#mkConstantExp e)
-    | CompoundInit (ct, inits) -> 
+    | CompoundInit (ct, inits) ->
 	if isArrayType ct then
-	  (* the docs imply that we should pad the array if there are 
+	  (* the docs imply that we should pad the array if there are
 	     missing initializers for the tail of the array,
 	     but the default frontend doesn't generate any it seems... *)
 	  let ct' = typeArrayOf ct in
@@ -142,17 +142,17 @@ let generate (f:file) : doc =
   and gGlobal (g:global) : doc = match g with
   | GType _ -> nil
   | GCompTag (ci, _) -> gStruct ci
-  | GCompTagDecl (ci, _) when not ci.cdefined -> 
+  | GCompTagDecl (ci, _) when not ci.cdefined ->
       dprintf "%%struct.%s = type opaque\n" ci.cname
   | GCompTagDecl (ci, _) -> nil
   | GEnumTag _ -> nil
   | GEnumTagDecl _ -> nil
-  | GVarDecl (vi, _) -> 
+  | GVarDecl (vi, _) ->
       if isFunctionType vi.vtype then
 	gFunctionDecl vi
       else
 	gVarDecl vi
-  | GVar (vi, ii, _) -> dprintf "@@%s =%s global %a\n" 
+  | GVar (vi, ii, _) -> dprintf "@@%s =%s global %a\n"
 	vi.vname (gLinkage vi "") dgInit (vi.vtype, ii)
   | GFun (fi, _) -> gFunctionDef fi
   | GAsm _ -> nil
@@ -165,12 +165,12 @@ let generate (f:file) : doc =
 
 (* CIL feature setup *)
 let feature =
-  { fd_name = "llvm";              
+  { fd_name = "llvm";
     fd_enabled = false;
     fd_description = "generate llvm code";
     fd_extraopt = [];
-    fd_doit = 
-    (function (f: file) -> 
-      fprint stdout 80 (generate f));
+    fd_doit =
+    (function (f: file) ->
+      fprint stdout ~width:80 (generate f));
     fd_post_check = false
   }

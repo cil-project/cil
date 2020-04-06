@@ -1,10 +1,10 @@
 (*
  *
- * Copyright (c) 2004, 
+ * Copyright (c) 2004,
  *  Jeremy Condit       <jcondit@cs.berkeley.edu>
  *  George C. Necula    <necula@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -35,7 +35,6 @@
  *)
 open Cil
 open Feature
-open Pretty
 module E = Errormsg
 
 let debug = false
@@ -111,7 +110,7 @@ let rec sliceCompInfo (i : int) (cinfo : compinfo) : compinfo =
     Hashtbl.find compInfos (i, cinfo.ckey)
   with Not_found ->
     mkCompInfo cinfo.cstruct (regionStruct i cinfo.cname)
-      (fun cinfo' -> 
+      (fun cinfo' ->
          Hashtbl.add compInfos (i, cinfo.ckey) cinfo';
          List.fold_right
            (fun finfo rest ->
@@ -424,11 +423,11 @@ let sliceGlobalVars (g : global) : unit =
 class dropAttrsVisitor = object
   inherit nopCilVisitor
 
-  method vvrbl (vinfo : varinfo) =
+  method! vvrbl (vinfo : varinfo) =
     vinfo.vattr <- dropAttribute "var_sliced" vinfo.vattr;
     DoChildren
 
-  method vglob (g : global) =
+  method! vglob (g : global) =
     begin
     match g with
     | GCompTag (cinfo, _) ->
@@ -445,13 +444,13 @@ let sliceFile (f : file) : unit =
   f.globals <- List.rev !newGlobals;
   visitCilFile (new dropAttrsVisitor) f
 
-let feature = 
+let feature =
   { fd_name = "DataSlicing";
     fd_enabled = false;
     fd_description = "data slicing";
     fd_extraopt = [];
     fd_doit = sliceFile;
     fd_post_check = true;
-  } 
+  }
 
 let () = Feature.register feature

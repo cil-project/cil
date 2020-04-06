@@ -24,7 +24,7 @@ let split_idx (idx: int) : int option =
 
 let rec create (len: int) (init: 'a) : 'a t =
   let len1, len2 = split_len len in
-  (Array.create len1 init) :: (if len2 > 0 then create len2 init else [])
+  (Array.make len1 init) :: (if len2 > 0 then create len2 init else [])
 
 let rec init (len: int) (fn: int -> 'a) : 'a t =
   let len1, len2 = split_len len in
@@ -40,7 +40,7 @@ let rec blit (src: 'a t) (srcidx: int)
     Array.blit (List.hd src) 0 (List.hd dst) 0 len1;
     if len2 > 0 then
       blit (List.tl src) 0 (List.tl dst) 0 len2
-  with Failure ("hd" | "tl") ->
+  with Failure _ ->
     raise (Invalid_argument "Longarray.blit")
 
 let rec fill (a: 'a t) (idx: int) (len: int) (elt: 'a) : unit =
@@ -53,7 +53,7 @@ let rec fill (a: 'a t) (idx: int) (len: int) (elt: 'a) : unit =
           fill (List.tl a) 0 end2 elt
     | Some idx' ->
         fill (List.tl a) idx' len elt
-  with Failure ("hd" | "tl") ->
+  with Failure _ ->
     raise (Invalid_argument "Longarray.fill")
 
 let rec length (a: 'a t) : int =
@@ -66,7 +66,7 @@ let rec get (a: 'a t) (i: int) : 'a =
     match split_idx i with
     | None -> Array.get (List.hd a) i
     | Some i' -> get (List.tl a) i'
-  with Failure ("hd" | "tl") ->
+  with Failure _ ->
     raise (Invalid_argument "(get) index out of bounds")
 
 let rec set (a: 'a t) (i: int) (elt: 'a) : unit =
@@ -74,7 +74,7 @@ let rec set (a: 'a t) (i: int) (elt: 'a) : unit =
     match split_idx i with
     | None -> Array.set (List.hd a) i elt
     | Some i' -> set (List.tl a) i' elt
-  with Failure ("hd" | "tl") ->
+  with Failure _ ->
     raise (Invalid_argument "(set) index out of bounds")
 
 let rec copy (a: 'a t) : 'a t =
@@ -90,7 +90,7 @@ let rec map (fn: 'a -> 'b) (a: 'a t) : 'b t =
 let docArray ?(sep = chr ',') (doit: int -> 'a -> doc)
              () (elements: 'a t) =
   let len = length elements in
-  if len = 0 then 
+  if len = 0 then
     nil
   else
     let rec loop (acc: doc) i =

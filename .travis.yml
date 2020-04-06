@@ -2,7 +2,7 @@ language: c
 before_install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew list gcc || brew install gcc && CC=gcc-9; fi
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-opam.sh
-script: OPAMWITHDOC=false bash -ex .travis-opam.sh
+script: OPAMWITHDOC=false travis_wait 60 bash -ex .travis-opam.sh
 env:
   global:
     - PACKAGE=goblint-cil

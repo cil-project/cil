@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -57,25 +57,25 @@ class unrollVisitorClass = object (self)
   inherit nopCilVisitor
 
   (* variable declaration *)
-  method vvdec (vi : varinfo) : varinfo visitAction = 
+  method! vvdec (vi : varinfo) : varinfo visitAction =
     begin
       vi.vtype <- unrollTypeDeep vi.vtype;
       (*ignore (E.log "varinfo for %s in file '%s' line %d byte %d\n" vi.vname vi.vdecl.file vi.vdecl.line vi.vdecl.byte);*)
       SkipChildren
     end
-    
+
   (* global: need to unroll fields of compinfo *)
-  method vglob (g : global) : global list visitAction =
+  method! vglob (g : global) : global list visitAction =
     begin
       match g with
-          GCompTag(ci, loc) as g ->
-            let doFieldinfo (fi : fieldinfo) : unit = 
-              fi.ftype <- unrollTypeDeep fi.ftype 
-            in begin                
+          GCompTag(ci, loc) ->
+            let doFieldinfo (fi : fieldinfo) : unit =
+              fi.ftype <- unrollTypeDeep fi.ftype
+            in begin
                 ignore(Util.list_map doFieldinfo ci.cfields);
                 (*ChangeTo [g]*)
                 SkipChildren
-              end              
+              end
         | _ -> DoChildren
     end
 end;;
@@ -102,7 +102,5 @@ Callback.register "cil_unparse" unparseToStdout;
 (* Callback.register "unroll_type_deep" unrollTypeDeep; *)
 Callback.register "get_dummy_types" getDummyTypes;
 
-(* initalize CIL *)
+(* initialize CIL *)
 initCIL ();
-
-

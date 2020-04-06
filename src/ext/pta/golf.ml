@@ -101,7 +101,7 @@ struct
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) =
     if U.equal (x.info, y.info) then x.index - y.index
-    else Pervasives.compare (U.deref x.info) (U.deref y.info)
+    else Stdlib.compare (U.deref x.info) (U.deref y.info)
 end
 
 module Path =
@@ -113,12 +113,12 @@ struct
         if U.equal (x.tail, y.tail) then
           begin
             if x.reached_global = y.reached_global then
-              Pervasives.compare x.kind y.kind
-            else Pervasives.compare x.reached_global y.reached_global
+              Stdlib.compare x.kind y.kind
+            else Stdlib.compare x.reached_global y.reached_global
           end
-        else Pervasives.compare (U.deref x.tail) (U.deref y.tail)
+        else Stdlib.compare (U.deref x.tail) (U.deref y.tail)
       end
-    else Pervasives.compare (U.deref x.head) (U.deref y.head)
+    else Stdlib.compare (U.deref x.head) (U.deref y.head)
 end
 
 module B = S.Make (Bound)
@@ -130,7 +130,7 @@ type 'a boundset = 'a B.t
 type 'a pathset = 'a P.t
 
 (** Constants, which identify elements in points-to sets *)
-(** jk : I'd prefer to make this an 'a constant and specialize it to varinfo
+(* jk : I'd prefer to make this an 'a constant and specialize it to varinfo
     for use with the Cil frontend, but for now, this will do *)
 type constant = int * string * Cil.varinfo
 
@@ -565,7 +565,7 @@ let string_of_tau (t : tau) : string =
     string_of_tau' t
 
 (** Convert an lvalue to a string *)
-let rec string_of_lvalue (lv : lvalue) : string =
+let string_of_lvalue (lv : lvalue) : string =
   let contents = string_of_tau lv.contents
   and l = string_of_label lv.l in
     assert (pair_or_var lv.contents); (* do a consistency check *)
@@ -586,7 +586,7 @@ let print_path (p : lblinfo path) : unit =
       (PathHash.hash p)
 
 (** Print a list of tau elements, comma separated *)
-let rec print_tau_list (l : tau list) : unit =
+let print_tau_list (l : tau list) : unit =
   let rec print_t_strings = function
       h :: [] -> print_endline h
     | h :: t ->
@@ -915,6 +915,7 @@ and trigger_vhole (vi : vinfo) (t : tau) =
       | _ -> ()
   in
     iter_tau add_self_loops t
+
 (** Pick the representative info for two tinfo's. This function prefers the
   first argument when both arguments are the same structure, but when
   one type is a structure and the other is a var, it picks the structure.
@@ -1020,6 +1021,7 @@ and fetch_constraint () : tconstraint option =
   try Some (Q.take eq_worklist)
   with Q.Empty -> (try Some (Q.take leq_worklist)
                    with Q.Empty -> None)
+
 (** The main solver loop. *)
 and solve_constraints () : unit =
   match fetch_constraint () with
@@ -1424,7 +1426,7 @@ let smart_alias_query (l : label) (l' : label) : bool =
   let dead_configs : config_map = CH.create 16 in
     (* the set of discovered configurations *)
   let discovered : config_map = CH.create 16 in
-  let rec filter_match (i : int) =
+  let filter_match (i : int) =
     B.filter (fun (b : lblinfo bound) -> i = b.index)
   in
   let rec simulate c l l' =
@@ -1641,7 +1643,7 @@ let rec tauPointsTo (l : tau) : absloc list =
     | Ref r -> r.rl :: tauPointsTo r.points_to
     | _ -> []
 
-let rec absloc_points_to (l : lvalue) : absloc list =
+let absloc_points_to (l : lvalue) : absloc list =
   tauPointsTo l.contents
 
 

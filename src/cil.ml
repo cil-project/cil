@@ -96,6 +96,7 @@ let envMachine : M.mach option ref = ref None
 
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
+
 let insertImplicitCasts: bool ref = ref true
     (** Do insert implicit casts (default true) *)
 
@@ -1000,14 +1001,18 @@ class type cilVisitor = object
 
   method vblock: block -> block visitAction     (** Block. Replaced in
                                                     place. *)
+
   method vfunc: fundec -> fundec visitAction    (** Function definition.
                                                     Replaced in place. *)
+
   method vglob: global -> global list visitAction (** Global (vars, types,
                                                       etc.)  *)
+
   method vinit: varinfo -> offset -> init -> init visitAction
                                                 (** Initializers for globals,
                                                  * pass the global where this
                                                  * occurs, and the offset *)
+
   method vtype: typ -> typ visitAction          (** Use of some type. Note
                                                  * that for structure/union
                                                  * and enumeration types the
@@ -1015,8 +1020,10 @@ class type cilVisitor = object
                                                  * composite type is not
                                                  * visited. Use [vglob] to
                                                  * visit it.  *)
+
   method vattr: attribute -> attribute list visitAction
     (** Attribute. Each attribute can be replaced by a list *)
+
   method vattrparam: attrparam -> attrparam visitAction
     (** Attribute parameters. *)
 
@@ -1340,14 +1347,14 @@ let compactStmts (b: stmt list) : stmt list =
     in
     match body with
       [] -> finishLast []
-    | ({skind=Instr il} as s) :: rest ->
+    | ({skind=Instr il; _} as s) :: rest ->
         let ils = Clist.fromList il in
         if lastinstrstmt != dummyStmt && s.labels == [] then
           compress lastinstrstmt (Clist.append lastinstrs ils) rest
         else
           finishLast (compress s ils rest)
 
-    | {skind=Block b;labels = []} :: rest when b.battrs = [] ->
+    | {skind=Block b;labels = []; _} :: rest when b.battrs = [] ->
         compress lastinstrstmt lastinstrs (b.bstmts@rest)
     | s :: rest ->
         let res = s :: compress dummyStmt Clist.empty rest in
@@ -1646,7 +1653,7 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
 let mkFor ~(start: stmt list) ~(guard: exp) ~(next: stmt list)
           ~(body: stmt list) : stmt list =
   (start @
-     (mkWhile guard (body @ next)))
+     (mkWhile ~guard:guard ~body:(body @ next)))
 
 
 let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
@@ -1658,12 +1665,12 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor
-    [ mkStmt (Instr [(Set (var iter, first, lu))]) ]
-    (BinOp(compop, Lval(var iter), past, intType))
-    [ mkStmt (Instr [(Set (var iter,
+    ~start:[ mkStmt (Instr [(Set (var iter, first, lu))]) ]
+    ~guard:(BinOp(compop, Lval(var iter), past, intType))
+    ~next:[ mkStmt (Instr [(Set (var iter,
                            (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
                            lu))])]
-    body
+    ~body:body
 
 
 let rec stripCasts (e: exp) =
@@ -1741,7 +1748,7 @@ let d_const () c =
       let prefix : string =
         if suffix <> "" then ""
         else if ik = IInt then ""
-        else "(" ^ (sprint !lineLength (d_ikind () ik)) ^ ")"
+        else "(" ^ (sprint ~width:!lineLength (d_ikind () ik)) ^ ")"
       in
       (* Watch out here for negative integers that we should be printing as
        * large positive ones *)
@@ -3599,14 +3606,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     in
     match i with
       SingleInit e ->
-        fprint out !lineLength (indent ind (self#pExp () e))
+        fprint out ~width:!lineLength (indent ind (self#pExp () e))
     | CompoundInit (t, initl) -> begin
         match unrollType t with
           TArray(bt, _, _) ->
             dumpArray bt initl (fun (_, i) -> i)
         | _ ->
             (* Now a structure or a union *)
-            fprint out !lineLength (indent ind (self#pInit () i))
+            fprint out ~width:!lineLength (indent ind (self#pInit () i))
     end
 (*
     | ArrayInit (bt, len, initl) -> begin
@@ -3856,10 +3863,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     self#pStmtNext invalidStmt () s
 
   method dStmt (out: out_channel) (ind: int) (s:stmt) : unit =
-    fprint out !lineLength (indent ind (self#pStmt () s))
+    fprint out ~width:!lineLength (indent ind (self#pStmt () s))
 
   method dBlock (out: out_channel) (ind: int) (b:block) : unit =
-    fprint out !lineLength (indent ind (align ++ self#pBlock () b))
+    fprint out ~width:!lineLength (indent ind (align ++ self#pBlock () b))
 
   method private pStmtNext (next: stmt) () (s: stmt) =
     (* print the labels *)
@@ -4001,7 +4008,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
         self#pIfConditionThen l be t
 
-    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]}];
+    | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                 battrs=[]},l)
      when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l be t
@@ -4009,7 +4016,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
           self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
-    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]}];
+    | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
            battrs=[]},e,l)
       when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l (UnOp(LNot,be,intType)) e
@@ -4017,7 +4024,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | If(be,t,e,l) ->
         self#pIfConditionThen l be t
           ++ (match e with
-                { bstmts=[{skind=If _} as elsif]; battrs=[] } ->
+                { bstmts=[{skind=If _; _} as elsif]; battrs=[] } ->
                     text " else"
                     ++ line (* Don't indent else-ifs *)
                     ++ self#pStmtNext next () elsif
@@ -4040,16 +4047,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           let term, bodystmts =
             let rec skipEmpty = function
                 [] -> []
-              | {skind=Instr [];labels=[]} :: rest -> skipEmpty rest
+              | {skind=Instr [];labels=[]; _} :: rest -> skipEmpty rest
               | x -> x
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]} :: rest
+              {skind=If(e,tb,fb,_); labels=[]; _} :: rest
                                               when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
-                  [], {skind=Break _; labels=[]} :: _  -> e, rest
-                | {skind=Break _; labels=[]} :: _, []
+                  [], {skind=Break _; labels=[]; _} :: _  -> e, rest
+                | {skind=Break _; labels=[]; _} :: _, []
                                      -> UnOp(LNot, e, intType), rest
                 | _ -> raise Not_found
               end
@@ -4254,16 +4261,16 @@ class defaultCilPrinterClass : cilPrinter = object (self)
              (self#pLineDirective l) ++ (self#pVDecl () fdec.svar)
                ++ chr ';' ++ line
            else nil in
-         fprint out !lineLength
+         fprint out ~width:!lineLength
            (proto ++ (self#pLineDirective ~forcefile:true l));
          (* Temporarily remove the function attributes *)
          fdec.svar.vattr <- [];
-         fprint out !lineLength (self#pFunDecl () fdec);
+         fprint out ~width:!lineLength (self#pFunDecl () fdec);
          fdec.svar.vattr <- oldattr;
          output_string out "\n"
 
      | GVar (vi, {init = Some i}, l) -> begin
-         fprint out !lineLength
+         fprint out ~width:!lineLength
            (self#pLineDirective ~forcefile:true l ++
               self#pVDecl () vi
               ++ text " = "
@@ -4279,7 +4286,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
          output_string out ";\n"
      end
 
-     | g -> fprint out !lineLength (self#pGlobal () g)
+     | g -> fprint out ~width:!lineLength (self#pGlobal () g)
 
    method pFieldDecl () fi =
      (self#pType
@@ -4732,12 +4739,12 @@ class plainCilPrinterClass =
   inherit defaultCilPrinterClass as super
 
   (*** PLAIN TYPES ***)
-  method pType (dn: doc option) () (t: typ) =
+  method! pType (dn: doc option) () (t: typ) =
     match dn with
       None -> self#pOnlyType () t
     | Some d -> d ++ text " : " ++ self#pOnlyType () t
 
- method private pOnlyType () = function
+  method private pOnlyType () = function
      TVoid a -> dprintf "TVoid(@[%a@])" self#pAttrs a
    | TInt(ikind, a) -> dprintf "TInt(@[%a,@?%a@])"
          d_ikind ikind self#pAttrs a
@@ -4785,7 +4792,7 @@ class plainCilPrinterClass =
 
   (* Some plain pretty-printers. Unlike the above these expose all the
    * details of the internal representation *)
-  method pExp () = function
+  method! pExp () = function
     Const(c) ->
       let d_plainconst () c =
         match c with
@@ -4870,7 +4877,7 @@ class plainCilPrinterClass =
      | Index(e, o) ->
          dprintf "Index(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
 
-  method pInit () = function
+  method! pInit () = function
       SingleInit e -> dprintf "SI(%a)" d_exp e
     | CompoundInit (t, initl) ->
         let d_plainoneinit (o, i) =
@@ -4888,7 +4895,7 @@ class plainCilPrinterClass =
         dprintf "AI(@[%a,%d,@?%a@])" self#pOnlyType t len
           (docList ~sep:(chr ',' ++ break) d_plainoneinit) initl
 *)
-  method pLval () (lv: lval) =
+  method! pLval () (lv: lval) =
     match lv with
     | Var vi, o -> dprintf "Var(@[%s,@?%a@])" vi.vname self#d_plainoffset o
     | Mem e, o -> dprintf "Mem(@[%a,@?%a@])" self#pExp e self#d_plainoffset o
@@ -4964,7 +4971,7 @@ object (self)
      (Other occurrences of lvalues are the left-hand sides of assignments,
       but we shouldn't substitute there since "foo(a,b) = foo(a,b)"
       would make no sense to the user.)  *)
-  method pExp () (e:exp) : doc =
+  method! pExp () (e:exp) : doc =
     if enable then
       match e with
         Lval (Var vi, o)
@@ -5293,7 +5300,7 @@ let mapNoCopy (f: 'a -> 'a) l =
       aux (i' :: acc) (changed || i != i') resti
   in aux [] false l
 
-let rec mapNoCopyList (f: 'a -> 'a list) l =
+let mapNoCopyList (f: 'a -> 'a list) l =
   let rec aux acc changed = function
     [] -> if changed then List.rev acc else l
   | i :: resti ->
@@ -5375,7 +5382,7 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
 
 and visitCilInit (vis: cilVisitor) (forglob: varinfo)
                  (atoff: offset) (i: init) : init =
-  let rec childrenInit (vis: cilVisitor) (i: init) : init =
+  let childrenInit (vis: cilVisitor) (i: init) : init =
     let fExp e = visitCilExpr vis e in
     let fTyp t = visitCilType vis t in
     match i with
@@ -5814,7 +5821,7 @@ and childrenGlobal (vis: cilVisitor) (g: global) : global =
 class constFoldVisitorClass (machdep: bool) : cilVisitor = object
   inherit nopCilVisitor
 
-  method vinst i =
+  method! vinst i =
     match i with
       (* Skip two functions to which we add Sizeof to the type arguments.
          See the comments for these above. *)
@@ -5823,7 +5830,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
     | _ -> DoChildren
-  method vexpr (e: exp) =
+  method! vexpr (e: exp) =
     (* Do it bottom up *)
     ChangeDoChildrenPost (e, constFold machdep)
 
@@ -5865,7 +5872,7 @@ let foldGlobals (fl: file)
 let findOrCreateFunc (f:file) (name:string) (t:typ) : varinfo =
   let rec search glist =
     match glist with
-	GVarDecl(vi,_) :: rest | GFun ({svar = vi},_) :: rest when vi.vname = name ->
+	GVarDecl(vi,_) :: rest | GFun ({svar = vi; _},_) :: rest when vi.vname = name ->
           if not (isFunctionType vi.vtype) then
             E.s (error ("findOrCreateFunc: can't create %s because another "
                         ^^"global exists with that name.") name);
@@ -5989,7 +5996,7 @@ let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
 
   if !E.verboseFlag then
     ignore (E.log "printing file %s\n" outfile);
-  let print x = fprint out 78 x in
+  let print x = fprint out ~width:78 x in
   print (text ("/* Generated by CIL v. " ^ cilVersion ^ " */\n" ^
                (* sm: I want to easily tell whether the generated output
                 * is with print_CIL_Input or not *)
@@ -6103,7 +6110,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
 (* Helper class for typeSig: replace any types in attributes with typsigs *)
 class typeSigVisitor(typeSigConverter: typ->typsig) = object
   inherit nopCilVisitor
-  method vattrparam ap =
+  method! vattrparam ap =
     match ap with
       | ASizeOf t -> ChangeTo (ASizeOfS (typeSigConverter t))
       | AAlignOf t -> ChangeTo (AAlignOfS (typeSigConverter t))
@@ -6183,13 +6190,13 @@ let typeSigAttrs = function
 
 
 let dExp: doc -> exp =
-  fun d -> Const(CStr(sprint !lineLength d))
+  fun d -> Const(CStr(sprint ~width:!lineLength d))
 
 let dInstr: doc -> location -> instr =
-  fun d l -> Asm([], [sprint !lineLength d], [], [], [], l)
+  fun d l -> Asm([], [sprint ~width:!lineLength d], [], [], [], l)
 
 let dGlobal: doc -> location -> global =
-  fun d l -> GAsm(sprint !lineLength d, l)
+  fun d l -> GAsm(sprint ~width:!lineLength d, l)
 
   (* Make an AddrOf. Given an lval of type T will give back an expression of
    * type ptr(T)  *)
@@ -6249,7 +6256,7 @@ let getCompField (cinfo:compinfo) (fieldName:string) : fieldinfo =
   (List.find (fun fi -> fi.fname = fieldName) cinfo.cfields)
 
 
-let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
+let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
   (* Do not remove old casts because they are conversions !!! *)
   if Util.equals (typeSig oldt) (typeSig newt) then begin
     e
@@ -6265,7 +6272,7 @@ let rec mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
   end
 
 let mkCast ~(e: exp) ~(newt: typ) =
-  mkCastT e (typeOf e) newt
+  mkCastT ~e:e ~oldt:(typeOf e) ~newt:newt
 
 type existsAction =
     ExistsTrue                          (* We have found it *)
@@ -6391,7 +6398,7 @@ let rec makeZeroInit (t: typ) : init =
       CompoundInit (t', [])
 
   | TPtr _ as t ->
-      SingleInit(if !insertImplicitCasts then mkCast zero t else zero)
+      SingleInit(if !insertImplicitCasts then mkCast ~e:zero ~newt:t else zero)
   | x -> E.s (unimp "Cannot initialize type: %a" d_type x)
 
 
@@ -6479,7 +6486,7 @@ let uniqueVarNames (f: file) : unit =
     (function
         GVarDecl(vi, l)
       | GVar(vi, _, l)
-      | GFun({svar = vi}, l) ->
+      | GFun({svar = vi; _}, l) ->
           (* See if we have used this name already for something else *)
           (try
             let oldid = H.find globalNames vi.vname in
@@ -6492,7 +6499,7 @@ let uniqueVarNames (f: file) : unit =
             (* Here if this is the first time we define a name *)
             H.add globalNames vi.vname vi.vid;
             (* And register it *)
-            A.registerAlphaName gAlphaTable None vi.vname !currentLoc;
+            A.registerAlphaName ~alphaTable:gAlphaTable ~undolist:None ~lookupname:vi.vname ~data:!currentLoc;
             ()
           end)
       | _ -> ());
@@ -6508,8 +6515,8 @@ let uniqueVarNames (f: file) : unit =
           (* Process one local variable *)
           let processLocal (v: varinfo) =
             let newname, oldloc =
-              A.newAlphaName gAlphaTable (Some undolist) v.vname
-               !currentLoc
+              A.newAlphaName ~alphaTable:gAlphaTable ~undolist:(Some undolist) ~lookupname:v.vname
+               ~data:!currentLoc
             in
             if false && newname <> v.vname then (* Disable this warning *)
               ignore (warn "uniqueVarNames: Changing the name of local %s in %s to %s (due to duplicate at %a)"
@@ -6523,7 +6530,7 @@ let uniqueVarNames (f: file) : unit =
           (* And now the locals *)
           List.iter processLocal fdec.slocals;
           (* Undo the changes to the global table *)
-          A.undoAlphaChanges gAlphaTable !undolist;
+          A.undoAlphaChanges ~alphaTable:gAlphaTable ~undolist:!undolist;
           ()
         end
       | _ -> ());
@@ -6545,7 +6552,7 @@ class copyFunctionVisitor (newname: string) = object (self)
   val argid = ref 0
 
       (* This is the main function *)
-  method vfunc (f: fundec) : fundec visitAction =
+  method! vfunc (f: fundec) : fundec visitAction =
     (* We need a map from the old locals/formals to the new ones *)
     H.clear map;
     argid := 0;
@@ -6580,7 +6587,7 @@ class copyFunctionVisitor (newname: string) = object (self)
 
       (* We must create a new varinfo for each declaration. Memoize to
        * maintain sharing *)
-  method vvdec (v: varinfo) =
+  method! vvdec (v: varinfo) =
     (* Some varinfo have empty names. Give them some name *)
     if v.vname = "" then begin
       v.vname <- "arg" ^ string_of_int !argid; incr argid
@@ -6594,7 +6601,7 @@ class copyFunctionVisitor (newname: string) = object (self)
     end
 
       (* We must replace references to local variables *)
-  method vvrbl (v: varinfo) =
+  method! vvrbl (v: varinfo) =
     if v.vglob then SkipChildren else
     try
       ChangeTo (H.find map v.vname)
@@ -6603,7 +6610,7 @@ class copyFunctionVisitor (newname: string) = object (self)
 
 
         (* Replace statements. *)
-  method vstmt (s: stmt) : stmt visitAction =
+  method! vstmt (s: stmt) : stmt visitAction =
     s.sid <- !sid; incr sid;
     let s' = {s with sid = s.sid} in
     H.add stmtmap s.sid s'; (* Remember where we copied this *)
@@ -6615,11 +6622,11 @@ class copyFunctionVisitor (newname: string) = object (self)
     ChangeDoChildrenPost (s', fun x -> x)
 
       (* Copy blocks since they are mutable *)
-  method vblock (b: block) =
+  method! vblock (b: block) =
     ChangeDoChildrenPost ({b with bstmts = b.bstmts}, fun x -> x)
 
 
-  method vglob _ = E.s (bug "copyFunction should not be used on globals")
+  method! vglob _ = E.s (bug "copyFunction should not be used on globals")
 end
 
 (* We need a function that copies a CIL function. *)
@@ -6638,7 +6645,7 @@ let statements : stmt list ref = ref []
 (* Clear all info about the CFG in statements *)
 class clear : cilVisitor = object
   inherit nopCilVisitor
-  method vstmt s = begin
+  method! vstmt s = begin
     s.sid <- !sid_counter ;
     incr sid_counter ;
     statements := s :: !statements;
@@ -6646,9 +6653,9 @@ class clear : cilVisitor = object
     s.preds <- [] ;
     DoChildren
   end
-  method vexpr _ = SkipChildren
-  method vtype _ = SkipChildren
-  method vinst _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vtype _ = SkipChildren
+  method! vinst _ = SkipChildren
 end
 
 let link source dest = begin
@@ -6747,7 +6754,7 @@ let labelAlphaTable : (string, unit A.alphaTableData ref) H.t =
   H.create 11
 
 let freshLabel (base:string) =
-  fst (A.newAlphaName labelAlphaTable None base ())
+  fst (A.newAlphaName ~alphaTable:labelAlphaTable ~undolist:None  ~lookupname:base ~data:())
 
 let rec xform_switch_stmt s break_dest cont_dest = begin
   let suffix e = match getInteger e with
@@ -6917,17 +6924,17 @@ end and xform_switch_block b break_dest cont_dest =
    statements. *)
 class registerLabelsVisitor : cilVisitor = object
   inherit nopCilVisitor
-  method vstmt { labels = labels } = begin
+  method! vstmt { labels = labels; _ } = begin
     List.iter
       (function
-           Label (name,_,_) -> A.registerAlphaName labelAlphaTable None name ()
+           Label (name,_,_) -> A.registerAlphaName ~alphaTable:labelAlphaTable ~undolist:None ~lookupname:name ~data:()
          | _ -> ())
       labels;
     DoChildren
   end
-  method vexpr _ = SkipChildren
-  method vtype _ = SkipChildren
-  method vinst _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vtype _ = SkipChildren
+  method! vinst _ = SkipChildren
 end
 
 (* Find all labels-as-value in a function to use them as successors of computed
@@ -6935,7 +6942,7 @@ end
 class addrOfLabelFinder slr = object(self)
     inherit nopCilVisitor
 
-    method vexpr e = match e with
+    method! vexpr e = match e with
     | AddrOfLabel sref ->
         slr := !sref :: (!slr);
         SkipChildren
@@ -7052,11 +7059,11 @@ let pullTypesForward = true
     (* Scan a type and collect the variables that are referred *)
 class getVarsInGlobalClass (pacc: varinfo list ref) = object
   inherit nopCilVisitor
-  method vvrbl (vi: varinfo) =
+  method! vvrbl (vi: varinfo) =
     pacc := vi :: !pacc;
     SkipChildren
 
-  method vglob = function
+  method! vglob = function
       GType _ | GCompTag _ -> DoChildren
     | _ -> SkipChildren
 

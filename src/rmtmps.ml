@@ -1,12 +1,12 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  *  Ben Liblit          <liblit@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -78,12 +78,12 @@ let clearReferencedBits file =
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.creferenced <- false
 
-    | GVar ({vname = name} as info, _, _)
-    | GVarDecl ({vname = name} as info, _) ->
+    | GVar ({vname = name; _} as info, _, _)
+    | GVarDecl ({vname = name; _} as info, _) ->
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false
 
-    | GFun ({svar = info} as func, _) ->
+    | GFun ({svar = info; _} as func, _) ->
 	trace (dprintf "clearing mark: %a\n" d_shortglobal global);
 	info.vreferenced <- false;
 	let clearMark local =
@@ -138,14 +138,14 @@ let categorizePragmas file =
     unions = H.create 0;
     defines = H.create 1
   } in
-  
+
   (* populate these name collections in light of each pragma *)
   let considerPragma =
 
     let badPragma location pragma =
       ignore (warnLoc location "Invalid argument to pragma %s" pragma)
     in
-    
+
     function
       | GPragma (Attr ("cilnoremove" as directive, args), location) ->
 	  (* a very flexible pragma: can retain typedefs, enums,
@@ -192,7 +192,7 @@ let categorizePragmas file =
             | [Attr("alias", [AStr othername])] ->
                 H.add keepers.defines othername ()
            | _ -> E.s (error "Bad alias attribute at %a" d_loc !currentLoc)
-        end          
+        end
 
       (*** Begin CCured-specific checks:  ***)
       (* these pragmas indirectly require that we keep the function named in
@@ -231,7 +231,7 @@ let categorizePragmas file =
 	    | _ ->
 		badPragma location directive
 	  end
-      (** end CCured-specific stuff **)
+      (***  end CCured-specific stuff ***)
       |	_ ->
 	  ()
   in
@@ -255,7 +255,7 @@ let categorizePragmas file =
 
 let amputateFunctionBodies keptGlobals file =
   let considerGlobal = function
-    | GFun ({svar = {vname = name} as info}, location)
+    | GFun ({svar = {vname = name; _} as info; _}, location)
       when not (H.mem keptGlobals name) ->
 	trace (dprintf "slicing: reducing to prototype: function %s\n" name);
 	GVarDecl (info, location)
@@ -274,18 +274,18 @@ let amputateFunctionBodies keptGlobals file =
 
 
 let isPragmaRoot keepers = function
-  | GType ({tname = name}, _) ->
+  | GType ({tname = name; _}, _) ->
       H.mem keepers.typedefs name
-  | GEnumTag ({ename = name}, _)
-  | GEnumTagDecl ({ename = name}, _) ->
+  | GEnumTag ({ename = name; _}, _)
+  | GEnumTagDecl ({ename = name; _}, _) ->
       H.mem keepers.enums name
-  | GCompTag ({cname = name; cstruct = structure}, _)
-  | GCompTagDecl ({cname = name; cstruct = structure}, _) ->
+  | GCompTag ({cname = name; cstruct = structure; _}, _)
+  | GCompTagDecl ({cname = name; cstruct = structure; _}, _) ->
       let collection = if structure then keepers.structs else keepers.unions in
       H.mem collection name
-  | GVar ({vname = name; vattr = attrs}, _, _)
-  | GVarDecl ({vname = name; vattr = attrs}, _)
-  | GFun ({svar = {vname = name; vattr = attrs}}, _) ->
+  | GVar ({vname = name; vattr = attrs; _}, _, _)
+  | GVarDecl ({vname = name; vattr = attrs; _}, _)
+  | GFun ({svar = {vname = name; vattr = attrs; _}; _}, _) ->
       H.mem keepers.defines name ||
       hasAttribute "used" attrs
   | _ ->
@@ -311,7 +311,7 @@ let traceNonRoot reason global =
 
 
 let hasExportingAttribute funvar =
-  let rec isExportingAttribute = function
+  let isExportingAttribute = function
     | Attr ("constructor", []) -> true
     | Attr ("destructor", []) -> true
     | _ -> false
@@ -341,17 +341,17 @@ let hasExportingAttribute funvar =
 
 let isExportedRoot global =
   let result, reason = match global with
-  | GVar ({vstorage = Static}, _, _) ->
+  | GVar ({vstorage = Static; _}, _, _) ->
       false, "static variable"
   | GVar _ ->
       true, "non-static variable"
-  | GFun ({svar = v}, _) -> begin 
-      if hasExportingAttribute v then 
+  | GFun ({svar = v; _}, _) -> begin
+      if hasExportingAttribute v then
 	true, "constructor or destructor function"
-      else if v.vstorage = Static then 
+      else if v.vstorage = Static then
         false, "static function"
       else if v.vinline && v.vstorage != Extern
-              && (!msvcMode || !rmUnusedInlines) then 
+              && (!msvcMode || !rmUnusedInlines) then
         false, "inline function"
       else
 	true, "other function"
@@ -361,7 +361,7 @@ let isExportedRoot global =
   | _ ->
       false, "neither function nor variable"
   in
-  trace (dprintf "isExportedRoot %a -> %b, %s@!" 
+  trace (dprintf "isExportedRoot %a -> %b, %s@!"
            d_shortglobal global result reason);
   result
 
@@ -381,7 +381,7 @@ let isExportedRoot global =
 
 let isCompleteProgramRoot global =
   let result = match global with
-  | GFun ({svar = {vname = "main"; vstorage = vstorage}}, _) ->
+  | GFun ({svar = {vname = "main"; vstorage = vstorage; _}; _}, _) ->
       vstorage <> Static
   | GFun (fundec, _)
     when hasExportingAttribute fundec.svar ->
@@ -401,12 +401,12 @@ let isCompleteProgramRoot global =
 
 
 (* This visitor recursively marks all reachable types and variables as used. *)
-class markReachableVisitor 
+class markReachableVisitor
     ((globalMap: (string, Cil.global) H.t),
      (currentFunc: fundec option ref)) = object (self)
   inherit nopCilVisitor
 
-  method vglob = function
+  method! vglob = function
     | GType (typeinfo, _) ->
 	typeinfo.treferenced <- true;
 	DoChildren
@@ -420,31 +420,31 @@ class markReachableVisitor
 	DoChildren
     | GVar (varinfo, _, _)
     | GVarDecl (varinfo, _)
-    | GFun ({svar = varinfo}, _) ->
+    | GFun ({svar = varinfo; _}, _) ->
 	varinfo.vreferenced <- true;
 	DoChildren
     | _ ->
 	SkipChildren
 
-  method vinst = function
-      Asm (_, tmpls, _, _, _, _) when !msvcMode -> 
-          (* If we have inline assembly on MSVC, we cannot tell which locals 
+  method! vinst = function
+      Asm (_, tmpls, _, _, _, _) when !msvcMode ->
+          (* If we have inline assembly on MSVC, we cannot tell which locals
            * are referenced. Keep thsem all *)
-        (match !currentFunc with 
-          Some fd -> 
-            List.iter (fun v -> 
-              let vre = Str.regexp_string (Str.quote v.vname) in 
-              if List.exists (fun tmp -> 
+        (match !currentFunc with
+          Some fd ->
+            List.iter (fun v ->
+              let vre = Str.regexp_string (Str.quote v.vname) in
+              if List.exists (fun tmp ->
                 try ignore (Str.search_forward vre tmp 0); true
                 with Not_found -> false)
-                  tmpls 
+                  tmpls
               then
                 v.vreferenced <- true) fd.slocals
         | _ -> assert false);
         DoChildren
     | _ -> DoChildren
 
-  method vvrbl v =
+  method! vvrbl v =
     if not v.vreferenced then
       begin
 	let name = v.vname in
@@ -452,7 +452,7 @@ class markReachableVisitor
 	  trace (dprintf "marking transitive use: global %s\n" name)
 	else
 	  trace (dprintf "marking transitive use: local %s\n" name);
-	
+
         (* If this is a global, we need to keep everything used in its
 	 * definition and declarations. *)
 	if v.vglob then
@@ -469,13 +469,13 @@ class markReachableVisitor
       end;
     SkipChildren
 
-  method vexpr (e: exp) = 
-    match e with 
+  method! vexpr (e: exp) =
+    match e with
       Const (CEnum (_, _, ei)) -> ei.ereferenced <- true;
                                   DoChildren
     | _ -> DoChildren
 
-  method vtype typ =
+  method! vtype typ =
     let old : bool =
       let visitAttrs attrs =
 	ignore (visitCilAttributes (self :> cilVisitor) attrs)
@@ -516,7 +516,7 @@ class markReachableVisitor
 	    begin
 	      trace (dprintf "marking transitive use: typedef %s\n" ti.tname);
 	      ti.treferenced <- true;
-	      
+
 	      (* recurse deeper into the type referred-to by the typedef *)
 	      (* to recurse, we must ask explicitly *)
 	      visitType ti.ttype;
@@ -536,12 +536,12 @@ end
 
 
 let markReachable file isRoot =
-  (* build a mapping from global names back to their definitions & 
+  (* build a mapping from global names back to their definitions &
    * declarations *)
   let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
     match global with
-    | GFun ({svar = info}, _)
+    | GFun ({svar = info; _}, _)
     | GVar (info, _, _)
     | GVarDecl (info, _) ->
 	Hashtbl.add globalMap info.vname global
@@ -550,7 +550,7 @@ let markReachable file isRoot =
   in
   iterGlobals file considerGlobal;
 
-  let currentFunc = ref None in 
+  let currentFunc = ref None in
 
   (* mark everything reachable from the global roots *)
   let visitor = new markReachableVisitor (globalMap, currentFunc) in
@@ -558,7 +558,7 @@ let markReachable file isRoot =
     if isRoot global then
       begin
 	trace (dprintf "traversing root global: %a\n" d_shortglobal global);
-        (match global with 
+        (match global with
           GFun(fd, _) -> currentFunc := Some fd
         | _ -> currentFunc := None);
 	ignore (visitCilGlobal visitor global)
@@ -575,26 +575,26 @@ let markReachable file isRoot =
  *
  **********************************************************************)
 
-(* We keep only one label, preferably one that was not introduced by CIL. 
- * Scan a list of labels and return the data for the label that should be 
+(* We keep only one label, preferably one that was not introduced by CIL.
+ * Scan a list of labels and return the data for the label that should be
  * kept, and the remaining filtered list of labels. After this cleanup,
  * every statement's labels will be either a single 'Default' or any
  * number of 'Case's, in either case possibly preceded by a single 'Label'. *)
-let labelsToKeep (ll: label list) : (string * location * bool) * label list = 
+let labelsToKeep (ll: label list) : (string * location * bool) * label list =
   let rec loop (sofar: string * location * bool) = function
       [] -> sofar, []
-    | l :: rest -> 
-        let newlabel, keepl = 
+    | l :: rest ->
+        let newlabel, keepl =
           match l with
           | CaseRange _ | Case _ | Default _ -> sofar, true
           | Label (ln, lloc, isorig) -> begin
-              match isorig, sofar with 
-              | false, ("", _, _) -> 
+              match isorig, sofar with
+              | false, ("", _, _) ->
                   (* keep this one only if we have no label so far *)
                   (ln, lloc, isorig), false
               | false, _ -> sofar, false
-              | true, (_, _, false) -> 
-                  (* this is an original label; prefer it to temporary or 
+              | true, (_, _, false) ->
+                  (* this is an original label; prefer it to temporary or
                    * missing labels *)
                   (ln, lloc, isorig), false
               | true, _ -> sofar, false
@@ -620,19 +620,21 @@ class removeUnusedGoto = object(self)
 
   method private pStmtNext (next: stmt) (s: stmt) = match s.skind with
         (* Else-if: don't call visitCilStmt, recurse manually instead *)
-      | If(_,t,{ bstmts=[{skind=If _} as elsif]; battrs=[] },_) ->
+      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_) ->
               ignore(visitCilBlock (self:>cilVisitor) t);
               self#pStmtNext next elsif
-      | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
-                  battrs=[]} as b),_)
-      | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]}];
+      | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
+                  battrs=[]} as b),_)when !gref == next ->
+              b.bstmts <- [];
+              ignore(visitCilStmt (self:>cilVisitor) s)
+      | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
                   battrs=[]} as b),_,_)
                 when !gref == next ->
               b.bstmts <- [];
               ignore(visitCilStmt (self:>cilVisitor) s)
       | _ -> ignore(visitCilStmt (self:>cilVisitor) s)
 
-  method vblock blk =
+  method! vblock blk =
     let rec dofirst = function
         [] -> ()
       | [x] -> self#pStmtNext invalidStmt x
@@ -647,19 +649,19 @@ class removeUnusedGoto = object(self)
       SkipChildren
 
    (* No need to go into expressions or instructions *)
-  method vexpr _ = SkipChildren
-  method vinst _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vinst _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
-          
+
 class markUsedLabels (labelMap: (string, unit) H.t) = object
   inherit nopCilVisitor
 
-  method vstmt (s: stmt) = 
-    match s.skind with 
-      Goto (dest, _) -> 
+  method! vstmt (s: stmt) =
+    match s.skind with
+      Goto (dest, _) ->
         let (ln, _, _), _ = labelsToKeep !dest.labels in
-        if ln = "" then 
+        if ln = "" then
           E.s (E.bug "rmtmps: destination of statement does not have labels");
         (* Mark it as used *)
         H.replace labelMap ln ();
@@ -667,7 +669,7 @@ class markUsedLabels (labelMap: (string, unit) H.t) = object
 
     | _ -> DoChildren
 
-  method vexpr e = match e with
+  method! vexpr e = match e with
   | AddrOfLabel dest ->
       let (ln, _, _), _ = labelsToKeep !dest.labels in
       if ln = "" then
@@ -681,7 +683,7 @@ end
 class removeUnusedLabels (labelMap: (string, unit) H.t) = object
   inherit nopCilVisitor
 
-  method vstmt (s: stmt) = 
+  method! vstmt (s: stmt) =
     let (ln, lloc, lorig), lrest = labelsToKeep s.labels in
     (* Check our desired invariants for labels: 'lrest' must be either a
        single 'Default' or only 'Case's. It is okay for 'lrest' to be
@@ -698,9 +700,9 @@ class removeUnusedLabels (labelMap: (string, unit) H.t) = object
     DoChildren
 
    (* No need to go into expressions or instructions *)
-  method vexpr _ = SkipChildren
-  method vinst _ = SkipChildren
-  method vtype _ = SkipChildren
+  method! vexpr _ = SkipChildren
+  method! vinst _ = SkipChildren
+  method! vtype _ = SkipChildren
 end
 
 (***********************************************************************
@@ -715,12 +717,12 @@ let uninteresting =
   let names = [
     (* Cil.makeTempVar *)
     "__cil_tmp";
-    
+
     (* sm: I don't know where it comes from but these show up all over. *)
     (* this doesn't seem to do what I wanted.. *)
     "iter";
 
-    (* various macros in glibc's <bits/string2.h> *)		   
+    (* various macros in glibc's <bits/string2.h> *)
     "__result";
     "__s"; "__s1"; "__s2";
     "__s1_len"; "__s2_len";
@@ -734,31 +736,31 @@ let uninteresting =
 
   (* optional alpha renaming *)
   let alpha = "\\(___[0-9]+\\)?" in
-  
+
   let pattern = "\\(" ^ (String.concat "\\|" names) ^ "\\)" ^ alpha ^ "$" in
   Str.regexp pattern
 
 
 let removeUnmarked file =
   let removedLocals = ref [] in
-  
+
   let filterGlobal global =
     match global with
     (* unused global types, variables, and functions are simply removed *)
-    | GType ({treferenced = false}, _)
-    | GCompTag ({creferenced = false}, _)
-    | GCompTagDecl ({creferenced = false}, _)
-    | GEnumTag ({ereferenced = false}, _)
-    | GEnumTagDecl ({ereferenced = false}, _)
-    | GVar ({vreferenced = false}, _, _)
-    | GVarDecl ({vreferenced = false}, _)
-    | GFun ({svar = {vreferenced = false}}, _) ->
+    | GType ({treferenced = false; _}, _)
+    | GCompTag ({creferenced = false; _}, _)
+    | GCompTagDecl ({creferenced = false; _}, _)
+    | GEnumTag ({ereferenced = false; _}, _)
+    | GEnumTagDecl ({ereferenced = false; _}, _)
+    | GVar ({vreferenced = false; _}, _, _)
+    | GVarDecl ({vreferenced = false; _}, _)
+    | GFun ({svar = {vreferenced = false; _}; _}, _) ->
 	trace (dprintf "removing global: %a\n" d_shortglobal global);
 	false
 
     (* retained functions may wish to discard some unused locals *)
     | GFun (func, _) ->
-	let rec filterLocal local =
+	let filterLocal local =
 	  if not local.vreferenced then
 	    begin
 	      (* along the way, record the interesting locals that were removed *)
@@ -770,7 +772,7 @@ let removeUnmarked file =
 	  local.vreferenced
 	in
 	func.slocals <- List.filter filterLocal func.slocals;
-        (* We also want to remove unused labels. We do it all here, including 
+        (* We also want to remove unused labels. We do it all here, including
          * marking the used labels *)
         let usedLabels:(string, unit) H.t = H.create 13 in
         ignore (visitCilFunction (new removeUnusedGoto) func);
@@ -801,12 +803,12 @@ type rootsFilter = global -> bool
 
 let isDefaultRoot = isExportedRoot
 
-let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
+let removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
   if !keepUnused || Trace.traceActive "disableTmpRemoval" then
     Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else
     begin
-      if !E.verboseFlag then 
+      if !E.verboseFlag then
         ignore (E.log "Removing unused temporaries\n" );
 
       if Trace.traceActive "printCilTree" then
@@ -835,7 +837,7 @@ let rec removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
       (* print which original source variables were removed *)
       if false && removedLocals != [] then
 	let count = List.length removedLocals in
-	if count > 2000 then 
+	if count > 2000 then
 	  ignore (E.warn "%d unused local variables removed" count)
 	else
 	  ignore (E.warn "%d unused local variables removed:@!%a"

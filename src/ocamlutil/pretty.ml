@@ -1,11 +1,11 @@
-(* 
+(*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -36,9 +36,9 @@
  *)
 
 (******************************************************************************)
-(* Pretty printer 
-   This module contains several fast, but sub-optimal heuristics to pretty-print 
-   structured text. 
+(* Pretty printer
+   This module contains several fast, but sub-optimal heuristics to pretty-print
+   structured text.
 *)
 
 let debug =  false
@@ -49,31 +49,31 @@ let  algo = George
 let fastMode       = ref false
 
 
-(** Whether to print identation or not (for faster printing and smaller 
+(** Whether to print identation or not (for faster printing and smaller
   * output) *)
 let printIndent = ref true
 
 (** Whether to rebalance doc before printing it to avoid stack-overflows *)
 let flattenBeforePrint = ref true
 
-(******************************************************************************)	
+(******************************************************************************)
 (* The doc type and constructors *)
 
-type doc = 
+type doc =
     Nil
   | Text     of string
   | Concat   of doc * doc
   | CText    of doc * string
   | Break
-  | Line 
+  | Line
   | LeftFlush
   | Align
-  | Unalign  
+  | Unalign
   | Mark
   | Unmark
 
 (* Break a string at \n *)
-let rec breakString (acc: doc) (str: string) : doc = 
+let rec breakString (acc: doc) (str: string) : doc =
   (* Printf.printf "breaking string %s\n" str; *)
   match (try Some (String.index str '\n') with Not_found -> None) with
   | None -> if acc = Nil then Text str else CText (acc, str)
@@ -93,19 +93,19 @@ let rec breakString (acc: doc) (str: string) : doc =
     end else (* The first is a newline *)
       breakString (Concat(acc, Line))
         (String.sub str (r + 1) (len - r - 1))
-    
+
 
 let nil           = Nil
 let text s        = breakString nil s
 let num  i        = text (string_of_int i)
 let num64 i       = text (Int64.to_string i)
 let real f        = text (string_of_float f)
-let chr  c        = text (String.make 1 c) 
+let chr  c        = text (String.make 1 c)
 let align         = Align
 let unalign       = Unalign
 let line          = Line
 let leftflush     = LeftFlush
-let break         = Break  
+let break         = Break
 let mark          = Mark
 let unmark        = Unmark
 
@@ -116,9 +116,9 @@ let d_int64 (i: int64) = text (Int64.to_string i)
 let f_int64 () i = d_int64 i
 
 
-(* Note that the ++ operator in Ocaml are left-associative. This means 
- * that if you have a long list of ++ then the whole thing is very unbalanced 
- * towards the left side. This is the worst possible case since scanning the 
+(* Note that the ++ operator in Ocaml are left-associative. This means
+ * that if you have a long list of ++ then the whole thing is very unbalanced
+ * towards the left side. This is the worst possible case since scanning the
  * left side of a Concat is the non-tail recursive case. *)
 
 let (++) d1 d2 = Concat (d1, d2)
@@ -130,22 +130,22 @@ let indent n d = text (String.make n ' ') ++ (align ++ (d ++ unalign))
 let markup d = mark ++ d ++ unmark
 
 (* Format a sequence. The first argument is a separator *)
-let seq ~(sep:doc)  ~(doit:'a -> doc) ~(elements: 'a list) = 
+let seq ~(sep:doc)  ~(doit:'a -> doc) ~(elements: 'a list) =
   let rec loop (acc: doc) = function
       []     -> acc
-    | h :: t -> 
+    | h :: t ->
         let fh = doit h in  (* Make sure this is done first *)
         loop (acc ++ sep ++ fh) t
   in
   (match elements with
     [] -> nil
-  | h :: t -> 
+  | h :: t ->
       let fh = doit h in loop fh t)
 
 
-let docArray ?(sep=chr ',') (doit:int -> 'a -> doc) () (elements:'a array) = 
+let docArray ?(sep=chr ',') (doit:int -> 'a -> doc) () (elements:'a array) =
   let len = Array.length elements in
-  if len = 0 then 
+  if len = 0 then
     nil
   else
     let rec loop (acc: doc) i =
@@ -162,8 +162,8 @@ let docOpt delem () = function
 
 
 
-let docList ?(sep=chr ',') (doit:'a -> doc) () (elements:'a list) = 
-  seq sep doit elements
+let docList ?(sep=chr ',') (doit:'a -> doc) () (elements:'a list) =
+  seq ~sep:sep ~doit:doit ~elements:elements
 
 let insert () d = d
 
@@ -176,7 +176,7 @@ let d_list (sep:string) (doit:unit -> 'a -> doc) () (elts:'a list) : doc =
 
 (** Format maps *)
 module MakeMapPrinter =
-  functor (Map: sig 
+  functor (Map: sig
                   type key
                   type 'a t
                   val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
@@ -200,7 +200,7 @@ end
 
 (** Format sets *)
 module MakeSetPrinter =
-  functor (Set: sig 
+  functor (Set: sig
                   type elt
                   type t
                   val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
@@ -219,7 +219,7 @@ struct
 end
 
 
-(******************************************************************************)	
+(******************************************************************************)
 (* Some debugging stuff *)
 
 let dbgprintf x = Printf.fprintf stderr x
@@ -227,10 +227,10 @@ let dbgprintf x = Printf.fprintf stderr x
 let rec dbgPrintDoc = function
     Nil -> dbgprintf "(Nil)"
   | Text s -> dbgprintf "(Text %s)" s
-  | Concat (d1,d2) -> dbgprintf ""; dbgPrintDoc  d1; dbgprintf " ++\n "; 
+  | Concat (d1,d2) -> dbgprintf ""; dbgPrintDoc  d1; dbgprintf " ++\n ";
       dbgPrintDoc  d2; dbgprintf ""
-  | CText (d,s) -> dbgPrintDoc  d; dbgprintf " ++ \"%s\"" s; 
-  | Break -> dbgprintf "(Break)" 
+  | CText (d,s) -> dbgPrintDoc  d; dbgprintf " ++ \"%s\"" s;
+  | Break -> dbgprintf "(Break)"
   | Line -> dbgprintf "(Line)"
   | LeftFlush -> dbgprintf "(LeftFlush)"
   | Align -> dbgprintf "(Align)"
@@ -238,13 +238,13 @@ let rec dbgPrintDoc = function
   | Mark -> dbgprintf "(Mark)"
   | Unmark -> dbgprintf "(Unmark)"
 
-(******************************************************************************)	
+(******************************************************************************)
 (* The "george" algorithm *)
 
-(* When we construct documents, most of the time they are heavily unbalanced 
- * towards the left. This is due to the left-associativity of ++ and also to 
- * the fact that constructors such as docList construct from the let of a 
- * sequence. We would prefer to shift the imbalance to the right to avoid 
+(* When we construct documents, most of the time they are heavily unbalanced
+ * towards the left. This is due to the left-associativity of ++ and also to
+ * the fact that constructors such as docList construct from the let of a
+ * sequence. We would prefer to shift the imbalance to the right to avoid
  * consuming a lot of stack when we traverse the document *)
 let rec flatten (acc: doc) = function
   | Concat (d1, d2) -> flatten (flatten acc d2) d1
@@ -253,55 +253,55 @@ let rec flatten (acc: doc) = function
   | d -> Concat(d, acc)
 
 (* We keep a stack of active aligns. *)
-type align = 
-    { mutable gainBreak: int;  (* This is the gain that is associated with 
-                                 * taking the break associated with this 
-                                 * alignment mark. If this is 0, then there 
+type align =
+    { mutable gainBreak: int;  (* This is the gain that is associated with
+                                 * taking the break associated with this
+                                 * alignment mark. If this is 0, then there
                                  * is no break associated with the mark *)
-      mutable isTaken: bool ref; (* If breakGain is > 0 then this is a ref 
-                                  * cell that must be set to true when the 
-                                  * break is taken. These ref cells are also 
+      mutable isTaken: bool ref; (* If breakGain is > 0 then this is a ref
+                                  * cell that must be set to true when the
+                                  * break is taken. These ref cells are also
                                   * int the "breaks" list  *)
-            deltaFromPrev: int ref; (* The column of this alignment mark - 
-                                     * the column of the previous mark. 
-                                     * Shared with the deltaToNext of the 
+            deltaFromPrev: int ref; (* The column of this alignment mark -
+                                     * the column of the previous mark.
+                                     * Shared with the deltaToNext of the
                                      * previous active align  *)
-             deltaToNext: int ref  (* The column of the next alignment mark - 
-                                    * the columns of this one. Shared with 
+             deltaToNext: int ref  (* The column of the next alignment mark -
+                                    * the columns of this one. Shared with
                                     * deltaFromPrev of the next active align *)
-    } 
-      
+    }
+
 (* We use references to avoid the need to pass data around all the time *)
-let aligns: align list ref =  (* The current stack of active alignment marks, 
+let aligns: align list ref =  (* The current stack of active alignment marks,
                                * with the top at the head. Never empty.  *)
-  ref [{ gainBreak = 0; isTaken = ref false; 
+  ref [{ gainBreak = 0; isTaken = ref false;
          deltaFromPrev = ref 0; deltaToNext = ref 0; }]
 
 let topAlignAbsCol = ref 0 (* The absolute column of the top alignment *)
 
-let pushAlign (abscol: int) = 
+let pushAlign (abscol: int) =
   let topalign = List.hd !aligns in
-  let res = 
-    { gainBreak = 0; isTaken = ref false; 
+  let res =
+    { gainBreak = 0; isTaken = ref false;
       deltaFromPrev = topalign.deltaToNext; (* Share with the previous *)
       deltaToNext = ref 0; (* Allocate a new ref *)} in
   aligns := res :: !aligns;
   res.deltaFromPrev := abscol - !topAlignAbsCol;
   topAlignAbsCol := abscol
 
-let popAlign () = 
+let popAlign () =
   match !aligns with
-    top :: t when t != [] -> 
-      aligns := t; 
+    top :: t when t != [] ->
+      aligns := t;
       topAlignAbsCol := !topAlignAbsCol - !(top.deltaFromPrev)
   | _ -> failwith "Unmatched unalign\n"
 
-(** We keep a list of active markup sections. For each one we keep the column 
+(** We keep a list of active markup sections. For each one we keep the column
  * we are in *)
 let activeMarkups: int list ref = ref []
 
 
-(* Keep a list of ref cells for the breaks, in the same order that we see 
+(* Keep a list of ref cells for the breaks, in the same order that we see
  * them in the document *)
 let breaks: bool ref list ref = ref []
 
@@ -317,20 +317,20 @@ let newline () =
   if debug then
     dbgprintf "Taking a newline: reseting gain of %d\n" topalign.gainBreak;
   topalign.gainBreak <- 0;        (* Erase the current break info *)
-  if !breakAllMode && !topAlignAbsCol < !maxCol then 
+  if !breakAllMode && !topAlignAbsCol < !maxCol then
     breakAllMode := false;
   !topAlignAbsCol                          (* This is the new column *)
 
 
 
-(* Choose the align with the best gain. We outght to find a better way to 
- * keep the aligns sorted, especially since they gain never changes (when the 
+(* Choose the align with the best gain. We outght to find a better way to
+ * keep the aligns sorted, especially since they gain never changes (when the
  * align is the top align) *)
-let chooseBestGain () : align option =        
+let chooseBestGain () : align option =
   let bestGain = ref 0 in
   let rec loop (breakingAlign: align option) = function
       [] -> breakingAlign
-    | a :: resta -> 
+    | a :: resta ->
         if debug then dbgprintf "Looking at align with gain %d\n" a.gainBreak;
         if a.gainBreak > !bestGain then begin
           bestGain := a.gainBreak;
@@ -342,28 +342,28 @@ let chooseBestGain () : align option =
 
 
 (* Another one that chooses the break associated with the current align only *)
-let chooseLastGain () : align option = 
+let chooseLastGain () : align option =
   let topalign = List.hd !aligns in
   if topalign.gainBreak > 0 then Some topalign else None
 
 (* We have just advanced to a new column. See if we must take a line break *)
-let movingRight (abscol: int) : int = 
-  (* Keep taking the best break until we get back to the left of maxCol or no 
+let movingRight (abscol: int) : int =
+  (* Keep taking the best break until we get back to the left of maxCol or no
    * more are left *)
-  let rec tryAgain abscol = 
-    if abscol <= !maxCol then abscol else 
+  let rec tryAgain abscol =
+    if abscol <= !maxCol then abscol else
     begin
       if debug then
         dbgprintf "Looking for a break to take in column %d\n" abscol;
       (* Find the best gain there is out there *)
-      match if !fastMode then None else chooseBestGain () with 
+      match if !fastMode then None else chooseBestGain () with
         None -> begin
           (* No breaks are available. Take all breaks from now on *)
           breakAllMode := true;
           if debug then
             dbgprintf "Can't find any breaks\n";
           abscol
-        end 
+        end
       | Some breakingAlign -> begin
           let topalign = List.hd !aligns in
           let theGain = breakingAlign.gainBreak in
@@ -372,7 +372,7 @@ let movingRight (abscol: int) : int =
           breakingAlign.isTaken := true;
           breakingAlign.gainBreak <- 0;
           if breakingAlign != topalign then begin
-            breakingAlign.deltaToNext := 
+            breakingAlign.deltaToNext :=
                !(breakingAlign.deltaToNext) - theGain;
             topAlignAbsCol := !topAlignAbsCol - theGain
           end;
@@ -383,8 +383,8 @@ let movingRight (abscol: int) : int =
   tryAgain abscol
 
 
-(* Keep track of nested align in gprintf. Each gprintf format string must 
- * have properly nested align/unalign pairs. When the nesting depth surpasses 
+(* Keep track of nested align in gprintf. Each gprintf format string must
+ * have properly nested align/unalign pairs. When the nesting depth surpasses
  * !printDepth then we print ... and we skip until the matching unalign *)
 let printDepth = ref 10000000 (* WRW: must see whole thing *)
 let alignDepth = ref 0
@@ -392,59 +392,59 @@ let alignDepth = ref 0
 let useAlignDepth = true
 
 (** Start an align. Return true if we ahve just passed the threshhold *)
-let enterAlign () = 
+let enterAlign () =
   incr alignDepth;
   useAlignDepth && !alignDepth = !printDepth + 1
 
 (** Exit an align *)
-let exitAlign () = 
+let exitAlign () =
   decr alignDepth
 
-(** See if we are at a low-enough align level (and we should be printing 
+(** See if we are at a low-enough align level (and we should be printing
  * normally) *)
-let shallowAlign () = 
+let shallowAlign () =
   not useAlignDepth || !alignDepth <= !printDepth
 
 
 (* Pass the current absolute column and compute the new column *)
-let rec scan (abscol: int) (d: doc) : int = 
-  match d with 
+let rec scan (abscol: int) (d: doc) : int =
+  match d with
     Nil -> abscol
   | Concat (d1, d2) -> scan (scan abscol d1) d2
-  | Text s when shallowAlign () -> 
-      let sl = String.length s in 
-      if debug then 
+  | Text s when shallowAlign () ->
+      let sl = String.length s in
+      if debug then
         dbgprintf "Done string: %s from %d to %d\n" s abscol (abscol + sl);
       movingRight (abscol + sl)
-  | CText (d, s) -> 
+  | CText (d, s) ->
       let abscol' = scan abscol d in
       if shallowAlign () then begin
-        let sl = String.length s in 
-        if debug then 
+        let sl = String.length s in
+        if debug then
           dbgprintf "Done string: %s from %d to %d\n" s abscol' (abscol' + sl);
         movingRight (abscol' + sl)
       end else
         abscol'
 
-  | Align -> 
-      pushAlign abscol; 
-      if enterAlign () then 
+  | Align ->
+      pushAlign abscol;
+      if enterAlign () then
         movingRight (abscol + 3) (* "..." *)
       else
         abscol
 
-  | Unalign -> exitAlign (); popAlign (); abscol 
+  | Unalign -> exitAlign (); popAlign (); abscol
 
-  | Line when shallowAlign () -> (* A forced line break *) 
-      if !activeMarkups != [] then 
+  | Line when shallowAlign () -> (* A forced line break *)
+      if !activeMarkups != [] then
         failwith "Line breaks inside markup sections";
       newline ()
 
   | LeftFlush when shallowAlign ()  -> (* Keep cursor left-flushed *) 0
 
-  | Break when shallowAlign () -> (* An optional line break. Always a space 
+  | Break when shallowAlign () -> (* An optional line break. Always a space
                                    * followed by an optional line break *)
-      if !activeMarkups != [] then 
+      if !activeMarkups != [] then
         failwith "Line breaks inside markup sections";
       let takenref = ref false in
       breaks := takenref :: !breaks;
@@ -453,12 +453,12 @@ let rec scan (abscol: int) (d: doc) : int =
         takenref := true;
         newline ()
       end else begin
-        (* If there was a previous break there it stays not taken, forever. 
+        (* If there was a previous break there it stays not taken, forever.
          * So we overwrite it. *)
         topalign.isTaken <- takenref;
         topalign.gainBreak <- 1 + abscol - !topAlignAbsCol;
         if debug then
-          dbgprintf "Registering a break at %d with gain %d\n" 
+          dbgprintf "Registering a break at %d with gain %d\n"
             (1 + abscol) topalign.gainBreak;
         movingRight (1 + abscol)
       end
@@ -467,29 +467,29 @@ let rec scan (abscol: int) (d: doc) : int =
             abscol
 
   | Unmark -> begin
-      match !activeMarkups with 
-        old :: rest -> activeMarkups := rest; 
+      match !activeMarkups with
+        old :: rest -> activeMarkups := rest;
                        old
       | [] -> failwith "Too many unmark"
   end
 
   | _ -> (* Align level is too deep *) abscol
-    
 
-(** Keep a running counter of the newlines we are taking. You can read and 
+
+(** Keep a running counter of the newlines we are taking. You can read and
   * reset this from user code, if you want *)
 let countNewLines = ref 0
 
 (* The actual function that takes a document and prints it *)
-let emitDoc 
-    (emitString: string -> int -> unit) (* emit a number of copies of a 
+let emitDoc
+    (emitString: string -> int -> unit) (* emit a number of copies of a
                                          * string *)
-    (d: doc) = 
+    (d: doc) =
   let aligns: int list ref = ref [0] in (* A stack of alignment columns *)
 
   let wantIndent = ref false in
   (* Use this function to take a newline *)
-  (* AB: modified it to flag wantIndent. The actual indentation is done only 
+  (* AB: modified it to flag wantIndent. The actual indentation is done only
      if leftflush is not encountered *)
   let newline () =
     match !aligns with
@@ -505,37 +505,37 @@ let emitDoc
     if !printIndent && !wantIndent then ignore (
       match !aligns with
 	[] -> failwith "Ran out of aligns"
-      | x :: _ -> 
+      | x :: _ ->
           if x > 0 then emitString " "  x;
           x);
-    wantIndent := false	  
+    wantIndent := false
   in
   (* A continuation passing style loop *)
-  let rec loopCont (abscol: int) (d: doc) (cont: int -> unit) : unit 
+  let rec loopCont (abscol: int) (d: doc) (cont: int -> unit) : unit
       (* the new column *) =
     match d with
       Nil -> cont abscol
-    | Concat (d1, d2) -> 
+    | Concat (d1, d2) ->
         loopCont abscol d1 (fun abscol' -> loopCont abscol' d2 cont)
 
-    | Text s when shallowAlign () -> 
+    | Text s when shallowAlign () ->
         let sl = String.length s in
 	indentIfNeeded ();
         emitString s 1;
         cont (abscol + sl)
 
-    | CText (d, s) -> 
-        loopCont abscol d 
-          (fun abscol' -> 
-            if shallowAlign () then 
+    | CText (d, s) ->
+        loopCont abscol d
+          (fun abscol' ->
+            if shallowAlign () then
               let sl = String.length s in
 	      indentIfNeeded ();
-              emitString s 1; 
+              emitString s 1;
               cont (abscol' + sl)
             else
               cont abscol')
 
-    | Align -> 
+    | Align ->
         aligns := abscol :: !aligns;
         if enterAlign () then begin
           indentIfNeeded ();
@@ -547,7 +547,7 @@ let emitDoc
     | Unalign -> begin
         match !aligns with
           [] -> failwith "Unmatched unalign"
-        | _ :: rest -> 
+        | _ :: rest ->
             exitAlign ();
             aligns := rest; cont abscol
     end
@@ -556,23 +556,23 @@ let emitDoc
     | Break when shallowAlign () -> begin
         match !breaks with
           [] -> failwith "Break without a takenref"
-        | istaken :: rest -> 
+        | istaken :: rest ->
             breaks := rest; (* Consume the break *)
             if !istaken then cont (newline ())
             else begin
 	      indentIfNeeded ();
-              emitString " " 1; 
+              emitString " " 1;
               cont (abscol + 1)
             end
     end
 
-    | Mark -> 
+    | Mark ->
         activeMarkups := abscol :: !activeMarkups;
         cont abscol
 
     | Unmark -> begin
-        match !activeMarkups with 
-          old :: rest -> activeMarkups := rest; 
+        match !activeMarkups with
+          old :: rest -> activeMarkups := rest;
                          cont old
         | [] -> failwith "Unmark without a mark"
     end
@@ -581,7 +581,7 @@ let emitDoc
         cont abscol
   in
 
-  loopCont 0 d (fun x -> ()) 
+  loopCont 0 d (fun x -> ())
 
 
 (* Print a document on a channel *)
@@ -589,34 +589,34 @@ let fprint (chn: out_channel) ~(width: int) doc =
   let doc = if !flattenBeforePrint then flatten Nil doc else doc in
   (* Save some parameters, to allow for nested calls of these routines. *)
   maxCol := width;
-  let old_breaks = !breaks in 
+  let old_breaks = !breaks in
   breaks := [];
-  let old_alignDepth = !alignDepth in 
+  let old_alignDepth = !alignDepth in
   alignDepth := 0;
-  let old_activeMarkups = !activeMarkups in 
+  let old_activeMarkups = !activeMarkups in
   activeMarkups := [];
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
-  ignore (emitDoc 
-            (fun s nrcopies -> 
+  ignore (emitDoc
+            (fun s nrcopies ->
               for i = 1 to nrcopies do
                 output_string chn s
               done) doc);
   activeMarkups := old_activeMarkups;
   alignDepth := old_alignDepth;
-  breaks := old_breaks (* We must do this especially if we don't do emit 
-                        * (which consumes breaks) because otherwise we waste 
+  breaks := old_breaks (* We must do this especially if we don't do emit
+                        * (which consumes breaks) because otherwise we waste
                         * memory *)
 
 (* Print the document to a string *)
-let sprint ~(width : int)  doc : string = 
+let sprint ~(width : int)  doc : string =
   let doc = if !flattenBeforePrint then flatten Nil doc else doc in
   maxCol := width;
-  let old_breaks = !breaks in 
+  let old_breaks = !breaks in
   breaks := [];
-  let old_activeMarkups = !activeMarkups in 
+  let old_activeMarkups = !activeMarkups in
   activeMarkups := [];
-  let old_alignDepth = !alignDepth in 
+  let old_alignDepth = !alignDepth in
   alignDepth := 0;
   ignore (scan 0 doc);
   breaks := List.rev !breaks;
@@ -637,22 +637,22 @@ external format_int: string -> int -> string = "caml_format_int"
 external format_float: string -> float -> string = "caml_format_float"
 
 
-    
-let gprintf (finish : doc -> 'b)  
+
+let gprintf (finish : doc -> 'b)
             (format : ('a, unit, doc, 'b) format4) : 'a =
   let format = string_of_format format in
 
   (* Record the starting align depth *)
   let startAlignDepth = !alignDepth in
   (* Special concatenation functions *)
-  let dconcat (acc: doc) (another: doc) = 
+  let dconcat (acc: doc) (another: doc) =
     if !alignDepth > !printDepth then acc else acc ++ another in
-  let dctext1 (acc: doc) (str: string) = 
-    if !alignDepth > !printDepth then acc else 
+  let dctext1 (acc: doc) (str: string) =
+    if !alignDepth > !printDepth then acc else
     CText(acc, str)
   in
   (* Special finish function *)
-  let dfinish (dc: doc) : 'b = 
+  let dfinish (dc: doc) : 'b =
     if !alignDepth <> startAlignDepth then
       prerr_string ("Unmatched align/unalign in " ^ format ^ "\n");
     finish dc
@@ -660,16 +660,16 @@ let gprintf (finish : doc -> 'b)
   let flen    = String.length format in
                                         (* Reading a format character *)
   let fget    = String.unsafe_get format in
-                                        (* Output a literal sequence of 
-                                         * characters, starting at i. The 
-                                         * character at i does not need to be 
-                                         * checked.  *) 
-  let rec literal acc i = 
-    let rec skipChars j = 
-      if j >= flen || 
-      (match fget j with 
-        '%' -> true 
-      | '@' -> true 
+                                        (* Output a literal sequence of
+                                         * characters, starting at i. The
+                                         * character at i does not need to be
+                                         * checked.  *)
+  let rec literal acc i =
+    let rec skipChars j =
+      if j >= flen ||
+      (match fget j with
+        '%' -> true
+      | '@' -> true
       | '\n' -> true
       | _ -> false) then
         collect (dctext1 acc (String.sub format i (j-i))) j
@@ -678,19 +678,19 @@ let gprintf (finish : doc -> 'b)
     in
     skipChars (succ i)
                                         (* the main collection function *)
-  and collect (acc: doc) (i: int) = 
+  and collect (acc: doc) (i: int) =
     if i >= flen then begin
-      Obj.magic (dfinish acc) 
+      Obj.magic (dfinish acc)
     end else begin
       let c = fget i in
       if c = '%' then begin
         let j = skip_args (succ i) in
         match fget j with
-          '%' -> literal acc j 
+          '%' -> literal acc j
 	| ',' -> collect acc (succ j)
         | 's' ->
             Obj.magic(fun s ->
-              let str = 
+              let str =
                 if j <= i+1 then
                   s
                 else
@@ -714,7 +714,7 @@ let gprintf (finish : doc -> 'b)
         | 'd' | 'i' | 'o' | 'x' | 'X' | 'u' ->
             Obj.magic(fun n ->
               collect (dctext1 acc
-                         (format_int (String.sub format i 
+                         (format_int (String.sub format i
                                                   (j-i+1)) n))
                 (succ j))
     (* L, l, and n are the Int64, Int32, and Nativeint modifiers to the integer
@@ -722,7 +722,7 @@ let gprintf (finish : doc -> 'b)
 	| 'L' ->
 	    if j != i + 1 then  (*Int64.format handles simple formats like %d.
                      * Any special flags eaten by skip_args will confuse it. *)
-              invalid_arg ("dprintf: unimplemented format " 
+              invalid_arg ("dprintf: unimplemented format "
 			   ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
 	    let format_spec = Bytes.of_string "% " in
@@ -732,7 +732,7 @@ let gprintf (finish : doc -> 'b)
                          (Int64.format (Bytes.to_string format_spec) n))
                 (succ j'))
 	| 'l' ->
-	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
+	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format "
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
 	    let format_spec = Bytes.of_string "% " in
@@ -742,7 +742,7 @@ let gprintf (finish : doc -> 'b)
                          (Int32.format (Bytes.to_string format_spec) n))
                 (succ j'))
 	| 'n' ->
-	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
+	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format "
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
 	    let format_spec = Bytes.of_string "% " in
@@ -774,7 +774,7 @@ let gprintf (finish : doc -> 'b)
 
                                         (* Now the special format characters *)
             '[' ->                      (* align *)
-              let newacc = 
+              let newacc =
                 if !alignDepth > !printDepth then
                   acc
                 else if !alignDepth = !printDepth then
@@ -784,10 +784,10 @@ let gprintf (finish : doc -> 'b)
               in
               incr alignDepth;
               collect newacc (i + 2)
-                
+
           | ']' ->                        (* unalign *)
               decr alignDepth;
-              let newacc = 
+              let newacc =
                 if !alignDepth >= !printDepth then
                   acc
                 else
@@ -798,13 +798,13 @@ let gprintf (finish : doc -> 'b)
               collect (dconcat acc line) (i + 2)
           | '?' ->                        (* soft line break *)
               collect (dconcat acc (break)) (i + 2)
-          | '<' -> 
+          | '<' ->
               collect (dconcat acc mark) (i +1)
-          | '>' -> 
+          | '>' ->
               collect (dconcat acc unmark) (i +1)
 	  | '^' ->                        (* left-flushed *)
 	      collect (dconcat acc (leftflush)) (i + 2)
-          | '@' -> 
+          | '@' ->
               collect (dctext1 acc "@") (i + 2)
           | c ->
               invalid_arg ("dprintf: unknown format @" ^ String.make 1 c)
@@ -824,7 +824,7 @@ let gprintf (finish : doc -> 'b)
   in
   collect Nil 0
 
-let withPrintDepth dp thunk = 
+let withPrintDepth dp thunk =
   let opd = !printDepth in
   printDepth := dp;
   thunk ();
@@ -835,12 +835,12 @@ let withPrintDepth dp thunk =
 let flushOften = ref false
 
 let dprintf format     = gprintf (fun x -> x) format
-let fprintf chn format = 
-  let f d = fprint chn 80 d; d in
+let fprintf chn format =
+  let f d = fprint chn ~width:80 d; d in
 	(* weimeric hack begins -- flush output to streams *)
   let res = gprintf f format in
-	(* save the value we would have returned, flush the channel and then 
-         * return it -- this allows us to see debug input near infinite loops 
+	(* save the value we would have returned, flush the channel and then
+         * return it -- this allows us to see debug input near infinite loops
          * *)
   if !flushOften then flush chn;
   res
@@ -862,5 +862,5 @@ let getAboutString () : string =
 
 
 (************************************************)
-let auto_printer (typ: string) = 
+let auto_printer (typ: string) =
   failwith ("Pretty.auto_printer \"" ^ typ ^ "\" only works with you use -pp \"camlp4o pa_prtype.cmo\" when you compile")

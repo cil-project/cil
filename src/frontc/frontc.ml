@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -55,8 +55,8 @@ let close_output _ =
 
 let set_output filename =
   close_output ();
-  let out_chan = try open_out filename 
-    with Sys_error msg -> 
+  let out_chan = try open_out filename
+    with Sys_error msg ->
     (output_string stderr ("Error while opening output: " ^ msg); exit 1) in
   out := Some out_chan;
   Whitetrack.setOutput out_chan;
@@ -122,7 +122,7 @@ begin
 
   (* now parse the file we came here to parse *)
   let cabs = parse_to_cabs_inner fname in
-  if !E.hadErrors then 
+  if !E.hadErrors then
     E.s (E.error "There were parsing errors in %s" fname);
 
   (* and apply the patch file, return transformed file *)
@@ -138,7 +138,7 @@ begin
         (trace "patch" (dprintf "newpatching %s\n" fname));
         let result = (Stats.time "newpatch" (Patch.applyPatch pf) cabs) in
 
-        if (!printPatchedFiles) then begin                              
+        if (!printPatchedFiles) then begin
           let outFname:string = fname ^ ".patched" in
           (trace "patch" (dprintf "printing patched version of %s to %s\n"
                                   fname outFname));
@@ -187,7 +187,7 @@ and parse_to_cabs_inner (fname : string) =
   try
     if !E.verboseFlag then ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
-    let lexbuf = Clexer.init fname in
+    let lexbuf = Clexer.init ~filename:fname in
     let cabs = Stats.time "parse" (Cparser.interpret (Whitetrack.wraplexer clexer)) lexbuf in
     Whitetrack.setFinalWhite (Clexer.get_white ());
     Clexer.finish ();
@@ -210,7 +210,7 @@ and parse_to_cabs_inner (fname : string) =
       raise e
   end
 
-  
+
 (* print to safec.proto.h the prototypes of all functions that are defined *)
 let printPrototypes ((fname, file) : Cabs.file) : unit =
 begin
@@ -222,12 +222,12 @@ begin
 
   let counter : int ref = ref 0 in
 
-  let rec loop (d : Cabs.definition) = begin
+  let loop (d : Cabs.definition) = begin
     match d with
     | Cabs.FUNDEF(name, _, loc, _) -> (
         match name with
         | (_, (funcname, Cabs.PROTO(_,_,_), _, _)) -> (
-            incr counter;          
+            incr counter;
             ignore (fprintf chan "\n/* %s from %s:%d */\n"
                                  funcname loc.Cabs.filename loc.Cabs.lineno);
             flush chan;

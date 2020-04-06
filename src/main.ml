@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -46,11 +46,10 @@ module C = Cil
 module Fe = Feature
 module CK = Check
 module E = Errormsg
-open Pretty
 
-type outfile = 
+type outfile =
     { fname: string;
-      fchan: out_channel } 
+      fchan: out_channel }
 let outChannel : outfile option ref = ref None
 let mergedChannel : outfile option ref = ref None
 
@@ -59,7 +58,7 @@ let parseOneFile (fname: string) : C.file =
   (* PARSE and convert to CIL *)
   if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
-  
+
   if (not (Feature.enabled "epicenter")) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
     (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
@@ -68,7 +67,7 @@ let parseOneFile (fname: string) : C.file =
   );
   cil
 
-let rec processOneFile (cil: C.file) =
+let processOneFile (cil: C.file) =
   begin
 
     if !Cilutil.doCheck then begin
@@ -80,13 +79,13 @@ let rec processOneFile (cil: C.file) =
       end
     end;
 
-    (* Scan all the registered features and, if they are 
+    (* Scan all the registered features and, if they are
      * enabled then run them on the current file *)
-    List.iter 
-      (fun fdesc -> 
+    List.iter
+      (fun fdesc ->
         if fdesc.Fe.fd_enabled then begin
-          if !E.verboseFlag then 
-            ignore (E.log "Running CIL feature %s (%s)\n" 
+          if !E.verboseFlag then
+            ignore (E.log "Running CIL feature %s (%s)\n"
                       fdesc.Fe.fd_name fdesc.Fe.fd_description);
           (* Run the feature, and see how long it takes. *)
           Stats.time fdesc.Fe.fd_name
@@ -106,19 +105,19 @@ let rec processOneFile (cil: C.file) =
 
     (match !outChannel with
       None -> ()
-    | Some c -> Stats.time "printCIL" 
+    | Some c -> Stats.time "printCIL"
 	(C.dumpFile (!C.printerForMaincil) c.fchan c.fname) cil);
 
     if !E.hadErrors then
       E.s (E.error "Error while processing file; see above for details.");
 
   end
-        
-(***** MAIN *****)  
+
+(***** MAIN *****)
 let theMain () =
   let usageMsg = "Usage: cilly [options] source-files" in
   (* Processign of output file arguments *)
-  let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
+  let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
     if !E.verboseFlag then
       ignore (Printf.printf "Setting %s to %s\n" what fl);
     (try takeit { fname = fl;
@@ -135,40 +134,40 @@ let theMain () =
 
   (* Load plugins. This needs to be done before command-line arguments are
    * built. *)
-  Feature.loadFromEnv "CIL_FEATURES" ["cil.default-features"];
+  Feature.loadFromEnv "CIL_FEATURES" ["goblint-cil.default-features"];
   Feature.loadFromArgv "--load";
 
 
   (*********** COMMAND LINE ARGUMENTS *****************)
   (* Construct the arguments for the features configured from the Makefile *)
   let blankLine = ("", Arg.Unit (fun _ -> ()), "") in
-  let featureArgs = 
+  let featureArgs =
     List.fold_right
       (fun fdesc acc ->
 	if fdesc.Fe.fd_enabled then
           (* The feature is enabled by default *)
           blankLine ::
-          ("--dont" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- false), 
+          ("--dont" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- false),
            " Disable " ^ fdesc.Fe.fd_description) ::
           fdesc.Fe.fd_extraopt @ acc
 	else
           (* Disabled by default *)
           blankLine ::
-          ("--do" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- true), 
+          ("--do" ^ fdesc.Fe.fd_name, Arg.Unit (fun () -> fdesc.Fe.fd_enabled <- true),
            " Enable " ^ fdesc.Fe.fd_description) ::
           fdesc.Fe.fd_extraopt @ acc
       )
       (Feature.list_registered ())
       [blankLine]
   in
-  let featureArgs = 
+  let featureArgs =
     if Feature.list_registered () = [] then [] else
-    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs 
+    ("", Arg.Unit (fun () -> ()), " \n\t\tCIL Features") :: featureArgs
   in
-    
-  let argDescr = Ciloptions.options @ 
-        [ 
-          "--out", Arg.String (openFile "output" 
+
+  let argDescr = Ciloptions.options @
+        [
+          "--out", Arg.String (openFile "output"
                                  (fun oc -> outChannel := Some oc)),
               " the name of the output CIL file.\n\t\t\t\tThe cilly script sets this for you.";
           "--mergedout", Arg.String (openFile "merged output"
@@ -223,15 +222,15 @@ let theMain () =
     processOneFile one
   end
 ;;
-                                        (* Define a wrapper for main to 
+                                        (* Define a wrapper for main to
                                          * intercept the exit *)
-let failed = ref false 
+let failed = ref false
 
-let cleanup () = 
+let cleanup () =
   if !E.verboseFlag || !Cilutil.printStats then
     Stats.print stderr "Timings:\n";
-  if !E.logChannel != stderr then 
-    close_out (! E.logChannel);  
+  if !E.logChannel != stderr then
+    close_out (! E.logChannel);
   (match ! outChannel with Some c -> close_out c.fchan | _ -> ())
 
 
@@ -251,11 +250,10 @@ let _ = Sys.set_signal Sys.sigsegv (Sys.Signal_handle handleSEGV);
 
 ;;
 
-begin 
-  try 
-    theMain (); 
+begin
+  try
+    theMain ();
   with F.CabsOnly -> (* this is OK *) ()
 end;
 cleanup ();
 exit (if !failed then 1 else 0)
-

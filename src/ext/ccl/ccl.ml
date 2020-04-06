@@ -1,10 +1,10 @@
 (*
  *
- * Copyright (c) 2004, 
+ * Copyright (c) 2004,
  *  Jeremy Condit       <jcondit@cs.berkeley.edu>
  *  George C. Necula    <necula@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -134,13 +134,13 @@ let d_annot () (annot : annot) : doc =
   | AEI s -> dprintf "AEI %s" s
 
 let d_annots () (annots : annot list) : doc =
-  seq (text ", ") (d_annot ()) annots
+  seq ~sep:(text ", ") ~doit:(d_annot ()) ~elements:annots
 
 let d_fact () ((s, a) : fact) : doc =
   dprintf "(%s %a)" s d_annot a
 
 let d_facts () (facts : FactSet.t) : doc =
-  seq (text ", ") (d_fact ()) (FactSet.elements facts)
+  seq ~sep:(text ", ") ~doit:(d_fact ()) ~elements:(FactSet.elements facts)
 
 let d_state () (state : state) : doc =
   d_facts () state.facts
@@ -163,7 +163,7 @@ let d_summary () (sum : summary) : doc =
 class cclPrinterClass = object
   inherit defaultCilPrinterClass as super
 
-  method pAttr (attr : attribute) : doc * bool =
+  method! pAttr (attr : attribute) : doc * bool =
     match attr with
     | Attr ("out", []) -> text "OUT", false
     | Attr ("inout", []) -> text "INOUT", false
@@ -219,7 +219,7 @@ let warning (fmt : ('a, unit, doc, unit) format4) : 'a =
 let showStmtErrors (stmt : stmt) : unit =
   List.iter
     (fun d ->
-       fprint !E.logChannel 1000000 d;
+       fprint !E.logChannel ~width:1000000 d;
        flush !E.logChannel)
     (List.rev (Hashtbl.find_all errorTable stmt.sid))
 
@@ -282,7 +282,7 @@ let getSizeIndex (t : typ) : int =
     match List.hd (filterAttributes "cclmalloc" (typeAttrs t)) with
     | Attr ("cclmalloc", [AInt n]) -> n
     | a -> 0
-  with Failure "hd" ->
+  with Failure _ ->
     0
 
 let listToFactSet (facts : fact list) : FactSet.t =
@@ -734,7 +734,7 @@ class normVisitor = object
 
   val mapping : (string, string) Hashtbl.t ref = ref (Hashtbl.create 1)
 
-  method vtype (t : typ) : typ visitAction =
+  method! vtype (t : typ) : typ visitAction =
     match t with
     | TFun (rtype, args, vararg, attrs) ->
         let oldMapping = !mapping in
@@ -753,7 +753,7 @@ class normVisitor = object
     | _ ->
         DoChildren
 
-  method vattr (attr : attribute) : attribute list visitAction =
+  method! vattr (attr : attribute) : attribute list visitAction =
     match attr with
     | Attr ("count", [ACons (s, [])]) ->
         begin
@@ -777,12 +777,12 @@ class normVisitor2 subst = object
 
   val subst = subst
 
-  method vtype (t : typ) : typ visitAction =
+  method! vtype (t : typ) : typ visitAction =
     match t with
     | TFun _ -> SkipChildren
     | _ -> DoChildren
 
-  method vattr (attr : attribute) : attribute list visitAction =
+  method! vattr (attr : attribute) : attribute list visitAction =
     match attr with
     | Attr (aname, [ACons (s, [])])
           when aname = "count" || aname = "countof" ->
@@ -870,7 +870,7 @@ let summaryToFacts (sum : summary) (state : state) : FactSet.t =
       FactSet.empty
   | SInt i ->
       let annots =
-        (* TODO: refacor the following *)
+        (* TODO: refactor the following *)
         if i = 0 then
           FactSet.fold
             (fun fact rest ->
@@ -1397,7 +1397,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                      let removeNames = ref [] in
                      let inOutSubst = Hashtbl.create 7 in
                      let inFacts, outFacts = getFunctionFacts fnType in
-                     let rec argIter fn : unit =
+                     let argIter fn : unit =
                        let rec argIterRec i formals actuals : unit =
                          match formals, actuals with
                          | fcur :: frest, acur :: arest ->
@@ -1416,14 +1416,14 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                        in
                        argIterRec 1 formals actuals
                      in
-                     let rec showWarnings i (fName, fType, _) aExp : unit =
+                     let showWarnings i (fName, fType, _) aExp : unit =
                        let fFacts = typeToFacts "*" fType in
                        if FactSet.is_empty fFacts && isPointerType fType then
                          ignore (warning ("formal parameter %d of " ^^
                                           "%s has no annotations\n")
                                          i fnName)
                      in
-                     let rec prepFakeVars i (fname, ftype, _) aExp : unit =
+                     let prepFakeVars i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname
@@ -1449,7 +1449,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          doSetNames [fakeName] aFacts
                        end
                      in
-                     let rec checkIn i (fname, ftype, _) aExp : unit =
+                     let checkIn i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname
@@ -1486,7 +1486,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
                          | _ -> ()
                        end
                      in
-                     let rec checkOut i (fname, ftype, _) aExp : unit =
+                     let checkOut i (fname, ftype, _) aExp : unit =
                        let fakeName =
                          if fname <> "" then
                            "@" ^ fname
@@ -1604,7 +1604,7 @@ let analyzeStmt (stmt : stmt) (state : state) : bool =
 class preFunctionVisitor = object
   inherit nopCilVisitor
 
-  method vlval ((host, offset) : lval) =
+  method! vlval ((host, offset) : lval) =
     begin
       match host with
       | Var vi -> addVar vi
@@ -1702,7 +1702,7 @@ let analyzeFundec (fd : fundec) : unit =
         let getBranchStmt (branch : block) : stmt =
           try
             List.hd branch.bstmts
-          with Failure "hd" ->
+          with Failure _ ->
             dummyStmt
         in
         let thenStmt = getBranchStmt thenBranch in
@@ -1784,7 +1784,7 @@ let analyzeFundec (fd : fundec) : unit =
 class preVisitor = object
   inherit nopCilVisitor
 
-  method vinst (inst : instr) =
+  method! vinst (inst : instr) =
     begin
       match inst with
       | Call (ret, fn, args, attrs) ->
@@ -1814,7 +1814,7 @@ class preVisitor = object
           DoChildren
     end
 
-  method vlval ((host, offset) : lval) =
+  method! vlval ((host, offset) : lval) =
     begin
       match host with
       | Var vi -> addVar vi
@@ -1841,7 +1841,7 @@ class outVisitor = object
   val mapping : (string, varinfo) Hashtbl.t = Hashtbl.create 5
   val retStmt : stmt ref = ref dummyStmt
 
-  method vfunc (fd : fundec) =
+  method! vfunc (fd : fundec) =
     let instrs = ref [] in
     let retInstrs = ref [] in
     Hashtbl.clear mapping;
@@ -1870,7 +1870,7 @@ class outVisitor = object
     retStmt := mkStmt (Instr !retInstrs);
     ChangeDoChildrenPost (fd, replace)
 
-  method vstmt (stmt : stmt) =
+  method! vstmt (stmt : stmt) =
     match stmt.skind with
     (*
     TODO
@@ -1883,7 +1883,7 @@ class outVisitor = object
     | _ ->
         DoChildren
 
-  method vinst (inst : instr) =
+  method! vinst (inst : instr) =
     match inst with
     | Call (ret, fn, args, attrs) ->
         let newArgs =
@@ -1899,7 +1899,7 @@ class outVisitor = object
     | _ ->
         DoChildren
 
-  method vlval (lv : lval) =
+  method! vlval (lv : lval) =
     match lv with
     | Mem (Lval (Var vi, NoOffset)), NoOffset
           when Hashtbl.mem mapping vi.vname ->
@@ -1912,7 +1912,7 @@ end
 class ptrArithVisitor = object
   inherit nopCilVisitor
 
-  method vfunc (fd : fundec) =
+  method! vfunc (fd : fundec) =
     prepareCFG fd;
     computeCFGInfo fd false;
     analyzeFundec fd;
@@ -1939,7 +1939,7 @@ let analyzeFile (f : file) : unit =
   if !E.hadErrors then
     E.s (E.error "Verification failed")
 
-let feature = 
+let feature =
   { fd_name = "CCL";
     fd_enabled = false;
     fd_description = "CCured Lite";
@@ -1949,4 +1949,4 @@ let feature =
     ];
     fd_doit = analyzeFile;
     fd_post_check = true;
-  } 
+  }

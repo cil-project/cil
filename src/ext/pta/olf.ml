@@ -64,7 +64,7 @@ module Bound =
 struct
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) =
-    Pervasives.compare (U.deref x.info) (U.deref y.info)
+    Stdlib.compare (U.deref x.info) (U.deref y.info)
 end
 
 module B = S.Make (Bound)
@@ -72,7 +72,7 @@ module B = S.Make (Bound)
 type 'a boundset = 'a B.t
 
 (** Abslocs, which identify elements in points-to sets *)
-(** jk : I'd prefer to make this an 'a absloc and specialize it to
+(* jk : I'd prefer to make this an 'a absloc and specialize it to
     varinfo for use with the Cil frontend, but for now, this will do *)
 type absloc = int * string * Cil.varinfo option
 
@@ -469,7 +469,7 @@ let string_of_tau (t : tau) : string =
     string_of_tau' t
 
 (** Convert an lvalue to a string *)
-let rec string_of_lvalue (lv : lvalue) : string =
+let string_of_lvalue (lv : lvalue) : string =
   let contents = string_of_tau lv.contents
   and l = string_of_c_absloc lv.l
   in
@@ -478,7 +478,7 @@ let rec string_of_lvalue (lv : lvalue) : string =
     Printf.sprintf "[%s]^(%s)" contents l
 
 (** Print a list of tau elements, comma separated *)
-let rec print_tau_list (l : tau list) : unit =
+let print_tau_list (l : tau list) : unit =
   let rec print_t_strings = function
       [] -> ()
     | h :: [] -> print_endline h
@@ -703,7 +703,8 @@ and unify_c_abslocs (l, l' : c_absloc * c_absloc) : unit =
 and merge_v_lbounds (vi, vi' : vinfo * vinfo) : unit =
   vi'.v_lbounds <- B.union vi.v_lbounds vi'.v_lbounds;
 and merge_v_ubounds (vi, vi' : vinfo * vinfo) : unit =
-  vi'.v_ubounds <- B.union vi.v_ubounds vi'.v_ubounds;
+  vi'.v_ubounds <- B.union vi.v_ubounds vi'.v_ubounds
+
 (** Pick the representative info for two tinfo's. This function
     prefers the first argument when both arguments are the same
     structure, but when one type is a structure and the other is a
@@ -760,7 +761,7 @@ and add_constraint_int (c : tconstraint) (toplev : bool) =
     end
   else
     if !debug_constraints then print_constraint c else ();
-  insist (can_add_constraints ()) 
+  insist (can_add_constraints ())
     "can't add constraints after compute_results is called";
   begin
     match c with
@@ -786,6 +787,7 @@ and fetch_constraint () : tconstraint option =
       try Some (Q.take leq_worklist)
       with Q.Empty -> None
     end
+
 (** The main solver loop. *)
 and solve_constraints () : unit =
   match fetch_constraint () with

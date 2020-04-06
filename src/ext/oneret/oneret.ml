@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -35,34 +35,33 @@
  *
  *)
 
-(* Make sure that there is exactly one Return statement in the whole body. 
- * Replace all the other returns with Goto. This is convenient if you later 
- * want to insert some finalizer code, since you have a precise place where 
+(* Make sure that there is exactly one Return statement in the whole body.
+ * Replace all the other returns with Goto. This is convenient if you later
+ * want to insert some finalizer code, since you have a precise place where
  * to put it *)
 open Cil
 open Feature
-open Pretty
 
 module E = Errormsg
 
 let dummyVisitor = new nopCilVisitor
 
-let oneret (f: Cil.fundec) : unit = 
+let oneret (f: Cil.fundec) : unit =
   let fname = f.svar.vname in
   (* Get the return type *)
-  let retTyp = 
+  let retTyp =
     match f.svar.vtype with
       TFun(rt, _, _, _) -> rt
-    | _ -> E.s (E.bug "Function %s does not have a function type\n" 
+    | _ -> E.s (E.bug "Function %s does not have a function type\n"
                   f.svar.vname)
   in
   (* Does it return anything ? *)
   let hasRet = match unrollType retTyp with TVoid _ -> false | _ -> true in
 
   (* Memoize the return result variable. Use only if hasRet *)
-  let lastloc = ref locUnknown in 
+  let lastloc = ref locUnknown in
   let retVar : varinfo option ref = ref None in
-  let getRetVar (x: unit) : varinfo = 
+  let getRetVar (x: unit) : varinfo =
     match !retVar with
       Some rv -> rv
     | None -> begin
@@ -75,10 +74,10 @@ let oneret (f: Cil.fundec) : unit =
   let haveGoto = ref false in
   (* Memoize the return statement *)
   let retStmt : stmt ref = ref dummyStmt in
-  let getRetStmt (x: unit) : stmt = 
+  let getRetStmt (x: unit) : stmt =
     if !retStmt == dummyStmt then begin
       (* Must create a statement *)
-      let rv = 
+      let rv =
         if hasRet then Some (Lval(Var (getRetVar ()), NoOffset)) else None
       in
       let sr = mkStmt (Return (rv, !lastloc)) in
@@ -87,10 +86,10 @@ let oneret (f: Cil.fundec) : unit =
     end else
       !retStmt
   in
-  (* Now scan all the statements. Know if you are the main body of the 
+  (* Now scan all the statements. Know if you are the main body of the
    * function and be prepared to add new statements at the end *)
   let rec scanStmts (mainbody: bool) = function
-    | [] when mainbody -> (* We are at the end of the function. Now it is 
+    | [] when mainbody -> (* We are at the end of the function. Now it is
                            * time to add the return statement *)
         let rs = getRetStmt () in
         if !haveGoto then
@@ -99,27 +98,27 @@ let oneret (f: Cil.fundec) : unit =
 
     | [] -> []
 
-    | [{skind=Return (Some (Lval(Var _,NoOffset)), _)} as s]
+    | [{skind=Return (Some (Lval(Var _,NoOffset)), _); _} as s]
          when mainbody && not !haveGoto
            -> [s]
 
-    | ({skind=Return (retval, l)} as s) :: rests -> 
+    | ({skind=Return (retval, l); _} as s) :: rests ->
         currentLoc := l;
 (*
         ignore (E.log "Fixing return(%a) at %a\n"
                   insert
-                  (match retval with None -> text "None" 
+                  (match retval with None -> text "None"
                   | Some e -> d_exp () e)
                   d_loc l);
 *)
-        if hasRet && retval = None then 
+        if hasRet && retval = None then
           E.s (error "Found return without value in function %s" fname);
-        if not hasRet && retval <> None then 
+        if not hasRet && retval <> None then
           E.s (error "Found return in subroutine %s" fname);
-        (* Keep this statement because it might have labels. But change it to 
+        (* Keep this statement because it might have labels. But change it to
          * an instruction that sets the return value (if any). *)
         s.skind <- begin
-           match retval with 
+           match retval with
              Some rval -> Instr [Set((Var (getRetVar ()), NoOffset), rval, l)]
            | None -> Instr []
         end;
@@ -134,44 +133,44 @@ let oneret (f: Cil.fundec) : unit =
           s :: sg :: (scanStmts mainbody rests)
         end
 
-    | ({skind=If(eb,t,e,l)} as s) :: rests -> 
+    | ({skind=If(eb,t,e,l); _} as s) :: rests ->
         currentLoc := l;
         s.skind <- If(eb, scanBlock false t, scanBlock false e, l);
         s :: scanStmts mainbody rests
-    | ({skind=Loop(b,l,lb1,lb2)} as s) :: rests -> 
+    | ({skind=Loop(b,l,lb1,lb2); _} as s) :: rests ->
         currentLoc := l;
         s.skind <- Loop(scanBlock false b, l,lb1,lb2);
         s :: scanStmts mainbody rests
-    | ({skind=Switch(e, b, cases, l)} as s) :: rests -> 
+    | ({skind=Switch(e, b, cases, l); _} as s) :: rests ->
         currentLoc := l;
         s.skind <- Switch(e, scanBlock false b, cases, l);
         s :: scanStmts mainbody rests
-    | ({skind=Block b} as s) :: rests -> 
+    | ({skind=Block b; _} as s) :: rests ->
         s.skind <- Block (scanBlock false b);
         s :: scanStmts mainbody rests
-    | ({skind=(Goto _ | ComputedGoto _ | Instr _ | Continue _ | Break _ 
-               | TryExcept _ | TryFinally _)} as s)
+    | ({skind=(Goto _ | ComputedGoto _ | Instr _ | Continue _ | Break _
+               | TryExcept _ | TryFinally _); _} as s)
       :: rests -> s :: scanStmts mainbody rests
 
-  and scanBlock (mainbody: bool) (b: block) = 
+  and scanBlock (mainbody: bool) (b: block) =
     { bstmts = scanStmts mainbody b.bstmts; battrs = b.battrs; }
 
   in
   ignore (visitCilBlock dummyVisitor f.sbody) ; (* sets CurrentLoc *)
   lastloc := !currentLoc ;  (* last location in the function *)
   f.sbody <- scanBlock true f.sbody
-        
-      
-let feature = 
+
+
+let feature =
   { fd_name = "oneRet";
     fd_enabled = false;
     fd_description = "make each function have at most one 'return'" ;
     fd_extraopt = [];
-    fd_doit = (function (f: file) -> 
+    fd_doit = (function (f: file) ->
       Cil.iterGlobals f (fun glob -> match glob with
-        Cil.GFun(fd,_) -> oneret fd; 
+        Cil.GFun(fd,_) -> oneret fd;
       | _ -> ()));
     fd_post_check = true;
-  } 
+  }
 
 let () = Feature.register feature

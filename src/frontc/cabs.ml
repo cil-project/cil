@@ -226,7 +226,7 @@ and statement =
           asm_details option * (* extra details to guide GCC's optimizer *)
           cabsloc
 
-   (** MS SEH *)
+   (* MS SEH *)
  | TRY_EXCEPT of block * expression * block * cabsloc
  | TRY_FINALLY of block * block * cabsloc
 

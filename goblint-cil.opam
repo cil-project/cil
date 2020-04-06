@@ -23,6 +23,7 @@ depends: [
   "hevea" {with-doc}
   "dune" {>= "2.3.0"}
   "odoc" {with-doc}
+  "stdlib-shims"
 ]
 conflicts: ["cil"]
 build: [

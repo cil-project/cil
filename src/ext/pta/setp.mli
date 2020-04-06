@@ -1,9 +1,9 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -54,13 +54,14 @@
    are purely applicative (no side-effects).
    The implementation uses balanced binary trees, and is therefore
    reasonably efficient: insertion and membership take time
-   logarithmic in the size of the set, for instance. 
+   logarithmic in the size of the set, for instance.
 *)
 
-module type PolyOrderedType = 
+module type PolyOrderedType =
   sig
     type 'a t
       (** The type of the set elements. *)
+
     val compare :  'a t -> 'a t -> int
       (** A total ordering function over the set elements.
           This is a two-argument function [f] such that
@@ -68,7 +69,7 @@ module type PolyOrderedType =
           [f e1 e2] is strictly negative if [e1] is smaller than [e2],
           and [f e1 e2] is strictly positive if [e1] is greater than [e2].
           Example: a suitable ordering function is
-          the generic structural comparison function {!Pervasives.compare}. *)
+          the generic structural comparison function {!Stdlib.compare}. *)
   end
 (** Input signature of the functor {!Set.Make}. *)
 
@@ -139,7 +140,7 @@ module type S =
     val exists: ('a elt -> bool) -> 'a t -> bool
     (** [exists p s] checks if at least one element of
        the set satisfies the predicate [p]. *)
-        
+
     val filter: ('a elt -> bool) -> 'a t -> 'a t
     (** [filter p s] returns the set of all elements in [s]
        that satisfy predicate [p]. *)

@@ -3,8 +3,6 @@
    others must wait until pretty printing *)
 
 open Cil
-open Pretty
-open Expcompare
 
 module E = Errormsg
 module RD = Reachingdefs
@@ -13,10 +11,10 @@ module UD = Usedef
 module IH = Inthash
 module S = Stats
 
-module IS = 
+module IS =
   Set.Make(struct
     type t = int
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
   end)
 
 let debug = RD.debug
@@ -37,7 +35,7 @@ type nameform = Suffix of string | Prefix of string | Exact of string
    Returns None if, for example, the definition is
    caused by an assembly instruction *)
 (* int -> (rhs * int * IOS.t IH.t) option *)
-let getDefRhs = RD.getDefRhs 
+let getDefRhs = RD.getDefRhs
     RD.ReachingDef.defIdStmtHash
     RD.ReachingDef.stmtStartData
 
@@ -49,20 +47,20 @@ let exp_ok = ref true
 class memReadOrAddrOfFinderClass = object(self)
   inherit nopCilVisitor
 
-  method vexpr e = match e with
-    Lval(Mem _, _) -> 
+  method! vexpr e = match e with
+    Lval(Mem _, _) ->
       exp_ok := false;
       SkipChildren
   | _ -> DoChildren
 
-  method vvrbl vi =
+  method! vvrbl vi =
     if vi.vglob then
       (if !debug then ignore(E.log "memReadOrAddrOfFinder: %s is a global\n"
 			       vi.vname);
        exp_ok := false;
        SkipChildren)
     else if vi.vaddrof then
-      (if !debug then 
+      (if !debug then
          ignore(E.log "memReadOrAddrOfFinder: %s has its address taken\n"
 		  vi.vname);
        exp_ok := false;
@@ -88,8 +86,8 @@ let fsr = ref emptyStmt
 class stmtFinderClass sid = object(self)
   inherit nopCilVisitor
 
-  method vstmt stm =
-    if stm.sid = sid 
+  method! vstmt stm =
+    if stm.sid = sid
     then (fsr := stm; SkipChildren)
     else DoChildren
 
@@ -126,19 +124,19 @@ let writes_between f dsid sid =
        if !debug && wh then ignore(E.log "writes_between: start=goal and write here\n");
        if !debug && (not wh) then ignore(E.log "writes_between: start=goal and no write here\n");
        b || (find_write start))
-    else 
+    else
     (* if time "List.mem1" (List.mem start.sid) (!visited_sid_lr) then false else *)
     if IS.mem start.sid (!visited_sid_isr) then false else
     let w = find_write start in
     if !debug && w then ignore(E.log "writes_between: found write %a\n" d_stmt start);
     visited_sid_isr := IS.add start.sid (!visited_sid_isr);
-    let rec proc_succs sl = match sl with [] -> false 
+    let rec proc_succs sl = match sl with [] -> false
     | s::rest -> if dfs goal (w || b) s then true else proc_succs rest
     in
     proc_succs start.succs
   in
   match stmo, dstmo with
-    None, _ | _, None -> 
+    None, _ | _, None ->
       E.s (E.error "writes_between: defining stmt not an instr")
   | Some stm, Some dstm ->
       let _ = visited_sid_isr := IS.singleton stm.sid in
@@ -157,24 +155,24 @@ let verify_unmodified uses fdefs curiosh defiosh =
     let curido = RD.iosh_singleton_lookup curiosh vi in
     let defido = RD.iosh_singleton_lookup defiosh vi in
     match curido, defido with
-      Some(curid), Some(defid) -> 
+      Some(curid), Some(defid) ->
 	(if !debug then ignore (E.log "verify_unmodified: curido: %d defido: %d\n" curid defid);
 	 curid = defid && b)
-    | None, None -> 
+    | None, None ->
 	if not(UD.VS.mem vi fdefs) then
 	  (if !debug then ignore (E.log "verify_unmodified: %s not defined in function\n" vi.vname);
 	   b)
 	else (* if the same set of definitions reaches, we can replace, also *)
 	  let curios = try IH.find curiosh vi.vid
 	  with Not_found -> RD.IOS.empty in
-	  let defios = try IH.find defiosh vi.vid 
+	  let defios = try IH.find defiosh vi.vid
 	  with Not_found -> RD.IOS.empty in
 	  RD.IOS.compare curios defios == 0 && b
     | _, _ ->
-	(if !debug then ignore (E.log "verify_unmodified: %s has conflicting definitions. cur: %a\n def: %a\n" 
-				  vi.vname RD.ReachingDef.pretty ((),0,curiosh) 
+	(if !debug then ignore (E.log "verify_unmodified: %s has conflicting definitions. cur: %a\n def: %a\n"
+				  vi.vname RD.ReachingDef.pretty ((),0,curiosh)
 				  RD.ReachingDef.pretty ((),0,defiosh));
-	 false)) 
+	 false))
     uses true
 
 let fdefs = ref UD.VS.empty
@@ -182,9 +180,9 @@ let udDeepSkindHtbl = IH.create 64
 class defCollectorClass = object(self)
   inherit nopCilVisitor
 
-  method vstmt s =
+  method! vstmt s =
     let _,d = if IH.mem udDeepSkindHtbl s.sid
-    then IH.find udDeepSkindHtbl s.sid 
+    then IH.find udDeepSkindHtbl s.sid
     else let u',d' = UD.computeDeepUseDefStmtKind s.skind in
     IH.add udDeepSkindHtbl s.sid (u',d');
     (u',d') in
@@ -238,7 +236,7 @@ let ok_to_replace vi curiosh sid defiosh dsid f r =
   if (not safe || target_addrof) && writes
   then
     (if !debug then ignore (E.log "ok_to_replace: replacement not safe because of pointers or addrOf\n");
-     false) 
+     false)
   else let fdefs = collect_fun_defs f in
   let _ = if !debug then ignore (E.log "ok_to_replace: card fdefs = %d\n" (UD.VS.cardinal fdefs)) in
   let _ = if !debug then ignore (E.log "ok_to_replace: card uses = %d\n" (UD.VS.cardinal uses)) in
@@ -249,7 +247,7 @@ let useList = ref []
 class useListerClass (defid:int) (vi:varinfo) = object(self)
     inherit RD.rdVisitorClass
 
-  method vexpr e =
+  method! vexpr e =
     match e with
     | Lval(Var vi', off) -> begin
 	match self#get_cur_iosh() with
@@ -267,7 +265,7 @@ end
 
 (* ok_to_replace_with_incdec *)
 (* Find out if it is alright to replace the use of a variable
-   with a post-incrememnt/decrement of the variable it is assigned to be *)
+   with a post-increment/decrement of the variable it is assigned to be *)
 (* Takes the definitions reaching the variable use, the definitions
    reaching the place where the variable was defined, the fundec,
    the varinfo for the variable being considered and the right
@@ -275,7 +273,7 @@ end
 let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 
   (* number of uses of vi where definition id reaches *)
-  let num_uses () = 
+  let num_uses () =
     let _ = useList := [] in
     let ulc = new useListerClass id vi in
     let _ = visitCilFunction (ulc :> cilVisitor) f in
@@ -288,9 +286,9 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
      and None otherwise *)
   let inc_or_dec e vi =
     match e with
-      BinOp((PlusA|PlusPI|IndexPI), Lval(Var vi', NoOffset), 
+      BinOp((PlusA|PlusPI|IndexPI), Lval(Var vi', NoOffset),
 	    Const(CInt64(one,_,_)),_) ->
-	      if vi.vid = vi'.vid && one = Int64.one 
+	      if vi.vid = vi'.vid && one = Int64.one
 	      then Some(PlusA)
 	      else if vi.vid = vi'.vid && one = Int64.minus_one
 	      then Some(MinusA)
@@ -309,7 +307,7 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
       let defido = RD.iosh_singleton_lookup defiosh rhsvi in
       (match  curido, defido with
 	Some(curid), _ ->
-	  let defios = try IH.find defiosh rhsvi.vid 
+	  let defios = try IH.find defiosh rhsvi.vid
 	  with Not_found -> RD.IOS.empty in
 	  let redefrhso = getDefRhs curid in
 	  (match redefrhso with
@@ -324,7 +322,7 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 		  if not (tmprdid = id) then
 		    (if !debug then ignore (E.log "ok_to_replace: initial def of %s doesn't reach redef of %s\n" vi.vname rhsvi.vname);
 		     None)
-		  else let redefios = try IH.find redefiosh rhsvi.vid 
+		  else let redefios = try IH.find redefiosh rhsvi.vid
 		  with Not_found -> RD.IOS.empty in
 		  let curdef_stmt = try IH.find RD.ReachingDef.defIdStmtHash curid
 		  with Not_found -> E.s (E.error "ok_to_replace: couldn't find statement defining %d" curid) in
@@ -336,12 +334,12 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
 		    (match redefrhs with
 		      RD.RDExp(e) -> (match inc_or_dec e rhsvi with
 			Some(PlusA) ->
-			  if num_uses () = 1 then 
+			  if num_uses () = 1 then
 			    Some(curdef_stmt.sid, curid, rhsvi, PlusA)
 			  else (if !debug then ignore (E.log "ok_to_replace: tmp used more than once\n");
 				None)
 		      | Some(MinusA) ->
-			  if num_uses () = 1 then 
+			  if num_uses () = 1 then
 			    Some(curdef_stmt.sid, curid, rhsvi, MinusA)
 			  else (if !debug then ignore (E.log "ok_to_replace: tmp used more than once\n");
 				None)
@@ -402,11 +400,11 @@ let check_form s f =
 	String.length s = frmlen &&
 	compare s ext = 0
 
-(* check a name against a list of forms 
+(* check a name against a list of forms
    if it matches any then return true *)
 (* string -> nameform list -> bool *)
 let check_forms s fl =
-  List.fold_left (fun b f -> b || check_form s f) 
+  List.fold_left (fun b f -> b || check_form s f)
     false fl
 
 let forms = [Exact "tmp";
@@ -425,11 +423,11 @@ let forms = [Exact "tmp";
 let varXformClass action data sid fd nofrm = object(self)
     inherit nopCilVisitor
 
-  method vexpr e = match e with
+  method! vexpr e = match e with
     Lval(Var vi, NoOffset) ->
       (match action data sid vi fd nofrm with
 	None -> DoChildren
-      | Some e' -> 
+      | Some e' ->
           (* Cast e' to the correct type. *)
           let e'' = mkCast ~e:e' ~newt:vi.vtype in
           ChangeTo e'')
@@ -454,7 +452,7 @@ end
 let lvalXformClass action data sid fd nofrm = object(self)
   inherit nopCilVisitor
 
-  method vexpr e =
+  method! vexpr e =
     let castrm e = e
       (*stripCastsForPtrArith e*)
     in
@@ -463,7 +461,7 @@ let lvalXformClass action data sid fd nofrm = object(self)
 	match action data sid lv fd nofrm with
 	| None ->
 	    (* don't substitute constants in memory lvals *)
-	    let post e = 
+	    let post e =
 	      match e with
 	      | Lval(Mem(Const _),off') -> Lval(Mem e', off')
 	      | _ -> castrm e
@@ -472,7 +470,7 @@ let lvalXformClass action data sid fd nofrm = object(self)
 	| Some e' ->
 	    let e'' = mkCast ~e:e' ~newt:(typeOf(Lval lv)) in
 	    ChangeDoChildrenPost(e'', castrm)
-    end 
+    end
     | Lval lv -> begin
 	match action data sid lv fd nofrm with
 	| None -> DoChildren
@@ -500,13 +498,13 @@ let iosh_get_useful_def iosh vi =
 	    not(vi.vid = vi'.vid) (* false if they are the same *)
 	| _ -> true) ios
     in
-    if not(RD.IOS.cardinal ios' = 1) 
-    then (if !debug then ignore(E.log "iosh_get_useful_def: multiple different defs of %d:%s(%d)\n" 
+    if not(RD.IOS.cardinal ios' = 1)
+    then (if !debug then ignore(E.log "iosh_get_useful_def: multiple different defs of %d:%s(%d)\n"
 				  vi.vid vi.vname (RD.IOS.cardinal ios'));
 	  None)
     else RD.IOS.choose ios'
   else (if !debug then ignore(E.log "iosh_get_useful_def: no def of %s reaches here\n" vi.vname);
-	None)  
+	None)
 
 let ae_tmp_to_exp_change = ref false
 let ae_tmp_to_exp eh sid vi fd nofrm =
@@ -520,7 +518,7 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
     | Const(CWStr _) -> None (* don't fwd subst str lits *)
     | _ -> begin
 	ae_tmp_to_exp_change := true;
-	Some e 
+	Some e
     end
   end
   with Not_found -> None
@@ -529,7 +527,7 @@ let ae_tmp_to_exp eh sid vi fd nofrm =
 let ae_lval_to_exp_change = ref false
 let ae_lval_to_exp ?(propStrings:bool = false) lvh sid lv fd nofrm =
   match lv, nofrm with
-  | (Var vi, NoOffset), false -> 
+  | (Var vi, NoOffset), false ->
       (* If the var is not a temp, then don't replace *)
       if check_forms vi.vname forms then begin
 	try
@@ -572,18 +570,18 @@ let ae_lval_to_exp ?(propStrings:bool = false) lvh sid lv fd nofrm =
 (* IOS.t IH.t -> sid -> varinfo -> fundec -> bool -> exp option *)
 let rd_tmp_to_exp_change = ref false
 let rd_tmp_to_exp iosh sid vi fd nofrm =
-  if nofrm || (check_forms vi.vname forms) 
-  then let ido = iosh_get_useful_def iosh vi in 
-  match ido with None -> 
+  if nofrm || (check_forms vi.vname forms)
+  then let ido = iosh_get_useful_def iosh vi in
+  match ido with None ->
     if !debug then ignore(E.log "tmp_to_exp: non-single def: %s\n" vi.vname);
     None
   | Some(id) -> let defrhs = time "getDefRhs" getDefRhs id in
-    match defrhs with None -> 
+    match defrhs with None ->
       if !debug then ignore(E.log "tmp_to_exp: no def of %s\n" vi.vname);
       None
     | Some(RD.RDExp(e) as r, dsid , defiosh) ->
 	if time "ok_to_replace" (ok_to_replace vi iosh sid defiosh dsid fd) r
-	then 
+	then
 	  (if !debug then ignore(E.log "tmp_to_exp: changing %s to %a\n" vi.vname d_plainexp e);
 	   match e with
 	   | Const(CStr _)
@@ -592,13 +590,13 @@ let rd_tmp_to_exp iosh sid vi fd nofrm =
 	       rd_tmp_to_exp_change := true;
 	       Some e
 	   end)
-	else 
+	else
 	  (if !debug then ignore(E.log "tmp_to_exp: not ok to replace %s\n" vi.vname);
 	   None)
-    | _ -> 
+    | _ ->
 	if !debug then ignore(E.log "tmp_to_exp: rhs is call %s\n" vi.vname);
 	None
-  else 
+  else
     (if !debug then ignore(E.log "tmp_to_exp: %s didn't match form or nofrm\n" vi.vname);
      None)
 
@@ -615,7 +613,7 @@ let ae_fwd_subst data sid e fd nofrm =
 let ae_lv_fwd_subst ?(propStrings:bool = false) data sid e fd nofrm =
   ae_lval_to_exp_change := false;
   let e' = visitCilExpr (lvalXformClass (ae_lval_to_exp ~propStrings:propStrings)
-			   data sid fd nofrm) e 
+			   data sid fd nofrm) e
   in
   (e', !ae_lval_to_exp_change)
 
@@ -645,7 +643,7 @@ let tmp_to_const iosh sid vi fd nofrm =
     match RD.iosh_lookup iosh vi with
       None -> None
     | Some(ios) ->
-        let defido = 
+        let defido =
 	  try RD.IOS.choose ios
 	  with Not_found -> None in
 	match defido with None -> None | Some defid ->
@@ -663,11 +661,11 @@ let tmp_to_const iosh sid vi fd nofrm =
 			  if Util.equals c c' then
 			    match RD.getDefIdStmt defid with
 			      None -> E.s (E.error "tmp_to_const: defid has no statement")
-			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c')) 
+			    | Some(stm) -> ok_to_replace vi iosh sid defiosh stm.sid fd (RD.RDExp(Const c'))
 			  else false
 		      | _ -> false) ios
 		  in
-		  if same 
+		  if same
 		  then (tmp_to_const_change := true; Some(Const c))
 		  else None
 	      else None)
@@ -687,7 +685,7 @@ let ae_const_prop eh sid e fd nofrm =
 class expTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
 
-  method vexpr e =
+  method! vexpr e =
 
     let do_change iosh vi =
       let ido = RD.iosh_singleton_lookup iosh vi in
@@ -698,7 +696,7 @@ class expTempElimClass (fd:fundec) = object (self)
 	    Some(RD.RDExp(e) as r, dsid, defiosh) ->
 	      if !debug then ignore(E.log "Can I replace %s with %a?\n" vi.vname d_exp e);
 	      if ok_to_replace vi iosh sid defiosh dsid fd r
-	      then 
+	      then
 		(if !debug then ignore(E.log "Yes.\n");
 		 ChangeTo(e))
 	      else (if !debug then ignore(E.log "No.\n");
@@ -715,10 +713,10 @@ class expTempElimClass (fd:fundec) = object (self)
 	    Some(_,s,iosh) -> do_change iosh vi
 	  | None -> let iviho = RD.getRDs sid in
 	    match iviho with
-	      Some(_,s,iosh) -> 
+	      Some(_,s,iosh) ->
 		(if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
 		 do_change iosh vi)
-	    | None -> 
+	    | None ->
 		(if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
 		 DoChildren))
 	else DoChildren)
@@ -729,7 +727,7 @@ end
 class expLvTmpElimClass (fd : fundec) = object(self)
   inherit AELV.aeVisitorClass
 
-  method vexpr e =
+  method! vexpr e =
     match self#get_cur_eh () with
     | None -> DoChildren
     | Some eh -> begin
@@ -742,7 +740,7 @@ end
 class incdecTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
 
-  method vexpr e =
+  method! vexpr e =
 
     let do_change iosh vi =
       let ido = RD.iosh_singleton_lookup iosh vi in
@@ -774,10 +772,10 @@ class incdecTempElimClass (fd:fundec) = object (self)
 	    Some(_,s,iosh) -> do_change iosh vi
 	  | None -> let iviho = RD.getRDs sid in
 	    match iviho with
-	      Some(_,s,iosh) -> 
+	      Some(_,s,iosh) ->
 		(if !debug then ignore (E.log "Try to change %s outside of instruction.\n" vi.vname);
 		 do_change iosh vi)
-	    | None -> 
+	    | None ->
 		(if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
 		 DoChildren))
 	else DoChildren)
@@ -788,7 +786,7 @@ end
 class callTempElimClass (fd:fundec) = object (self)
   inherit RD.rdVisitorClass
 
-  method vexpr e =
+  method! vexpr e =
 
     let do_change iosh vi =
       let ido = RD.iosh_singleton_lookup iosh vi in
@@ -819,10 +817,10 @@ class callTempElimClass (fd:fundec) = object (self)
 	      Some(_,s,iosh) -> do_change iosh vi
 	    | None -> let iviho = RD.getRDs sid in
 	      match iviho with
-		Some(_,s,iosh) -> 
+		Some(_,s,iosh) ->
 		  (if !debug then ignore (E.log "Try to change %s:%d outside of instruction.\n" vi.vname vi.vid);
 		   do_change iosh vi)
-	      | None -> 
+	      | None ->
 		  (if !debug then ignore (E.log "%s in statement w/o RD info\n" vi.vname);
 		   DoChildren))
 	  else DoChildren)
@@ -832,14 +830,14 @@ class callTempElimClass (fd:fundec) = object (self)
        unless they are found and the replacement prevented.
        It will be possible to replace more temps if dead
        code elimination is performed before printing. *)
-  method vinst i = 
+  method! vinst i =
     (* Need to copy this from rdVisitorClass because we are overriding *)
-    if !debug then ignore(E.log "rdVis: before %a, rd_dat_lst is %d long\n" 
+    if !debug then ignore(E.log "rdVis: before %a, rd_dat_lst is %d long\n"
 			    d_instr i (List.length rd_dat_lst));
     (try
       cur_rd_dat <- Some(List.hd rd_dat_lst);
       rd_dat_lst <- List.tl rd_dat_lst
-    with Failure "hd" -> 
+    with Failure _ ->
       if !debug then ignore(E.log "rdVis: il rd_dat_lst mismatch\n"));
     match i with
       Set((Var vi,off),_,_) ->
@@ -870,14 +868,14 @@ let rm_unused_locals fd =
 (* see if a vi is volatile *)
 let is_volatile vi =
   let vi_vol =
-    List.exists (function (Attr("volatile",_)) -> true 
+    List.exists (function (Attr("volatile",_)) -> true
       | _ -> false) vi.vattr in
   let typ_vol =
-    List.exists (function (Attr("volatile",_)) -> true 
+    List.exists (function (Attr("volatile",_)) -> true
       | _ -> false) (typeAttrs vi.vtype) in
-  if !debug && (vi_vol || typ_vol) then 
+  if !debug && (vi_vol || typ_vol) then
     ignore(E.log "unusedRemover: %s is volatile\n" vi.vname);
-  if !debug && not(vi_vol || typ_vol) then 
+  if !debug && not(vi_vol || typ_vol) then
     ignore(E.log "unusedRemover: %s is not volatile\n" vi.vname);
   vi_vol || typ_vol
 
@@ -893,7 +891,7 @@ class unusedRemoverClass : cilVisitor = object(self)
   val mutable cur_func = dummyFunDec
 
       (* figure out which locals aren't used *)
-  method vfunc f =	
+  method! vfunc f =
     cur_func <- f;
     (* the set of used variables *)
     let used = List.fold_left (fun u s ->
@@ -907,7 +905,7 @@ class unusedRemoverClass : cilVisitor = object(self)
       then un
       else (if !debug then ignore (E.log "unusedRemoverClass: %s is unused\n" vi.vname);
 	UD.VS.add vi un)) UD.VS.empty f.slocals in
-    
+
     (* a filter function for picking out
        the local variables that need to be kept *)
     let good_var vi =
@@ -926,7 +924,7 @@ class unusedRemoverClass : cilVisitor = object(self)
   (* remove instructions that set variables
      that aren't used. Also remove instructions
      that set variables mentioned in iioh *)
-  method vstmt stm =
+  method! vstmt stm =
 
     (* return the list of pairs with fst = f *)
     let findf_in_pl f pl =
@@ -950,7 +948,7 @@ class unusedRemoverClass : cilVisitor = object(self)
 	      (match rhs with
 		RD.RDCall _ -> (if !debug then ignore (E.log "check_incdec: rhs not an expression\n");
 				false)
-	      | RD.RDExp e' -> 
+	      | RD.RDExp e' ->
 		  if Util.equals e e' then true
 		  else (if !debug then ignore (E.log "check_incdec: rhs of %d: %a, and needed redef %a not equal\n"
 						 redefid d_plainexp e' d_plainexp e);
@@ -966,13 +964,13 @@ class unusedRemoverClass : cilVisitor = object(self)
        pretty printed as a function call *)
     let will_be_call e =
       match e with
-	Lval(Var vi,NoOffset) -> 
+	Lval(Var vi,NoOffset) ->
 	  if not(IH.mem iioh vi.vid) then false
 	  else (match IH.find iioh vi.vid with
 	    None -> false | Some _ -> true)
       | _ -> false
     in
-    
+
     (* a filter function for picking out
        the instructions that we want to keep *)
     (* instr -> bool *)
@@ -1035,16 +1033,16 @@ end
 (* Lifts child blocks into parents if the block has no attributes or labels *)
 let rec fold_blocks b =
     b.bstmts <- List.fold_right
-	(fun s acc -> 
+	(fun s acc ->
 	  match s.skind with
-	    Block ib -> 
+	    Block ib ->
 	      fold_blocks ib;
-	      if (List.length ib.battrs = 0 && 
+	      if (List.length ib.battrs = 0 &&
 		  List.length s.labels = 0) then
 		ib.bstmts @ acc
 	      else
 		s::acc
-	  | Instr il when il = [] && s.labels = [] -> 
+	  | Instr il when il = [] && s.labels = [] ->
 	      acc
 	  | _ -> s::acc)
 	b.bstmts
@@ -1052,13 +1050,13 @@ let rec fold_blocks b =
 
 class removeBrackets = object (self)
   inherit nopCilVisitor
-  method vblock b =
+  method! vblock b =
     fold_blocks b;
     DoChildren
 end
 
 (* clean up the code and
-   eliminate some temporaries 
+   eliminate some temporaries
    for pretty printing a whole function *)
 (* Cil.fundec -> Cil.fundec *)
 let eliminate_temps f =
@@ -1080,9 +1078,9 @@ let eliminate_temps f =
   let f' = visitCilFunction (new unusedRemoverClass) f' in
   f'
 
-(* same as above, but doesn't remove the 
+(* same as above, but doesn't remove the
    obviated instructions and declarations.
-   Use this before using zrapp to print 
+   Use this before using zrapp to print
    expressions without temps *)
 let eliminateTempsForExpPrinting f =
   Cfg.clearCFGinfo f;

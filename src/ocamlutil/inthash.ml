@@ -23,7 +23,7 @@ let copy h =
   { size = h.size;
     data = Array.copy h.data }
 
-let copy_into src dest = 
+let copy_into src dest =
   dest.size <- src.size;
   dest.data <- Array.copy src.data
 
@@ -34,7 +34,7 @@ let resize tbl =
   let osize = Array.length odata in
   let nsize = min (2 * osize + 1) Sys.max_array_length in
   if nsize <> osize then begin
-    let ndata = Array.create nsize Empty in
+    let ndata = Array.make nsize Empty in
     let rec insert_bucket = function
         Empty -> ()
       | Cons(key, data, rest) ->
@@ -71,7 +71,7 @@ let remove_all h key =
         Empty
     | Cons(k, i, next) ->
         if k = key
-        then begin h.size <- pred h.size; 
+        then begin h.size <- pred h.size;
 	  remove_bucket next end
         else Cons(k, i, remove_bucket next) in
   let i = (hash key) mod (Array.length h.data) in
@@ -160,7 +160,7 @@ let fold (f: int -> 'a -> 'b -> 'b) (h: 'a t) (init: 'b) =
   !accu
 
 
-let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a = 
+let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a =
   let i = (hash key) mod (Array.length h.data) in
   let rec find_rec key = function
       Empty -> addit ()
@@ -175,10 +175,10 @@ let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a =
         | Cons(k2, d2, rest2) ->
             if key = k2 then d2 else
             match rest2 with
-              Empty -> addit () 
+              Empty -> addit ()
             | Cons(k3, d3, rest3) ->
                 if key = k3 then d3 else find_rec key rest3
-  and addit () = 
+  and addit () =
     let it = f key in
     h.data.(i) <- Cons(key, it, h.data.(i));
     h.size <- succ h.size;
@@ -186,7 +186,7 @@ let memoize (h: 'a t) (key: int) (f: int -> 'a) : 'a =
     it
   in
   find_in_bucket key h.data.(i)
-                  
-  
-let tolist (h: 'a t) : (int * 'a) list = 
+
+
+let tolist (h: 'a t) : (int * 'a) list =
   fold (fun k d acc -> (k, d) :: acc) h []
