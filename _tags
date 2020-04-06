@@ -1,5 +1,5 @@
 # Traverse only subdirectories containing source code
-true: -traverse, package(zarith)
+true: -traverse, package(zarith), package(stdlib-shims)
 <src>: include
 # build every cmo in debug mode (for cil.cma)
 <**/*.cmo>: debug

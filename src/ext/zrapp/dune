@@ -2,5 +2,5 @@
   (public_name goblint-cil.zrapp)
   (name zrapp)
   (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
-  (libraries goblint-cil goblint-cil.liveness)
+  (libraries goblint-cil goblint-cil.liveness stdlib-shims)
 )
