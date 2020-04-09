@@ -137,9 +137,9 @@ begin
 end
 
 
-(* class to describe how to modify the tree for subtitution *)
+(* class to describe how to modify the tree for substitution *)
 class substitutor (bindings : binding list) = object(self)
-  inherit nopCabsVisitor as super
+  inherit nopCabsVisitor
 
   (* look in the binding list for a given name *)
   method findBinding (name : string) : binding =
@@ -389,7 +389,7 @@ begin
 
         (* recursively invoke myself to try additional patches *)
         (* since visitCabsDefinition might return a list, I'll try my *)
-        (* addtional patches on every yielded definition, then collapse *)
+        (* additional patches on every yielded definition, then collapse *)
         (* all of them into a single list *)
         (List.flatten (Util.list_map (fun d -> (patchDefn rest d)) dList))
       )
@@ -469,7 +469,7 @@ begin
   | SpecType(tspec1), SpecType(tspec2) ->
       (unifyTypeSpecifier tspec1 tspec2)
   | SpecPattern(name), _ ->
-      (* record that future occurrances of @specifier(name) will yield this specifier *)
+      (* record that future occurrences of @specifier(name) will yield this specifier *)
       if verbose then
         (trace "patchDebug" (dprintf "found specifier match for %s\n" name));
       [BSpecifier(name, [tgt])]

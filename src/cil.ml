@@ -4736,7 +4736,7 @@ class plainCilPrinterClass =
   let donecomps : (int, unit) H.t = H.create 13 in
   object (self)
 
-  inherit defaultCilPrinterClass as super
+  inherit defaultCilPrinterClass
 
   (*** PLAIN TYPES ***)
   method! pType (dn: doc option) () (t: typ) =

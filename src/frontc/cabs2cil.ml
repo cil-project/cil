@@ -4348,7 +4348,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                     (* the first pointer to a function determines how many arguments all functions take *)
                     let numArgs = List.length (argsToList args) in
                     if numArgs = 0 then
-                      ignore (warn "EINS Invalid call to %s" fv.vname)
+                      ignore (warn "Invalid call to %s" fv.vname)
                     else
                       let rec lastn n list acc =
                         if n = 0 then
@@ -6802,7 +6802,7 @@ let rec stripParenLocal e = match e with
   | _ -> e
 
 class stripParenClass : V.cabsVisitor = object (self)
-  inherit V.nopCabsVisitor as super
+  inherit V.nopCabsVisitor
 
   method! vexpr e = match e with
   | A.PAREN e2 ->
