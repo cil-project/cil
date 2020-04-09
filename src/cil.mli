@@ -764,7 +764,6 @@ AddrOf (Mem a, NoOffset)        = a
  v}
 
 *)
-(** An lvalue *)
 and lval =
     lhost * offset
 
@@ -809,8 +808,9 @@ and offset =
  * turned into assignments). The initializers are represented as type
  * {!Cil.init}. You can create initializers with {!Cil.makeZeroInit} and you
  * can conveniently scan compound initializers them with
- * {!Cil.foldLeftCompound}. *)
-(** Initializers for global variables. *)
+ * {!Cil.foldLeftCompound}.
+ *
+ * Initializers for global variables. *)
 and init =
   | SingleInit   of exp   (** A single initializer *)
   | CompoundInit   of typ * (offset * init) list
@@ -848,7 +848,6 @@ with the formals that appear in the function type. For that reason, to
 manipulate formals you should use the provided functions
 {!Cil.makeFormalVar} and {!Cil.setFormals} and {!Cil.makeFormalVar}.
 *)
-(** Function definitions. *)
 and fundec =
     { mutable svar:     varinfo;
          (** Holds the name and type as a variable, so we can refer to it
@@ -908,9 +907,7 @@ and [preds] fields can be used to maintain a list of successors and
 predecessors for every statement. The CFG information is not computed by
 default. Instead you must explicitly use the functions
 {!Cil.prepareCFG} and {!Cil.computeCFGInfo} to do it.
-
-*)
-(** Statements. *)
+ *)
 and stmt = {
     mutable labels: label list;
     (** Whether the statement starts with some labels, case statements or
@@ -997,11 +994,12 @@ and stmtkind =
     (** Just a block of statements. Use it as a way to keep some block
      * attributes local *)
 
+  | TryFinally of block * block * location
     (** On MSVC we support structured exception handling. This is what you
      * might expect. Control can get into the finally block either from the
      * end of the body block, or if an exception is thrown. *)
-  | TryFinally of block * block * location
 
+  | TryExcept of block * (instr list * exp) * block * location
     (** On MSVC we support structured exception handling. The try/except
      * statement is a bit tricky:
          [__try { blk }
@@ -1017,8 +1015,6 @@ and stmtkind =
          goes to the handler, propagates the exception, or retries the
          exception !!!
      *)
-  | TryExcept of block * (instr list * exp) * block * location
-
 
 (** {b Instructions}.
  An instruction {!Cil.instr} is a statement that has no local

@@ -431,8 +431,7 @@ and varinfo = {
 
     mutable vglob: bool;	        (** True if this is a global variable*)
 
-    (** Whether this varinfo is for an inline function. *)
-    mutable vinline: bool;
+    mutable vinline: bool;        (** Whether this varinfo is for an inline function. *)
 
     mutable vdecl: location;            (** Location of variable declaration *)
 
@@ -483,11 +482,11 @@ and varinfo = {
 
 (** Storage-class information *)
 and storage =
-    NoStorage |                         (** The default storage. Nothing is
+    NoStorage                         (** The default storage. Nothing is
                                          * printed  *)
-    Static |
-    Register |
-    Extern
+    | Static
+    | Register
+    | Extern
 
 
 (** Expressions (Side-effect free)*)
@@ -799,12 +798,12 @@ and stmtkind =
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
                                             local *)
+  | TryFinally of block * block * location
     (** On MSVC we support structured exception handling. This is what you
      * might expect. Control can get into the finally block either from the
      * end of the body block, or if an exception is thrown. The location
      * corresponds to the try keyword. *)
-  | TryFinally of block * block * location
-
+  | TryExcept of block * (instr list * exp) * block * location
     (** On MSVC we support structured exception handling. The try/except
      * statement is a bit tricky:
          __try { blk }
@@ -820,8 +819,6 @@ and stmtkind =
          goes to the handler, propagates the exception, or retries the
          exception !!! The location corresponds to the try keyword.
      *)
-  | TryExcept of block * (instr list * exp) * block * location
-
 
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
@@ -1616,9 +1613,9 @@ let typeOfRealAndImagComponents t =
   | TInt _ -> t
   | TFloat (fkind, attrs) ->
     let newfkind = function
-      | FFloat -> FFloat      (** [float] *)
-      | FDouble -> FDouble     (** [double] *)
-      | FLongDouble -> FLongDouble (** [long double] *)
+      | FFloat -> FFloat      (* [float] *)
+      | FDouble -> FDouble     (* [double] *)
+      | FLongDouble -> FLongDouble (* [long double] *)
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
@@ -1734,7 +1731,7 @@ let d_const () c =
   match c with
     CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
   | CInt64(i, ik, None) ->
-      (** We must make sure to capture the type of the constant. For some
+      (* We must make sure to capture the type of the constant. For some
        * constants this is done with a suffix, for others with a cast prefix.*)
       let suffix : string =
         match ik with
@@ -2792,8 +2789,8 @@ let isArrayType t =
     TArray _ -> true
   | _ -> false
 
-(** 6.3.2.3 subsection 3 *)
-(** An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
+(** 6.3.2.3 subsection 3
+ *  An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
 let isNullPtrConstant = function
   | CastE(TPtr(TVoid _,_), e) -> isZero @@ constFold true e
   | e -> isZero @@ constFold true e
@@ -3168,7 +3165,7 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_ia32_unpcklps" (v4sfType, [v4sfType; v4sfType], false);
   H.add h "__builtin_ia32_maxps" (v4sfType, [v4sfType; v4sfType], false);
 
-  (** tgmath in newer versions of GCC *)
+  (* tgmath in newer versions of GCC *)
   H.add h "__builtin_tgmath" (TVoid[Attr("overloaded",[])], [ ], true);
 
   (* Atomic Builtins
@@ -3283,7 +3280,7 @@ let initMsvcBuiltins () : unit =
   if H.length builtinFunctions <> 0 then
     E.s (bug "builtins already initialized.");
   let h = builtinFunctions in
-  (** Take a number of wide string literals *)
+  (* Take a number of wide string literals *)
   H.add h "__annotation" (voidType, [ ], true);
   ()
 
@@ -7094,7 +7091,7 @@ let pushGlobal (g: global)
           GType (_, l) | GCompTag (_, l) -> Some (getVarsInGlobal g, l)
         | GEnumTag (_, l) | GPragma (Attr("pack", _), l)
         | GCompTagDecl (_, l) | GEnumTagDecl (_, l) -> Some ([], l)
-          (** Move the warning pragmas early
+          (* Move the warning pragmas early
         | GPragma(Attr(s, _), l) when hasPrefix "warning" s -> Some ([], l)
           *)
         | _ -> None (* Does not go with the types *)
