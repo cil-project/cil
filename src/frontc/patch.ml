@@ -278,7 +278,7 @@ let d_loc (_:unit) (loc: cabsloc) : doc =
 (* to apply expression transformers *)
 class exprTransformer (srcpattern : expression) (destpattern : expression)
                       (patchline : int) (srcloc : cabsloc) = object(self)
-  inherit nopCabsVisitor as super
+  inherit nopCabsVisitor
 
   method! vexpr (e:expression) : expression visitAction =
   begin
