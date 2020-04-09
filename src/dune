@@ -46,6 +46,6 @@
 
 (env
   (dev
-    (flags (:standard -warn-error -A -w -27)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+    (flags (:standard -warn-error -A -w -27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )
