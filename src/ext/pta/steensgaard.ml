@@ -612,7 +612,7 @@ let make_pair (p,f : tau * tau) : tau =
 		p_cache = H.create 4})
 
 (** Copy the toplevel constructor of [t], putting fresh variables in each
-  argement of the constructor. *)
+  argument of the constructor. *)
 let copy_toplevel (t : tau) : tau =
   match U.deref t with
     | Pair _ ->
@@ -633,7 +633,7 @@ let pad_args (l,l' : (tau list ref) * (tau list ref)) : unit =
       let to_pad =
 	if (!padding > 0) then l' else (padding := -(!padding);l)
       in
-	for i = 1 to (!padding)  do
+	for _ = 1 to (!padding)  do
 	  to_pad := (!to_pad) @ [fresh_var()]
 	done
 

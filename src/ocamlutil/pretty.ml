@@ -49,7 +49,7 @@ let  algo = George
 let fastMode       = ref false
 
 
-(** Whether to print identation or not (for faster printing and smaller
+(** Whether to print indentation or not (for faster printing and smaller
   * output) *)
 let printIndent = ref true
 
@@ -323,7 +323,7 @@ let newline () =
 
 
 
-(* Choose the align with the best gain. We outght to find a better way to
+(* Choose the align with the best gain. We ought to find a better way to
  * keep the aligns sorted, especially since they gain never changes (when the
  * align is the top align) *)
 let chooseBestGain () : align option =
@@ -391,7 +391,7 @@ let alignDepth = ref 0
 
 let useAlignDepth = true
 
-(** Start an align. Return true if we ahve just passed the threshhold *)
+(** Start an align. Return true if we have just passed the threshhold *)
 let enterAlign () =
   incr alignDepth;
   useAlignDepth && !alignDepth = !printDepth + 1
@@ -599,7 +599,7 @@ let fprint (chn: out_channel) ~(width: int) doc =
   breaks := List.rev !breaks;
   ignore (emitDoc
             (fun s nrcopies ->
-              for i = 1 to nrcopies do
+              for _ = 1 to nrcopies do
                 output_string chn s
               done) doc);
   activeMarkups := old_activeMarkups;

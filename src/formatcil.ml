@@ -170,12 +170,12 @@ let test () =
   let times = 100000 in
   (* Make the instruction the regular way *)
   Stats.time "make instruction regular"
-    (fun _ -> for i = 0 to times do ignore (makeInstr ()) done)
+    (fun _ -> for _ = 0 to times do ignore (makeInstr ()) done)
     ();
   (* Now make the instruction interpreted *)
   noMemoize := true;
   Stats.time "make instruction interpreted"
-    (fun _ -> for i = 0 to times do
+    (fun _ -> for _ = 0 to times do
       let _ =
         cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();"
           locUnknown [ ("res", Fv res);
@@ -187,7 +187,7 @@ let test () =
   (* Now make the instruction interpreted with memoization *)
   noMemoize := false;
   Stats.time "make instruction interpreted memoized"
-    (fun _ -> for i = 0 to times do
+    (fun _ -> for _ = 0 to times do
       let _ =
         cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();"
           locUnknown [ ("res", Fv res); ("fptr", Fv fptr) ]
@@ -199,7 +199,7 @@ let test () =
   let partInstr =
     cInstr "%v:res = (* ((int * (*)(int, int * a2, int * * a3))%v:fptr))();" in
   Stats.time "make instruction interpreted partial"
-    (fun _ -> for i = 0 to times do
+    (fun _ -> for _ = 0 to times do
       let _ =
         partInstr
           locUnknown [ ("res", Fv res); ("fptr", Fv fptr) ]

@@ -576,7 +576,7 @@ let make_pair (p, f : tau * tau) : tau =
                 lam = f})
 
 (** Copy the toplevel constructor of [t], putting fresh variables in each
-    argement of the constructor. *)
+    argument of the constructor. *)
 let copy_toplevel (t : tau) : tau =
   match find t with
       Pair _ -> make_pair (fresh_var_i false, fresh_var_i false)
@@ -601,11 +601,11 @@ let pad_args (fi, tlr : finfo * tau list ref) : unit =
     if padding == 0 then ()
     else
       if padding > 0 then
-        for i = 1 to padding do
+        for _ = 1 to padding do
           tlr := !tlr @ [fresh_var false]
         done
       else
-        for i = 1 to -padding do
+        for _ = 1 to -padding do
           fi.args <- fi.args @ [fresh_var false]
         done
 
