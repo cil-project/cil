@@ -1,4 +1,6 @@
 #include<stdlib.h>
+int *p = (int[]){2, 4};
+
 struct point {
 	int x, y;
 };
@@ -26,6 +28,19 @@ void copy2( char* restrict s1, char* restrict s2, int n)
 {
 	while (n--)
 		*s1++ = *s2++;
+}
+
+// Compound literals: Example from: https://en.cppreference.com/w/c/language/compound_literal
+int f(void)
+{
+    struct s {int i;} *p = 0, *q;
+    int j = 0;
+again:
+    q = p, p = &((struct s){ j++ });
+    if (j < 2) goto again; // note; if a loop were used, it would end scope here,
+                           // which would terminate the lifetime of the compound literal
+                           // leaving p as a dangling pointer
+    return p == q && q->i == 1; // always returns 1
 }
 
 int main() {
