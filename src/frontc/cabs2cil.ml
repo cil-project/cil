@@ -339,6 +339,8 @@ let env : (string, envdata * location) H.t = H.create 307
 (* We also keep a global environment. This is always a subset of the env *)
 let genv : (string, envdata * location) H.t = H.create 307
 
+let absolutenv : (string, envdata * location) H.t = H.create 307
+
  (* In the scope we keep the original name, so we can remove them from the
   * hash table easily *)
 type undoScope =
