@@ -85,21 +85,4 @@ val typeForCombinedArg: ((string, string) Hashtbl.t -> Cil.typ -> Cil.typ) ref
 val attrsForCombinedArg: ((string, string) Hashtbl.t ->
                           Cil.attributes -> Cil.attributes) ref
 
-type envdata =
-    EnvVar of Cil.varinfo                   (* The name refers to a variable
-                                         * (which could also be a function) *)
-  | EnvEnum of Cil.exp * Cil.typ                (* The name refers to an enumeration
-                                         * tag for which we know the value
-                                         * and the host type *)
-  | EnvTyp of Cil.typ                       (* The name is of the form  "struct
-                                         * foo", or "union foo" or "enum foo"
-                                         * and refers to a type. Note that
-                                         * the name of the actual type might
-                                         * be different from foo due to alpha
-                                         * conversion *)
-  | EnvLabel of string                  (* The name refers to a label. This
-                                         * is useful for GCC's locally
-                                         * declared labels. The lookup name
-                                         * for this category is "label foo" *)
-
-val absolutenv : (string, envdata * Cil.location) Hashtbl.t 
+val varnameMapping : (string, string) Hashtbl.t
