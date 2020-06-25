@@ -86,3 +86,5 @@ val attrsForCombinedArg: ((string, string) Hashtbl.t ->
                           Cil.attributes -> Cil.attributes) ref
 
 val varnameMapping : (string, string) Hashtbl.t
+
+val allTempVars: unit Inthash.t

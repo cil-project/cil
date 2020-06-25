@@ -143,6 +143,8 @@ let withCprint (f: 'a -> unit) (x: 'a) : unit =
  * hold the result of function calls *)
 let callTempVars: unit IH.t = IH.create 13
 
+let allTempVars: unit IH.t = IH.create 13
+
 (* Keep a list of functions that were called without a prototype. *)
 let noProtoFunctions : bool IH.t = IH.create 13
 
@@ -4609,6 +4611,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               (* Remember that this variable has been created for this
                * specific call. We will use this in collapseCallCast. *)
               IH.add callTempVars tmp.vid ();
+              IH.add allTempVars tmp.vid ();
               addCall (Some (var tmp)) (Lval(var tmp)) restype''
           end
         end;
