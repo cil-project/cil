@@ -242,6 +242,7 @@ and typ =
 
   | TBuiltin_va_list of attributes
             (** This is the same as the gcc's type with the same name *)
+  | TDefault
 
 (**
  There are a number of functions for querying the kind of a type. These are
@@ -631,6 +632,7 @@ and exp =
      * not sure which one to use. In C this operation is implicit, the
      * [StartOf] operator is not printed. We have it in CIL because it makes
      * the typing rules simpler. *)
+  | Generic of exp * ((typ * exp) list)
 
 (** {b Constants.} *)
 

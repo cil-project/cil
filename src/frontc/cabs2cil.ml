@@ -1569,6 +1569,7 @@ let cabsTypeAddAttributes a0 t =
           | TComp (comp, a) -> TComp (comp, addA0To a)
           | TNamed (t, a) -> TNamed (t, addA0To a)
           | TBuiltin_va_list a -> TBuiltin_va_list (addA0To a)
+          | TDefault -> TDefault
   end
 
 
@@ -2458,6 +2459,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)
 
      (* Now the other type specifiers *)
+    | [A.Tdefault] -> TDefault
     | [A.Tnamed n] -> begin
         if n = "__builtin_va_list" &&
           !Machdep.theMachine.Machdep.__builtin_va_list then begin
@@ -4843,6 +4845,26 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     end
 
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
+
+    | A.GENERIC (expr, lst) -> 
+        let get_exp tupel = match tupel with _, e, _ -> e in
+        let exp = get_exp (doExp false expr (AExp None)) in
+        let rec make_cil_list cabs_l cil_l = match cabs_l with 
+          | [] -> cil_l
+          | (s, e) :: rest -> make_cil_list rest (((doOnlyType s JUSTBASE),get_exp (doExp false e (AExp None))) :: cil_l) 
+        in
+        let cil_list = make_cil_list lst [] in
+        let exp_typ = typeOf exp in
+        let default_typ = ref voidType in
+        let typ = 
+          let rec get_typ l = match l with 
+            | (TDefault, e) :: rest -> default_typ := typeOf e; get_typ rest
+            | (t, e) :: rest -> if t = exp_typ then typeOf e else get_typ rest
+            | [] -> !default_typ
+          in
+          get_typ cil_list
+        in
+        finishExp empty (Generic(exp, (make_cil_list lst []))) typ
 
   with e when continueOnError -> begin
     (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)

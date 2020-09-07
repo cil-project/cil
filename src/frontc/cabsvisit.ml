@@ -538,6 +538,7 @@ and childrenExpression vis e =
       let b' = visitCabsBlock vis b in
       if b' != b then GNU_BODY b' else e
   | EXPR_PATTERN _ -> e
+  | GENERIC _ -> e (*TODO*)
 
 and visitCabsInitExpression vis (ie: init_expression) : init_expression =
   doVisit vis vis#vinitexpr childrenInitExpression ie

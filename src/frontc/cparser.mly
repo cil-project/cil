@@ -257,6 +257,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token EOF
 %token<Cabs.cabsloc> CHAR INT BOOL DOUBLE FLOAT VOID INT64 INT32
 %token<Cabs.cabsloc> INT128 FLOAT128 COMPLEX /* C99 */
+%token<Cabs.cabsloc> GENERIC /* C11 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
 %token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
@@ -475,7 +476,18 @@ primary_expression:                     /*(* 6.5.1. *)*/
      /*(* Next is Scott's transformer *)*/
 |               AT_EXPR LPAREN IDENT RPAREN         /* expression pattern variable */
                          { EXPR_PATTERN(fst $3), $1 }
+|   GENERIC LPAREN assignment_expression COMMA generic_assoc_list RPAREN {GENERIC ((fst $3), $5), $1}
 ;
+
+/* (specifier, expression) list */
+generic_assoc_list: 
+| generic_association {[$1]}
+| generic_assoc_list COMMA generic_association {$3 :: $1}
+
+/* specifier, expression */
+generic_association:
+| type_name COLON assignment_expression {fst $1, fst $3}
+| DEFAULT COLON assignment_expression {[SpecType(Tdefault)], fst $3}
 
 postfix_expression:                     /*(* 6.5.2 *)*/
 |               primary_expression

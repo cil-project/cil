@@ -277,6 +277,7 @@ and typ =
 
   | TBuiltin_va_list of attributes
             (** This is the same as the gcc's type with the same name *)
+  | TDefault
 
 (** Various kinds of integers *)
 and ikind =
@@ -537,6 +538,7 @@ and exp =
                           * It is not printed. Given an lval of type
                           * [TArray(T)] produces an expression of type
                           * [TPtr(T)]. *)
+  | Generic of exp * ((typ * exp) list)
 
 
 (** Literal constants *)
@@ -1526,6 +1528,7 @@ let rec typeAttrs = function
   | TEnum (enum, a) -> addAttributes enum.eattr a
   | TFun (_, _, _, a) -> a
   | TBuiltin_va_list a -> a
+  | TDefault -> []
 
 
 let setTypeAttrs t a =
@@ -1540,6 +1543,7 @@ let setTypeAttrs t a =
   | TEnum (enum, _) -> TEnum (enum, a)
   | TFun (r, args, v, _) -> TFun(r,args,v,a)
   | TBuiltin_va_list _ -> TBuiltin_va_list a
+  | TDefault -> TDefault
 
 
 let typeAddAttributes a0 t =
@@ -1562,6 +1566,7 @@ begin
       | TComp (comp, a) -> TComp (comp, add a)
       | TNamed (t, a) -> TNamed (t, add a)
       | TBuiltin_va_list a -> TBuiltin_va_list (add a)
+      | TDefault -> TDefault
 end
 
 let typeRemoveAttributes (anl: string list) t =
@@ -1577,6 +1582,7 @@ let typeRemoveAttributes (anl: string list) t =
   | TComp (comp, a) -> TComp (comp, drop a)
   | TNamed (t, a) -> TNamed (t, drop a)
   | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
+  | TDefault -> TDefault
 
 let unrollType (t: typ) : typ =
   let rec withAttrs (al: attributes) (t: typ) : typ =
@@ -1857,6 +1863,7 @@ let getParenthLevel (e: exp) =
 
   | Lval(Var _, NoOffset) -> 0        (* Plain variables *)
   | Const _ -> 0                        (* Constants *)
+  | Generic _ -> 0 (*TODO*)
 
 
 let getParenthLevelAttrParam (a: attrparam) =
@@ -1953,6 +1960,7 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, a) -> TPtr(t, a)
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
+  | Generic (e, lst) -> match lst with (t, e1) :: rest -> typeOf e1 | _ -> voidType (* TODO: implement properly *)
 
 and typeOfInit (i: init) : typ =
   match i with
@@ -2242,6 +2250,7 @@ let rec alignOf_int t =
 
     | TFun _ as t -> raise (SizeOfError ("function", t))
     | TVoid _ as t -> raise (SizeOfError ("void", t))
+    | TDefault -> raise (SizeOfError ("default", t))
   in
   match filterAttributes "aligned" (typeAttrs t) with
     [] ->
@@ -2554,6 +2563,7 @@ and bitsSizeOf t =
       0
 
   | TFun _ -> raise (SizeOfError ("function", t))
+  | TDefault -> raise (SizeOfError("default", t))
 
 
 and addTrailing nrbits roundto =
@@ -2821,6 +2831,8 @@ let rec isConstant = function
   | AddrOf (Mem e, off) | StartOf(Mem e, off)
         -> isConstant e && isConstantOffset off
   | AddrOfLabel _ -> true
+  | Generic _ -> false (*TODO*)
+
 and isConstantOffset = function
     NoOffset -> true
   | Field(fi, off) -> isConstantOffset off
@@ -3523,6 +3535,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
 
     | StartOf(lv) -> self#pLval () lv
+
+    | Generic(e, lst) -> 
+        let rec print_generic_exp l doc =
+          match l with
+          | [] -> doc
+          | (t, e1) :: rest -> print_generic_exp rest (doc ++ text ", " ++ (self#pType None () t) ++ text ":" ++ self#pExp () e1)
+        in
+        text "_Generic(" ++ self#pExp () e ++ print_generic_exp lst nil ++ text ")"
 
   (* Print an expression, given the precedence of the context in which it
    * appears. *)
@@ -4460,6 +4480,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        ++ self#pAttrs () a
         ++ text " "
         ++ name
+  | TDefault -> text "default"
 
 
   (**** PRINTING ATTRIBUTES *********)
@@ -4795,6 +4816,7 @@ class plainCilPrinterClass =
        end
    | TBuiltin_va_list a ->
        dprintf "TBuiltin_va_list(%a)" self#pAttrs a
+   | TDefault -> dprintf "TDefault"
 
 
   (* Some plain pretty-printers. Unlike the above these expose all the
@@ -4873,6 +4895,13 @@ class plainCilPrinterClass =
   | StartOf lv -> dprintf "StartOf(%a)" self#pLval lv
   | AddrOf (lv) -> dprintf "AddrOf(%a)" self#pLval lv
   | AddrOfLabel (sref) -> dprintf "AddrOfLabel(%a)" self#pStmt !sref
+  | Generic(e, lst) -> 
+      let rec print_generic_exp l doc =
+        match l with
+        | [] -> doc
+        | (t, e1) :: rest -> print_generic_exp rest (doc ++ text "," ++ (self#pType None () t) ++ text ":" ++ self#pExp () e1)
+      in
+      text "_Generic(" ++ self#pExp () e ++ text "," ++ print_generic_exp lst nil
 
 
 
@@ -5386,6 +5415,8 @@ and childrenExp (vis: cilVisitor) (e: exp) : exp =
   | StartOf lv ->
       let lv' = vLval lv in
       if lv' != lv then StartOf lv' else e
+  | Generic(e, lst) -> e (*TODO*)
+
 
 and visitCilInit (vis: cilVisitor) (forglob: varinfo)
                  (atoff: offset) (i: init) : init =
@@ -6170,6 +6201,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
       TSFun(typeSig rt, (Util.list_map_opt (fun (_, atype, _) -> (typeSig atype)) args), isva, doattr a)
   | TNamed(t, a) -> typeSigAddAttrs (doattr a) (typeSig t.ttype)
   | TBuiltin_va_list al -> TSBase (TBuiltin_va_list (doattr al))
+  | TDefault -> TSBase (TDefault)
 
 let typeSig t =
   typeSigWithAttrs (fun al -> al) t
