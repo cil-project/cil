@@ -288,17 +288,16 @@ let analyze_instr (i : instr ) : unit =
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
             if is_undefined_fun fexpr && !conservative_undefineds then
-              A.apply_undefined (Util.list_map analyze_expr actuals)
+              begin
+                found_undefined := true;
+                A.apply_undefined (Util.list_map analyze_expr actuals)
+              end
             else
               A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
           in
             begin
               match res with
-                  Some r ->
-                    begin
-                      A.assign_ret site (analyze_lval r) fnres;
-                      found_undefined := true;
-                    end
+                  Some r -> A.assign_ret site (analyze_lval r) fnres
                 | None -> ()
             end
     | Asm _ -> ()
