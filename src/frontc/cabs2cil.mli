@@ -35,6 +35,8 @@
  *
  *)
 
+ open Cil
+
 (** The main entry point *)
 val convFile: Cabs.file -> Cil.file
 
@@ -88,3 +90,22 @@ val attrsForCombinedArg: ((string, string) Hashtbl.t ->
 val varnameMapping : (string, string) Hashtbl.t
 
 val allTempVars: unit Inthash.t
+
+type envdata =
+    EnvVar of varinfo                   (* The name refers to a variable
+                                         * (which could also be a function) *)
+  | EnvEnum of exp * typ                (* The name refers to an enumeration
+                                         * tag for which we know the value
+                                         * and the host type *)
+  | EnvTyp of typ                       (* The name is of the form  "struct
+                                         * foo", or "union foo" or "enum foo"
+                                         * and refers to a type. Note that
+                                         * the name of the actual type might
+                                         * be different from foo due to alpha
+                                         * conversion *)
+  | EnvLabel of string                  (* The name refers to a label. This
+                                         * is useful for GCC's locally
+                                         * declared labels. The lookup name
+                                         * for this category is "label foo" *)
+
+val myEnv : (string, envdata * location) Hashtbl.t 
