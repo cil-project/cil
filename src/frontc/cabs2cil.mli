@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -41,7 +41,7 @@ val convFile: Cabs.file -> Cil.file
 (** Turn on tranformation that forces correct parameter evaluation order *)
 val forceRLArgEval: bool ref
 
-(** Set this integer to the index of the global to be left in CABS form. Use 
+(** Set this integer to the index of the global to be left in CABS form. Use
  * -1 to disable *)
 val nocil: int ref
 
@@ -74,7 +74,7 @@ val typeForTypeof: (Cil.typ -> Cil.typ) ref
   types of cabs2cil-introduced temp variables. *)
 val typeForInsertedVar: (Cil.typ -> Cil.typ) ref
 
-(** Like [typeForInsertedVar], but for casts.  
+(** Like [typeForInsertedVar], but for casts.
   * Casts in the source code are exempt from this hook. *)
 val typeForInsertedCast: (Cil.typ -> Cil.typ) ref
 
@@ -106,4 +106,4 @@ type envdata =
                                          * declared labels. The lookup name
                                          * for this category is "label foo" *)
 (** A hashtable containing a mapping of variables, enums, types and labels to varinfo, typ, etc. *)
-val myEnv : (string, envdata * Cil.location) Hashtbl.t 
+val environment : (string, envdata * Cil.location) Hashtbl.t

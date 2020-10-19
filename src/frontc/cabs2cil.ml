@@ -339,7 +339,9 @@ type envdata =
 
 let env : (string, envdata * location) H.t = H.create 307
 
-let myEnv : (string, envdata * location) H.t = H.create 307
+(* Just like env, except that it simply collects all the information (i.e. entries
+ * are never removed and it is also not emptied after every file). *)
+let environment : (string, envdata * location) H.t = H.create 307
 
 (* We also keep a global environment. This is always a subset of the env *)
 let genv : (string, envdata * location) H.t = H.create 307
@@ -364,7 +366,7 @@ let isAtTopLevel () =
 let addLocalToEnv (n: string) (d: envdata) =
 (*  ignore (E.log "%a: adding local %s to env\n" d_loc !currentLoc n); *)
   H.add env n (d, !currentLoc);
-  H.add myEnv n (d, !currentLoc);
+  H.add environment n (d, !currentLoc);
     (* If we are in a scope, then it means we are not at top level. Add the
      * name to the scope *)
   (match !scopes with
@@ -381,7 +383,7 @@ let addLocalToEnv (n: string) (d: envdata) =
 let addGlobalToEnv (k: string) (d: envdata) : unit =
 (*  ignore (E.log "%a: adding global %s to env\n" d_loc !currentLoc k); *)
   H.add env k (d, !currentLoc);
-  H.add myEnv k (d, !currentLoc);
+  H.add environment k (d, !currentLoc);
   (* Also add it to the global environment *)
   H.add genv k (d, !currentLoc)
 
@@ -437,7 +439,7 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
     findEnclosingFun !scopes;
   let newname, oldloc =
            AL.newAlphaName ~alphaTable:alphaTable ~undolist:None ~lookupname:lookupname ~data:!currentLoc in
-  H.add varnameMapping origname newname; 
+  H.add varnameMapping origname newname;
   stripKind kind newname, oldloc
 
 
