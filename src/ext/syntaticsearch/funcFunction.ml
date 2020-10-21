@@ -128,7 +128,7 @@ let find_def_all file =
 
 let find_fundec funname funid list =
   let gfun =
-    List.find_opt
+    BatList.find_opt
       (fun x ->
         match x with
         | GFun (dec, _) -> is_equal_funname_funid dec.svar funname funid

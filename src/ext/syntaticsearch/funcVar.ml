@@ -233,7 +233,7 @@ let find_uses_in_fun_var dec name varid includeCallTmp cilfile =
 (* Finds the function in which a variable shall be found *)
 let find_uses_in_fun_find_fun list name varname varid includeCallTmp cilfile =
   let r =
-    List.find_opt
+    BatList.find_opt
       (function
         | GFun (dec, _) -> String.compare dec.svar.vname name = 0 | _ -> false)
       list
@@ -261,7 +261,7 @@ let find_uses_in_fun_all_glob funname file includeCallTmp =
 
 let find_fundec globals funname =
   let r =
-    List.find_opt
+    BatList.find_opt
       (function
         | GFun (dec, _) -> String.compare dec.svar.vname funname = 0
         | _ -> false)
@@ -284,7 +284,7 @@ let find_uses_in_fun_all funname file includeCallTmp =
 
 let find_var_in_globals varname varid list =
   let r =
-    List.find_opt
+    BatList.find_opt
       (function
         | GVar (info, _, _) -> is_equal_varname_varid info varname varid
         | _ -> false)

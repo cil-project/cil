@@ -52,7 +52,7 @@ let find_in_varinfos list name =
 
 let find_fundec globals name =
   let gfun =
-    List.find_opt
+    BatList.find_opt
       (function
         | GFun (fundec, _) -> String.compare fundec.svar.vname name = 0
         | _ -> false)
