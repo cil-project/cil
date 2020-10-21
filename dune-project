@@ -29,6 +29,7 @@ Changes:
     stdlib-shims
     ppx_deriving_yojson
     yojson
+    batteries
   )
   (conflicts cil)
 )

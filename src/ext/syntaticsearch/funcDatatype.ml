@@ -2,7 +2,7 @@ open Cil
 
 (* Finds definition of a user-defined type *)
 let find_def name file =
-  List.filter_map
+  BatList.filter_map
     (function
       | GType (info, loc) ->
           if String.compare name info.tname = 0 then Some ("", loc, name, -1)
@@ -18,7 +18,7 @@ let find_def name file =
 
 (* Finds all definition of user-defined types *)
 let find_def_all file =
-  List.filter_map
+  BatList.filter_map
     (function
       | GType (info, loc) -> Some ("", loc, info.tname, -1)
       | GCompTag (info, loc) -> Some ("", loc, info.cname, -1)
@@ -27,7 +27,7 @@ let find_def_all file =
     file.globals
 
 let find_in_globals list name =
-  List.filter_map
+  BatList.filter_map
     (function
       | GVar (info, _, _) ->
           if
@@ -40,7 +40,7 @@ let find_in_globals list name =
     list
 
 let find_in_varinfos list name =
-  List.filter_map
+  BatList.filter_map
     (fun info ->
       if
         String.compare name

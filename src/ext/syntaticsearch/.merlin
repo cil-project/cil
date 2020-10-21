@@ -1,9 +1,11 @@
 EXCLUDE_QUERY_DIR
+B /home/michael/Documents/goblint-cil/cil/_opam/lib/batteries
 B /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving/runtime
 B /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving_yojson/runtime
 B /home/michael/Documents/goblint-cil/cil/_opam/lib/yojson
 B ../../../_build/default/src/.cil.objs/byte
 B ../../../_build/default/src/ext/syntaticsearch/.syntacticsearch.objs/byte
+S /home/michael/Documents/goblint-cil/cil/_opam/lib/batteries
 S /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving/runtime
 S /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving_yojson/runtime
 S /home/michael/Documents/goblint-cil/cil/_opam/lib/yojson

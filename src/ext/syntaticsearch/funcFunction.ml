@@ -54,7 +54,7 @@ let find_returns funname funid file =
 (* Finds all returns in all functions *)
 let find_returns_all file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ -> Some (find_returns "" fundec.svar.vid file)))
        file.globals
 
@@ -117,12 +117,12 @@ let find_def funname funid file =
       Some (fundec.svar.vname, loc, create_sig fundec file, fundec.svar.vid)
     else None
   in
-  List.filter_map (map_gfun fn) file.globals
+  BatList.filter_map (map_gfun fn) file.globals
 
 (* Finds all definitions of all functions *)
 let find_def_all file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ -> Some (find_def "" fundec.svar.vid file)))
        file.globals
 
@@ -166,7 +166,7 @@ let find_uses funname funid file =
 (* Find all calls of all functions in all functions *)
 let find_uses_all file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ -> Some (find_uses "" fundec.svar.vid file)))
        file.globals
 
@@ -206,7 +206,7 @@ let find_uses_in_fun funname funid funstrucname file =
 (* Finds all calls of all functions in a function *)
 let find_uses_in_fun_all funstrucname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some (find_uses_in_fun "" fundec.svar.vid funstrucname file)))
        file.globals
@@ -268,7 +268,7 @@ let find_usesvar_in_fun funname funid funstrucname varname file =
 (* Finds calls of all function with a var in argument in a function *)
 let find_usesvar_in_fun_all funstrucname varname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some
               (find_usesvar_in_fun "" fundec.svar.vid funstrucname varname file)))
@@ -277,7 +277,7 @@ let find_usesvar_in_fun_all funstrucname varname file =
 (* Finds all calls of a function with a var in argument in all functions *)
 let find_usesvar funname funid varname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some
               (find_usesvar_in_fun funname funid fundec.svar.vname varname file)))
@@ -286,7 +286,7 @@ let find_usesvar funname funid varname file =
 (* Finds all calls of all functions with a var in argument in all functions *)
 let find_usesvar_all varname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some (find_usesvar "" fundec.svar.vid varname file)))
        file.globals
@@ -327,7 +327,7 @@ let create_fun_res name id file loc =
 (* Finds all calls of a function in a condition in all functions *)
 let find_uses_cond funname funid file =
   let id_list = find_lval_of_calls funname funid file in
-  List.filter_map
+  BatList.filter_map
     (fun (tmp, func) ->
       match FuncVar.find_uses_in_cond "" tmp file true with
       | (_, loc, _, _) :: _ -> Some (create_fun_res "" func file loc)
@@ -337,7 +337,7 @@ let find_uses_cond funname funid file =
 (* Finds all calls of all functions in a condition in all functions *)
 let find_uses_cond_all file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ -> Some (find_uses_cond "" fundec.svar.vid file)))
        file.globals
 
@@ -350,7 +350,7 @@ let find_uses_noncond funname funid file =
 (* Finds calls of all functions in non-condition in all functions *)
 let find_uses_noncond_all file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some (find_uses_noncond "" fundec.svar.vid file)))
        file.globals
@@ -393,7 +393,7 @@ let find_lval_of_calls_usesvar funname funid varname file =
 (* Finds calls of a function with a variable as argument in conditions *)
 let find_usesvar_cond funname funid varname file =
   let id_list = find_lval_of_calls_usesvar funname funid varname file in
-  List.filter_map
+  BatList.filter_map
     (fun (tmp, func) ->
       match FuncVar.find_uses_in_cond "" tmp file true with
       | (_, loc, _, _) :: _ -> Some (create_fun_res "" func file loc)
@@ -403,7 +403,7 @@ let find_usesvar_cond funname funid varname file =
 (* Finds calls of all functions with a variable as argument in conditions *)
 let find_usesvar_cond_all varname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some (find_usesvar_cond "" fundec.svar.vid varname file)))
        file.globals
@@ -417,7 +417,7 @@ let find_usesvar_noncond funname funid varname file =
 (* Finds calls of all functions with a variable as argument in non-conditions *)
 let find_usesvar_noncond_all varname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun fundec _ ->
             Some (find_usesvar_noncond "" fundec.svar.vid varname file)))
        file.globals

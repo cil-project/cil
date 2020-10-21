@@ -31,12 +31,12 @@ let map_gvar f = function
 let is_temporary id = Inthash.mem allTempVars id
 
 let generate_func_loc_table cilfile =
-  List.filter_map
+  BatList.filter_map
     (map_gfun (fun dec loc -> Some (dec.svar.vname, loc.line)))
     cilfile.globals
 
 let generate_globalvar_list cilfile =
-  List.filter_map
+  BatList.filter_map
     (map_gvar (fun varinfo _ _ -> Some varinfo.vname))
     cilfile.globals
 
@@ -56,7 +56,7 @@ let get_all_alphaconverted_in_fun varname funname cilfile =
   in
   let loc_end = iter_fun_loc fun_loc_table in
   let tmp =
-    List.filter_map
+    BatList.filter_map
       (function
         | EnvVar varinfo, loc when loc.line >= loc_start && loc.line < loc_end
           ->
@@ -252,7 +252,7 @@ let find_uses_in_fun varname varid funname file includeCallTmp =
     file
 
 let find_all_glob_vars list =
-  List.filter_map (map_gvar (fun info _ _ -> Some info.vid)) list
+  BatList.filter_map (map_gvar (fun info _ _ -> Some info.vid)) list
 
 (* Finds all uses of all global variables in a function *)
 let find_uses_in_fun_all_glob funname file includeCallTmp =
@@ -307,7 +307,7 @@ let find_var_in_globals varname varid list =
 let find_uses varname varid file includeCallTmp =
   let uses_in_all_fun =
     List.flatten
-    @@ List.filter_map
+    @@ BatList.filter_map
          (map_gfun (fun dec _ ->
               Some
                 (find_uses_in_fun varname varid dec.svar.vname file
@@ -320,7 +320,7 @@ let find_uses varname varid file includeCallTmp =
 let find_uses_all_glob file includeCallTmp =
   let res =
     List.flatten
-    @@ List.filter_map
+    @@ BatList.filter_map
          (map_gfun (fun dec _ ->
               Some
                 (find_uses_in_fun_all_glob dec.svar.vname file includeCallTmp)))
@@ -336,7 +336,7 @@ let find_uses_all_glob file includeCallTmp =
 let find_uses_all file includeCallTmp =
   let res =
     List.flatten
-    @@ List.filter_map
+    @@ BatList.filter_map
          (map_gfun (fun dec _ ->
               Some (find_uses_in_fun_all dec.svar.vname file includeCallTmp)))
          file.globals
@@ -441,7 +441,7 @@ let find_uses_in_cond_in_fun_all funname file includeCallTmp =
 (* Finds all uses of variables in conditions in all functions *)
 let find_uses_in_cond_all file includeCallTmp =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun dec _ ->
             Some
               (find_uses_in_cond_in_fun_all dec.svar.vname file includeCallTmp)))
@@ -475,7 +475,7 @@ let find_uses_in_noncond_all file includeCallTmp =
 let find_decl_in_fun varname varid funname file =
   let get_formals_locals dec = dec.sformals @ dec.slocals in
   let iter_list_name list name =
-    List.filter_map
+    BatList.filter_map
       (fun x ->
         if String.compare x.vname name = 0 && not (is_temporary x.vid) then
           Some
@@ -493,7 +493,7 @@ let find_decl_in_fun varname varid funname file =
   | None -> []
   | Some fundec ->
       if varid != -1 then
-        List.filter_map
+        BatList.filter_map
           (fun x ->
             if x.vid = varid then
               Some
@@ -523,7 +523,7 @@ let find_decl_in_fun_all funname file =
 
 (* Finds all global variable declarations *)
 let find_decl_all_glob file =
-  List.filter_map
+  BatList.filter_map
     (map_gvar (fun info _ loc ->
          Some
            ( info.vname,
@@ -555,7 +555,7 @@ let find_decl varname varid file =
 let find_decl_all file =
   let list =
     List.flatten
-    @@ List.filter_map
+    @@ BatList.filter_map
          (map_gfun (fun dec _ ->
               Some (find_decl_in_fun_all dec.svar.vname file)))
          file.globals
@@ -607,7 +607,7 @@ let find_defs_in_fun varname varid funname file =
 (* Finds definitions of all global variables in a function *)
 let find_defs_in_fun_all_glob funname file =
   List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gvar (fun info _ _ ->
             Some (find_defs_in_fun "" info.vid funname file)))
        file.globals
@@ -629,7 +629,7 @@ let find_defs_in_fun_all funname file =
 let find_defs varname varid file =
   let r =
     List.flatten
-    @@ List.filter_map
+    @@ BatList.filter_map
          (map_gfun (fun dec _ ->
               Some (find_defs_in_fun varname varid dec.svar.vname file)))
          file.globals
@@ -643,7 +643,7 @@ let find_defs_all_glob file =
        (fun x -> find_var_in_globals "" x file.globals)
        (find_all_glob_vars file.globals))
   @ List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun dec _ ->
             Some (find_defs_in_fun_all_glob dec.svar.vname file)))
        file.globals
@@ -655,6 +655,6 @@ let find_defs_all file =
        (fun x -> find_var_in_globals "" x file.globals)
        (find_all_glob_vars file.globals))
   @ List.flatten
-  @@ List.filter_map
+  @@ BatList.filter_map
        (map_gfun (fun dec _ -> Some (find_defs_in_fun_all dec.svar.vname file)))
        file.globals
