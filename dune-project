@@ -27,6 +27,8 @@ Changes:
     (dune (>= 2.3.0))
     (odoc :with-doc)
     stdlib-shims
+    ppx_deriving_yojson
+    yojson
   )
   (conflicts cil)
 )
