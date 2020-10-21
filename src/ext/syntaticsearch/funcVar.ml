@@ -15,11 +15,8 @@ let rec delete_elem list s =
 let rec delete_duplicates list tbl =
   match list with
   | x :: xs -> (
-      match Hashtbl.find_opt tbl x with
-      | None ->
-          Hashtbl.add tbl x 1;
-          x :: delete_duplicates xs tbl
-      | Some _ -> delete_duplicates xs tbl )
+    let _ = try Hashtbl.find tbl x with Not_found -> Hashtbl.add tbl x 1; 1 in
+    x :: delete_duplicates xs tbl )
   | [] -> []
 
 let map_gfun f = function GFun (dec, loc) -> f dec loc | _ -> None
