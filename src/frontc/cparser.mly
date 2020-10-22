@@ -259,7 +259,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> INT128 FLOAT128 COMPLEX /* C99 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
-%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER HIDDEN
+%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 %token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
@@ -326,7 +326,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left	INF SUP INF_EQ SUP_EQ
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
-%left	STAR SLASH PERCENT CONST RESTRICT VOLATILE COMPLEX HIDDEN
+%left	STAR SLASH PERCENT CONST RESTRICT VOLATILE COMPLEX
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF IMAG REAL CLASSIFYTYPE
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
@@ -1326,7 +1326,6 @@ attribute_nocv:
                                         /* ISO 6.7.3 */
 |   THREAD                              { ("__thread",[]), $1 }
 |   QUALIFIER                     {("__attribute__",[VARIABLE(fst $1)]),snd $1}
-|   HIDDEN                              { ("hidden",[]), $1 }
 ;
 
 attribute_nocv_list:

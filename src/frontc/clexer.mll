@@ -121,7 +121,6 @@ let init_lexicon _ =
       ("__const__", fun loc -> CONST loc);
       ("_Complex", fun loc -> COMPLEX loc);
       ("__complex__", fun loc -> COMPLEX loc);
-      ("hidden", fun loc -> HIDDEN loc);
       ("static", fun loc -> STATIC loc);
       ("extern", fun loc -> EXTERN loc);
       ("long", fun loc -> LONG loc);
