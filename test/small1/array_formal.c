@@ -27,18 +27,17 @@ int test2(int n, int ra[n][100]) {
 
 // Here, *ra has type int[n], so sizeof(*ra) == 4*n.
 // But CIL doesn't support arrays with non-constant sizes.
-/*
 int test3(int n, int ra[5][n]) {
   printf("sizeof(ra) = %d.  sizeof(*ra) = %d\n", sizeof(ra), sizeof(*ra));
   if (sizeof(ra) != sizeof(int*)) E(31);
   if (sizeof(*ra) != n*sizeof(int)) E(32);
   return n;
 }
-*/
 
 int main() {
   foo(10,0);
   test(10,0);
   test2(10,0);
+  test3(10,0);
   SUCCESS;
 }

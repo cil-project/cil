@@ -1,6 +1,6 @@
 #include "testharness.h"
 
-// Variable-sized multidimensionnal arrays
+// Variable-sized multidimensional arrays
 void foo(int n, int a[n][n]);
 
 int main(void)
@@ -11,7 +11,7 @@ int main(void)
 }
 
 void foo(int n, int a[n][n]) {
-  
+
    double b[n];
    a[0][n-1] = 0;
    b[n-1] = 0.0;
@@ -26,4 +26,3 @@ void foo(int n, int a[n][n]) {
    // as (n * sizeof(*b))
    if (sizeof(b) != (n * sizeof(double))) E(3);
 }
-
