@@ -2007,7 +2007,7 @@ let rec collectInitializer
     (isconst: bool)
     (this: preInit)
     (thistype: typ) : (init * typ) =
-  if this = NoInitPre then (makeZeroInit thistype), patchArraySizeZero thistype
+  if this = NoInitPre then (makeZeroInit (patchArraySizeZero thistype)), patchArraySizeZero thistype
   else
     match unrollType thistype, this with
     | _ , SinglePre e -> SingleInit e, thistype
