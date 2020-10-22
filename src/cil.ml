@@ -6412,7 +6412,7 @@ let foldLeftCompound
     ~(doinit: offset -> init -> typ -> 'a -> 'a)
     ~(ct: typ)
     ~(initl: (offset * init) list)
-    ~(acc: 'a) : 'a =
+    ~(acc: 'a) =
   match unrollType ct with
     TArray(bt, leno, _) -> begin
       (* Scan the existing initializer *)
