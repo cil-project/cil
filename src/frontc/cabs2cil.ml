@@ -1992,6 +1992,11 @@ let rec setOneInit (this: preInit)
       !pArray.(idx) <- this';
       CompoundPre (pMaxIdx, pArray)
 
+let rec patchArraySizeZero t =
+  match t with
+  | TArray(typ, None, attr) -> TArray(typ, Some(Cil.zero),attr)
+  | TNamed({tname=n; ttype=typ; treferenced=ref}, attr) -> TNamed({tname=n; ttype=patchArraySizeZero typ; treferenced=ref}, attr)
+  | _ -> t
 
 (* collect a CIL initializer, given the original syntactic initializer
  * 'preInit'; this returns a type too, since initialization of an array
@@ -2002,7 +2007,7 @@ let rec collectInitializer
     (isconst: bool)
     (this: preInit)
     (thistype: typ) : (init * typ) =
-  if this = NoInitPre then (makeZeroInit thistype), thistype
+  if this = NoInitPre then (makeZeroInit thistype), patchArraySizeZero thistype
   else
     match unrollType thistype, this with
     | _ , SinglePre e -> SingleInit e, thistype
