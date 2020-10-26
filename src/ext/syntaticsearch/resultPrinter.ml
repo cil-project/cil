@@ -1,4 +1,4 @@
-open JsonParser
+open CodeQuery
 open Cil
 
 let rec contains list elem =

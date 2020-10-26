@@ -1,5 +1,5 @@
 open Cil
-open JsonParser
+open CodeQuery
 
 (* Default output if the input-query is not supported *)
 let loc_default = { line = -1; file = ""; byte = -1 }
