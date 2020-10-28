@@ -1,0 +1,17 @@
+EXCLUDE_QUERY_DIR
+B /home/michael/Documents/goblint-cil/cil/_opam/lib/batteries
+B /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving/runtime
+B /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving_yojson/runtime
+B /home/michael/Documents/goblint-cil/cil/_opam/lib/yojson
+B ../../../_build/default/src/.cil.objs/byte
+B ../../../_build/default/src/ext/syntaticsearch/.syntacticsearch.objs/byte
+S /home/michael/Documents/goblint-cil/cil/_opam/lib/batteries
+S /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving/runtime
+S /home/michael/Documents/goblint-cil/cil/_opam/lib/ppx_deriving_yojson/runtime
+S /home/michael/Documents/goblint-cil/cil/_opam/lib/yojson
+S ../..
+S .
+S ../../frontc
+S ../../ocamlutil
+FLG -ppx '/home/michael/Documents/goblint-cil/cil/_build/default/.ppx/a4ea0d83c521725fd7b0167e93f2550b/ppx.exe --as-ppx --cookie '\''library-name="syntacticsearch"'\'''
+FLG -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -warn-error -A -w -27-32-34-37-38
