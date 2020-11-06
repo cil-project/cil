@@ -39,7 +39,7 @@ Run the following commands to build and install CIL:
 
     ./configure
     make
-    make test       # regression test suite, optionnal
+    make test       # runs the regression test suite, optional
     make install    # as root or using sudo
 
 If you want to install to some other directory, you can tweak the prefix
@@ -50,6 +50,14 @@ directory:
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 [opam]: http://opam.ocamlpro.com/
+
+Dune-Build
+----------
+Alternatively, you can use dune to build CIL.
+Run the following commands to build and test CIL:
+
+    dune build
+    dune runtest    # runs the regression test suite
 
 Usage
 -----
@@ -67,7 +75,7 @@ instance in the OCaml toplevel using [findlib][]:
     [...]
     # #require "cil";;
     [...]
-    # Cil.cilVersion;;           
+    # Cil.cilVersion;;
     - : string = "1.7.3"
 
 
