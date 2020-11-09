@@ -1,2 +1,2 @@
-requires = "cil.liveness"
+requires = "goblint-cil.liveness"
 description = "pretty printing with checks for name conflicts and temp variable elimination"

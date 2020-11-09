@@ -94,6 +94,7 @@ src/.merlin
 
 # /lib/cil
 /lib/cil
+/lib/goblint-cil
 
 # /share
 /share/cil/ocamlpath

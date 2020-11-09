@@ -60,7 +60,7 @@ CIL_PLUGINS_DIR = src/ext
 CIL_EXCLUDE_PLUGINS = dune
 CIL_PLUGINS = $(addprefix $(OBJDIR)/,$(filter-out $(addprefix $(CIL_PLUGINS_DIR)/, $(CIL_EXCLUDE_PLUGINS)),$(wildcard $(CIL_PLUGINS_DIR)/*)))
 
-CIL_DEFAULT_PLUGINS = $(patsubst $(CIL_PLUGINS_DIR)/%/default,cil.%,$(wildcard $(CIL_PLUGINS_DIR)/*/default))
+CIL_DEFAULT_PLUGINS = $(patsubst $(CIL_PLUGINS_DIR)/%/default,goblint-cil.%,$(wildcard $(CIL_PLUGINS_DIR)/*/default))
 
 ifneq ($(OCAMLC),no)
   CILLIB_TARGETS  += $(OBJDIR)/src/cil.cma
@@ -115,7 +115,7 @@ META:
 	@printf "version = \"$(CIL_VERSION)\"\n" >>$@
 	@printf ")\n\n" >>$@
 	@printf "package \"all-features\" (\n" >>$@
-	@printf "requires=\"$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,cil.%,$(CIL_PLUGINS))\"\n" >>$@
+	@printf "requires=\"$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,goblint-cil.%,$(CIL_PLUGINS))\"\n" >>$@
 	@printf "version = \"$(CIL_VERSION)\"\n" >>$@
 	@printf ")\n\n" >>$@
 	@$(foreach plugin,$(patsubst $(OBJDIR)/$(CIL_PLUGINS_DIR)/%,%,$(CIL_PLUGINS)),\
@@ -352,10 +352,10 @@ endif
 install-findlib: META $(CILLIB_FILES) $(CILLIB_TARGETS) uninstall-findlib
 	mkdir -p $(OCAMLFIND_INSTALLDIR)
 	OCAMLFIND_DESTDIR=$(OCAMLFIND_INSTALLDIR) \
-	  $(OCAMLFIND) install cil META $(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
+	  $(OCAMLFIND) install goblint-cil META $(CILLIB_TARGETS) `cat $(CILLIB_FILES)`
 
 uninstall-findlib:
-	OCAMLFIND_DESTDIR=$(OCAMLFIND_INSTALLDIR) $(OCAMLFIND) remove cil
+	OCAMLFIND_DESTDIR=$(OCAMLFIND_INSTALLDIR) $(OCAMLFIND) remove goblint-cil
 
 .PHONY: install-data uninstall-data
 install-data:
