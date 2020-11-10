@@ -258,7 +258,8 @@ scott-nolink/%: $(TESTDIR)/small2/%.c $(TARGET_DEP)
 
 
 
-OBJDIR := $(CILHOME)/../install/default/lib/goblint-cil
+OBJDIR_DUNE := $(CILHOME)/../install/default/lib/goblint-cil
+OBJDIR_MAKE := $(CILHOME)/_build/src
 ifdef NATIVECAML
  CMXA := cmxa
  CAMLC := ocamlopt
@@ -268,7 +269,7 @@ else
 endif
 
 testrun/% : $(SMALL1)/%.ml
-	ocamlfind $(CAMLC) -I $(OBJDIR) -package zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
+	ocamlfind $(CAMLC) -I $(OBJDIR_DUNE) -I $(OBJDIR_MAKE) -package zarith unix.$(CMXA) str.$(CMXA) zarith.$(CMXA) \
                  cil.$(CMXA) \
                  $(EXEOUT) $(basename $<).exe $<
 	$(basename $<).exe

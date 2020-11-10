@@ -283,7 +283,7 @@ distclean: clean
 clean: $(CILLYDIR)/Makefile
 	rm -rf $(OBJDIR)
 	rm -f $(BINDIR)/$(CILLY).*
-	rm -rf lib/cil share/
+	rm -rf lib/goblint-cil share/
 	rm -f META
 	rm -rf doc/html/
 	rm -rf doc/cilcode.tmp/
