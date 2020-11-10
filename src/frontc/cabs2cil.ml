@@ -543,6 +543,9 @@ let docEnv () =
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList ~sep:line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
+  let rec stripParenLocal e = match e with
+  | A.PAREN e2 -> stripParenLocal e2
+  | _ -> e
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
@@ -666,6 +669,7 @@ let rec stripConstLocalType (t: typ) : typ =
       let a' = dc a in if a != a' then TVoid a' else t
   | TBuiltin_va_list a ->
       let a' = dc a in if a != a' then TBuiltin_va_list a' else t
+  | TDefault -> t
 
 
 let constFoldTypeVisitor = object (self)
@@ -4847,24 +4851,29 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
 
     | A.GENERIC (expr, lst) -> 
-        let get_exp tupel = match tupel with _, e, _ -> e in
-        let exp = get_exp (doExp false expr (AExp None)) in
-        let rec make_cil_list cabs_l cil_l = match cabs_l with 
+        let get_exp (_, e, _) = e in
+        let exp = get_exp (doExp false (stripParenLocal expr) (AExp None)) in
+        let cil_list = 
+          let rec make_cil_list cabs_l cil_l = match cabs_l with 
           | [] -> cil_l
-          | (s, e) :: rest -> make_cil_list rest (((doOnlyType s JUSTBASE),get_exp (doExp false e (AExp None))) :: cil_l) 
+          | (s, e) :: rest -> make_cil_list rest (((doOnlyType s JUSTBASE),get_exp (doExp false (stripParenLocal e) (AExp None))) :: cil_l) 
+          in
+          make_cil_list lst [] 
         in
-        let cil_list = make_cil_list lst [] in
         let exp_typ = typeOf exp in
         let default_typ = ref voidType in
         let typ = 
-          let rec get_typ l = match l with 
+          let rec get_typ lst = match lst with 
             | (TDefault, e) :: rest -> default_typ := typeOf e; get_typ rest
             | (t, e) :: rest -> if t = exp_typ then typeOf e else get_typ rest
-            | [] -> !default_typ
+            | [] -> 
+              if !default_typ = voidType then 
+                E.s(error "Controlling expression of generic selection is not compatible with any association")
+              else !default_typ
           in
           get_typ cil_list
         in
-        finishExp empty (Generic(exp, (make_cil_list lst []))) typ
+        finishExp empty (Generic(exp, (cil_list))) typ
 
   with e when continueOnError -> begin
     (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)
@@ -6832,11 +6841,6 @@ and doStatement (s : A.statement) : chunk =
     E.hadErrors := true;
     consLabel "booo_statement" empty (convLoc (C.get_statementloc s)) false
   end
-
-
-let rec stripParenLocal e = match e with
-  | A.PAREN e2 -> stripParenLocal e2
-  | _ -> e
 
 class stripParenClass : V.cabsVisitor = object (self)
   inherit V.nopCabsVisitor

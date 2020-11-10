@@ -1960,7 +1960,14 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, a) -> TPtr(t, a)
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
-  | Generic (e, lst) -> match lst with (t, e1) :: rest -> typeOf e1 | _ -> voidType (* TODO: implement properly *)
+  | Generic (exp, lst) -> 
+      let typeOfExp = typeOf exp in
+      let rec findType lst = 
+        match lst with 
+        [] -> voidType
+        | (t, e) :: rest -> if t = typeOfExp then typeOf e else findType rest
+      in 
+      findType lst
 
 and typeOfInit (i: init) : typ =
   match i with

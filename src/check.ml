@@ -278,6 +278,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
         (fun (an, at, aa) ->
           checkType at CTFArg;
           checkAttributes aa) (argsToList targs)
+  | TDefault -> ()
 
 (* Check that a type is a promoted integral type *)
 and checkIntegralType (t: typ) =
@@ -618,7 +619,12 @@ and checkExp (isconst: bool) (e: exp) : typ =
           (* | TComp _ -> E.s (bug "Cast of a composite type") *)
           | TVoid _ -> E.s (bug "Cast of a void type")
           | _ -> tres
-      end)
+      end
+      | Generic (exp, lst) -> 
+          let typ = checkExp false exp in
+          List.iter (fun (t, e) -> checkType t CTExp; ignore (checkExp false e)) lst;
+          typ
+      )
     () (* The argument of withContext *)
 
 and checkInit  (i: init) : typ =
