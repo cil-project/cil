@@ -2205,7 +2205,7 @@ ac_config_files="$ac_config_files stamp-h"
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=7
-CIL_VERSION_REV=6
+CIL_VERSION_REV=8
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
@@ -4124,7 +4124,7 @@ if test "$OCAMLC" = "no"; then
 fi
 
 # if test "$OCAMLBUILD" = "no"; then
-#   as_fn_error $? "You must install ocamlbuild" "$LINENO" 5
+#   AC_MSG_ERROR([You must install ocamlbuild])
 # fi
 
   # checking for ocamllex
