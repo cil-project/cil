@@ -716,6 +716,7 @@ addTest("testrunc99/c99-complex");
 addTest("testrunc99/c99-universal-character-names");
 addBadComment("testrunc99/c99-universal-character-names", "Universal character names are not yet supported");
 addTest("testrunc99/c99-tgmath");
+addTest("testrunc99/c99-float-pragma");
 addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 

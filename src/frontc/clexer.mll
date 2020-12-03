@@ -448,7 +448,7 @@ let oct_escape = '\\' octdigit octdigit? octdigit?
 
 (* Pragmas that are not parsed by CIL.  We lex them as PRAGMA_LINE tokens *)
 let no_parse_pragma =
-               "warning" | "GCC"
+               "warning" | "GCC" | "STDC"
              (* Solaris-style pragmas:  *)
              | "ident" | "section" | "option" | "asm" | "use_section" | "weak"
              | "redefine_extname"
