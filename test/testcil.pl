@@ -123,7 +123,7 @@ sub addTest {
 
     my $ccvar;
     if ($ENV{'CC'} ne "gcc") {
-        $ccvar = "CC=$ENV{'CC'}";
+        $ccvar = "CC=gcc-9";
     } else {
         $ccvar = "";
     }
