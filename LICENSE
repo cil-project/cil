@@ -1,10 +1,12 @@
-Copyright (c) 2001-2013,
+Copyright (c) 2001-2020,
  George C. Necula    <necula@cs.berkeley.edu>
  Scott McPeak        <smcpeak@cs.berkeley.edu>
  Wes Weimer          <weimer@cs.berkeley.edu>
  Ben Liblit          <liblit@cs.wisc.edu>
  Matt Harren         <matth@cs.berkeley.edu>
  Gabriel Kerneis     <kerneis@pps.univ-paris-diderot.fr>
+ Ralf Vogler         <ralf.vogler@tum.de>
+ Michael Schwarz     <m.schwarz@tum.de>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
