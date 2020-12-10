@@ -27,9 +27,11 @@ check out the accompanying [project template][template].
 Installation (for the version in this repository)
 -----------
 
-To build and install CIL, you need the OCaml compiler, perl, and
-[ocamlfind][findlib].  (Of course, you also need some C compiler,
-preferably gcc.)
+First create a local opam switch and install all dependencies:
+
+    opam switch create .
+
+You also need perl and some C compiler, preferably gcc.
 
 Run the following commands to build and install CIL:
 
@@ -44,7 +46,6 @@ directory:
 
     ./configure --prefix=`opam config var prefix`
 
-[findlib]: http://projects.camlcity.org/projects/findlib.html
 [opam]: http://opam.ocamlpro.com/
 
 Dune-Build
