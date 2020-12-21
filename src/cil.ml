@@ -2094,10 +2094,12 @@ let kintegerCilint (k: ikind) (i: cilint) : exp =
     ignore (warnOpt "Truncating integer %s to %s"
               (string_of_cilint i) (string_of_cilint i'));
   let str =
+    let int64_min = cilint_of_int64 Int64.min_int in
+    let int64_max = cilint_of_int64 Int64.max_int in
     (* if the resulting value can not be represented by an Int64, store its string representation *)
-    let is_repr_as_int64 = function ILong | IULong | ILongLong | IULongLong -> false | _ -> true in
-    if not (is_repr_as_int64 k) && string_of_cilint i <> string_of_cilint i' then
-      Some (string_of_cilint i)
+    if Cilint.compare_cilint i' int64_min < 0 || Cilint.compare_cilint int64_max i' < 0 then (
+      Some (string_of_cilint i')
+    )
     else None
   in
   Const (CInt64(int64_of_cilint i', k, str))
@@ -6262,9 +6264,10 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
     match newt, e with
       (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
       TInt(IBool, []), Const(CInt64(i, _, _)) ->
-	let v = if i = Int64.zero then Int64.zero else Int64.one in
-	Const (CInt64(v, IBool,  None))
-    | TInt(newik, []), Const(CInt64(i, _, _)) -> kinteger64 newik i
+        let v = if i = Int64.zero then Int64.zero else Int64.one in
+        Const (CInt64(v, IBool,  None))
+    | TInt(newik, []), Const(CInt64(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
+    | TInt(newik, []), Const(CInt64(i, _, None)) -> print_endline ("k64, i:" ^ Int64.to_string i); kinteger64 newik i
     | _ -> CastE(newt,e)
   end
 

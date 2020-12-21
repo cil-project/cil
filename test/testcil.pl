@@ -705,6 +705,7 @@ addTest("test/va_arg_pack");
 addTest("testrun/compound1");
 addBadComment("testrun/compound1", "Notbug. Undefined behavior (probably).");
 addTest("testrun/compound2");
+addTest("testrun/large_unsigned_long");
 
 addTest("test/shell-escape SHELL_ESCAPE=1");
 
