@@ -6267,7 +6267,7 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
         let v = if i = Int64.zero then Int64.zero else Int64.one in
         Const (CInt64(v, IBool,  None))
     | TInt(newik, []), Const(CInt64(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
-    | TInt(newik, []), Const(CInt64(i, _, None)) -> print_endline ("k64, i:" ^ Int64.to_string i); kinteger64 newik i
+    | TInt(newik, []), Const(CInt64(i, _, None)) -> kinteger64 newik i
     | _ -> CastE(newt,e)
   end
 
