@@ -181,8 +181,6 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
           search_instr_list_for_var ins_list name varid includeCallTmp
       | Return (Some exp, loc) ->
           search_expression exp name loc varid includeCallTmp
-      | Goto (s_ref, _) ->
-          search_stmt_list_for_var [ !s_ref ] name varid includeCallTmp
       | ComputedGoto (exp, loc) ->
           search_expression exp name loc varid includeCallTmp
       | If (exp, b1, b2, loc) ->
