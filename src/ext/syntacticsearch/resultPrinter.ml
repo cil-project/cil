@@ -1,5 +1,6 @@
 open CodeQuery
 open Cil
+open Feature
 
 let rec contains list elem =
   match list with
@@ -71,3 +72,24 @@ let print_result result query =
   if print_name || print_loc || print_typ || print_id then
     create_printout result
   else ""
+
+let query_file_name = ref ""
+
+let feature = {
+  fd_name = "syntacticsearch";
+  fd_enabled = false;
+  fd_description = "Syntactic Search in CIL programs";
+  fd_extraopt = [
+    ("--syntacticsearch_query_file",
+     Arg.Set_string query_file_name,
+     "<fname> Name of the file containing the syntactic search query")
+  ];
+  fd_doit = (fun f ->
+    Printexc.record_backtrace true;
+    let q = CodeQuery.parse_json_file !query_file_name in
+    let results = QueryMapping.map_query q f in
+    print_endline (print_result results q));
+  fd_post_check = false
+}
+
+let () = Feature.register feature
