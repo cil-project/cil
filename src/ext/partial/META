@@ -1,2 +1,0 @@
-requires = "goblint-cil.pta"
-description = "interprocedural partial evaluation and constant folding"

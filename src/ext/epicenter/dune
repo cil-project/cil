@@ -1,6 +1,0 @@
-(library
-  (public_name goblint-cil.epicenter)
-  (name epicenter)
-  (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
-  (libraries goblint-cil goblint-cil.callgraph)
-)

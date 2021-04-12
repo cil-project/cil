@@ -1,11 +1,11 @@
 # DUNE_GEN
 
 package "default-features" (
-requires="goblint-cil.simplemem goblint-cil.canonicalize goblint-cil.dataslicing goblint-cil.liveness goblint-cil.heapify goblint-cil.oneret goblint-cil.logcalls goblint-cil.pta goblint-cil.partial goblint-cil.sfi goblint-cil.simplify goblint-cil.callgraph goblint-cil.logwrites goblint-cil.epicenter goblint-cil.syntacticsearch"
+requires="goblint-cil.dataslicing goblint-cil.liveness goblint-cil.pta goblint-cil.syntacticsearch"
 version = "1.7.8"
 )
 
 package "all-features" (
-requires="goblint-cil.simplemem goblint-cil.canonicalize goblint-cil.dataslicing goblint-cil.liveness goblint-cil.llvm goblint-cil.heapify goblint-cil.oneret goblint-cil.logcalls goblint-cil.pta goblint-cil.inliner goblint-cil.partial goblint-cil.blockinggraph goblint-cil.sfi goblint-cil.simplify goblint-cil.cqualann goblint-cil.callgraph goblint-cil.zrapp goblint-cil.logwrites goblint-cil.epicenter goblint-cil.ccl goblint-cil.syntacticsearch"
+requires="goblint-cil.dataslicing goblint-cil.liveness goblint-cil.pta goblint-cil.zrapp goblint-cil.syntacticsearch"
 version = "1.7.8"
 )
