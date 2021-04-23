@@ -85,8 +85,6 @@ val typeForCombinedArg: ((string, string) Hashtbl.t -> Cil.typ -> Cil.typ) ref
 val attrsForCombinedArg: ((string, string) Hashtbl.t ->
                           Cil.attributes -> Cil.attributes) ref
 
-val varnameMapping : (string, string) Hashtbl.t
-
 val allTempVars: unit Inthash.t
 
 type envdata =
@@ -106,4 +104,5 @@ type envdata =
                                          * declared labels. The lookup name
                                          * for this category is "label foo" *)
 (** A hashtable containing a mapping of variables, enums, types and labels to varinfo, typ, etc. *)
+(*  It enables a lookup of the original variable names before the alpha conversion by cabs2cil *)
 val environment : (string, envdata * Cil.location) Hashtbl.t
