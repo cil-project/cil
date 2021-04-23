@@ -123,13 +123,6 @@ ifdef STATS
   CILLY+= --stats
 endif
 
-# enable logging of all fn calls in the application
-# (see LOGSTYLE, below)
-ifdef LOGCALLS
-  CILLY+= --logcalls
-endif
-
-
 # when SEPARATE is defined, merging is disabled
 ifdef SEPARATE
   CILLY+= --nomerge
