@@ -18,7 +18,7 @@ let rec delete_duplicates list acc =
 
 let map_gfun f = function GFun (dec, loc) -> f dec loc | _ -> None
 
-let find_all_orignames n =
+let find_all_with_origname n =
   let ns = Hashtbl.find_all environment n in
   BatList.filter_map (function | (EnvVar v,_) -> Some v.vname | _ -> None) ns
 
@@ -259,7 +259,7 @@ let find_usesvar_in_fun funname funid funstrucname varname file =
   | Some fundec ->
       let result = ref [] in
       let dedup =
-        delete_duplicates (find_all_orignames varname) []
+        delete_duplicates (find_all_with_origname varname) []
       in
       List.iter
         (fun x ->
@@ -373,7 +373,7 @@ class find_calls_usesvar_with_tmp result funname funid varname : nopCilVisitor =
                     (List.map
                        (fun x ->
                          FuncVar.search_expression_list arg_list x loc (-1) true)
-                       (find_all_orignames varname)))
+                       (find_all_with_origname varname)))
                > 0
           then
             match lval_opt with
