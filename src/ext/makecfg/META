@@ -1,2 +1,1 @@
-requires = "goblint-cil.makecfg"
 description = "make the program look more like a CFG"
