@@ -35,6 +35,7 @@ Changes:
     ppx_deriving_yojson
     yojson
     (batteries (>= 3.2.0))
+    conf-perl
   )
   (conflicts cil)
 )
