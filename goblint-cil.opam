@@ -23,11 +23,11 @@ license: "BSD"
 homepage: "https://cil-project.github.io/cil/"
 bug-reports: "https://github.com/goblint/cil/issues"
 depends: [
-  "ocaml" {>= "4.02.3"}
+  "ocaml" {>= "4.04.2"}
   "ocamlfind"
   "zarith"
   "hevea" {with-doc}
-  "dune" {>= "2.3.0"}
+  "dune" {>= "2.7" & >= "2.7"}
   "odoc" {with-doc}
   "stdlib-shims"
   "ppx_deriving_yojson"
@@ -36,7 +36,7 @@ depends: [
 ]
 conflicts: ["cil"]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   [
     "dune"
     "build"

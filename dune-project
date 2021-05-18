@@ -1,4 +1,4 @@
-(lang dune 2.00)
+(lang dune 2.7)
 (name goblint-cil)
 (implicit_transitive_deps false)
 (generate_opam_files true)
@@ -29,7 +29,7 @@ Changes:
     ocamlfind
     zarith
     (hevea :with-doc)
-    (dune (>= 2.3.0))
+    (dune (>= 2.7))
     (odoc :with-doc)
     stdlib-shims
     ppx_deriving_yojson
