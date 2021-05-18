@@ -8,7 +8,7 @@
 ; (documentation "https://goblint.github.io/cil")
 (authors "gabriel@kerneis.info")
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
-(license BSD)
+(license "BSD-3-Clause")
 
 (package
   (name goblint-cil)

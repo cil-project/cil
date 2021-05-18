@@ -19,7 +19,7 @@ maintainer: [
   "Ralf Vogler <ralf.vogler@gmail.com>"
 ]
 authors: ["gabriel@kerneis.info"]
-license: "BSD"
+license: "BSD-3-Clause"
 homepage: "https://cil-project.github.io/cil/"
 bug-reports: "https://github.com/goblint/cil/issues"
 depends: [
