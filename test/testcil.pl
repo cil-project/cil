@@ -122,10 +122,10 @@ sub addTest {
     my $kind;
 
     my $ccvar;
-    if ($ENV{'CC'} ne "gcc") {
-        $ccvar = "CC=gcc-9";
+    if ($ENV{'CC'} ne "") {
+       $ccvar = "CC=". $ENV{'CC'};
     } else {
-        $ccvar = "";
+       $ccvar = "";
     }
 
     my $tst =
