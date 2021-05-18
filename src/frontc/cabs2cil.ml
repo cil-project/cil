@@ -4150,7 +4150,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             let e' =
               let te = typeOf e in
               let _, zte = castTo intType te zero in
-              BinOp(Ne, e, zte, te)
+              BinOp(Ne, e, zte, intType)
             in
             finishExp se e' intType
         | _ ->

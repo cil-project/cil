@@ -375,6 +375,8 @@ addTest("testrun/scope11 ");
 addTest("test/scope12 ");
 addTest("test/voidstar");
 addTest("testrun/memcpy1");
+addTest("testrun/land_expr");
+
 
 addTest("test/noreturn ");
 
