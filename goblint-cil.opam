@@ -51,3 +51,9 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/goblint/cil.git"
+depexts: [
+  ["libc6-dev-i386"] {os-family = "debian" | os-family = "ubuntu"}
+  ["glibc-devel-32bit"] {os-family = "suse"}
+  ["glibc-devel.i686"] {os-distribution = "fedora" | os-distribution = "rhel" | os-distribution = "centos" | os-distribution = "ol"}
+  ["lib32-glibc-devel"] {os-family = "arch"}
+]
