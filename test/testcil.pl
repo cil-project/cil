@@ -43,8 +43,6 @@ my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 # am I using egcs?
 my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
 
-# am I on manju?
-my $manju = $unix && system("hostname | grep manju >/dev/null")==0;
 
 my $make;
 if ($solaris || $freebsd) {
