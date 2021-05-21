@@ -1,0 +1,3 @@
+depexts: [
+  ["perl-ExtUtils-MakeMaker"] {os-distribution = "centos" | os-distribution = "fedora"}
+]
