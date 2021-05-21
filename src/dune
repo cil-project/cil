@@ -26,9 +26,7 @@
     ))
     (run cp src/main.exe bin/cilly.native)
     (bash "mkdir -p share/cil && echo $(cd ../install/default/lib; pwd) > share/cil/ocamlpath")
-    (chdir test (progn
-     (run ./testcil -r --regrtest)
-    ))
+    (run make test)
  )))
  (alias runtest)
 )
