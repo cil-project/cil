@@ -1,3 +1,4 @@
 depexts: [
   ["perl-ExtUtils-MakeMaker"] {os-distribution = "centos" | os-distribution = "fedora" | os-distribution = "ol"}
 ]
+available: arch != "ppc32" & arch != "ppc64"
