@@ -29,10 +29,10 @@ Changes:
     ocamlfind
     zarith
     (hevea :with-doc)
-    (dune (>= 2.7))
+    dune
     (odoc :with-doc)
     stdlib-shims
-    ppx_deriving_yojson
+    (ppx_deriving_yojson (>= 3.2))
     yojson
     (batteries (>= 3.2.0))
     conf-perl
