@@ -296,11 +296,7 @@ clean: $(CILLYDIR)/Makefile
 
 .PHONY: test
 test:
-ifneq ($(VERBOSE),)
 	cd test; CC=@CC@ ./testcil -r --regrtest || { cat cil.log; exit 1; }
-else
-	cd test; CC=@CC@ ./testcil -r --regrtest
-endif
 
 ########################################################################
 
