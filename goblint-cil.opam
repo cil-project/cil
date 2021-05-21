@@ -51,3 +51,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/goblint/cil.git"
+depexts: [
+  ["perl-ExtUtils-MakeMaker"] {os-distribution = "centos" | os-distribution = "fedora" | os-distribution = "ol"}
+]
