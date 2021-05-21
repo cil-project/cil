@@ -271,7 +271,7 @@ testrun/% : $(SMALL1)/%.ml
 
 combine%: $(SMALL1)/combine%_1.c
 	cd $(SMALL1); \
-          $(CILLY) $(CFLAGS) -std=gnu90 \
+          $(CILLY) $(CFLAGS) -std=gnu90 -fcommon \
                     $(notdir $(wildcard $(SMALL1)/combine$*_[1-9].c)) \
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
@@ -286,7 +286,7 @@ arcombine: mustbegcc
 
 combinec99%: $(SMALL1)/combine-c99%_1.c
 	cd $(SMALL1); \
-          $(CILLY) $(CFLAGS) -std=c99 --merge \
+          $(CILLY) $(CFLAGS) -std=c99 -fcommon --merge \
                     $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \
 	            $(EXEOUT)combine-c99$*.exe
 	cd $(SMALL1); ./combine-c99$*.exe
@@ -346,11 +346,11 @@ MYSAFECC := $(CILLY)
 comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
-	  $(MYSAFECC)  comb1.c $(CONLY) $(OBJOUT) comb1.o; \
-	  $(MYSAFECC)  comb2.c $(CONLY) $(OBJOUT) comb2.o; \
-	  $(MYSAFECC)  comb3.c $(CONLY) $(OBJOUT) comb3.o; \
-	  $(MYSAFECC)  comb4.c $(CONLY) $(OBJOUT) comb4.o; \
-          $(MYSAFECC)  comb1.o comb2.o comb3.o comb4.o $(EXEOUT)comb.exe
+	  $(MYSAFECC) -fcommon comb1.c $(CONLY) $(OBJOUT) comb1.o; \
+	  $(MYSAFECC) -fcommon comb2.c $(CONLY) $(OBJOUT) comb2.o; \
+	  $(MYSAFECC) -fcommon comb3.c $(CONLY) $(OBJOUT) comb3.o; \
+	  $(MYSAFECC) -fcommon comb4.c $(CONLY) $(OBJOUT) comb4.o; \
+          $(MYSAFECC) -fcommon comb1.o comb2.o comb3.o comb4.o $(EXEOUT)comb.exe
 	$(TESTDIR)/small2/comb.exe
 
 #call cilly on a .c file, a .i file, a .s file, and a .o file.
@@ -358,16 +358,16 @@ comb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 mixedcomb: $(TESTDIR)/small2/comb1.c $(TESTDIR)/small2/comb2.c
 	rm -f $(TESTDIR)/small2/comb.exe
 	cd $(TESTDIR)/small2; \
-	  gcc -E -o comb2.i comb2.c; \
-	  gcc -S -o comb3.s comb3.c; \
-	  gcc -c -o comb4.o comb4.c; \
-	  $(MYSAFECC)  comb1.c comb2.i comb3.s comb4.o $(EXEOUT)comb.exe
+	  gcc -fcommon -E -o comb2.i comb2.c; \
+	  gcc -fcommon -S -o comb3.s comb3.c; \
+	  gcc -fcommon -c -o comb4.o comb4.c; \
+	  $(MYSAFECC) -fcommon  comb1.c comb2.i comb3.s comb4.o $(EXEOUT)comb.exe
 	$(TESTDIR)/small2/comb.exe
 
 # sm: another merger test
 mergestruct: $(TESTDIR)/small2/mergestruct1.c $(TESTDIR)/small2/mergestruct2.c
 	cd $(TESTDIR)/small2; \
-	  $(CILLY) mergestruct1.c mergestruct2.c -o mergestruct.exe
+	  $(CILLY) -fcommon mergestruct1.c mergestruct2.c -o mergestruct.exe
 	$(TESTDIR)/small2/mergestruct.exe
 
 # sc: this tests for a merger bug in global variables initializations
