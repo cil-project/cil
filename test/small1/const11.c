@@ -18,17 +18,17 @@ int main () {
   int f = 1 << 64;          // Don't fold this.
 
 
-  printf("a=%d, b=%d, c=%d, d=%d:%u, e=%d:%u, f=%d, g=%d\n",
+  printf("a=%d, b=%d, c=%d, d=%d:%u, e=%d:%u, f=%d",
          a, b, c,
          (int)(d>>32), (unsigned int)d, (int)(e>>32), (unsigned int)e,
-         f, g);
+         f);
 
   //right shift:
   aa = ((uint64)0x200000000LL) >> 33; // 1
   bb = ((uint64)0x200000000LL) >> 65; // Don't fold this.  gcc treats it as 0.
 
-  printf("aa=%d, bb=%d, cc=%d\n",
-         aa, bb, cc);
+  printf("aa=%d, bb=%d",
+         aa, bb);
 
   if (a != 512) E(2);
   if (b != 0) E(3);
