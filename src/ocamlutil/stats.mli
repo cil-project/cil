@@ -36,6 +36,17 @@ type timerModeEnum =
   | Disabled      (** Do not collect timing information *)
   | SoftwareTimer (** Use OCaml's [Unix.time] for timing information *)
 
+(** A timing entry *)
+type t = {
+  name : string;        (** Name of the task *)
+  mutable time : float; (** In seconds *)
+  mutable ncalls : int; (** Number of repetitions. Only set if {!Stats.countCalls} is true. *)
+  mutable sub : t list; (** Subtasks *)
+}
+
+(** The top-level timing entry *)
+val top : t
+
 (** Resets all the timings and specifies the method to use for future timings.
  *  Call this before doing any timing. *)
 val reset: timerModeEnum -> unit
