@@ -2,7 +2,7 @@
 (name goblint-cil)
 (implicit_transitive_deps false)
 (generate_opam_files true)
-(version 1.8.0)
+(version 1.8.1)
 (source (github goblint/cil))
 (homepage "https://cil-project.github.io/cil/")
 ; (documentation "https://goblint.github.io/cil")

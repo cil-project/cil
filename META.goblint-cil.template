@@ -2,10 +2,10 @@
 
 package "default-features" (
 requires="goblint-cil.dataslicing goblint-cil.liveness goblint-cil.pta goblint-cil.makecfg goblint-cil.syntacticsearch"
-version = "1.8.0"
+version = "1.8.1"
 )
 
 package "all-features" (
 requires="goblint-cil.dataslicing goblint-cil.liveness goblint-cil.pta goblint-cil.makecfg goblint-cil.zrapp goblint-cil.syntacticsearch"
-version = "1.8.0"
+version = "1.8.1"
 )
