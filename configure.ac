@@ -33,7 +33,7 @@ AC_PREREQ([2.69])
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=8
-CIL_VERSION_REV=0
+CIL_VERSION_REV=1
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
