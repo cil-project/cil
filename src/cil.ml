@@ -1621,7 +1621,7 @@ let typeOfRealAndImagComponents t =
       | FComplexLongDouble -> FLongDouble
     in
     TFloat (newfkind fkind, attrs)
-  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__")
+  | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__/__imag__ ")
 
 (** for an fkind, return the corresponding complex fkind *)
 let getComplexFkind = function
