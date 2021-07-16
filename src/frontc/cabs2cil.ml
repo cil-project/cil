@@ -124,7 +124,7 @@ let attrsForCombinedArg: ((string, string) H.t ->
 let lu = locUnknown
 let cabslu = {lineno = -10;
 	      filename = "cabs lu";
-	      byteno = -10;
+	      byteno = -10; lineoffset = -10;
               ident = 0;}
 
 
@@ -195,7 +195,7 @@ let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then
     ignore (E.log "convLoc at %s: line %d, byte %d\n" l.filename l.lineno l.byteno);
-  {line = l.lineno; file = l.filename; byte = l.byteno;}
+  {line = l.lineno; file = l.filename; byte = l.byteno; lineoffset = l.lineoffset}
 
 
 let isOldStyleVarArgName n =

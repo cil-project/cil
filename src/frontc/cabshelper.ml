@@ -11,11 +11,12 @@ let currentLoc () =
   { lineno   = l;
     filename = f;
     byteno   = c;
+    lineoffset = c - lc;
     ident    = getident ();}
 
 let cabslu = {lineno = -10; 
 	      filename = "cabs loc unknown"; 
-	      byteno = -10;
+	      byteno = -10; lineoffset = -10;
               ident = 0}
 
 (* clexer puts comments here *)

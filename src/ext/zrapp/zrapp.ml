@@ -78,6 +78,7 @@ let get_comments l =
   let cabsl = {A.lineno = l.line;
 	       A.filename = l.file;
 	       A.byteno = l.byte;
+         A.lineoffset = l.lineoffset;
 	       A.ident = 0;} in
   let s = simpleGaSearch cabsl in
 

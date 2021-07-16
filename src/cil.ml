@@ -878,6 +878,7 @@ and location = {
     line: int;		   (** The line number. -1 means "do not know" *)
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
+    lineoffset: int;       (** The line offset *)
 }
 
 (* Type signatures. Two types are identical iff they have identical
@@ -892,7 +893,8 @@ and typsig =
 
 let locUnknown = { line = -1;
 		   file = "";
-		   byte = -1;}
+		   byte = -1;
+       lineoffset = -1}
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
@@ -3289,7 +3291,8 @@ let initMsvcBuiltins () : unit =
 (** This is used as the location of the prototypes of builtin functions. *)
 let builtinLoc: location = { line = 1;
                              file = "<compiler builtins>";
-                             byte = 0;}
+                             byte = 0;
+                             lineoffset = 0}
 
 
 
