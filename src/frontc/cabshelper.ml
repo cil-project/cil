@@ -7,9 +7,9 @@ let getident () =
     !nextident
 
 let currentLoc () = 
-  let l, f, c = Errormsg.getPosition () in
-  { lineno   = l; 
-    filename = f; 
+  let l, f, c, lc = Errormsg.getPosition () in
+  { lineno   = l;
+    filename = f;
     byteno   = c;
     ident    = getident ();}
 
