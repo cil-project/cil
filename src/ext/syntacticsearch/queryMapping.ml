@@ -2,7 +2,7 @@ open Cil
 open CodeQuery
 
 (* Default output if the input-query is not supported *)
-let loc_default = { line = -1; file = ""; byte = -1; lineoffset = -1 }
+let loc_default = { line = -1; file = ""; byte = -1; column = -1 }
 
 let rec delete_elem (name1, loc1, typ1, id1) list =
   match list with

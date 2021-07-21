@@ -50,7 +50,7 @@ type cabsloc = {
  lineno : int;
  filename: string;
  byteno: int;
- lineoffset: int;
+ columnno: int;
  ident : int;
 }
 
