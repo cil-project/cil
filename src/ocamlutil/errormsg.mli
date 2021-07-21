@@ -128,7 +128,7 @@ val newHline: unit -> unit
 
 val getPosition: unit -> int * string * int * int (* Line number, file name,
                                                      current byte count in file,
-                                                     current line start byte count in file *)
+                                                     byte count for line start *)
 val getHPosition: unit -> int * string (** high-level position *)
 
 val setHLine: int -> unit

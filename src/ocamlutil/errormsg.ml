@@ -330,7 +330,7 @@ let parse_error (msg: string) : 'a =
 
 
 
-(* More parsing support functions: line, file, char count, current line start char count *)
+(* More parsing support functions: line, file, char count, char count for line start *)
 let getPosition () : int * string * int * int =
   let i = !current in
   i.linenum, i.fileName, Lexing.lexeme_start i.lexbuf, i.linestart
