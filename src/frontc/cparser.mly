@@ -63,7 +63,7 @@ let getComments () =
 
 let cabslu = {lineno = -10;
 	      filename = "cabs loc unknown";
-	      byteno = -10;
+	      byteno = -10; columnno = -10;
               ident = 0;}
 
 (* cabsloc -> cabsloc *)

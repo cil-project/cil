@@ -124,7 +124,7 @@ let attrsForCombinedArg: ((string, string) H.t ->
 let lu = locUnknown
 let cabslu = {lineno = -10;
 	      filename = "cabs lu";
-	      byteno = -10;
+	      byteno = -10; columnno = -10;
               ident = 0;}
 
 
@@ -194,8 +194,8 @@ let transparentUnionArgs : (int * typ) list ref = ref []
 let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then
-    ignore (E.log "convLoc at %s: line %d, byte %d\n" l.filename l.lineno l.byteno);
-  {line = l.lineno; file = l.filename; byte = l.byteno;}
+    ignore (E.log "convLoc at %s: line %d, byte %d, column %d\n" l.filename l.lineno l.byteno l.columnno);
+  {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno}
 
 
 let isOldStyleVarArgName n =

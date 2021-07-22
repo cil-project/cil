@@ -93,7 +93,7 @@ end
 
 let visitorLocation = ref { filename = "";
 			    lineno = -1;
-			    byteno = -1;
+			    byteno = -1; columnno = -1;
                             ident = 0}
 
         (* a default visitor which does nothing to the tree *)

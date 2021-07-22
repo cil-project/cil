@@ -215,7 +215,7 @@ let find_uses_in_fun_all funstrucname file =
             Some (find_uses_in_fun "" fundec.svar.vid funstrucname file)))
        file.globals
 
-let loc_default = { line = -1; file = ""; byte = -1 }
+let loc_default = { line = -1; file = ""; byte = -1; column = -1 }
 
 class fun_find_usesvar_in_fun fundec funstrucname varname varid file result :
   nopCilVisitor =

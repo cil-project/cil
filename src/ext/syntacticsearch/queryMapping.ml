@@ -2,14 +2,14 @@ open Cil
 open CodeQuery
 
 (* Default output if the input-query is not supported *)
-let loc_default = { line = -1; file = ""; byte = -1 }
+let loc_default = { line = -1; file = ""; byte = -1; column = -1 }
 
 let rec delete_elem (name1, loc1, typ1, id1) list =
   match list with
   | (name2, loc2, typ2, id2) :: xs ->
       if
         String.compare name1 name2 = 0
-        && loc1.line = loc2.line && loc1.byte = loc2.byte
+        && loc1.line = loc2.line && loc1.byte = loc2.byte && loc1.column = loc2.column
         && String.compare loc1.file loc2.file = 0
         && String.compare typ1 typ2 = 0
         && id1 = id2

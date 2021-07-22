@@ -7,15 +7,16 @@ let getident () =
     !nextident
 
 let currentLoc () = 
-  let l, f, c = Errormsg.getPosition () in
-  { lineno   = l; 
-    filename = f; 
+  let l, f, c, lc = Errormsg.getPosition () in
+  { lineno   = l;
+    filename = f;
     byteno   = c;
+    columnno = c - lc;
     ident    = getident ();}
 
 let cabslu = {lineno = -10; 
 	      filename = "cabs loc unknown"; 
-	      byteno = -10;
+	      byteno = -10; columnno = -10;
               ident = 0}
 
 (* clexer puts comments here *)

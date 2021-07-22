@@ -126,8 +126,9 @@ val withContext  : (unit -> Pretty.doc) -> ('a -> 'b) -> 'a -> 'b
 val newline: unit -> unit  (* Call this function to announce a new line *)
 val newHline: unit -> unit 
 
-val getPosition: unit -> int * string * int (* Line number, file name, 
-                                               current byte count in file *)
+val getPosition: unit -> int * string * int * int (* Line number, file name,
+                                                     current byte count in file,
+                                                     byte count for line start *)
 val getHPosition: unit -> int * string (** high-level position *)
 
 val setHLine: int -> unit

@@ -57,6 +57,10 @@ let loc_comp l1 l2 =
   then Some(1)
   else if l2.A.byteno > l1.A.byteno
   then Some(-1)
+  else if l1.A.columnno > l2.A.columnno
+  then Some(1)
+  else if l2.A.columnno > l1.A.columnno
+  then Some(-1)
   else Some(0)
 
 let simpleGaSearch l =
@@ -78,6 +82,7 @@ let get_comments l =
   let cabsl = {A.lineno = l.line;
 	       A.filename = l.file;
 	       A.byteno = l.byte;
+         A.columnno = l.column;
 	       A.ident = 0;} in
   let s = simpleGaSearch cabsl in
 

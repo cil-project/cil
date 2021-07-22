@@ -69,7 +69,7 @@ type loc = { line : int; file : string }
 let lu = {line = -1; file = "loc unknown";}
 let cabslu = {lineno = -10;
 	      filename = "cabs loc unknown";
-	      byteno = -10;
+	      byteno = -10; columnno = -10;
               ident = 0;}
 
 let curLoc = ref cabslu
