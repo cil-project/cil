@@ -925,6 +925,8 @@ and stmt = {
      * the CFG is computed. *)
     mutable preds: stmt list;
     (** The inverse of the succs function. *)
+    mutable fallthrough: stmt option;
+    (** The fallthrough successor statement computed from the context of this statement in {!Cil.computeCFGInto}. Useful for the syntactic successor of Goto and Loop. *)
   }
 
 (** Labels *)
