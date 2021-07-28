@@ -736,6 +736,7 @@ and stmt = {
                                            and the context in which this
                                            statement appears *)
     mutable preds: stmt list;          (** The inverse of the succs function*)
+    mutable fallthrough: stmt option;  (** The fallthrough successor statement computed from the context of this statement in {!Cil.computeCFGInto}. Useful for the syntactic successor of Goto and Loop. *)
   }
 
 (** Labels *)
@@ -1323,7 +1324,7 @@ let isSigned = function
 let mkStmt (sk: stmtkind) : stmt =
   { skind = sk;
     labels = [];
-    sid = -1; succs = []; preds = [] }
+    sid = -1; succs = []; preds = []; fallthrough = None }
 
 let mkBlock (slst: stmt list) : block =
   { battrs = []; bstmts = slst; }
@@ -6688,6 +6689,7 @@ let rec succpred_block b fallthrough rlabels =
 
 
 and succpred_stmt s fallthrough rlabels =
+  s.fallthrough <- fallthrough;
   match s.skind with
     Instr _ -> trylink s fallthrough
   | Return _ -> ()
