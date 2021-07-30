@@ -27,7 +27,7 @@ AC_CONFIG_FILES([stamp-h], [echo timestamp > stamp-h])
 
 # sm: require a late-enough autoconf; this is the version number
 # that's on manju, so I assume it's ok
-AC_PREREQ([2.69])
+AC_PREREQ([2.71])
 
 #
 # Assign here the CIL version numbers
@@ -53,10 +53,10 @@ AC_CANONICAL_HOST
 # Detect the target system
 case "${host_os}" in
     *darwin*)
-        list_of_compilers="gcc-10 gcc-9 gcc-8 gcc-7 gcc clang"
+        list_of_compilers="gcc-11 gcc-10 gcc-9 gcc-8 gcc-7 gcc clang"
         ;;
     *macos*)
-        list_of_compilers="gcc-10 gcc-9 gcc-8 gcc-7 gcc clang"
+        list_of_compilers="gcc-11 gcc-10 gcc-9 gcc-8 gcc-7 gcc clang"
         ;;
     *)
         list_of_compilers="gcc cl cc"
@@ -167,13 +167,11 @@ AC_MSG_RESULT($UNDERSCORE_NAME)
 # (autoscan is part of the autoconf distribution)
 
 # checks for header files
-AC_HEADER_STDC
 AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h stdbool.h)
 
 # checks for typedefs, structures, and compiler characteristics
 AC_C_CONST
 AC_C_INLINE
-AC_HEADER_TIME
 AC_TYPE_INTPTR_T
 
 # checks for library functions; more autoscan stuff
