@@ -1,6 +1,10 @@
+(* Tue Apr 23 10:16:43 EDT 2013 WRW -- this is a copy of 'ptranal.ml' from
+ * CIL 1.6.0 copied locally and adapted to work with Genprog (e.g., for
+ * handling the strong update problem when computing dataflow analyses). *) 
+ 
 (*
  *
- * Copyright (c) 2001-2002,
+ * Copyright (c) 2001-2017,
  *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  *
@@ -38,11 +42,10 @@ exception Bad_function
 
 
 open Cil
-open Feature
 
 module H = Hashtbl
 
-module A = Olf
+module A = Golf
 exception UnknownLocation = A.UnknownLocation
 
 type access = A.lvalue * bool
@@ -245,13 +248,17 @@ and analyze_expr (e : exp ) : A.tau =
       | AlignOf _ -> A.bottom ()
       | UnOp (op, e, t) -> analyze_expr e
       | BinOp (op, e, e', t) -> A.join (analyze_expr e) (analyze_expr e')
+      (*
       | Question (_, e, e', _) -> A.join (analyze_expr e) (analyze_expr e')
+      *) 
       | CastE (t, e) -> analyze_expr e
       | AddrOf l ->
           if !fun_ptrs_as_funs && isFunctionType (typeOfLval l) then
             A.rvalue (analyze_lval l)
           else A.address (analyze_lval l)
+          (*
       | AddrOfLabel _ -> failwith "not implemented yet" (* XXX *)
+      *) 
       | StartOf l -> A.address (analyze_lval l)
       | AlignOfE _ -> A.bottom ()
       | SizeOfE _ -> A.bottom ()
@@ -265,7 +272,7 @@ let rec analyze_init (i : init ) : A.tau =
   match i with
       SingleInit e -> analyze_expr e
     | CompoundInit (t, oi) ->
-        A.join_inits (Util.list_map (function (_, i) -> analyze_init i) oi)
+        A.join_inits (Golf.list_map (function (_, i) -> analyze_init i) oi)
 
 let analyze_instr (i : instr ) : unit =
   match i with
@@ -285,10 +292,10 @@ let analyze_instr (i : instr ) : unit =
           List.iter (fun e -> ignore (analyze_expr e)) actuals
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
-            if is_undefined_fun fexpr && !conservative_undefineds then
-              A.apply_undefined (Util.list_map analyze_expr actuals)
+            if is_undefined_fun fexpr & !conservative_undefineds then
+              A.apply_undefined (Golf.list_map analyze_expr actuals)
             else
-              A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
+              A.apply (analyze_expr fexpr) (Golf.list_map analyze_expr actuals)
           in
             begin
               match res with
@@ -316,7 +323,9 @@ let rec analyze_stmt (s : stmt ) : unit =
             | None -> ()
         end
     | Goto (s', l) -> () (* analyze_stmt(!s') *)
+    (*
     | ComputedGoto (e, l) -> ()
+    *) 
     | If (e, b, b', l) ->
         (* ignore the expression e; expressions can't be side-effecting *)
         analyze_block b;
@@ -343,7 +352,7 @@ and analyze_block (b : block ) : unit =
 let analyze_function (f : fundec ) : unit =
   let oldlv = analyze_var_decl f.svar in
   let ret = A.make_fresh (f.svar.vname ^ "_ret") in
-  let formals = Util.list_map analyze_var_decl f.sformals in
+  let formals = Golf.list_map analyze_var_decl f.sformals in
   let newf = A.make_function f.svar.vname formals ret in
     if !show_progress then
       Printf.printf "Analyzing function %s\n" f.svar.vname;
@@ -433,7 +442,7 @@ let compute_may_aliases (b : bool) : unit =
     match exps with
         [] -> ()
       | h :: t ->
-          ignore (Util.list_map (may_alias h) t);
+          ignore (Golf.list_map (may_alias h) t);
           compute_may_aliases_aux t
   and exprs : exp list ref = ref [] in
     H.iter (fun e -> fun _ -> exprs := e :: !exprs) expressions;
@@ -545,7 +554,7 @@ let absloc_lval_aliases lv =
 let absloc_e_transitive_points_to (e : Cil.exp) : absloc list =
   let rec lv_trans_ptsto (worklist : varinfo list) (acc : varinfo list) : absloc list =
     match worklist with
-        [] -> Util.list_map absloc_of_varinfo acc
+        [] -> Golf.list_map absloc_of_varinfo acc
       | vi :: wklst'' ->
           if List.mem vi acc then lv_trans_ptsto wklst'' acc
           else
@@ -562,15 +571,16 @@ let absloc_eq a b = A.absloc_eq (a, b)
 let d_absloc: unit -> absloc -> Pretty.doc = A.d_absloc
 
 
+let ptrAnalysis = ref false
 let ptrResults = ref false
 let ptrTypes = ref false
 
 
 
 (** Turn this into a CIL feature *)
-let feature = {
-  fd_name = "ptranal";
-  fd_enabled = false;
+let feature  = {
+  Feature.fd_name = "ptranal";
+  Feature.fd_enabled = !ptrAnalysis;
   fd_description = "alias analysis";
   fd_extraopt = [
     ("--ptr_may_aliases",
@@ -596,5 +606,3 @@ let feature = {
                if !ptrTypes then print_types ());
   fd_post_check = false (* No changes *)
 }
-
-let () = Feature.register feature
