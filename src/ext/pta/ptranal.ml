@@ -1,6 +1,10 @@
+(* Tue Apr 23 10:16:43 EDT 2013 WRW -- this is a copy of 'ptranal.ml' from
+ * CIL 1.6.0 copied locally and adapted to work with Genprog (e.g., for
+ * handling the strong update problem when computing dataflow analyses). *) 
+ 
 (*
  *
- * Copyright (c) 2001-2002,
+ * Copyright (c) 2001-2017,
  *  John Kodumal        <jkodumal@eecs.berkeley.edu>
  * All rights reserved.
  *
@@ -42,7 +46,7 @@ open Feature
 
 module H = Hashtbl
 
-module A = Olf
+module A = Golf
 exception UnknownLocation = A.UnknownLocation
 
 type access = A.lvalue * bool
@@ -245,13 +249,17 @@ and analyze_expr (e : exp ) : A.tau =
       | AlignOf _ -> A.bottom ()
       | UnOp (op, e, t) -> analyze_expr e
       | BinOp (op, e, e', t) -> A.join (analyze_expr e) (analyze_expr e')
+      (*
       | Question (_, e, e', _) -> A.join (analyze_expr e) (analyze_expr e')
+      *) 
       | CastE (t, e) -> analyze_expr e
       | AddrOf l ->
           if !fun_ptrs_as_funs && isFunctionType (typeOfLval l) then
             A.rvalue (analyze_lval l)
           else A.address (analyze_lval l)
+          (*
       | AddrOfLabel _ -> failwith "not implemented yet" (* XXX *)
+      *) 
       | StartOf l -> A.address (analyze_lval l)
       | AlignOfE _ -> A.bottom ()
       | SizeOfE _ -> A.bottom ()
@@ -285,7 +293,7 @@ let analyze_instr (i : instr ) : unit =
           List.iter (fun e -> ignore (analyze_expr e)) actuals
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
-            if is_undefined_fun fexpr && !conservative_undefineds then
+            if is_undefined_fun fexpr & !conservative_undefineds then
               A.apply_undefined (Util.list_map analyze_expr actuals)
             else
               A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
@@ -316,7 +324,9 @@ let rec analyze_stmt (s : stmt ) : unit =
             | None -> ()
         end
     | Goto (s', l) -> () (* analyze_stmt(!s') *)
+    (*
     | ComputedGoto (e, l) -> ()
+    *) 
     | If (e, b, b', l) ->
         (* ignore the expression e; expressions can't be side-effecting *)
         analyze_block b;
@@ -562,15 +572,16 @@ let absloc_eq a b = A.absloc_eq (a, b)
 let d_absloc: unit -> absloc -> Pretty.doc = A.d_absloc
 
 
+let ptrAnalysis = ref false
 let ptrResults = ref false
 let ptrTypes = ref false
 
 
 
 (** Turn this into a CIL feature *)
-let feature = {
+let feature  = {
   fd_name = "ptranal";
-  fd_enabled = false;
+  fd_enabled = !ptrAnalysis;
   fd_description = "alias analysis";
   fd_extraopt = [
     ("--ptr_may_aliases",
