@@ -42,6 +42,7 @@ exception Bad_function
 
 
 open Cil
+open Feature
 
 module H = Hashtbl
 
@@ -272,7 +273,7 @@ let rec analyze_init (i : init ) : A.tau =
   match i with
       SingleInit e -> analyze_expr e
     | CompoundInit (t, oi) ->
-        A.join_inits (Golf.list_map (function (_, i) -> analyze_init i) oi)
+        A.join_inits (Util.list_map (function (_, i) -> analyze_init i) oi)
 
 let analyze_instr (i : instr ) : unit =
   match i with
@@ -293,9 +294,9 @@ let analyze_instr (i : instr ) : unit =
         else (* todo : check to see if the thing is an undefined function *)
           let fnres, site =
             if is_undefined_fun fexpr & !conservative_undefineds then
-              A.apply_undefined (Golf.list_map analyze_expr actuals)
+              A.apply_undefined (Util.list_map analyze_expr actuals)
             else
-              A.apply (analyze_expr fexpr) (Golf.list_map analyze_expr actuals)
+              A.apply (analyze_expr fexpr) (Util.list_map analyze_expr actuals)
           in
             begin
               match res with
@@ -352,7 +353,7 @@ and analyze_block (b : block ) : unit =
 let analyze_function (f : fundec ) : unit =
   let oldlv = analyze_var_decl f.svar in
   let ret = A.make_fresh (f.svar.vname ^ "_ret") in
-  let formals = Golf.list_map analyze_var_decl f.sformals in
+  let formals = Util.list_map analyze_var_decl f.sformals in
   let newf = A.make_function f.svar.vname formals ret in
     if !show_progress then
       Printf.printf "Analyzing function %s\n" f.svar.vname;
@@ -442,7 +443,7 @@ let compute_may_aliases (b : bool) : unit =
     match exps with
         [] -> ()
       | h :: t ->
-          ignore (Golf.list_map (may_alias h) t);
+          ignore (Util.list_map (may_alias h) t);
           compute_may_aliases_aux t
   and exprs : exp list ref = ref [] in
     H.iter (fun e -> fun _ -> exprs := e :: !exprs) expressions;
@@ -554,7 +555,7 @@ let absloc_lval_aliases lv =
 let absloc_e_transitive_points_to (e : Cil.exp) : absloc list =
   let rec lv_trans_ptsto (worklist : varinfo list) (acc : varinfo list) : absloc list =
     match worklist with
-        [] -> Golf.list_map absloc_of_varinfo acc
+        [] -> Util.list_map absloc_of_varinfo acc
       | vi :: wklst'' ->
           if List.mem vi acc then lv_trans_ptsto wklst'' acc
           else
@@ -579,8 +580,8 @@ let ptrTypes = ref false
 
 (** Turn this into a CIL feature *)
 let feature  = {
-  Feature.fd_name = "ptranal";
-  Feature.fd_enabled = !ptrAnalysis;
+  fd_name = "ptranal";
+  fd_enabled = !ptrAnalysis;
   fd_description = "alias analysis";
   fd_extraopt = [
     ("--ptr_may_aliases",
@@ -606,3 +607,5 @@ let feature  = {
                if !ptrTypes then print_types ());
   fd_post_check = false (* No changes *)
 }
+
+let () = Feature.register feature
