@@ -538,7 +538,16 @@ and childrenExpression vis e =
       let b' = visitCabsBlock vis b in
       if b' != b then GNU_BODY b' else e
   | EXPR_PATTERN _ -> e
-  | GENERIC _ -> e (*TODO*)
+  | GENERIC (e, al) ->
+      let e' = ve e in
+      let al' = mapNoCopy (fun ((at, ae) as a) ->
+          let at' = visitCabsSpecifier vis at in
+          let ae' = ve ae in
+          if at' != at || ae' != ae then (at', ae') else a
+        ) al
+      in
+      if e' != e || al' != al then GENERIC (e', al') else e
+
 
 and visitCabsInitExpression vis (ie: init_expression) : init_expression =
   doVisit vis vis#vinitexpr childrenInitExpression ie
