@@ -543,9 +543,6 @@ let docEnv () =
   H.iter (fun k d -> acc := (k, d) :: !acc) env;
   docList ~sep:line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
-  let rec stripParenLocal e = match e with
-  | A.PAREN e2 -> stripParenLocal e2
-  | _ -> e
 
 
 (* Add a new variable. Do alpha-conversion if necessary *)
@@ -6842,6 +6839,11 @@ and doStatement (s : A.statement) : chunk =
     E.hadErrors := true;
     consLabel "booo_statement" empty (convLoc (C.get_statementloc s)) false
   end
+
+
+let rec stripParenLocal e = match e with
+  | A.PAREN e2 -> stripParenLocal e2
+  | _ -> e
 
 class stripParenClass : V.cabsVisitor = object (self)
   inherit V.nopCabsVisitor
