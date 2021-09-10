@@ -669,7 +669,6 @@ let rec stripConstLocalType (t: typ) : typ =
       let a' = dc a in if a != a' then TVoid a' else t
   | TBuiltin_va_list a ->
       let a' = dc a in if a != a' then TBuiltin_va_list a' else t
-  | TDefault -> t
 
 
 let constFoldTypeVisitor = object (self)
@@ -1573,7 +1572,6 @@ let cabsTypeAddAttributes a0 t =
           | TComp (comp, a) -> TComp (comp, addA0To a)
           | TNamed (t, a) -> TNamed (t, addA0To a)
           | TBuiltin_va_list a -> TBuiltin_va_list (addA0To a)
-          | TDefault -> TDefault
   end
 
 
@@ -2463,7 +2461,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)
 
      (* Now the other type specifiers *)
-    | [A.Tdefault] -> TDefault
+    (* | [A.Tdefault] -> TDefault *)
     | [A.Tnamed n] -> begin
         if n = "__builtin_va_list" &&
           !Machdep.theMachine.Machdep.__builtin_va_list then begin
@@ -4864,7 +4862,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let default_typ = ref voidType in
         let typ = 
           let rec get_typ lst = match lst with 
-            | (TDefault, e) :: rest -> default_typ := typeOf e; get_typ rest
+            (* | (TDefault, e) :: rest -> default_typ := typeOf e; get_typ rest *)
             | (t, e) :: rest -> if t = exp_typ then typeOf e else get_typ rest
             | [] -> 
               if !default_typ = voidType then 
@@ -4873,7 +4871,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           in
           get_typ cil_list
         in
-        finishExp empty (Generic(exp, (cil_list))) typ
+        (* finishExp empty (Generic(exp, (cil_list))) typ *)
+        failwith "TODO"
 
   with e when continueOnError -> begin
     (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)
