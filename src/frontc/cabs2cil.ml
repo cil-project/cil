@@ -4860,16 +4860,16 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> true
           | exception (Failure _) -> false
         in
-        let (_, _, e_typ) = doExp false (stripParenLocal e) (AExp None) in (* TODO: why stripParenLocal? *)
+        let (_, _, e_typ) = doExp false e (AExp None) in
         let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
 
         (* TODO: error when multiple compatible associations or defaults even when unused? *)
 
         begin match al_compatible with
-          | [(_, ae)] -> doExp false (stripParenLocal ae) (AExp None) (* TODO: why stripParenLocal? *)
+          | [(_, ae)] -> doExp false ae (AExp None)
           | [] ->
             begin match al_default with
-              | [(_, ae)] -> doExp false (stripParenLocal ae) (AExp None) (* TODO: why stripParenLocal? *)
+              | [(_, ae)] -> doExp false ae (AExp None)
               | [] -> E.s (error "No compatible associations or default in generic")
               | _ -> E.s (error "Multiple defaults in generic")
             end
