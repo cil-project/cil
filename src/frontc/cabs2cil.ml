@@ -2461,7 +2461,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)
 
      (* Now the other type specifiers *)
-    (* | [A.Tdefault] -> TDefault *)
+    | [A.Tdefault] -> E.s (error "Default outside generic associations")
     | [A.Tnamed n] -> begin
         if n = "__builtin_va_list" &&
           !Machdep.theMachine.Machdep.__builtin_va_list then begin
@@ -4848,31 +4848,33 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
 
-    | A.GENERIC (expr, lst) -> 
-        let get_exp (_, e, _) = e in
-        let exp = get_exp (doExp false (stripParenLocal expr) (AExp None)) in
-        let cil_list = 
-          let rec make_cil_list cabs_l cil_l = match cabs_l with 
-          | [] -> cil_l
-          | (s, e) :: rest -> make_cil_list rest (((doOnlyType s JUSTBASE),get_exp (doExp false (stripParenLocal e) (AExp None))) :: cil_l) 
-          in
-          make_cil_list lst [] 
+    | A.GENERIC (e, al) ->
+        let is_default = function
+          | [SpecType Tdefault] -> true (* exactly matches cparser *)
+          | _ -> false
         in
-        let exp_typ = typeOf exp in
-        let default_typ = ref voidType in
-        let typ = 
-          let rec get_typ lst = match lst with 
-            (* | (TDefault, e) :: rest -> default_typ := typeOf e; get_typ rest *)
-            | (t, e) :: rest -> if t = exp_typ then typeOf e else get_typ rest
-            | [] -> 
-              if !default_typ = voidType then 
-                E.s(error "Controlling expression of generic selection is not compatible with any association")
-              else !default_typ
-          in
-          get_typ cil_list
+        let (al_default, al_nondefault) = List.partition (fun (at, _) -> is_default at) al in
+
+        let typ_compatible t1 t2 =
+          match combineTypes CombineOther t1 t2 with (* combineTypes seems to do "compatible types" check *)
+          | _ -> true
+          | exception (Failure _) -> false
         in
-        (* finishExp empty (Generic(exp, (cil_list))) typ *)
-        failwith "TODO"
+        let (_, _, e_typ) = doExp false (stripParenLocal e) (AExp None) in (* TODO: why stripParenLocal? *)
+        let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
+
+        (* TODO: error when multiple compatible associations or defaults even when unused? *)
+
+        begin match al_compatible with
+          | [(_, ae)] -> doExp false (stripParenLocal ae) (AExp None) (* TODO: why stripParenLocal? *)
+          | [] ->
+            begin match al_default with
+              | [(_, ae)] -> doExp false (stripParenLocal ae) (AExp None) (* TODO: why stripParenLocal? *)
+              | [] -> E.s (error "No compatible associations or default in generic")
+              | _ -> E.s (error "Multiple defaults in generic")
+            end
+          | _ -> E.s (error "Multiple compatible associations in generic")
+        end
 
   with e when continueOnError -> begin
     (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)
