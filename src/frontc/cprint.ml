@@ -196,7 +196,7 @@ and print_type_spec = function
       (print_enum_items enum_items)
   | TtypeofE e -> printl ["__typeof__";"("]; print_expression e; print ") "
   | TtypeofT (s,d) -> printl ["__typeof__";"("]; print_onlytype (s, d); print ") "
-  | Tdefault -> print "default "
+  | Tdefault -> print "default " (* TODO: is this right? *)
 
 
 (* print "struct foo", but with specified keyword and a list of
@@ -404,7 +404,7 @@ and get_operator exp =
   | TYPE_SIZEOF _ -> ("", 16)
   | EXPR_ALIGNOF exp -> ("", 16)
   | TYPE_ALIGNOF _ -> ("", 16)
-  | GENERIC _ -> ("", 16)
+  | GENERIC _ -> ("", 16) (* TODO: is this right? *)
   | IMAG exp -> ("", 16)
   | REAL exp -> ("", 16)
   | CLASSIFYTYPE exp -> ("", 16)
@@ -541,6 +541,7 @@ and print_expression_level (lvl: int) (exp : expression) =
       print_onlytype (bt, dt);
       print ")"
   | GENERIC (exp, lst) -> 
+      (* TODO: is this right? *)
       let print_generic_list l =
         match l with 
         [] -> ()

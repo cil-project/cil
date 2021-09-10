@@ -80,7 +80,7 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tenum of string * enum_item list option * attribute list
   | TtypeofE of expression                      (* GCC __typeof__ *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
-  | Tdefault
+  | Tdefault (** "default" in generic associations *)
 
 and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER

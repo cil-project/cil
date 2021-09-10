@@ -4857,6 +4857,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           | _ -> true
           | exception (Failure _) -> false
         in
+        (* cppreference mentions "lvalue conversions" on e before compatibility: https://en.cppreference.com/w/c/language/generic.
+           C11 standard section 6.5.1.1.3 does not mention anything.
+           TODO: Which is it and does doExp already do this? *)
         let (_, _, e_typ) = doExp false e (AExp None) in
         let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
 
