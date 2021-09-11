@@ -20,8 +20,8 @@ int main() {
     if(type3(v_int) != 1) { E(6); }
     if(type3(v_intconst) != 1) { E(7); }
 
-    if(type3((const int)v_int) != 1) { E(6); }
-    if(type3((const int)v_intconst) != 1) { E(7); }
+    if(type3((const int)v_int) != 1) { E(8); }
+    if(type3((const int)v_intconst) != 1) { E(9); }
 
     SUCCESS;
 }
