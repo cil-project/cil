@@ -411,7 +411,6 @@ addTest("testrun/addrof3 _GNUCC=1");
 addTest("testrun/lval1 _GNUCC=1");
 #MIA: addTest("test/bind2 EXTRAARGS=--allowInlineAssembly");
 #addToGroup("test/bind2", "slow");
-addTest("testrun/decl1 _GNUCC=1");
 addTest("testrun/addr-array");
 addTest("testrun/addr-string");
 addTest("combine1 ");
