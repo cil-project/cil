@@ -296,7 +296,7 @@ clean: $(CILLYDIR)/Makefile
 
 .PHONY: test
 test:
-	cd test; CC=@CC@ ./testcil -r --regrtest || { echo "Check test/cil.log for raw output"; }
+	cd test; CC=@CC@ ./testcil -r --regrtest || { echo "Check test/cil.log for raw output"; exit 1; }
 
 ########################################################################
 
