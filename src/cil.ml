@@ -1527,6 +1527,18 @@ let rec typeAttrs = function
   | TFun (_, _, _, a) -> a
   | TBuiltin_va_list a -> a
 
+(** [typeAttrs], which doesn't add inner attributes. *)
+let typeAttrsOuter = function
+  | TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TNamed (_, a) -> a
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TComp (_, a) -> a
+  | TEnum (_, a) -> a
+  | TFun (_, _, _, a) -> a
+  | TBuiltin_va_list a -> a
 
 let setTypeAttrs t a =
   match t with
@@ -1577,6 +1589,19 @@ let typeRemoveAttributes (anl: string list) t =
   | TComp (comp, a) -> TComp (comp, drop a)
   | TNamed (t, a) -> TNamed (t, drop a)
   | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
+
+(** Partition attributes into type qualifiers and non type qualifiers. *)
+let partitionQualifierAttributes al =
+  List.partition (function
+      | Attr (("const" | "volatile" | "restrict"), []) -> true
+      | _ -> false
+    ) al
+
+(** Remove top-level type qualifiers from type. *)
+let removeOuterQualifierAttributes t =
+  let a = typeAttrsOuter t in
+  let (_, a') = partitionQualifierAttributes a in
+  setTypeAttrs t a'
 
 let unrollType (t: typ) : typ =
   let rec withAttrs (al: attributes) (t: typ) : typ =
