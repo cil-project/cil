@@ -1602,17 +1602,21 @@ let typeAttrsOuter = function
   | TFun (_, _, _, a) -> a
   | TBuiltin_va_list a -> a
 
+(** Partition attributes into type qualifiers and non type qualifiers. *)
 let partitionQualifierAttributes al =
   List.partition (function
       | Attr (("const" | "volatile" | "restrict"), []) -> true
       | _ -> false
     ) al
 
+(* Remove top-level type qualifiers from type. *)
 let removeOuterQualifierAttributes t =
   let a = typeAttrsOuter t in
   let (_, a') = partitionQualifierAttributes a in
   setTypeAttrs t a'
 
+(** Construct the composite type of [oldt] and [t] if they are compatible.
+    Raise [Failure] if they are incompatible. *)
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
   let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
