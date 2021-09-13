@@ -1793,7 +1793,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                    combineTypes
                      (if what = CombineFundef then
                        CombineFunarg else CombineOther)
-                     ot' at
+                     (removeOuterQualifierAttributes ot') (removeOuterQualifierAttributes at)
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
