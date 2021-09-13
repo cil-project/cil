@@ -4888,15 +4888,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let (al_default, al_nondefault) = List.partition (fun (at, _) -> is_default at) al in
 
         let typ_compatible t1 t2 =
-          match combineTypes CombineOther t1 t2 with (* combineTypes seems to do "compatible types" check *)
+          match combineTypes CombineOther t1 t2 with (* combineTypes does "compatible types" check *)
           | _ -> true
           | exception (Failure _) -> false
         in
-        (* cppreference mentions "lvalue conversions" on e before compatibility: https://en.cppreference.com/w/c/language/generic.
-           C11 standard section 6.5.1.1.3 does not mention anything.
-           TODO: Which is it and does doExp already do this? *)
-        let (_, _, e_typ) = doExp false e (AExp None) in
-        let e_typ = removeOuterQualifierAttributes e_typ in
+        let (_, _, e_typ) = doExp false e (AExp None) in (* doExp with AExp handles array and function types for "lvalue conversions" (AType would not!) *)
+        let e_typ = removeOuterQualifierAttributes e_typ in (* removeOuterQualifierAttributes handles qualifiers for "lvalue conversions" *)
         let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
 
         (* TODO: error when multiple compatible associations or defaults even when unused? *)
