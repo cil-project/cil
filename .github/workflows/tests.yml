@@ -52,5 +52,6 @@ jobs:
       - run: opam depext goblint-cil --yes --with-doc
       - run: opam depext goblint-cil --yes --with-test
       - run: opam install . --deps-only --with-doc --with-test
+      - run: cat test/cil.log
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
