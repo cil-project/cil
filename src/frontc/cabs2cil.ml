@@ -1597,7 +1597,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   if oldq <> q then
     raise (Failure "different type qualifiers")
   else if q <> [] then
-    combineTypes what (setTypeAttrs oldt olda) (setTypeAttrs t a)
+    cabsTypeAddAttributes q (combineTypes what (setTypeAttrs oldt olda) (setTypeAttrs t a))
   else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)

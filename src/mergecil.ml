@@ -447,7 +447,7 @@ let rec combineTypes (what: combineWhat)
   if oldq <> q then
     raise (Failure (P.sprint ~width:80 (P.dprintf "(different type qualifiers %a and %a)" d_attrlist oldq d_attrlist q)))
   else if q <> [] then
-    combineTypes what oldfidx (setTypeAttrs oldt olda) fidx (setTypeAttrs t a)
+    typeAddAttributes q (combineTypes what oldfidx (setTypeAttrs oldt olda) fidx (setTypeAttrs t a))
   else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
