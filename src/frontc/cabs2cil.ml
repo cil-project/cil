@@ -1608,6 +1608,11 @@ let partitionQualifierAttributes al =
       | _ -> false
     ) al
 
+let removeOuterQualifierAttributes t =
+  let a = typeAttrsOuter t in
+  let (_, a') = partitionQualifierAttributes a in
+  setTypeAttrs t a'
+
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
   let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
   let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
@@ -4887,6 +4892,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
            C11 standard section 6.5.1.1.3 does not mention anything.
            TODO: Which is it and does doExp already do this? *)
         let (_, _, e_typ) = doExp false e (AExp None) in
+        let e_typ = removeOuterQualifierAttributes e_typ in
         let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
 
         (* TODO: error when multiple compatible associations or defaults even when unused? *)
