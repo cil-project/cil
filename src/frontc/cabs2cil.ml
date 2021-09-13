@@ -1589,7 +1589,33 @@ type combineWhat =
  * that are known to be equal *)
 let isomorphicStructs : (string * string, bool) H.t = H.create 15
 
+(** [typeAttrs], which doesn't add inner attributes. *)
+let typeAttrsOuter = function
+  | TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TNamed (_, a) -> a
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TComp (_, a) -> a
+  | TEnum (_, a) -> a
+  | TFun (_, _, _, a) -> a
+  | TBuiltin_va_list a -> a
+
+let partitionQualifierAttributes al =
+  List.partition (function
+      | Attr (("const" | "volatile" | "restrict"), []) -> true
+      | _ -> false
+    ) al
+
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
+  let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
+  let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
+  if oldq <> q then
+    raise (Failure "different type qualifiers")
+  else if q <> [] then
+    combineTypes what (setTypeAttrs oldt olda) (setTypeAttrs t a)
+  else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) ->
