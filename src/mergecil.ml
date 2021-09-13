@@ -437,9 +437,18 @@ type combineWhat =
   | CombineOther
 
 
+(** Construct the composite type of [oldt] and [t] if they are compatible.
+    Raise [Failure] if they are incompatible. *)
 let rec combineTypes (what: combineWhat)
                      (oldfidx: int)  (oldt: typ)
                      (fidx: int) (t: typ)  : typ =
+  let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
+  let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
+  if oldq <> q then
+    raise (Failure "(different type qualifiers)")
+  else if q <> [] then
+    combineTypes what oldfidx (setTypeAttrs oldt olda) fidx (setTypeAttrs t a)
+  else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) ->
@@ -552,7 +561,7 @@ let rec combineTypes (what: combineWhat)
                    combineTypes
                      (if what = CombineFundef then
                        CombineFunarg else CombineOther)
-                     oldfidx ot fidx at
+                     oldfidx (removeOuterQualifierAttributes ot) fidx (removeOuterQualifierAttributes at)
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
