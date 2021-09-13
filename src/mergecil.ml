@@ -445,7 +445,7 @@ let rec combineTypes (what: combineWhat)
   let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
   let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
   if oldq <> q then
-    raise (Failure "(different type qualifiers)")
+    raise (Failure (P.sprint ~width:80 (P.dprintf "(different type qualifiers %a and %a)" d_attrlist oldq d_attrlist q)))
   else if q <> [] then
     combineTypes what oldfidx (setTypeAttrs oldt olda) fidx (setTypeAttrs t a)
   else
