@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-latest
+          # - macos-latest # TODO: fix
           - ubuntu-latest
           # - windows-latest
         ocaml-version:
