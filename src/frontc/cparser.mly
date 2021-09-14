@@ -486,8 +486,8 @@ generic_assoc_list:
 
 /* specifier, expression */
 generic_association:
-| type_name COLON assignment_expression {fst $1, fst $3}
-| DEFAULT COLON assignment_expression {[SpecType(Tdefault)], fst $3}
+| type_name COLON assignment_expression {($1, fst $3)}
+| DEFAULT COLON assignment_expression {([SpecType Tdefault], JUSTBASE), fst $3}
 
 postfix_expression:                     /*(* 6.5.2 *)*/
 |               primary_expression

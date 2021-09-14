@@ -545,9 +545,9 @@ and print_expression_level (lvl: int) (exp : expression) =
       let print_generic_list l =
         match l with 
         [] -> ()
-        | (s, e) :: tl ->
+        | (t, e) :: tl ->
           print ", ";
-          print_onlytype (s, JUSTBASE); 
+          print_onlytype t; 
           print ": ";
           print_expression_level 0 e;
       in

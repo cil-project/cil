@@ -4856,7 +4856,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
     | A.GENERIC (e, al) ->
         let is_default = function
-          | [SpecType Tdefault] -> true (* exactly matches cparser *)
+          | ([SpecType Tdefault], JUSTBASE) -> true (* exactly matches cparser *)
           | _ -> false
         in
         let (al_default, al_nondefault) = List.partition (fun (at, _) -> is_default at) al in
@@ -4868,7 +4868,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         in
         let (_, _, e_typ) = doExp false e (AExp None) in (* doExp with AExp handles array and function types for "lvalue conversions" (AType would not!) *)
         let e_typ = removeOuterQualifierAttributes e_typ in (* removeOuterQualifierAttributes handles qualifiers for "lvalue conversions" *)
-        let al_compatible = List.filter (fun (at, _) -> typ_compatible e_typ (doOnlyType at JUSTBASE)) al_nondefault in
+        let al_compatible = List.filter (fun ((ast, adt), _) -> typ_compatible e_typ (doOnlyType ast adt)) al_nondefault in
 
         (* TODO: error when multiple compatible associations or defaults even when unused? *)
 

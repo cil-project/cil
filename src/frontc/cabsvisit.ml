@@ -540,10 +540,11 @@ and childrenExpression vis e =
   | EXPR_PATTERN _ -> e
   | GENERIC (e, al) ->
       let e' = ve e in
-      let al' = mapNoCopy (fun ((at, ae) as a) ->
-          let at' = visitCabsSpecifier vis at in
+      let al' = mapNoCopy (fun (((ast, adt), ae) as a) ->
+          let ast' = visitCabsSpecifier vis ast in
+          let adt' = visitCabsDeclType vis false adt in
           let ae' = ve ae in
-          if at' != at || ae' != ae then (at', ae') else a
+          if ast' != ast || adt' != adt || ae' != ae then ((ast', adt'), ae') else a
         ) al
       in
       if e' != e || al' != al then GENERIC (e', al') else e
