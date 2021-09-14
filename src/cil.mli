@@ -1347,6 +1347,9 @@ val charType: typ
 (** char * *)
 val charPtrType: typ
 
+(** Type of string literals *)
+val stringLiteralType: typ
+
 (** wchar_t (depends on architecture) and is set when you call
  * {!Cil.initCIL}. *)
 val wcharKind: ikind ref
