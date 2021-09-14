@@ -1276,7 +1276,7 @@ let boolType = TInt(IBool, [])
 
 let charPtrType = TPtr(charType,[])
 let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
-let stringLiteralType = ref charPtrType
+let stringLiteralType = charPtrType
 
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
@@ -1955,7 +1955,7 @@ let rec typeOf (e: exp) : typ =
     (* The type of a string is a pointer to characters ! The only case when
      * you would want it to be an array is as an argument to sizeof, but we
      * have SizeOfStr for that *)
-  | Const(CStr s) -> !stringLiteralType
+  | Const(CStr s) -> stringLiteralType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
