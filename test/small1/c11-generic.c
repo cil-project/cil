@@ -3,6 +3,7 @@
 #define type2(x) _Generic((x), char: 1, unsigned int:2, const int:3, default:0)
 #define type3(x) _Generic((x), int:1, const int:2, default:0)
 #define type4(x) _Generic((x), char*:1, char[4]:0)
+#define type5(x) _Generic((x), int*: 1, default: 0)
 
 int main() {
     unsigned char v_uchar;
@@ -22,6 +23,8 @@ int main() {
 
     if(type3((const int)v_int) != 1) { E(8); }
     if(type3((const int)v_intconst) != 1) { E(9); }
+
+    if (type5(&v_int) != 1) { E(11); }
 
     if((type4("abcd")) != 1) { E(10); }
 
