@@ -89,7 +89,6 @@ let modelParse (s:string) : mach =
     size_t = respace (getNthString 0 entries "size_t");
     wchar_t = respace (getNthString 0 entries "wchar_t");
     char_is_unsigned = not (getBool entries "char_signed");
-    const_string_literals = getBool entries "const_string_literals";
     little_endian = not (getBool entries "big_endian");
     __thread_is_keyword = getBool entries "__thread_is_keyword";
     __builtin_va_list = getBool entries "__builtin_va_list";

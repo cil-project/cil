@@ -7025,11 +7025,6 @@ let initCIL () =
         Some machine -> M.theMachine := machine
       | None -> M.theMachine := if !msvcMode then M.msvc else M.gcc
     end;
-    (* Pick type for string literals *)
-    stringLiteralType := if !M.theMachine.M.const_string_literals then
-      charConstPtrType
-    else
-      charPtrType;
     (* Find the right ikind given the size *)
     let findIkindSz (unsigned: bool) (sz: int) : ikind =
       try
