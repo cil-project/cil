@@ -726,6 +726,9 @@ addTest("testc11/gcc-c11-generic-3-1");
 addTestFail("testc11/gcc-c11-generic-3-2", "No compatible associations or default in generic");
 addTestFail("testc11/gcc-c11-generic-3-3", "No compatible associations or default in generic");
 addTestFail("testc11/gcc-c11-generic-3-4", "No compatible associations or default in generic");
+addTestFail("testc11/clang-c11-generic-1-1", "Multiple compatible associations in generic");
+addTestFail("testc11/clang-c11-generic-1-2", "No compatible associations or default in generic");
+addTest("testc11/clang-c11-generic-2");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
