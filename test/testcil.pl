@@ -713,6 +713,7 @@ addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
 addTest("testrunc11/c11-generic");
+addTest("testrunc11/gcc-c11-generic-1");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
