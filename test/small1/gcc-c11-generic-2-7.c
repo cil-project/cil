@@ -6,3 +6,7 @@ f (int n)
   /* No matching association.  */
   _Generic (n, void *: 5);
 }
+
+int main() {
+  return 0;
+}

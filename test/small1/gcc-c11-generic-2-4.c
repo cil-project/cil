@@ -6,3 +6,7 @@ f (int n)
   /* Type must be complete.  */
   _Generic (n, void: 0, default: 1);
 }
+
+int main() {
+  return 0;
+}

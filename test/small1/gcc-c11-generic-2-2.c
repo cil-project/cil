@@ -6,3 +6,7 @@ f (int n)
   /* Variably-modified type not ok.  */
   _Generic (n, int[n]: 0, default: 1);
 }
+
+int main() {
+  return 0;
+}

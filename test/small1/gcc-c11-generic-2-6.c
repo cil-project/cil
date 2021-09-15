@@ -6,3 +6,7 @@ f (int n)
   /* Two compatible types in association list.  */
   _Generic (&n, int: 5, signed int: 7, default: 23);
 }
+
+int main() {
+  return 0;
+}

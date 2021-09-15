@@ -3,3 +3,7 @@
 char const *a = _Generic ("bla", char *: "");
 char const *c = _Generic ((int const) { 0 }, int: "");
 char const *e = _Generic (+(int const) { 0 }, int: "");
+
+int main() {
+  return 0;
+}

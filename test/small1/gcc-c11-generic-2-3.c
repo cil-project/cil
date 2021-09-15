@@ -8,3 +8,7 @@ f (int n)
   /* Type must be complete.  */
   _Generic (n, struct incomplete: 0, default: 1);
 }
+
+int main() {
+  return 0;
+}

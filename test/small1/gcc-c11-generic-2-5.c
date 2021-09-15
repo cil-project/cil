@@ -6,3 +6,7 @@ f (int n)
   /* Type must be object type.  */
   _Generic (n, void (void): 0, default: 1);
 }
+
+int main() {
+  return 0;
+}

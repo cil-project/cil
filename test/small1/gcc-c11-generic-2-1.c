@@ -6,3 +6,7 @@ f (int n)
   /* Multiple 'default's.  */
   _Generic (n, default: 1, default: 2);
 }
+
+int main() {
+  return 0;
+}
