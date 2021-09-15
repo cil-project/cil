@@ -28,5 +28,8 @@ int main() {
 
     if((type4("abcd")) != 1) { E(10); }
 
+    // no parenthesis in generic exp, due to broken GENERIC Cabsvisit, Cabs2cil.stripParenFile used to replace the entire generc with the exp 1, not the default 0
+    if (_Generic(1, default: 0) != 0) { E(12); }
+
     SUCCESS;
 }
