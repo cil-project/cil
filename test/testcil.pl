@@ -720,7 +720,7 @@ addTestFail("testc11/gcc-c11-generic-2-1", "Multiple defaults in generic");
 # addTestFail("testc11/gcc-c11-generic-2-3", "TODO");
 # addTestFail("testc11/gcc-c11-generic-2-4", "TODO");
 # addTestFail("testc11/gcc-c11-generic-2-5", "TODO");
-addTestFail("testc11/gcc-c11-generic-2-6", "Multiple compatible associations in generic");
+# addTestFail("testc11/gcc-c11-generic-2-6", "TODO");
 addTestFail("testc11/gcc-c11-generic-2-7", "No compatible associations or default in generic");
 addTest("testc11/gcc-c11-generic-3-1");
 addTestFail("testc11/gcc-c11-generic-3-2", "No compatible associations or default in generic");
