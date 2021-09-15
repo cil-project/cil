@@ -5,5 +5,8 @@ int main() {
   _Generic(0 ? (int const *)0 : (void *)1, void const *: (void)0);
   _Generic(0 ? (int volatile*)0 : (void const*)1, void volatile const*: (void)0);
   _Generic(0 ? (int volatile*)0 : (void const*)0, void volatile const*: (void)0);
+
+  // added here
+  _Generic(0 ? (const int*)0 : (volatile int*)0, const volatile int*: (void)0);
   return 0;
 }
