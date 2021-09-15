@@ -2189,11 +2189,7 @@ let rec getInteger (e:exp) : cilint option =
       let mkInt ik n = Some (fst (truncateCilint ik n)) in
       match unrollType t, getInteger e with
       | TInt (ik, _), Some n -> mkInt ik n
-      | TPtr _, Some n -> begin
-	  match !upointType with
-	    TInt (ik, _) -> mkInt ik n
-	  | _ -> raise (Failure "pointer size unknown")
-        end
+      (* "integer constant expressions" may not cast to ptr *)
       | TEnum (ei, _), Some n -> mkInt ei.ekind n
       | TFloat _, v -> v
       | _, _ -> None
@@ -2825,9 +2821,12 @@ let isArrayType t =
 
 (** 6.3.2.3 subsection 3
  *  An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
-let isNullPtrConstant = function
-  | CastE(TPtr(TVoid _,_), e) -> isZero @@ constFold true e
-  | e -> isZero @@ constFold true e
+let isNullPtrConstant e =
+  let rec isNullPtrConstant = function
+    | CastE (TPtr (TVoid [], []), e) -> isNullPtrConstant e (* no qualifiers allowed on void or ptr *)
+    | e -> isZero e
+  in
+  isNullPtrConstant (constFold true e)
 
 let rec isConstant = function
   | Const _ -> true
