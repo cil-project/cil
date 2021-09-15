@@ -1911,6 +1911,7 @@ let conditionalConversion (t2: typ) (t3: typ) (e2: exp option) (e3:exp) : typ =
         arithmeticConversion t2 t3
     | TComp (comp2,_), TComp (comp3,_), _
           when comp2.ckey = comp3.ckey -> t2
+    | TVoid [], TVoid [], _ -> TVoid [] (* TODO: what about qualifiers? standard says nothing *)
     | TPtr(_, _), _, _ when isNullPtrConstant e3 -> t2
     | _, TPtr(_, _), Some e2' when isNullPtrConstant e2' -> t3
     | TPtr(b2, _), TPtr(TVoid _ as b3, _), _
