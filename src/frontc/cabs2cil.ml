@@ -1911,29 +1911,19 @@ let conditionalConversion (t2: typ) (t3: typ) (e2: exp option) (e3:exp) : typ =
         arithmeticConversion t2 t3
     | TComp (comp2,_), TComp (comp3,_), _
           when comp2.ckey = comp3.ckey -> t2
-    | TPtr(b2, _), TPtr(TVoid a3, _), _ ->
-      if isNullPtrConstant e3 then
-        t2
-      else (
+    | TPtr(_, _), _, _ when isNullPtrConstant e3 -> t2
+    | _, TPtr(_, _), Some e2' when isNullPtrConstant e2' -> t3
+    | TPtr(b2, _), TPtr(TVoid _ as b3, _), _
+    | TPtr(TVoid _ as b2, _), TPtr(b3, _), _ ->
         let a2 = typeAttrsOuter b2 in
-        let (q2, _) = partitionQualifierAttributes a2 in
-        let (q3, _) = partitionQualifierAttributes a3 in
-        let q = cabsAddAttributes q2 q3 in
-        TPtr (TVoid q, [])
-      )
-    | TPtr(TVoid a2, _), TPtr(b3, _), Some e2' ->
-      if isNullPtrConstant e2' then
-        t3
-      else (
         let a3 = typeAttrsOuter b3 in
         let (q2, _) = partitionQualifierAttributes a2 in
         let (q3, _) = partitionQualifierAttributes a3 in
         let q = cabsAddAttributes q2 q3 in
         TPtr (TVoid q, [])
-      )
     | TPtr _, TPtr _, _ when Util.equals (typeSig t2) (typeSig t3) -> t2
-    | TPtr _, TInt _, _  -> t2 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
-    | TInt _, TPtr _, _ -> t3 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
+    | TPtr _, TInt _, _  -> t2 (* not "null pointer constant", not allowed by standard, works in gcc/clang with warning *)
+    | TInt _, TPtr _, _ -> t3 (* not "null pointer constant", not allowed by standard, works in gcc/clang with warning *)
 
           (* When we compare two pointers of different type, we combine them
            * using the same algorithm when combining multiple declarations of

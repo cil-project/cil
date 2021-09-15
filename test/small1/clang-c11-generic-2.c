@@ -8,5 +8,7 @@ int main() {
 
   // added here
   _Generic(0 ? (const int*)0 : (volatile int*)0, const volatile int*: (void)0);
+  _Generic(0 ? (int const *)0 : 0, int const *: (void)0);
+  _Generic(0 ? (int const *)0 : 1, int const *: (void)0); // not allowed by standard, works in gcc/clang with warning
   return 0;
 }
