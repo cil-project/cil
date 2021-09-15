@@ -714,6 +714,14 @@ addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
 addTest("testrunc11/c11-generic");
 addTest("testrunc11/gcc-c11-generic-1");
+# TODO: these messages are not even checked?
+addTestFail("testc11/gcc-c11-generic-2-1", "Multiple defaults in generic");
+# addTestFail("testc11/gcc-c11-generic-2-2", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-3", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-4", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-5", "TODO");
+addTestFail("testc11/gcc-c11-generic-2-6", "Multiple compatible associations in generic");
+addTestFail("testc11/gcc-c11-generic-2-7", "No compatible associations or default in generic");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
