@@ -2382,9 +2382,10 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
       | A.Tlong -> 5
       | A.Tint -> 6
       | A.Tint64 -> 7
-      | A.Tfloat -> 8
-      | A.Tdouble -> 9
-      | _ -> 10 (* There should be at most one of the others *)
+      | A.Tint128 -> 8
+      | A.Tfloat -> 9
+      | A.Tdouble -> 10
+      | _ -> 11 (* There should be at most one of the others *)
     in
     List.stable_sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs'
   in
@@ -2450,6 +2451,11 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tsigned; A.Tint64] -> TInt(ILongLong, [])
 
     | [A.Tunsigned; A.Tint64] -> TInt(IULongLong, [])
+
+    | [A.Tint128]
+    | [A.Tsigned; A.Tint128] -> TInt(IInt128, [])
+
+    | [A.Tunsigned; A.Tint128] -> TInt(IUInt128, [])
 
     | [A.Tfloat] -> TFloat(FFloat, [])
     | [A.Tdouble] -> TFloat(FDouble, [])
