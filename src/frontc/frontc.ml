@@ -202,7 +202,9 @@ and parse_to_cabs_inner (fname : string) =
       ignore (E.log "Parsing error");
       Clexer.finish ();
       close_output ();
-      raise (ParseError("Parse error"))
+      (* raise (ParseError("Parse error")) *)
+      let backtrace = Printexc.get_raw_backtrace () in
+      Printexc.raise_with_backtrace (ParseError("Parse error")) backtrace (* re-raise with captured inner backtrace *)
   end
   | e -> begin
       ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
