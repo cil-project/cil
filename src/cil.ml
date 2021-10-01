@@ -1312,13 +1312,15 @@ let isSigned = function
   | IUShort
   | IUInt
   | IULong
-  | IULongLong ->
+  | IULongLong
+  | IUInt128 ->
       false
   | ISChar
   | IShort
   | IInt
   | ILong
-  | ILongLong ->
+  | ILongLong
+  | IInt128 ->
       true
   | IChar ->
       not !M.theMachine.M.char_is_unsigned
@@ -1707,6 +1709,8 @@ let d_ikind () = function
   | IULongLong ->
       if !msvcMode then text "unsigned __int64"
       else text "unsigned long long"
+  | IInt128 -> text "__int128"
+  | IUInt128 -> text "unsigned __int128"
 
 let d_fkind () = function
     FFloat -> text "float"
@@ -1734,6 +1738,7 @@ let bytesSizeOfInt (ik: ikind): int =
   | IShort | IUShort -> !M.theMachine.M.sizeof_short
   | ILong | IULong -> !M.theMachine.M.sizeof_long
   | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
+  | IInt128 | IUInt128 -> 16
 
 (* constant *)
 let d_const () c =
@@ -1749,7 +1754,12 @@ let d_const () c =
         | IULong -> "UL"
         | ILongLong -> if !msvcMode then "L" else "LL"
         | IULongLong -> if !msvcMode then "UL" else "ULL"
+        (* if long long is 128 bit we can use its suffix, otherwise unsupported by GCC, see https://github.com/goblint/cil/issues/41#issuecomment-893291878 *)
+        | IInt128  when !M.theMachine.M.sizeof_longlong = 16 -> "LL"
+        | IUInt128 when !M.theMachine.M.sizeof_longlong = 16 -> "ULL"
         | _ -> ""
+          (* TODO warn/fail? *)
+          (* E.s (E.bug "unknown/unsupported suffix") *)
       in
       let prefix : string =
         if suffix <> "" then ""
@@ -2027,6 +2037,7 @@ let intRank (ik:ikind) : int =
   | IInt | IUInt -> 3
   | ILong | IULong -> 4
   | ILongLong | IULongLong -> 5
+  | IInt128 | IUInt128 -> 6 (* ? *)
 
 (* Return the common integer kind of the two integer arguments, as
    defined in ISO C 6.3.1.8 ("Usual arithmetic conversions") *)
@@ -2209,6 +2220,7 @@ let rec alignOf_int t =
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
     | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
+    | TInt((IInt128|IUInt128), _) -> 16 (* ? *)
     | TEnum(ei, _) -> alignOf_int (TInt(ei.ekind, []))
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
@@ -7250,6 +7262,7 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
       | IInt | IUInt -> 3
       | ILong | IULong -> 4
       | ILongLong | IULongLong -> 5
+      | IInt128 | IUInt128 -> 6 (* ? *)
     in
     let r1 = rank ik1 in
     let r2 = rank ik2 in
