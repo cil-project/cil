@@ -238,7 +238,7 @@ type maybeInit =
 %token EOF
 %token CHAR INT DOUBLE FLOAT VOID INT64 INT32
 %token ENUM STRUCT TYPEDEF UNION
-%token SIGNED UNSIGNED LONG SHORT
+%token SIGNED UNSIGNED LONG SHORT INT128
 %token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 
 %token <string> ARG_e ARG_eo ARG_E ARG_u ARG_b ARG_t ARG_d ARG_lo ARG_l ARG_i
@@ -815,6 +815,15 @@ type_spec:
 |   UNSIGNED LONG LONG    { ((fun al args -> TInt(IULongLong, al)),
 
                              matchIntType IULongLong)
+                           }
+
+|   INT128          { ((fun al args -> TInt(IInt128, al)),
+
+                          matchIntType IInt128)
+                        }
+|   UNSIGNED INT128    { ((fun al args -> TInt(IUInt128, al)),
+
+                             matchIntType IUInt128)
                            }
 
 |   FLOAT           { ((fun al args -> TFloat(FFloat, al)),
