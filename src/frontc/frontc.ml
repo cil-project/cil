@@ -187,6 +187,7 @@ and parse_to_cabs_inner (fname : string) =
   try
     if !E.verboseFlag then ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
+    (* if !E.verboseFlag then ignore @@ Parsing.set_trace true; *)
     let lexbuf = Clexer.init ~filename:fname in
     let cabs = Stats.time "parse" (Cparser.interpret (Whitetrack.wraplexer clexer)) lexbuf in
     Whitetrack.setFinalWhite (Clexer.get_white ());
