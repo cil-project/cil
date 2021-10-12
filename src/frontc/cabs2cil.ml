@@ -743,11 +743,11 @@ let lookupTypeNoError (kind: string)
   | _ -> raise Not_found
 
 let lookupType (kind: string)
-               (n: string) : typ * location =
+               (n: string) : (typ * location) option =
   try
-    lookupTypeNoError kind n
-  with Not_found ->
-    E.s (error "Cannot find type %s (kind:%s)" n kind)
+    Some (lookupTypeNoError kind n)
+  with Not_found -> None
+    (* E.s (error "Cannot find type %s (kind:%s)" n kind) *)
 
 (* Create the self ref cell and add it to the map. Return also an indication
  * if this is a new one. *)
@@ -2471,8 +2471,12 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         end else
           let t =
             match lookupType "type" n with
-              (TNamed _) as x, _ -> x
-            | typ -> E.s (error "Named type %s is not mapped correctly" n)
+            | Some (TNamed _ as x, _) -> x
+            | _ ->
+              match n with
+              | "__int128_t" -> TInt(IInt128, [])
+              | "__uint128_t" -> TInt(IUInt128, [])
+              | _ -> E.s (error "Named type %s is not mapped correctly" n)
           in
           t
     end

@@ -279,6 +279,9 @@ let init ~(filename: string) : Lexing.lexbuf =
   init_lexicon ();
   (* Inititialize the pointer in Errormsg *)
   Lexerhack.add_type := add_type;
+  (* add some built-in types which are handled as Tnamed in cabs2cil *)
+  add_type "__int128_t"; (* __int128 *)
+  add_type "__uint128_t"; (* unsigned __int128 *)
   Lexerhack.push_context := push_context;
   Lexerhack.pop_context := pop_context;
   Lexerhack.add_identifier := add_identifier;
