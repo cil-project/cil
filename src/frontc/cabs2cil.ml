@@ -250,7 +250,7 @@ let interpret_character_constant char_list =
     if value <= (Int64.of_int32 Int32.max_int) then
       (CInt64(value,IULong,orig_rep)),(TInt(IULong,[]))
     else
-      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[])) (* TODO no need to handle __int128? *)
+      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[])) (* 128bit constants are only supported if long long is also 128bit wide *)
   end
 
 (*** EXPRESSIONS *************)
@@ -2554,9 +2554,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	    else if fitsInInt ILong i then ILong
 	    else if fitsInInt IULong i then IULong
 	    else if fitsInInt ILongLong i then ILongLong
-	    else if fitsInInt IInt128 i then IInt128
-	    else if fitsInInt IUInt128 i then IUInt128
-	    else IULongLong (* TODO warn, use IUInt128? *)
+	    else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
 	in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin

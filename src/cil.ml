@@ -2039,7 +2039,7 @@ let intRank (ik:ikind) : int =
   | IInt | IUInt -> 3
   | ILong | IULong -> 4
   | ILongLong | IULongLong -> 5
-  | IInt128 | IUInt128 -> 6 (* ? *)
+  | IInt128 | IUInt128 -> 6
 
 (* Return the common integer kind of the two integer arguments, as
    defined in ISO C 6.3.1.8 ("Usual arithmetic conversions") *)
@@ -2226,7 +2226,7 @@ let rec alignOf_int t =
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
     | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
-    | TInt((IInt128|IUInt128), _) -> 16 (* ? *)
+    | TInt((IInt128|IUInt128), _) -> 16 (* not generated since not all architectures support 128bit ints and the value should be the same for those that do *)
     | TEnum(ei, _) -> alignOf_int (TInt(ei.ekind, []))
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
@@ -2859,9 +2859,9 @@ let parseInt (str: string) : exp =
   (* The length of the suffix and a list of possible kinds. See ISO
   * 6.4.4.1 *)
   let hasSuffix = hasSuffix str in
-  let suffixlen, kinds = (* TODO check situation with __int128 *)
+  let suffixlen, kinds = (* 128bit constants are only supported if long long is also 128bit, so we can parse those as long long *)
     if hasSuffix "ULL" || hasSuffix "LLU" then
-      3, [IULongLong] (* ? [if !M.theMachine.M.sizeof_longlong = 16 then IUInt128 else IULongLong] *)
+      3, [IULongLong]
     else if hasSuffix "LL" then
       2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
     else if hasSuffix "UL" || hasSuffix "LU" then
@@ -7270,7 +7270,7 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
       | IInt | IUInt -> 3
       | ILong | IULong -> 4
       | ILongLong | IULongLong -> 5
-      | IInt128 | IUInt128 -> 6 (* ? *)
+      | IInt128 | IUInt128 -> 6
     in
     let r1 = rank ik1 in
     let r2 = rank ik2 in
