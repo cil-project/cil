@@ -250,7 +250,7 @@ let interpret_character_constant char_list =
     if value <= (Int64.of_int32 Int32.max_int) then
       (CInt64(value,IULong,orig_rep)),(TInt(IULong,[]))
     else
-      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[]))
+      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[])) (* 128bit constants are only supported if long long is also 128bit wide *)
   end
 
 (*** EXPRESSIONS *************)
@@ -743,11 +743,11 @@ let lookupTypeNoError (kind: string)
   | _ -> raise Not_found
 
 let lookupType (kind: string)
-               (n: string) : typ * location =
+               (n: string) : (typ * location) option =
   try
-    lookupTypeNoError kind n
-  with Not_found ->
-    E.s (error "Cannot find type %s (kind:%s)" n kind)
+    Some (lookupTypeNoError kind n)
+  with Not_found -> None
+    (* E.s (error "Cannot find type %s (kind:%s)" n kind) *)
 
 (* Create the self ref cell and add it to the map. Return also an indication
  * if this is a new one. *)
@@ -2382,9 +2382,10 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
       | A.Tlong -> 5
       | A.Tint -> 6
       | A.Tint64 -> 7
-      | A.Tfloat -> 8
-      | A.Tdouble -> 9
-      | _ -> 10 (* There should be at most one of the others *)
+      | A.Tint128 -> 8
+      | A.Tfloat -> 9
+      | A.Tdouble -> 10
+      | _ -> 11 (* There should be at most one of the others *)
     in
     List.stable_sort (fun ts1 ts2 -> compare (order ts1) (order ts2)) tspecs'
   in
@@ -2451,6 +2452,11 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 
     | [A.Tunsigned; A.Tint64] -> TInt(IULongLong, [])
 
+    | [A.Tint128]
+    | [A.Tsigned; A.Tint128] -> TInt(IInt128, [])
+
+    | [A.Tunsigned; A.Tint128] -> TInt(IUInt128, [])
+
     | [A.Tfloat] -> TFloat(FFloat, [])
     | [A.Tdouble] -> TFloat(FDouble, [])
 
@@ -2465,8 +2471,12 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         end else
           let t =
             match lookupType "type" n with
-              (TNamed _) as x, _ -> x
-            | typ -> E.s (error "Named type %s is not mapped correctly" n)
+            | Some (TNamed _ as x, _) -> x
+            | _ ->
+              match n with
+              | "__int128_t" -> TInt(IInt128, [])
+              | "__uint128_t" -> TInt(IUInt128, [])
+              | _ -> E.s (error "Named type %s is not mapped correctly" n)
           in
           t
     end
@@ -2548,7 +2558,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	    else if fitsInInt ILong i then ILong
 	    else if fitsInInt IULong i then IULong
 	    else if fitsInInt ILongLong i then ILongLong
-	    else IULongLong
+	    else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
 	in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin

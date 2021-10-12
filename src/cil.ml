@@ -293,6 +293,8 @@ and ikind =
   | ILongLong   (** [long long] (or [_int64] on Microsoft Visual C) *)
   | IULongLong  (** [unsigned long long] (or [unsigned _int64] on Microsoft
                     Visual C) *)
+  | IInt128     (** [__int128] *)
+  | IUInt128    (** [unsigned __int128] *)
 
 (** Various kinds of floating-point numbers*)
 and fkind =
@@ -1310,13 +1312,15 @@ let isSigned = function
   | IUShort
   | IUInt
   | IULong
-  | IULongLong ->
+  | IULongLong
+  | IUInt128 ->
       false
   | ISChar
   | IShort
   | IInt
   | ILong
-  | ILongLong ->
+  | ILongLong
+  | IInt128 ->
       true
   | IChar ->
       not !M.theMachine.M.char_is_unsigned
@@ -1705,6 +1709,8 @@ let d_ikind () = function
   | IULongLong ->
       if !msvcMode then text "unsigned __int64"
       else text "unsigned long long"
+  | IInt128 -> text "__int128"
+  | IUInt128 -> text "unsigned __int128"
 
 let d_fkind () = function
     FFloat -> text "float"
@@ -1732,6 +1738,7 @@ let bytesSizeOfInt (ik: ikind): int =
   | IShort | IUShort -> !M.theMachine.M.sizeof_short
   | ILong | IULong -> !M.theMachine.M.sizeof_long
   | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
+  | IInt128 | IUInt128 -> 16
 
 (* constant *)
 let d_const () c =
@@ -1747,7 +1754,12 @@ let d_const () c =
         | IULong -> "UL"
         | ILongLong -> if !msvcMode then "L" else "LL"
         | IULongLong -> if !msvcMode then "UL" else "ULL"
+        (* if long long is 128 bit we can use its suffix, otherwise unsupported by GCC, see https://github.com/goblint/cil/issues/41#issuecomment-893291878 *)
+        | IInt128  when !M.theMachine.M.sizeof_longlong = 16 -> "LL"
+        | IUInt128 when !M.theMachine.M.sizeof_longlong = 16 -> "ULL"
         | _ -> ""
+          (* TODO warn/fail? *)
+          (* E.s (E.bug "unknown/unsupported suffix") *)
       in
       let prefix : string =
         if suffix <> "" then ""
@@ -2005,6 +2017,7 @@ let unsignedVersionOf (ik:ikind): ikind =
   | IInt -> IUInt
   | ILong -> IULong
   | ILongLong -> IULongLong
+  | IInt128 -> IUInt128
   | _ -> ik
 
 let signedVersionOf (ik:ikind): ikind =
@@ -2014,6 +2027,7 @@ let signedVersionOf (ik:ikind): ikind =
   | IUInt -> IInt
   | IULong -> ILong
   | IULongLong -> ILongLong
+  | IUInt128 -> IInt128
   | _ -> ik
 
 (* Return the integer conversion rank of an integer kind *)
@@ -2025,6 +2039,7 @@ let intRank (ik:ikind) : int =
   | IInt | IUInt -> 3
   | ILong | IULong -> 4
   | ILongLong | IULongLong -> 5
+  | IInt128 | IUInt128 -> 6
 
 (* Return the common integer kind of the two integer arguments, as
    defined in ISO C 6.3.1.8 ("Usual arithmetic conversions") *)
@@ -2057,6 +2072,7 @@ let intKindForSize (s:int) (unsigned:bool) : ikind =
     else if s = !M.theMachine.M.sizeof_long then IULong
     else if s = !M.theMachine.M.sizeof_short then IUShort
     else if s = !M.theMachine.M.sizeof_longlong then IULongLong
+    else if s = 16 then IUInt128
     else raise Not_found
   else
     (* Test the most common sizes first *)
@@ -2065,6 +2081,7 @@ let intKindForSize (s:int) (unsigned:bool) : ikind =
     else if s = !M.theMachine.M.sizeof_long then ILong
     else if s = !M.theMachine.M.sizeof_short then IShort
     else if s = !M.theMachine.M.sizeof_longlong then ILongLong
+    else if s = 16 then IInt128
     else raise Not_found
 
 let floatKindForSize (s:int) =
@@ -2142,13 +2159,15 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     else if fitsInInt IUShort i then IUShort
     else if fitsInInt IUInt i then IUInt
     else if fitsInInt IULong i then IULong
-    else IULongLong
+    else if fitsInInt IUInt128 i then IUInt128
+    else IULongLong (* warn, IUInt128? *)
   else
     if fitsInInt ISChar i then ISChar
     else if fitsInInt IShort i then IShort
     else if fitsInInt IInt i then IInt
     else if fitsInInt ILong i then ILong
-    else ILongLong
+    else if fitsInInt IInt128 i then IInt128
+    else ILongLong (* warn, IInt128? *)
 
 (** If the given expression is an integer constant or a CastE'd
     integer constant, return that constant's value as an ikind, int64 pair.
@@ -2207,6 +2226,7 @@ let rec alignOf_int t =
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
     | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
+    | TInt((IInt128|IUInt128), _) -> 16 (* not generated since not all architectures support 128bit ints and the value should be the same for those that do *)
     | TEnum(ei, _) -> alignOf_int (TInt(ei.ekind, []))
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
@@ -2839,7 +2859,7 @@ let parseInt (str: string) : exp =
   (* The length of the suffix and a list of possible kinds. See ISO
   * 6.4.4.1 *)
   let hasSuffix = hasSuffix str in
-  let suffixlen, kinds =
+  let suffixlen, kinds = (* 128bit constants are only supported if long long is also 128bit, so we can parse those as long long *)
     if hasSuffix "ULL" || hasSuffix "LLU" then
       3, [IULongLong]
     else if hasSuffix "LL" then
@@ -7025,6 +7045,8 @@ let initCIL () =
       else if name = "unsigned short" then IUShort
       else if name = "char" then IChar
       else if name = "unsigned char" then IUChar
+      else if name = "__int128" then IInt128
+      else if name = "unsigned __int128" then IUInt128
       else E.s(E.unimp "initCIL: cannot find the right ikind for type %s\n" name)
     in
     upointType := TInt(findIkindSz true !M.theMachine.M.sizeof_ptr, []);
@@ -7248,6 +7270,7 @@ let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
       | IInt | IUInt -> 3
       | ILong | IULong -> 4
       | ILongLong | IULongLong -> 5
+      | IInt128 | IUInt128 -> 6
     in
     let r1 = rank ik1 in
     let r2 = rank ik2 in
