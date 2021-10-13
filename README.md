@@ -35,12 +35,14 @@ Install the latest release of `goblint-cil` with [opam][]:
     opam install goblint-cil
 
 Read the excellent [CIL tutorial][tuto] by Zachary Anderson, much of which
-still applies to `goblint-cil`.
+still applies to `goblint-cil`. The repository referenced in that document has now moved [here][repo].
 
 **ATTENTION:** Don't install the `cil` package. This is the unmaintained
 original version of CIL.
 
+
 [tuto]: https://web.eecs.umich.edu/~weimerw/2011-6610/reading/ciltut.pdf
+[repo]: https://github.com/zanderso/cil-template
 
 Installation from Source
 ------------------------
