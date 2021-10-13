@@ -25,7 +25,7 @@ Changes:
 - Unmaintained extensions (#30) were removed
 - Many bug fixes")
   (depends
-    (ocaml (>= 4.04.2))
+    (ocaml (>= 4.05.0))
     ocamlfind
     zarith
     (hevea :with-doc)
