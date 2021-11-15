@@ -820,8 +820,10 @@ let oneFilePass1 (f:file) : unit =
        * can happen if one file declares the variable a non-const while
        * others declare it as "const". *)
       if hasAttribute "const" (typeAttrs vi.vtype) !=
-         hasAttribute "const" (typeAttrs oldvi.vtype) then begin
-        newrep.ndata.vtype <- typeRemoveAttributes ["const"] newtype;
+         hasAttribute "const" (typeAttrs oldvi.vtype) ||
+         hasAttribute "pconst" (typeAttrs vi.vtype) !=
+         hasAttribute "pconst" (typeAttrs oldvi.vtype) then begin
+        newrep.ndata.vtype <- typeRemoveAttributes ["const"; "pconst"] newtype;
       end else begin
         newrep.ndata.vtype <- newtype;
       end;

@@ -208,6 +208,7 @@ let typeSigIgnoreConst (t : typ) : typsig =
   let attrFilter (attr : attribute) : bool =
     match attr with
       | Attr ("const", []) -> false
+      | Attr ("pconst", []) -> false
       | _ -> true
   in
   typeSigWithAttrs (List.filter attrFilter) t

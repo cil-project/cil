@@ -1275,7 +1275,7 @@ let charType = TInt(IChar, [])
 let boolType = TInt(IBool, [])
 
 let charPtrType = TPtr(charType,[])
-let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
+let charConstPtrType = TPtr(TInt(IChar, [Attr("const", []); Attr("pconst", [])]),[])
 let stringLiteralType = charPtrType
 
 let voidPtrType = TPtr(voidType, [])
@@ -2989,7 +2989,7 @@ let initGccBuiltins () : unit =
   let ulongLongType = TInt(IULongLong, []) in
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
-  let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
+  let voidConstPtrType = TPtr(TVoid [Attr ("const", []); Attr ("pconst", [])], []) in
   let sizeType = !typeOfSizeOf in
   let v4sfType = TFloat (FFloat,[Attr("__vector_size__", [AInt 16])]) in
 
@@ -4428,7 +4428,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | TArray (elemt, lo, a) ->
         (* ignore the const attribute for arrays *)
-        let a' = dropAttributes [ "const" ] a in
+        let a' = dropAttributes [ "pconst" ] a in
         let name' =
           if a' == [] then name else
           if nameOpt == None then printAttributes a' else
@@ -4496,7 +4496,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pAttr (Attr(an, args): attribute) : doc * bool =
     (* Recognize and take care of some known cases *)
     match an, args with
-      "const", [] -> text "const", false
+      "const", [] -> nil, false (* don't print const directly, because of split local declarations *)
+    | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
     | "complex", [] when !c99Mode -> text "_Complex", false
     | "complex", [] when not !msvcMode -> text "__complex__", false
@@ -5068,7 +5069,7 @@ let makeVarinfo global name ?init typ =
     { vname = name;
       vid   = newVID ();
       vglob = global;
-      vtype = if global then typ else typeRemoveAttributes ["const"] typ;
+      vtype = if global then typ else typeRemoveAttributes ["pconst"] typ;
       vdecl = lu;
       vinit = {init=init};
       vinline = false;

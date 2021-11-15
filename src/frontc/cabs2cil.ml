@@ -616,8 +616,8 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
  * elements. *)
 let rec stripConstLocalType (t: typ) : typ =
   let dc a =
-    if hasAttribute "const" a then
-      dropAttribute "const" a
+    if hasAttribute "pconst" a then
+      dropAttribute "pconst" a
     else a
   in
   match t with
@@ -2670,7 +2670,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 and convertCVtoAttr (src: A.cvspec list) : A.attribute list =
   match src with
   | [] -> []
-  | CV_CONST    :: tl -> ("const",[])    :: (convertCVtoAttr tl)
+  | CV_CONST    :: tl -> ("const",[]) :: ("pconst",[])    :: (convertCVtoAttr tl)
   | CV_VOLATILE :: tl -> ("volatile",[]) :: (convertCVtoAttr tl)
   | CV_RESTRICT :: tl -> ("restrict",[]) :: (convertCVtoAttr tl)
   | CV_COMPLEX  :: tl -> ("complex",[]) ::  (convertCVtoAttr tl)
