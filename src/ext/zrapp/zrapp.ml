@@ -62,6 +62,7 @@ let loc_comp l1 l2 =
   else if l2.A.columnno > l1.A.columnno
   then Some(-1)
   else Some(0)
+  (* TODO: compare end *)
 
 let simpleGaSearch l =
   let hi = GA.max_init_index CH.commentsGA in
@@ -83,7 +84,10 @@ let get_comments l =
 	       A.filename = l.file;
 	       A.byteno = l.byte;
          A.columnno = l.column;
-	       A.ident = 0;} in
+	       A.ident = 0;
+         A.endLineno = -1; (* TODO: use end from l *)
+         A.endByteno = -1;
+         A.endColumnno = -1;} in
   let s = simpleGaSearch cabsl in
 
   let rec loop i cl =

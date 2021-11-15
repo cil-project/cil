@@ -12,12 +12,16 @@ let currentLoc () =
     filename = f;
     byteno   = c;
     columnno = c - lc;
-    ident    = getident ();}
+    ident    = getident ();
+    endLineno = -1;
+    endByteno = -1;
+    endColumnno = -1;}
 
 let cabslu = {lineno = -10; 
 	      filename = "cabs loc unknown"; 
 	      byteno = -10; columnno = -10;
-              ident = 0}
+              ident = 0;
+              endLineno = -10; endByteno = -10; endColumnno = -10;}
 
 (* clexer puts comments here *)
 let commentsGA = GrowArray.make 100 (GrowArray.Elem(cabslu,"",false))

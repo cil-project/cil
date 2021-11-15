@@ -52,6 +52,9 @@ type cabsloc = {
  byteno: int;
  columnno: int;
  ident : int;
+ endLineno: int;
+ endByteno: int;
+ endColumnno: int;
 }
 
 type typeSpecifier = (* Merge all specifiers into one type *)

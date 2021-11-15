@@ -125,7 +125,8 @@ let lu = locUnknown
 let cabslu = {lineno = -10;
 	      filename = "cabs lu";
 	      byteno = -10; columnno = -10;
-              ident = 0;}
+              ident = 0;
+              endLineno = -10; endByteno = -10; endColumnno = -10;}
 
 
 (** Interface to the Cprint printer *)
