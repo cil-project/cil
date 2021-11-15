@@ -871,7 +871,7 @@ local_label_names:
 statement:
     SEMICOLON		{NOP ((*handleLoc*) $1) }
 |   comma_expression SEMICOLON
-	        	{COMPUTATION (smooth_expression (fst $1), (*handleLoc*)(snd $1))}
+	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
 |   block               {BLOCK (fst3 $1, (*handleLoc*)(snd3 $1))}
 |   IF paren_comma_expression statement                    %prec IF
                 	{IF (smooth_expression (fst $2), $3, NOP $1, $1)}
