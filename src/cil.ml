@@ -882,6 +882,9 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
+    endLine: int;
+    endByte: int;
+    endColumn: int;
 }
 
 (* Type signatures. Two types are identical iff they have identical
@@ -897,7 +900,10 @@ and typsig =
 let locUnknown = { line = -1;
 		   file = "";
 		   byte = -1;
-       column = -1}
+       column = -1;
+       endLine = -1;
+       endByte = -1;
+       endColumn = -1;}
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
@@ -919,6 +925,7 @@ let compareLoc (a: location) (b: location) : int =
       if columncmp != 0
       then columncmp
       else a.byte - b.byte
+      (* TODO: compare end *)
 
 let argsToList : (string * typ * attributes) list option
                   -> (string * typ * attributes) list
@@ -3317,7 +3324,10 @@ let initMsvcBuiltins () : unit =
 let builtinLoc: location = { line = 1;
                              file = "<compiler builtins>";
                              byte = 0;
-                             column = 0}
+                             column = 0;
+                             endLine = -1;
+                             endByte = -1;
+                             endColumn = -1;}
 
 
 

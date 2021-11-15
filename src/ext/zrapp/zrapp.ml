@@ -85,9 +85,9 @@ let get_comments l =
 	       A.byteno = l.byte;
          A.columnno = l.column;
 	       A.ident = 0;
-         A.endLineno = -1; (* TODO: use end from l *)
-         A.endByteno = -1;
-         A.endColumnno = -1;} in
+         A.endLineno = l.endLine;
+         A.endByteno = l.endByte;
+         A.endColumnno = l.endColumn;} in
   let s = simpleGaSearch cabsl in
 
   let rec loop i cl =

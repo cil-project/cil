@@ -196,7 +196,7 @@ let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then
     ignore (E.log "convLoc at %s: line %d, byte %d, column %d\n" l.filename l.lineno l.byteno l.columnno);
-  {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno}
+  {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno; endLine = l.endLineno; endByte = l.endByteno; endColumn = l.endColumnno;}
 
 
 let isOldStyleVarArgName n =
