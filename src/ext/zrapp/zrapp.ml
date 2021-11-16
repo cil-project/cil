@@ -61,8 +61,19 @@ let loc_comp l1 l2 =
   then Some(1)
   else if l2.A.columnno > l1.A.columnno
   then Some(-1)
+  else if l1.A.endLineno > l2.A.endLineno
+  then Some(1)
+  else if l2.A.endLineno > l1.A.endLineno
+  then Some(-1)
+  else if l1.A.endByteno > l2.A.endByteno
+  then Some(1)
+  else if l2.A.endByteno > l1.A.endByteno
+  then Some(-1)
+  else if l1.A.endColumnno > l2.A.endColumnno
+  then Some(1)
+  else if l2.A.endColumnno > l1.A.endColumnno
+  then Some(-1)
   else Some(0)
-  (* TODO: compare end *)
 
 let simpleGaSearch l =
   let hi = GA.max_init_index CH.commentsGA in

@@ -924,8 +924,19 @@ let compareLoc (a: location) (b: location) : int =
       let columncmp = a.column - b.column in
       if columncmp != 0
       then columncmp
-      else a.byte - b.byte
-      (* TODO: compare end *)
+      else
+        let bytecmp = a.byte - b.byte in
+        if bytecmp != 0
+        then bytecmp
+        else
+          let endLinecmp = a.endLine - b.endLine in
+          if endLinecmp != 0
+          then endLinecmp
+          else
+            let endColumncmp = a.endColumn - b.endColumn in
+            if endColumncmp != 0
+            then endColumncmp
+            else a.endByte - b.endByte
 
 let argsToList : (string * typ * attributes) list option
                   -> (string * typ * attributes) list
