@@ -872,41 +872,41 @@ statement:
     SEMICOLON		{NOP ((*handleLoc*) $1) }
 |   comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
-|   block               {BLOCK (fst3 $1, (*handleLoc*)(snd3 $1))}
+|   block               {BLOCK (fst3 $1, joinLoc (snd3 $1) (trd3 $1))}
 |   IF paren_comma_expression statement location                   %prec IF
                 	{IF (smooth_expression (fst $2), $3, NOP $1, joinLoc $1 $4)}
 |   IF paren_comma_expression statement location ELSE statement location
 	                {IF (smooth_expression (fst $2), $3, $6, joinLoc $1 $7)}
-|   SWITCH paren_comma_expression statement
-                        {SWITCH (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
+|   SWITCH paren_comma_expression statement location
+                        {SWITCH (smooth_expression (fst $2), $3, joinLoc $1 $4)}
 |   WHILE paren_comma_expression statement location
 	        	{WHILE (smooth_expression (fst $2), $3, joinLoc $1 $4)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
-	        	         {DOWHILE (smooth_expression (fst $4), $2, (*handleLoc*) $1)}
+	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5)}
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement location
 	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9)}
-|   IDENT COLON attribute_nocv_list statement
+|   IDENT COLON attribute_nocv_list location statement
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
                                      floor, since unused labels are usually
                                      removed anyways by Rmtmps. *)
-                                  LABEL (fst $1, $4, (snd $1))}
-|   CASE expression COLON statement
-	                         {CASE (fst $2, $4, (*handleLoc*) $1)}
-|   CASE expression ELLIPSIS expression COLON statement
-	                         {CASERANGE (fst $2, fst $4, $6, (*handleLoc*) $1)}
-|   DEFAULT COLON statement
-	                         {DEFAULT ($3, (*handleLoc*) $1)}
+                                  LABEL (fst $1, $5, joinLoc (snd $1) $4)}
+|   CASE expression COLON statement location
+	                         {CASE (fst $2, $4, joinLoc $1 $5)}
+|   CASE expression ELLIPSIS expression COLON statement location
+	                         {CASERANGE (fst $2, fst $4, $6, joinLoc $1 $7)}
+|   DEFAULT COLON statement location
+	                         {DEFAULT ($3, joinLoc $1 $4)}
 |   RETURN SEMICOLON		 {RETURN (NOTHING, joinLoc $1 $2)}
 |   RETURN comma_expression SEMICOLON
 	                         {RETURN (smooth_expression (fst $2), joinLoc $1 $3)}
-|   BREAK SEMICOLON     {BREAK ((*handleLoc*) $1)}
-|   CONTINUE SEMICOLON	 {CONTINUE ((*handleLoc*) $1)}
+|   BREAK SEMICOLON     {BREAK (joinLoc $1 $2)}
+|   CONTINUE SEMICOLON	 {CONTINUE (joinLoc $1 $2)}
 |   GOTO IDENT SEMICOLON
-		                 {GOTO (fst $2, (*handleLoc*) $1)}
+		                 {GOTO (fst $2, joinLoc $1 $3)}
 |   GOTO STAR comma_expression SEMICOLON
-                                 { COMPGOTO (smooth_expression (fst $3), (*handleLoc*) $1) }
+                                 { COMPGOTO (smooth_expression (fst $3), joinLoc $1 $4) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
