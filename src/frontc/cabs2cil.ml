@@ -5902,8 +5902,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.FUNDEF (((specs,(n,dt,a, _)) : A.single_name),
               (body : A.block), loc1, loc2) when isglobal ->
     begin
-      let funloc = convLoc loc1 in
-      let endloc = convLoc loc2 in
+      let funloc = convLoc (joinLoc loc1 loc2) in (* TODO: do in parser and include RBRACE end *)
+      let endloc = convLoc (joinLoc loc2 loc2) in (* TODO: what to do about range of inserted Return? *)
 (*      ignore (E.log "Definition of %s at %a\n" n d_loc funloc); *)
       currentLoc := funloc;
       E.withContext

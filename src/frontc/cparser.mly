@@ -873,19 +873,19 @@ statement:
 |   comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
 |   block               {BLOCK (fst3 $1, (*handleLoc*)(snd3 $1))}
-|   IF paren_comma_expression statement                    %prec IF
-                	{IF (smooth_expression (fst $2), $3, NOP $1, $1)}
-|   IF paren_comma_expression statement ELSE statement
-	                {IF (smooth_expression (fst $2), $3, $5, (*handleLoc*) $1)}
+|   IF paren_comma_expression statement location                   %prec IF
+                	{IF (smooth_expression (fst $2), $3, NOP $1, joinLoc $1 $4)}
+|   IF paren_comma_expression statement location ELSE statement location
+	                {IF (smooth_expression (fst $2), $3, $6, joinLoc $1 $7)}
 |   SWITCH paren_comma_expression statement
                         {SWITCH (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
-|   WHILE paren_comma_expression statement
-	        	{WHILE (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
+|   WHILE paren_comma_expression statement location
+	        	{WHILE (smooth_expression (fst $2), $3, joinLoc $1 $4)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
 	        	         {DOWHILE (smooth_expression (fst $4), $2, (*handleLoc*) $1)}
 |   FOR LPAREN for_clause opt_expression
-	        SEMICOLON opt_expression RPAREN statement
-	                         {FOR ($3, $4, $6, $8, (*handleLoc*) $1)}
+	        SEMICOLON opt_expression RPAREN statement location
+	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9)}
 |   IDENT COLON attribute_nocv_list statement
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
@@ -898,9 +898,9 @@ statement:
 	                         {CASERANGE (fst $2, fst $4, $6, (*handleLoc*) $1)}
 |   DEFAULT COLON statement
 	                         {DEFAULT ($3, (*handleLoc*) $1)}
-|   RETURN SEMICOLON		 {RETURN (NOTHING, (*handleLoc*) $1)}
+|   RETURN SEMICOLON		 {RETURN (NOTHING, joinLoc $1 $2)}
 |   RETURN comma_expression SEMICOLON
-	                         {RETURN (smooth_expression (fst $2), (*handleLoc*) $1)}
+	                         {RETURN (smooth_expression (fst $2), joinLoc $1 $3)}
 |   BREAK SEMICOLON     {BREAK ((*handleLoc*) $1)}
 |   CONTINUE SEMICOLON	 {CONTINUE ((*handleLoc*) $1)}
 |   GOTO IDENT SEMICOLON
@@ -908,7 +908,7 @@ statement:
 |   GOTO STAR comma_expression SEMICOLON
                                  { COMPGOTO (smooth_expression (fst $3), (*handleLoc*) $1) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
-                        { ASM ($2, $4, $5, (*handleLoc*) $1) }
+                        { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
 |   TRY block EXCEPT paren_comma_expression block
                         { let b, _, _ = $2 in
@@ -934,9 +934,9 @@ for_clause:
 
 declaration:                                /* ISO 6.7.*/
     decl_spec_list init_declarator_list SEMICOLON
-                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) $2 }
+                                       { doDeclaration (joinLoc (snd $1) $3) (fst $1) $2 }
 |   decl_spec_list SEMICOLON
-                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) [] }
+                                       { doDeclaration (joinLoc (snd $1) $2) (fst $1) [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -1077,9 +1077,9 @@ enumerator:
 
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes_with_asm
+   pointer_opt direct_decl location attributes_with_asm
                                { let (n, decl) = $2 in
-                                (n, applyPointer (fst $1) decl, $3, (snd $1)) }
+                                (n, applyPointer (fst $1) decl, $4, joinLoc (snd $1) $3) }
 ;
 
 
