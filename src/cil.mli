@@ -1117,9 +1117,9 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
-    endLine: int;
-    endByte: int;
-    endColumn: int;
+    endLine: int;          (** End line number. Negative means unknown. *)
+    endByte: int;          (** End byte position. Negative means unknown. *)
+    endColumn: int;        (** End column number. Negative means unknown. *)
 }
 
 
