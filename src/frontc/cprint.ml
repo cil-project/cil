@@ -59,21 +59,12 @@
 
 (* George Necula: I changed this pretty dramatically since CABS changed *)
 open Cabs
+open Cabshelper
 open Escape
 open Whitetrack
 
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
-type loc = { line : int; file : string }
-
-let lu = {line = -1; file = "loc unknown";}
-let cabslu = {lineno = -10;
-	      filename = "cabs loc unknown";
-	      byteno = -10; columnno = -10;
-              ident = 0;
-              endLineno = -10; endByteno = -10; endColumnno = -10;}
-
-let curLoc = ref cabslu
 
 let msvcMode = ref false
 

@@ -120,14 +120,6 @@ let attrsForCombinedArg: ((string, string) H.t ->
                           attributes -> attributes) ref =
   ref (fun _ t -> t)
 
-(* ---------- source error message handling ------------- *)
-let lu = locUnknown
-let cabslu = {lineno = -10;
-	      filename = "cabs lu";
-	      byteno = -10; columnno = -10;
-              ident = 0;
-              endLineno = -10; endByteno = -10; endColumnno = -10;}
-
 
 (** Interface to the Cprint printer *)
 let withCprint (f: 'a -> unit) (x: 'a) : unit =

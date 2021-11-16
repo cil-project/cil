@@ -91,11 +91,7 @@ class type cabsVisitor = object
   method vExitScope: unit -> unit
 end
 
-let visitorLocation = ref { filename = "";
-			    lineno = -1;
-			    byteno = -1; columnno = -1;
-                            ident = 0;
-                            endLineno = -1; endByteno = -1; endColumnno = -1;}
+let visitorLocation = ref cabslu
 
         (* a default visitor which does nothing to the tree *)
 class nopCabsVisitor : cabsVisitor = object
