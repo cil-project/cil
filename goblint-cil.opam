@@ -16,6 +16,7 @@ Changes:
 - Many bug fixes"""
 maintainer: [
   "Michael Schwarz <michael.schwarz93@gmail.com>"
+  "Simmo Saan <simmo.saan@gmail.com>"
   "Ralf Vogler <ralf.vogler@gmail.com>"
 ]
 authors: ["gabriel@kerneis.info"]
