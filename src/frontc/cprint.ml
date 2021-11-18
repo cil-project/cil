@@ -635,13 +635,13 @@ and print_statement stat =
       end;
       print ";";
       new_line ()
-  | SWITCH (exp, stat, loc) ->
+  | SWITCH (exp, stat, loc, eloc) ->
       setLoc(loc);
       printl ["switch";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
-  | CASE (exp, stat, loc) ->
+  | CASE (exp, stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "case ";
@@ -649,7 +649,7 @@ and print_statement stat =
       print ":";
       indent ();
       print_substatement stat
-  | CASERANGE (expl, exph, stat, loc) ->
+  | CASERANGE (expl, exph, stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "case ";
@@ -659,7 +659,7 @@ and print_statement stat =
       print ":";
       indent ();
       print_substatement stat
-  | DEFAULT (stat, loc) ->
+  | DEFAULT (stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "default :";

@@ -747,10 +747,10 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
-                                            range of values *)
-  | Default of location                 (** A default statement *)
+  | Case of exp * location * location             (** A case statement. Second location is just for label. *)
+  | CaseRange of exp * exp * location * location  (** A case statement corresponding to a
+                                            range of values. Second location is just for label. *)
+  | Default of location * location                (** A default statement. Second location is just for label. *)
 
 
 
@@ -777,14 +777,15 @@ and stmtkind =
                                              branches  fall-through to the
                                              successor of the If statement.
                                              Second location is just for expression. *)
-  | Switch of exp * block * (stmt list) * location
+  | Switch of exp * block * (stmt list) * location * location
                                        (** A switch statement. The block
                                            contains within all of the cases.
                                            We also have direct pointers to the
                                            statements that implement the
                                            cases. Which cases they implement
                                            you can get from the labels of the
-                                           statement *)
+                                           statement.
+                                           Second location is just for expression. *)
 
   | Loop of block * location * location * (stmt option) * (stmt option)
                                            (** A [while(1)] loop. The
@@ -1158,7 +1159,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Break(loc) -> loc
     | Continue(loc) -> loc
     | If(_, _, _, loc, _) -> loc
-    | Switch (_, _, _, loc) -> loc
+    | Switch (_, _, _, loc, _) -> loc
     | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
@@ -3941,8 +3942,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method private pLabel () = function
       Label (s, _, true) -> text (s ^ ": ")
     | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
-    | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
-    | CaseRange (e1, e2, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
+    | Case (e, _, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | CaseRange (e1, e2, _, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
         ++ self#pExp () e2 ++ text ": "
     | Default _ -> text "default: "
 
@@ -4086,7 +4087,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text "else "
                     ++ self#pBlock () e)
 
-    | Switch(e,b,_,l) ->
+    | Switch(e,b,_,l,el) ->
         self#pLineDirective l
           ++ (align
                 ++ text "switch ("
@@ -5586,14 +5587,14 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         assertEmptyQueue vis;
         if e' != e || s1' != s1 || s2' != s2 then
           If(e', s1', s2', l, el) else s.skind
-    | Switch (e, b, stmts, l) ->
+    | Switch (e, b, stmts, l, el) ->
         let e' = fExp e in
         toPrepend := vis#unqueueInstr (); (* insert these before the switch *)
         let b' = fBlock b in
         (* the stmts in b should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         (* Don't do stmts, but we better not change those *)
-        if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
+        if e' != e || b' != b then Switch (e', b', stmts, l, el) else s.skind
     | Instr il ->
         let il' = mapNoCopyList fInst il in
         if il' != il then Instr il' else s.skind
@@ -5628,13 +5629,13 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
   (* Visit the labels *)
   let labels' =
     let fLabel = function
-        Case (e, l) as lb ->
+        Case (e, l, el) as lb ->
           let e' = fExp e in
-          if e' != e then Case (e', l) else lb
-        | CaseRange (e1, e2, l) as lb ->
+          if e' != e then Case (e', l, el) else lb
+        | CaseRange (e1, e2, l, el) as lb ->
           let e1' = fExp e1 in
           let e2' = fExp e2 in
-          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l) else lb
+          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l, el) else lb
         | lb -> lb
     in
     mapNoCopy fLabel s.labels
@@ -6107,7 +6108,7 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
       | If (e, tb, eb, _, _) ->
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
-      | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole1 doone b.bstmts
       | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
       | TryFinally (b, h, l) ->
@@ -6141,7 +6142,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
       | If (e, tb, eb, _, _) ->
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
-      | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole2 dotwo b.bstmts
       | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
       | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
@@ -6625,9 +6626,9 @@ class copyFunctionVisitor (newname: string) = object (self)
             (* Make a copy of the reference *)
             let sr' = ref (findStmt !sr.sid) in
             s.skind <- Goto (sr',l)
-        | Switch (e, body, cases, l) ->
+        | Switch (e, body, cases, l, el) ->
             s.skind <- Switch (e, body,
-                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs.sid) cases, l, el)
         | _ -> ()
       in
       List.iter patchstmt !patches;
@@ -6772,7 +6773,7 @@ and succpred_stmt s fallthrough rlabels =
 let caseRangeFold (l: label list) =
   let rec fold acc = function
   | ((Case _ | Default _ | Label _) as x) :: xs -> fold (x :: acc) xs
-  | CaseRange(el, eh, loc) :: xs ->
+  | CaseRange(el, eh, loc, eloc) :: xs ->
       let il, ih, ik =
         match constFold true el, constFold true eh with
           Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
@@ -6783,7 +6784,7 @@ let caseRangeFold (l: label list) =
         E.s (error "Empty case range");
       let rec mkAll (i: cilint) acc =
         if compare_cilint i ih > 0 then acc
-        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc) :: acc)
+        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc, eloc) :: acc)
       in
       fold (mkAll il acc) xs
    | [] -> List.rev acc
@@ -6821,13 +6822,13 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
   in
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
-  | Case(e,l) ->
+  | Case(e,l,el) ->
       let str = Printf.sprintf "case_%s" (suffix e) in
       Label(freshLabel str,l,false)
-  | CaseRange(e1,e2,l) ->
+  | CaseRange(e1,e2,l,el) ->
       let str = Printf.sprintf "caserange_%s_%s" (suffix e1) (suffix e2) in
       Label(freshLabel str,l,false)
-  | Default(l) -> Label(freshLabel "switch_default",l,false)
+  | Default(l,el) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ;
   match s.skind with
   | Instr _ | Return _ | Goto _ | ComputedGoto _ -> ()
@@ -6845,7 +6846,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                 end
   | If(e,b1,b2,l,el) -> xform_switch_block b1 break_dest cont_dest ;
                         xform_switch_block b2 break_dest cont_dest
-  | Switch(e,b,sl,l) ->
+  | Switch(e,b,sl,l,el) ->
       (* change
        * switch (se) {
        *   case 0: s0 ;
@@ -6888,7 +6889,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         let cases = List.filter (function Label _ -> false | _ -> true ) stmt.labels in
         try (* is this the default case? *)
           match List.find (function Default _ -> true | _ -> false) cases with
-          | Default dl ->
+          | Default (dl, del) ->
               (* We found a [Default], update the fallthrough goto *)
               goto_break.skind <- Goto(ref stmt, dl);
               []
@@ -6896,14 +6897,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
-          | ((Case (_, cl) | CaseRange (_, _, cl)) as lab) :: lab_tl ->
+          | ((Case (_, cl, cel) | CaseRange (_, _, cl, cel)) as lab) :: lab_tl ->
             (* assume that integer promotion and type conversion of cases is
              * performed by cabs2cil. *)
             let comp_case_range e1 e2 =
                   BinOp(Ge, e, e1, intType), BinOp(Le, e, e2, intType) in
             let make_comp lab = begin match lab with
-              | Case (exp, _) -> BinOp(Eq, e, exp, intType)
-              | CaseRange (e1, e2, _) when !useLogicalOperators ->
+              | Case (exp, _, _) -> BinOp(Eq, e, exp, intType)
+              | CaseRange (e1, e2, _, _) when !useLogicalOperators ->
                   let c1, c2 = comp_case_range e1 e2 in
                   BinOp(LAnd, c1, c2, intType)
               | _ -> E.s (bug "Unexpected pattern-matching failure")
@@ -6913,20 +6914,20 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   (fun pred label -> BinOp(LOr, pred, make_comp label, intType))
                   (make_comp lab) lab_tl
             in
-            let make_if_stmt pred cl =
+            let make_if_stmt pred cl cel =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred,then_block,else_block,cl,locUnknown)) in (* TODO: better eloc *)
-            let make_double_if_stmt (pred1, pred2) cl =
-              let then_block = mkBlock [ make_if_stmt pred2 cl ] in
+              mkStmt(If(pred,then_block,else_block,cl,cel)) in
+            let make_double_if_stmt (pred1, pred2) cl cel =
+              let then_block = mkBlock [ make_if_stmt pred2 cl cel ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred1,then_block,else_block,cl,locUnknown)) in (* TODO: better eloc *)
+              mkStmt(If(pred1,then_block,else_block,cl,cel)) in
             if !useLogicalOperators then
-              [make_if_stmt (make_or_from_cases ()) cl]
+              [make_if_stmt (make_or_from_cases ()) cl cel]
             else
               List.map (function
-                | Case _ as lab -> make_if_stmt (make_comp lab) cl
-                | CaseRange (e1, e2, _) -> make_double_if_stmt (comp_case_range e1 e2) cl
+                | Case _ as lab -> make_if_stmt (make_comp lab) cl cel
+                | CaseRange (e1, e2, _, _) -> make_double_if_stmt (comp_case_range e1 e2) cl cel
                 | _ -> E.s (bug "Unexpected pattern-matching failure"))
                 cases
           | Default _ :: _ | Label _ :: _ ->

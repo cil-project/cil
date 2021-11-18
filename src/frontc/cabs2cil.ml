@@ -1016,24 +1016,24 @@ module BlockChunk =
         cases = [];
       }
 
-    let caseChunk (e: exp) (l: location) (next: chunk) =
+    let caseChunk (e: exp) (l: location) (el: location) (next: chunk) =
       let fst, stmts' = getFirstInChunk next in
-      fst.labels <- Case (e, l) :: fst.labels;
+      fst.labels <- Case (e, l, el) :: fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
 
-    let caseRangeChunk (e: exp) (e': exp) (l: location) (next: chunk) =
+    let caseRangeChunk (e: exp) (e': exp) (l: location) (el: location) (next: chunk) =
       let fst, stmts' = getFirstInChunk next in
-      fst.labels <- CaseRange (e, e', l) :: fst.labels;
+      fst.labels <- CaseRange (e, e', l, el) :: fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
 
-    let defaultChunk (l: location) (next: chunk) =
+    let defaultChunk (l: location) (el: location) (next: chunk) =
       let fst, stmts' = getFirstInChunk next in
-      let lb = Default l in
+      let lb = Default (l, el) in
       fst.labels <- lb :: fst.labels;
       { next with stmts = stmts'; cases = fst :: next.cases}
 
 
-    let switchChunk (e: exp) (body: chunk) (l: location) =
+    let switchChunk (e: exp) (body: chunk) (l: location) (el: location) =
       (* Make the statement *)
       let defaultSeen = ref false in
       let t = typeOf e in
@@ -1060,8 +1060,8 @@ module BlockChunk =
             defaultSeen := true;
             d
         | Label _ as l -> l
-        | CaseRange (e1, e2, loc) -> CaseRange (checkRange e1, checkRange e2, loc)
-        | Case (e, loc) -> Case (checkRange e, loc)
+        | CaseRange (e1, e2, loc, eloc) -> CaseRange (checkRange e1, checkRange e2, loc, eloc)
+        | Case (e, loc, eloc) -> Case (checkRange e, loc, eloc)
       in
       let block = c2block body in
       let cases = (* eliminate duplicate entries from body.cases. A statement
@@ -1077,7 +1077,7 @@ module BlockChunk =
           []
           body.cases)
       in
-      let switch = mkStmt (Switch (e, block, cases, l)) in
+      let switch = mkStmt (Switch (e, block, cases, l, el)) in
       { stmts = [ switch (* ; n *) ];
         postins = [];
         cases = [];
@@ -4791,8 +4791,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             s :: _  ->
               let rec findLast = function
                   A.SEQUENCE (_, s, loc) -> findLast s
-                | CASE (_, s, _) -> findLast s
-                | CASERANGE (_, _, s, _) -> findLast s
+                | CASE (_, s, _, _) -> findLast s
+                | CASERANGE (_, _, s, _, _) -> findLast s
                 | LABEL (_, s, _) -> findLast s
                 | (A.COMPUTATION _) as s -> s
                 | _ -> raise Not_found
@@ -6096,15 +6096,15 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                * before mkFunctionbody which resolves the gotos *)
               (match !gotoTargetData with
                 Some (switchv, switch) ->
-                  let switche, l =
+                  let switche, l, el =
                     match switch.skind with
-                      Switch (switche, _, _, l) -> switche, l
+                      Switch (switche, _, _, l, el) -> switche, l, el
                     | _ -> E.s(bug "the computed goto statement not a switch")
                   in
                   (* Build a default chunk that segfaults *)
                   let default =
                     defaultChunk
-                      l
+                      l el
                       (i2c (Set ((Mem (makeCast ~e:(integer 0) ~newt:intPtrType),
                                   NoOffset),
                                  integer 0, l)))
@@ -6113,11 +6113,11 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   H.iter (fun lname laddr ->
                     bodychunk :=
                        caseChunk
-                         (integer laddr) l
+                         (integer laddr) l el
                          (gotoChunk lname l @@ !bodychunk))
                     gotoTargetHash;
                   (* Now recreate the switch *)
-                  let newswitch = switchChunk switche !bodychunk l in
+                  let newswitch = switchChunk switche !bodychunk l el in
                   (* We must still share the old switch statement since we
                   * have already inserted the goto's *)
                   let newswitchkind =
@@ -6229,7 +6229,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               | Goto _ | ComputedGoto _ -> false
               | If (_, b1, b2, _, _) ->
                   blockFallsThrough b1 || blockFallsThrough b2
-              | Switch (e, b, targets, _) ->
+              | Switch (e, b, targets, _, _) ->
                    (* See if there is a "default" case *)
                    if not
                       (List.exists (fun s ->
@@ -6633,9 +6633,11 @@ and doStatement (s : A.statement) : chunk =
           se @@ (returnChunk (Some e'') loc')
         end
 
-    | A.SWITCH (e, s, loc) ->
+    | A.SWITCH (e, s, loc, eloc) ->
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
+        currentExpLoc := eloc';
         let (se, e', et) = doExp false e (AExp None) in
         if not (Cil.isIntegralType et) then
           E.s (error "Switch on a non-integer expression.");
@@ -6644,20 +6646,24 @@ and doStatement (s : A.statement) : chunk =
         enter_break_env ();
         let s' = doStatement s in
         exit_break_env ();
-        se @@ (switchChunk e' s' loc')
+        se @@ (switchChunk e' s' loc' eloc')
 
-    | A.CASE (e, s, loc) ->
+    | A.CASE (e, s, loc, eloc) ->
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
+        currentExpLoc := eloc';
         let (se, e', et) = doExp true e (AExp None) in
         if isNotEmpty se then
           E.s (error "Case statement with a non-constant");
         caseChunk (if !lowerConstants then constFold false e' else e')
-          loc' (doStatement s)
+          loc' eloc' (doStatement s)
 
-    | A.CASERANGE (el, eh, s, loc) ->
+    | A.CASERANGE (el, eh, s, loc, eloc) ->
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
+        currentExpLoc := eloc';
         let (sel, el', _) = doExp true el (AExp None) in
         let (seh, eh', _) = doExp true eh (AExp None) in
         if isNotEmpty sel || isNotEmpty seh then
@@ -6665,13 +6671,15 @@ and doStatement (s : A.statement) : chunk =
         caseRangeChunk
           (if !lowerConstants then constFold false el' else el')
           (if !lowerConstants then constFold false eh' else eh')
-          loc' (doStatement s)
+          loc' eloc' (doStatement s)
 
 
-    | A.DEFAULT (s, loc) ->
+    | A.DEFAULT (s, loc, eloc) ->
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
-        defaultChunk loc' (doStatement s)
+        currentExpLoc := eloc';
+        defaultChunk loc' eloc' (doStatement s)
 
     | A.LABEL (l, s, loc) ->
         let loc' = convLoc loc in
@@ -6719,7 +6727,7 @@ and doStatement (s : A.statement) : chunk =
             (* Make a switch statement. We'll fill in the statements at the
             * end of the function *)
             let switch = mkStmt (Switch (Lval(var switchv),
-                                         mkBlock [], [], loc')) in
+                                         mkBlock [], [], loc', locUnknown)) in (* TODO: better eloc *)
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);

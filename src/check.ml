@@ -730,11 +730,11 @@ and checkStmt (s: stmt) =
             if H.mem labels ln then
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
-        | Case (e, _) ->
+        | Case (e, _, _) ->
            let t = checkExp true e in
            if not (isIntegralType t) then
                E.s (bug "Type of case expression is not integer");
-        | CaseRange (e1, e2, _) ->
+        | CaseRange (e1, e2, _, _) ->
            let t1 = checkExp true e1 in
            if not (isIntegralType t1) then
                E.s (bug "Type of case expression is not integer");
@@ -785,8 +785,9 @@ and checkStmt (s: stmt) =
           checkScalarType te;
           checkBlock bt;
           checkBlock bf
-      | Switch (e, b, cases, l) ->
+      | Switch (e, b, cases, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let t = checkExp false e in
           if not (isIntegralType t) then
               E.s (bug "Type of switch expression is not integer");

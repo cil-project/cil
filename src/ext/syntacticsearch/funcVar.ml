@@ -187,7 +187,7 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var b1.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
-      | Switch (exp, _, stmt_list, loc) ->
+      | Switch (exp, _, stmt_list, loc, eloc) ->
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var stmt_list name varid includeCallTmp
       | Loop (block, _, _, None, None) ->
@@ -350,7 +350,7 @@ let rec cond_search_uses_stmt_list list varname varid includeCallTmp =
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
               includeCallTmp
-      | Switch (exp, block, _, loc) ->
+      | Switch (exp, block, _, loc, eloc) ->
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
       | Loop (block, _, _, None, None) ->

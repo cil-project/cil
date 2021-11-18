@@ -549,7 +549,7 @@ rule initial =
 |		'|'				{PIPE}
 |		'^'				{CIRC}
 |		'?'				{QUEST}
-|		':'				{COLON}
+|		':'				{COLON (currentLoc ())}
 |		'~'		       {TILDE (currentLoc ())}
 
 |		'{'		       {dbgToken (LBRACE (currentLoc ()))}

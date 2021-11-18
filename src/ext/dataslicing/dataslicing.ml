@@ -355,8 +355,8 @@ let rec sliceStmtKind (sk : stmtkind) : stmtkind =
   | Break l -> Break l
   | Continue l -> Continue l
   | Return (eo, l) -> sliceReturnExp eo l
-  | Switch (e, b, sl, l) -> Switch (sliceExp 1 e, sliceBlock b,
-                                    Util.list_map sliceStmt sl, l)
+  | Switch (e, b, sl, l, el) -> Switch (sliceExp 1 e, sliceBlock b,
+                                    Util.list_map sliceStmt sl, l, el)
   | Loop (b, l, el, so1, so2) -> Loop (sliceBlock b, l, el,
                                    applyOption sliceStmt so1,
                                    applyOption sliceStmt so2)

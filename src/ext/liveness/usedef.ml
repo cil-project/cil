@@ -197,7 +197,7 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
     | Break _ | Goto _ | Continue _ -> ()
     | ComputedGoto (e, _) -> ve e
     | Loop (_, _, _, _, _) -> ()
-    | Switch (e, _, _, _) -> ve e
+    | Switch (e, _, _, _, _) -> ve e
     | Instr il ->
         List.iter (fun i -> ignore (visitCilInstr useDefVisitor i)) il
     | TryExcept _ | TryFinally _ -> ()
@@ -235,7 +235,7 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
       let _ = ve e in
       !varUsed, !varDefs
   | Loop (b, _, _, _, _) -> handle_block b
-  | Switch (e, b, _, _) ->
+  | Switch (e, b, _, _, _) ->
       let _ = ve e in
       let u, d = !varUsed, !varDefs in
       let u', d' = handle_block b in

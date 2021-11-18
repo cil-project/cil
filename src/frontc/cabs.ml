@@ -216,10 +216,10 @@ and statement =
  | BREAK of cabsloc
  | CONTINUE of cabsloc
  | RETURN of expression * cabsloc
- | SWITCH of expression * statement * cabsloc
- | CASE of expression * statement * cabsloc
- | CASERANGE of expression * expression * statement * cabsloc
- | DEFAULT of statement * cabsloc
+ | SWITCH of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | CASE of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | CASERANGE of expression * expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | DEFAULT of statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
  | COMPGOTO of expression * cabsloc (* GCC's "goto *exp" *)

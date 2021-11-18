@@ -937,18 +937,20 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement. This expression
+  | Case of exp * location * location   (** A case statement. This expression
                                          * is lowered into a constant if
                                          * {!Cil.lowerConstants} is set to
-                                         * true. *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                         * true.
+                                         * Second location is just for label. *)
+  | CaseRange of exp * exp * location * location (** A case statement corresponding to a
                                          * range of values (GCC's extension).
                                          * Both expressions are lowered into
                                          * constants if {!Cil.lowerConstants} is
                                          * set to true. If you want to use
                                          * these, you must set
-                                         * {!Cil.useCaseRange}. *)
-  | Default of location                 (** A default statement *)
+                                         * {!Cil.useCaseRange}.
+                                         * Second location is just for label. *)
+  | Default of location * location      (** A default statement. Second location is just for label. *)
 
 
 
@@ -982,11 +984,12 @@ and stmtkind =
     * Both branches fall-through to the successor of the If statement.
     * Second location is just for expression. *)
 
-  | Switch of exp * block * (stmt list) * location
+  | Switch of exp * block * (stmt list) * location * location
    (** A switch statement. The statements that implement the cases can be
     * reached through the provided list. For each such target you can find
     * among its labels what cases it implements. The statements that
-    * implement the cases are somewhere within the provided [block]. *)
+    * implement the cases are somewhere within the provided [block].
+    * Second location is just for expression. *)
 
   | Loop of block * location * location * (stmt option) * (stmt option)
     (** A [while(1)] loop. The termination test is implemented in the body of

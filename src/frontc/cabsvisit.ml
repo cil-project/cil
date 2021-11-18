@@ -401,23 +401,23 @@ and childrenStatement vis s =
   | RETURN (e, l) ->
       let e' = ve e in
       if e' != e then RETURN (e', l) else s
-  | SWITCH (e, s1, l) ->
+  | SWITCH (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then SWITCH (e', s1', l) else s
-  | CASE (e, s1, l) ->
+      if e' != e || s1' != s1 then SWITCH (e', s1', l, el) else s
+  | CASE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then CASE (e', s1', l) else s
-  | CASERANGE (e1, e2, s3, l) ->
+      if e' != e || s1' != s1 then CASE (e', s1', l, el) else s
+  | CASERANGE (e1, e2, s3, l, el) ->
       let e1' = ve e1 in
       let e2' = ve e2 in
       let s3' = vs l s3 in
       if e1' != e1 || e2' != e2 || s3' != s3 then
-        CASERANGE (e1', e2', s3', l) else s
-  | DEFAULT (s1, l) ->
+        CASERANGE (e1', e2', s3', l, el) else s
+  | DEFAULT (s1, l, el) ->
       let s1' = vs l s1 in
-      if s1' != s1 then DEFAULT (s1', l) else s
+      if s1' != s1 then DEFAULT (s1', l, el) else s
   | LABEL (n, s1, l) ->
       let s1' = vs l s1 in
       if s1' != s1 then LABEL (n, s1', l) else s

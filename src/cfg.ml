@@ -84,10 +84,10 @@ class caseLabeledStmtFinder slr = object(self)
         then begin
             slr := s :: (!slr);
             match s.skind with
-            | Switch(_,_,_,_) -> SkipChildren
+            | Switch(_,_,_,_,_) -> SkipChildren
             | _ -> DoChildren
         end else match s.skind with
-        | Switch(_,_,_,_) -> SkipChildren
+        | Switch(_,_,_,_,_) -> SkipChildren
         | _ -> DoChildren
 end
 
@@ -207,7 +207,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
   | Block b ->
       addBlockSucc b next;
       cfgBlock b next break cont nodeList rlabels
-  | Switch(_,blk,l,_) ->
+  | Switch(_,blk,l,_,_) ->
       let bl = findCaseLabeledStmts blk in
       List.iter addSucc (List.rev bl(*l*)); (* Add successors in order *)
       (* sfg: if there's no default, need to connect s->next *)
@@ -247,7 +247,7 @@ and fasStmt (todo) (s : stmt) =
     match s.skind with
       | Block b -> fasBlock todo b
       | If (_, tb, fb, _, _) -> (fasBlock todo tb; fasBlock todo fb)
-      | Switch (_, b, _, _) -> fasBlock todo b
+      | Switch (_, b, _, _, _) -> fasBlock todo b
       | Loop (b, _, _, _, _) -> fasBlock todo b
       | (Return _ | Break _ | Continue _ | Goto _ | ComputedGoto _ | Instr _) -> ()
       | TryExcept _ | TryFinally _ -> E.s (E.unimp "try/except/finally")

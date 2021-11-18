@@ -277,7 +277,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> LPAREN RBRACE
 %token<Cabs.cabsloc> LBRACE
 %token LBRACKET RBRACKET
-%token COLON
+%token<Cabs.cabsloc> COLON
 %token<Cabs.cabsloc> SEMICOLON
 %token COMMA ELLIPSIS QUEST
 
@@ -871,8 +871,8 @@ statement:
                 	{IF (smooth_expression (fst $2), $4, NOP $1, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   IF paren_comma_expression location statement location ELSE statement location
 	                {IF (smooth_expression (fst $2), $4, $7, joinLoc $1 $8, joinLoc (snd $2) $3)}
-|   SWITCH paren_comma_expression statement location
-                        {SWITCH (smooth_expression (fst $2), $3, joinLoc $1 $4)}
+|   SWITCH paren_comma_expression location statement location
+                        {SWITCH (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   WHILE paren_comma_expression location statement location
 	        	{WHILE (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
@@ -887,11 +887,11 @@ statement:
                                      removed anyways by Rmtmps. *)
                                   LABEL (fst $1, $5, joinLoc (snd $1) $4)}
 |   CASE expression COLON statement location
-	                         {CASE (fst $2, $4, joinLoc $1 $5)}
+	                         {CASE (fst $2, $4, joinLoc $1 $5, joinLoc $1 $3)}
 |   CASE expression ELLIPSIS expression COLON statement location
-	                         {CASERANGE (fst $2, fst $4, $6, joinLoc $1 $7)}
+	                         {CASERANGE (fst $2, fst $4, $6, joinLoc $1 $7, joinLoc $1 $5)}
 |   DEFAULT COLON statement location
-	                         {DEFAULT ($3, joinLoc $1 $4)}
+	                         {DEFAULT ($3, joinLoc $1 $4, joinLoc $1 $2)}
 |   RETURN SEMICOLON		 {RETURN (NOTHING, joinLoc $1 $2)}
 |   RETURN comma_expression SEMICOLON
 	                         {RETURN (smooth_expression (fst $2), joinLoc $1 $3)}

@@ -88,10 +88,10 @@ begin
   | BREAK(loc) -> loc
   | CONTINUE(loc) -> loc
   | RETURN(_,loc) -> loc
-  | SWITCH(_,_,loc) -> loc
-  | CASE(_,_,loc) -> loc
-  | CASERANGE(_,_,_,loc) -> loc
-  | DEFAULT(_,loc) -> loc
+  | SWITCH(_,_,loc,_) -> loc
+  | CASE(_,_,loc,_) -> loc
+  | CASERANGE(_,_,_,loc,_) -> loc
+  | DEFAULT(_,loc,_) -> loc
   | LABEL(_,_,loc) -> loc
   | GOTO(_,loc) -> loc
   | COMPGOTO (_, loc) -> loc

@@ -323,7 +323,7 @@ let rec analyze_stmt (s : stmt ) : unit =
         (* ignore the expression e; expressions can't be side-effecting *)
         analyze_block b;
         analyze_block b'
-    | Switch (e, b, sl, l) ->
+    | Switch (e, b, sl, l, el) ->
         analyze_block b;
         List.iter analyze_stmt sl
     | Loop (b, l, el, _, _) -> analyze_block b
