@@ -6,13 +6,13 @@ synopsis:
 description: """
 This is a fork of the 'cil' package needed to build 'goblint'.
 Changes:
-- Proper support for C99, (#9) and VLAs in particular (#5, #7)
+- Proper support for C99 and VLAs in particular
 - It uses Zarith instead of the deprecated Num
 - Support for more recent OCaml versions (≥ 4.06)
 - Large integer constants that do not fit in an OCaml int are represented as a string instead of getting truncated
-- Syntactic search extension (#21)
+- Syntactic search extension
 - Some warnings were made optional
-- Unmaintained extensions (#30) were removed
+- Unmaintained extensions were removed
 - Many bug fixes"""
 maintainer: [
   "Michael Schwarz <michael.schwarz93@gmail.com>"

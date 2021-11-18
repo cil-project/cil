@@ -1,12 +1,12 @@
 18 May 2021: goblint-cil-1.8.0
 
-    * Proper support for C99, ([#9][i9]) and VLAs in particular ([#5][i5], [#7][pr7])
+    * Proper support for C99, (#9) and VLAs in particular (#5, #7)
     * It uses [Zarith][zarith] instead of the deprecated [Num][num]
     * Support for more recent OCaml versions (≥ 4.06)
     * Large integer constants that do not fit in an OCaml `int` are represented as a `string` instead of getting truncated
-    * Syntactic search extension ([#21][pr21])
+    * Syntactic search extension (#21)
     * Some warnings were made optional
-    * Unmaintained extensions ([#30][pr30]) were removed
+    * Unmaintained extensions (#30) were removed
     * Many bug fixes
     
 24 July 2013: cil-1.7.3
