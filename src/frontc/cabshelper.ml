@@ -84,7 +84,7 @@ begin
   | IF(_,_,_,loc,_) -> loc
   | WHILE(_,_,loc,_) -> loc
   | DOWHILE(_,_,loc,_) -> loc
-  | FOR(_,_,_,_,loc) -> loc
+  | FOR(_,_,_,_,loc,_) -> loc
   | BREAK(loc) -> loc
   | CONTINUE(loc) -> loc
   | RETURN(_,loc) -> loc

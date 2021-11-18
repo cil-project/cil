@@ -605,7 +605,7 @@ and print_statement stat =
       print_expression_level 0 exp;
       print ");";
       new_line ();
-  | FOR (fc1, exp2, exp3, stat, loc) ->
+  | FOR (fc1, exp2, exp3, stat, loc, eloc) ->
       setLoc(loc);
       printl ["for";"("];
       (match fc1 with

@@ -273,7 +273,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token INF_INF SUP_SUP
 %token<Cabs.cabsloc> PLUS_PLUS MINUS_MINUS
 
-%token RPAREN
+%token<Cabs.cabsloc> RPAREN
 %token<Cabs.cabsloc> LPAREN RBRACE
 %token<Cabs.cabsloc> LBRACE
 %token LBRACKET RBRACKET
@@ -879,7 +879,7 @@ statement:
 	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5, joinLoc (snd $4) $5)}
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement location
-	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9)}
+	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9, joinLoc $2 $7)}
 |   IDENT COLON attribute_nocv_list location statement
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the

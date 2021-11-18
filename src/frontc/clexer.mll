@@ -557,7 +557,7 @@ rule initial =
 |		'['				{LBRACKET}
 |		']'				{RBRACKET}
 |		'('		       {dbgToken (LPAREN (currentLoc ())) }
-|		')'				{RPAREN}
+|		')'				{dbgToken (RPAREN (currentLoc ()))}
 |		';'		       {dbgToken (SEMICOLON (currentLoc ())) }
 |		','				{COMMA}
 |		'.'				{DOT}

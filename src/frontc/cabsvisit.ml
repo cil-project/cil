@@ -376,7 +376,7 @@ and childrenStatement vis s =
       let e' = ve e in
       let s1' = vs l s1 in
       if e' != e || s1' != s1 then DOWHILE (e', s1', l, el) else s
-  | FOR (fc1, e2, e3, s4, l) ->
+  | FOR (fc1, e2, e3, s4, l, el) ->
       let _ = vis#vEnterScope () in
       let fc1' =
         match fc1 with
@@ -396,7 +396,7 @@ and childrenStatement vis s =
       let s4' = vs l s4 in
       let _ = vis#vExitScope () in
       if fc1' != fc1 || e2' != e2 || e3' != e3 || s4' != s4
-      then FOR (fc1', e2', e3', s4', l) else s
+      then FOR (fc1', e2', e3', s4', l, el) else s
   | BREAK _ | CONTINUE _ | GOTO _ -> s
   | RETURN (e, l) ->
       let e' = ve e in

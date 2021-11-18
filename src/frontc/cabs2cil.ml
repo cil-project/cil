@@ -6569,9 +6569,11 @@ and doStatement (s : A.statement) : chunk =
         exitLoop ();
         loopChunk (s' @@ s'')
 
-    | A.FOR(fc1,e2,e3,s,loc) -> begin
+    | A.FOR(fc1,e2,e3,s,loc,eloc) -> begin
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
+        currentExpLoc := eloc';
         enterScope (); (* Just in case we have a declaration *)
         let (se1, _, _) =
           match fc1 with
@@ -6582,8 +6584,9 @@ and doStatement (s : A.statement) : chunk =
         startLoop false;
         let s' = doStatement s in
         currentLoc := loc';
+        currentExpLoc := eloc';
         let s'' = consLabContinue se3 in
-        let break_cond = breakChunk loc' in
+        let break_cond = breakChunk loc' in (* TODO: use eloc'? *)
         exitLoop ();
         let res =
           match e2 with
