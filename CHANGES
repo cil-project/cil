@@ -1,3 +1,8 @@
+18 November 2021: goblint-cil-1.8.2
+
+    * Add columns to locations.
+    * Add support for __int128, __int128_t and __uint128_t.
+
 18 May 2021: goblint-cil-1.8.0
 
     * Proper support for C99, (#9) and VLAs in particular (#5, #7)

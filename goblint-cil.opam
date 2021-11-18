@@ -11,6 +11,7 @@ Changes:
 - Support for more recent OCaml versions (≥ 4.06)
 - Large integer constants that do not fit in an OCaml int are represented as a string instead of getting truncated
 - Syntactic search extension
+- More precise locations (with columns)
 - Some warnings were made optional
 - Unmaintained extensions were removed
 - Many bug fixes"""
