@@ -778,8 +778,9 @@ and checkStmt (s: stmt) =
         end
       | Loop (b, l, _, _) -> checkBlock b
       | Block b -> checkBlock b
-      | If (e, bt, bf, l) ->
+      | If (e, bt, bf, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let te = checkExp false e in
           checkScalarType te;
           checkBlock bt;

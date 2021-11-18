@@ -363,11 +363,11 @@ and childrenStatement vis s =
       let s1' = vs l s1 in
       let s2' = vs l s2 in
       if s1' != s1 || s2' != s2 then SEQUENCE (s1', s2', l) else s
-  | IF (e, s1, s2, l) ->
+  | IF (e, s1, s2, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
       let s2' = vs l s2 in
-      if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l) else s
+      if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l, el) else s
   | WHILE (e, s1, l) ->
       let e' = ve e in
       let s1' = vs l s1 in

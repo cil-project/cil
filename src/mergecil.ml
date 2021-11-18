@@ -1176,7 +1176,7 @@ begin
     | ComputedGoto(_) -> 131
     | Break(_) -> 23
     | Continue(_) -> 29
-    | If(_,b1,b2,_) -> 31 + 37*(stmtListSum b1.bstmts)
+    | If(_,b1,b2,_,_) -> 31 + 37*(stmtListSum b1.bstmts)
                           + 41*(stmtListSum b2.bstmts)
     | Switch(_,b,_,_) -> 43 + 47*(stmtListSum b.bstmts)
                             (* don't look at stmt list b/c is not part of tree *)

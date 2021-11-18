@@ -1327,13 +1327,13 @@ stmt:
                   { (fun mkTemp loc args ->
                          mkStmt (If((fst $3) args,
                                     mkBlock [ $5 mkTemp loc args ],
-                                    mkBlock [], loc)))
+                                    mkBlock [], loc, locUnknown))) (* TODO: better eloc *)
                   }
 |   IF LPAREN expression RPAREN stmt ELSE stmt
                   { (fun mkTemp loc args ->
                          mkStmt (If((fst $3) args,
                                     mkBlock [ $5 mkTemp loc args ],
-                                    mkBlock [ $7 mkTemp loc args], loc)))
+                                    mkBlock [ $7 mkTemp loc args], loc, locUnknown))) (* TODO: better eloc *)
                   }
 |   RETURN exp_opt SEMICOLON
                   { (fun mkTemp loc args ->
@@ -1366,7 +1366,7 @@ stmt:
                                                  mkBlock [],
                                                  mkBlock [ mkStmt
                                                              (Break loc) ],
-                                                 loc));
+                                                 loc, locUnknown)); (* TODO: better eloc *)
                                            $5 mkTemp loc args ],
                                  loc, None, None)))
                    }

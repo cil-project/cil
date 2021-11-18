@@ -198,7 +198,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
   | ComputedGoto (e,_) -> List.iter addSucc rlabels
   | Break _ -> addOptionSucc break
   | Continue _ -> addOptionSucc cont
-  | If (_, blk1, blk2, _) ->
+  | If (_, blk1, blk2, _, _) ->
       (* The succs of If is [true branch;false branch] *)
       addBlockSucc blk2 next;
       addBlockSucc blk1 next;
@@ -246,7 +246,7 @@ and fasStmt (todo) (s : stmt) =
     ignore(todo s);
     match s.skind with
       | Block b -> fasBlock todo b
-      | If (_, tb, fb, _) -> (fasBlock todo tb; fasBlock todo fb)
+      | If (_, tb, fb, _, _) -> (fasBlock todo tb; fasBlock todo fb)
       | Switch (_, b, _, _) -> fasBlock todo b
       | Loop (b, _, _, _) -> fasBlock todo b
       | (Return _ | Break _ | Continue _ | Goto _ | ComputedGoto _ | Instr _) -> ()
@@ -264,7 +264,7 @@ let d_cfgnodelabel () (s : stmt) =
   let label =
   begin
     match s.skind with
-      | If (e, _, _, _)  -> "if" (*sprint ~width:999 (dprintf "if %a" d_exp e)*)
+      | If (e, _, _, _, _)  -> "if" (*sprint ~width:999 (dprintf "if %a" d_exp e)*)
       | Loop _ -> "loop"
       | Break _ -> "break"
       | Continue _ -> "continue"

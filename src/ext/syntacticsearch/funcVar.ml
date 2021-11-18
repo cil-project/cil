@@ -183,7 +183,7 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
           search_expression exp name loc varid includeCallTmp
       | ComputedGoto (exp, loc) ->
           search_expression exp name loc varid includeCallTmp
-      | If (exp, b1, b2, loc) ->
+      | If (exp, b1, b2, loc, eloc) ->
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var b1.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
@@ -346,7 +346,7 @@ let rec cond_search_uses_stmt_list list varname varid includeCallTmp =
   match list with
   | x :: xs ->
       ( match x.skind with
-      | If (exp, b1, b2, loc) ->
+      | If (exp, b1, b2, loc, eloc) ->
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
               includeCallTmp

@@ -351,7 +351,7 @@ let rec sliceStmtKind (sk : stmtkind) : stmtkind =
   match sk with
   | Instr instrs -> Instr (List.flatten (Util.list_map sliceInstr instrs))
   | Block b -> Block (sliceBlock b)
-  | If (e, b1, b2, l) -> If (sliceExp 1 e, sliceBlock b1, sliceBlock b2, l)
+  | If (e, b1, b2, l, el) -> If (sliceExp 1 e, sliceBlock b1, sliceBlock b2, l, el)
   | Break l -> Break l
   | Continue l -> Continue l
   | Return (eo, l) -> sliceReturnExp eo l

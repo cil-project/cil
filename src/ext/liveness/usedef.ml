@@ -193,7 +193,7 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
     match sk with
       Return (None, _) -> ()
     | Return (Some e, _) -> ve e
-    | If (e, _, _, _) -> ve e
+    | If (e, _, _, _, _) -> ve e
     | Break _ | Goto _ | Continue _ -> ()
     | ComputedGoto (e, _) -> ve e
     | Loop (_, _, _, _) -> ()
@@ -224,7 +224,7 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
   | Return (Some e, _) ->
       let _ = ve e in
       !varUsed, !varDefs
-  | If (e, tb, fb, _) ->
+  | If (e, tb, fb, _, _) ->
       let _ = ve e in
       let u, d = !varUsed, !varDefs in
       let u', d' = handle_block tb in

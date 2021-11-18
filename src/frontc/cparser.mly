@@ -867,10 +867,10 @@ statement:
 |   comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
 |   block               {BLOCK (fst3 $1, joinLoc (snd3 $1) (trd3 $1))}
-|   IF paren_comma_expression statement location                   %prec IF
-                	{IF (smooth_expression (fst $2), $3, NOP $1, joinLoc $1 $4)}
-|   IF paren_comma_expression statement location ELSE statement location
-	                {IF (smooth_expression (fst $2), $3, $6, joinLoc $1 $7)}
+|   IF paren_comma_expression location statement location                   %prec IF
+                	{IF (smooth_expression (fst $2), $4, NOP $1, joinLoc $1 $5, joinLoc (snd $2) $3)}
+|   IF paren_comma_expression location statement location ELSE statement location
+	                {IF (smooth_expression (fst $2), $4, $7, joinLoc $1 $8, joinLoc (snd $2) $3)}
 |   SWITCH paren_comma_expression statement location
                         {SWITCH (smooth_expression (fst $2), $3, joinLoc $1 $4)}
 |   WHILE paren_comma_expression statement location

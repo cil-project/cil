@@ -771,11 +771,12 @@ and stmtkind =
                                              enclosing Loop or Switch *)
   | Continue of location                (** A continue to the start of the
                                             nearest enclosing [Loop] *)
-  | If of exp * block * block * location (** A conditional.
+  | If of exp * block * block * location * location (** A conditional.
                                              Two successors, the "then" and
                                              the "else" branches. Both
                                              branches  fall-through to the
-                                             successor of the If statement *)
+                                             successor of the If statement.
+                                             Second location is just for expression. *)
   | Switch of exp * block * (stmt list) * location
                                        (** A switch statement. The block
                                            contains within all of the cases.
@@ -907,6 +908,8 @@ let locUnknown = { line = -1;
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
+(* A reference to the current expression location *)
+let currentExpLoc : location ref = ref locUnknown
 
 (* A reference to the current global being visited *)
 let currentGlobal: global ref = ref (GText "dummy")
@@ -1153,7 +1156,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | ComputedGoto(_, loc) -> loc
     | Break(loc) -> loc
     | Continue(loc) -> loc
-    | If(_, _, _, loc) -> loc
+    | If(_, _, _, loc, _) -> loc
     | Switch (_, _, _, loc) -> loc
     | Loop (_, loc, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
@@ -1671,7 +1674,7 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
   (* Do it like this so that the pretty printer recognizes it *)
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard,
                                       mkBlock [ mkEmptyStmt () ],
-                                      mkBlock [ mkStmt (Break lu)], lu)) ::
+                                      mkBlock [ mkStmt (Break lu)], lu, lu)) ::
                            body), lu, None, None)) ]
 
 
@@ -4053,23 +4056,23 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList ~sep:line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
-    | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
+    | If(be,t,{bstmts=[];battrs=[]},l,el) when not !printCilAsIs ->
         self#pIfConditionThen l be t
 
     | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                battrs=[]},l)
+                battrs=[]},l,el)
      when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l be t
 
-    | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
+    | If(be,{bstmts=[];battrs=[]},e,l,el) when not !printCilAsIs ->
           self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
     | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-           battrs=[]},e,l)
+           battrs=[]},e,l,el)
       when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
-    | If(be,t,e,l) ->
+    | If(be,t,e,l,el) ->
         self#pIfConditionThen l be t
           ++ (match e with
                 { bstmts=[{skind=If _; _} as elsif]; battrs=[] } ->
@@ -4100,7 +4103,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]; _} :: rest
+              {skind=If(e,tb,fb,_,_); labels=[]; _} :: rest
                                               when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
                   [], {skind=Break _; labels=[]; _} :: _  -> e, rest
@@ -5572,7 +5575,7 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Loop (b, l, s1, s2) ->
         let b' = fBlock b in
         if b' != b then Loop (b', l, s1, s2) else s.skind
-    | If(e, s1, s2, l) ->
+    | If(e, s1, s2, l, el) ->
         let e' = fExp e in
         (*if e queued any instructions, pop them here and remember them so that
           they are inserted before the If stmt, not in the then block. *)
@@ -5581,7 +5584,7 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         (* the stmts in the blocks should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         if e' != e || s1' != s1 || s2' != s2 then
-          If(e', s1', s2', l) else s.skind
+          If(e', s1', s2', l, el) else s.skind
     | Switch (e, b, stmts, l) ->
         let e' = fExp e in
         toPrepend := vis#unqueueInstr (); (* insert these before the switch *)
@@ -6100,7 +6103,7 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
       | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
@@ -6134,7 +6137,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
       | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
@@ -6741,7 +6744,7 @@ and succpred_stmt s fallthrough rlabels =
   | Switch _ ->
     failwith "computeCFGInfo: cannot be called on functions with break, continue or switch statements. Use prepareCFG first to remove them."
 
-  | If(e1,b1,b2,l) ->
+  | If(e1,b1,b2,l,el) ->
       (match b1.bstmts with
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b1 fallthrough rlabels )) ;
@@ -6839,8 +6842,8 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   ignore (error "prepareCFG: continue: %a@!" d_stmt s) ;
                   raise e
                 end
-  | If(e,b1,b2,l) -> xform_switch_block b1 break_dest cont_dest ;
-                     xform_switch_block b2 break_dest cont_dest
+  | If(e,b1,b2,l,el) -> xform_switch_block b1 break_dest cont_dest ;
+                        xform_switch_block b2 break_dest cont_dest
   | Switch(e,b,sl,l) ->
       (* change
        * switch (se) {
@@ -6912,11 +6915,11 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
             let make_if_stmt pred cl =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred,then_block,else_block,cl)) in
+              mkStmt(If(pred,then_block,else_block,cl,locUnknown)) in (* TODO: better eloc *)
             let make_double_if_stmt (pred1, pred2) cl =
               let then_block = mkBlock [ make_if_stmt pred2 cl ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred1,then_block,else_block,cl)) in
+              mkStmt(If(pred1,then_block,else_block,cl,locUnknown)) in (* TODO: better eloc *)
             if !useLogicalOperators then
               [make_if_stmt (make_or_from_cases ()) cl]
             else

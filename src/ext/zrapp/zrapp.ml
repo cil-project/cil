@@ -143,7 +143,7 @@ let get_loop_condition b =
   (* stm -> exp option * instr list *)
   let rec get_cond_from_if if_stm =
     match if_stm.skind with
-      If(e,tb,fb,_) ->
+      If(e,tb,fb,_,_) ->
 	let e = EC.stripNopCasts e in
 	RCT.fold_blocks tb;
 	RCT.fold_blocks fb;
@@ -153,33 +153,33 @@ let get_loop_condition b =
 	  {skind = Break _; _} :: _, [] -> Some e
 	| [], {skind = Break _; _} :: _ ->
 	    Some(UnOp(LNot, e, intType))
-	| ({skind = If(_,_,_,_); _} as s) :: _, [] ->
+	| ({skind = If(_,_,_,_,_); _} as s) :: _, [] ->
 	    let teo = get_cond_from_if s in
 	    (match teo with
 	      None -> None
 	    | Some te ->
 		Some(BinOp(LAnd,e,EC.stripNopCasts te,intType)))
-	| [], ({skind = If(_,_,_,_); _} as s) :: _ ->
+	| [], ({skind = If(_,_,_,_,_); _} as s) :: _ ->
 	    let feo = get_cond_from_if s in
 	    (match feo with
 	      None -> None
 	    | Some fe ->
 		Some(BinOp(LAnd,UnOp(LNot,e,intType),
 			   EC.stripNopCasts fe,intType)))
-	| {skind = Break _; _} :: _, ({skind = If(_,_,_,_); _} as s):: _ ->
+	| {skind = Break _; _} :: _, ({skind = If(_,_,_,_,_); _} as s):: _ ->
 	    let feo = get_cond_from_if s in
 	    (match feo with
 	      None -> None
 	    | Some fe ->
 		Some(BinOp(LOr,e,EC.stripNopCasts fe,intType)))
-	| ({skind = If(_,_,_,_); _} as s) :: _, {skind = Break _; _} :: _ ->
+	| ({skind = If(_,_,_,_,_); _} as s) :: _, {skind = Break _; _} :: _ ->
 	    let teo = get_cond_from_if s in
 	    (match teo with
 	      None -> None
 	    | Some te ->
 		Some(BinOp(LOr,UnOp(LNot,e,intType),
 			   EC.stripNopCasts te,intType)))
-	| ({skind = If(_,_,_,_); _} as ts) :: _ , ({skind = If(_,_,_,_); _} as fs) :: _ ->
+	| ({skind = If(_,_,_,_,_); _} as ts) :: _ , ({skind = If(_,_,_,_,_); _} as fs) :: _ ->
 	    let teo = get_cond_from_if ts in
 	    let feo = get_cond_from_if fs in
 	    (match teo, feo with
@@ -196,7 +196,7 @@ let get_loop_condition b =
   in
   let sl = skipEmpty b.bstmts in
   match sl with
-    ({skind = If(_,_,_,_); labels=[]; _} as s) :: rest ->
+    ({skind = If(_,_,_,_,_); labels=[]; _} as s) :: rest ->
       get_cond_from_if s, rest
   | s :: _ ->
       (if !debug then ignore(E.log "checkMover: %a is first, not an if\n"

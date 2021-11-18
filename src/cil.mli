@@ -977,9 +977,10 @@ and stmtkind =
 
   | Continue of location
    (** A continue to the start of the nearest enclosing [Loop] *)
-  | If of exp * block * block * location
+  | If of exp * block * block * location * location
    (** A conditional. Two successors, the "then" and the "else" branches.
-    * Both branches fall-through to the successor of the If statement. *)
+    * Both branches fall-through to the successor of the If statement.
+    * Second location is just for expression. *)
 
   | Switch of exp * block * (stmt list) * location
    (** A switch statement. The statements that implement the cases can be
@@ -2109,6 +2110,9 @@ val forgcc: string -> string
  * the current location then you can use some built-in logging functions that
  * will print the location. *)
 val currentLoc: location ref
+
+(** A reference to the current expression location *)
+val currentExpLoc: location ref
 
 (** A reference to the current global being visited *)
 val currentGlobal: global ref

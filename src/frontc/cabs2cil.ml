@@ -889,9 +889,9 @@ module BlockChunk =
         cases = []
       }
 
-    let ifChunk (be: exp) (l: location) (t: chunk) (e: chunk) : chunk =
+    let ifChunk (be: exp) (l: location) (el: location) (t: chunk) (e: chunk) : chunk =
 
-      { stmts = [ mkStmt(If(be, c2block t, c2block e, l))];
+      { stmts = [ mkStmt(If(be, c2block t, c2block e, l, el))];
         postins = [];
         cases = t.cases @ e.cases;
       }
@@ -4708,7 +4708,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 let (se1, _, _) = doExp asconst e1 (ASet(tmp, tresult)) in
                 let (se3, _, _) = finishExp ~newWhat:(ASet(tmp, tresult))
                                     se3 e3' t3 in
-                finishExp (se1 @@ ifChunk (Lval(tmp)) !currentLoc
+                finishExp (se1 @@ ifChunk (Lval(tmp)) !currentLoc !currentExpLoc
                                     skipChunk se3)
                   (Lval(tmp))
                   tresult
@@ -5061,7 +5061,7 @@ and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
       match e with
         Const(CInt64(i,_,_)) when i <> Int64.zero && canDrop sf -> se @@ st
       | Const(CInt64(z,_,_)) when z = Int64.zero && canDrop st -> se @@ sf
-      | _ -> se @@ ifChunk e !currentLoc st sf
+      | _ -> se @@ ifChunk e !currentLoc !currentExpLoc st sf
   end
 
 
@@ -6227,7 +6227,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                                       acc && instrFallsThrough elt) true il
               | Return _ | Break _ | Continue _ -> false
               | Goto _ | ComputedGoto _ -> false
-              | If (_, b1, b2, _) ->
+              | If (_, b1, b2, _, _) ->
                   blockFallsThrough b1 || blockFallsThrough b2
               | Switch (e, b, targets, _) ->
                    (* See if there is a "default" case *)
@@ -6290,7 +6290,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
               match s.skind with
                 Instr _ | Return _ | Continue _ | Goto _ | ComputedGoto _ -> false
               | Break _ -> true
-              | If (_, b1, b2, _) ->
+              | If (_, b1, b2, _, _) ->
                   blockCanBreak b1 || blockCanBreak b2
               | Switch _ | Loop _ ->
                   (* switches and loops catch any breaks in their bodies *)
@@ -6456,7 +6456,7 @@ and assignInit (lv: lval)
                   let ifc =
                     let ife =
                       BinOp(Ge, Lval ctrlval, Const(CInt64(ni, IUInt, None)), intType) in
-                    ifChunk ife !currentLoc (breakChunk !currentLoc) skipChunk
+                    ifChunk ife !currentLoc locUnknown (breakChunk !currentLoc) skipChunk
                   in
                   let dest = addOffsetLval (Index(Lval ctrlval, NoOffset)) lv in
                   let assignc = assignInit dest (makeZeroInit bt) bt empty in
@@ -6537,10 +6537,11 @@ and doStatement (s : A.statement) : chunk =
     | A.SEQUENCE (s1, s2, loc) ->
         (doStatement s1) @@ (doStatement s2)
 
-    | A.IF(e,st,sf,loc) ->
+    | A.IF(e,st,sf,loc,eloc) ->
         let st' = doStatement st in
         let sf' = doStatement sf in
         currentLoc := convLoc loc;
+        currentExpLoc := convLoc eloc;
         doCondition false e st' sf'
 
     | A.WHILE(e,s,loc) ->

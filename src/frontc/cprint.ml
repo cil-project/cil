@@ -579,7 +579,7 @@ and print_statement stat =
       setLoc(loc);
       print_statement s1;
       print_statement s2;
-  | IF (exp, s1, s2, loc) ->
+  | IF (exp, s1, s2, loc, eloc) ->
       setLoc(loc);
       printl ["if";"("];
       print_expression_level 0 exp;

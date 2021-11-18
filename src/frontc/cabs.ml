@@ -209,7 +209,7 @@ and statement =
  | COMPUTATION of expression * cabsloc
  | BLOCK of block * cabsloc
  | SEQUENCE of statement * statement * cabsloc
- | IF of expression * statement * statement * cabsloc
+ | IF of expression * statement * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
  | WHILE of expression * statement * cabsloc
  | DOWHILE of expression * statement * cabsloc
  | FOR of for_clause * expression * expression * statement * cabsloc

@@ -319,7 +319,7 @@ let rec analyze_stmt (s : stmt ) : unit =
         end
     | Goto (s', l) -> () (* analyze_stmt(!s') *)
     | ComputedGoto (e, l) -> ()
-    | If (e, b, b', l) ->
+    | If (e, b, b', l, el) ->
         (* ignore the expression e; expressions can't be side-effecting *)
         analyze_block b;
         analyze_block b'
