@@ -597,7 +597,7 @@ and print_statement stat =
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
-  | DOWHILE (exp, stat, loc) ->
+  | DOWHILE (exp, stat, loc, eloc) ->
       setLoc(loc);
       print "do";
       print_substatement stat;

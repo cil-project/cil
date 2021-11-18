@@ -876,7 +876,7 @@ statement:
 |   WHILE paren_comma_expression location statement location
 	        	{WHILE (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
-	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5)}
+	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5, joinLoc (snd $4) $5)}
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement location
 	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9)}

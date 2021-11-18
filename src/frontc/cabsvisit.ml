@@ -372,10 +372,10 @@ and childrenStatement vis s =
       let e' = ve e in
       let s1' = vs l s1 in
       if e' != e || s1' != s1 then WHILE (e', s1', l, el) else s
-  | DOWHILE (e, s1, l) ->
+  | DOWHILE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then DOWHILE (e', s1', l) else s
+      if e' != e || s1' != s1 then DOWHILE (e', s1', l, el) else s
   | FOR (fc1, e2, e3, s4, l) ->
       let _ = vis#vEnterScope () in
       let fc1' =

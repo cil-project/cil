@@ -6556,13 +6556,15 @@ and doStatement (s : A.statement) : chunk =
         loopChunk ((doCondition false e skipChunk break_cond)
                    @@ s')
 
-    | A.DOWHILE(e,s,loc) ->
+    | A.DOWHILE(e,s,loc,eloc) ->
         startLoop false;
         let s' = doStatement s in
         let loc' = convLoc loc in
+        let eloc' = convLoc eloc in
         currentLoc := loc';
+        currentExpLoc := eloc';
         let s'' =
-          consLabContinue (doCondition false e skipChunk (breakChunk loc'))
+          consLabContinue (doCondition false e skipChunk (breakChunk loc')) (* TODO: use eloc'? *)
         in
         exitLoop ();
         loopChunk (s' @@ s'')
