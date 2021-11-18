@@ -873,8 +873,8 @@ statement:
 	                {IF (smooth_expression (fst $2), $4, $7, joinLoc $1 $8, joinLoc (snd $2) $3)}
 |   SWITCH paren_comma_expression statement location
                         {SWITCH (smooth_expression (fst $2), $3, joinLoc $1 $4)}
-|   WHILE paren_comma_expression statement location
-	        	{WHILE (smooth_expression (fst $2), $3, joinLoc $1 $4)}
+|   WHILE paren_comma_expression location statement location
+	        	{WHILE (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
 	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5)}
 |   FOR LPAREN for_clause opt_expression

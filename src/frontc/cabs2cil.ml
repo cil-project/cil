@@ -933,7 +933,7 @@ module BlockChunk =
 
     let loopChunk (body: chunk) : chunk =
       (* Make the statement *)
-      let loop = mkStmt (Loop (c2block body, !currentLoc, None, None)) in
+      let loop = mkStmt (Loop (c2block body, !currentLoc, !currentExpLoc, None, None)) in
       { stmts = [ loop (* ; n *) ];
         postins = [];
         cases = body.cases;
@@ -6245,7 +6245,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                        * then the switch falls through. *)
                       blockFallsThrough b || blockCanBreak b
                    end
-              | Loop (b, _, _, _) ->
+              | Loop (b, _, _, _, _) ->
                   (* A loop falls through if it can break. *)
                   blockCanBreak b
               | Block b -> blockFallsThrough b
@@ -6544,13 +6544,15 @@ and doStatement (s : A.statement) : chunk =
         currentExpLoc := convLoc eloc;
         doCondition false e st' sf'
 
-    | A.WHILE(e,s,loc) ->
+    | A.WHILE(e,s,loc,eloc) ->
         startLoop true;
         let s' = doStatement s in
         let loc' = convLoc loc in
-        let break_cond = breakChunk loc' in
+        let eloc' = convLoc eloc in
+        let break_cond = breakChunk loc' in (* TODO: use eloc'? *)
         exitLoop ();
         currentLoc := loc';
+        currentExpLoc := eloc';
         loopChunk ((doCondition false e skipChunk break_cond)
                    @@ s')
 

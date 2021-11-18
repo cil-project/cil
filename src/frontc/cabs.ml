@@ -210,7 +210,7 @@ and statement =
  | BLOCK of block * cabsloc
  | SEQUENCE of statement * statement * cabsloc
  | IF of expression * statement * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
- | WHILE of expression * statement * cabsloc
+ | WHILE of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
  | DOWHILE of expression * statement * cabsloc
  | FOR of for_clause * expression * expression * statement * cabsloc
  | BREAK of cabsloc

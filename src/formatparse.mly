@@ -1368,7 +1368,7 @@ stmt:
                                                              (Break loc) ],
                                                  loc, locUnknown)); (* TODO: better eloc *)
                                            $5 mkTemp loc args ],
-                                 loc, None, None)))
+                                 loc, locUnknown, None, None))) (* TODO: better eloc *)
                    }
 |   instr_list    { (fun mkTemp loc args ->
                        mkStmt (Instr ($1 loc args)))

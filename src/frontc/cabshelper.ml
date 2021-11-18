@@ -82,7 +82,7 @@ begin
   | BLOCK(_,loc) -> loc
   | SEQUENCE(_,_,loc) -> loc
   | IF(_,_,_,loc,_) -> loc
-  | WHILE(_,_,loc) -> loc
+  | WHILE(_,_,loc,_) -> loc
   | DOWHILE(_,_,loc) -> loc
   | FOR(_,_,_,_,loc) -> loc
   | BREAK(loc) -> loc

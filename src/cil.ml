@@ -786,7 +786,7 @@ and stmtkind =
                                            you can get from the labels of the
                                            statement *)
 
-  | Loop of block * location * (stmt option) * (stmt option)
+  | Loop of block * location * location * (stmt option) * (stmt option)
                                            (** A [while(1)] loop. The
                                             * termination test is implemented
                                             * in the body of a loop using a
@@ -797,7 +797,8 @@ and stmtkind =
                                             * continue label for this loop
                                             * and the second will point to
                                             * the stmt containing the break
-                                            * label for this loop. *)
+                                            * label for this loop.
+                                            * Second location is just for expression. *)
 
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
@@ -1158,7 +1159,7 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Continue(loc) -> loc
     | If(_, _, _, loc, _) -> loc
     | Switch (_, _, _, loc) -> loc
-    | Loop (_, loc, _, _) -> loc
+    | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
     | TryFinally (_, _, l) -> l
@@ -1675,7 +1676,7 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard,
                                       mkBlock [ mkEmptyStmt () ],
                                       mkBlock [ mkStmt (Break lu)], lu, lu)) ::
-                           body), lu, None, None)) ]
+                           body), lu, lu, None, None)) ]
 
 
 
@@ -4092,7 +4093,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                 ++ self#pExp () e
                 ++ text ") "
                 ++ self#pBlock () b)
-    | Loop(b, l, _, _) -> begin
+    | Loop(b, l, el, _, _) -> begin
         (* Maybe the first thing is a conditional. Turn it into a WHILE *)
         try
           let term, bodystmts =
@@ -5572,9 +5573,9 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Return (Some e, l) ->
         let e' = fExp e in
         if e' != e then Return (Some e', l) else s.skind
-    | Loop (b, l, s1, s2) ->
+    | Loop (b, l, el, s1, s2) ->
         let b' = fBlock b in
-        if b' != b then Loop (b', l, s1, s2) else s.skind
+        if b' != b then Loop (b', l, el, s1, s2) else s.skind
     | If(e, s1, s2, l, el) ->
         let e' = fExp e in
         (*if e queued any instructions, pop them here and remember them so that
@@ -6107,7 +6108,7 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
       | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
-      | Loop (b, l, _, _) -> peepHole1 doone b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
       | TryFinally (b, h, l) ->
           peepHole1 doone b.bstmts;
@@ -6141,7 +6142,7 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
       | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
-      | Loop (b, l, _, _) -> peepHole2 dotwo b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
       | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
                                 peepHole2 dotwo h.bstmts
@@ -6752,7 +6753,7 @@ and succpred_stmt s fallthrough rlabels =
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b2 fallthrough rlabels ))
 
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
       begin match b.bstmts with
         [] -> failwith "computeCFGInfo: empty loop"
       | hd :: tl ->
@@ -6939,14 +6940,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         [break_stmt];
       s.skind <- Block b;
       xform_switch_block b (fun () -> ref break_stmt) cont_dest
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
           let break_stmt = mkStmt (Instr []) in
           break_stmt.labels <- [Label(freshLabel "while_break",l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
           cont_stmt.labels <- [Label(freshLabel "while_continue",l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt
-            (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in
+            (Loop(b,l,el,Some(cont_stmt),Some(break_stmt))) in
           let break_dest () = ref break_stmt in
           let cont_dest () = ref cont_stmt in
           xform_switch_block b break_dest cont_dest ;

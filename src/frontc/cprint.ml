@@ -591,7 +591,7 @@ and print_statement stat =
           print "else";
           print_substatement s2;
         end)
-  | WHILE (exp, stat, loc) ->
+  | WHILE (exp, stat, loc, eloc) ->
       setLoc(loc);
       printl ["while";"("];
       print_expression_level 0 exp;

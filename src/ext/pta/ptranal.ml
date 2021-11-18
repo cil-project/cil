@@ -326,7 +326,7 @@ let rec analyze_stmt (s : stmt ) : unit =
     | Switch (e, b, sl, l) ->
         analyze_block b;
         List.iter analyze_stmt sl
-    | Loop (b, l, _, _) -> analyze_block b
+    | Loop (b, l, el, _, _) -> analyze_block b
     | Block b -> analyze_block b
     | TryFinally (b, h, _) ->
         analyze_block b;

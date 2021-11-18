@@ -219,8 +219,8 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
       then
         addOptionSucc next;
       cfgBlock blk next next cont nodeList rlabels
-  | Loop(blk, loc, s1, s2) ->
-      s.skind <- Loop(blk, loc, (Some s), next);
+  | Loop(blk, loc, eloc, s1, s2) ->
+      s.skind <- Loop(blk, loc, eloc, (Some s), next);
       addBlockSucc blk (Some s);
       cfgBlock blk (Some s) next (Some s) nodeList rlabels
       (* Since all loops have terminating condition true, we don't put
@@ -248,7 +248,7 @@ and fasStmt (todo) (s : stmt) =
       | Block b -> fasBlock todo b
       | If (_, tb, fb, _, _) -> (fasBlock todo tb; fasBlock todo fb)
       | Switch (_, b, _, _) -> fasBlock todo b
-      | Loop (b, _, _, _) -> fasBlock todo b
+      | Loop (b, _, _, _, _) -> fasBlock todo b
       | (Return _ | Break _ | Continue _ | Goto _ | ComputedGoto _ | Instr _) -> ()
       | TryExcept _ | TryFinally _ -> E.s (E.unimp "try/except/finally")
   end

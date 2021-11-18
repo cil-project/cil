@@ -190,15 +190,15 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
       | Switch (exp, _, stmt_list, loc) ->
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var stmt_list name varid includeCallTmp
-      | Loop (block, _, None, None) ->
+      | Loop (block, _, _, None, None) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
-      | Loop (block, _, None, Some s2) ->
+      | Loop (block, _, _, None, Some s2) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s2 ] name varid includeCallTmp
-      | Loop (block, _, Some s1, None) ->
+      | Loop (block, _, _, Some s1, None) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s1 ] name varid includeCallTmp
-      | Loop (block, _, Some s1, Some s2) ->
+      | Loop (block, _, _, Some s1, Some s2) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s1 ] name varid includeCallTmp
           @ search_stmt_list_for_var [ s2 ] name varid includeCallTmp
@@ -353,15 +353,15 @@ let rec cond_search_uses_stmt_list list varname varid includeCallTmp =
       | Switch (exp, block, _, loc) ->
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | Loop (block, _, None, None) ->
+      | Loop (block, _, _, None, None) ->
           cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | Loop (block, _, None, Some s1) ->
+      | Loop (block, _, _, None, Some s1) ->
           cond_search_uses_stmt_list (s1 :: block.bstmts) varname varid
             includeCallTmp
-      | Loop (block, _, Some s2, None) ->
+      | Loop (block, _, _, Some s2, None) ->
           cond_search_uses_stmt_list (s2 :: block.bstmts) varname varid
             includeCallTmp
-      | Loop (block, _, Some s2, Some s1) ->
+      | Loop (block, _, _, Some s2, Some s1) ->
           cond_search_uses_stmt_list (s2 :: s1 :: block.bstmts) varname varid
             includeCallTmp
       | Block block ->

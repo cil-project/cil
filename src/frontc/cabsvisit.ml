@@ -368,10 +368,10 @@ and childrenStatement vis s =
       let s1' = vs l s1 in
       let s2' = vs l s2 in
       if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l, el) else s
-  | WHILE (e, s1, l) ->
+  | WHILE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then WHILE (e', s1', l) else s
+      if e' != e || s1' != s1 then WHILE (e', s1', l, el) else s
   | DOWHILE (e, s1, l) ->
       let e' = ve e in
       let s1' = vs l s1 in

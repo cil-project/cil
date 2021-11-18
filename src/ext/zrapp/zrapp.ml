@@ -597,7 +597,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
   method! private pStmtKind (next : stmt) () (sk : stmtkind) =
     match sk with
-    | Loop(b,l,_,_) -> begin
+    | Loop(b,l,el,_,_) -> begin
 	(* See if we can turn this into a while(e) {} *)
 	(* TODO: See if we can turn this into a do { } while(e); *)
 	let co, bodystmts = get_loop_condition b in
