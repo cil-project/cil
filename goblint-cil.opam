@@ -22,7 +22,7 @@ maintainer: [
 ]
 authors: ["gabriel@kerneis.info"]
 license: "BSD-3-Clause"
-homepage: "https://cil-project.github.io/cil/"
+homepage: "https://github.com/goblint/cil"
 bug-reports: "https://github.com/goblint/cil/issues"
 depends: [
   "ocaml" {>= "4.05.0"}

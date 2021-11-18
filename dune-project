@@ -4,7 +4,6 @@
 (generate_opam_files true)
 (version 1.8.2)
 (source (github goblint/cil))
-(homepage "https://cil-project.github.io/cil/")
 ; (documentation "https://goblint.github.io/cil")
 (authors "gabriel@kerneis.info")
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
