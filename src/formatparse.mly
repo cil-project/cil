@@ -152,7 +152,7 @@ let rec checkSameFormat (fl1: formatArg list) (fl2: formatArg list) =
 
 let matchBinopEq (bopeq: binop -> bool) lvt et =
   (fun i -> match i with
-    Set (lv, BinOp(bop', Lval (lv'), e', _), l) when bopeq bop' -> begin
+    Set (lv, BinOp(bop', Lval (lv'), e', _), l, el) when bopeq bop' -> begin
       match lvt lv, lvt lv', et e' with
         Some m1, Some m1', Some m2 ->
           (* Must check that m1 and m2 are the same *)
@@ -167,7 +167,7 @@ let matchBinopEq (bopeq: binop -> bool) lvt et =
 let doBinopEq bop lvt et =
   ((fun loc args ->
     let l = (fst lvt) args in
-    Set(l, BinOp(bop, (Lval l), (fst et) args, typeOfLval l), loc)),
+    Set(l, BinOp(bop, (Lval l), (fst et) args, typeOfLval l), loc, locUnknown)), (* TODO: better eloc? *)
 
    matchBinopEq (fun bop' -> bop = bop') (snd lvt) (snd et))
 
@@ -1162,10 +1162,10 @@ instr:
 
 |		lval EQ expression SEMICOLON
 			{ ((fun loc args ->
-                              Set((fst $1) args, (fst $3) args, loc)),
+                              Set((fst $1) args, (fst $3) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Set (lv, e, l) -> begin
+                             Set (lv, e, l, el) -> begin
                                match (snd $1) lv, (snd $3) e with
                                  Some m1, Some m2 -> Some (m1 @ m2)
                                | _, _ -> None
@@ -1176,7 +1176,7 @@ instr:
 |		lval PLUS_EQ expression SEMICOLON
 			{ ((fun loc args ->
                               let l = (fst $1) args in
-                              Set(l, buildPlus (Lval l) ((fst $3) args), loc)),
+                              Set(l, buildPlus (Lval l) ((fst $3) args), loc, locUnknown)), (* TODO: better eloc? *)
 
                            matchBinopEq
                              (fun bop -> bop = PlusPI || bop = PlusA)
@@ -1187,7 +1187,7 @@ instr:
 			{ ((fun loc args ->
                               let l = (fst $1) args in
                               Set(l,
-                                  buildMinus (Lval l) ((fst $3) args), loc)),
+                                  buildMinus (Lval l) ((fst $3) args), loc, locUnknown)), (* TODO: better eloc? *)
 
                            matchBinopEq (fun bop -> bop = MinusA
                                                || bop = MinusPP
@@ -1223,10 +1223,10 @@ instr:
 |		lval EQ lval LPAREN arguments RPAREN  SEMICOLON
 			{ ((fun loc args ->
                               Call(Some ((fst $1) args), Lval ((fst $3) args),
-                                     (fst $5) args, loc)),
+                                     (fst $5) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Call(Some l, Lval f, args, loc) -> begin
+                             Call(Some l, Lval f, args, loc, eloc) -> begin
                                match (snd $1) l, (snd $3) f, (snd $5) args with
                                  Some m1, Some m2, Some m3 ->
                                    Some (m1 @ m2 @ m3)
@@ -1238,10 +1238,10 @@ instr:
 |		        lval LPAREN arguments RPAREN  SEMICOLON
 			{ ((fun loc args ->
                               Call(None, Lval ((fst $1) args),
-                                     (fst $3) args, loc)),
+                                     (fst $3) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Call(None, Lval f, args, loc) -> begin
+                             Call(None, Lval f, args, loc, eloc) -> begin
                                match (snd $1) f, (snd $3) args with
                                  Some m1, Some m2 -> Some (m1 @ m2)
                                | _, _ -> None
@@ -1252,10 +1252,10 @@ instr:
 |                 arglo lval LPAREN arguments RPAREN  SEMICOLON
 		     { ((fun loc args ->
                        Call((fst $1) args, Lval ((fst $2) args),
-                            (fst $4) args, loc)),
+                            (fst $4) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                         (fun i -> match i with
-                          Call(lo, Lval f, args, loc) -> begin
+                          Call(lo, Lval f, args, loc, eloc) -> begin
                             match (snd $1) lo, (snd $2) f, (snd $4) args with
                               Some m1, Some m2, Some m3 ->
                                 Some (m1 @ m2 @ m3)
@@ -1410,11 +1410,11 @@ stmt_list:
                      match init with
                        NoInit -> rest
                      | InitExp e ->
-                         mkStmtOneInstr (Set((Var v, NoOffset), e, loc))
+                         mkStmtOneInstr (Set((Var v, NoOffset), e, loc, locUnknown)) (* TODO: better eloc? *)
                          :: rest
                      | InitCall (f, args) ->
                          mkStmtOneInstr (Call(Some (Var v, NoOffset),
-                                              Lval f, args, loc))
+                                              Lval f, args, loc, locUnknown)) (* TODO: better eloc? *)
                          :: rest
 
                                                            )

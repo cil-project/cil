@@ -271,9 +271,9 @@ let rec analyze_init (i : init ) : A.tau =
 
 let analyze_instr (i : instr ) : unit =
   match i with
-      Set (lval, rhs, l) ->
+      Set (lval, rhs, l, el) ->
         A.assign (analyze_lval lval) (analyze_expr rhs)
-    | Call (res, fexpr, actuals, l) ->
+    | Call (res, fexpr, actuals, l, el) ->
         if not (isFunctionType (typeOf fexpr)) then
           () (* todo : is this a varargs? *)
         else if is_alloc_fun fexpr then

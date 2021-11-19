@@ -137,7 +137,7 @@ class useDefVisitorClass : cilVisitor = object (self)
       SkipChildren
     in
     match i with
-      Call (None, (Lval(Var vi, NoOffset) as f), [valist; SizeOf t; adest], _)
+      Call (None, (Lval(Var vi, NoOffset) as f), [valist; SizeOf t; adest], _, _)
         (* __builtin_va_arg is special:  in CIL, the left hand side is stored
            as the last argument. *)
         when vi.vname = "__builtin_va_arg" ->
@@ -146,10 +146,10 @@ class useDefVisitorClass : cilVisitor = object (self)
             | _ -> E.s (bug "bad call to %s" vi.vname)
           in
           doCall f (Some dest') [valist; SizeOf t]
-    | Call (_, Lval(Var vi, _), _, _)
+    | Call (_, Lval(Var vi, _), _, _, _)
         when vi.vname = "__builtin_va_arg" ->
         E.s (bug "bad call to %s" vi.vname)
-    | Call (lvo, f, args, _) ->
+    | Call (lvo, f, args, _, _) ->
         doCall f lvo args
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->

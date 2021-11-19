@@ -1032,9 +1032,10 @@ function call, or an inline assembly instruction. *)
 
 (** Instructions. *)
 and instr =
-  Set        of lval * exp * location
+  Set        of lval * exp * location * location
    (** An assignment. The type of the expression is guaranteed to be the same
-    * with that of the lvalue *)
+    * with that of the lvalue.
+    * Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location
    (** "Instruction" in the location where a varinfo was declared.
     *  All varinfos for which such a VarDecl instruction exists have
@@ -1042,7 +1043,7 @@ and instr =
     *  The motivation for the addition of this instruction was to support VLAs
     *  for which declerations can not be pulled up like CIL used to do.
     *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
    (** A function call with the (optional) result placed in an lval. It is
     * possible that the returned type of the function is not identical to
     * that of the lvalue. In that case a cast is printed. The type of the
@@ -1050,7 +1051,8 @@ and instr =
     * number of arguments is the same as that of the declared formals, except
     * for vararg functions. This construct is also used to encode a call to
     * "__builtin_va_arg". In this case the second argument (which should be a
-    * type T) is encoded SizeOf(T) *)
+    * type T) is encoded SizeOf(T).
+    * Second location is just for expression when inside condition. *)
 
   | Asm        of attributes * (* Really only const and volatile can appear
                                * here *)

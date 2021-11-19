@@ -137,7 +137,7 @@ let rec search_expression_list list name loc varid includeCallTmp =
 (* Finds a variable in a list of instructions *)
 let rec search_instr_list_for_var list name varid includeCallTmp =
   match list with
-  | Set ((lhost, offset), exp, loc) :: xs ->
+  | Set ((lhost, offset), exp, loc, eloc) :: xs ->
       search_lhost lhost name loc varid includeCallTmp
       @ search_offset offset name loc varid includeCallTmp
       @ search_expression exp name loc varid includeCallTmp
@@ -158,13 +158,13 @@ let rec search_instr_list_for_var list name varid includeCallTmp =
           info.vid )
         :: search_instr_list_for_var xs name varid includeCallTmp
       else search_instr_list_for_var xs name varid includeCallTmp
-  | Call (Some (lhost, offset), exp, exp_list, loc) :: xs ->
+  | Call (Some (lhost, offset), exp, exp_list, loc, eloc) :: xs ->
       search_lhost lhost name loc varid includeCallTmp
       @ search_offset offset name loc varid includeCallTmp
       @ search_expression exp name loc varid includeCallTmp
       @ search_expression_list exp_list name loc varid includeCallTmp
       @ search_instr_list_for_var xs name varid includeCallTmp
-  | Call (None, exp, exp_list, loc) :: xs ->
+  | Call (None, exp, exp_list, loc, eloc) :: xs ->
       search_expression exp name loc varid includeCallTmp
       @ search_expression_list exp_list name loc varid includeCallTmp
       @ search_instr_list_for_var xs name varid includeCallTmp
@@ -567,7 +567,7 @@ class var_find_def_in_fun varname varid funname result : nopCilVisitor =
 
     method! vinst instr =
       match instr with
-      | Set ((Var info, _), _, loc) ->
+      | Set ((Var info, _), _, loc, eloc) ->
           if is_equal_varname_varid info varname varid then (
             result :=
               !result

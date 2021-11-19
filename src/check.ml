@@ -838,8 +838,9 @@ and checkInstr (i: instr) =
   if !ignoreInstr i then ()
   else
   match i with
-  | Set (dest, e, l) ->
+  | Set (dest, e, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let t = checkLval false false dest in
       (* Not all types can be assigned to *)
       (match unrollType t with
@@ -849,8 +850,9 @@ and checkInstr (i: instr) =
       | _ -> ());
       checkExpType false e t
 
-  | Call(dest, what, args, l) ->
+  | Call(dest, what, args, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let (rt, formals, isva, fnAttrs) =
         match unrollType (checkExp false what) with
           TFun(rt, formals, isva, fnAttrs) -> rt, formals, isva, fnAttrs

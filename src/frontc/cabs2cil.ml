@@ -1174,6 +1174,7 @@ class registerLabelsVisitor = object
 
   method! vstmt s =
     currentLoc := convLoc (C.get_statementloc s);
+    (* don't touch currentExpLoc! *)
     (match s with
        | A.LABEL (lbl,_,_) ->
            AL.registerAlphaName ~alphaTable:alphaTable ~undolist:None ~lookupname:(kindPlusName "label" lbl) ~data:!currentLoc
@@ -2261,8 +2262,8 @@ let afterConversion (c: chunk) : chunk =
    * will help significantly with the handling of calls to malloc, where it
    * is important to have the cast at the same place as the call *)
   let collapseCallCast = function
-      Call(Some(Var vi, NoOffset), f, args, l),
-      Set(destlv, CastE (newt, Lval(Var vi', NoOffset)), _)
+      Call(Some(Var vi, NoOffset), f, args, l, el),
+      Set(destlv, CastE (newt, Lval(Var vi', NoOffset)), _, _)
       when (not vi.vglob &&
             String.length vi.vname >= 3 &&
             (* Watch out for the possibility that we have an implied cast in
@@ -2276,7 +2277,7 @@ let afterConversion (c: chunk) : chunk =
            Util.equals (typeSig newt) (typeSig (typeOfLval destlv))) &&
            IH.mem callTempVars vi.vid &&
            vi' == vi)
-      -> Some [Call(Some destlv, f, args, l)]
+      -> Some [Call(Some destlv, f, args, l, el)]
     | i1,i2 ->  None
   in
   (* First add in the postins *)
@@ -3329,7 +3330,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 (*
             ignore (E.log "finishExp: e = %a\n  e'' = %a\n" d_plainexp e d_plainexp e'');
 *)
-            (se +++ (Set(lv, e'', !currentLoc)), e'', t'')
+            (se +++ (Set(lv, e'', !currentLoc, !currentExpLoc)), e'', t'')
     end
   in
   let findField (n: string) (fidlist: fieldinfo list) : offset =
@@ -3946,7 +3947,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              in
              let tresult, result = doBinOp uop' e' t one intType in
              finishExp (se +++ (Set(lv, makeCastT ~e:result ~oldt:tresult ~newt:t,
-                                    !currentLoc)))
+                                    !currentLoc, !currentExpLoc)))
                e'
                t
            end
@@ -3988,13 +3989,13 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                  let descr = (dd_exp () e')
                              ++ (if uop = A.POSINCR then text "++" else text "--") in
                  let tmp = newTempVar descr true t in
-                 se +++ (Set(var tmp, e', !currentLoc)), Lval(var tmp)
+                 se +++ (Set(var tmp, e', !currentLoc, !currentExpLoc)), Lval(var tmp)
                else
                  se, e'
              in
              finishExp
                (se' +++ (Set(lv, makeCastT ~e:opresult ~oldt:tresult ~newt:(typeOfLval lv),
-                             !currentLoc)))
+                             !currentLoc, !currentExpLoc)))
                result
                t
            end
@@ -4045,7 +4046,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                if needsTemp then
                  let descr = (dd_lval () lv) in
                  let tmp = newTempVar descr true lvt in
-                 var tmp, i2c (Set(lv, Lval(var tmp), !currentLoc))
+                 var tmp, i2c (Set(lv, Lval(var tmp), !currentLoc, !currentExpLoc))
                else
                  lv, empty
              in
@@ -4126,13 +4127,13 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                let descr = (dd_lval () lv1) in
                let tmp = var (newTempVar descr true tresult') in
                finishExp (se1 @@ se2 +++
-               (Set(tmp, result', !currentLoc)) +++
-               (Set(lv1, Lval tmp, !currentLoc)))
+               (Set(tmp, result', !currentLoc, !currentExpLoc)) +++
+               (Set(lv1, Lval tmp, !currentLoc, !currentExpLoc)))
                (Lval tmp)
                t1
              else
              finishExp (se1 @@ se2 +++
-                        (Set(lv1, result', !currentLoc)))
+                        (Set(lv1, result', !currentLoc, !currentExpLoc)))
                e1'
                t1
            end
@@ -4162,9 +4163,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             in
             finishExp (compileCondExp ce
                          (empty +++ (Set(tmp, integer 1,
-                                         !currentLoc)))
+                                         !currentLoc, !currentExpLoc)))
                          (empty +++ (Set(tmp, integer 0,
-                                         !currentLoc))))
+                                         !currentLoc, !currentExpLoc))))
               (Lval tmp)
               intType
     end
@@ -4259,7 +4260,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 	    (* create a temporary *)
 	    let tmp = newTempVar (dd_exp () e) true t in
 	    (* create an instruction to give the e to the temporary *)
-	    let i = Set(var tmp, e, !currentLoc) in
+	    let i = Set(var tmp, e, !currentLoc, !currentExpLoc) in
 	    (* add the instruction to the chunk *)
 	    (* change the expression to be the temporary *)
 	    (c +++ i, (Lval(var tmp)), t)
@@ -4595,7 +4596,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             | None -> E.s (E.bug "__builtin_va_arg should have calldest always set")
             end
             else calldest, !pargs in
-            prechunk := (fun _ -> prev +++ (Call(dest, !pf, args, !currentLoc)));
+            prechunk := (fun _ -> prev +++ (Call(dest, !pf, args, !currentLoc, !currentExpLoc)));
             pres := res;
             prestype := t
           in
@@ -5797,6 +5798,7 @@ and doAliasFun vtype (thisname:string) (othername:string)
 and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.DECDEF ((s, nl), loc) ->
       currentLoc := convLoc(loc);
+      currentExpLoc := convLoc loc; (* eloc for local initializer assignment instruction *)
       (* Do the specifiers exactly once *)
       let sugg =
         match nl with
@@ -5898,6 +5900,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       let endloc = convLoc (joinLoc loc2 loc2) in (* TODO: what to do about range of inserted Return? *)
 (*      ignore (E.log "Definition of %s at %a\n" n d_loc funloc); *)
       currentLoc := funloc;
+      currentExpLoc := funloc; (* TODO: location just for declaration *)
       E.withContext
         (fun _ -> dprintf "2cil: %s" n)
         (fun _ ->
@@ -5928,6 +5931,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Enter all the function's labels into the alpha conversion table *)
             ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
             currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
+            (* visitor doesn't touch currentExpLoc *)
 
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
@@ -6107,7 +6111,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                       l el
                       (i2c (Set ((Mem (makeCast ~e:(integer 0) ~newt:intPtrType),
                                   NoOffset),
-                                 integer 0, l)))
+                                 integer 0, l, el)))
                   in
                   let bodychunk = ref default in
                   H.iter (fun lname laddr ->
@@ -6189,7 +6193,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                          mkStmt (Instr [Set ((Var f, Field(fstfield,
                                                            NoOffset)),
                                              Lval (var shadow),
-                                             !currentLoc)]) :: accbody))
+                                             !currentLoc, !currentExpLoc)]) :: accbody))
                   !currentFunctionFDEC.sformals
                   ([], !currentFunctionFDEC.sbody.bstmts)
               in
@@ -6211,7 +6215,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
              * return statements are inserted properly.  *)
             let instrFallsThrough (i : instr) = match i with
               Set _ -> true
-            | Call (None, Lval (Var e, NoOffset), _, _) ->
+            | Call (None, Lval (Var e, NoOffset), _, _, _) ->
                 (* See if this is exit, or if it has the noreturn attribute *)
                 if e.vname = "exit" then false
                 else if hasAttribute "noreturn" e.vattr then false
@@ -6425,7 +6429,7 @@ and assignInit (lv: lval)
   match ie with
     SingleInit e ->
       let (_, e'') = castTo iet (typeOfLval lv) e in
-      acc +++ (Set(lv, e'', !currentLoc))
+      acc +++ (Set(lv, e'', !currentLoc, !currentExpLoc))
   | CompoundInit (t, initl) -> begin
     match unrollType t with
     | TArray (bt, leno, at) -> begin
@@ -6450,7 +6454,7 @@ and assignInit (lv: lval)
                 (* Use a loop for any remaining initializations *)
                 let ctrv = newTempVar (text "init counter") true uintType in
                 let ctrlval = Var ctrv, NoOffset in
-                let init = Set(ctrlval, Const(CInt64(Int64.of_int ilen, IUInt, None)), !currentLoc) in
+                let init = Set(ctrlval, Const(CInt64(Int64.of_int ilen, IUInt, None)), !currentLoc, !currentExpLoc) in
                 startLoop false;
                 let bodyc =
                   let ifc =
@@ -6460,7 +6464,7 @@ and assignInit (lv: lval)
                   in
                   let dest = addOffsetLval (Index(Lval ctrlval, NoOffset)) lv in
                   let assignc = assignInit dest (makeZeroInit bt) bt empty in
-                  let inci = Set(ctrlval, BinOp(PlusA, Lval ctrlval, Const(CInt64(1L, IUInt, None)), uintType), !currentLoc) in
+                  let inci = Set(ctrlval, BinOp(PlusA, Lval ctrlval, Const(CInt64(1L, IUInt, None)), uintType), !currentLoc, !currentExpLoc) in
                   (ifc @@ assignc) +++ inci in
                 exitLoop ();
                 let loopc = loopChunk bodyc in
@@ -6519,6 +6523,7 @@ and doStatement (s : A.statement) : chunk =
       A.NOP _ -> skipChunk
     | A.COMPUTATION (e, loc) ->
         currentLoc := convLoc loc;
+        currentExpLoc := convLoc loc;
         let (lasts, data) = !gnu_body_result in
         if lasts == s then begin      (* This is the last in a GNU_BODY *)
           let (s', e', t') = doExp false e (AExp None) in
@@ -6696,6 +6701,7 @@ and doStatement (s : A.statement) : chunk =
     | A.COMPGOTO (e, loc) when !Cil.useComputedGoto -> begin
         let loc' = convLoc loc in
         currentLoc := loc';
+        (* TODO: COMPGOTO eloc *)
         (* Do the expression *)
         let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
         se @@ s2c(mkStmt(ComputedGoto (e', loc')))
@@ -6703,12 +6709,13 @@ and doStatement (s : A.statement) : chunk =
     | A.COMPGOTO (e, loc) -> begin
         let loc' = convLoc loc in
         currentLoc := loc';
+        (* TODO: COMPGOTO eloc *)
         (* Do the expression *)
         let se, e', t' = doExp false e (AExp (Some voidPtrType)) in
         match !gotoTargetData with
           Some (switchv, switch) -> (* We have already generated this one  *)
             se
-            @@ i2c(Set (var switchv, makeCast ~e:e' ~newt:!upointType, loc'))
+            @@ i2c(Set (var switchv, makeCast ~e:e' ~newt:!upointType, loc', locUnknown)) (* TODO: eloc for COMPGOTO *)
             @@ s2c(mkStmt(Goto (ref switch, loc')))
 
         | None -> begin
@@ -6731,7 +6738,7 @@ and doStatement (s : A.statement) : chunk =
             (* And make a label for it since we'll goto it *)
             switch.labels <- [Label ("__docompgoto", loc', false)];
             gotoTargetData := Some (switchv, switch);
-            se @@ i2c (Set(var switchv, makeCast ~e:e' ~newt:!upointType, loc')) @@
+            se @@ i2c (Set(var switchv, makeCast ~e:e' ~newt:!upointType, loc', locUnknown)) @@ (* TODO: eloc for COMPGOTO *)
             s2c switch
         end
       end
@@ -6750,6 +6757,7 @@ and doStatement (s : A.statement) : chunk =
         let loc' = convLoc loc in
         let attr' = doAttributes asmattr in
         currentLoc := loc';
+        currentExpLoc := loc'; (* for argument doExp below *)
         let stmts : chunk ref = ref empty in
 	let (tmpls', outs', ins', clobs') =
 	  match details with
@@ -6804,6 +6812,7 @@ and doStatement (s : A.statement) : chunk =
     | TRY_EXCEPT (b, e, h, loc) ->
         let loc' = convLoc loc in
         currentLoc := loc';
+        (* TODO: eloc for TRY_EXCEPT doExp? *)
         let b': chunk = doBody b in
         (* Now do e *)
         let ((se: chunk), e', t') = doExp false e (AExp None) in

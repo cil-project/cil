@@ -829,16 +829,17 @@ and stmtkind =
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
 and instr =
-    Set        of lval * exp * location  (** An assignment. A cast is present
+    Set        of lval * exp * location * location  (** An assignment. A cast is present
                                              if the exp has different type
-                                             from lval *)
+                                             from lval.
+                                             Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location     (** "Instruction" in the location where a varinfo was declared.
                                              All varinfos for which such a VarDecl instruction exists have
                                              vhasdeclinstruction set to true.
                                              The motivation for the addition of this instruction was to
                                              support VLAs for which declarations can not be pulled up like
                                              CIL used to do. *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
  			 (** optional: result is an lval. A cast might be
                              necessary if the declared result type of the
                              function is not the same as that of the
@@ -849,7 +850,8 @@ and instr =
                              than the declared number of arguments. C allows
                              this.) If the type of the result variable is not
                              the same as the declared type of the function
-                             result then an implicit cast exists. *)
+                             result then an implicit cast exists.
+                             Second location is just for expression when inside condition. *)
 
                          (* See the GCC specification for the meaning of ASM.
                           * If the source is MS VC then only the templates
@@ -1131,8 +1133,8 @@ let stripUnderscores (s: string) : string =
 
 let get_instrLoc (inst : instr) =
   match inst with
-      Set(_, _, loc) -> loc
-    | Call(_, _, _, loc) -> loc
+      Set(_, _, loc, _) -> loc
+    | Call(_, _, _, loc, _) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
     | VarDecl(_,loc) -> loc
 let get_globalLoc (g : global) =
@@ -1696,11 +1698,11 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor
-    ~start:[ mkStmt (Instr [(Set (var iter, first, lu))]) ]
+    ~start:[ mkStmt (Instr [(Set (var iter, first, lu, lu))]) ]
     ~guard:(BinOp(compop, Lval(var iter), past, intType))
     ~next:[ mkStmt (Instr [(Set (var iter,
                            (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
-                           lu))])]
+                           lu, lu))])]
     ~body:body
 
 
@@ -3691,7 +3693,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
-    | Set(lv,e,l) -> begin
+    | Set(lv,e,l,el) -> begin
         (* Be nice to some special cases *)
         match e with
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
@@ -3743,7 +3745,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       (* In cabs2cil we have turned the call to builtin_va_arg into a
        * three-argument call: the last argument is the address of the
        * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l)
+    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l, el)
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs ->
           let destlv = match stripCasts adest with
             AddrOf destlv -> destlv
@@ -3768,12 +3770,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_va_start and __builtin_stdarg_start. *)
-    | Call(None, Lval(Var vi, NoOffset), [marker], l)
+    | Call(None, Lval(Var vi, NoOffset), [marker], l, el)
         when ((vi.vname = "__builtin_stdarg_start" ||
                vi.vname = "__builtin_va_start") && not !printCilAsIs) ->
         if currentFormals <> [] then begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
+          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l,el))
         end
         else begin
           (* We can't print this call because someone called pInstr outside
@@ -3788,10 +3790,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         end
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_next_arg. *)
-    | Call(res, Lval(Var vi, NoOffset), [ ], l)
+    | Call(res, Lval(Var vi, NoOffset), [ ], l, el)
         when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
+          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l, el))
         end
 
       (* In cparser we have turned the call to
@@ -3799,7 +3801,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * __builtin_types_compatible_p(sizeof t1, sizeof t2), so that we can
        * represent the types as expressions.
        * Remove the sizeofs when printing. *)
-    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l)
+    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         self#pLineDirective l
           (* Print the destination *)
@@ -3810,11 +3812,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         ++ dprintf "%s(%a, %a)" vi.vname
              (self#pType None) t1  (self#pType None) t2
         ++ text printInstrTerminator
-    | Call(_, Lval(Var vi, NoOffset), _, l)
+    | Call(_, Lval(Var vi, NoOffset), _, l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
 
-    | Call(dest,e,args,l) ->
+    | Call(dest,e,args,l,el) ->
         let rec patchTypeNotVLA t =
           match t with
           | TPtr(t, args) -> TPtr(patchTypeNotVLA t, args)
@@ -5517,17 +5519,17 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fLval lv = visitCilLval vis lv in
   match i with
   | VarDecl(v,l) -> i
-  | Set(lv,e,l) ->
+  | Set(lv,e,l,el) ->
       let lv' = fLval lv in let e' = fExp e in
-      if lv' != lv || e' != e then Set(lv',e',l) else i
-  | Call(None,f,args,l) ->
+      if lv' != lv || e' != e then Set(lv',e',l,el) else i
+  | Call(None,f,args,l,el) ->
       let f' = fExp f in let args' = mapNoCopy fExp args in
-      if f' != f || args' != args then Call(None,f',args',l) else i
-  | Call(Some lv,fn,args,l) ->
+      if f' != f || args' != args then Call(None,f',args',l,el) else i
+  | Call(Some lv,fn,args,l,el) ->
       let lv' = fLval lv in let fn' = fExp fn in
       let args' = mapNoCopy fExp args in
       if lv' != lv || fn' != fn || args' != args
-      then Call(Some lv', fn', args', l) else i
+      then Call(Some lv', fn', args', l, el) else i
 
   | Asm(sl,isvol,outs,ins,clobs,l) ->
       let outs' = mapNoCopy (fun ((id,s,lv) as pair) ->
@@ -5878,7 +5880,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
     match i with
       (* Skip two functions to which we add Sizeof to the type arguments.
          See the comments for these above. *)
-      Call(_,(Lval (Var vi,NoOffset)),_,_)
+      Call(_,(Lval (Var vi,NoOffset)),_,_,_)
         when ((vi.vname = "__builtin_va_arg")
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
@@ -6010,7 +6012,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
               m.sbody.bstmts <-
                  compactStmts (mkStmt (Instr [Call(None,
                                                    Lval(var f.svar),
-                                                   [], locUnknown)])
+                                                   [], locUnknown, locUnknown)])
                                :: m.sbody.bstmts);
               inserted := true;
               if !E.verboseFlag then

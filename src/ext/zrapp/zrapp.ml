@@ -258,7 +258,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
      if IH.mem RCT.iioh v.vid then
        let rhso = IH.find RCT.iioh v.vid in
        match rhso with
-	 Some(Call(_,e,el,l)) ->
+	 Some(Call(_,e,el,l,eloc)) ->
 	   (* print a call instead of a temp variable *)
 	   let oldpit = super#getPrintInstrTerminator() in
 	   let _ = super#setPrintInstrTerminator "" in
@@ -268,7 +268,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	     TFun(rt,_,_,_) when not (Util.equals (typeSig rt) (typeSig v.vtype)) ->
 	       text "(" ++ self#pType None () v.vtype ++ text ")"
 	   | _ -> nil in
-	   let d = self#pInstr () (Call(None,e,el,l)) in
+	   let d = self#pInstr () (Call(None,e,el,l,eloc)) in
 	   let _ = super#setPrintInstrTerminator oldpit in
 	   let _ = printComments := opc in
 	   c ++ d
