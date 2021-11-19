@@ -8,7 +8,7 @@ let variable = makeGlobalVar "value" intType in
 
 let instructions = ref [] in
 for loop = 1 to 25000 do
-  let instruction = Set(var variable, integer loop, locUnknown) in
+  let instruction = Set(var variable, integer loop, locUnknown, locUnknown) in
   instructions := instruction :: !instructions
 done;
 
