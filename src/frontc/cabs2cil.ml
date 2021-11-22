@@ -5797,7 +5797,7 @@ and doAliasFun vtype (thisname:string) (othername:string)
 (* Do one declaration *)
 and doDecl (isglobal: bool) : A.definition -> chunk = function
   | A.DECDEF ((s, nl), loc) ->
-      currentLoc := convLoc(loc);
+      currentLoc := convLoc loc;
       currentExpLoc := convLoc loc; (* eloc for local initializer assignment instruction *)
       (* Do the specifiers exactly once *)
       let sugg =
