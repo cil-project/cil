@@ -1174,7 +1174,7 @@ class registerLabelsVisitor = object
 
   method! vstmt s =
     currentLoc := convLoc (C.get_statementloc s);
-    (* don't touch currentExpLoc! *)
+    (* Don't touch currentExpLoc! Not used for registering labels and not reset after this visitor in doDecl. *)
     (match s with
        | A.LABEL (lbl,_,_) ->
            AL.registerAlphaName ~alphaTable:alphaTable ~undolist:None ~lookupname:(kindPlusName "label" lbl) ~data:!currentLoc
@@ -5931,7 +5931,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             (* Enter all the function's labels into the alpha conversion table *)
             ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
             currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
-            (* visitor doesn't touch currentExpLoc *)
+            (* Visitor doesn't use and touch currentExpLoc, so no need to reset. *)
 
             (* Do not process transparent unions in function definitions.
             * We'll do it later *)
