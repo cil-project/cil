@@ -209,7 +209,7 @@ let eh_handle_inst i eh =
        also kill mappings from vars that have had their address taken,
        and globals.
        otherwise kill things with lv in them and add e *)
-    Set(lv,e,_) -> (match lv with
+    Set(lv,e,_,_) -> (match lv with
       (Mem _, _) ->
 	(eh_kill_mem eh;
 	 eh_kill_addrof_or_global eh;
@@ -231,7 +231,7 @@ let eh_handle_inst i eh =
 	eh_kill_lval eh lv;
 	eh
     end)
-  | Call(Some(Var vi,NoOffset),_,_,_) ->
+  | Call(Some(Var vi,NoOffset),_,_,_,_) ->
       (IH.remove eh vi.vid;
        eh_kill_vi eh vi;
        if not((!ignore_call) i) then begin
@@ -239,7 +239,7 @@ let eh_handle_inst i eh =
 	 eh_kill_addrof_or_global eh
        end;
        eh)
-  | Call(_,_,_,_) ->
+  | Call(_,_,_,_,_) ->
       (eh_kill_mem eh;
        eh_kill_addrof_or_global eh;
        eh)

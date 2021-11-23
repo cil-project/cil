@@ -147,7 +147,7 @@ class fun_find_uses funname funid file result : nopCilVisitor =
 
     method! vinst instr =
       match instr with
-      | Call (_, Lval (Var varinfo, NoOffset), _, loc) ->
+      | Call (_, Lval (Var varinfo, NoOffset), _, loc, eloc) ->
           if is_equal_funname_funid varinfo funname funid then (
             match find_fundec funname funid file.globals with
             | None -> SkipChildren
@@ -185,7 +185,7 @@ class fun_find_uses_in_fun funname funid funstrucname file result :
 
     method! vinst instr =
       match instr with
-      | Call (_, Lval (Var varinfo, NoOffset), _, loc) ->
+      | Call (_, Lval (Var varinfo, NoOffset), _, loc, eloc) ->
           if is_equal_funname_funid varinfo funname funid then (
             match find_fundec funname funid file.globals with
             | None -> SkipChildren
@@ -215,7 +215,7 @@ let find_uses_in_fun_all funstrucname file =
             Some (find_uses_in_fun "" fundec.svar.vid funstrucname file)))
        file.globals
 
-let loc_default = { line = -1; file = ""; byte = -1; column = -1 }
+let loc_default = locUnknown
 
 class fun_find_usesvar_in_fun fundec funstrucname varname varid file result :
   nopCilVisitor =
@@ -228,7 +228,7 @@ class fun_find_usesvar_in_fun fundec funstrucname varname varid file result :
 
     method! vinst instr =
       match instr with
-      | Call (_, exp, list, loc) -> (
+      | Call (_, exp, list, loc, eloc) -> (
           match exp with
           | Lval (Var varinfo, _) ->
               if
@@ -303,7 +303,7 @@ class find_calls_with_tmp result funname funid : nopCilVisitor =
 
     method! vinst instr =
       match instr with
-      | Call (lval_opt, Lval (Var varinfo, _), _, _) ->
+      | Call (lval_opt, Lval (Var varinfo, _), _, _, _) ->
           if is_equal_funname_funid varinfo funname funid then
             match lval_opt with
             | Some (Var tmpinfo, _) ->
@@ -365,7 +365,7 @@ class find_calls_usesvar_with_tmp result funname funid varname : nopCilVisitor =
 
     method! vinst instr =
       match instr with
-      | Call (lval_opt, Lval (Var varinfo, _), arg_list, loc) ->
+      | Call (lval_opt, Lval (Var varinfo, _), arg_list, loc, eloc) ->
           if
             is_equal_funname_funid varinfo funname funid
             && List.length

@@ -137,7 +137,7 @@ class useDefVisitorClass : cilVisitor = object (self)
       SkipChildren
     in
     match i with
-      Call (None, (Lval(Var vi, NoOffset) as f), [valist; SizeOf t; adest], _)
+      Call (None, (Lval(Var vi, NoOffset) as f), [valist; SizeOf t; adest], _, _)
         (* __builtin_va_arg is special:  in CIL, the left hand side is stored
            as the last argument. *)
         when vi.vname = "__builtin_va_arg" ->
@@ -146,10 +146,10 @@ class useDefVisitorClass : cilVisitor = object (self)
             | _ -> E.s (bug "bad call to %s" vi.vname)
           in
           doCall f (Some dest') [valist; SizeOf t]
-    | Call (_, Lval(Var vi, _), _, _)
+    | Call (_, Lval(Var vi, _), _, _, _)
         when vi.vname = "__builtin_va_arg" ->
         E.s (bug "bad call to %s" vi.vname)
-    | Call (lvo, f, args, _) ->
+    | Call (lvo, f, args, _, _) ->
         doCall f lvo args
     | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
@@ -193,11 +193,11 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
     match sk with
       Return (None, _) -> ()
     | Return (Some e, _) -> ve e
-    | If (e, _, _, _) -> ve e
+    | If (e, _, _, _, _) -> ve e
     | Break _ | Goto _ | Continue _ -> ()
     | ComputedGoto (e, _) -> ve e
-    | Loop (_, _, _, _) -> ()
-    | Switch (e, _, _, _) -> ve e
+    | Loop (_, _, _, _, _) -> ()
+    | Switch (e, _, _, _, _) -> ve e
     | Instr il ->
         List.iter (fun i -> ignore (visitCilInstr useDefVisitor i)) il
     | TryExcept _ | TryFinally _ -> ()
@@ -224,7 +224,7 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
   | Return (Some e, _) ->
       let _ = ve e in
       !varUsed, !varDefs
-  | If (e, tb, fb, _) ->
+  | If (e, tb, fb, _, _) ->
       let _ = ve e in
       let u, d = !varUsed, !varDefs in
       let u', d' = handle_block tb in
@@ -234,8 +234,8 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
   | ComputedGoto (e, _) ->
       let _ = ve e in
       !varUsed, !varDefs
-  | Loop (b, _, _, _) -> handle_block b
-  | Switch (e, b, _, _) ->
+  | Loop (b, _, _, _, _) -> handle_block b
+  | Switch (e, b, _, _, _) ->
       let _ = ve e in
       let u, d = !varUsed, !varDefs in
       let u', d' = handle_block b in

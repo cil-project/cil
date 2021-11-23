@@ -747,10 +747,10 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
-                                            range of values *)
-  | Default of location                 (** A default statement *)
+  | Case of exp * location * location             (** A case statement. Second location is just for label. *)
+  | CaseRange of exp * exp * location * location  (** A case statement corresponding to a
+                                            range of values. Second location is just for label. *)
+  | Default of location * location                (** A default statement. Second location is just for label. *)
 
 
 
@@ -771,21 +771,23 @@ and stmtkind =
                                              enclosing Loop or Switch *)
   | Continue of location                (** A continue to the start of the
                                             nearest enclosing [Loop] *)
-  | If of exp * block * block * location (** A conditional.
+  | If of exp * block * block * location * location (** A conditional.
                                              Two successors, the "then" and
                                              the "else" branches. Both
                                              branches  fall-through to the
-                                             successor of the If statement *)
-  | Switch of exp * block * (stmt list) * location
+                                             successor of the If statement.
+                                             Second location is just for expression. *)
+  | Switch of exp * block * (stmt list) * location * location
                                        (** A switch statement. The block
                                            contains within all of the cases.
                                            We also have direct pointers to the
                                            statements that implement the
                                            cases. Which cases they implement
                                            you can get from the labels of the
-                                           statement *)
+                                           statement.
+                                           Second location is just for expression. *)
 
-  | Loop of block * location * (stmt option) * (stmt option)
+  | Loop of block * location * location * (stmt option) * (stmt option)
                                            (** A [while(1)] loop. The
                                             * termination test is implemented
                                             * in the body of a loop using a
@@ -796,7 +798,8 @@ and stmtkind =
                                             * continue label for this loop
                                             * and the second will point to
                                             * the stmt containing the break
-                                            * label for this loop. *)
+                                            * label for this loop.
+                                            * Second location is just for expression. *)
 
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
@@ -826,16 +829,17 @@ and stmtkind =
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
 and instr =
-    Set        of lval * exp * location  (** An assignment. A cast is present
+    Set        of lval * exp * location * location  (** An assignment. A cast is present
                                              if the exp has different type
-                                             from lval *)
+                                             from lval.
+                                             Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location     (** "Instruction" in the location where a varinfo was declared.
                                              All varinfos for which such a VarDecl instruction exists have
                                              vhasdeclinstruction set to true.
                                              The motivation for the addition of this instruction was to
                                              support VLAs for which declarations can not be pulled up like
                                              CIL used to do. *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
  			 (** optional: result is an lval. A cast might be
                              necessary if the declared result type of the
                              function is not the same as that of the
@@ -846,7 +850,8 @@ and instr =
                              than the declared number of arguments. C allows
                              this.) If the type of the result variable is not
                              the same as the declared type of the function
-                             result then an implicit cast exists. *)
+                             result then an implicit cast exists.
+                             Second location is just for expression when inside condition. *)
 
                          (* See the GCC specification for the meaning of ASM.
                           * If the source is MS VC then only the templates
@@ -882,6 +887,9 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
+    endLine: int;          (** End line number. Negative means unknown. *)
+    endByte: int;          (** End byte position. Negative means unknown. *)
+    endColumn: int;        (** End column number. Negative means unknown. *)
 }
 
 (* Type signatures. Two types are identical iff they have identical
@@ -897,10 +905,15 @@ and typsig =
 let locUnknown = { line = -1;
 		   file = "";
 		   byte = -1;
-       column = -1}
+       column = -1;
+       endLine = -1;
+       endByte = -1;
+       endColumn = -1;}
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
+(* A reference to the current expression location *)
+let currentExpLoc : location ref = ref locUnknown
 
 (* A reference to the current global being visited *)
 let currentGlobal: global ref = ref (GText "dummy")
@@ -918,7 +931,19 @@ let compareLoc (a: location) (b: location) : int =
       let columncmp = a.column - b.column in
       if columncmp != 0
       then columncmp
-      else a.byte - b.byte
+      else
+        let bytecmp = a.byte - b.byte in
+        if bytecmp != 0
+        then bytecmp
+        else
+          let endLinecmp = a.endLine - b.endLine in
+          if endLinecmp != 0
+          then endLinecmp
+          else
+            let endColumncmp = a.endColumn - b.endColumn in
+            if endColumncmp != 0
+            then endColumncmp
+            else a.endByte - b.endByte
 
 let argsToList : (string * typ * attributes) list option
                   -> (string * typ * attributes) list
@@ -1108,8 +1133,8 @@ let stripUnderscores (s: string) : string =
 
 let get_instrLoc (inst : instr) =
   match inst with
-      Set(_, _, loc) -> loc
-    | Call(_, _, _, loc) -> loc
+      Set(_, _, loc, _) -> loc
+    | Call(_, _, _, loc, _) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
     | VarDecl(_,loc) -> loc
 let get_globalLoc (g : global) =
@@ -1135,9 +1160,9 @@ let rec get_stmtLoc (statement : stmtkind) =
     | ComputedGoto(_, loc) -> loc
     | Break(loc) -> loc
     | Continue(loc) -> loc
-    | If(_, _, _, loc) -> loc
-    | Switch (_, _, _, loc) -> loc
-    | Loop (_, loc, _, _) -> loc
+    | If(_, _, _, loc, _) -> loc
+    | Switch (_, _, _, loc, _) -> loc
+    | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
     | TryFinally (_, _, l) -> l
@@ -1653,8 +1678,8 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
   (* Do it like this so that the pretty printer recognizes it *)
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard,
                                       mkBlock [ mkEmptyStmt () ],
-                                      mkBlock [ mkStmt (Break lu)], lu)) ::
-                           body), lu, None, None)) ]
+                                      mkBlock [ mkStmt (Break lu)], lu, lu)) ::
+                           body), lu, lu, None, None)) ]
 
 
 
@@ -1673,11 +1698,11 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor
-    ~start:[ mkStmt (Instr [(Set (var iter, first, lu))]) ]
+    ~start:[ mkStmt (Instr [(Set (var iter, first, lu, lu))]) ]
     ~guard:(BinOp(compop, Lval(var iter), past, intType))
     ~next:[ mkStmt (Instr [(Set (var iter,
                            (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
-                           lu))])]
+                           lu, lu))])]
     ~body:body
 
 
@@ -3317,7 +3342,10 @@ let initMsvcBuiltins () : unit =
 let builtinLoc: location = { line = 1;
                              file = "<compiler builtins>";
                              byte = 0;
-                             column = 0}
+                             column = 0;
+                             endLine = -1;
+                             endByte = -1;
+                             endColumn = -1;}
 
 
 
@@ -3665,7 +3693,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
-    | Set(lv,e,l) -> begin
+    | Set(lv,e,l,el) -> begin
         (* Be nice to some special cases *)
         match e with
           BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
@@ -3717,7 +3745,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       (* In cabs2cil we have turned the call to builtin_va_arg into a
        * three-argument call: the last argument is the address of the
        * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l)
+    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l, el)
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs ->
           let destlv = match stripCasts adest with
             AddrOf destlv -> destlv
@@ -3742,12 +3770,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_va_start and __builtin_stdarg_start. *)
-    | Call(None, Lval(Var vi, NoOffset), [marker], l)
+    | Call(None, Lval(Var vi, NoOffset), [marker], l, el)
         when ((vi.vname = "__builtin_stdarg_start" ||
                vi.vname = "__builtin_va_start") && not !printCilAsIs) ->
         if currentFormals <> [] then begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
+          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l,el))
         end
         else begin
           (* We can't print this call because someone called pInstr outside
@@ -3762,10 +3790,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         end
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_next_arg. *)
-    | Call(res, Lval(Var vi, NoOffset), [ ], l)
+    | Call(res, Lval(Var vi, NoOffset), [ ], l, el)
         when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
+          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l, el))
         end
 
       (* In cparser we have turned the call to
@@ -3773,7 +3801,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * __builtin_types_compatible_p(sizeof t1, sizeof t2), so that we can
        * represent the types as expressions.
        * Remove the sizeofs when printing. *)
-    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l)
+    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         self#pLineDirective l
           (* Print the destination *)
@@ -3784,11 +3812,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         ++ dprintf "%s(%a, %a)" vi.vname
              (self#pType None) t1  (self#pType None) t2
         ++ text printInstrTerminator
-    | Call(_, Lval(Var vi, NoOffset), _, l)
+    | Call(_, Lval(Var vi, NoOffset), _, l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
 
-    | Call(dest,e,args,l) ->
+    | Call(dest,e,args,l,el) ->
         let rec patchTypeNotVLA t =
           match t with
           | TPtr(t, args) -> TPtr(patchTypeNotVLA t, args)
@@ -3916,8 +3944,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method private pLabel () = function
       Label (s, _, true) -> text (s ^ ": ")
     | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
-    | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
-    | CaseRange (e1, e2, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
+    | Case (e, _, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | CaseRange (e1, e2, _, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
         ++ self#pExp () e2 ++ text ": "
     | Default _ -> text "default: "
 
@@ -4032,23 +4060,23 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList ~sep:line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
-    | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
+    | If(be,t,{bstmts=[];battrs=[]},l,el) when not !printCilAsIs ->
         self#pIfConditionThen l be t
 
     | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                battrs=[]},l)
+                battrs=[]},l,el)
      when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l be t
 
-    | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
+    | If(be,{bstmts=[];battrs=[]},e,l,el) when not !printCilAsIs ->
           self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
     | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-           battrs=[]},e,l)
+           battrs=[]},e,l,el)
       when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
-    | If(be,t,e,l) ->
+    | If(be,t,e,l,el) ->
         self#pIfConditionThen l be t
           ++ (match e with
                 { bstmts=[{skind=If _; _} as elsif]; battrs=[] } ->
@@ -4061,14 +4089,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text "else "
                     ++ self#pBlock () e)
 
-    | Switch(e,b,_,l) ->
+    | Switch(e,b,_,l,el) ->
         self#pLineDirective l
           ++ (align
                 ++ text "switch ("
                 ++ self#pExp () e
                 ++ text ") "
                 ++ self#pBlock () b)
-    | Loop(b, l, _, _) -> begin
+    | Loop(b, l, el, _, _) -> begin
         (* Maybe the first thing is a conditional. Turn it into a WHILE *)
         try
           let term, bodystmts =
@@ -4079,7 +4107,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]; _} :: rest
+              {skind=If(e,tb,fb,_,_); labels=[]; _} :: rest
                                               when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
                   [], {skind=Break _; labels=[]; _} :: _  -> e, rest
@@ -5491,17 +5519,17 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fLval lv = visitCilLval vis lv in
   match i with
   | VarDecl(v,l) -> i
-  | Set(lv,e,l) ->
+  | Set(lv,e,l,el) ->
       let lv' = fLval lv in let e' = fExp e in
-      if lv' != lv || e' != e then Set(lv',e',l) else i
-  | Call(None,f,args,l) ->
+      if lv' != lv || e' != e then Set(lv',e',l,el) else i
+  | Call(None,f,args,l,el) ->
       let f' = fExp f in let args' = mapNoCopy fExp args in
-      if f' != f || args' != args then Call(None,f',args',l) else i
-  | Call(Some lv,fn,args,l) ->
+      if f' != f || args' != args then Call(None,f',args',l,el) else i
+  | Call(Some lv,fn,args,l,el) ->
       let lv' = fLval lv in let fn' = fExp fn in
       let args' = mapNoCopy fExp args in
       if lv' != lv || fn' != fn || args' != args
-      then Call(Some lv', fn', args', l) else i
+      then Call(Some lv', fn', args', l, el) else i
 
   | Asm(sl,isvol,outs,ins,clobs,l) ->
       let outs' = mapNoCopy (fun ((id,s,lv) as pair) ->
@@ -5548,10 +5576,10 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Return (Some e, l) ->
         let e' = fExp e in
         if e' != e then Return (Some e', l) else s.skind
-    | Loop (b, l, s1, s2) ->
+    | Loop (b, l, el, s1, s2) ->
         let b' = fBlock b in
-        if b' != b then Loop (b', l, s1, s2) else s.skind
-    | If(e, s1, s2, l) ->
+        if b' != b then Loop (b', l, el, s1, s2) else s.skind
+    | If(e, s1, s2, l, el) ->
         let e' = fExp e in
         (*if e queued any instructions, pop them here and remember them so that
           they are inserted before the If stmt, not in the then block. *)
@@ -5560,15 +5588,15 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         (* the stmts in the blocks should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         if e' != e || s1' != s1 || s2' != s2 then
-          If(e', s1', s2', l) else s.skind
-    | Switch (e, b, stmts, l) ->
+          If(e', s1', s2', l, el) else s.skind
+    | Switch (e, b, stmts, l, el) ->
         let e' = fExp e in
         toPrepend := vis#unqueueInstr (); (* insert these before the switch *)
         let b' = fBlock b in
         (* the stmts in b should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         (* Don't do stmts, but we better not change those *)
-        if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
+        if e' != e || b' != b then Switch (e', b', stmts, l, el) else s.skind
     | Instr il ->
         let il' = mapNoCopyList fInst il in
         if il' != il then Instr il' else s.skind
@@ -5603,13 +5631,13 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
   (* Visit the labels *)
   let labels' =
     let fLabel = function
-        Case (e, l) as lb ->
+        Case (e, l, el) as lb ->
           let e' = fExp e in
-          if e' != e then Case (e', l) else lb
-        | CaseRange (e1, e2, l) as lb ->
+          if e' != e then Case (e', l, el) else lb
+        | CaseRange (e1, e2, l, el) as lb ->
           let e1' = fExp e1 in
           let e2' = fExp e2 in
-          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l) else lb
+          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l, el) else lb
         | lb -> lb
     in
     mapNoCopy fLabel s.labels
@@ -5852,7 +5880,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
     match i with
       (* Skip two functions to which we add Sizeof to the type arguments.
          See the comments for these above. *)
-      Call(_,(Lval (Var vi,NoOffset)),_,_)
+      Call(_,(Lval (Var vi,NoOffset)),_,_,_)
         when ((vi.vname = "__builtin_va_arg")
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
@@ -5984,7 +6012,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
               m.sbody.bstmts <-
                  compactStmts (mkStmt (Instr [Call(None,
                                                    Lval(var f.svar),
-                                                   [], locUnknown)])
+                                                   [], locUnknown, locUnknown)])
                                :: m.sbody.bstmts);
               inserted := true;
               if !E.verboseFlag then
@@ -6079,11 +6107,11 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
-      | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
-      | Loop (b, l, _, _) -> peepHole1 doone b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole1 doone b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
       | TryFinally (b, h, l) ->
           peepHole1 doone b.bstmts;
@@ -6113,11 +6141,11 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
-      | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
-      | Loop (b, l, _, _) -> peepHole2 dotwo b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole2 dotwo b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
       | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
                                 peepHole2 dotwo h.bstmts
@@ -6600,9 +6628,9 @@ class copyFunctionVisitor (newname: string) = object (self)
             (* Make a copy of the reference *)
             let sr' = ref (findStmt !sr.sid) in
             s.skind <- Goto (sr',l)
-        | Switch (e, body, cases, l) ->
+        | Switch (e, body, cases, l, el) ->
             s.skind <- Switch (e, body,
-                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs.sid) cases, l, el)
         | _ -> ()
       in
       List.iter patchstmt !patches;
@@ -6720,7 +6748,7 @@ and succpred_stmt s fallthrough rlabels =
   | Switch _ ->
     failwith "computeCFGInfo: cannot be called on functions with break, continue or switch statements. Use prepareCFG first to remove them."
 
-  | If(e1,b1,b2,l) ->
+  | If(e1,b1,b2,l,el) ->
       (match b1.bstmts with
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b1 fallthrough rlabels )) ;
@@ -6728,7 +6756,7 @@ and succpred_stmt s fallthrough rlabels =
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b2 fallthrough rlabels ))
 
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
       begin match b.bstmts with
         [] -> failwith "computeCFGInfo: empty loop"
       | hd :: tl ->
@@ -6747,7 +6775,7 @@ and succpred_stmt s fallthrough rlabels =
 let caseRangeFold (l: label list) =
   let rec fold acc = function
   | ((Case _ | Default _ | Label _) as x) :: xs -> fold (x :: acc) xs
-  | CaseRange(el, eh, loc) :: xs ->
+  | CaseRange(el, eh, loc, eloc) :: xs ->
       let il, ih, ik =
         match constFold true el, constFold true eh with
           Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
@@ -6758,7 +6786,7 @@ let caseRangeFold (l: label list) =
         E.s (error "Empty case range");
       let rec mkAll (i: cilint) acc =
         if compare_cilint i ih > 0 then acc
-        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc) :: acc)
+        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc, eloc) :: acc)
       in
       fold (mkAll il acc) xs
    | [] -> List.rev acc
@@ -6796,13 +6824,13 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
   in
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
-  | Case(e,l) ->
+  | Case(e,l,el) ->
       let str = Printf.sprintf "case_%s" (suffix e) in
       Label(freshLabel str,l,false)
-  | CaseRange(e1,e2,l) ->
+  | CaseRange(e1,e2,l,el) ->
       let str = Printf.sprintf "caserange_%s_%s" (suffix e1) (suffix e2) in
       Label(freshLabel str,l,false)
-  | Default(l) -> Label(freshLabel "switch_default",l,false)
+  | Default(l,el) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ;
   match s.skind with
   | Instr _ | Return _ | Goto _ | ComputedGoto _ -> ()
@@ -6818,9 +6846,9 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   ignore (error "prepareCFG: continue: %a@!" d_stmt s) ;
                   raise e
                 end
-  | If(e,b1,b2,l) -> xform_switch_block b1 break_dest cont_dest ;
-                     xform_switch_block b2 break_dest cont_dest
-  | Switch(e,b,sl,l) ->
+  | If(e,b1,b2,l,el) -> xform_switch_block b1 break_dest cont_dest ;
+                        xform_switch_block b2 break_dest cont_dest
+  | Switch(e,b,sl,l,el) ->
       (* change
        * switch (se) {
        *   case 0: s0 ;
@@ -6863,7 +6891,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         let cases = List.filter (function Label _ -> false | _ -> true ) stmt.labels in
         try (* is this the default case? *)
           match List.find (function Default _ -> true | _ -> false) cases with
-          | Default dl ->
+          | Default (dl, del) ->
               (* We found a [Default], update the fallthrough goto *)
               goto_break.skind <- Goto(ref stmt, dl);
               []
@@ -6871,14 +6899,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
-          | ((Case (_, cl) | CaseRange (_, _, cl)) as lab) :: lab_tl ->
+          | ((Case (_, cl, cel) | CaseRange (_, _, cl, cel)) as lab) :: lab_tl ->
             (* assume that integer promotion and type conversion of cases is
              * performed by cabs2cil. *)
             let comp_case_range e1 e2 =
                   BinOp(Ge, e, e1, intType), BinOp(Le, e, e2, intType) in
             let make_comp lab = begin match lab with
-              | Case (exp, _) -> BinOp(Eq, e, exp, intType)
-              | CaseRange (e1, e2, _) when !useLogicalOperators ->
+              | Case (exp, _, _) -> BinOp(Eq, e, exp, intType)
+              | CaseRange (e1, e2, _, _) when !useLogicalOperators ->
                   let c1, c2 = comp_case_range e1 e2 in
                   BinOp(LAnd, c1, c2, intType)
               | _ -> E.s (bug "Unexpected pattern-matching failure")
@@ -6888,20 +6916,20 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   (fun pred label -> BinOp(LOr, pred, make_comp label, intType))
                   (make_comp lab) lab_tl
             in
-            let make_if_stmt pred cl =
+            let make_if_stmt pred cl cel =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred,then_block,else_block,cl)) in
-            let make_double_if_stmt (pred1, pred2) cl =
-              let then_block = mkBlock [ make_if_stmt pred2 cl ] in
+              mkStmt(If(pred,then_block,else_block,cl,cel)) in
+            let make_double_if_stmt (pred1, pred2) cl cel =
+              let then_block = mkBlock [ make_if_stmt pred2 cl cel ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred1,then_block,else_block,cl)) in
+              mkStmt(If(pred1,then_block,else_block,cl,cel)) in
             if !useLogicalOperators then
-              [make_if_stmt (make_or_from_cases ()) cl]
+              [make_if_stmt (make_or_from_cases ()) cl cel]
             else
               List.map (function
-                | Case _ as lab -> make_if_stmt (make_comp lab) cl
-                | CaseRange (e1, e2, _) -> make_double_if_stmt (comp_case_range e1 e2) cl
+                | Case _ as lab -> make_if_stmt (make_comp lab) cl cel
+                | CaseRange (e1, e2, _, _) -> make_double_if_stmt (comp_case_range e1 e2) cl cel
                 | _ -> E.s (bug "Unexpected pattern-matching failure"))
                 cases
           | Default _ :: _ | Label _ :: _ ->
@@ -6915,14 +6943,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         [break_stmt];
       s.skind <- Block b;
       xform_switch_block b (fun () -> ref break_stmt) cont_dest
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
           let break_stmt = mkStmt (Instr []) in
           break_stmt.labels <- [Label(freshLabel "while_break",l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
           cont_stmt.labels <- [Label(freshLabel "while_continue",l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt
-            (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in
+            (Loop(b,l,el,Some(cont_stmt),Some(break_stmt))) in
           let break_dest () = ref break_stmt in
           let cont_dest () = ref cont_stmt in
           xform_switch_block b break_dest cont_dest ;

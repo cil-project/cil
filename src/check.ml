@@ -730,11 +730,11 @@ and checkStmt (s: stmt) =
             if H.mem labels ln then
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
-        | Case (e, _) ->
+        | Case (e, _, _) ->
            let t = checkExp true e in
            if not (isIntegralType t) then
                E.s (bug "Type of case expression is not integer");
-        | CaseRange (e1, e2, _) ->
+        | CaseRange (e1, e2, _, _) ->
            let t1 = checkExp true e1 in
            if not (isIntegralType t1) then
                E.s (bug "Type of case expression is not integer");
@@ -776,16 +776,18 @@ and checkStmt (s: stmt) =
           | None, _ -> ignore (warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
         end
-      | Loop (b, l, _, _) -> checkBlock b
+      | Loop (b, l, el, _, _) -> checkBlock b
       | Block b -> checkBlock b
-      | If (e, bt, bf, l) ->
+      | If (e, bt, bf, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let te = checkExp false e in
           checkScalarType te;
           checkBlock bt;
           checkBlock bf
-      | Switch (e, b, cases, l) ->
+      | Switch (e, b, cases, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let t = checkExp false e in
           if not (isIntegralType t) then
               E.s (bug "Type of switch expression is not integer");
@@ -836,8 +838,9 @@ and checkInstr (i: instr) =
   if !ignoreInstr i then ()
   else
   match i with
-  | Set (dest, e, l) ->
+  | Set (dest, e, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let t = checkLval false false dest in
       (* Not all types can be assigned to *)
       (match unrollType t with
@@ -847,8 +850,9 @@ and checkInstr (i: instr) =
       | _ -> ());
       checkExpType false e t
 
-  | Call(dest, what, args, l) ->
+  | Call(dest, what, args, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let (rt, formals, isva, fnAttrs) =
         match unrollType (checkExp false what) with
           TFun(rt, formals, isva, fnAttrs) -> rt, formals, isva, fnAttrs

@@ -61,11 +61,6 @@ let getComments () =
       r
 *)
 
-let cabslu = {lineno = -10;
-	      filename = "cabs loc unknown";
-	      byteno = -10; columnno = -10;
-              ident = 0;}
-
 (* cabsloc -> cabsloc *)
 (*
 let handleLoc l =
@@ -278,11 +273,11 @@ let transformOffsetOf (speclist, dtype) member =
 %token INF_INF SUP_SUP
 %token<Cabs.cabsloc> PLUS_PLUS MINUS_MINUS
 
-%token RPAREN
+%token<Cabs.cabsloc> RPAREN
 %token<Cabs.cabsloc> LPAREN RBRACE
 %token<Cabs.cabsloc> LBRACE
 %token LBRACKET RBRACKET
-%token COLON
+%token<Cabs.cabsloc> COLON
 %token<Cabs.cabsloc> SEMICOLON
 %token COMMA ELLIPSIS QUEST
 
@@ -870,44 +865,44 @@ local_label_names:
 statement:
     SEMICOLON		{NOP ((*handleLoc*) $1) }
 |   comma_expression SEMICOLON
-	        	{COMPUTATION (smooth_expression (fst $1), (*handleLoc*)(snd $1))}
-|   block               {BLOCK (fst3 $1, (*handleLoc*)(snd3 $1))}
-|   IF paren_comma_expression statement                    %prec IF
-                	{IF (smooth_expression (fst $2), $3, NOP $1, $1)}
-|   IF paren_comma_expression statement ELSE statement
-	                {IF (smooth_expression (fst $2), $3, $5, (*handleLoc*) $1)}
-|   SWITCH paren_comma_expression statement
-                        {SWITCH (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
-|   WHILE paren_comma_expression statement
-	        	{WHILE (smooth_expression (fst $2), $3, (*handleLoc*) $1)}
+	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
+|   block               {BLOCK (fst3 $1, joinLoc (snd3 $1) (trd3 $1))}
+|   IF paren_comma_expression location statement location                   %prec IF
+                	{IF (smooth_expression (fst $2), $4, NOP $1, joinLoc $1 $5, joinLoc (snd $2) $3)}
+|   IF paren_comma_expression location statement location ELSE statement location
+	                {IF (smooth_expression (fst $2), $4, $7, joinLoc $1 $8, joinLoc (snd $2) $3)}
+|   SWITCH paren_comma_expression location statement location
+                        {SWITCH (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
+|   WHILE paren_comma_expression location statement location
+	        	{WHILE (smooth_expression (fst $2), $4, joinLoc $1 $5, joinLoc (snd $2) $3)}
 |   DO statement WHILE paren_comma_expression SEMICOLON
-	        	         {DOWHILE (smooth_expression (fst $4), $2, (*handleLoc*) $1)}
+	        	         {DOWHILE (smooth_expression (fst $4), $2, joinLoc $1 $5, joinLoc (snd $4) $5)}
 |   FOR LPAREN for_clause opt_expression
-	        SEMICOLON opt_expression RPAREN statement
-	                         {FOR ($3, $4, $6, $8, (*handleLoc*) $1)}
-|   IDENT COLON attribute_nocv_list statement
+	        SEMICOLON opt_expression RPAREN statement location
+	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9, joinLoc $2 $7)}
+|   IDENT COLON attribute_nocv_list location statement
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
                                      floor, since unused labels are usually
                                      removed anyways by Rmtmps. *)
-                                  LABEL (fst $1, $4, (snd $1))}
-|   CASE expression COLON statement
-	                         {CASE (fst $2, $4, (*handleLoc*) $1)}
-|   CASE expression ELLIPSIS expression COLON statement
-	                         {CASERANGE (fst $2, fst $4, $6, (*handleLoc*) $1)}
-|   DEFAULT COLON statement
-	                         {DEFAULT ($3, (*handleLoc*) $1)}
-|   RETURN SEMICOLON		 {RETURN (NOTHING, (*handleLoc*) $1)}
+                                  LABEL (fst $1, $5, joinLoc (snd $1) $4)}
+|   CASE expression COLON statement location
+	                         {CASE (fst $2, $4, joinLoc $1 $5, joinLoc $1 $3)}
+|   CASE expression ELLIPSIS expression COLON statement location
+	                         {CASERANGE (fst $2, fst $4, $6, joinLoc $1 $7, joinLoc $1 $5)}
+|   DEFAULT COLON statement location
+	                         {DEFAULT ($3, joinLoc $1 $4, joinLoc $1 $2)}
+|   RETURN SEMICOLON		 {RETURN (NOTHING, joinLoc $1 $2)}
 |   RETURN comma_expression SEMICOLON
-	                         {RETURN (smooth_expression (fst $2), (*handleLoc*) $1)}
-|   BREAK SEMICOLON     {BREAK ((*handleLoc*) $1)}
-|   CONTINUE SEMICOLON	 {CONTINUE ((*handleLoc*) $1)}
+	                         {RETURN (smooth_expression (fst $2), joinLoc $1 $3)}
+|   BREAK SEMICOLON     {BREAK (joinLoc $1 $2)}
+|   CONTINUE SEMICOLON	 {CONTINUE (joinLoc $1 $2)}
 |   GOTO IDENT SEMICOLON
-		                 {GOTO (fst $2, (*handleLoc*) $1)}
+		                 {GOTO (fst $2, joinLoc $1 $3)}
 |   GOTO STAR comma_expression SEMICOLON
-                                 { COMPGOTO (smooth_expression (fst $3), (*handleLoc*) $1) }
+                                 { COMPGOTO (smooth_expression (fst $3), joinLoc $1 $4) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
-                        { ASM ($2, $4, $5, (*handleLoc*) $1) }
+                        { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
 |   TRY block EXCEPT paren_comma_expression block
                         { let b, _, _ = $2 in
@@ -933,9 +928,9 @@ for_clause:
 
 declaration:                                /* ISO 6.7.*/
     decl_spec_list init_declarator_list SEMICOLON
-                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) $2 }
+                                       { doDeclaration (joinLoc (snd $1) $3) (fst $1) $2 }
 |   decl_spec_list SEMICOLON
-                                       { doDeclaration ((*handleLoc*)(snd $1)) (fst $1) [] }
+                                       { doDeclaration (joinLoc (snd $1) $2) (fst $1) [] }
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -1076,9 +1071,9 @@ enumerator:
 
 
 declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
-   pointer_opt direct_decl attributes_with_asm
+   pointer_opt direct_decl location attributes_with_asm
                                { let (n, decl) = $2 in
-                                (n, applyPointer (fst $1) decl, $3, (snd $1)) }
+                                (n, applyPointer (fst $1) decl, $4, joinLoc (snd $1) $3) }
 ;
 
 

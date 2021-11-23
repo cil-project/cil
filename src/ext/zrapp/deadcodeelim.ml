@@ -107,7 +107,7 @@ class usedDefsCollectorClass = object(self)
 	  if s.[0] = '+' then
 	    self#add_defids iosh (Lval(Var v, off)) (UD.VS.singleton v)
 	| _ -> ()) slvl
-    | Call(_,ce,el,_) when not (!callHasNoSideEffects i) ->
+    | Call(_,ce,el,_,_) when not (!callHasNoSideEffects i) ->
 	List.iter (fun e ->
 	  let u = UD.computeUseExp e in
 	  UD.VS.iter (fun vi ->
@@ -122,7 +122,7 @@ class usedDefsCollectorClass = object(self)
 		      IH.add sidUseSetHash i (IS.singleton sid)
 		end
 		| None -> ()) ios) u) (ce::el)
-    | Set((Mem _,_) as lh, rhs,l) ->
+    | Set((Mem _,_) as lh, rhs,l,el) ->
 	List.iter (fun e ->
 	  let u = UD.computeUseExp e in
 	  UD.VS.iter (fun vi ->
@@ -317,7 +317,7 @@ class uselessInstrElim : cilVisitor = object(self)
 
     let test (i,(_,s,iosh)) =
       match i with
-      | Call(Some(Var vi,NoOffset),Lval(Var vf,NoOffset),el,l) ->
+      | Call(Some(Var vi,NoOffset),Lval(Var vf,NoOffset),el,l,eloc) ->
 	  if not(!callHasNoSideEffects i) then begin
 	    if !debug then ignore(E.log "found call w/ side effects: %a\n" d_instr i);
 	    true
@@ -332,8 +332,8 @@ class uselessInstrElim : cilVisitor = object(self)
 	    loop (UD.VS.cardinal defd - 1) || (incr removedCount; false))
 	  end
       |	Call _ -> true
-      | Set(lh,e,_) when compareExpStripCasts (Lval lh) e -> false (* filter x = x *)
-      | Set((Var vi,NoOffset),e,_) ->
+      | Set(lh,e,_,_) when compareExpStripCasts (Lval lh) e -> false (* filter x = x *)
+      | Set((Var vi,NoOffset),e,_,_) ->
 	  vi.vglob || (Ciltools.is_volatile_vi vi) || (exp_has_volatile e) ||
 	  let uses, defd = UD.computeUseDefInstr i in
 	  let rec loop n =

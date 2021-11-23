@@ -269,7 +269,7 @@ and sliceExpAll (e : exp) (l : location) : instr list * exp =
                let finfo = getCompField cinfo (regionField i) in
                if not (isVoidType finfo.ftype) then
                  Set ((Var vinfo, Field (finfo, NoOffset)),
-                      sliceExp i e, l) :: rest
+                      sliceExp i e, l, locUnknown) :: rest (* TODO: better eloc? *)
                else
                  rest
              with Not_found ->
@@ -289,17 +289,17 @@ let sliceVar (vinfo : varinfo) : unit =
 
 let sliceInstr (inst : instr) : instr list =
   match inst with
-  | Set (lv, e, loc) ->
+  | Set (lv, e, loc, eloc) ->
       if debug then ignore (E.log "set %a %a\n" d_lval lv d_exp e);
       let t = typeOfLval lv in
       foldRegions
         (fun i rest ->
            if not (isVoidType (sliceType i t)) then
-             Set (sliceLval i lv, sliceExp i e, loc) :: rest
+             Set (sliceLval i lv, sliceExp i e, loc, eloc) :: rest
            else
              rest)
         []
-  | Call (ret, fn, args, l) when isAllocFunction fn ->
+  | Call (ret, fn, args, l, eloc) when isAllocFunction fn ->
       let lv =
         match ret with
         | Some lv -> lv
@@ -310,19 +310,19 @@ let sliceInstr (inst : instr) : instr list =
         (fun i rest ->
            if not (isVoidType (sliceType i t)) then
              Call (Some (sliceLval i lv), sliceExp 1 fn,
-                   Util.list_map (sliceExp i) args, l) :: rest
+                   Util.list_map (sliceExp i) args, l, eloc) :: rest
            else
              rest)
         []
-  | Call (ret, fn, args, l) when isExternalFunction fn ->
+  | Call (ret, fn, args, l, el) when isExternalFunction fn ->
       [Call (applyOption (sliceLval 1) ret, sliceExp 1 fn,
-             Util.list_map (sliceExp 1) args, l)]
-  | Call (ret, fn, args, l) ->
+             Util.list_map (sliceExp 1) args, l, el)]
+  | Call (ret, fn, args, l, el) ->
       let ret', set =
         match ret with
         | Some lv ->
             let vinfo = makeTempVar !curFundec (typeOfLval lv) in
-            Some (var vinfo), [Set (lv, Lval (var vinfo), l)]
+            Some (var vinfo), [Set (lv, Lval (var vinfo), l, el)]
         | None ->
             None, []
       in
@@ -333,7 +333,7 @@ let sliceInstr (inst : instr) : instr list =
              instrs @ restInstrs, (arg' :: restArgs))
           args ([], [])
       in
-      instrs @ (Call (ret', sliceExp 1 fn, args', l) :: set)
+      instrs @ (Call (ret', sliceExp 1 fn, args', l, el) :: set)
   | _ -> E.s (unimp "inst %a" d_instr inst)
 
 let sliceReturnExp (eo : exp option) (l : location) : stmtkind =
@@ -351,13 +351,13 @@ let rec sliceStmtKind (sk : stmtkind) : stmtkind =
   match sk with
   | Instr instrs -> Instr (List.flatten (Util.list_map sliceInstr instrs))
   | Block b -> Block (sliceBlock b)
-  | If (e, b1, b2, l) -> If (sliceExp 1 e, sliceBlock b1, sliceBlock b2, l)
+  | If (e, b1, b2, l, el) -> If (sliceExp 1 e, sliceBlock b1, sliceBlock b2, l, el)
   | Break l -> Break l
   | Continue l -> Continue l
   | Return (eo, l) -> sliceReturnExp eo l
-  | Switch (e, b, sl, l) -> Switch (sliceExp 1 e, sliceBlock b,
-                                    Util.list_map sliceStmt sl, l)
-  | Loop (b, l, so1, so2) -> Loop (sliceBlock b, l,
+  | Switch (e, b, sl, l, el) -> Switch (sliceExp 1 e, sliceBlock b,
+                                    Util.list_map sliceStmt sl, l, el)
+  | Loop (b, l, el, so1, so2) -> Loop (sliceBlock b, l, el,
                                    applyOption sliceStmt so1,
                                    applyOption sliceStmt so2)
   | Goto _ -> sk

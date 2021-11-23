@@ -106,9 +106,9 @@ let writes_between f dsid sid =
   let find_write s = match s.skind with
     Instr il -> List.exists (fun i ->
       match i with
-	Set((Mem _,_),_,_) -> true (* pointer write *)
-      | Set((_,Index (_,_)),_,_) -> true (* array write *)
-      | Call(_,_,_,_) -> true
+	Set((Mem _,_),_,_,_) -> true (* pointer write *)
+      | Set((_,Index (_,_)),_,_,_) -> true (* array write *)
+      | Call(_,_,_,_,_) -> true
       | _ -> false) il
   | _ -> false
   in
@@ -220,7 +220,7 @@ let collect_fun_defs fd =
 let ok_to_replace vi curiosh sid defiosh dsid f r =
   let uses, safe = match r with
     RD.RDExp e -> (UD.computeUseExp e, exp_is_ok_replacement e)
-  | RD.RDCall (Call(_,_,el,_) as i) ->
+  | RD.RDCall (Call(_,_,el,_,_) as i) ->
       let safe = List.fold_left (fun b e ->
 	(exp_is_ok_replacement e) && b) true el in
       let u,d = UD.computeUseDefInstr i in
@@ -840,7 +840,7 @@ class callTempElimClass (fd:fundec) = object (self)
     with Failure _ ->
       if !debug then ignore(E.log "rdVis: il rd_dat_lst mismatch\n"));
     match i with
-      Set((Var vi,off),_,_) ->
+      Set((Var vi,off),_,_,_) ->
 	if IH.mem iioh vi.vid
 	then (IH.replace iioh vi.vid None; DoChildren)
 	else (IH.add iioh vi.vid None; DoChildren)
@@ -976,7 +976,7 @@ class unusedRemoverClass : cilVisitor = object(self)
     (* instr -> bool *)
     let good_instr i =
       match i with
-      | Set((Var(vi),_),e,_) -> begin
+      | Set((Var(vi),_),e,_,_) -> begin
 	  if will_be_call e &&
 	    not(List.mem vi cur_func.slocals) &&
 	    not vi.vglob
@@ -987,7 +987,7 @@ class unusedRemoverClass : cilVisitor = object(self)
 	   not (check_incdec vi e)) ||
 	   will_be_call e
       end
-      | Call (Some(Var(vi),_),_,_,_) -> begin
+      | Call (Some(Var(vi),_),_,_,_,_) -> begin
 	     (* If not in the table or entry is None,
 		then it's good *)
 	  not (IH.mem iioh vi.vid) ||
@@ -1011,9 +1011,9 @@ class unusedRemoverClass : cilVisitor = object(self)
        then change to Call(None,...) *)
     let call_fixer i =
       match i with
-	Call (Some(Var(vi),_),e,el,l) as c ->
+	Call (Some(Var(vi),_),e,el,l,eloc) as c ->
 	  if UD.VS.mem vi unused_set then
-	    Call(None,e,el,l)
+	    Call(None,e,el,l,eloc)
 	  else c
       | _ -> i
     in

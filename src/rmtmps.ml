@@ -620,15 +620,15 @@ class removeUnusedGoto = object(self)
 
   method private pStmtNext (next: stmt) (s: stmt) = match s.skind with
         (* Else-if: don't call visitCilStmt, recurse manually instead *)
-      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_) ->
+      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_,_) ->
               ignore(visitCilBlock (self:>cilVisitor) t);
               self#pStmtNext next elsif
       | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                  battrs=[]} as b),_)when !gref == next ->
+                  battrs=[]} as b),_,_)when !gref == next ->
               b.bstmts <- [];
               ignore(visitCilStmt (self:>cilVisitor) s)
       | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                  battrs=[]} as b),_,_)
+                  battrs=[]} as b),_,_,_)
                 when !gref == next ->
               b.bstmts <- [];
               ignore(visitCilStmt (self:>cilVisitor) s)

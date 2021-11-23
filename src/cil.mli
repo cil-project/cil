@@ -937,18 +937,20 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement. This expression
+  | Case of exp * location * location   (** A case statement. This expression
                                          * is lowered into a constant if
                                          * {!Cil.lowerConstants} is set to
-                                         * true. *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                         * true.
+                                         * Second location is just for label. *)
+  | CaseRange of exp * exp * location * location (** A case statement corresponding to a
                                          * range of values (GCC's extension).
                                          * Both expressions are lowered into
                                          * constants if {!Cil.lowerConstants} is
                                          * set to true. If you want to use
                                          * these, you must set
-                                         * {!Cil.useCaseRange}. *)
-  | Default of location                 (** A default statement *)
+                                         * {!Cil.useCaseRange}.
+                                         * Second location is just for label. *)
+  | Default of location * location      (** A default statement. Second location is just for label. *)
 
 
 
@@ -977,22 +979,25 @@ and stmtkind =
 
   | Continue of location
    (** A continue to the start of the nearest enclosing [Loop] *)
-  | If of exp * block * block * location
+  | If of exp * block * block * location * location
    (** A conditional. Two successors, the "then" and the "else" branches.
-    * Both branches fall-through to the successor of the If statement. *)
+    * Both branches fall-through to the successor of the If statement.
+    * Second location is just for expression. *)
 
-  | Switch of exp * block * (stmt list) * location
+  | Switch of exp * block * (stmt list) * location * location
    (** A switch statement. The statements that implement the cases can be
     * reached through the provided list. For each such target you can find
     * among its labels what cases it implements. The statements that
-    * implement the cases are somewhere within the provided [block]. *)
+    * implement the cases are somewhere within the provided [block].
+    * Second location is just for expression. *)
 
-  | Loop of block * location * (stmt option) * (stmt option)
+  | Loop of block * location * location * (stmt option) * (stmt option)
     (** A [while(1)] loop. The termination test is implemented in the body of
      * a loop using a [Break] statement. If prepareCFG has been called,
      * the first stmt option will point to the stmt containing the continue
      * label for this loop and the second will point to the stmt containing
-     * the break label for this loop. *)
+     * the break label for this loop.
+     * Second location is just for expression. *)
 
   | Block of block
     (** Just a block of statements. Use it as a way to keep some block
@@ -1027,9 +1032,10 @@ function call, or an inline assembly instruction. *)
 
 (** Instructions. *)
 and instr =
-  Set        of lval * exp * location
+  Set        of lval * exp * location * location
    (** An assignment. The type of the expression is guaranteed to be the same
-    * with that of the lvalue *)
+    * with that of the lvalue.
+    * Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location
    (** "Instruction" in the location where a varinfo was declared.
     *  All varinfos for which such a VarDecl instruction exists have
@@ -1037,7 +1043,7 @@ and instr =
     *  The motivation for the addition of this instruction was to support VLAs
     *  for which declerations can not be pulled up like CIL used to do.
     *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
    (** A function call with the (optional) result placed in an lval. It is
     * possible that the returned type of the function is not identical to
     * that of the lvalue. In that case a cast is printed. The type of the
@@ -1045,7 +1051,8 @@ and instr =
     * number of arguments is the same as that of the declared formals, except
     * for vararg functions. This construct is also used to encode a call to
     * "__builtin_va_arg". In this case the second argument (which should be a
-    * type T) is encoded SizeOf(T) *)
+    * type T) is encoded SizeOf(T).
+    * Second location is just for expression when inside condition. *)
 
   | Asm        of attributes * (* Really only const and volatile can appear
                                * here *)
@@ -1117,6 +1124,9 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
+    endLine: int;          (** End line number. Negative means unknown. *)
+    endByte: int;          (** End byte position. Negative means unknown. *)
+    endColumn: int;        (** End column number. Negative means unknown. *)
 }
 
 
@@ -2106,6 +2116,9 @@ val forgcc: string -> string
  * the current location then you can use some built-in logging functions that
  * will print the location. *)
 val currentLoc: location ref
+
+(** A reference to the current expression location *)
+val currentExpLoc: location ref
 
 (** A reference to the current global being visited *)
 val currentGlobal: global ref

@@ -91,10 +91,7 @@ class type cabsVisitor = object
   method vExitScope: unit -> unit
 end
 
-let visitorLocation = ref { filename = "";
-			    lineno = -1;
-			    byteno = -1; columnno = -1;
-                            ident = 0}
+let visitorLocation = ref cabslu
 
         (* a default visitor which does nothing to the tree *)
 class nopCabsVisitor : cabsVisitor = object
@@ -366,20 +363,20 @@ and childrenStatement vis s =
       let s1' = vs l s1 in
       let s2' = vs l s2 in
       if s1' != s1 || s2' != s2 then SEQUENCE (s1', s2', l) else s
-  | IF (e, s1, s2, l) ->
+  | IF (e, s1, s2, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
       let s2' = vs l s2 in
-      if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l) else s
-  | WHILE (e, s1, l) ->
+      if e' != e || s1' != s1 || s2' != s2 then IF (e', s1', s2', l, el) else s
+  | WHILE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then WHILE (e', s1', l) else s
-  | DOWHILE (e, s1, l) ->
+      if e' != e || s1' != s1 then WHILE (e', s1', l, el) else s
+  | DOWHILE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then DOWHILE (e', s1', l) else s
-  | FOR (fc1, e2, e3, s4, l) ->
+      if e' != e || s1' != s1 then DOWHILE (e', s1', l, el) else s
+  | FOR (fc1, e2, e3, s4, l, el) ->
       let _ = vis#vEnterScope () in
       let fc1' =
         match fc1 with
@@ -399,28 +396,28 @@ and childrenStatement vis s =
       let s4' = vs l s4 in
       let _ = vis#vExitScope () in
       if fc1' != fc1 || e2' != e2 || e3' != e3 || s4' != s4
-      then FOR (fc1', e2', e3', s4', l) else s
+      then FOR (fc1', e2', e3', s4', l, el) else s
   | BREAK _ | CONTINUE _ | GOTO _ -> s
   | RETURN (e, l) ->
       let e' = ve e in
       if e' != e then RETURN (e', l) else s
-  | SWITCH (e, s1, l) ->
+  | SWITCH (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then SWITCH (e', s1', l) else s
-  | CASE (e, s1, l) ->
+      if e' != e || s1' != s1 then SWITCH (e', s1', l, el) else s
+  | CASE (e, s1, l, el) ->
       let e' = ve e in
       let s1' = vs l s1 in
-      if e' != e || s1' != s1 then CASE (e', s1', l) else s
-  | CASERANGE (e1, e2, s3, l) ->
+      if e' != e || s1' != s1 then CASE (e', s1', l, el) else s
+  | CASERANGE (e1, e2, s3, l, el) ->
       let e1' = ve e1 in
       let e2' = ve e2 in
       let s3' = vs l s3 in
       if e1' != e1 || e2' != e2 || s3' != s3 then
-        CASERANGE (e1', e2', s3', l) else s
-  | DEFAULT (s1, l) ->
+        CASERANGE (e1', e2', s3', l, el) else s
+  | DEFAULT (s1, l, el) ->
       let s1' = vs l s1 in
-      if s1' != s1 then DEFAULT (s1', l) else s
+      if s1' != s1 then DEFAULT (s1', l, el) else s
   | LABEL (n, s1, l) ->
       let s1' = vs l s1 in
       if s1' != s1 then LABEL (n, s1', l) else s

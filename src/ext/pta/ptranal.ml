@@ -271,9 +271,9 @@ let rec analyze_init (i : init ) : A.tau =
 
 let analyze_instr (i : instr ) : unit =
   match i with
-      Set (lval, rhs, l) ->
+      Set (lval, rhs, l, el) ->
         A.assign (analyze_lval lval) (analyze_expr rhs)
-    | Call (res, fexpr, actuals, l) ->
+    | Call (res, fexpr, actuals, l, el) ->
         if not (isFunctionType (typeOf fexpr)) then
           () (* todo : is this a varargs? *)
         else if is_alloc_fun fexpr then
@@ -319,14 +319,14 @@ let rec analyze_stmt (s : stmt ) : unit =
         end
     | Goto (s', l) -> () (* analyze_stmt(!s') *)
     | ComputedGoto (e, l) -> ()
-    | If (e, b, b', l) ->
+    | If (e, b, b', l, el) ->
         (* ignore the expression e; expressions can't be side-effecting *)
         analyze_block b;
         analyze_block b'
-    | Switch (e, b, sl, l) ->
+    | Switch (e, b, sl, l, el) ->
         analyze_block b;
         List.iter analyze_stmt sl
-    | Loop (b, l, _, _) -> analyze_block b
+    | Loop (b, l, el, _, _) -> analyze_block b
     | Block b -> analyze_block b
     | TryFinally (b, h, _) ->
         analyze_block b;

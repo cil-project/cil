@@ -1,3 +1,9 @@
+## Unreleased
+* Add ends to locations, allowing for ranges.
+* Add additional expression locations to statements, etc.
+
+## Older versions
+
 18 November 2021: goblint-cil-1.8.2
 
     * Add columns to locations.

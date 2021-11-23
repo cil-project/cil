@@ -61,6 +61,18 @@ let loc_comp l1 l2 =
   then Some(1)
   else if l2.A.columnno > l1.A.columnno
   then Some(-1)
+  else if l1.A.endLineno > l2.A.endLineno
+  then Some(1)
+  else if l2.A.endLineno > l1.A.endLineno
+  then Some(-1)
+  else if l1.A.endByteno > l2.A.endByteno
+  then Some(1)
+  else if l2.A.endByteno > l1.A.endByteno
+  then Some(-1)
+  else if l1.A.endColumnno > l2.A.endColumnno
+  then Some(1)
+  else if l2.A.endColumnno > l1.A.endColumnno
+  then Some(-1)
   else Some(0)
 
 let simpleGaSearch l =
@@ -83,7 +95,10 @@ let get_comments l =
 	       A.filename = l.file;
 	       A.byteno = l.byte;
          A.columnno = l.column;
-	       A.ident = 0;} in
+	       A.ident = 0;
+         A.endLineno = l.endLine;
+         A.endByteno = l.endByte;
+         A.endColumnno = l.endColumn;} in
   let s = simpleGaSearch cabsl in
 
   let rec loop i cl =
@@ -128,7 +143,7 @@ let get_loop_condition b =
   (* stm -> exp option * instr list *)
   let rec get_cond_from_if if_stm =
     match if_stm.skind with
-      If(e,tb,fb,_) ->
+      If(e,tb,fb,_,_) ->
 	let e = EC.stripNopCasts e in
 	RCT.fold_blocks tb;
 	RCT.fold_blocks fb;
@@ -138,33 +153,33 @@ let get_loop_condition b =
 	  {skind = Break _; _} :: _, [] -> Some e
 	| [], {skind = Break _; _} :: _ ->
 	    Some(UnOp(LNot, e, intType))
-	| ({skind = If(_,_,_,_); _} as s) :: _, [] ->
+	| ({skind = If(_,_,_,_,_); _} as s) :: _, [] ->
 	    let teo = get_cond_from_if s in
 	    (match teo with
 	      None -> None
 	    | Some te ->
 		Some(BinOp(LAnd,e,EC.stripNopCasts te,intType)))
-	| [], ({skind = If(_,_,_,_); _} as s) :: _ ->
+	| [], ({skind = If(_,_,_,_,_); _} as s) :: _ ->
 	    let feo = get_cond_from_if s in
 	    (match feo with
 	      None -> None
 	    | Some fe ->
 		Some(BinOp(LAnd,UnOp(LNot,e,intType),
 			   EC.stripNopCasts fe,intType)))
-	| {skind = Break _; _} :: _, ({skind = If(_,_,_,_); _} as s):: _ ->
+	| {skind = Break _; _} :: _, ({skind = If(_,_,_,_,_); _} as s):: _ ->
 	    let feo = get_cond_from_if s in
 	    (match feo with
 	      None -> None
 	    | Some fe ->
 		Some(BinOp(LOr,e,EC.stripNopCasts fe,intType)))
-	| ({skind = If(_,_,_,_); _} as s) :: _, {skind = Break _; _} :: _ ->
+	| ({skind = If(_,_,_,_,_); _} as s) :: _, {skind = Break _; _} :: _ ->
 	    let teo = get_cond_from_if s in
 	    (match teo with
 	      None -> None
 	    | Some te ->
 		Some(BinOp(LOr,UnOp(LNot,e,intType),
 			   EC.stripNopCasts te,intType)))
-	| ({skind = If(_,_,_,_); _} as ts) :: _ , ({skind = If(_,_,_,_); _} as fs) :: _ ->
+	| ({skind = If(_,_,_,_,_); _} as ts) :: _ , ({skind = If(_,_,_,_,_); _} as fs) :: _ ->
 	    let teo = get_cond_from_if ts in
 	    let feo = get_cond_from_if fs in
 	    (match teo, feo with
@@ -181,7 +196,7 @@ let get_loop_condition b =
   in
   let sl = skipEmpty b.bstmts in
   match sl with
-    ({skind = If(_,_,_,_); labels=[]; _} as s) :: rest ->
+    ({skind = If(_,_,_,_,_); labels=[]; _} as s) :: rest ->
       get_cond_from_if s, rest
   | s :: _ ->
       (if !debug then ignore(E.log "checkMover: %a is first, not an if\n"
@@ -243,7 +258,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
      if IH.mem RCT.iioh v.vid then
        let rhso = IH.find RCT.iioh v.vid in
        match rhso with
-	 Some(Call(_,e,el,l)) ->
+	 Some(Call(_,e,el,l,eloc)) ->
 	   (* print a call instead of a temp variable *)
 	   let oldpit = super#getPrintInstrTerminator() in
 	   let _ = super#setPrintInstrTerminator "" in
@@ -253,7 +268,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 	     TFun(rt,_,_,_) when not (Util.equals (typeSig rt) (typeSig v.vtype)) ->
 	       text "(" ++ self#pType None () v.vtype ++ text ")"
 	   | _ -> nil in
-	   let d = self#pInstr () (Call(None,e,el,l)) in
+	   let d = self#pInstr () (Call(None,e,el,l,eloc)) in
 	   let _ = super#setPrintInstrTerminator oldpit in
 	   let _ = printComments := opc in
 	   c ++ d
@@ -582,7 +597,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
   method! private pStmtKind (next : stmt) () (sk : stmtkind) =
     match sk with
-    | Loop(b,l,_,_) -> begin
+    | Loop(b,l,el,_,_) -> begin
 	(* See if we can turn this into a while(e) {} *)
 	(* TODO: See if we can turn this into a do { } while(e); *)
 	let co, bodystmts = get_loop_condition b in
