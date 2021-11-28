@@ -214,8 +214,6 @@ sub findCompilerVersion {
         }
     }
     die "Cannot find the version for GCC\n";
-    
-    die "You must specify a --mode (GNUCC)";
 }
 
 sub lineDirective {
