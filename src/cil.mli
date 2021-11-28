@@ -46,8 +46,7 @@ open Cilint
 
 (** {b CIL API Documentation.} *)
 
-(** Call this function to perform some initialization. Call if after you have
- * set {!Cil.msvcMode}.  *)
+(** Call this function to perform some initialization. *)
 val initCIL: unit -> unit
 
 (** These are the CIL version numbers. A CIL version is a number of the form
@@ -59,13 +58,11 @@ val cilVersionRevision: int
 
 (** This module defines the abstract syntax of CIL. It also provides utility
  * functions for traversing the CIL data structures, and pretty-printing
- * them. The parser for both the GCC and MSVC front-ends can be invoked as
+ * them. The parser can be invoked as
  * [Frontc.parse: string -> unit ->] {!Cil.file}. This function must be given
  * the name of a preprocessed C file and will return the top-level data
- * structure that describes a whole source file. By default the parsing and
- * elaboration into CIL is done as for GCC source. If you want to use MSVC
- * source you must set the {!Cil.msvcMode} to [true] and must also invoke the
- * function [Frontc.setMSVCMode: unit -> unit]. *)
+ * structure that describes a whole source file. The parsing and
+ * elaboration into CIL is done as for GCC source. *)
 
 
 (** {b The Abstract Syntax of CIL} *)
@@ -171,7 +168,7 @@ and global =
  * {!Cil.unrollType} or {!Cil.unrollTypeDeep} to see through the uses of
  * named types. *)
 (** CIL is configured at build-time with the sizes and alignments of the
- * underlying compiler (GCC or MSVC). CIL contains functions that can compute
+ * underlying compiler. CIL contains functions that can compute
  * the size of a type (in bits) {!Cil.bitsSizeOf}, the alignment of a type
  * (in bytes) {!Cil.alignOf_int}, and can convert an offset into a start and
  * width (both in bits) using the function {!Cil.bitsOffset}. At the moment
@@ -1062,8 +1059,7 @@ where the parts are
   - template: a sequence of strings, with %0, %1, %2, etc. in the string to
     refer to the input and output expressions. I think they're numbered
     consecutively, but the docs don't specify. Each string is printed on
-    a separate line. This is the only part that is present for MSVC inline
-    assembly.
+    a separate line.
   - "ci" (oi): pairs of constraint-string and output-lval; the
     constraint specifies that the register used must have some
     property, like being a floating-point register; the constraint
@@ -1251,8 +1247,8 @@ val pushGlobal: global -> types: global list ref
 val invalidStmt: stmt
 
 
-(** A list of the built-in functions for the current compiler (GCC or
-  * MSVC, depending on [!msvcMode]).  Maps the name to the
+(** A list of the built-in functions for the current compiler.
+  * Maps the name to the
   * result and argument types, and whether it is vararg.
   * Initialized by {!Cil.initCIL}
   *
@@ -1357,16 +1353,16 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(** An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode}
- *  and is set when you call {!Cil.initCIL}. *)
+(** An unsigned integer type that fits pointers.
+ *  Is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
-(** An signed integer type that fits pointer difference. Depends on
- *  {!Cil.msvcMode} and is set when you call {!Cil.initCIL}. *)
+(** An signed integer type that fits pointer difference.
+ *  Is set when you call {!Cil.initCIL}. *)
 val ptrdiffType: typ ref
 
-(** An unsigned integer type that is the type of sizeof. Depends on
- * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
+(** An unsigned integer type that is the type of sizeof.
+ *  Is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
 
 (** The integer kind of {!Cil.typeOfSizeOf}.
@@ -1419,9 +1415,6 @@ val unrollType: typ -> typ
  * [TPtr], [TFun] or [TArray]. Does not unroll the types of fields in [TComp]
  * types. Will collect all attributes *)
 val unrollTypeDeep: typ -> typ
-
-(** Separate out the storage-modifier name attributes *)
-val separateStorageModifiers: attribute list -> attribute list * attribute list
 
 (** True if the argument is an integral type (i.e. integer or enum) *)
 val isIntegralType: typ -> bool
@@ -1764,13 +1757,8 @@ val mkFor: start:stmt list -> guard:exp -> next: stmt list ->
 
 (** Various classes of attributes *)
 type attributeClass =
-    AttrName of bool
-        (** Attribute of a name. If argument is true and we are on MSVC then
-            the attribute is printed using __declspec as part of the storage
-            specifier  *)
-  | AttrFunType of bool
-        (** Attribute of a function type. If argument is true and we are on
-            MSVC then the attribute is printed just before the function name *)
+    AttrName (** Attribute of a name. *)
+  | AttrFunType  (** Attribute of a function type. *)
   | AttrType  (** Attribute of a type *)
 
 (** This table contains the mapping of predefined attributes to classes.

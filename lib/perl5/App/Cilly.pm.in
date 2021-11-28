@@ -124,18 +124,9 @@ sub new {
     }
 
     my $compiler;
-    if($mode eq "MSVC") {
-        unshift @App::Cilly::ISA, qw(MSVC);
-        $compiler = MSVC->new($self);
-    } elsif($mode eq "GNUCC") {
+    if($mode eq "GNUCC") {
         unshift @App::Cilly::ISA, qw(GNUCC);
         $compiler = GNUCC->new($self);
-    } elsif($mode eq "MSLINK") {
-        unshift @App::Cilly::ISA, qw(MSLINK);
-        $compiler = MSLINK->new($self);
-    } elsif($mode eq "MSLIB") {
-        unshift @App::Cilly::ISA, qw(MSLIB);
-        $compiler = MSLIB->new($self);
     } elsif($mode eq "AR") {
         unshift @App::Cilly::ISA, qw(AR);
         $compiler = AR->new($self);
@@ -146,12 +137,6 @@ sub new {
     my $key;
     foreach $key (keys %{$compiler}) {
         $self->{$key} = $compiler->{$key};
-    }
-
-    # For MSVC we have to use --save-temps because otherwise the
-    # temporary files get deleted somehow before CL gets at them !
-    if($mode ne "GNUCC" && $mode ne "AR") {
-        $self->{SAVE_TEMPS} = '.';
     }
 
     return $self;
@@ -293,10 +278,7 @@ sub collectOneArgument {
     }
 
     # sm: response file
-    if($arg =~ m|-@(.+)$| ||
-        (($self->{MODENAME} eq "MSVC" ||
-          $self->{MODENAME} eq "MSLINK" ||
-          $self->{MODENAME} eq "MSLIB") && $arg =~ m|@(.+)$|)) {
+    if($arg =~ m|-@(.+)$|) {
         my $fname = $1;         # name of response file
         &classifyArgDebug("processing response file: $fname\n");
 
@@ -330,7 +312,7 @@ sub collectOneArgument {
         #print("done with response file: $fname\n");
         return 1;      # argument undestood
     }
-    if($arg eq "-@" || ($self->{MODENAME} eq "MSVC" && $arg eq "@")) {
+    if($arg eq "-@") {
         # sm: I didn't implement the case where it takes the next argument
         # because I wasn't sure how to grab add'l args (none of the
         # cases above do..)
@@ -377,9 +359,6 @@ Options:
   --mode=xxx   What tool to emulate:
                 GNUCC   - GNU gcc
                 AR      - GNU ar
-                MSVC    - MS VC cl compiler
-                MSLINK  - MS VC link linker
-                MSLIB   - MS VC lib linker
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
   --help (or -help) Prints this help message.
@@ -399,9 +378,6 @@ Options:
                      they are not merged and not processed with CIL.
   --includedir=xxx   Adds a new include directory to replace existing ones
   --bytecode         Invoke the bytecode (as opposed to native code) system
-  --stdoutpp         For MSVC only, use the "preprocess to stdout" mode. This
-                     is for some versions of MSVC that do not support
-                     well the /P file
 
 EOF
     $self->helpMessage();
@@ -495,9 +471,6 @@ sub linktolib {
     my ($aftercil, @cmd) = $self->MergeCommand ($psrcs, $dir, $base);
     die unless $cmd[0];
 
-    if($self->{MODENAME} eq "MSVC") {
-        push @cmd, "--MSVC";
-    }
     if($self->{VERBOSE}) {
         push @cmd, "--verbose";
     }
@@ -642,17 +615,12 @@ sub straight_preprocess {
 	my $srcname = ref $src ? $src->filename : $src;
 	print STDERR "Preprocessing $srcname\n";
     }
-    if($self->{MODENAME} eq "MSVC" ||
-       $self->{MODENAME} eq "MSLINK" ||
-       $self->{MODENAME} eq "MSLIB") {
-        $self->MSVC::msvc_preprocess($src, $dest, $ppargs);
-    } else {
-#        print Dumper($self);
-        my @cmd = (@{$self->{CPP}}, @{$ppargs},
-		   $src, $self->makeOutArguments($self->{OUTCPP}, $dest));
-        $self->runShell(@cmd);
 
-    }
+#        print Dumper($self);
+    my @cmd = (@{$self->{CPP}}, @{$ppargs},
+        $src, $self->makeOutArguments($self->{OUTCPP}, $dest));
+    $self->runShell(@cmd);
+
     return $dest;
 }
 
@@ -712,14 +680,7 @@ sub compile {
 sub makeOutArguments {
     my ($self, $which, $dest) = @_;
     $dest = $dest->{filename} if ref $dest;
-    if($self->{MODENAME} eq "MSVC" ||
-       $self->{MODENAME} eq "MSLINK" ||
-       $self->{MODENAME} eq "MSLIB") {
-        # A single argument
-        return ("$which$dest");
-    } else {
-        return ($which, $dest);
-    }
+    return ($which, $dest);
 }
 # This is the actual invocation of the underlying compiler. You should not
 # override this
@@ -985,11 +946,6 @@ sub applyCil {
     Carp::confess "$self produced bad output file: $aftercil"
         unless $aftercil->isa('App::Cilly::OutputFile');
 
-    if($self->{MODENAME} eq "MSVC" ||
-       $self->{MODENAME} eq "MSLINK" ||
-       $self->{MODENAME} eq "MSLIB") {
-        push @cmd, '--MSVC';
-    }
     if($self->{VERBOSE}) {
         push @cmd, '--verbose';
     }
@@ -1366,386 +1322,6 @@ sub outputFile {
     }
 }
 
-
-###########################################################################
-####
-#### MS CL specific code
-####
-package MSVC;
-
-use strict;
-use File::Basename;
-use Data::Dumper;
-
-# For MSVC we remember which was the first source, because we use that to
-# determine the name of the output file
-sub setFirstSource {
-    my ($self, $src) = @_;
-
-    if(! defined ($self->{FIRST_SOURCE})) {
-        $self->{FIRST_SOURCE} = $src;
-    }
-}
-
-sub new {
-    my ($proto, $stub) = @_;
-    my $class = ref($proto) || $proto;
-    # Create $self
-
-    my $self =
-    { NAME => 'Microsoft cl compiler',
-      MODENAME => 'MSVC',
-      CC => ['cl', '/nologo', '/D_MSVC', '/c'],
-      CPP => ['cl', '/nologo', '/D_MSVC', '/P'],
-      LD => ['cl', '/nologo', '/D_MSVC'],
-      DEFARG  => "/D",
-      INCARG  => "/I",
-      DEBUGARG => ['/Zi', '/MLd', '/DEBUG'],
-      OPTIMARG => ['/Ox', '/G6'],
-      OBJEXT => "obj",
-      LIBEXT => "lib",   # Library extension (without the .)
-      EXEEXT => ".exe",  # Executable extension (with the .)
-      OUTOBJ => "/Fo",
-      OUTEXE => "/Fe",
-      WARNISERROR => "/WX",
-      FORCECSOURCE => ['/Tc'],
-      LINEPATTERN => "^#line\\s+(\\d+)\\s+\"(.+)\"",
-
-      OPTIONS =>
-# Describe the compiler options as a list of patterns and associated actions.
-# The patterns are matched in order against the _begining_ of the argument.
-#
-# If the action contains ONEMORE => 1 then the argument is expected to be
-# parameterized by a following word. The word can be attached immediately to
-# the end of the argument or in a separate word.
-#
-# If the action contains TYPE => "..." then the argument is put into
-# one of several lists, as follows: "PREPROC" in ppargs; "CC" in
-# ccargs; "LINK" in linkargs; "LINKCC" both in ccargs and linkargs;
-# "ALLARGS" in ppargs, ccargs, and linkargs; "CSOURCE" in cfiles;
-# "ASMSOURCE" in sfiles; "OSOURCE" in ofiles; "ISOURCE" in ifiles;
-# "OUT" in outarg.  "SPECIAL" flags indicate that the compiler should
-# be run directly so that it can perform some special action other
-# than generating code (e.g. printing out version or configuration
-# information).
-#
-# If the TYPE is not defined but the RUN => sub { ... } is defined then the
-# given subroutine is invoked with the self, the argument and the (possibly
-# empty) additional word and a pointer to the list of remaining arguments
-#
-          ["^[^/\\-@].*\\.($::cilbin|c|cpp|cc)\$" =>
-           { TYPE => 'CSOURCE',
-             RUN => sub { &MSVC::setFirstSource(@_); } },
-           "[^/].*\\.(asm)\$" => { TYPE => 'ASMSOURCE' },
-           "[^/].*\\.i\$" => { TYPE => 'ISOURCE' },
-           "[^/\\-@]" => { TYPE => "OSOURCE" },
-           "[/\\-]O" => { TYPE => "CC" },
-           "[/\\-][DI]" => { TYPE => "PREPROC"},
-           "[/\\-]EH" => { TYPE => "CC" },
-           "[/\\-]G"  => { TYPE => "CC" },
-           "[/\\-]F[aA]"  => { TYPE => 'CC' },
-           "[/\\-]Fo"     => { TYPE => 'OUT' },
-           "/Fe"   => { TYPE => 'OUT',
-                        RUN => sub { $stub->{OPERATION} = "TOEXE" }},
-           "[/\\-]F[dprR]" => { TYPE => "CC" },
-           "[/\\-]FI" => { TYPE => "PREPROC" },
-           "[/\\-][CXu]" => { TYPE => "PREPROC" },
-           "[/\\-]U" => { ONEMORE => 1, TYPE => "PREPROC" },
-           "[/\\-](E|EP|P)" => { RUN => sub { push @{$stub->{PPARGS}}, $_[1];
-                                         $stub->{OPERATION} = "PREPROC"; }},
-           "[/\\-]c" => { RUN => sub { $stub->{OPERATION} = "TOOBJ"; }},
-           "[/\\-](Q|Z|J|nologo|w|W|Zm)" => { TYPE => "CC" },
-           "[/\\-]Y(u|c|d|l|X)" => { TYPE => "CC" },
-           "[/\\-]T(C|P)" => { TYPE => "PREPROC" },
-           "[/\\-]Tc(.+)\$" =>
-                { RUN => sub {
-                    my $arg = $_[1];
-                    my ($fname) = ($arg =~ m|[/\\-]Tc(.+)$|);
-                    $fname = &normalizeFileName($fname);
-                    push @{$stub->{CFILES}}, $fname;
-                }},
-           "[/\\-]v(d|m)" => { TYPE => "CC" },
-           "[/\\-]F" => { TYPE => "CC" },
-           "[/\\-]M"   => { TYPE => 'LINKCC' },
-           "/link" => { RUN => sub { push @{$stub->{LINKARGS}}, "/link",
-                                          @{$_[3]};
-                                     @{$_[3]} = (); } },
-           "-cbstring" => { TYPE => "CC" },
-           "/"  => { RUN =>
-                         sub { print "Unimplemented MSVC argument $_[1]\n";}},
-           ],
-      };
-    bless $self, $class;
-    return $self;
-}
-
-
-sub msvc_preprocess {
-    my($self, $src, $dest, $ppargs) = @_;
-    my $res;
-    my $srcname = ref $src ? $src->filename : $src;
-    my ($sbase, $sdir, $sext) =
-        fileparse($srcname,
-                  "(\\.c)|(\\.cc)|(\\.cpp)|(\\.i)");
-    # If this is a .cpp file we still hope it is C. Pass the /Tc argument to
-    # cl to force this file to be interpreted as a C one
-    my @cmd = @{$ppargs};
-
-    if($sext eq ".cpp") {
-        push @cmd, "/Tc";
-    }
-    # MSVC cannot be told where to put the output. But we know that it
-    # puts it in the current directory
-    my $msvcout = "./$sbase.i";
-    if($self->{STDOUTPP}) {
-        @cmd = ('cmd', '/c', 'cl', '/nologo', '/E', ">$msvcout", '/D_MSVC',
-                @cmd);
-
-    } else {
-        @cmd = ('cl', '/nologo', '/P', '/D_MSVC', @cmd);
-    }
-    $res = $self->runShell(@cmd, $srcname);
-    # Check file equivalence by making sure that all elements of the stat
-    # structure are the same, except for the access time.
-    my @st1 = stat $msvcout; $st1[8] = 0;
-    my @st2 = stat $dest->{filename}; $st2[8] = 0;
-    # print Dumper(\@st1, \@st2);
-    if($msvcout ne $dest->{filename}) {
-        while($#st1 >= 0) {
-            if(shift @st1 != shift @st2) {
-#                print "$msvcout is NOT the same as $afterpp\n";
-                if($self->{VERBOSE}) {
-                    print STDERR "Copying $msvcout to $dest->{filename} (MSVC_preprocess)\n";
-                }
-                unlink $dest;
-                File::Copy::copy($msvcout, $dest->filename);
-                unlink $msvcout;
-                return $res;
-            }
-        }
-    }
-    return $res;
-}
-
-sub forceIncludeArg {
-    my($self, $what) = @_;
-    return "/FI$what";
-}
-
-
-    # MSVC does not understand the extension .i, so we tell it it is a C file
-sub fixupCsources {
-    my (@csources) = @_;
-    my @mod_csources = ();
-    my $src;
-    foreach $src (@csources) {
-        my ($sbase, $sdir, $sext) = fileparse($src,
-                                              "\\.[^.]+");
-        if($sext eq ".i") {
-            push @mod_csources, "/Tc";
-        }
-        push @mod_csources, $src;
-    }
-    return @mod_csources;
-}
-
-
-# Emit a line # directive
-sub lineDirective {
-    my ($self, $fileName, $lineno) = @_;
-    return "#line $lineno \"$fileName\"\n";
-}
-
-# The name of the output file
-sub compileOutputFile {
-    my($self, $src) = @_;
-
-    die "compileOutputFile: not a C source file: $src\n"
-	unless $src =~ /\.($::cilbin|c|cc|cpp|i|asm)$/;
-
-    Carp::carp ("compileOutputFile: $self->{OPERATION}, $src",
-                   Dumper($self->{OUTARG})) if 0;
-    if ($self->{OPERATION} eq 'TOOBJ') {
-	if(defined $self->{OUTARG}
-           && "@{$self->{OUTARG}}" =~ m|[/\\-]Fo(.+)|) {
-            my $dest  = $1;
-            # Perhaps $dest is a directory
-            if(-d $dest) {
-                return new App::Cilly::KeptFile($src, $self->{OBJEXT}, $dest);
-            } else {
-                return new App::Cilly::OutputFile($src, $1);
-            }
-	} else {
-	    return new App::Cilly::KeptFile($src, $self->{OBJEXT}, '.');
-	}
-    } else {
-#        die "compileOutputfile: operation is not TOOBJ";
-	return $self->outputFile($src, $self->{OBJEXT});
-    }
-}
-
-sub assembleOutputFile {
-    my($self, $src) = @_;
-    return $self->compileOutputFile($src);
-}
-
-sub linkOutputFile {
-    my($self, $src) = @_;
-    $src = $src->filename if ref $src;
-    if(defined $self->{OUTARG} && "@{$self->{OUTARG}}" =~ m|/Fe(.+)|) {
-        return $1;
-    }
-    # Use the name of the first source file, in the current directory
-    my ($base, $dir, $ext) = fileparse ($src, "\\.[^.]+");
-    return "./$base.exe";
-}
-
-sub setVersion {
-    my($self) = @_;
-    my $cversion = "";
-    open(VER, "cl 2>&1|") || die "Cannot start Microsoft CL\n";
-    while(<VER>) {
-        if($_ =~ m|Compiler Version (\S+) |) {
-            $cversion = "cl_$1";
-            close(VER);
-            $self->{CVERSION} = $cversion;
-            return;
-        }
-    }
-    die "Cannot find Microsoft CL version\n";
-}
-
-########################################################################
-##
-##  MS LINK specific code
-##
-###
-package MSLINK;
-
-use strict;
-
-use File::Basename;
-use Data::Dumper;
-
-sub new {
-    my ($proto, $stub) = @_;
-    my $class = ref($proto) || $proto;
-
-    # Create a MSVC compiler object
-    my $msvc = MSVC->new($stub);
-
-    # Create $self
-
-    my $self =
-    { NAME => 'Microsoft linker',
-      MODENAME => 'MSLINK',
-      CC => $msvc->{CC},
-      CPP => $msvc->{CPP},
-      LD => ['link'],
-      DEFARG  => $msvc->{DEFARG},
-      INCARG  => $msvc->{INCARG},
-      DEBUGARG => ['/DEBUG'],
-      OPTIMARG => [],
-      LDLIB => ['lib'],
-      OBJEXT => "obj",
-      LIBEXT => "lib",   # Library extension (without the .)
-      EXEEXT => ".exe",  # Executable extension (with the .)
-      OUTOBJ => $msvc->{OUTOBJ},
-      OUTEXE => "-out:", # Keep this form because build.exe looks for it
-      WARNISERROR => "/WX",
-      LINEPATTERN => "",
-      FORCECSOURCE => $msvc->{FORCECSOURCE},
-
-      MSVC => $msvc,
-
-      OPTIONS =>
-          ["[^/\\-@]" => { TYPE => 'OSOURCE' },
-           "[/\\-](OUT|out):" => { TYPE => 'OUT' },
-           "^((/)|(\\-[^\\-]))"  => { TYPE => 'LINK' },
-           ],
-      };
-    bless $self, $class;
-    return $self;
-}
-
-
-sub forceIncludeArg {  # Same as for CL
-    my($self, $what) = @_;
-    return "/FI$what";
-}
-
-
-
-sub linkOutputFile {
-    my($self, $src) = @_;
-#    print Dumper($self);
-    Carp::confess "Cannot compute the linker output file"
-        if ! defined $self->{OUTARG};
-
-    if("@{$self->{OUTARG}}" =~ m|.+:(.+)|) {
-        return $1;
-    }
-    die "I do not know what is the link output file\n";
-}
-
-sub setVersion {
-    my($self) = @_;
-    my $cversion = "";
-    open(VER, "link 2>&1|") || die "Cannot start Microsoft LINK\n";
-    while(<VER>) {
-        if($_ =~ m|Linker Version (\S+)|) {
-            $cversion = "link_$1";
-            close(VER);
-            $self->{CVERSION} = $cversion;
-            return;
-        }
-    }
-    die "Cannot find Microsoft LINK version\n";
-}
-
-########################################################################
-##
-##  MS LIB specific code
-##
-###
-package MSLIB;
-
-our @ISA = qw(MSLINK);
-
-use strict;
-
-use File::Basename;
-use Data::Dumper;
-
-sub new {
-    my ($proto, $stub) = @_;
-    my $class = ref($proto) || $proto;
-
-    # Create a MSVC linker object
-    my $self = MSLINK->new($stub);
-
-    $self->{NAME} = 'Microsoft librarian';
-    $self->{MODENAME} = 'MSLIB';
-    $self->{OPERATION} = "TOLIB";
-    $self->{LDLIB} = ['lib'];
-    bless $self, $class;
-    return $self;
-}
-
-sub setVersion {
-    my($self) = @_;
-    my $cversion = "";
-    open(VER, "lib 2>&1|") || die "Cannot start Microsoft LIB\n";
-    while(<VER>) {
-        if($_ =~ m|Library Manager Version (\S+)|) {
-            $cversion = "lib_$1";
-            close(VER);
-            $self->{CVERSION} = $cversion;
-            return;
-        }
-    }
-    die "Cannot find Microsoft LINK version\n";
-}
 
 ########################################################################
 ##

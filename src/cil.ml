@@ -1405,14 +1405,8 @@ let hasAttribute s al =
 
 
 type attributeClass =
-    AttrName of bool
-        (* Attribute of a name. If argument is true and we are on MSVC then
-         * the attribute is printed using __declspec as part of the storage
-         * specifier  *)
-  | AttrFunType of bool
-        (* Attribute of a function type. If argument is true and we are on
-         * MSVC then the attribute is printed just before the function name *)
-
+    AttrName  (* Attribute of a name. *)
+  | AttrFunType  (* Attribute of a function type. *)
   | AttrType  (* Attribute of a type *)
 
 (* This table contains the mapping of predefined attributes to classes.
@@ -1421,7 +1415,7 @@ type attributeClass =
  * conversion *)
 let attributeHash: (string, attributeClass) H.t =
   let table = H.create 13 in
-  List.iter (fun a -> H.add table a (AttrName false))
+  List.iter (fun a -> H.add table a (AttrName))
     [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak";
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
@@ -1429,18 +1423,18 @@ let attributeHash: (string, attributeClass) H.t =
                            * assembly for a global  *)];
 
   (* Now come the MSVC declspec attributes *)
-  List.iter (fun a -> H.add table a (AttrName true))
+  List.iter (fun a -> H.add table a (AttrName))
     [ "thread"; "naked"; "dllimport"; "dllexport";
       "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
       "uuid"; "align" ];
 
-  List.iter (fun a -> H.add table a (AttrFunType false))
+  List.iter (fun a -> H.add table a (AttrFunType))
     [ "format"; "regparm"; "longcall";
       "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
-  List.iter (fun a -> H.add table a (AttrFunType true))
+  List.iter (fun a -> H.add table a (AttrFunType))
     [ "stdcall";"cdecl"; "fastcall" ];
 
   List.iter (fun a -> H.add table a AttrType)
@@ -1457,8 +1451,8 @@ let partitionAttributes
       [] -> n, f, t
     | (Attr(an, _) as a) :: rest ->
         match (try H.find attributeHash an with Not_found -> default) with
-          AttrName _ -> loop (addAttribute a n, f, t) rest
-        | AttrFunType _ ->
+          AttrName -> loop (addAttribute a n, f, t) rest
+        | AttrFunType ->
             loop (n, addAttribute a f, t) rest
         | AttrType -> loop (n, f, addAttribute a t) rest
   in
@@ -1883,18 +1877,6 @@ let getParenthLevelAttrParam (a: attrparam) =
   | AQuestion _ -> questionLevel
 
 
-(* Separate out the storage-modifier name attributes *)
-let separateStorageModifiers (al: attribute list) =
-  let isstoragemod (Attr(an, _): attribute) : bool =
-    try
-      match H.find attributeHash an with
-        AttrName issm -> issm
-      | _ -> false
-    with Not_found -> false
-  in
-    List.partition isstoragemod al
-
-
 let isIntegralType t =
   match unrollType t with
     (TInt _ | TEnum _) -> true
@@ -1972,7 +1954,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:(AttrName) baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -3306,14 +3288,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
       ++ d_storage () v.vstorage
-      ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
-      ++ self#pAttrs () rest
+      ++ self#pAttrs () v.vattr
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
@@ -4009,24 +3989,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective ~forcefile:true l ++
-          text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
+          text su1 ++ (align ++ text su2 ++ chr ' '
                          ++ text n
                          ++ text " {" ++ line
                          ++ ((docList ~sep:line (self#pFieldDecl ())) ()
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () rest_attr) ++ text ";\n"
+          (self#pAttrs () comp.cattr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         let su = if comp.cstruct then "struct " else "union " in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective l
-          ++ text su ++ self#pAttrs () sto_mod
+          ++ text su
           ++ text comp.cname ++ chr ' '
-          ++ self#pAttrs () rest_attr ++ text ";\n"
+          ++ self#pAttrs () comp.cattr ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -4271,12 +4249,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                         else if args = Some [] then text "void"
                         else
                           let pArg (aname, atype, aattr) =
-                            let stom, rest = separateStorageModifiers aattr in
-                            (* First the storage modifiers *)
-                            (self#pAttrs () stom)
-                              ++ (self#pType (Some (text aname)) () atype)
+                            (self#pType (Some (text aname)) () atype)
                               ++ text " "
-                              ++ self#pAttrs () rest
+                              ++ self#pAttrs () aattr
                           in
                           (docList ~sep:(chr ',' ++ break) pArg) ()
                             (argsToList args))

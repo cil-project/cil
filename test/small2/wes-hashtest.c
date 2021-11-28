@@ -4,9 +4,6 @@
 #ifdef _GNUCC
 #include <unistd.h>     // dup, close
 #endif
-#ifdef _MSVC
-#include <io.h>
-#endif
 
 //#include "main.h"
 /****** Data sizes *******
@@ -64,10 +61,6 @@ typedef int BOOL;
  
 #define DIRLISTSEP ';'
 
-#ifdef _MSVC  /* MSVC on x86 */
-#define U64    unsigned __int64
-#define S64    __int64
-#endif /* _MSVC */
 
 #ifdef _GNUCC  /* GNU CC on x86 */
 #define U64    unsigned long long
@@ -113,11 +106,9 @@ typedef int BOOL;
 typedef long clock_t;
  clock_t __cdecl clock(void);
  int    __cdecl rand(void);
-#ifdef _MSVC
-#       define CLOCKS_PER_SEC 1000
-#else
-#       define CLOCKS_PER_SEC  1000000
-#endif
+
+#define CLOCKS_PER_SEC  1000000
+
 
 
 #define TIMESTART(clk) {clk=(double)clock();}
@@ -485,11 +476,7 @@ int error_level, anerror;
 void myexit(int n) {
   exit(n);
 }
-#ifdef _MSVC
-#define random rand
-#else
-/* extern int random(void); -- Weimer: not needed! */
-#endif
+
 int __mmId;
 int debugMM;
 int debug;

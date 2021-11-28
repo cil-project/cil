@@ -334,9 +334,6 @@ addTest("testrun/vararg1");
 addTest("testrun/vararg2");
 addTest("testrun/vararg3");
 addTest("testrun/vararg4");
-if($win32) {
-  addTest("testrun/vararg11 _MSVC=1");
-}
 addTest("testrun/varargauto1");
 addTest("testrun/vararg5 _GNUCC=1");
 addTest("testrun/vararg6");
@@ -515,18 +512,6 @@ addTest("testrungcc/enum3k _GNUCC=1");
 addTest("testrungcc/enum3l _GNUCC=1");
 
 
-if($win32) {
-    addTest("testrun/extern_init _MSVC=1");
-    addTest("testrun/msvc2 _MSVC=1");
-    addTest("testrun/msvc3 _MSVC=1");
-    addTest("testrun/msvc4 _MSVC=1");
-    addTest("testrun/msvc6 _MSVC=1");
-    addTest("testrun/msvc7 _MSVC=1");
-    addTest("testrun/msvc8 _MSVC=1");
-    addTest("testrun/msvc9 _MSVC=1");
-
-    addTest("test-bad/try1 _MSVC=1");
-}
 addTest("testrun/msvc1 ");
 addTest("testrun/msvc5 ");
 
