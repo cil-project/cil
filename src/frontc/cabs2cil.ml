@@ -191,13 +191,8 @@ let convLoc (l : cabsloc) =
   {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno; endLine = l.endLineno; endByte = l.endByteno; endColumn = l.endColumnno;}
 
 
-let isOldStyleVarArgName n =
-  if !msvcMode then n = "va_alist"
-  else n = "__builtin_va_alist"
-
-let isOldStyleVarArgTypeName n =
-  if !msvcMode then n = "va_list"  || n = "__ccured_va_list"
-  else n = "__builtin_va_alist_t"
+let isOldStyleVarArgName n = n = "__builtin_va_alist"
+let isOldStyleVarArgTypeName n = n = "__builtin_va_alist_t"
 
 let isVariadicListType t =
   match unrollType t with
@@ -1184,18 +1179,10 @@ end
 
 (** ALLOCA ***)
 let allocaFun () =
-  if !msvcMode then begin
-    let name = "alloca" in
-    let fdec = emptyFunction name in
-    fdec.svar.vtype <-
-      TFun(voidPtrType, Some [ ("len", !typeOfSizeOf, []) ], false, []);
-    fdec.svar
-  end
-  else
-    (* Use __builtin_alloca where possible, because this can be used
-       even when gcc is invoked with -fno-builtin *)
-    let alloca, _ = lookupGlobalVar "__builtin_alloca" in
-    alloca
+  (* Use __builtin_alloca where possible, because this can be used
+      even when gcc is invoked with -fno-builtin *)
+  let alloca, _ = lookupGlobalVar "__builtin_alloca" in
+  alloca
 
 (* Maps local variables that are variable sized arrays to the expression that
  * denotes their length *)
@@ -1591,7 +1578,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         if oldk = k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "int" *)
-        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32
+        if oldk = IInt && bitsSizeOf t <= 32
            && (what = CombineFunarg || what = CombineFunret) then
           k
         else
@@ -1603,7 +1590,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
         if oldk = k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "double" *)
-        if not !msvcMode && oldk = FDouble && k = FFloat
+        if oldk = FDouble && k = FFloat
            && (what = CombineFunarg || what = CombineFunret) then
           k
         else
@@ -2066,8 +2053,6 @@ let rec collectInitializer
               collectFieldInitializer isconst !pArray.(idx) f
           | _ -> E.s (error "Can initialize only one field for union")
         in
-        if !msvcMode && !pMaxIdx != 0 then
-          ignore (warn "On MSVC we can initialize only the first field of a union");
         CompoundInit (thistype, [ findField 0 comp.cfields ]), thistype
 
     | _ -> E.s (unimp "collectInitializer")
@@ -2355,7 +2340,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     (* GCC allows a named type that appears first to be followed by things
      * like "short", "signed", "unsigned" or "long". *)
     match tspecs with
-      A.Tnamed n :: (_ :: _ as rest) when not !msvcMode ->
+      A.Tnamed n :: (_ :: _ as rest) ->
         (* If rest contains "short" or "long" then drop the Tnamed *)
         if List.exists (function A.Tshort -> true
                                | A.Tlong -> true | _ -> false) rest then
@@ -2525,8 +2510,6 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	   and there's an implementation-dependent underlying integer
 	   type for the enum, which must be capable of holding all the
 	   enum's values.
-	   For MSVC, we follow these rules and assume the enum's
-	   underlying type is int.
 	   GCC allows enum constants that don't fit in int: the enum
 	   constant's type is the smallest type (but at least int) that
 	   will hold the value, with a preference for signed types.
@@ -2543,17 +2526,14 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 	    smallest := i;
 	  if compare_cilint i !largest > 0 then
 	    largest := i;
-	  if !msvcMode then
-	    IInt
-	  else
 	    (* This matches gcc's behaviour *)
-	    if fitsInInt IInt i then IInt
-	    else if fitsInInt IUInt i then IUInt
-	    else if fitsInInt ILong i then ILong
-	    else if fitsInInt IULong i then IULong
-	    else if fitsInInt ILongLong i then ILongLong
-	    else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
-	in
+    if fitsInInt IInt i then IInt
+    else if fitsInInt IUInt i then IUInt
+    else if fitsInInt ILong i then ILong
+    else if fitsInInt IULong i then IULong
+    else if fitsInInt ILongLong i then ILongLong
+    else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
+  in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin
           (* add the name to the environment, but with a faked 'typ' field;
@@ -2591,25 +2571,24 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         (* Now set the right set of items *)
         enum.eitems <- Util.list_map (fun (_, x) -> x) fields;
 	(* Pick the enum's kind - see discussion above *)
-	if not !msvcMode then begin
-	  let unsigned = compare_cilint !smallest zero_cilint >= 0 in
-	  let smallKind = intKindForValue !smallest unsigned in
-	  let largeKind = intKindForValue !largest unsigned in
-	  let ekind =
-	    if (bytesSizeOfInt smallKind) > (bytesSizeOfInt largeKind) then
-	      smallKind
-	    else
-	      largeKind
-	  in
-	  enum.ekind <-
-	    if bytesSizeOfInt ekind < bytesSizeOfInt IInt then
-	      if hasAttribute "packed" enum.eattr then
-		ekind
-	      else
-		if unsigned then IUInt else IInt
-	    else
-	      ekind
-	end;
+  let unsigned = compare_cilint !smallest zero_cilint >= 0 in
+  let smallKind = intKindForValue !smallest unsigned in
+  let largeKind = intKindForValue !largest unsigned in
+  let ekind =
+    if (bytesSizeOfInt smallKind) > (bytesSizeOfInt largeKind) then
+      smallKind
+    else
+      largeKind
+  in
+  enum.ekind <-
+    if bytesSizeOfInt ekind < bytesSizeOfInt IInt then
+      if hasAttribute "packed" enum.eattr then
+  ekind
+      else
+  if unsigned then IUInt else IInt
+    else
+      ekind
+	;
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
@@ -2702,20 +2681,15 @@ and makeVarSizeVarInfo (ldecl : location)
     | a, [] -> a
     | a, _ -> E.s (error "Something phishy is going on with VLAs, typ does not have as many arrays of length None as exp we want to substitute");
   in
-  if not !msvcMode then
-    match isVariableSizedArray ndt with
-      None ->
-        makeVarInfoCabs ~isformal:false
-                        ~isglobal:false
-                        ldecl spec_res (n,ndt,a), empty, false
-    | Some (ndt', se, len) ->
-        let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
-        vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
-        vi, se, true
-  else
-    makeVarInfoCabs ~isformal:false
-                    ~isglobal:false
-                    ldecl spec_res (n,ndt,a), empty, false
+  match isVariableSizedArray ndt with
+    None ->
+      makeVarInfoCabs ~isformal:false
+                      ~isglobal:false
+                      ldecl spec_res (n,ndt,a), empty, false
+  | Some (ndt', se, len) ->
+      let vi = makeVarInfoCabs ~isformal:false ~isglobal:false ldecl spec_res (n,ndt',a) in
+      vi.vtype <- insertArrayLengths vi.vtype len; (* patch the correct length for the array back-in *)
+      vi, se, true
 
 and doAttr (a: A.attribute) : attribute list =
   (* Strip the leading and trailing underscore *)
@@ -2888,7 +2862,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
               else
                 cabsTypeAddAttributes a2f
                   (cabsTypeAddAttributes a1f restyp)
-          | TPtr ((TFun _ as tf), ap) when not !msvcMode ->
+          | TPtr ((TFun _ as tf), ap) ->
               if a1fadded then
                 TPtr(cabsTypeAddAttributes a2f tf, ap)
               else
@@ -2970,10 +2944,9 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
         enterScope ();
         (* Intercept the old-style use of varargs.h. On GCC this means that
          * we have ellipsis and a last argument "builtin_va_alist:
-         * builtin_va_alist_t". On MSVC we do not have the ellipsis and we
-         * have a last argument "va_alist: va_list" *)
+         * builtin_va_alist_t". *)
         let args', isva' =
-          if args != [] && !msvcMode = not isva then begin
+          if args != [] && isva then begin
             let newisva = ref isva in
             let rec doLast = function
                 [([A.SpecType (A.Tnamed atn)], (an, A.JUSTBASE, [], _))]
@@ -3334,9 +3307,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     end
   in
   let findField (n: string) (fidlist: fieldinfo list) : offset =
-    (* Depth first search for the field. This appears to be what GCC does.
-     * MSVC checks that there are no ambiguous field names, so it does not
-     * matter how we search *)
+    (* Depth first search for the field. This appears to be what GCC does. *)
     let rec search = function
         [] -> NoOffset (* Did not find *)
       | fid :: rest when fid.fname = n -> Field(fid, NoOffset)
@@ -3857,35 +3828,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              * taking the address of the argument that was removed while
              * processing the function type. We compute the address based on
              * the address of the last real argument *)
-            if !msvcMode then begin
-              let rec getLast = function
-                  [] -> E.s (unimp "old-style variable argument function without real arguments")
-                | [a] -> a
-                | _ :: rest -> getLast rest
-              in
-              let last = getLast !currentFunctionFDEC.sformals in
-              let res = mkAddrOfAndMark (var last) in
-              let tres = typeOf res in
-              let tres', res' = castTo tres (TInt(IULong, [])) res in
-              (* Now we must add to this address to point to the next
-              * argument. Round up to a multiple of 4  *)
-              let sizeOfLast =
-                (((bitsSizeOf last.vtype) + 31) / 32) * 4
-              in
-              let res'' =
-                BinOp(PlusA, res', kinteger IULong sizeOfLast, tres')
-              in
-              finishExp empty res'' tres'
-            end else begin (* On GCC the only reliable way to do this is to
+            (* On GCC the only reliable way to do this is to
                           * call builtin_next_arg. If we take the address of
                           * a local we are going to get the address of a copy
                           * of the local ! *)
-
               doExp asconst
                 (A.CALL (A.VARIABLE "__builtin_next_arg",
                          [A.CONSTANT (A.CONST_INT "0")]))
                 what
-            end
 
         | (A.VARIABLE _ | A.UNARY (A.MEMOF, _) | (* Regular lvalues *)
            A.INDEX _ | A.MEMBEROF _ | A.MEMBEROFPTR _ |
@@ -4893,14 +4843,10 @@ and doBinOp (bop: binop) (e1: exp) (t1: typ) (e2: exp) (t2: typ) : typ * exp =
   | (Mod|BAnd|BOr|BXor) -> doIntegralArithmetic ()
   | (Shiftlt|Shiftrt) -> (* ISO 6.5.7. Only integral promotions. The result
                           * has the same type as the left hand side *)
-      if !msvcMode then
-        (* MSVC has a bug. We duplicate it here *)
-        doIntegralArithmetic ()
-      else
-        let t1' = integralPromotion t1 in
-        let t2' = integralPromotion t2 in
-        t1',
-        optConstFoldBinOp false bop (makeCastT ~e:e1 ~oldt:t1 ~newt:t1') (makeCastT ~e:e2 ~oldt:t2 ~newt:t2') t1'
+      let t1' = integralPromotion t1 in
+      let t2' = integralPromotion t2 in
+      t1',
+      optConstFoldBinOp false bop (makeCastT ~e:e1 ~oldt:t1 ~newt:t1') (makeCastT ~e:e2 ~oldt:t2 ~newt:t2') t1'
 
   | (PlusA|MinusA)
       when isArithmeticType t1 && isArithmeticType t2 -> doArithmetic ()
@@ -6763,12 +6709,9 @@ and doStatement (s : A.statement) : chunk =
 	  match details with
 	  | None ->
 	      let tmpls' =
-		if !msvcMode then
-		  tmpls
-		else
-		  let pattern = Str.regexp "%" in
-		  let escape = Str.global_replace pattern "%%" in
-		  Util.list_map escape tmpls
+		      let pattern = Str.regexp "%" in
+		      let escape = Str.global_replace pattern "%%" in
+		      Util.list_map escape tmpls
 	      in
 	      (tmpls', [], [], [])
 	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->

@@ -447,7 +447,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "int" *)
-        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32
+        if oldk = IInt && bitsSizeOf t <= 32
            && (what = CombineFunarg || what = CombineFunret)
         then
           k
@@ -467,7 +467,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "double" *)
-        if not !msvcMode && oldk = FDouble && k = FFloat
+        if oldk = FDouble && k = FFloat
            && (what = CombineFunarg || what = CombineFunret)
         then
           k

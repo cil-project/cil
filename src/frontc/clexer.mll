@@ -162,11 +162,7 @@ let init_lexicon _ =
       ("__inline__", fun loc -> INLINE loc);
       ("inline", fun loc -> INLINE loc);
       ("__inline", fun loc -> INLINE loc);
-      ("_inline", fun loc ->
-                      if !Cprint.msvcMode then
-                        INLINE loc
-                      else
-                        IDENT ("_inline", loc));
+      ("_inline", fun loc -> IDENT ("_inline", loc));
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*
@@ -299,7 +295,7 @@ let error msg =
 (*** escape character management ***)
 let scan_escape (char: char) : int64 =
   let result = match char with
-    'n' -> '\n'
+  | 'n' -> '\n'
   | 'r' -> '\r'
   | 't' -> '\t'
   | 'b' -> '\b'
@@ -307,15 +303,8 @@ let scan_escape (char: char) : int64 =
   | 'v' -> '\011'  (* ASCII code 11 *)
   | 'a' -> '\007'  (* ASCII code 7 *)
   | 'e' | 'E' -> '\027'  (* ASCII code 27. This is a GCC extension *)
-  | '\'' -> '\''
-  | '"'-> '"'     (* '"' *)
-  | '?' -> '?'
-  | '(' when not !Cprint.msvcMode -> '('
-  | '{' when not !Cprint.msvcMode -> '{'
-  | '[' when not !Cprint.msvcMode -> '['
-  | '%' when not !Cprint.msvcMode -> '%'
-  | '\\' -> '\\'
-  | other -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 other))
+  | '\'' | '"' | '?' | '(' | '{' | '[' | '%' | '\\' -> char
+  | _ -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 char))
   in
   Int64.of_int (Char.code result)
 
@@ -562,9 +551,7 @@ rule initial =
 |		','				{COMMA}
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF (currentLoc ())}
-|               "__asm"                 { if !Cprint.msvcMode then
-                                             MSASM (msasm lexbuf, currentLoc ())
-                                          else (ASM (currentLoc ())) }
+|               "__asm"                 { (ASM (currentLoc ())) }
 
 (* If we see __pragma we eat it and the matching parentheses as well *)
 |               "__pragma"              { matchingParsOpen := 0;

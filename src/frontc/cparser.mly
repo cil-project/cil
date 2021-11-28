@@ -905,17 +905,9 @@ statement:
                         { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
 |   TRY block EXCEPT paren_comma_expression block
-                        { let b, _, _ = $2 in
-                          let h, _, _ = $5 in
-                          if not !Cprint.msvcMode then
-                            parse_error "try/except in GCC code";
-                          TRY_EXCEPT (b, COMMA (fst $4), h, (*handleLoc*) $1) }
+                        { failwith "try/except in GCC code" }
 |   TRY block FINALLY block
-                        { let b, _, _ = $2 in
-                          let h, _, _ = $4 in
-                          if not !Cprint.msvcMode then
-                            parse_error "try/finally in GCC code";
-                          TRY_FINALLY (b, h, (*handleLoc*) $1) }
+                        { failwith "try/finally in GCC code" }
 
 |   error location   SEMICOLON   { (NOP $2)}
 ;

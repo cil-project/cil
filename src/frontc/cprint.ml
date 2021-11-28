@@ -66,8 +66,6 @@ open Whitetrack
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
 
-let msvcMode = ref false
-
 let printLn = ref true
 let printLnComment = ref false
 
@@ -684,11 +682,7 @@ and print_statement stat =
       let print_asm_operand (identop,cnstr, e) =
         print_string cnstr; space (); print_expression_level 100 e
       in
-      if !msvcMode then begin
-        print "__asm {";
-        print_list (fun () -> new_line()) print tlist; (* templates *)
-        print "};"
-      end else begin
+      begin
         print "__asm__ ";
         print_attributes attrs;
         print "(";

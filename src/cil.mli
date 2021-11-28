@@ -2739,7 +2739,3 @@ val truncateInteger64: ikind -> int64 -> int64 * bool
 (** @deprecated.  For compatibility with older programs, these are
     aliases for {!Cil.builtinFunctions} *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
-
-(** @deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
-val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t
