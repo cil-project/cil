@@ -82,26 +82,7 @@ AC_EXEEXT
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
 
-# is the microsoft compiler available?
-# hmm.. I think we should check the version or something, because
-# sometimes people have Common Lisp's interpreter called 'cl' ..
-AC_MSG_CHECKING(for msvc cl.exe (optional))
-# See if CC points to the MS compiler
-if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
-  AC_MSG_RESULT([found, set as default])
-  HAS_MSVC=yes
-  DEFAULT_COMPILER=_MSVC
-  DEFAULT_CIL_MODE=MSVC
-  CFLAGS="-WX"
-else
-  if cl 2>&1 | grep "Microsoft" >/dev/null ;then
-     AC_MSG_RESULT(found)
-     HAS_MSVC=yes
-  else
-     AC_MSG_RESULT(not found)
-     HAS_MSVC=no
-  fi
-fi
+HAS_MSVC=no
 
 # ------------------- OCaml ----------------
 
@@ -216,7 +197,6 @@ AC_OUTPUT
 cat <<EOF
 
 CIL configuration:
-  (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION
