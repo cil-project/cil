@@ -66,7 +66,6 @@ options:
   --verbose    Prints a lot of information about what is being done
   --mode=xxx   What tool to emulate: 
                 GNUCC   - GNU CC
-                MSVC    - MS VC cl compiler
                 EDG     - EDG front end
 
   --dest=xxx   The destination directory. Will make one if it does not exist
@@ -77,9 +76,6 @@ options:
  
   --clean       Remove all files in the destination directory
   --skipmissing Skip patches for files whose original cannot be found
-  --stdoutpp    For MSVC only, use the "preprocess to stdout" mode. This 
-                is for some versions of MSVC that do not support 
-                well the /P file
   --dumpversion Print the version name used for the current compiler
 
  All of the other arguments are passed to the preprocessor.
@@ -97,7 +93,7 @@ my %option;
     (\%option,
      "--help",            # Display help information
      "--verbose|v",       # Display information about programs invoked
-     "--mode=s",          # The mode (GNUCC, MSVC)
+     "--mode=s",          # The mode (GNUCC)
      "--dest=s",          # The destination directory
      "--patch=s@",         # Patch files
      "--ufile=s@",         # User include files
@@ -204,36 +200,22 @@ exit $hadError;
 sub findCompilerVersion {
     $cname = "";
     $cversion = 0;
-    if($option{mode} eq "GNUCC") {
-        $cname = "GNU CC";
-        open(VER, "$::cc -dumpversion $ppargs|") 
-            || die "Cannot start $cname";
-        while(<VER>) {
-            # sm: had to modify this to match "egcs-2.91.66", which is
-            # how egcs responds to the -dumpversion request
-            if($_ =~ m|^(\d+\S+)|  ||
-               $_ =~ m|^(egcs-\d+\S+)|) {
-                $cversion = "gcc_$1";
-                close(VER) || die "Cannot start $cname\n";
-                return;
-            }
+    $cname = "GNU CC";
+    open(VER, "$::cc -dumpversion $ppargs|") 
+        || die "Cannot start $cname";
+    while(<VER>) {
+        # sm: had to modify this to match "egcs-2.91.66", which is
+        # how egcs responds to the -dumpversion request
+        if($_ =~ m|^(\d+\S+)|  ||
+            $_ =~ m|^(egcs-\d+\S+)|) {
+            $cversion = "gcc_$1";
+            close(VER) || die "Cannot start $cname\n";
+            return;
         }
-        die "Cannot find the version for GCC\n";
     }
-    if($option{mode} eq "MSVC") {
-        $cname = "Microsoft cl";
-        $ppargs =~ s|/nologo||g;
-        open(VER, "cl $ppargs 2>&1|") || die "Cannot start $cname: cl $ppargs\n";
-        while(<VER>) {
-            if($_ =~ m|Compiler Version (\S+) |) {
-                $cversion = "cl_$1";
-                close(VER);
-                return;
-            }
-        }
-        die "Cannot find the version for Microsoft CL\n";
-    }
-    die "You must specify a --mode (either GNUCC or MSVC)";
+    die "Cannot find the version for GCC\n";
+    
+    die "You must specify a --mode (GNUCC)";
 }
 
 sub lineDirective {
@@ -241,7 +223,7 @@ sub lineDirective {
     if($::iswin32) {
         $fileName =~ s|\\|/|g;
     }
-    if($option{mode} eq "GNUCC" || $option{mode} eq "MSVC") {
+    if($option{mode} eq "GNUCC") {
         return "#line $lineno \"$fileName\"\n";
     }
     if($option{mode} eq "EDG") {
@@ -269,18 +251,7 @@ sub patchOneFile {
 	                          # ignore stderr (e.g. #error directives)
 	    $preproccmd .= " 2>/dev/null";
 	}
-    } elsif($option{mode} eq "MSVC") {
-        if($option{stdoutpp}) {
-            $preproccmd = "cl /nologo /E $ppargs >$preprocfile.i";
-        } else {
-            $preproccmd = "cl /nologo /P $ppargs $preprocfile.c";
-        }
     } else { die "Invalid --mode"; }
-
-    if(system($preproccmd) && $option{mode} eq "MSVC" ) {
-        # For some reason the gcc returns spurious error codes
-        die "Error running preprocessor: $preproccmd"
-    }
     
     # Now scan the resulting file and get the real name of the file
     my $absname = "";

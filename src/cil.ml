@@ -672,8 +672,7 @@ and init =
              * initializers; the rest are 0-initialized.
              * For unions there must be exactly one initializer. If
              * the initializer is not for the first field then a field
-             * designator is printed, so you better be on GCC since MSVC does
-             * not understand this. You can scan an initializer list with
+             * designator is printed. You can scan an initializer list with
              * {!Cil.foldLeftCompound}. *)
 
 (** We want to be able to update an initializer in a global variable, so we

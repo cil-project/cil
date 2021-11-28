@@ -820,7 +820,7 @@ and init =
      * bitfields), in the proper order. This is necessary since the offsets
      * are not printed. For unions there must be exactly one initializer. If
      * the initializer is not for the first field then a field designator is
-     * printed, so you better be on GCC since MSVC does not understand this.
+     * printed.
      * For arrays, however, we allow you to give only a prefix of the
      * initializers. You can scan an initializer list with
      * {!Cil.foldLeftCompound}. *)

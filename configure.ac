@@ -82,7 +82,6 @@ AC_EXEEXT
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
 
-HAS_MSVC=no
 
 # ------------------- OCaml ----------------
 
@@ -136,7 +135,6 @@ AC_COMPILE_IFELSE([AC_LANG_SOURCE([int main(int __thread) { return 0; }])],
 AC_MSG_RESULT($THREAD_IS_KEYWORD)
 
 # Does gcc add underscores to identifiers to make assembly labels?
-# (I think MSVC always does)
 AC_MSG_CHECKING([if gcc adds underscores to assembly labels.])
 AC_LINK_IFELSE([AC_LANG_SOURCE([int main() { __asm__("jmp _main"); }])],
                   UNDERSCORE_NAME=true,
@@ -167,7 +165,6 @@ CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
 AC_SUBST(EMUL)
-AC_SUBST(HAS_MSVC)
 AC_SUBST(DEFAULT_COMPILER)
 AC_SUBST(DEFAULT_CIL_MODE)
 AC_SUBST(CIL_VERSION_MAJOR)

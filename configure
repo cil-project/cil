@@ -655,7 +655,6 @@ CIL_VERSION_MINOR
 CIL_VERSION_MAJOR
 DEFAULT_CIL_MODE
 DEFAULT_COMPILER
-HAS_MSVC
 EMUL
 LIBOBJS
 CYGPATH
@@ -3470,7 +3469,6 @@ test -n "$target_alias" &&
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
 
-HAS_MSVC=no
 
 # ------------------- OCaml ----------------
 
@@ -5243,7 +5241,6 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 printf "%s\n" "$THREAD_IS_KEYWORD" >&6; }
 
 # Does gcc add underscores to identifiers to make assembly labels?
-# (I think MSVC always does)
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if gcc adds underscores to assembly labels." >&5
 printf %s "checking if gcc adds underscores to assembly labels.... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -6012,7 +6009,6 @@ printf "%s\n" "$real_type" >&6; }
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
-
 
 
 
