@@ -1,6 +1,7 @@
 ## Unreleased
 * Add ends to locations, allowing for ranges.
 * Add additional expression locations to statements, etc.
+* Drop all support for MSVC
 
 ## Older versions
 
