@@ -6199,8 +6199,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   (* A loop falls through if it can break. *)
                   blockCanBreak b
               | Block b -> blockFallsThrough b
-              | TryFinally (b, h, _) -> blockFallsThrough h
-              | TryExcept (b, _, h, _) -> true (* Conservative *)
             and blockFallsThrough b =
               let rec fall = function
                   [] -> true
@@ -6246,8 +6244,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                   (* switches and loops catch any breaks in their bodies *)
                   false
               | Block b -> blockCanBreak b
-              | TryFinally (b, h, _) -> blockCanBreak b || blockCanBreak h
-              | TryExcept (b, _, h, _) -> blockCanBreak b || blockCanBreak h
             and blockCanBreak b =
               List.exists stmtCanBreak b.bstmts
             in
@@ -6741,40 +6737,6 @@ and doStatement (s : A.statement) : chunk =
 	in
         !stmts @@
         (i2c (Asm(attr', tmpls', outs', ins', clobs', loc')))
-
-    | TRY_FINALLY (b, h, loc) ->
-        let loc' = convLoc loc in
-        currentLoc := loc';
-        let b': chunk = doBody b in
-        let h': chunk = doBody h in
-        if b'.cases <> [] || h'.cases <> [] then
-          E.s (error "Try statements cannot contain switch cases");
-
-        s2c (mkStmt (TryFinally (c2block b', c2block h', loc')))
-
-    | TRY_EXCEPT (b, e, h, loc) ->
-        let loc' = convLoc loc in
-        currentLoc := loc';
-        (* TODO: eloc for TRY_EXCEPT doExp? *)
-        let b': chunk = doBody b in
-        (* Now do e *)
-        let ((se: chunk), e', t') = doExp false e (AExp None) in
-        let h': chunk = doBody h in
-        if b'.cases <> [] || h'.cases <> [] || se.cases <> [] then
-          E.s (error "Try statements cannot contain switch cases");
-        (* Now take se and try to convert it to a list of instructions. This
-         * might not be always possible *)
-        let il' =
-          match compactStmts se.stmts with
-            [] -> se.postins
-          | [ s ] -> begin
-              match s.skind with
-                Instr il -> il @ se.postins
-              | _ -> E.s (error "Except expression contains unexpected statement")
-            end
-          | _ -> E.s (error "Except expression contains too many statements")
-        in
-        s2c (mkStmt (TryExcept (c2block b', (il', e'), c2block h', loc')))
 
   with e when continueOnError -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));

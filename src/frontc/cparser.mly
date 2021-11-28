@@ -284,7 +284,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> BREAK CONTINUE GOTO RETURN
 %token<Cabs.cabsloc> SWITCH CASE DEFAULT
 %token<Cabs.cabsloc> WHILE DO FOR
-%token<Cabs.cabsloc> IF TRY EXCEPT FINALLY
+%token<Cabs.cabsloc> IF
 %token ELSE
 
 %token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
@@ -904,11 +904,6 @@ statement:
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
-|   TRY block EXCEPT paren_comma_expression block
-                        { failwith "try/except in GCC code" }
-|   TRY block FINALLY block
-                        { failwith "try/finally in GCC code" }
-
 |   error location   SEMICOLON   { (NOP $2)}
 ;
 

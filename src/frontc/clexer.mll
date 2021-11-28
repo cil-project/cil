@@ -205,9 +205,6 @@ let init_lexicon _ =
       ("__declspec", fun loc -> DECLSPEC loc);
       ("__forceinline", fun loc -> INLINE loc); (* !! we turn forceinline
                                                  * into inline *)
-      ("__try", fun loc -> TRY loc);
-      ("__except", fun loc -> EXCEPT loc);
-      ("__finally", fun loc -> FINALLY loc);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
       ("__builtin_va_list",

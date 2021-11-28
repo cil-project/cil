@@ -230,10 +230,6 @@ and statement =
           asm_details option * (* extra details to guide GCC's optimizer *)
           cabsloc
 
-   (* MS SEH *)
- | TRY_EXCEPT of block * expression * block * cabsloc
- | TRY_FINALLY of block * block * cabsloc
-
 and for_clause =
    FC_EXP of expression
  | FC_DECL of definition

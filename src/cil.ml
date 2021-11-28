@@ -804,27 +804,6 @@ and stmtkind =
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
                                             local *)
-  | TryFinally of block * block * location
-    (** On MSVC we support structured exception handling. This is what you
-     * might expect. Control can get into the finally block either from the
-     * end of the body block, or if an exception is thrown. The location
-     * corresponds to the try keyword. *)
-  | TryExcept of block * (instr list * exp) * block * location
-    (** On MSVC we support structured exception handling. The try/except
-     * statement is a bit tricky:
-         __try { blk }
-         __except (e) {
-            handler
-         }
-
-         The argument to __except  must be an expression. However, we keep a
-         list of instructions AND an expression in case you need to make
-         function calls. We'll print those as a comma expression. The control
-         can get to the __except expression only if an exception is thrown.
-         After that, depending on the value of the expression the control
-         goes to the handler, propagates the exception, or retries the
-         exception !!! The location corresponds to the try keyword.
-     *)
 
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
@@ -1165,8 +1144,6 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
-    | TryFinally (_, _, l) -> l
-    | TryExcept (_, _, _, l) -> l
 
 
 (* The next variable identifier to use. Counts up *)
@@ -3982,34 +3959,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
     | Block b -> align ++ self#pBlock () b
 
-    | TryFinally (b, h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __fin" ++ align ++ text "ally "
-          ++ self#pBlock () h
-
-    | TryExcept (b, (il, e), h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __e" ++ align ++ text "xcept(" ++ line
-          ++ align
-          (* Print the instructions but with a comma at the end, instead of
-           * semicolon *)
-          ++ (printInstrTerminator <- ",";
-              let res =
-                (docList ~sep:line (self#pInstr ())
-                   () il)
-              in
-              printInstrTerminator <- ";";
-              res)
-          ++ self#pExp () e
-          ++ text ") " ++ unalign
-          ++ self#pBlock () h
-
 
   (*** GLOBALS ***)
   method pGlobal () (g:global) : doc =       (* global (vars, types, etc.) *)
@@ -5432,29 +5381,6 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Block b ->
         let b' = fBlock b in
         if b' != b then Block b' else s.skind
-    | TryFinally (b, h, l) ->
-        let b' = fBlock b in
-        let h' = fBlock h in
-        if b' != b || h' != h then TryFinally(b', h', l) else s.skind
-    | TryExcept (b, (il, e), h, l) ->
-        let b' = fBlock b in
-        assertEmptyQueue vis;
-        (* visit the instructions *)
-        let il' = mapNoCopyList fInst il in
-        (* Visit the expression *)
-        let e' = fExp e in
-        let il'' =
-          let more = vis#unqueueInstr () in
-          if more != [] then
-            il' @ more
-          else
-            il'
-        in
-        let h' = fBlock h in
-        (* Now collect the instructions *)
-        if b' != b || il'' != il || e' != e || h' != h then
-          TryExcept(b', (il'', e'), h', l)
-        else s.skind
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
@@ -5942,13 +5868,6 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
       | Switch (e, b, _, _, _) -> peepHole1 doone b.bstmts
       | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
-      | TryFinally (b, h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts;
-          s.skind <- TryExcept(b, (doInstrList il, e), h, l);
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
 
@@ -5976,12 +5895,6 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
       | Switch (e, b, _, _, _) -> peepHole2 dotwo b.bstmts
       | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
-      | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
-                                peepHole2 dotwo h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole2 dotwo b.bstmts;
-          peepHole2 dotwo h.bstmts;
-          s.skind <- TryExcept (b, (doInstrList il, e), h, l)
 
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
@@ -6589,8 +6502,7 @@ and succpred_stmt s fallthrough rlabels =
                 | hd :: tl -> link s hd ;
                     succpred_block b fallthrough rlabels
                 end
-  | TryExcept _ | TryFinally _ ->
-      failwith "computeCFGInfo: structured exception handling not implemented"
+
 
 let caseRangeFold (l: label list) =
   let rec fold acc = function
@@ -6779,8 +6691,6 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
           s.skind <- Block new_block
   | Block(b) -> xform_switch_block b break_dest cont_dest
 
-  | TryExcept _ | TryFinally _ ->
-      failwith "xform_switch_statement: structured exception handling not implemented"
 
 end and xform_switch_block b break_dest cont_dest =
   try

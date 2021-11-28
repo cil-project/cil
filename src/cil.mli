@@ -1003,28 +1003,6 @@ and stmtkind =
     (** Just a block of statements. Use it as a way to keep some block
      * attributes local *)
 
-  | TryFinally of block * block * location
-    (** On MSVC we support structured exception handling. This is what you
-     * might expect. Control can get into the finally block either from the
-     * end of the body block, or if an exception is thrown. *)
-
-  | TryExcept of block * (instr list * exp) * block * location
-    (** On MSVC we support structured exception handling. The try/except
-     * statement is a bit tricky:
-         [__try { blk }
-         __except (e) {
-            handler
-         }]
-
-         The argument to __except  must be an expression. However, we keep a
-         list of instructions AND an expression in case you need to make
-         function calls. We'll print those as a comma expression. The control
-         can get to the __except expression only if an exception is thrown.
-         After that, depending on the value of the expression the control
-         goes to the handler, propagates the exception, or retries the
-         exception !!!
-     *)
-
 (** {b Instructions}.
  An instruction {!Cil.instr} is a statement that has no local
 (intraprocedural) control flow. It can be either an assignment,

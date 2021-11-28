@@ -221,7 +221,6 @@ module ForwardsDataFlow =
                 List.fold_left handleInstruction curr il
 
             | Goto _ | ComputedGoto _ | Break _ | Continue _ | If _
-            | TryExcept _ | TryFinally _
             | Switch _ | Loop _ | Return _ | Block _ -> curr
           in
           currentLoc := get_stmtLoc s.skind;
