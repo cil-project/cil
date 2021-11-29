@@ -540,9 +540,8 @@ and print_expression_level (lvl: int) (exp : expression) =
       printl ["__alignof__";"("];
       print_onlytype (bt, dt);
       print ")"
-  | GENERIC (exp, lst) -> 
-      (* TODO: is this right? *)
-      let print_generic_list l =
+  | GENERIC (exp, lst) ->
+      let rec print_generic_list l =
         match l with 
         [] -> ()
         | (t, e) :: tl ->
@@ -550,6 +549,7 @@ and print_expression_level (lvl: int) (exp : expression) =
           print_onlytype t; 
           print ": ";
           print_expression_level 0 e;
+          print_generic_list tl
       in
       printl ["_Generic";"("];
       print_expression_level 0 exp;
