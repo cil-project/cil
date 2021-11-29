@@ -615,11 +615,7 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
  * a struct we must recursively strip the "const" from fields and array
  * elements. *)
 let rec stripConstLocalType (t: typ) : typ =
-  let dc a =
-    if hasAttribute "pconst" a then
-      dropAttribute "pconst" a
-    else a
-  in
+  let dc = dropAttribute "pconst" in
   match t with
   | TPtr (bt, a) ->
       (* We want to be able to detect by pointer equality if the type has
