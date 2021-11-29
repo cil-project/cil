@@ -40,10 +40,6 @@ my $freebsd = $^O eq 'freebsd';
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 
-# am I using egcs?
-my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
-
-
 my $make;
 if ($solaris || $freebsd) {
     $make = "gmake";

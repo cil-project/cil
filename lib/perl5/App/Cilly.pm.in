@@ -1788,7 +1788,7 @@ sub setVersion {
          . join(' ', @{$self->{PPARGS}}) ." |")
         || die "Cannot start GNUCC";
     while(<VER>) {
-        if($_ =~ m|^(\d+\S*)| || $_ =~ m|^(egcs-\d+\S*)|) {
+        if($_ =~ m|^(\d+\S*)|) {
             $cversion = "gcc_$1";
             close(VER) || die "Cannot start GNUCC\n";
             $self->{CVERSION} = $cversion;

@@ -203,10 +203,7 @@ sub findCompilerVersion {
     open(VER, "$::cc -dumpversion $ppargs|")
         || die "Cannot start $cname";
     while(<VER>) {
-        # sm: had to modify this to match "egcs-2.91.66", which is
-        # how egcs responds to the -dumpversion request
-        if($_ =~ m|^(\d+\S+)|  ||
-            $_ =~ m|^(egcs-\d+\S+)|) {
+        if($_ =~ m|^(\d+\S+)|) {
             $cversion = "gcc_$1";
             close(VER) || die "Cannot start $cname\n";
             return;
