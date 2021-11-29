@@ -1414,7 +1414,7 @@ type attributeClass =
  * conversion *)
 let attributeHash: (string, attributeClass) H.t =
   let table = H.create 13 in
-  List.iter (fun a -> H.add table a (AttrName))
+  List.iter (fun a -> H.add table a AttrName)
     [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak";
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
@@ -1422,18 +1422,18 @@ let attributeHash: (string, attributeClass) H.t =
                            * assembly for a global  *)];
 
   (* Now come the MSVC declspec attributes *)
-  List.iter (fun a -> H.add table a (AttrName))
+  List.iter (fun a -> H.add table a AttrName)
     [ "thread"; "naked"; "dllimport"; "dllexport";
       "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
       "uuid"; "align" ];
 
-  List.iter (fun a -> H.add table a (AttrFunType))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "format"; "regparm"; "longcall";
       "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
-  List.iter (fun a -> H.add table a (AttrFunType))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "stdcall";"cdecl"; "fastcall" ];
 
   List.iter (fun a -> H.add table a AttrType)
@@ -1953,7 +1953,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
