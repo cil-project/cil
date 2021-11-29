@@ -195,13 +195,6 @@ let init_lexicon _ =
       ("__int32", fun loc -> INT loc);
       ("__int64", fun _ -> INT64 (currentLoc ()));
       ("__int128", fun _ -> INT128 (currentLoc ()));
-      ("_cdecl",  fun _ -> MSATTR ("_cdecl", currentLoc ()));
-      ("__cdecl", fun _ -> MSATTR ("__cdecl", currentLoc ()));
-      ("_stdcall", fun _ -> MSATTR ("_stdcall", currentLoc ()));
-      ("__stdcall", fun _ -> MSATTR ("__stdcall", currentLoc ()));
-      ("_fastcall", fun _ -> MSATTR ("_fastcall", currentLoc ()));
-      ("__fastcall", fun _ -> MSATTR ("__fastcall", currentLoc ()));
-      ("__w64", fun _ -> MSATTR("__w64", currentLoc ()));
       ("__declspec", fun loc -> DECLSPEC loc);
       ("__forceinline", fun loc -> INLINE loc); (* !! we turn forceinline
                                                  * into inline *)

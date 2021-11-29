@@ -294,7 +294,6 @@ let transformOffsetOf (speclist, dtype) member =
 %token BLOCKATTRIBUTE
 %token<Cabs.cabsloc> BUILTIN_TYPES_COMPAT BUILTIN_OFFSETOF
 %token<Cabs.cabsloc> DECLSPEC
-%token<string * Cabs.cabsloc> MSASM MSATTR
 %token<string * Cabs.cabsloc> PRAGMA_LINE
 %token<Cabs.cabsloc> PRAGMA
 %token PRAGMA_EOL
@@ -903,7 +902,6 @@ statement:
                                  { COMPGOTO (smooth_expression (fst $3), joinLoc $1 $4) }
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { ASM ($2, $4, $5, joinLoc $1 $7) }
-|   MSASM               { ASM ([], [fst $1], None, (*handleLoc*)(snd $1))}
 |   error location   SEMICOLON   { (NOP $2)}
 ;
 
@@ -1304,7 +1302,6 @@ attribute_nocv:
                                              [ VARIABLE "used" ]), $1 }
 *)*/
 |   DECLSPEC paren_attr_list_ne         { ("__declspec", $2), $1 }
-|   MSATTR                              { (fst $1, []), snd $1 }
                                         /* ISO 6.7.3 */
 |   THREAD                              { ("__thread",[]), $1 }
 |   QUALIFIER                     {("__attribute__",[VARIABLE(fst $1)]),snd $1}
