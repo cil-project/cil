@@ -642,7 +642,7 @@ and checkInit  (i: init) : typ =
                 | None -> 0L
                 | Some e -> (ignore (checkExp true e);
                 match getInteger (constFold true e) with
-                  Some len -> Z.to_int64 len (* Z on purpose, we don;t want to ingore overflows here *)
+                  Some len -> Z.to_int64 len (* Z on purpose, we don't want to ignore overflows here *)
                 | None ->
                     ignore (warn "Array length is not a constant");
                     0L)
