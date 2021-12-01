@@ -2732,38 +2732,18 @@ let parseInt (str: string) : exp =
           b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
              warning in C99 mode vs. unsigned long long if c99mode is off. *)
   in
-    (* Convert to integer. To prevent overflow we do the arithmetic on
-     * cilints. We work only with positive integers since the lexer
-     * takes care of the sign *)
-  let rec toInt (base: cilint) (acc: cilint) (idx: int) : cilint =
-    let doAcc (what: int) =
-      let acc' = add_cilint (mul_cilint base acc)  (cilint_of_int what) in
-      toInt base acc' (idx + 1)
-    in
-    if idx >= l - suffixlen then begin
-      acc
-    end else
-      let ch = String.get str idx in
-      if ch >= '0' && ch <= '9' then
-        doAcc (Char.code ch - Char.code '0')
-      else if  ch >= 'a' && ch <= 'f'  then
-        doAcc (10 + Char.code ch - Char.code 'a')
-      else if  ch >= 'A' && ch <= 'F'  then
-        doAcc (10 + Char.code ch - Char.code 'A')
-      else
-        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)"
-               str ch idx)
-  in
-  let i =
+  let start, base =
     if octalhex then
-      if l >= 2 &&
-        (let c = String.get str 1 in c = 'x' || c = 'X') then
-          toInt (cilint_of_int 16) zero_cilint 2
+      if l >= 2 && (let c = String.get str 1 in c = 'x' || c = 'X') then
+        2, 16
       else
-        toInt (cilint_of_int 8) zero_cilint 1
+        1, 8
     else
-      toInt (cilint_of_int 10) zero_cilint 0
+     0, 10
   in
+  let t = String.sub str start (String.length str - start - suffixlen) in
+  (* Normal Z.of_string does not work here as 0 is not recognized as the prefix for octal here *)
+  let i = Z.of_string_base base t in
   (* Construct an integer of the first kinds that fits. i must be
    * POSITIVE  *)
   let res =
