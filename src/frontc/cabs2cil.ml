@@ -236,9 +236,9 @@ let interpret_character_constant char_list =
   else begin
     let orig_rep = None (* Some("'" ^ (String.escaped str) ^ "'") *) in
     if compare_cilint value (cilint_of_int64 (Int64.of_int32 Int32.max_int)) <= 0 then
-      (CInt64(value,IULong,orig_rep)),(TInt(IULong,[]))
+      (CInt(value,IULong,orig_rep)),(TInt(IULong,[]))
     else
-      (CInt64(value,IULongLong,orig_rep)),(TInt(IULongLong,[])) (* 128bit constants are only supported if long long is also 128bit wide *)
+      (CInt(value,IULongLong,orig_rep)),(TInt(IULongLong,[])) (* 128bit constants are only supported if long long is also 128bit wide *)
   end
 
 (*** EXPRESSIONS *************)
@@ -1038,7 +1038,7 @@ module BlockChunk =
         let constFold = constFold false in
         let e'' = if !lowerConstants then constFold e' else e' in
         begin match (constFold e), (constFold e'') with
-              | Const(CInt64(i1, _, _)), Const(CInt64(i2, _, _))
+              | Const(CInt(i1, _, _)), Const(CInt(i2, _, _))
               when i1 <> i2 ->
                 ignore (warnOpt
               "Case label %a exceeds range for switch expression" d_exp e);
@@ -1439,7 +1439,7 @@ let checkBool (ot : typ) (e : exp) : bool =
    is it a nonzero constant? *)
 let rec isConstTrue (e:exp): bool =
   match e with
-  | Const(CInt64 (n,_,_)) -> not (is_zero_cilint n)
+  | Const(CInt (n,_,_)) -> not (is_zero_cilint n)
   | Const(CChr c) -> 0 <> Char.code c
   | Const(CStr _ | CWStr _) -> true
   | Const(CReal(f, _, _)) -> f <> 0.0;
@@ -1451,7 +1451,7 @@ let rec isConstTrue (e:exp): bool =
    On constant expressions, either isConstTrue or isConstFalse will hold. *)
 let rec isConstFalse (e:exp): bool =
   match e with
-  | Const(CInt64 (n,_,_)) -> is_zero_cilint n
+  | Const(CInt (n,_,_)) -> is_zero_cilint n
   | Const(CChr c) -> 0 = Char.code c
   | Const(CReal(f, _, _)) -> f = 0.0;
   | CastE(_, e) -> isConstFalse e
@@ -1933,7 +1933,7 @@ let rec setOneInit (this: preInit)
       let idx, (* Index in the current comp *)
           restoff (* Rest offset *) =
         match o with
-        | Index(Const(CInt64(i,_,_)), off) -> cilint_to_int i, off
+        | Index(Const(CInt(i,_,_)), off) -> cilint_to_int i, off
         | Field (f, off) ->
             (* Find the index of the field *)
             let rec loop (idx: int) = function
@@ -1995,7 +1995,7 @@ let rec collectInitializer
           match leno with
             Some len -> begin
               match constFold true len with
-                Const(CInt64(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
+                Const(CInt(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
                   (cilint_to_int ni), TArray(bt,leno,at)
 
               | _ -> E.s (error "Array length is not a constant expression %a"
@@ -2735,7 +2735,7 @@ and doAttr (a: A.attribute) : attribute list =
         | A.CONSTANT (A.CONST_STRING s) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> begin
             match parseInt str with
-              Const (CInt64 (v64,_,_)) ->
+              Const (CInt (v64,_,_)) ->
                 AInt (cilint_to_int v64)
             | _ ->
                 E.s (error "Invalid attribute constant: %s")
@@ -2920,7 +2920,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                     E.s (error "Array length %a does not have an integral type.")
                   else
                     match constFold true len' with
-                      | Const(CInt64(i, ik, _)) ->
+                      | Const(CInt(i, ik, _)) ->
                         (* If len' is a constant, we check that the array size is non-negative *)
                         let elems = mkCilintIk ik i in
                         if compare_cilint elems zero_cilint < 0 then
@@ -3234,7 +3234,7 @@ and getIntConstExp (aexp) : exp =
     E.s (error "Constant expression %a has effects" d_exp e);
   match e with
     (* first, filter for those Const exps that are integers *)
-  | Const (CInt64 _ ) -> e
+  | Const (CInt _ ) -> e
   | Const (CEnum _) -> e
   | Const (CChr i) -> Const(charConstToInt i)
 
@@ -3484,7 +3484,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 	      match s with
 		[] -> []
 	      | wc::rest ->
-		  let wc_cilexp = Const (CInt64(wc, IInt, None)) in
+		  let wc_cilexp = Const (CInt(wc, IInt, None)) in
                   (Index(integer idx, NoOffset),
                    SingleInit (makeCast wc_cilexp wchar_t))
                   :: loop (idx + 1) rest
@@ -3786,7 +3786,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           let tres = integralPromotion t in
           let e'' =
             match e', tres with
-            | Const(CInt64(i, _, _)), TInt(ik, _) -> kintegerCilint ik (neg_cilint i)
+            | Const(CInt(i, _, _)), TInt(ik, _) -> kintegerCilint ik (neg_cilint i)
             | _ -> UnOp(Neg, makeCastT ~e:e' ~oldt:t ~newt:tres, tres)
           in
           finishExp se e'' tres
@@ -4455,11 +4455,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               (match !pargs with
                 [ ptr; typ ] -> begin
                   match constFold true typ with
-                  | Const (CInt64 (a,_,_)) when is_zero_cilint a || compare_cilint one_cilint a = 0 ->
+                  | Const (CInt (a,_,_)) when is_zero_cilint a || compare_cilint one_cilint a = 0 ->
                           piscall := false;
                           pres := kinteger !kindOfSizeOf (-1);
                           prestype := !typeOfSizeOf
-                  | Const (CInt64 (a,_,_)) when compare_cilint (cilint_of_int 2) a = 0  || compare_cilint (cilint_of_int 3) a = 0  ->
+                  | Const (CInt (a,_,_)) when compare_cilint (cilint_of_int 2) a = 0  || compare_cilint (cilint_of_int 3) a = 0  ->
                           piscall := false;
                           pres := kinteger !kindOfSizeOf 0;
                           prestype := !typeOfSizeOf
@@ -4704,8 +4704,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           let e3'' = makeCastT e3' t3' tresult in
           let resexp =
             match e1' with
-              Const(CInt64(i, _, _)) when i <> Int64.zero -> e2''
-            | Const(CInt64(z, _, _)) when z = Int64.zero -> e3''
+              Const(CInt(i, _, _)) when i <> Int64.zero -> e2''
+            | Const(CInt(z, _, _)) when z = Int64.zero -> e3''
             | _ -> Question(e1', e2'', e3'')
           in
           finishExp se1 resexp tresult
@@ -4939,7 +4939,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
       match ce1, ce2 with
-        CEExp (se1, (Const(CInt64 _) as ci1)), _ ->
+        CEExp (se1, (Const(CInt _) as ci1)), _ ->
           if isConstFalse ci1 then
             addChunkBeforeCE se1 ce2
           else
@@ -5006,8 +5006,8 @@ and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
 
   | CEExp (se, e) -> begin
       match e with
-        Const(CInt64(i,_,_)) when not (is_zero_cilint i) && canDrop sf -> se @@ st
-      | Const(CInt64(z,_,_)) when is_zero_cilint z && canDrop st -> se @@ sf
+        Const(CInt(i,_,_)) when not (is_zero_cilint i) && canDrop sf -> se @@ st
+      | Const(CInt(z,_,_)) when is_zero_cilint z && canDrop st -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc !currentExpLoc st sf
   end
 
@@ -5406,7 +5406,7 @@ and doInit
                     let (doidx, idxe', _) =
                       doExp true idx (AExp(Some intType)) in
                     match constFold true idxe', isNotEmpty doidx with
-                      Const(CInt64(x, _, _)), false -> cilint_to_int x, doidx
+                      Const(CInt(x, _, _)), false -> cilint_to_int x, doidx
                     | _ -> E.s (error
                       "INDEX initialization designator is not a constant")
                   in
@@ -5441,8 +5441,8 @@ and doInit
               E.s (error "Range designators are not constants");
             let first, last =
               match constFold true idxs', constFold true idxe' with
-                Const(CInt64(s, _, _)),
-                Const(CInt64(e, _, _)) ->
+                Const(CInt(s, _, _)),
+                Const(CInt(e, _, _)) ->
                   cilint_to_int s, cilint_to_int e
               | _ -> E.s (error
                  "INDEX_RANGE initialization designator is not a constant")
@@ -6378,7 +6378,7 @@ and assignInit (lv: lval)
       match leno with
         Some len -> begin
           match constFold true len with
-            Const(CInt64(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
+            Const(CInt(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
               (* Write any initializations in initl using one
                  instruction per element. *)
               let b = foldLeftCompound
@@ -6396,17 +6396,17 @@ and assignInit (lv: lval)
                 (* Use a loop for any remaining initializations *)
                 let ctrv = newTempVar (text "init counter") true uintType in
                 let ctrlval = Var ctrv, NoOffset in
-                let init = Set(ctrlval, Const(CInt64(cilint_of_int ilen, IUInt, None)), !currentLoc, !currentExpLoc) in
+                let init = Set(ctrlval, Const(CInt(cilint_of_int ilen, IUInt, None)), !currentLoc, !currentExpLoc) in
                 startLoop false;
                 let bodyc =
                   let ifc =
                     let ife =
-                      BinOp(Ge, Lval ctrlval, Const(CInt64(ni, IUInt, None)), intType) in
+                      BinOp(Ge, Lval ctrlval, Const(CInt(ni, IUInt, None)), intType) in
                     ifChunk ife !currentLoc locUnknown (breakChunk !currentLoc) skipChunk
                   in
                   let dest = addOffsetLval (Index(Lval ctrlval, NoOffset)) lv in
                   let assignc = assignInit dest (makeZeroInit bt) bt empty in
-                  let inci = Set(ctrlval, BinOp(PlusA, Lval ctrlval, Const(CInt64(one_cilint, IUInt, None)), uintType), !currentLoc, !currentExpLoc) in
+                  let inci = Set(ctrlval, BinOp(PlusA, Lval ctrlval, Const(CInt(one_cilint, IUInt, None)), uintType), !currentLoc, !currentExpLoc) in
                   (ifc @@ assignc) +++ inci in
                 exitLoop ();
                 let loopc = loopChunk bodyc in

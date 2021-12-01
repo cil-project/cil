@@ -652,7 +652,7 @@ and checkInit  (i: init) : typ =
                     if i > len then
                       ignore (warn "Wrong number of initializers in array")
 
-                | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest ->
+                | (Index(Const(CInt(i', _, _)), NoOffset), ei) :: rest ->
                     if Int64.compare (Z.to_int64 i') i <> 0 then
                       ignore (warn "Initializer for index %s when %s was expected"
                                 (Int64.format "%d" (Z.to_int64 i')) (Int64.format "%d" i));

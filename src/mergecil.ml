@@ -506,7 +506,7 @@ let rec combineTypes (what: combineWhat)
         | Some oldsz', Some sz' ->
             let samesz =
               match constFold true oldsz', constFold true sz' with
-                Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+                Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> oldi = i
               | _, _ -> false
             in
             if samesz then oldsz else
@@ -702,7 +702,7 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
             raise (Failure "(different names for enumeration items)");
           let samev =
             match constFold true old_iv, constFold true iv with
-              Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+              Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> oldi = i
             | _ -> false
           in
           if not samev then
@@ -1247,7 +1247,7 @@ begin
     (
       (* CIL changes (unsigned)0 into 0U during printing.. *)
       match xc,yc with
-      | CInt64(a,_,_),CInt64(b,_,_)  when Cilint.is_zero_cilint a && Cilint.is_zero_cilint b -> true  (* ok if they're both 0 *)
+      | CInt(a,_,_),CInt(b,_,_)  when Cilint.is_zero_cilint a && Cilint.is_zero_cilint b -> true  (* ok if they're both 0 *)
       | _,_ -> false
     )
   | Lval(xl), Lval(yl) ->          (equalLvals xl yl)

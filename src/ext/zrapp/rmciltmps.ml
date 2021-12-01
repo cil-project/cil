@@ -287,14 +287,14 @@ let ok_to_replace_with_incdec curiosh defiosh f id vi r =
   let inc_or_dec e vi =
     match e with
       BinOp((PlusA|PlusPI|IndexPI), Lval(Var vi', NoOffset),
-	    Const(CInt64(a,_,_)),_) ->
+	    Const(CInt(a,_,_)),_) ->
 	      if vi.vid = vi'.vid && compare_cilint a one_cilint = 0
 	      then Some(PlusA)
 	      else if vi.vid = vi'.vid && compare_cilint a mone_cilint = 0
 	      then Some(MinusA)
 	      else None
     | BinOp((MinusA|MinusPI), Lval(Var vi', NoOffset),
-	    Const(CInt64(a,_,_)),_) ->
+	    Const(CInt(a,_,_)),_) ->
 	      if vi.vid = vi'.vid && compare_cilint a one_cilint = 0
 	      then Some(MinusA)
 	      else None

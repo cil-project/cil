@@ -543,7 +543,7 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of cilint * ikind * string option
+  | CInt of cilint * ikind * string option
                  (** Integer constant. Give the ikind (see ISO9899 6.1.3.2)
                   * and the textual representation, if available. Use
                   * {!Cil.integer} or {!Cil.kinteger} to create these. *)
@@ -1239,12 +1239,12 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
-let zero      = Const(CInt64(zero_cilint, IInt, None))
+let zero      = Const(CInt(zero_cilint, IInt, None))
 
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extended c, IInt, None) *)
+  Returns CInt(sign-extended c, IInt, None) *)
 let charConstToInt (c: char) : constant =
   let c' = Char.code c in
   let value =
@@ -1252,7 +1252,7 @@ let charConstToInt (c: char) : constant =
     then cilint_of_int c'
     else cilint_of_int (c' - 256)
   in
-  CInt64(value, IInt, None)
+  CInt(value, IInt, None)
 
 
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
@@ -1733,8 +1733,8 @@ let bytesSizeOfInt (ik: ikind): int =
 (* constant *)
 let d_const () c =
   match c with
-    CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
-  | CInt64(i, ik, None) ->
+    CInt(_, _, Some s) -> text s (* Always print the text if there is one *)
+  | CInt(i, ik, None) ->
       (* We must make sure to capture the type of the constant. For some
        * constants this is done with a suffix, for others with a cast prefix.*)
       let suffix : string =
@@ -1901,7 +1901,7 @@ let isFunctionType t =
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ =
   match e with
-  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt (_, ik, _)) -> TInt(ik, [])
 
     (* Character constants have type int.  ISO/IEC 9899:1999 (E),
      * section 6.4.4.4 [Character constants], paragraph 10, if you
@@ -2090,7 +2090,7 @@ let kintegerCilint (k: ikind) (i: cilint) : exp =
   if truncated = BitTruncation && !warnTruncate then
     ignore (warnOpt "Truncating integer %s to %s"
               (string_of_cilint i) (string_of_cilint i'));
-  Const (CInt64(i', k, None))
+  Const (CInt(i', k, None))
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp =
@@ -2138,7 +2138,7 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     Otherwise return None. *)
 let rec getInteger (e:exp) : cilint option =
   match e with
-  | Const(CInt64 (n, ik, _)) -> Some (mkCilintIk ik n)
+  | Const(CInt (n, ik, _)) -> Some (mkCilintIk ik n)
   | Const(CChr c) -> getInteger (Const (charConstToInt c))
   | Const(CEnum(v, _, _)) -> getInteger v
   | CastE(t, e) -> begin
@@ -2402,7 +2402,7 @@ and bitsSizeOf t =
 
   | TArray(bt, Some len, _) -> begin
       match constFold true len with
-        Const(CInt64(l,lk,_)) ->
+        Const(CInt(l,lk,_)) ->
 	  let sz = mul_cilint (mkCilintIk lk l) (cilint_of_int (bitsSizeOf bt)) in
           (* Check for overflow.
              There are other places in these cil.ml that overflow can occur,
@@ -2500,7 +2500,7 @@ and constFold (machdep: bool) (e: exp) : exp =
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt64(i,ik,_)) -> begin
+          Const(CInt(i,ik,_)) -> begin
 	    let ic = mkCilintIk ik i in
             match unop with
               Neg -> kintegerCilint tk (neg_cilint ic)
@@ -2547,12 +2547,12 @@ and constFold (machdep: bool) (e: exp) : exp =
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with
         (* Might truncate silently *)
-      | Const(CInt64(i,k,_)), TInt(nk,a)
+      | Const(CInt(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
           when (dropAttributes ["const"] a) = [] ->
           let i', _ = truncateCilint nk (mkCilintIk k i) in
-          Const(CInt64(i', nk, None))
+          Const(CInt(i', nk, None))
       | e', _ -> CastE (t, e')
   end
   | Lval lv -> Lval (constFoldLval machdep lv)
@@ -3501,20 +3501,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Set(lv,e,l,el) -> begin
         (* Be nice to some special cases *)
         match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(one,_,_)),_)
             when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
                 ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _)
+                Const(CInt(one,_,_)), _)
             when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLvalPrec indexLevel () lv
                     ++ text (" --" ^ printInstrTerminator)
 
-        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
+        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(mone,_,_)),_)
             when Util.equals lv lv' && compare_cilint mone mone_cilint = 0
                 && not !printCilAsIs ->
               self#pLineDirective l
@@ -4596,7 +4596,7 @@ class plainCilPrinterClass =
     Const(c) ->
       let d_plainconst () c =
         match c with
-          CInt64(i, ik, so) ->
+          CInt(i, ik, so) ->
 	    let fmt = if isSigned ik then "%d" else "%x" in
             dprintf "Int64(%s,%a,%s)"
               (Z.format fmt i)
@@ -5796,7 +5796,7 @@ let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
 exception NotAnAttrParam of exp
 let rec expToAttrParam (e: exp) : attrparam =
   match e with
-    Const(CInt64(i,k,_)) ->
+    Const(CInt(i,k,_)) ->
       let i' = mkCilintIk k i in
       if not (is_int_cilint i') then
         raise (NotAnAttrParam e);
@@ -5914,7 +5914,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
         match l with
           Some l -> begin
             match constFold true l with
-              Const(CInt64(i, _, _)) -> Some i
+              Const(CInt(i, _, _)) -> Some i
             | e -> None (* Returning None for length in a typesig if the length is not a constant (VLA) *)
           end
         | None -> None
@@ -6028,11 +6028,11 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
     (* Watch out for constants *)
     match newt, e with
       (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
-      TInt(IBool, []), Const(CInt64(i, _, _)) ->
+      TInt(IBool, []), Const(CInt(i, _, _)) ->
         let v = if compare i zero_cilint = 0 then zero_cilint else one_cilint in
-        Const (CInt64(v, IBool,  None))
-    | TInt(newik, []), Const(CInt64(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
-    | TInt(newik, []), Const(CInt64(i, _, None)) -> kintegerCilint newik i
+        Const (CInt(v, IBool,  None))
+    | TInt(newik, []), Const(CInt(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
+    | TInt(newik, []), Const(CInt(i, _, None)) -> kintegerCilint newik i
     | _ -> CastE(newt,e)
   end
 
@@ -6085,7 +6085,7 @@ let lenOfArray (eo: exp option) : int =
     None -> raise LenOfArray
   | Some e -> begin
       match constFold true e with
-      | Const(CInt64(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
+      | Const(CInt(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
           cilint_to_int ni
       | e -> raise LenOfArray
   end
@@ -6094,7 +6094,7 @@ let lenOfArray (eo: exp option) : int =
 (*** Make an initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init =
   match unrollType t with
-    TInt (ik, _) -> SingleInit (Const(CInt64(zero_cilint, ik, None)))
+    TInt (ik, _) -> SingleInit (Const(CInt(zero_cilint, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | TEnum (e, _) -> SingleInit (kinteger e.ekind 0)
   | TComp (comp, _) as t' when comp.cstruct ->
@@ -6138,7 +6138,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' ->
       let n =
         match constFold true len with
-          Const(CInt64(n, _, _)) -> cilint_to_int n
+          Const(CInt(n, _, _)) -> cilint_to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -6181,7 +6181,7 @@ let foldLeftCompound
       match leno with
         Some lene when implicit -> begin
           match constFold true lene with
-            Const(CInt64(i, _, _)) ->
+            Const(CInt(i, _, _)) ->
               let len_array = cilint_to_int i in
               let len_init = List.length initl in
               if len_array > len_init then
@@ -6477,7 +6477,7 @@ let caseRangeFold (l: label list) =
   | CaseRange(el, eh, loc, eloc) :: xs ->
       let il, ih, ik =
         match constFold true el, constFold true eh with
-          Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
+          Const(CInt(il, ilk, _)), Const(CInt(ih, ihk, _)) ->
             mkCilintIk ilk il, mkCilintIk ihk ih, commonIntKind ilk ihk
         | _ -> E.s (error "Cannot understand the constants in case range")
       in

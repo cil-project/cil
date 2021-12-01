@@ -635,7 +635,7 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of cilint * ikind * string option
+  | CInt of cilint * ikind * string option
     (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and the
      * textual representation, if available. (This allows us to print a
      * constant as, for example, 0xF instead of 15.) Use {!Cil.integer} or
@@ -1647,7 +1647,7 @@ val isNullPtrConstant: exp -> bool
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extended c, IInt, None) *)
+  Returns CInt(sign-extended c, IInt, None) *)
 val charConstToInt: char -> constant
 
 (** Do constant folding on an expression. If the first argument is true then
@@ -2565,7 +2565,7 @@ val fitsInInt: ikind -> cilint -> bool
 val intKindForValue: cilint -> bool -> ikind
 
 (** Construct a cilint from an integer kind and int64 value. Used for
- * getting the actual constant value from a CInt64(n, ik, _)
+ * getting the actual constant value from a CInt(n, ik, _)
  * constant. *)
 val mkCilint : ikind -> int64 -> cilint
 
