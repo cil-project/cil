@@ -2085,12 +2085,15 @@ let mkCilint (ik:ikind) (i:int64) : cilint =
 
 
 (* Construct an integer constant with possible truncation *)
-let kintegerCilint (k: ikind) (i: cilint) : exp =
+let kintegerCilintString (k: ikind) (i: cilint) (s:string option): exp =
   let i', truncated = truncateCilint k i in
   if truncated = BitTruncation && !warnTruncate then
     ignore (warnOpt "Truncating integer %s to %s"
               (string_of_cilint i) (string_of_cilint i'));
-  Const (CInt(i', k, None))
+  Const (CInt(i', k, s))
+
+let kintegerCilint (k: ikind) (i: cilint) : exp =
+  kintegerCilintString k i None
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp =
@@ -2749,7 +2752,7 @@ let parseInt (str: string) : exp =
   let res =
     let rec loop = function
       | k::rest ->
-        if fitsInInt k i then kintegerCilint k i
+        if fitsInInt k i then kintegerCilintString k i (Some str)
         else loop rest
       | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
     in
@@ -6010,8 +6013,7 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
       TInt(IBool, []), Const(CInt(i, _, _)) ->
         let v = if compare i zero_cilint = 0 then zero_cilint else one_cilint in
         Const (CInt(v, IBool,  None))
-    | TInt(newik, []), Const(CInt(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
-    | TInt(newik, []), Const(CInt(i, _, None)) -> kintegerCilint newik i
+    | TInt(newik, []), Const(CInt(i, _, _)) -> kintegerCilint newik i
     | _ -> CastE(newt,e)
   end
 
