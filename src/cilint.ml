@@ -23,11 +23,11 @@
 
 open Big_int_Z
 
-type cilint = Small of int | Big of big_int
+type cilint = big_int
 type truncation = NoTruncation | ValueTruncation | BitTruncation
 
-let zero_cilint = Small 0
-let one_cilint = Small 1
+let zero_cilint = zero_big_int
+let one_cilint = unit_big_int
 
 (* Precompute useful big_ints *)
 let b30 = power_int_positive_int 2 30
@@ -37,21 +37,10 @@ let m1 = minus_big_int unit_big_int
 let nobits (b:big_int) : bool =
   sign_big_int b = 0 || compare_big_int b m1 = 0
 
-let big_int_of_cilint (c:cilint) : big_int =
-  match c with
-  | Small i -> big_int_of_int i
-  | Big b -> b
+let big_int_of_cilint (c:cilint) : big_int = c
+let cilint_of_big_int (b:big_int) : cilint = b
 
-let cilint_of_big_int (b:big_int) : cilint =
-  if is_int_big_int b then
-    Small (int_of_big_int b)
-  else
-    Big b
-
-let neg_cilint c =
-  match c with
-  | Small i when i <> min_int -> Small (-i)
-  | _ -> Big (minus_big_int (big_int_of_cilint c))
+let neg_cilint c = minus_big_int (big_int_of_cilint c)
 
 (* Apply big_int 'op' to two cilints, returning a cilint *)
 let b op c1 c2 = cilint_of_big_int (op (big_int_of_cilint c1) (big_int_of_cilint c2))
@@ -62,33 +51,17 @@ let mul_cilint = b mult_big_int
 let div_cilint = b div_big_int
 let mod_cilint = b mod_big_int
 
-let compare_cilint (c1:cilint) (c2:cilint) : int =
-  match c1, c2 with
-  | Small i1, Small i2 -> compare i1 i2
-  | _ -> compare_big_int (big_int_of_cilint c1) (big_int_of_cilint c2)
+let compare_cilint (c1:cilint) (c2:cilint) : int = compare_big_int (big_int_of_cilint c1) (big_int_of_cilint c2)
 
-let is_zero_cilint (c:cilint) : bool =
-  match c with
-  | Small i -> i = 0
-  | Big b -> sign_big_int b = 0
+let is_zero_cilint (c:cilint) : bool = sign_big_int c = 0
 
-let negative_cilint (c:cilint) : bool =
-  match c with
-  | Small i -> i < 0
-  | Big b -> sign_big_int b < 0
+let negative_cilint (c:cilint) : bool = sign_big_int c < 0
 
-let cilint_of_int (i:int) : cilint = Small i
+let cilint_of_int (i:int) : cilint = big_int_of_int i
 
-let int_of_cilint (c:cilint) : int =
-  match c with
-  | Small i -> i
-  | Big b -> int_of_big_int b
+let int_of_cilint (c:cilint) : int = int_of_big_int c
 
 let cilint_of_int64 (i64:int64) : cilint =
-  if Int64.compare i64 (Int64.of_int min_int) >= 0 &&
-    Int64.compare i64 (Int64.of_int max_int) <= 0 then
-    Small (Int64.to_int i64)
-  else
     (* We convert 30 bits at a time *)
     let rec loop i mul acc =
       if i = 0L then acc
@@ -97,14 +70,11 @@ let cilint_of_int64 (i64:int64) : cilint =
 	let lo30 = Int64.to_int (Int64.logand i 0x3fffffffL) in
 	loop (Int64.shift_right i 30) (mult_big_int mul b30)
 	  (add_big_int acc (mult_big_int mul (big_int_of_int lo30)))
-    in Big (loop i64 unit_big_int zero_big_int)
+    in (loop i64 unit_big_int zero_big_int)
 
 (* Note that this never fails, instead it returns the low-order 64-bits
    of the cilint. *)
-let int64_of_cilint (c:cilint) : int64 =
-  match c with
-  | Small i -> Int64.of_int i
-  | Big b ->
+let int64_of_cilint (b:cilint) : int64 =
       let rec loop b mul acc =
 	if sign_big_int b = 0 then
 	  acc
@@ -119,26 +89,20 @@ let int64_of_cilint (c:cilint) : int64 =
 let cilint_of_string (s:string) : cilint =
   cilint_of_big_int (big_int_of_string s)
 
-let string_of_cilint (c:cilint) : string =
-  match c with
-  | Small i -> string_of_int i
-  | Big b -> string_of_big_int b
+let string_of_cilint (c:cilint) : string = string_of_big_int c
 
 (* Divide rounding towards zero *)
 let div0_cilint (c1:cilint) (c2:cilint) =
-  match c1, c2 with
-  | Small i1, Small i2 -> Small (i1 / i2)
-  | _ ->
       let b1 = big_int_of_cilint c1 in
       let b2 = big_int_of_cilint c2 in
       let q, r = quomod_big_int b1 b2 in
       if lt_big_int b1 zero_big_int && (not (eq_big_int r zero_big_int)) then
 	if gt_big_int b2 zero_big_int then
-	  Big (succ_big_int q)
+	  (succ_big_int q)
 	else
-	  Big (pred_big_int q)
+	  (pred_big_int q)
       else
-	Big q
+  q
 
 (* And the corresponding remainder *)
 let rem_cilint (c1:cilint) (c2:cilint) =
@@ -147,9 +111,6 @@ let rem_cilint (c1:cilint) (c2:cilint) =
 (* Perform logical op 'op' over 'int' on two cilints. Does it work
    30-bits at a time as that is guaranteed to fit in an 'int'. *)
 let logop op c1 c2 =
-  match c1, c2 with
-  | Small i1, Small i2 -> Small (op i1 i2)
-  | _ ->
       let b1 = big_int_of_cilint c1 in
       let b2 = big_int_of_cilint c2 in
       let rec loop b1 b2 mul acc =
@@ -173,44 +134,14 @@ let logand_cilint = logop (land)
 let logor_cilint = logop (lor)
 let logxor_cilint = logop (lxor)
 
-let shift_right_cilint (c1:cilint) (n:int) : cilint =
-  match c1 with
-  | Small i -> Small (i asr n)
-  | Big b -> cilint_of_big_int (div_big_int b (power_int_positive_int 2 n))
+let shift_right_cilint (c1:cilint) (n:int) : cilint = cilint_of_big_int (div_big_int c1 (power_int_positive_int 2 n))
 
 let shift_left_cilint (c1:cilint) (n:int) : cilint =
   cilint_of_big_int (mult_big_int (big_int_of_cilint c1) (power_int_positive_int 2 n))
 
-let lognot_cilint (c1:cilint) : cilint =
-  match c1 with
-  | Small i -> Small (lnot i)
-  | Big b -> Big (pred_big_int (minus_big_int b))
+let lognot_cilint (c1:cilint) : cilint = (pred_big_int (minus_big_int c1))
 
 let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
-  match c with
-  | Small i when n >= Nativeint.size - 1 -> Small i, NoTruncation
-  | Small i when n < Nativeint.size - 2 ->
-      let max = 1 lsl (n - 1) in
-      let truncmax = 1 lsl n in
-     let bits = i land (truncmax - 1) in
-      let tval =
-    (* check if the n-th bit is 1... *)
-	if bits < max then
-	  bits
-	else
-    (* and fill with 1 bits on the left if it is *)
-	  bits - truncmax
-      in
-      let trunc =
-	if i >= max || i < -max then
-	  if i >= truncmax then
-	    BitTruncation
-	  else
-	    ValueTruncation
-	else
-	  NoTruncation
-      in Small tval, trunc
-  | _ ->
       let b = big_int_of_cilint c in
       let max = power_int_positive_int 2 (n - 1) in
       let truncmax = power_int_positive_int 2 n in
@@ -232,22 +163,6 @@ let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
       in cilint_of_big_int tval, trunc
 
 let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
-  match c with
-  | Small i when i > 0 && n >= Nativeint.size - 2 -> Small i, NoTruncation
-  | Small i when n < Nativeint.size - 2 ->
-      let max = 1 lsl (n - 1) in
-      let truncmax = 1 lsl n in
-      let bits = i land (truncmax - 1) in
-      let trunc =
-	if i >= truncmax || i < 0 then
-	  if i < -max then
-	    BitTruncation
-	  else
-	    ValueTruncation
-	else
-	  NoTruncation
-      in Small bits, trunc
-  | _ ->
       let b = big_int_of_cilint c in
       let max = power_int_positive_int 2 (n - 1) in
       let truncmax = power_int_positive_int 2 n in
@@ -262,7 +177,4 @@ let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
 	  NoTruncation
       in cilint_of_big_int bits, trunc
 
-let is_int_cilint (c:cilint) : bool =
-  match c with
-  | Small _ -> true
-  | Big b -> is_int_big_int b
+let is_int_cilint (c:cilint) : bool = is_int_big_int c
