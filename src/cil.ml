@@ -2768,14 +2768,13 @@ let parseInt (str: string) : exp =
    * POSITIVE  *)
   let res =
     let rec loop = function
-        k::rest ->
-	  if fitsInInt k i then kintegerCilint k i
-	  else loop rest
-        | [] -> E.s (E.unimp "Cannot represent the integer %s\n"
-                       (string_of_cilint i))
+      | k::rest ->
+        if fitsInInt k i then kintegerCilint k i
+        else loop rest
+      | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
     in
     loop kinds
-    in
+  in
   res
 (* with e -> begin *)
 (*   ignore (E.log "int_of_string %s (%s)\n" str  *)
