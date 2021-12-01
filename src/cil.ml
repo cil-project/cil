@@ -2747,8 +2747,7 @@ let parseInt (str: string) : exp =
   let t = String.sub str start (String.length str - start - suffixlen) in
   (* Normal Z.of_string does not work here as 0 is not recognized as the prefix for octal here *)
   let i = Z.of_string_base base t in
-  (* Construct an integer of the first kinds that fits. i must be
-   * POSITIVE  *)
+  (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
   let res =
     let rec loop = function
       | k::rest ->
@@ -2759,12 +2758,6 @@ let parseInt (str: string) : exp =
     loop kinds
   in
   res
-(* with e -> begin *)
-(*   ignore (E.log "int_of_string %s (%s)\n" str  *)
-(*             (Printexc.to_string e)); *)
-(*     zero *)
-(*   end *)
-
 
 
 let d_unop () u =
