@@ -10,16 +10,7 @@
      3 = ...0000000000011
     -3 = ...1111111111101
 
-   We represent cilints using a big_int, except that we specialise the
-   case where the number fits in a regular int. This specialisation
-   has two benefits:
-   - more compact (and potentially faster ops, though more would need to be
-   specialised for this to be really worth it)
-   - ability to see the value of small constants in ocamldebug
-
-   The implementation can be simplified once OCaml 3.11.1 shows up, with
-   bitwise operations on big_ints, and bug-fixed versions of int64_of_big_int
-   and big_int_of_int64. *)
+   We represent cilints using a big_int but define some operations differently *)
 
 open Big_int_Z
 
@@ -40,37 +31,23 @@ let nobits (b:big_int) : bool =
 let big_int_of_cilint (c:cilint) : big_int = c
 let cilint_of_big_int (b:big_int) : cilint = b
 
-let neg_cilint c = minus_big_int (big_int_of_cilint c)
+let neg_cilint = minus_big_int
 
-(* Apply big_int 'op' to two cilints, returning a cilint *)
-let b op c1 c2 = cilint_of_big_int (op (big_int_of_cilint c1) (big_int_of_cilint c2))
+let add_cilint = add_big_int
+let sub_cilint = sub_big_int
+let mul_cilint = mult_big_int
+let div_cilint = div_big_int
+let mod_cilint = mod_big_int
 
-let add_cilint = b add_big_int
-let sub_cilint = b sub_big_int
-let mul_cilint = b mult_big_int
-let div_cilint = b div_big_int
-let mod_cilint = b mod_big_int
-
-let compare_cilint (c1:cilint) (c2:cilint) : int = compare_big_int (big_int_of_cilint c1) (big_int_of_cilint c2)
-
+let compare_cilint = compare_big_int
 let is_zero_cilint (c:cilint) : bool = sign_big_int c = 0
 
 let negative_cilint (c:cilint) : bool = sign_big_int c < 0
 
-let cilint_of_int (i:int) : cilint = big_int_of_int i
+let cilint_of_int = big_int_of_int
+let int_of_cilint = int_of_big_int
 
-let int_of_cilint (c:cilint) : int = int_of_big_int c
-
-let cilint_of_int64 (i64:int64) : cilint =
-  (* We convert 30 bits at a time *)
-  let rec loop i mul acc =
-    if i = 0L then acc
-    else if i = -1L then sub_big_int acc mul
-    else
-	let lo30 = Int64.to_int (Int64.logand i 0x3fffffffL) in
-	loop (Int64.shift_right i 30) (mult_big_int mul b30)
-	  (add_big_int acc (mult_big_int mul (big_int_of_int lo30)))
-  in (loop i64 unit_big_int zero_big_int)
+let cilint_of_int64 (i64:int64) : cilint = big_int_of_int64 i64
 
 (* Note that this never fails, instead it returns the low-order 64-bits
    of the cilint. *)
@@ -86,33 +63,30 @@ let int64_of_cilint (b:cilint) : int64 =
         (Int64.add acc (Int64.mul mul (Int64.of_int (int_of_big_int lo))))
   in loop b 1L 0L
 
-let cilint_of_string (s:string) : cilint =
-  cilint_of_big_int (big_int_of_string s)
-
-let string_of_cilint (c:cilint) : string = string_of_big_int c
+let cilint_of_string = big_int_of_string
+let string_of_cilint = string_of_big_int
 
 (* Divide rounding towards zero *)
 let div0_cilint (c1:cilint) (c2:cilint) =
-  let b1 = big_int_of_cilint c1 in
-  let b2 = big_int_of_cilint c2 in
-  let q, r = quomod_big_int b1 b2 in
-  if lt_big_int b1 zero_big_int && (not (eq_big_int r zero_big_int)) then
-    if gt_big_int b2 zero_big_int then
+  let q, r = quomod_big_int c1 c2 in
+  if lt_big_int c1 zero_big_int && (not (eq_big_int r zero_big_int)) then
+    if gt_big_int c2 zero_big_int then
       (succ_big_int q)
     else
       (pred_big_int q)
   else
     q
 
-(* And the corresponding remainder *)
+(* And the corresponding remainder! Different from  *)
+(* Big_int_Z.mod_big_int computes the Euclidian Modulus, but what we want here is the remainder, as returned by mod on ints
+    -1 rem 5 == -1, whereas -1 Euclid-Mod 5 == 4
+*)
 let rem_cilint (c1:cilint) (c2:cilint) =
   (sub_cilint c1 (mul_cilint c2 (div0_cilint c1 c2)))
 
 (* Perform logical op 'op' over 'int' on two cilints. Does it work
    30-bits at a time as that is guaranteed to fit in an 'int'. *)
 let logop op c1 c2 =
-  let b1 = big_int_of_cilint c1 in
-  let b2 = big_int_of_cilint c2 in
   let rec loop b1 b2 mul acc =
     if nobits b1 && nobits b2 then
       (* Once we only have all-0/all-1 values left, we can find whether
@@ -128,54 +102,52 @@ let logop op c1 c2 =
       let lo = op (int_of_big_int lo1) (int_of_big_int lo2) in
       loop hi1 hi2 (mult_big_int mul b30)
         (add_big_int acc (mult_big_int mul (big_int_of_int lo)))
-  in cilint_of_big_int (loop b1 b2 unit_big_int zero_big_int)
+  in loop c1 c2 unit_big_int zero_big_int
 
 let logand_cilint = logop (land)
 let logor_cilint = logop (lor)
 let logxor_cilint = logop (lxor)
 
-let shift_right_cilint (c1:cilint) (n:int) : cilint = cilint_of_big_int (div_big_int c1 (power_int_positive_int 2 n))
+let shift_right_cilint (c1:cilint) (n:int) : cilint = div_big_int c1 (power_int_positive_int 2 n)
 
 let shift_left_cilint (c1:cilint) (n:int) : cilint =
-  cilint_of_big_int (mult_big_int (big_int_of_cilint c1) (power_int_positive_int 2 n))
+  mult_big_int c1 (power_int_positive_int 2 n)
 
 let lognot_cilint (c1:cilint) : cilint = (pred_big_int (minus_big_int c1))
 
 let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
-  let b = big_int_of_cilint c in
   let max = power_int_positive_int 2 (n - 1) in
   let truncmax = power_int_positive_int 2 n in
-  let bits = mod_big_int b truncmax in
+  let bits = mod_big_int c truncmax in
   let tval = if lt_big_int bits max then
 	    bits
 	  else
 	    sub_big_int bits truncmax
   in
   let trunc =
-    if ge_big_int b max || lt_big_int b (minus_big_int max) then
-      if ge_big_int b truncmax then
+    if ge_big_int c max || lt_big_int c (minus_big_int max) then
+      if ge_big_int c truncmax then
         BitTruncation
       else
         ValueTruncation
     else
       NoTruncation
   in
-    cilint_of_big_int tval, trunc
+    tval, trunc
 
 let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
-  let b = big_int_of_cilint c in
   let max = power_int_positive_int 2 (n - 1) in
   let truncmax = power_int_positive_int 2 n in
-  let bits = mod_big_int b truncmax in
+  let bits = mod_big_int c truncmax in
   let trunc =
-    if ge_big_int b truncmax || lt_big_int b zero_big_int then
-      if lt_big_int b (minus_big_int max) then
+    if ge_big_int c truncmax || lt_big_int c zero_big_int then
+      if lt_big_int c (minus_big_int max) then
         BitTruncation
       else
         ValueTruncation
 	  else
 	    NoTruncation
   in
-  cilint_of_big_int bits, trunc
+  bits, trunc
 
 let is_int_cilint (c:cilint) : bool = is_int_big_int c
