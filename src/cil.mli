@@ -635,12 +635,11 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of int64 * ikind * string option
+  | CInt64 of cilint * ikind * string option
     (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and the
      * textual representation, if available. (This allows us to print a
      * constant as, for example, 0xF instead of 15.) Use {!Cil.integer} or
-     * {!Cil.kinteger} to create these. Watch out for integers that cannot be
-     * represented on 64 bits. OCAML does not give Overflow exceptions. *)
+     * {!Cil.kinteger} to create these. *)
   | CStr of string
     (** String constant. The escape characters inside the string have been
      * already interpreted. This constant has pointer to character type! The
@@ -1110,7 +1109,7 @@ and location = {
  * the formal arguments are given the same signature. Also, [TNamed]
  * constructors are unrolled. *)
 and typsig =
-    TSArray of typsig * int64 option * attribute list
+    TSArray of typsig * cilint option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * typsig list option * bool * attribute list
@@ -2570,6 +2569,8 @@ val intKindForValue: cilint -> bool -> ikind
  * constant. *)
 val mkCilint : ikind -> int64 -> cilint
 
+val mkCilintIk : ikind -> cilint -> cilint
+
 (** The size of a type, in bytes. Returns a constant expression or a
  * "sizeof" expression if it cannot compute the size. This function
  * is architecture dependent, so you should only call this after you
@@ -2688,20 +2689,6 @@ val envMachine : Machdep.mach option ref
 (*                        These will eventually go away                      *)
 (* ------------------------------------------------------------------------- *)
 
-(** @deprecated. Convert two int64/kind pairs to a common int64/int64/kind triple. *)
-val convertInts: int64 -> ikind -> int64 -> ikind -> int64 * int64 * ikind
-
-(** @deprecated. Can't handle large 64-bit unsigned constants
-    correctly - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-val isInteger: exp -> int64 option
-
-(** @deprecated. Use truncateCilint instead. Represents an integer as
- * for a given kind.  Returns a flag saying whether the value was
- * changed during truncation (because it was too large to fit in k). *)
-val truncateInteger64: ikind -> int64 -> int64 * bool
-
-(** @deprecated.  For compatibility with older programs, these are
-    aliases for {!Cil.builtinFunctions} *)
+(** @deprecated.  For compatibility with older programs, this is an
+    alias for {!Cil.builtinFunctions} *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t

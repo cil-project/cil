@@ -11,6 +11,9 @@ val zero_cilint : cilint
 (** 1 as a cilint *)
 val one_cilint : cilint
 
+(** -1 as a cilint *)
+val mone_cilint : cilint
+
 (** Result type for truncate_... functions *)
 type truncation = NoTruncation | ValueTruncation | BitTruncation
 

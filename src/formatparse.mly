@@ -552,7 +552,7 @@ constant:
 
                             fun e -> match e with
                               Const(CInt64(n, _, _)) ->
-                                Some [ Fd (Int64.to_int n) ]
+                                Some [ Fd (Cilint.int_of_cilint n) ]
                             | _ -> None)
                          }
 

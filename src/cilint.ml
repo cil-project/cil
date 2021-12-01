@@ -19,6 +19,7 @@ type truncation = NoTruncation | ValueTruncation | BitTruncation
 
 let zero_cilint = zero_big_int
 let one_cilint = unit_big_int
+let mone_cilint = minus_big_int unit_big_int
 
 (* Precompute useful big_ints *)
 let b30 = power_int_positive_int 2 30
