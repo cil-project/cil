@@ -506,7 +506,7 @@ let rec combineTypes (what: combineWhat)
         | Some oldsz', Some sz' ->
             let samesz =
               match constFold true oldsz', constFold true sz' with
-                Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> oldi = i
+                Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> Cilint.compare_cilint oldi i = 0
               | _, _ -> false
             in
             if samesz then oldsz else
@@ -702,7 +702,7 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
             raise (Failure "(different names for enumeration items)");
           let samev =
             match constFold true old_iv, constFold true iv with
-              Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> oldi = i
+              Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> Cilint.compare_cilint oldi i = 0
             | _ -> false
           in
           if not samev then
