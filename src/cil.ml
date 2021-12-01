@@ -4598,7 +4598,7 @@ class plainCilPrinterClass =
         match c with
           CInt(i, ik, so) ->
 	    let fmt = if isSigned ik then "%d" else "%x" in
-            dprintf "Int64(%s,%a,%s)"
+            dprintf "Int(%s,%a,%s)"
               (Z.format fmt i)
               d_ikind ik
               (match so with Some s -> s | _ -> "None")
