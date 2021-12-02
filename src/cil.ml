@@ -2750,7 +2750,8 @@ let parseInt (str: string) : exp =
     (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
     let ik = List.find (fun ik -> fitsInInt ik i) kinds in
     kintegerCilintString ik i (Some str)
-  with Not_found -> E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
+  with Not_found ->
+    E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
 
 
 let d_unop () u =
