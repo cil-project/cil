@@ -12,13 +12,7 @@
 #include "btree.h"
 
 
-#ifdef _MSVC
- #define CLOCKS_PER_SEC 1000
- typedef long clock_t;
- clock_t __cdecl clock(void);
-#else
- int clock(void);
-#endif
+int clock(void);
 
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * \

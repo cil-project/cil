@@ -273,7 +273,6 @@ type maybeInit =
 %token BUILTIN_VA_ARG BUILTIN_VA_LIST
 %token BLOCKATTRIBUTE
 %token DECLSPEC
-%token <string> MSASM MSATTR
 %token PRAGMA
 
 

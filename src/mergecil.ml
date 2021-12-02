@@ -447,7 +447,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "int" *)
-        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32
+        if oldk = IInt && bitsSizeOf t <= 32
            && (what = CombineFunarg || what = CombineFunret)
         then
           k
@@ -467,7 +467,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "double" *)
-        if not !msvcMode && oldk = FDouble && k = FFloat
+        if oldk = FDouble && k = FFloat
            && (what = CombineFunarg || what = CombineFunret)
         then
           k
@@ -1182,10 +1182,6 @@ begin
                             (* don't look at stmt list b/c is not part of tree *)
     | Loop(b,_,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
     | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
-    | TryExcept (b, (il, e), h, _) ->
-        67 + 83*(stmtListSum b.bstmts) + 97*(stmtListSum h.bstmts)
-    | TryFinally (b, h, _) ->
-        103 + 113*(stmtListSum b.bstmts) + 127*(stmtListSum h.bstmts)
   in
 
   (* disabled 2nd and 3rd measure because they appear to get different

@@ -62,9 +62,6 @@ let set_output filename =
   Whitetrack.setOutput out_chan;
   close_me := true
 
-   (* Signal that we are in MS VC mode *)
-let setMSVCMode () =
-  Cprint.msvcMode := true
 
 (* filename for patching *)
 let patchFileName : string ref = ref ""      (* by default do no patching *)

@@ -223,10 +223,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
         (ctx = CTStruct || ctx = CTUnion
          || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
     | TFun _ ->
-        if ctx = CTSizeof && !msvcMode then
-          (ignore(warn "sizeof(function) is not defined in MSVC."); false)
-        else
-          ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
+        ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
     | TInt _ -> true
     | TFloat _ -> true
     | _ -> ctx <> CTNumeric
@@ -698,8 +695,6 @@ and checkInit  (i: init) : typ =
                     [(Field(f, NoOffset), ei)] ->
                       if f.fcomp != comp then
                         ignore (bug "Wrong designator for union initializer");
-                      if !msvcMode && f != List.hd comp.cfields then
-                        ignore (warn "On MSVC you can only initialize the first field of a union");
                       checkInitType ei f.ftype
 
                   | _ ->
@@ -815,17 +810,6 @@ and checkStmt (s: stmt) =
               in
               findCase !statements)
             cases;
-      | TryFinally (b, h, l) ->
-          currentLoc := l;
-          checkBlock b;
-          checkBlock h
-
-      | TryExcept (b, (il, e), h, l) ->
-          currentLoc := l;
-          checkBlock b;
-          List.iter checkInstr il;
-          checkExpType false e intType;
-          checkBlock h
 
       | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)

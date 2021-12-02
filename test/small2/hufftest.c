@@ -12,11 +12,7 @@ int error_level, anerror;
 void myexit(int n) {
   exit(n);
 }
-#ifdef _MSVC
-#define random rand
-#else
-/* extern int random(void); -- Weimer: not needed! */
-#endif
+
 int __mmId;
 int debugMM;
 int debug = 0;  // Make this 1 to debug the compressor

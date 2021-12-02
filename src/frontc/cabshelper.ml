@@ -97,8 +97,6 @@ begin
   | COMPGOTO (_, loc) -> loc
   | DEFINITION d -> get_definitionloc d
   | ASM(_,_,_,loc) -> loc
-  | TRY_EXCEPT(_, _, _, loc) -> loc
-  | TRY_FINALLY(_, _, loc) -> loc
 end
 
 

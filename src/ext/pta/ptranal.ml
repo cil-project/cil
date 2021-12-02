@@ -328,13 +328,6 @@ let rec analyze_stmt (s : stmt ) : unit =
         List.iter analyze_stmt sl
     | Loop (b, l, el, _, _) -> analyze_block b
     | Block b -> analyze_block b
-    | TryFinally (b, h, _) ->
-        analyze_block b;
-        analyze_block h
-    | TryExcept (b, (il, _), h, _) ->
-        analyze_block b;
-        List.iter analyze_instr il;
-        analyze_block h
     | Break l -> ()
     | Continue l -> ()
 

@@ -672,8 +672,7 @@ and init =
              * initializers; the rest are 0-initialized.
              * For unions there must be exactly one initializer. If
              * the initializer is not for the first field then a field
-             * designator is printed, so you better be on GCC since MSVC does
-             * not understand this. You can scan an initializer list with
+             * designator is printed. You can scan an initializer list with
              * {!Cil.foldLeftCompound}. *)
 
 (** We want to be able to update an initializer in a global variable, so we
@@ -804,27 +803,6 @@ and stmtkind =
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
                                             local *)
-  | TryFinally of block * block * location
-    (** On MSVC we support structured exception handling. This is what you
-     * might expect. Control can get into the finally block either from the
-     * end of the body block, or if an exception is thrown. The location
-     * corresponds to the try keyword. *)
-  | TryExcept of block * (instr list * exp) * block * location
-    (** On MSVC we support structured exception handling. The try/except
-     * statement is a bit tricky:
-         __try { blk }
-         __except (e) {
-            handler
-         }
-
-         The argument to __except  must be an expression. However, we keep a
-         list of instructions AND an expression in case you need to make
-         function calls. We'll print those as a comma expression. The control
-         can get to the __except expression only if an exception is thrown.
-         After that, depending on the value of the expression the control
-         goes to the handler, propagates the exception, or retries the
-         exception !!! The location corresponds to the try keyword.
-     *)
 
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
@@ -1165,8 +1143,6 @@ let rec get_stmtLoc (statement : stmtkind) =
     | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
-    | TryFinally (_, _, l) -> l
-    | TryExcept (_, _, _, l) -> l
 
 
 (* The next variable identifier to use. Counts up *)
@@ -1428,14 +1404,8 @@ let hasAttribute s al =
 
 
 type attributeClass =
-    AttrName of bool
-        (* Attribute of a name. If argument is true and we are on MSVC then
-         * the attribute is printed using __declspec as part of the storage
-         * specifier  *)
-  | AttrFunType of bool
-        (* Attribute of a function type. If argument is true and we are on
-         * MSVC then the attribute is printed just before the function name *)
-
+    AttrName  (* Attribute of a name. *)
+  | AttrFunType  (* Attribute of a function type. *)
   | AttrType  (* Attribute of a type *)
 
 (* This table contains the mapping of predefined attributes to classes.
@@ -1444,26 +1414,25 @@ type attributeClass =
  * conversion *)
 let attributeHash: (string, attributeClass) H.t =
   let table = H.create 13 in
-  List.iter (fun a -> H.add table a (AttrName false))
+  List.iter (fun a -> H.add table a AttrName)
     [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak";
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
       "aconst"; "__asm__" (* Gcc uses this to specify the name to be used in
                            * assembly for a global  *)];
 
-  (* Now come the MSVC declspec attributes *)
-  List.iter (fun a -> H.add table a (AttrName true))
+  (* MSVC declspec attributes that are also supported by GCC *)
+  List.iter (fun a -> H.add table a AttrName)
     [ "thread"; "naked"; "dllimport"; "dllexport";
-      "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
-      "uuid"; "align" ];
+      "selectany"; "nothrow"; "property";  "noreturn"; "align" ];
 
-  List.iter (fun a -> H.add table a (AttrFunType false))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "format"; "regparm"; "longcall";
       "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
-  List.iter (fun a -> H.add table a (AttrFunType true))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "stdcall";"cdecl"; "fastcall" ];
 
   List.iter (fun a -> H.add table a AttrType)
@@ -1480,8 +1449,8 @@ let partitionAttributes
       [] -> n, f, t
     | (Attr(an, _) as a) :: rest ->
         match (try H.find attributeHash an with Not_found -> default) with
-          AttrName _ -> loop (addAttribute a n, f, t) rest
-        | AttrFunType _ ->
+          AttrName -> loop (addAttribute a n, f, t) rest
+        | AttrFunType ->
             loop (n, addAttribute a f, t) rest
         | AttrType -> loop (n, f, addAttribute a t) rest
   in
@@ -1729,11 +1698,8 @@ let d_ikind () = function
   | IUShort -> text "unsigned short"
   | ILong -> text "long"
   | IULong -> text "unsigned long"
-  | ILongLong ->
-      if !msvcMode then text "__int64" else text "long long"
-  | IULongLong ->
-      if !msvcMode then text "unsigned __int64"
-      else text "unsigned long long"
+  | ILongLong -> text "long long"
+  | IULongLong -> text "unsigned long long"
   | IInt128 -> text "__int128"
   | IUInt128 -> text "unsigned __int128"
 
@@ -1777,8 +1743,8 @@ let d_const () c =
           IUInt -> "U"
         | ILong -> "L"
         | IULong -> "UL"
-        | ILongLong -> if !msvcMode then "L" else "LL"
-        | IULongLong -> if !msvcMode then "UL" else "ULL"
+        | ILongLong -> "LL"
+        | IULongLong -> "ULL"
         (* if long long is 128 bit we can use its suffix, otherwise unsupported by GCC, see https://github.com/goblint/cil/issues/41#issuecomment-893291878 *)
         | IInt128  when !M.theMachine.M.sizeof_longlong = 16 -> "LL"
         | IUInt128 when !M.theMachine.M.sizeof_longlong = 16 -> "ULL"
@@ -1909,27 +1875,6 @@ let getParenthLevelAttrParam (a: attrparam) =
   | AQuestion _ -> questionLevel
 
 
-(* Separate out the storage-modifier name attributes *)
-let separateStorageModifiers (al: attribute list) =
-  let isstoragemod (Attr(an, _): attribute) : bool =
-    try
-      match H.find attributeHash an with
-        AttrName issm -> issm
-      | _ -> false
-    with Not_found -> false
-  in
-    let stom, rest = List.partition isstoragemod al in
-    if not !msvcMode then
-      stom, rest
-    else
-      (* Put back the declspec. Put it without the leading __ since these will
-       * be added later *)
-      let stom' =
-	Util.list_map (fun (Attr(an, args)) ->
-          Attr("declspec", [ACons(an, args)])) stom in
-      stom', rest
-
-
 let isIntegralType t =
   match unrollType t with
     (TInt _ | TEnum _) -> true
@@ -2007,7 +1952,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -2265,10 +2210,7 @@ let rec alignOf_int t =
 
     (* For composite types get the maximum alignment of any field inside *)
     | TComp (c, _) ->
-        (* On GCC the zero-width fields do not contribute to the alignment.
-         * On MSVC only those zero-width that _do_ appear after other
-         * bitfields contribute to the alignment. So we drop those that
-         * do not occur after the bitfields *)
+        (* On GCC the zero-width fields do not contribute to the alignment. *)
         let rec dropZeros (afterbitfield: bool) = function
           | f :: rest when f.fbitfield = Some 0 && not afterbitfield ->
               dropZeros afterbitfield rest
@@ -2280,12 +2222,10 @@ let rec alignOf_int t =
           (fun sofar f ->
              (* Bitfields with zero width do not contribute to the alignment in
               * GCC *)
-             if not !msvcMode && f.fbitfield = Some 0 then sofar else
+             if f.fbitfield = Some 0 then sofar else
                max sofar (alignOfField f)) 1 fields
           (* These are some error cases *)
-    | TFun _ when not !msvcMode -> !M.theMachine.M.alignof_fun
-
-    | TFun _ as t -> raise (SizeOfError ("function", t))
+    | TFun _ -> !M.theMachine.M.alignof_fun
     | TVoid _ as t -> raise (SizeOfError ("void", t))
   in
   match filterAttributes "aligned" (typeAttrs t) with
@@ -2404,110 +2344,9 @@ and offsetOfFieldAcc_GCC
         oaPrevBitPack = None;
       }
 
-(* MSVC version *)
-and offsetOfFieldAcc_MSVC (fi: fieldinfo)
-                              (sofar: offsetAcc) : offsetAcc =
-  (* field type *)
-  let ftype = unrollType fi.ftype in
-  let ftypeAlign = 8 * alignOf_int ftype in
-  let ftypeBits = bitsSizeOf ftype in
-(*
-  ignore (E.log "offsetOfFieldAcc_MSVC(%s of %s:%a%a,firstFree=%d, pack=%a)\n"
-            fi.fname fi.fcomp.cname
-            d_type ftype
-            insert
-            (match fi.fbitfield with
-              None -> nil
-            | Some wdthis -> dprintf ":%d" wdthis)
-            sofar.oaFirstFree
-            insert
-            (match sofar.oaPrevBitPack with
-              None -> text "None"
-            | Some (prevpack, _, wdpack) -> dprintf "Some(prev=%d,wd=%d)"
-                  prevpack wdpack));
-*)
-  match ftype, fi.fbitfield, sofar.oaPrevBitPack with
-    (* Ignore zero-width bitfields that come after non-bitfields *)
-  | TInt (ikthis, _), Some 0, None ->
-      let firstFree      = sofar.oaFirstFree in
-      { oaFirstFree      = firstFree;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = 0;
-        oaPrevBitPack    = None }
-
-    (* If we are in a bitpack and we see a bitfield for a type with the
-     * different width than the pack, then we finish the pack and retry *)
-  | _, Some _, Some (packstart, _, wdpack) when wdpack != ftypeBits ->
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      offsetOfFieldAcc_MSVC fi
-        { oaFirstFree      = addTrailing firstFree ftypeAlign;
-          oaLastFieldStart = sofar.oaLastFieldStart;
-          oaLastFieldWidth = sofar.oaLastFieldWidth;
-          oaPrevBitPack    = None }
-
-    (* A width of 0 means that we must end the current packing. *)
-  | TInt (ikthis, _), Some 0, Some (packstart, _, wdpack) ->
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      let firstFree      = addTrailing firstFree ftypeAlign in
-      { oaFirstFree      = firstFree;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = 0;
-        oaPrevBitPack    = Some (firstFree, ikthis, ftypeBits) }
-
-   (* Check for a bitfield that fits in the current pack after some other
-    * bitfields *)
-  | TInt(ikthis, _), Some wdthis, Some (packstart, ikprev, wdpack)
-      when  packstart + wdpack >= sofar.oaFirstFree + wdthis ->
-              { oaFirstFree = sofar.oaFirstFree + wdthis;
-                oaLastFieldStart = sofar.oaFirstFree;
-                oaLastFieldWidth = wdthis;
-                oaPrevBitPack = sofar.oaPrevBitPack
-              }
-
-
-  | _, _, Some (packstart, _, wdpack) -> (* Finish up the bitfield pack and
-                                          * restart. *)
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      offsetOfFieldAcc_MSVC fi
-        { oaFirstFree      = addTrailing firstFree ftypeAlign;
-          oaLastFieldStart = sofar.oaLastFieldStart;
-          oaLastFieldWidth = sofar.oaLastFieldWidth;
-          oaPrevBitPack    = None }
-
-        (* No active bitfield pack. But we are seeing a bitfield. *)
-  | TInt(ikthis, _), Some wdthis, None ->
-      let firstFree     = addTrailing sofar.oaFirstFree ftypeAlign in
-      { oaFirstFree     = firstFree + wdthis;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = wdthis;
-        oaPrevBitPack = Some (firstFree, ikthis, ftypeBits); }
-
-     (* No active bitfield pack. Non-bitfield *)
-  | _, None, None ->
-      (* Align this field *)
-      let firstFree = addTrailing sofar.oaFirstFree ftypeAlign  in
-      { oaFirstFree = firstFree + ftypeBits;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = ftypeBits;
-        oaPrevBitPack = None;
-      }
-
-  | _, Some _, None -> E.s (E.bug "offsetAcc")
-
-
 and offsetOfFieldAcc ~(fi: fieldinfo)
                      ~(sofar: offsetAcc) : offsetAcc =
-  if !msvcMode then offsetOfFieldAcc_MSVC fi sofar
-  else offsetOfFieldAcc_GCC fi sofar
+  offsetOfFieldAcc_GCC fi sofar
 
 (* The size of a type, in bits. If a struct or array, then trailing padding is
  * added *)
@@ -2527,8 +2366,7 @@ and bitsSizeOf t =
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields == [] -> begin
-      (* Empty structs are allowed in msvc mode *)
-      if not comp.cdefined && not !msvcMode then
+      if not comp.cdefined then
         raise (SizeOfError ("abstract type", t)) (*abstract type*)
       else
         0
@@ -2546,17 +2384,11 @@ and bitsSizeOf t =
         List.fold_left (fun acc fi -> offsetOfFieldAcc ~fi ~sofar:acc)
           startAcc comp.cfields
       in
-      if !msvcMode && lastoff.oaFirstFree = 0 && comp.cfields <> [] then
-          (* On MSVC if we have just a zero-width bitfields then the length
-           * is 32 and is not padded  *)
-        32
-      else begin
-        (* Drop e.g. the align attribute from t.  For this purpose,
-           consider only the attributes on comp itself.*)
-        let structAlign = 8 * alignOf_int
-                            (TComp (comp, [])) in
-        addTrailing lastoff.oaFirstFree structAlign
-      end
+      (* Drop e.g. the align attribute from t.  For this purpose,
+          consider only the attributes on comp itself.*)
+      let structAlign = 8 * alignOf_int
+                          (TComp (comp, [])) in
+      addTrailing lastoff.oaFirstFree structAlign
 
   | TComp (comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
@@ -2591,14 +2423,12 @@ and bitsSizeOf t =
 
 
   | TVoid _ -> 8 * !M.theMachine.M.sizeof_void
-  | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
+  | TFun _ -> (* On GCC the size of a function is defined *)
       8 * !M.theMachine.M.sizeof_fun
 
   | TArray (_, None, _) -> (* it seems that on GCC the size of such an
                             * array is 0 *)
       0
-
-  | TFun _ -> raise (SizeOfError ("function", t))
 
 
 and addTrailing nrbits roundto =
@@ -2702,7 +2532,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       (* The alignment of an expression is not always the alignment of its
        * type. I know that for strings this is not true *)
       match e with
-        Const (CStr _) when not !msvcMode ->
+        Const (CStr _) ->
           kinteger !kindOfSizeOf !M.theMachine.M.alignof_str
             (* For an array, it is the alignment of the array ! *)
       | _ -> constFold machdep (AlignOf (typeOf e))
@@ -2896,10 +2726,6 @@ let parseInt (str: string) : exp =
       else [ILong; ILongLong]
     else if hasSuffix "U" then
       1, [IUInt; IULong; IULongLong]
-    else if (!msvcMode && hasSuffix "UI64") then
-      4, [IULongLong]
-    else if (!msvcMode && hasSuffix "I64") then
-      3, [ILongLong]
     else
       0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
       else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
@@ -3327,16 +3153,6 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_va_arg_pack_len" (intType, [ ], false);
   ()
 
-(** Construct a hash with the builtins *)
-let initMsvcBuiltins () : unit =
-  if not !initCIL_called then
-    E.s (bug "Call initCIL before initGccBuiltins");
-  if H.length builtinFunctions <> 0 then
-    E.s (bug "builtins already initialized.");
-  let h = builtinFunctions in
-  (* Take a number of wide string literals *)
-  H.add h "__annotation" (voidType, [ ], true);
-  ()
 
 (** This is used as the location of the prototypes of builtin functions. *)
 let builtinLoc: location = { line = 1;
@@ -3470,14 +3286,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
       ++ d_storage () v.vstorage
-      ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
-      ++ self#pAttrs () rest
+      ++ self#pAttrs () v.vattr
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
@@ -3600,18 +3414,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (docList ~sep:(chr ',' ++ break) dinit) initl
 *)
         let printDesignator =
-          if not !msvcMode then begin
-            (* Print only for union when we do not initialize the first field *)
-            match unrollType t, initl with
-              TComp(ci, _), [(Field(f, NoOffset), _)] ->
-                if not (ci.cstruct) && ci.cfields != [] &&
-                  (List.hd ci.cfields) != f then
-                  true
-                else
-                  false
-            | _ -> false
-          end else
-            false
+          (* Print only for union when we do not initialize the first field *)
+          match unrollType t, initl with
+            TComp(ci, _), [(Field(f, NoOffset), _)] ->
+              if not (ci.cstruct) && ci.cfields != [] &&
+                (List.hd ci.cfields) != f then
+                true
+              else
+                false
+          | _ -> false
         in
         let d_oneInit = function
             Field(f, NoOffset), i ->
@@ -3857,60 +3668,52 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         ++ text (")" ^ printInstrTerminator)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
-        if !msvcMode then
-          self#pLineDirective l
-            ++ text "__asm {"
-            ++ (align
-                  ++ (docList ~sep:line text () tmpls)
-                  ++ unalign)
-            ++ text ("}" ^ printInstrTerminator)
-        else
-          self#pLineDirective l
-            ++ text ("__asm__ ")
-            ++ self#pAttrs () attrs
-            ++ text " ("
-            ++ (align
-                  ++ (docList ~sep:line
-                        (fun x -> text ("\"" ^ escape_string x ^ "\""))
-                        () tmpls)
-                  ++
-                  (if outs = [] && ins = [] && clobs = [] then
-                    chr ':'
+        self#pLineDirective l
+          ++ text ("__asm__ ")
+          ++ self#pAttrs () attrs
+          ++ text " ("
+          ++ (align
+                ++ (docList ~sep:line
+                      (fun x -> text ("\"" ^ escape_string x ^ "\""))
+                      () tmpls)
+                ++
+                (if outs = [] && ins = [] && clobs = [] then
+                  chr ':'
+              else
+                (text ": "
+                    ++ (docList ~sep:(chr ',' ++ break)
+                          (fun (idopt, c, lv) ->
+                          text(match idopt with
+                                None -> ""
+                              | Some id -> "[" ^ id ^ "] "
+                          ) ++
+                            text ("\"" ^ escape_string c ^ "\" (")
+                              ++ self#pLval () lv
+                              ++ text ")") () outs)))
+              ++
+                (if ins = [] && clobs = [] then
+                  nil
                 else
                   (text ": "
-                     ++ (docList ~sep:(chr ',' ++ break)
-                           (fun (idopt, c, lv) ->
-                            text(match idopt with
-                                 None -> ""
-                               | Some id -> "[" ^ id ^ "] "
-                            ) ++
-                             text ("\"" ^ escape_string c ^ "\" (")
-                               ++ self#pLval () lv
-                               ++ text ")") () outs)))
+                      ++ (docList ~sep:(chr ',' ++ break)
+                            (fun (idopt, c, e) ->
+                              text(match idopt with
+                                    None -> ""
+                                  | Some id -> "[" ^ id ^ "] "
+                              ) ++
+                              text ("\"" ^ escape_string c ^ "\" (")
+                                ++ self#pExp () e
+                                ++ text ")") () ins)))
                 ++
-                  (if ins = [] && clobs = [] then
-                    nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun (idopt, c, e) ->
-                                text(match idopt with
-                                     None -> ""
-                                   | Some id -> "[" ^ id ^ "] "
-                                ) ++
-                               text ("\"" ^ escape_string c ^ "\" (")
-                                 ++ self#pExp () e
-                                 ++ text ")") () ins)))
-                  ++
-                  (if clobs = [] then nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun c -> text ("\"" ^ escape_string c ^ "\""))
-                             ()
-                             clobs)))
-                  ++ unalign)
-            ++ text (")" ^ printInstrTerminator)
+                (if clobs = [] then nil
+                else
+                  (text ": "
+                      ++ (docList ~sep:(chr ',' ++ break)
+                            (fun c -> text ("\"" ^ escape_string c ^ "\""))
+                            ()
+                            clobs)))
+                ++ unalign)
+          ++ text (")" ^ printInstrTerminator)
 
 
   (**** STATEMENTS ****)
@@ -3992,8 +3795,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	let directive =
 	  match style with
 	  | LineComment | LineCommentSparse -> text "//#line "
-	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
-	  | LinePreprocessorOutput | LinePreprocessorInput -> text "#line"
+	  | LinePreprocessorOutput -> chr '#'
+	  | LinePreprocessorInput -> text "#line"
 	in
         lastLineNumber <- l.line;
 	let filename =
@@ -4134,34 +3937,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     end
     | Block b -> align ++ self#pBlock () b
 
-    | TryFinally (b, h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __fin" ++ align ++ text "ally "
-          ++ self#pBlock () h
-
-    | TryExcept (b, (il, e), h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __e" ++ align ++ text "xcept(" ++ line
-          ++ align
-          (* Print the instructions but with a comma at the end, instead of
-           * semicolon *)
-          ++ (printInstrTerminator <- ",";
-              let res =
-                (docList ~sep:line (self#pInstr ())
-                   () il)
-              in
-              printInstrTerminator <- ";";
-              res)
-          ++ self#pExp () e
-          ++ text ") " ++ unalign
-          ++ self#pBlock () h
-
 
   (*** GLOBALS ***)
   method pGlobal () (g:global) : doc =       (* global (vars, types, etc.) *)
@@ -4212,24 +3987,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective ~forcefile:true l ++
-          text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
+          text su1 ++ (align ++ text su2 ++ chr ' '
                          ++ text n
                          ++ text " {" ++ line
                          ++ ((docList ~sep:line (self#pFieldDecl ())) ()
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () rest_attr) ++ text ";\n"
+          (self#pAttrs () comp.cattr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         let su = if comp.cstruct then "struct " else "union " in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective l
-          ++ text su ++ self#pAttrs () sto_mod
+          ++ text su
           ++ text comp.cname ++ chr ' '
-          ++ self#pAttrs () rest_attr ++ text ";\n"
+          ++ self#pAttrs () comp.cattr ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -4274,7 +4047,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* nor 'cilnoremove' *)
         let suppress =
           not !print_CIL_Input &&
-          not !msvcMode &&
           ((startsWith "box" an) ||
            (startsWith "ccured" an) ||
            (an = "merger") ||
@@ -4385,10 +4157,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     let printAttributes (a: attributes) =
       let pa = self#pAttrs () a in
       match nameOpt with
-      | None when not !print_CIL_Input && not !msvcMode ->
+      | None when not !print_CIL_Input ->
           (* Cannot print the attributes in this case because gcc does not
-           * like them here, except if we are printing for CIL, or for MSVC.
-           * In fact, for MSVC we MUST print attributes such as __stdcall *)
+           * like them here, except if we are printing for CIL. *)
           if pa = nil then nil else
           text "/*" ++ pa ++ text "*/"
       | _ -> pa
@@ -4424,19 +4195,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  ->
         (* Parenthesize the ( * attr name) if a pointer to a function or an
-         * array. However, on MSVC the __stdcall modifier must appear right
-         * before the pointer constructor "(__stdcall *f)". We push them into
-         * the parenthesis. *)
+         * array. *)
         let (paren: doc option), (bt': typ) =
           match bt with
-            TFun(rt, args, isva, fa) when !msvcMode ->
-              let an, af', at = partitionAttributes ~default:AttrType fa in
-              (* We take the af' and we put them into the parentheses *)
-              Some (text "(" ++ printAttributes af'),
-              TFun(rt, args, isva, addAttributes an at)
-
           | TFun _ | TArray _ -> Some (text "("), bt
-
           | _ -> None, bt
         in
         let name' = text "*" ++ printAttributes a ++ name in
@@ -4485,12 +4247,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                         else if args = Some [] then text "void"
                         else
                           let pArg (aname, atype, aattr) =
-                            let stom, rest = separateStorageModifiers aattr in
-                            (* First the storage modifiers *)
-                            (self#pAttrs () stom)
-                              ++ (self#pType (Some (text aname)) () atype)
+                            (self#pType (Some (text aname)) () atype)
                               ++ text " "
-                              ++ self#pAttrs () rest
+                              ++ self#pAttrs () aattr
                           in
                           (docList ~sep:(chr ',' ++ break) pArg) ()
                             (argsToList args))
@@ -4523,23 +4282,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       "const", [] -> text "const", false
           (* Put the aconst inside the attribute list *)
     | "complex", [] when !c99Mode -> text "_Complex", false
-    | "complex", [] when not !msvcMode -> text "__complex__", false
-    | "aconst", [] when not !msvcMode -> text "__const__", true
-    | "thread", [] when not !msvcMode -> text "__thread", false
+    | "complex", [] -> text "__complex__", false
+    | "aconst", [] -> text "__const__", true
+    | "thread", [] -> text "__thread", false
 (*
     | "used", [] when not !msvcMode -> text "__attribute_used__", false
 *)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
-    | "cdecl", [] when !msvcMode -> text "__cdecl", false
-    | "stdcall", [] when !msvcMode -> text "__stdcall", false
-    | "fastcall", [] when !msvcMode -> text "__fastcall", false
-    | "declspec", args when !msvcMode ->
-        text "__declspec("
-          ++ docList (self#pAttrParam ()) () args
-          ++ text ")", false
-    | "w64", [] when !msvcMode -> text "__w64", false
     | "asm", args ->
         text "__asm__("
           ++ docList (self#pAttrParam ()) () args
@@ -4567,7 +4318,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | _ -> (* This is the default case *)
         (* Add underscores to the name *)
-        let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
+        let an' =  "__" ^ an ^ "__" in
         if args = [] then
           text an', true
         else
@@ -5603,29 +5354,6 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Block b ->
         let b' = fBlock b in
         if b' != b then Block b' else s.skind
-    | TryFinally (b, h, l) ->
-        let b' = fBlock b in
-        let h' = fBlock h in
-        if b' != b || h' != h then TryFinally(b', h', l) else s.skind
-    | TryExcept (b, (il, e), h, l) ->
-        let b' = fBlock b in
-        assertEmptyQueue vis;
-        (* visit the instructions *)
-        let il' = mapNoCopyList fInst il in
-        (* Visit the expression *)
-        let e' = fExp e in
-        let il'' =
-          let more = vis#unqueueInstr () in
-          if more != [] then
-            il' @ more
-          else
-            il'
-        in
-        let h' = fBlock h in
-        (* Now collect the instructions *)
-        if b' != b || il'' != il || e' != e || h' != h then
-          TryExcept(b', (il'', e'), h', l)
-        else s.skind
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
@@ -6113,13 +5841,6 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
       | Switch (e, b, _, _, _) -> peepHole1 doone b.bstmts
       | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
-      | TryFinally (b, h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts;
-          s.skind <- TryExcept(b, (doInstrList il, e), h, l);
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
 
@@ -6147,12 +5868,6 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
       | Switch (e, b, _, _, _) -> peepHole2 dotwo b.bstmts
       | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
-      | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
-                                peepHole2 dotwo h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole2 dotwo b.bstmts;
-          peepHole2 dotwo h.bstmts;
-          s.skind <- TryExcept (b, (doInstrList il, e), h, l)
 
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
@@ -6407,30 +6122,21 @@ let rec makeZeroInit (t: typ) : init =
         | [] -> E.s (unimp "Cannot create init for empty union")
       in
       let fieldToInit =
-        if !msvcMode then
-          (* ISO C99 [6.7.8.10] says that the first field of the union
-             is the one we should initialize. *)
-          fstfield
-        else begin
-          (* gcc initializes the whole union to zero.  So choose the largest
-             field, and set that to zero.  Choose the first field if possible.
-             MSVC also initializes the whole union, but use the ISO behavior
-             for MSVC because it only allows compound initializers to refer
-             to the first union field. *)
-          let fieldSize f = try bitsSizeOf f.ftype with SizeOfError _ -> 0 in
-          let widestField, widestFieldWidth =
-            List.fold_left (fun acc thisField ->
-                              let widestField, widestFieldWidth = acc in
-                              let thisSize = fieldSize thisField in
-                              if thisSize > widestFieldWidth then
-                                thisField, thisSize
-                              else
-                                acc)
-              (fstfield, fieldSize fstfield)
-              rest
-          in
-          widestField
-        end
+        (* gcc initializes the whole union to zero.  So choose the largest
+           field, and set that to zero.  Choose the first field if possible. *)
+        let fieldSize f = try bitsSizeOf f.ftype with SizeOfError _ -> 0 in
+        let widestField, widestFieldWidth =
+          List.fold_left (fun acc thisField ->
+                            let widestField, widestFieldWidth = acc in
+                            let thisSize = fieldSize thisField in
+                            if thisSize > widestFieldWidth then
+                              thisField, thisSize
+                            else
+                              acc)
+            (fstfield, fieldSize fstfield)
+            rest
+        in
+        widestField
       in
       CompoundInit(t, [(Field(fieldToInit, NoOffset),
                         makeZeroInit fieldToInit.ftype)])
@@ -6769,8 +6475,7 @@ and succpred_stmt s fallthrough rlabels =
                 | hd :: tl -> link s hd ;
                     succpred_block b fallthrough rlabels
                 end
-  | TryExcept _ | TryFinally _ ->
-      failwith "computeCFGInfo: structured exception handling not implemented"
+
 
 let caseRangeFold (l: label list) =
   let rec fold acc = function
@@ -6959,8 +6664,6 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
           s.skind <- Block new_block
   | Block(b) -> xform_switch_block b break_dest cont_dest
 
-  | TryExcept _ | TryFinally _ ->
-      failwith "xform_switch_statement: structured exception handling not implemented"
 
 end and xform_switch_block b break_dest cont_dest =
   try
@@ -7046,7 +6749,7 @@ let initCIL () =
     begin
       match !envMachine with
         Some machine -> M.theMachine := machine
-      | None -> M.theMachine := if !msvcMode then M.msvc else M.gcc
+      | None -> M.theMachine := M.gcc
     end;
     (* Pick type for string literals *)
     stringLiteralType := if !M.theMachine.M.const_string_literals then
@@ -7090,11 +6793,7 @@ let initCIL () =
 (*     nextCompinfoKey := 1; *)
 
     initCIL_called := true;
-    if !msvcMode then
-      initMsvcBuiltins ()
-    else
-      initGccBuiltins ();
-    ()
+    initGccBuiltins ()
   end
 
 
@@ -7247,7 +6946,6 @@ let rec isInteger : exp -> int64 option = function
 (** Deprecated.  For compatibility with older programs, these are
   aliases for {!Cil.builtinFunctions} *)
 let gccBuiltins = builtinFunctions
-let msvcBuiltins = builtinFunctions
 
 (* Deprecated. Represents an integer as for a given kind.
    Returns a flag saying whether the value was changed

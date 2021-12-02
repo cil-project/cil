@@ -204,14 +204,6 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
           @ search_stmt_list_for_var [ s2 ] name varid includeCallTmp
       | Block block ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
-      | TryFinally (b1, b2, _) ->
-          search_stmt_list_for_var b1.bstmts name varid includeCallTmp
-          @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
-      | TryExcept (b1, (instr_list, exp), b2, loc) ->
-          search_stmt_list_for_var b1.bstmts name varid includeCallTmp
-          @ search_instr_list_for_var instr_list name varid includeCallTmp
-          @ search_expression exp name loc varid includeCallTmp
-          @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
       | _ -> [] )
       @ search_stmt_list_for_var xs name varid includeCallTmp
   | [] -> []
@@ -366,12 +358,6 @@ let rec cond_search_uses_stmt_list list varname varid includeCallTmp =
             includeCallTmp
       | Block block ->
           cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | TryFinally (b1, b2, _) ->
-          cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
-            includeCallTmp
-      | TryExcept (b1, _, b2, _) ->
-          cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
-            includeCallTmp
       | _ -> [] )
       @ cond_search_uses_stmt_list xs varname varid includeCallTmp
   | [] -> []

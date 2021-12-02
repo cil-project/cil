@@ -18,7 +18,7 @@ int main(){
   //OK, because it's a wide string.
   wchar_t c5[] = L"\777";
 
-#if defined _MSVC || defined __CYGWIN__
+#if defined __CYGWIN__
   // Assumes sizeof(wchar_t) == 16
   wchar_t w1[] = L"\x1";
   wchar_t w2[] = L"\x1234";

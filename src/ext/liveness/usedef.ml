@@ -200,7 +200,6 @@ let computeUseDefStmtKind ?(acc_used=VS.empty)
     | Switch (e, _, _, _, _) -> ve e
     | Instr il ->
         List.iter (fun i -> ignore (visitCilInstr useDefVisitor i)) il
-    | TryExcept _ | TryFinally _ -> ()
     | Block _ -> ()
   in
   !varUsed, !varDefs
@@ -243,7 +242,6 @@ let rec computeDeepUseDefStmtKind ?(acc_used=VS.empty)
   | Instr il ->
       List.iter (fun i -> ignore (visitCilInstr useDefVisitor i)) il;
       !varUsed, !varDefs
-  | TryExcept _ | TryFinally _ -> !varUsed, !varDefs
   | Block b -> handle_block b
 
 let computeUseLocalTypes ?(acc_used=VS.empty)

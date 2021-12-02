@@ -225,8 +225,6 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
       cfgBlock blk (Some s) next (Some s) nodeList rlabels
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
-  | TryExcept _ | TryFinally _ ->
-      E.s (E.unimp "try/except/finally")
 
 (*------------------------------------------------------------*)
 
@@ -250,7 +248,6 @@ and fasStmt (todo) (s : stmt) =
       | Switch (_, b, _, _, _) -> fasBlock todo b
       | Loop (b, _, _, _, _) -> fasBlock todo b
       | (Return _ | Break _ | Continue _ | Goto _ | ComputedGoto _ | Instr _) -> ()
-      | TryExcept _ | TryFinally _ -> E.s (E.unimp "try/except/finally")
   end
 ;;
 
@@ -273,8 +270,6 @@ let d_cfgnodelabel () (s : stmt) =
       | Switch _ -> "switch"
       | Block _ -> "block"
       | Return _ -> "return"
-      | TryExcept _ -> "try-except"
-      | TryFinally _ -> "try-finally"
   end in
     dprintf "%d: %s" s.sid label
 

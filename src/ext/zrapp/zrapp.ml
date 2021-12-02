@@ -311,15 +311,13 @@ class zraCilPrinterClass : cilPrinter = object (self)
     else
       (if !debug then ignore(E.log "zrapp: adding %s to global pp envirnoment\n" v.vname);
        H.add genvHtbl v.vname v) in
-    let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     self#pLineDirective v.vdecl ++
     text (if v.vinline then "__inline " else "")
       ++ d_storage () v.vstorage
-      ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
-      ++ self#pAttrs () rest
+      ++ self#pAttrs () v.vattr
 
   (* For printing deputy annotations *)
   method! pAttr (Attr (an, args) : attribute) : doc * bool =
@@ -430,16 +428,15 @@ class zraCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective ~forcefile:true l ++
-          text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
+          text su1 ++ (align ++ text su2 ++ chr ' '
                          ++ text n
                          ++ text " {" ++ line
                          ++ ((docList ~sep:line (self#pFieldDecl ())) ()
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () rest_attr) ++ text ";\n"
+          (self#pAttrs () comp.cattr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         self#pLineDirective l ++
@@ -465,7 +462,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
     (* print global variable 'extern' declarations, and function prototypes *)
     | GVarDecl (vi, l) ->
-        let builtins = if !msvcMode then msvcBuiltins else gccBuiltins in
+        let builtins = gccBuiltins in
         if not !printCilAsIs && H.mem builtins vi.vname then begin
           (* Compiler builtins need no prototypes. Just print them in
              comments. *)
@@ -489,7 +486,6 @@ class zraCilPrinterClass : cilPrinter = object (self)
         (* nor 'cilnoremove' *)
         let suppress =
           not !print_CIL_Input &&
-          not !msvcMode &&
           ((startsWith "box" an) ||
            (startsWith "ccured" an) ||
            (an = "merger") ||
