@@ -2699,11 +2699,10 @@ and isConstantOffset = function
   | Index(e, off) -> isConstant e && isConstantOffset off
 
 let parseInt (str: string) : exp =
-  let hasSuffix str =
+  let hasSuffix str suff =
     let l = String.length str in
-    fun s ->
-      let ls = String.length s in
-      l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
+    let lsuff = String.length suff in
+    l >= lsuff && suff = String.uppercase_ascii (String.sub str (l - lsuff) lsuff)
   in
   let l = String.length str in
   (* See if it is octal or hex *)
@@ -2747,17 +2746,11 @@ let parseInt (str: string) : exp =
   let t = String.sub str start (String.length str - start - suffixlen) in
   (* Normal Z.of_string does not work here as 0 is not recognized as the prefix for octal here *)
   let i = Z.of_string_base base t in
-  (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
-  let res =
-    let rec loop = function
-      | k::rest ->
-        if fitsInInt k i then kintegerCilintString k i (Some str)
-        else loop rest
-      | [] -> E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
-    in
-    loop kinds
-  in
-  res
+  try
+    (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
+    let ik = List.find (fun ik -> fitsInInt ik i) kinds in
+    kintegerCilintString ik i (Some str)
+  with Not_found -> E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
 
 
 let d_unop () u =
