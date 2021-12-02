@@ -1421,7 +1421,7 @@ let attributeHash: (string, attributeClass) H.t =
       "aconst"; "__asm__" (* Gcc uses this to specify the name to be used in
                            * assembly for a global  *)];
 
-  (* Now come the MSVC declspec attributes *)
+  (* MSVC declspec attributes that are also supported by GCC *)
   List.iter (fun a -> H.add table a AttrName)
     [ "thread"; "naked"; "dllimport"; "dllexport";
       "selectany"; "nothrow"; "property";  "noreturn"; "align" ];
