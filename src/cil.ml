@@ -1424,8 +1424,7 @@ let attributeHash: (string, attributeClass) H.t =
   (* Now come the MSVC declspec attributes *)
   List.iter (fun a -> H.add table a AttrName)
     [ "thread"; "naked"; "dllimport"; "dllexport";
-      "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
-      "uuid"; "align" ];
+      "selectany"; "nothrow"; "property";  "noreturn"; "align" ];
 
   List.iter (fun a -> H.add table a AttrFunType)
     [ "format"; "regparm"; "longcall";
