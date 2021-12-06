@@ -2579,6 +2579,16 @@ and constFoldLval machdep (host,offset) =
 and constFoldBinOp (machdep: bool) bop e1 e2 tres =
   let e1' = constFold machdep e1 in
   let e2' = constFold machdep e2 in
+  let if_not_overflow fallback ik i =
+    if not (isSigned ik) then
+      kintegerCilint ik i
+    else
+      let i', trunc = truncateCilint ik i in
+      if trunc = NoTruncation then
+        kintegerCilint ik i
+      else
+        fallback
+  in
   if isIntegralType tres then begin
     let newe =
       let tk =
@@ -2601,27 +2611,28 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           with SizeOfError _ -> false
         else false
       in
+      let no_ov = if_not_overflow (BinOp(bop, e1', e2', tres)) tk in
       (* Assume that the necessary promotions have been done *)
       match bop, getInteger e1', getInteger e2' with
-      | PlusA, Some i1, Some i2 -> kintegerCilint tk (add_cilint i1 i2)
+      | PlusA, Some i1, Some i2 -> no_ov (add_cilint i1 i2)
       | PlusA, Some z, _ when is_zero_cilint z -> collapse e2'
       | PlusA, _, Some z when is_zero_cilint z -> collapse e1'
-      | MinusA, Some i1, Some i2 -> kintegerCilint tk (sub_cilint i1 i2)
+      | MinusA, Some i1, Some i2 -> no_ov (sub_cilint i1 i2)
       | MinusA, _, Some z when is_zero_cilint z -> collapse e1'
-      | Mult, Some i1, Some i2 -> kintegerCilint tk (mul_cilint i1 i2)
+      | Mult, Some i1, Some i2 -> no_ov (mul_cilint i1 i2)
       | Mult, Some z, _ when is_zero_cilint z -> collapse0 ()
       | Mult, _, Some z when is_zero_cilint z -> collapse0 ()
       | Mult, Some o, _ when compare_cilint o one_cilint = 0 -> collapse e2'
       | Mult, _, Some o when compare_cilint o one_cilint = 0 -> collapse e1'
       | Div, Some i1, Some i2 -> begin
-          try kintegerCilint tk (div0_cilint i1 i2)
+          try no_ov (div0_cilint i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
-	end
+	      end
       | Div, _, Some o when compare_cilint o one_cilint = 0 -> collapse e1'
       | Mod, Some i1, Some i2 -> begin
-          try kintegerCilint tk (rem_cilint i1 i2)
+          try no_ov (rem_cilint i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
-	end
+	      end
       | Mod, _, Some o when compare_cilint o one_cilint = 0 -> collapse0 ()
 
       | BAnd, Some i1, Some i2 -> kintegerCilint tk (logand_cilint i1 i2)
