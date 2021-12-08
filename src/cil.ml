@@ -543,12 +543,10 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of int64 * ikind * string option
+  | CInt of cilint * ikind * string option
                  (** Integer constant. Give the ikind (see ISO9899 6.1.3.2)
                   * and the textual representation, if available. Use
-                  * {!Cil.integer} or {!Cil.kinteger} to create these. Watch
-                  * out for integers that cannot be represented on 64 bits.
-                  * OCAML does not give Overflow exceptions. *)
+                  * {!Cil.integer} or {!Cil.kinteger} to create these. *)
   | CStr of string (** String constant (of pointer type) *)
   | CWStr of int64 list (** Wide string constant (of type "wchar_t *") *)
   | CChr of char (** Character constant.  This has type int, so use
@@ -873,7 +871,7 @@ and location = {
 (* Type signatures. Two types are identical iff they have identical
  * signatures *)
 and typsig =
-    TSArray of typsig * int64 option * attribute list
+    TSArray of typsig * cilint option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * typsig list option * bool * attribute list
@@ -1241,20 +1239,20 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
-let zero      = Const(CInt64(Int64.zero, IInt, None))
+let zero      = Const(CInt(zero_cilint, IInt, None))
 
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extended c, IInt, None) *)
+  Returns CInt(sign-extended c, IInt, None) *)
 let charConstToInt (c: char) : constant =
   let c' = Char.code c in
   let value =
     if c' < 128
-    then Int64.of_int c'
-    else Int64.of_int (c' - 256)
+    then cilint_of_int c'
+    else cilint_of_int (c' - 256)
   in
-  CInt64(value, IInt, None)
+  CInt(value, IInt, None)
 
 
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
@@ -1718,8 +1716,8 @@ let d_storage () = function
   | Register -> text "register "
 
 (* sm: need this value below *)
-let mostNeg32BitInt : int64 = (Int64.of_string "-0x80000000")
-let mostNeg64BitInt : int64 = (Int64.of_string "-0x8000000000000000")
+let mostNeg32BitInt : cilint = cilint_of_string "-0x80000000"
+let mostNeg64BitInt : cilint = cilint_of_string "-0x8000000000000000"
 
 let bytesSizeOfInt (ik: ikind): int =
   match ik with
@@ -1734,8 +1732,8 @@ let bytesSizeOfInt (ik: ikind): int =
 (* constant *)
 let d_const () c =
   match c with
-    CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
-  | CInt64(i, ik, None) ->
+    CInt(_, _, Some s) -> text s (* Always print the text if there is one *)
+  | CInt(i, ik, None) ->
       (* We must make sure to capture the type of the constant. For some
        * constants this is done with a suffix, for others with a cast prefix.*)
       let suffix : string =
@@ -1759,26 +1757,26 @@ let d_const () c =
       in
       (* Watch out here for negative integers that we should be printing as
        * large positive ones *)
-      if i < Int64.zero && (not (isSigned ik)) then
+      if compare_cilint i zero_cilint < 0 && (not (isSigned ik)) then
         if bytesSizeOfInt ik <> 8 then
           (* I am convinced that we shall never store smaller than 64-bits
            * integers in negative form. -- Gabriel *)
           E.s (E.bug "unexpected negative unsigned integer (please report this bug)")
         else
-          text (prefix ^ "0x" ^ Int64.format "%x" i ^ suffix)
+          text (prefix ^ "0x" ^ Z.format "%x" i ^ suffix)
       else (
-        if (i = mostNeg32BitInt) then
+        if (compare_cilint i mostNeg32BitInt = 0) then
           (* sm: quirk here: if you print -2147483648 then this is two tokens *)
           (* in C, and the second one is too large to represent in a signed *)
           (* int.. so we do what's done in limits.h, and print (-2147483467-1); *)
           (* in gcc this avoids a warning, but it might avoid a real problem *)
           (* on another compiler or a 64-bit architecture *)
           text (prefix ^ "(-0x7FFFFFFF-1)")
-        else if (i = mostNeg64BitInt) then
+        else if (compare_cilint i mostNeg64BitInt = 0) then
           (* The same is true of the largest 64-bit negative. *)
           text (prefix ^ "(-0x7FFFFFFFFFFFFFFF-1)")
         else
-          text (prefix ^ (Int64.to_string i ^ suffix))
+          text (prefix ^ (string_of_cilint i ^ suffix))
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
@@ -1902,7 +1900,7 @@ let isFunctionType t =
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ =
   match e with
-  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt (_, ik, _)) -> TInt(ik, [])
 
     (* Character constants have type int.  ISO/IEC 9899:1999 (E),
      * section 6.4.4.4 [Character constants], paragraph 10, if you
@@ -2078,25 +2076,23 @@ let truncateCilint (k: ikind) (i: cilint) : cilint * truncation =
     else
       truncate_unsigned_cilint i nrBits
 
+let mkCilintIk (ik:ikind) (i:cilint) : cilint =
+  fst (truncateCilint ik i)
+
 let mkCilint (ik:ikind) (i:int64) : cilint =
-  fst (truncateCilint ik (cilint_of_int64 i))
+ mkCilintIk ik (cilint_of_int64 i)
+
 
 (* Construct an integer constant with possible truncation *)
-let kintegerCilint (k: ikind) (i: cilint) : exp =
+let kintegerCilintString (k: ikind) (i: cilint) (s:string option): exp =
   let i', truncated = truncateCilint k i in
   if truncated = BitTruncation && !warnTruncate then
     ignore (warnOpt "Truncating integer %s to %s"
               (string_of_cilint i) (string_of_cilint i'));
-  let str =
-    let int64_min = cilint_of_int64 Int64.min_int in
-    let int64_max = cilint_of_int64 Int64.max_int in
-    (* if the resulting value can not be represented by an Int64, store its string representation *)
-    if Cilint.compare_cilint i' int64_min < 0 || Cilint.compare_cilint int64_max i' < 0 then (
-      Some (string_of_cilint i')
-    )
-    else None
-  in
-  Const (CInt64(int64_of_cilint i', k, str))
+  Const (CInt(i', k, s))
+
+let kintegerCilint (k: ikind) (i: cilint) : exp =
+  kintegerCilintString k i None
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp =
@@ -2144,7 +2140,7 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     Otherwise return None. *)
 let rec getInteger (e:exp) : cilint option =
   match e with
-  | Const(CInt64 (n, ik, _)) -> Some (mkCilint ik n)
+  | Const(CInt (n, ik, _)) -> Some (mkCilintIk ik n)
   | Const(CChr c) -> getInteger (Const (charConstToInt c))
   | Const(CEnum(v, _, _)) -> getInteger v
   | CastE(t, e) -> begin
@@ -2408,8 +2404,8 @@ and bitsSizeOf t =
 
   | TArray(bt, Some len, _) -> begin
       match constFold true len with
-        Const(CInt64(l,lk,_)) ->
-	  let sz = mul_cilint (mkCilint lk l) (cilint_of_int  (bitsSizeOf bt)) in
+        Const(CInt(l,lk,_)) ->
+	  let sz = mul_cilint (mkCilintIk lk l) (cilint_of_int (bitsSizeOf bt)) in
           (* Check for overflow.
              There are other places in these cil.ml that overflow can occur,
              but this multiplication is the most likely to be a problem. *)
@@ -2506,8 +2502,8 @@ and constFold (machdep: bool) (e: exp) : exp =
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt64(i,ik,_)) -> begin
-	    let ic = mkCilint ik i in
+          Const(CInt(i,ik,_)) -> begin
+	    let ic = mkCilintIk ik i in
             match unop with
               Neg -> kintegerCilint tk (neg_cilint ic)
             | BNot -> kintegerCilint tk (lognot_cilint ic)
@@ -2553,12 +2549,12 @@ and constFold (machdep: bool) (e: exp) : exp =
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with
         (* Might truncate silently *)
-      | Const(CInt64(i,k,_)), TInt(nk,a)
+      | Const(CInt(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
           when (dropAttributes ["const"] a) = [] ->
-          let i', _ = truncateCilint nk (mkCilint k i) in
-          Const(CInt64(int64_of_cilint i', nk, None))
+          let i', _ = truncateCilint nk (mkCilintIk k i) in
+          Const(CInt(i', nk, None))
       | e', _ -> CastE (t, e')
   end
   | Lval lv -> Lval (constFoldLval machdep lv)
@@ -2702,11 +2698,10 @@ and isConstantOffset = function
   | Index(e, off) -> isConstant e && isConstantOffset off
 
 let parseInt (str: string) : exp =
-  let hasSuffix str =
+  let hasSuffix str suff =
     let l = String.length str in
-    fun s ->
-      let ls = String.length s in
-      l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
+    let lsuff = String.length suff in
+    l >= lsuff && suff = String.uppercase_ascii (String.sub str (l - lsuff) lsuff)
   in
   let l = String.length str in
   (* See if it is octal or hex *)
@@ -2738,57 +2733,24 @@ let parseInt (str: string) : exp =
           b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
              warning in C99 mode vs. unsigned long long if c99mode is off. *)
   in
-    (* Convert to integer. To prevent overflow we do the arithmetic on
-     * cilints. We work only with positive integers since the lexer
-     * takes care of the sign *)
-  let rec toInt (base: cilint) (acc: cilint) (idx: int) : cilint =
-    let doAcc (what: int) =
-      let acc' = add_cilint (mul_cilint base acc)  (cilint_of_int what) in
-      toInt base acc' (idx + 1)
-    in
-    if idx >= l - suffixlen then begin
-      acc
-    end else
-      let ch = String.get str idx in
-      if ch >= '0' && ch <= '9' then
-        doAcc (Char.code ch - Char.code '0')
-      else if  ch >= 'a' && ch <= 'f'  then
-        doAcc (10 + Char.code ch - Char.code 'a')
-      else if  ch >= 'A' && ch <= 'F'  then
-        doAcc (10 + Char.code ch - Char.code 'A')
-      else
-        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)"
-               str ch idx)
-  in
-  let i =
+  let start, base =
     if octalhex then
-      if l >= 2 &&
-        (let c = String.get str 1 in c = 'x' || c = 'X') then
-          toInt (cilint_of_int 16) zero_cilint 2
+      if l >= 2 && (let c = String.get str 1 in c = 'x' || c = 'X') then
+        2, 16
       else
-        toInt (cilint_of_int 8) zero_cilint 1
+        1, 8
     else
-      toInt (cilint_of_int 10) zero_cilint 0
+     0, 10
   in
-  (* Construct an integer of the first kinds that fits. i must be
-   * POSITIVE  *)
-  let res =
-    let rec loop = function
-        k::rest ->
-	  if fitsInInt k i then kintegerCilint k i
-	  else loop rest
-        | [] -> E.s (E.unimp "Cannot represent the integer %s\n"
-                       (string_of_cilint i))
-    in
-    loop kinds
-    in
-  res
-(* with e -> begin *)
-(*   ignore (E.log "int_of_string %s (%s)\n" str  *)
-(*             (Printexc.to_string e)); *)
-(*     zero *)
-(*   end *)
-
+  let t = String.sub str start (String.length str - start - suffixlen) in
+  (* Normal Z.of_string does not work here as 0 is not recognized as the prefix for octal here *)
+  let i = Z.of_string_base base t in
+  try
+    (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
+    let ik = List.find (fun ik -> fitsInInt ik i) kinds in
+    kintegerCilintString ik i (Some str)
+  with Not_found ->
+    E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
 
 
 let d_unop () u =
@@ -3507,21 +3469,21 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Set(lv,e,l,el) -> begin
         (* Be nice to some special cases *)
         match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(one,_,_)),_)
+            when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
                 ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _)
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+                Const(CInt(one,_,_)), _)
+            when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLvalPrec indexLevel () lv
                     ++ text (" --" ^ printInstrTerminator)
 
-        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when Util.equals lv lv' && mone = Int64.minus_one
+        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(mone,_,_)),_)
+            when Util.equals lv lv' && compare_cilint mone mone_cilint = 0
                 && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
@@ -4602,10 +4564,10 @@ class plainCilPrinterClass =
     Const(c) ->
       let d_plainconst () c =
         match c with
-          CInt64(i, ik, so) ->
+          CInt(i, ik, so) ->
 	    let fmt = if isSigned ik then "%d" else "%x" in
-            dprintf "Int64(%s,%a,%s)"
-              (Int64.format fmt i)
+            dprintf "Int(%s,%a,%s)"
+              (Z.format fmt i)
               d_ikind ik
               (match so with Some s -> s | _ -> "None")
         | CStr(s) ->
@@ -4806,7 +4768,7 @@ let rec d_typsig () = function
       dprintf "TSArray(@[%a,@?%a,@?%a@])"
         d_typsig ts
         insert (text (match eo with None -> "None"
-                       | Some e -> "Some " ^ Int64.to_string e))
+                       | Some e -> "Some " ^ string_of_cilint e))
         d_attrlist al
   | TSPtr (ts, al) ->
       dprintf "TSPtr(@[%a,@?%a@])"
@@ -5802,8 +5764,8 @@ let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
 exception NotAnAttrParam of exp
 let rec expToAttrParam (e: exp) : attrparam =
   match e with
-    Const(CInt64(i,k,_)) ->
-      let i' = mkCilint k i in
+    Const(CInt(i,k,_)) ->
+      let i' = mkCilintIk k i in
       if not (is_int_cilint i') then
         raise (NotAnAttrParam e);
       AInt (int_of_cilint i')
@@ -5920,7 +5882,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
         match l with
           Some l -> begin
             match constFold true l with
-              Const(CInt64(i, _, _)) -> Some i
+              Const(CInt(i, _, _)) -> Some i
             | e -> None (* Returning None for length in a typesig if the length is not a constant (VLA) *)
           end
         | None -> None
@@ -6034,11 +5996,10 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
     (* Watch out for constants *)
     match newt, e with
       (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
-      TInt(IBool, []), Const(CInt64(i, _, _)) ->
-        let v = if i = Int64.zero then Int64.zero else Int64.one in
-        Const (CInt64(v, IBool,  None))
-    | TInt(newik, []), Const(CInt64(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
-    | TInt(newik, []), Const(CInt64(i, _, None)) -> kinteger64 newik i
+      TInt(IBool, []), Const(CInt(i, _, _)) ->
+        let v = if compare i zero_cilint = 0 then zero_cilint else one_cilint in
+        Const (CInt(v, IBool,  None))
+    | TInt(newik, []), Const(CInt(i, _, _)) -> kintegerCilint newik i
     | _ -> CastE(newt,e)
   end
 
@@ -6091,8 +6052,8 @@ let lenOfArray (eo: exp option) : int =
     None -> raise LenOfArray
   | Some e -> begin
       match constFold true e with
-      | Const(CInt64(ni, _, _)) when ni >= Int64.zero ->
-          i64_to_int ni
+      | Const(CInt(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
+          cilint_to_int ni
       | e -> raise LenOfArray
   end
 
@@ -6100,7 +6061,7 @@ let lenOfArray (eo: exp option) : int =
 (*** Make an initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init =
   match unrollType t with
-    TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
+    TInt (ik, _) -> SingleInit (Const(CInt(zero_cilint, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | TEnum (e, _) -> SingleInit (kinteger e.ekind 0)
   | TComp (comp, _) as t' when comp.cstruct ->
@@ -6144,7 +6105,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' ->
       let n =
         match constFold true len with
-          Const(CInt64(n, _, _)) -> i64_to_int n
+          Const(CInt(n, _, _)) -> cilint_to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -6187,8 +6148,8 @@ let foldLeftCompound
       match leno with
         Some lene when implicit -> begin
           match constFold true lene with
-            Const(CInt64(i, _, _)) ->
-              let len_array = i64_to_int i in
+            Const(CInt(i, _, _)) ->
+              let len_array = cilint_to_int i in
               let len_init = List.length initl in
               if len_array > len_init then
                 let zi = makeZeroInit bt in
@@ -6483,8 +6444,8 @@ let caseRangeFold (l: label list) =
   | CaseRange(el, eh, loc, eloc) :: xs ->
       let il, ih, ik =
         match constFold true el, constFold true eh with
-          Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
-            mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
+          Const(CInt(il, ilk, _)), Const(CInt(ih, ihk, _)) ->
+            mkCilintIk ilk il, mkCilintIk ihk ih, commonIntKind ilk ihk
         | _ -> E.s (error "Cannot understand the constants in case range")
       in
       if compare_cilint il ih > 0 then
@@ -6932,94 +6893,6 @@ let d_formatarg () = function
 (*                        These will eventually go away                      *)
 (* ------------------------------------------------------------------------- *)
 
-(** Deprecated (can't handle large 64-bit unsigned constants
-    correctly) - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-let rec isInteger : exp -> int64 option = function
-  | Const(CInt64 (n,_,_)) -> Some n
-  | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *)
-  | Const(CEnum(v, s, ei)) -> isInteger v
-  | CastE(_, e) -> isInteger e
-  | _ -> None
-
 (** Deprecated.  For compatibility with older programs, these are
   aliases for {!Cil.builtinFunctions} *)
 let gccBuiltins = builtinFunctions
-
-(* Deprecated. Represents an integer as for a given kind.
-   Returns a flag saying whether the value was changed
-   during truncation (because it was too large to fit in k). *)
-let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
-  let nrBits = 8 * (bytesSizeOfInt k) in
-  let signed = isSigned k in
-  if nrBits = 64 then
-    i, false
-  else begin
-    let i1 = Int64.shift_left i (64 - nrBits) in
-    let i2 =
-      if signed then Int64.shift_right i1 (64 - nrBits)
-      else Int64.shift_right_logical i1 (64 - nrBits)
-    in
-    let truncated =
-      if i2 = i then false
-      else
-        (* Examine the bits that we chopped off.  If they are all zero, then
-         * any difference between i2 and i is due to a simple sign-extension.
-         *   e.g. casting the constant 0x80000000 to int makes it
-         *        0xffffffff80000000.
-         * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right i nrBits in
-        chopped <> Int64.zero
-          (* matth: also suppress the warning if we only chop off 1s.
-             This is probably due to a negative number being cast to an
-             unsigned value.  While potentially a bug, this is almost
-             always what the programmer intended. *)
-        && chopped <> Int64.minus_one
-    in
-    i2, truncated
-  end
-
-(* Convert 2 integer constants to integers with the same type, in preparation
-   for a binary operation.   See ISO C 6.3.1.8p1 *)
-let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
-  : int64 * int64 * ikind =
-  if ik1 = ik2 then (* nothing to do *)
-    i1, i2, ik1
-  else begin
-    let rank : ikind -> int = function
-        (* these are just unique numbers representing the integer
-           conversion rank. *)
-      | IBool -> 0
-      | IChar | ISChar | IUChar -> 1
-      | IShort | IUShort -> 2
-      | IInt | IUInt -> 3
-      | ILong | IULong -> 4
-      | ILongLong | IULongLong -> 5
-      | IInt128 | IUInt128 -> 6
-    in
-    let r1 = rank ik1 in
-    let r2 = rank ik2 in
-    let ik' =
-      if (isSigned ik1) = (isSigned ik2) then begin
-        (* Both signed or both unsigned. *)
-        if r1 > r2 then ik1 else ik2
-      end
-      else begin
-        let signedKind, unsignedKind, signedRank, unsignedRank =
-          if isSigned ik1 then ik1, ik2, r1, r2 else ik2, ik1, r2, r1
-        in
-        (* The rules for signed + unsigned get hairy.
-           (unsigned short + long) is converted to signed long,
-           but (unsigned int + long) is converted to unsigned long.*)
-        if unsignedRank >= signedRank then unsignedKind
-        else if (bytesSizeOfInt signedKind) > (bytesSizeOfInt unsignedKind) then
-          signedKind
-        else
-          unsignedVersionOf signedKind
-      end
-    in
-    let i1',_ = truncateInteger64 ik' i1 in
-    let i2',_ = truncateInteger64 ik' i2 in
-    i1', i2', ik'
-  end

@@ -115,7 +115,7 @@ let rec checkSameFormat (fl1: formatArg list) (fl2: formatArg list) =
 
       and checkExpEq e1 e2 =
         match e1, e2 with
-          Const(CInt64(n1, _, _)), Const(CInt64(n2, _, _)) -> n1 = n2
+          Const(CInt(n1, _, _)), Const(CInt(n2, _, _)) -> n1 = n2
         | Lval l1, Lval l2 -> checkLvalEq l1 l2
         | UnOp(uo1, e1, _), UnOp(uo2, e2, _) ->
             uo1 = uo2 && checkExpEq e1 e2
@@ -551,8 +551,8 @@ constant:
                               | a -> wrongArgType currentArg "integer" a),
 
                             fun e -> match e with
-                              Const(CInt64(n, _, _)) ->
-                                Some [ Fd (Int64.to_int n) ]
+                              Const(CInt(n, _, _)) ->
+                                Some [ Fd (Cilint.int_of_cilint n) ]
                             | _ -> None)
                          }
 
@@ -571,8 +571,8 @@ constant:
                            ((fun args -> n),
 
                             (fun e -> match e, n with
-                              Const(CInt64(e', _, _)),
-                              Const(CInt64(n', _, _)) when e' = n' -> Some []
+                              Const(CInt(e', _, _)),
+                              Const(CInt(n', _, _)) when e' = n' -> Some []
                             | _ -> None))
                          }
 ;
