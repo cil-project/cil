@@ -31,7 +31,9 @@ let joinLoc l1 l2 = match l1, l2 with
     {l1 with endLineno = l2.lineno; endByteno = l2.byteno; endColumnno = l2.columnno}
   | l1, l2 when l1.filename = l2.filename && l1.endByteno = l2.endByteno && l1.byteno = l2.byteno -> 
     l1 (* alias fundefs *)
-  | _, _ -> Errormsg.s (Errormsg.unimp "joinLoc %s %s" (string_of_loc l1) (string_of_loc l2))
+  | _, _ ->
+      l1
+      (* Errormsg.s (Errormsg.unimp "joinLoc %s %s" (string_of_loc l1) (string_of_loc l2)) *)
 
 (* clexer puts comments here *)
 let commentsGA = GrowArray.make 100 (GrowArray.Elem(cabslu,"",false))
