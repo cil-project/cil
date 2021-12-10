@@ -59,22 +59,12 @@
 
 (* George Necula: I changed this pretty dramatically since CABS changed *)
 open Cabs
+open Cabshelper
 open Escape
 open Whitetrack
 
 let version = "Cprint 2.1e 9.1.99 Hugues Cassé"
 
-type loc = { line : int; file : string }
-
-let lu = {line = -1; file = "loc unknown";}
-let cabslu = {lineno = -10;
-	      filename = "cabs loc unknown";
-	      byteno = -10; columnno = -10;
-              ident = 0;}
-
-let curLoc = ref cabslu
-
-let msvcMode = ref false
 
 let printLn = ref true
 let printLnComment = ref false
@@ -604,7 +594,7 @@ and print_statement stat =
       setLoc(loc);
       print_statement s1;
       print_statement s2;
-  | IF (exp, s1, s2, loc) ->
+  | IF (exp, s1, s2, loc, eloc) ->
       setLoc(loc);
       printl ["if";"("];
       print_expression_level 0 exp;
@@ -616,13 +606,13 @@ and print_statement stat =
           print "else";
           print_substatement s2;
         end)
-  | WHILE (exp, stat, loc) ->
+  | WHILE (exp, stat, loc, eloc) ->
       setLoc(loc);
       printl ["while";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
-  | DOWHILE (exp, stat, loc) ->
+  | DOWHILE (exp, stat, loc, eloc) ->
       setLoc(loc);
       print "do";
       print_substatement stat;
@@ -630,7 +620,7 @@ and print_statement stat =
       print_expression_level 0 exp;
       print ");";
       new_line ();
-  | FOR (fc1, exp2, exp3, stat, loc) ->
+  | FOR (fc1, exp2, exp3, stat, loc, eloc) ->
       setLoc(loc);
       printl ["for";"("];
       (match fc1 with
@@ -660,13 +650,13 @@ and print_statement stat =
       end;
       print ";";
       new_line ()
-  | SWITCH (exp, stat, loc) ->
+  | SWITCH (exp, stat, loc, eloc) ->
       setLoc(loc);
       printl ["switch";"("];
       print_expression_level 0 exp;
       print ")";
       print_substatement stat
-  | CASE (exp, stat, loc) ->
+  | CASE (exp, stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "case ";
@@ -674,7 +664,7 @@ and print_statement stat =
       print ":";
       indent ();
       print_substatement stat
-  | CASERANGE (expl, exph, stat, loc) ->
+  | CASERANGE (expl, exph, stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "case ";
@@ -684,7 +674,7 @@ and print_statement stat =
       print ":";
       indent ();
       print_substatement stat
-  | DEFAULT (stat, loc) ->
+  | DEFAULT (stat, loc, eloc) ->
       setLoc(loc);
       unindent ();
       print "default :";
@@ -709,11 +699,7 @@ and print_statement stat =
       let print_asm_operand (identop,cnstr, e) =
         print_string cnstr; space (); print_expression_level 100 e
       in
-      if !msvcMode then begin
-        print "__asm {";
-        print_list (fun () -> new_line()) print tlist; (* templates *)
-        print "};"
-      end else begin
+      begin
         print "__asm__ ";
         print_attributes attrs;
         print "(";
@@ -736,19 +722,7 @@ and print_statement stat =
         print ");"
       end;
       new_line ()
-  | TRY_FINALLY (b, h, loc) ->
-      setLoc loc;
-      print "__try ";
-      print_block b;
-      print "__finally ";
-      print_block h
 
-  | TRY_EXCEPT (b, e, h, loc) ->
-      setLoc loc;
-      print "__try ";
-      print_block b;
-      printl ["__except";"("]; print_expression e; print ")";
-      print_block h
 
 and print_block blk =
   new_line();

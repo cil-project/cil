@@ -7,7 +7,7 @@
 #endif
 
 
-#if ! defined(_MSVC) && ! defined(_GNUCC)
+#if ! defined(_GNUCC)
 #define U32     int
 #define __cdecl
 #endif
@@ -17,9 +17,7 @@
 #ifdef _GNUCC
 #include <unistd.h>     // dup, close
 #endif
-#ifdef _MSVC
-#include <io.h>
-#endif
+
 
 /* A special purpose main */
 //#include "main.h"
@@ -77,10 +75,6 @@ typedef int BOOL;
  
 #define DIRLISTSEP ';'
 
-#ifdef _MSVC  /* MSVC on x86 */
-#define U64    unsigned __int64
-#define S64    __int64
-#endif /* _MSVC */
 
 #ifdef _GNUCC  /* GNU CC on x86 */
 #define U64    unsigned long long
@@ -131,11 +125,8 @@ extern void exit(int);
 typedef long clock_t;
  clock_t __cdecl clock(void);
  int    __cdecl rand(void);
-#ifdef _MSVC
-#       define CLOCKS_PER_SEC 1000
-#else
-#       define CLOCKS_PER_SEC  1000000
-#endif
+
+#define CLOCKS_PER_SEC  1000000
 
 #define TIMESTART(clk) {clk=(double)clock();}
 #define TIMESTOP(clk)  {clk=1000000.0 * ((double)clock()-(clk))/CLOCKS_PER_SEC;}
@@ -233,11 +224,7 @@ int error_level, anerror;
 void myexit(int n) {
   exit(n);
 }
-#ifdef _MSVC
-#define random rand
-#else
-/* weimer: not needed: extern int random(void); */
-#endif
+
 int __mmId;
 int debugMM;
 int debug;

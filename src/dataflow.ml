@@ -150,7 +150,7 @@ module ForwardsDataFlow =
         | fst::_ -> fst
       in
       match s.skind with
-        If(e, b1, b2, _) ->
+        If(e, b1, b2, _, _) ->
           let thenSucc = fstStmt b1 in
           let elseSucc = fstStmt b2 in
           let oneFallthrough () =
@@ -221,14 +221,13 @@ module ForwardsDataFlow =
                 List.fold_left handleInstruction curr il
 
             | Goto _ | ComputedGoto _ | Break _ | Continue _ | If _
-            | TryExcept _ | TryFinally _
             | Switch _ | Loop _ | Return _ | Block _ -> curr
           in
           currentLoc := get_stmtLoc s.skind;
 
           (* Handle If guards *)
           let succsToReach = match s.skind with
-              If (e, _, _, _) -> begin
+              If (e, _, _, _, _) -> begin
                 let not_e = UnOp(LNot, e, intType) in
                 let thenGuard = T.doGuard e after in
                 let elseGuard = T.doGuard not_e after in

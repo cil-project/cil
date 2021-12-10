@@ -2,12 +2,11 @@
 (name goblint-cil)
 (implicit_transitive_deps false)
 (generate_opam_files true)
-(version 1.8.1)
+(version 1.8.2)
 (source (github goblint/cil))
-(homepage "https://cil-project.github.io/cil/")
 ; (documentation "https://goblint.github.io/cil")
 (authors "gabriel@kerneis.info")
-(maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
+(maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
 (license "BSD-3-Clause")
 
 (package
@@ -16,16 +15,17 @@
   (description "\
 This is a fork of the 'cil' package needed to build 'goblint'.
 Changes:
-- Proper support for C99, (#9) and VLAs in particular (#5, #7)
+- Proper support for C99 and VLAs in particular
 - It uses Zarith instead of the deprecated Num
 - Support for more recent OCaml versions (≥ 4.06)
 - Large integer constants that do not fit in an OCaml int are represented as a string instead of getting truncated
-- Syntactic search extension (#21)
+- Syntactic search extension
+- More precise locations (with columns)
 - Some warnings were made optional
-- Unmaintained extensions (#30) were removed
+- Unmaintained extensions were removed
 - Many bug fixes")
   (depends
-    (ocaml (>= 4.04.2))
+    (ocaml (>= 4.05.0))
     ocamlfind
     zarith
     (hevea :with-doc)

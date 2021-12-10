@@ -456,7 +456,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "int" *)
-        if not !msvcMode && oldk = IInt && bitsSizeOf t <= 32
+        if oldk = IInt && bitsSizeOf t <= 32
            && (what = CombineFunarg || what = CombineFunret)
         then
           k
@@ -476,7 +476,7 @@ let rec combineTypes (what: combineWhat)
         if oldk == k then oldk else
         (* GCC allows a function definition to have a more precise integer
          * type than a prototype that says "double" *)
-        if not !msvcMode && oldk = FDouble && k = FFloat
+        if oldk = FDouble && k = FFloat
            && (what = CombineFunarg || what = CombineFunret)
         then
           k
@@ -515,7 +515,7 @@ let rec combineTypes (what: combineWhat)
         | Some oldsz', Some sz' ->
             let samesz =
               match constFold true oldsz', constFold true sz' with
-                Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+                Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> Cilint.compare_cilint oldi i = 0
               | _, _ -> false
             in
             if samesz then oldsz else
@@ -711,7 +711,7 @@ and matchEnumInfo (oldfidx: int) (oldei: enuminfo)
             raise (Failure "(different names for enumeration items)");
           let samev =
             match constFold true old_iv, constFold true iv with
-              Const(CInt64(oldi, _, _)), Const(CInt64(i, _, _)) -> oldi = i
+              Const(CInt(oldi, _, _)), Const(CInt(i, _, _)) -> Cilint.compare_cilint oldi i = 0
             | _ -> false
           in
           if not samev then
@@ -1187,16 +1187,12 @@ begin
     | ComputedGoto(_) -> 131
     | Break(_) -> 23
     | Continue(_) -> 29
-    | If(_,b1,b2,_) -> 31 + 37*(stmtListSum b1.bstmts)
+    | If(_,b1,b2,_,_) -> 31 + 37*(stmtListSum b1.bstmts)
                           + 41*(stmtListSum b2.bstmts)
-    | Switch(_,b,_,_) -> 43 + 47*(stmtListSum b.bstmts)
+    | Switch(_,b,_,_,_) -> 43 + 47*(stmtListSum b.bstmts)
                             (* don't look at stmt list b/c is not part of tree *)
-    | Loop(b,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
+    | Loop(b,_,_,_,_) -> 49 + 53*(stmtListSum b.bstmts)
     | Block(b) -> 59 + 61*(stmtListSum b.bstmts)
-    | TryExcept (b, (il, e), h, _) ->
-        67 + 83*(stmtListSum b.bstmts) + 97*(stmtListSum h.bstmts)
-    | TryFinally (b, h, _) ->
-        103 + 113*(stmtListSum b.bstmts) + 127*(stmtListSum h.bstmts)
   in
 
   (* disabled 2nd and 3rd measure because they appear to get different
@@ -1262,7 +1258,7 @@ begin
     (
       (* CIL changes (unsigned)0 into 0U during printing.. *)
       match xc,yc with
-      | CInt64(0L,_,_),CInt64(0L,_,_) -> true  (* ok if they're both 0 *)
+      | CInt(a,_,_),CInt(b,_,_)  when Cilint.is_zero_cilint a && Cilint.is_zero_cilint b -> true  (* ok if they're both 0 *)
       | _,_ -> false
     )
   | Lval(xl), Lval(yl) ->          (equalLvals xl yl)

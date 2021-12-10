@@ -336,7 +336,7 @@ let hasExportingAttribute funvar =
  * - functions declared neither inline nor static
  *
  * gcc incorrectly (according to C99) makes inline functions visible to
- * the linker.  So we can only remove inline functions on MSVC.
+ * the linker.
  *)
 
 let isExportedRoot global =
@@ -351,7 +351,7 @@ let isExportedRoot global =
       else if v.vstorage = Static then
         false, "static function"
       else if v.vinline && v.vstorage != Extern
-              && (!msvcMode || !rmUnusedInlines) then
+              && (!rmUnusedInlines) then
         false, "inline function"
       else
 	true, "other function"
@@ -427,21 +427,6 @@ class markReachableVisitor
 	SkipChildren
 
   method! vinst = function
-      Asm (_, tmpls, _, _, _, _) when !msvcMode ->
-          (* If we have inline assembly on MSVC, we cannot tell which locals
-           * are referenced. Keep thsem all *)
-        (match !currentFunc with
-          Some fd ->
-            List.iter (fun v ->
-              let vre = Str.regexp_string (Str.quote v.vname) in
-              if List.exists (fun tmp ->
-                try ignore (Str.search_forward vre tmp 0); true
-                with Not_found -> false)
-                  tmpls
-              then
-                v.vreferenced <- true) fd.slocals
-        | _ -> assert false);
-        DoChildren
     | _ -> DoChildren
 
   method! vvrbl v =
@@ -620,15 +605,15 @@ class removeUnusedGoto = object(self)
 
   method private pStmtNext (next: stmt) (s: stmt) = match s.skind with
         (* Else-if: don't call visitCilStmt, recurse manually instead *)
-      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_) ->
+      | If(_,t,{ bstmts=[{skind=If _; _} as elsif]; battrs=[] },_,_) ->
               ignore(visitCilBlock (self:>cilVisitor) t);
               self#pStmtNext next elsif
       | If(_,_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                  battrs=[]} as b),_)when !gref == next ->
+                  battrs=[]} as b),_,_)when !gref == next ->
               b.bstmts <- [];
               ignore(visitCilStmt (self:>cilVisitor) s)
       | If(_,({bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                  battrs=[]} as b),_,_)
+                  battrs=[]} as b),_,_,_)
                 when !gref == next ->
               b.bstmts <- [];
               ignore(visitCilStmt (self:>cilVisitor) s)

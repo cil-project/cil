@@ -1,3 +1,2 @@
 # A bunch of variables  -*- Mode: makefile -*-
-export HAS_MSVC=@HAS_MSVC@
 export @DEFAULT_COMPILER@=1

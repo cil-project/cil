@@ -62,9 +62,6 @@ let set_output filename =
   Whitetrack.setOutput out_chan;
   close_me := true
 
-   (* Signal that we are in MS VC mode *)
-let setMSVCMode () =
-  Cprint.msvcMode := true
 
 (* filename for patching *)
 let patchFileName : string ref = ref ""      (* by default do no patching *)
@@ -187,6 +184,7 @@ and parse_to_cabs_inner (fname : string) =
   try
     if !E.verboseFlag then ignore (E.log "Frontc is parsing %s\n" fname);
     flush !E.logChannel;
+    (* if !E.verboseFlag then ignore @@ Parsing.set_trace true; *)
     let lexbuf = Clexer.init ~filename:fname in
     let cabs = Stats.time "parse" (Cparser.interpret (Whitetrack.wraplexer clexer)) lexbuf in
     Whitetrack.setFinalWhite (Clexer.get_white ());
@@ -202,7 +200,9 @@ and parse_to_cabs_inner (fname : string) =
       ignore (E.log "Parsing error");
       Clexer.finish ();
       close_output ();
-      raise (ParseError("Parse error"))
+      (* raise (ParseError("Parse error")) *)
+      let backtrace = Printexc.get_raw_backtrace () in
+      Printexc.raise_with_backtrace (ParseError("Parse error")) backtrace (* re-raise with captured inner backtrace *)
   end
   | e -> begin
       ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));

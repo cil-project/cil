@@ -655,7 +655,6 @@ CIL_VERSION_MINOR
 CIL_VERSION_MAJOR
 DEFAULT_CIL_MODE
 DEFAULT_COMPILER
-HAS_MSVC
 EMUL
 LIBOBJS
 CYGPATH
@@ -2531,7 +2530,7 @@ ac_config_files="$ac_config_files stamp-h"
 # Assign here the CIL version numbers
 CIL_VERSION_MAJOR=1
 CIL_VERSION_MINOR=8
-CIL_VERSION_REV=1
+CIL_VERSION_REV=2
 CIL_VERSION=$CIL_VERSION_MAJOR.$CIL_VERSION_MINOR.$CIL_VERSION_REV
 
 # make sure I haven't forgotten to run autoconf
@@ -3470,30 +3469,6 @@ test -n "$target_alias" &&
 DEFAULT_COMPILER=_GNUCC
 DEFAULT_CIL_MODE=GNUCC
 
-# is the microsoft compiler available?
-# hmm.. I think we should check the version or something, because
-# sometimes people have Common Lisp's interpreter called 'cl' ..
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for msvc cl.exe (optional)" >&5
-printf %s "checking for msvc cl.exe (optional)... " >&6; }
-# See if CC points to the MS compiler
-if "$CC" 2>&1 | grep "Microsoft" >/dev/null; then
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found, set as default" >&5
-printf "%s\n" "found, set as default" >&6; }
-  HAS_MSVC=yes
-  DEFAULT_COMPILER=_MSVC
-  DEFAULT_CIL_MODE=MSVC
-  CFLAGS="-WX"
-else
-  if cl 2>&1 | grep "Microsoft" >/dev/null ;then
-     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: found" >&5
-printf "%s\n" "found" >&6; }
-     HAS_MSVC=yes
-  else
-     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: not found" >&5
-printf "%s\n" "not found" >&6; }
-     HAS_MSVC=no
-  fi
-fi
 
 # ------------------- OCaml ----------------
 
@@ -5266,7 +5241,6 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 printf "%s\n" "$THREAD_IS_KEYWORD" >&6; }
 
 # Does gcc add underscores to identifiers to make assembly labels?
-# (I think MSVC always does)
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if gcc adds underscores to assembly labels." >&5
 printf %s "checking if gcc adds underscores to assembly labels.... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -6035,7 +6009,6 @@ printf "%s\n" "$real_type" >&6; }
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,
 # write @CIL_VERSION@ somewhere in a written file to get it substituted
-
 
 
 
@@ -7433,7 +7406,6 @@ fi
 cat <<EOF
 
 CIL configuration:
-  (optional) cl.exe found:    HAS_MSVC           $HAS_MSVC
   gcc to use                  CC                 $CC
   default compiler            DEFAULT_COMPILER   $DEFAULT_COMPILER
   CIL version                 CIL_VERSION        $CIL_VERSION

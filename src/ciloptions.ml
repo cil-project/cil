@@ -199,14 +199,6 @@ let options : (string * Arg.spec * string) list =
     Arg.String (openFile "log" (fun oc -> E.logChannel := oc.fchan)),
     "<filename> Set the name of the log file; by default use stderr";
 
-    "--MSVC",
-    Arg.Unit (fun _ ->
-                Cil.msvcMode := true;
-                Frontc.setMSVCMode ();
-                if not Machdep.hasMSVC then
-                  ignore (E.warn "Will work in MSVC mode but will be using machine-dependent parameters for GCC since you do not have the MSVC compiler installed")),
-    " Enable MSVC compatibility; default is GNU";
-
    "--envmachine",
    Arg.Unit (fun _ ->
      try
@@ -341,7 +333,7 @@ let options : (string * Arg.spec * string) list =
 
     "--rmUnusedInlines",
     Arg.Set Rmtmps.rmUnusedInlines,
-    (" Delete any unused inline functions; this is the default in MSVC mode" ^
+    (" Delete any unused inline functions" ^
        is_default !Rmtmps.rmUnusedInlines);
 
     "--noRmUnusedInlines",

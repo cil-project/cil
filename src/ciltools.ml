@@ -59,6 +59,7 @@ let ocaml_int_to_cil v n s =
   let short_size = bitsSizeOf (TInt(IShort,[]))in
   let long_size = bitsSizeOf longType in
   let longlong_size = bitsSizeOf (TInt(ILongLong,[])) in
+  let int128_size = bitsSizeOf (TInt(IInt128,[])) in
   let i =
     match s with
       Signed ->
@@ -72,6 +73,8 @@ let ocaml_int_to_cil v n s =
 	  ILong
 	else if (n = longlong_size) then
 	  ILongLong
+	else if (n = int128_size) then
+	  IInt128
 	else
 	  raise Weird_bitwidth
     | Unsigned ->
@@ -85,6 +88,8 @@ let ocaml_int_to_cil v n s =
 	  IULong
 	else if (n = longlong_size) then
 	  IULongLong
+	else if (n = int128_size) then
+	  IUInt128
 	else
 	  raise Weird_bitwidth
   in

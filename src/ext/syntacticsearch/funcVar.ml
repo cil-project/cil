@@ -137,7 +137,7 @@ let rec search_expression_list list name loc varid includeCallTmp =
 (* Finds a variable in a list of instructions *)
 let rec search_instr_list_for_var list name varid includeCallTmp =
   match list with
-  | Set ((lhost, offset), exp, loc) :: xs ->
+  | Set ((lhost, offset), exp, loc, eloc) :: xs ->
       search_lhost lhost name loc varid includeCallTmp
       @ search_offset offset name loc varid includeCallTmp
       @ search_expression exp name loc varid includeCallTmp
@@ -158,13 +158,13 @@ let rec search_instr_list_for_var list name varid includeCallTmp =
           info.vid )
         :: search_instr_list_for_var xs name varid includeCallTmp
       else search_instr_list_for_var xs name varid includeCallTmp
-  | Call (Some (lhost, offset), exp, exp_list, loc) :: xs ->
+  | Call (Some (lhost, offset), exp, exp_list, loc, eloc) :: xs ->
       search_lhost lhost name loc varid includeCallTmp
       @ search_offset offset name loc varid includeCallTmp
       @ search_expression exp name loc varid includeCallTmp
       @ search_expression_list exp_list name loc varid includeCallTmp
       @ search_instr_list_for_var xs name varid includeCallTmp
-  | Call (None, exp, exp_list, loc) :: xs ->
+  | Call (None, exp, exp_list, loc, eloc) :: xs ->
       search_expression exp name loc varid includeCallTmp
       @ search_expression_list exp_list name loc varid includeCallTmp
       @ search_instr_list_for_var xs name varid includeCallTmp
@@ -183,35 +183,27 @@ let rec search_stmt_list_for_var list name varid includeCallTmp =
           search_expression exp name loc varid includeCallTmp
       | ComputedGoto (exp, loc) ->
           search_expression exp name loc varid includeCallTmp
-      | If (exp, b1, b2, loc) ->
+      | If (exp, b1, b2, loc, eloc) ->
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var b1.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
-      | Switch (exp, _, stmt_list, loc) ->
+      | Switch (exp, _, stmt_list, loc, eloc) ->
           search_expression exp name loc varid includeCallTmp
           @ search_stmt_list_for_var stmt_list name varid includeCallTmp
-      | Loop (block, _, None, None) ->
+      | Loop (block, _, _, None, None) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
-      | Loop (block, _, None, Some s2) ->
+      | Loop (block, _, _, None, Some s2) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s2 ] name varid includeCallTmp
-      | Loop (block, _, Some s1, None) ->
+      | Loop (block, _, _, Some s1, None) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s1 ] name varid includeCallTmp
-      | Loop (block, _, Some s1, Some s2) ->
+      | Loop (block, _, _, Some s1, Some s2) ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
           @ search_stmt_list_for_var [ s1 ] name varid includeCallTmp
           @ search_stmt_list_for_var [ s2 ] name varid includeCallTmp
       | Block block ->
           search_stmt_list_for_var block.bstmts name varid includeCallTmp
-      | TryFinally (b1, b2, _) ->
-          search_stmt_list_for_var b1.bstmts name varid includeCallTmp
-          @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
-      | TryExcept (b1, (instr_list, exp), b2, loc) ->
-          search_stmt_list_for_var b1.bstmts name varid includeCallTmp
-          @ search_instr_list_for_var instr_list name varid includeCallTmp
-          @ search_expression exp name loc varid includeCallTmp
-          @ search_stmt_list_for_var b2.bstmts name varid includeCallTmp
       | _ -> [] )
       @ search_stmt_list_for_var xs name varid includeCallTmp
   | [] -> []
@@ -346,32 +338,26 @@ let rec cond_search_uses_stmt_list list varname varid includeCallTmp =
   match list with
   | x :: xs ->
       ( match x.skind with
-      | If (exp, b1, b2, loc) ->
+      | If (exp, b1, b2, loc, eloc) ->
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
               includeCallTmp
-      | Switch (exp, block, _, loc) ->
+      | Switch (exp, block, _, loc, eloc) ->
           search_expression exp varname loc varid includeCallTmp
           @ cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | Loop (block, _, None, None) ->
+      | Loop (block, _, _, None, None) ->
           cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | Loop (block, _, None, Some s1) ->
+      | Loop (block, _, _, None, Some s1) ->
           cond_search_uses_stmt_list (s1 :: block.bstmts) varname varid
             includeCallTmp
-      | Loop (block, _, Some s2, None) ->
+      | Loop (block, _, _, Some s2, None) ->
           cond_search_uses_stmt_list (s2 :: block.bstmts) varname varid
             includeCallTmp
-      | Loop (block, _, Some s2, Some s1) ->
+      | Loop (block, _, _, Some s2, Some s1) ->
           cond_search_uses_stmt_list (s2 :: s1 :: block.bstmts) varname varid
             includeCallTmp
       | Block block ->
           cond_search_uses_stmt_list block.bstmts varname varid includeCallTmp
-      | TryFinally (b1, b2, _) ->
-          cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
-            includeCallTmp
-      | TryExcept (b1, _, b2, _) ->
-          cond_search_uses_stmt_list (b1.bstmts @ b2.bstmts) varname varid
-            includeCallTmp
       | _ -> [] )
       @ cond_search_uses_stmt_list xs varname varid includeCallTmp
   | [] -> []
@@ -567,7 +553,7 @@ class var_find_def_in_fun varname varid funname result : nopCilVisitor =
 
     method! vinst instr =
       match instr with
-      | Set ((Var info, _), _, loc) ->
+      | Set ((Var info, _), _, loc, eloc) ->
           if is_equal_varname_varid info varname varid then (
             result :=
               !result

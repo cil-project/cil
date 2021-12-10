@@ -162,11 +162,7 @@ let init_lexicon _ =
       ("__inline__", fun loc -> INLINE loc);
       ("inline", fun loc -> INLINE loc);
       ("__inline", fun loc -> INLINE loc);
-      ("_inline", fun loc ->
-                      if !Cprint.msvcMode then
-                        INLINE loc
-                      else
-                        IDENT ("_inline", loc));
+      ("_inline", fun loc -> IDENT ("_inline", loc));
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*
@@ -199,19 +195,9 @@ let init_lexicon _ =
       ("__int32", fun loc -> INT loc);
       ("__int64", fun _ -> INT64 (currentLoc ()));
       ("__int128", fun _ -> INT128 (currentLoc ()));
-      ("_cdecl",  fun _ -> MSATTR ("_cdecl", currentLoc ()));
-      ("__cdecl", fun _ -> MSATTR ("__cdecl", currentLoc ()));
-      ("_stdcall", fun _ -> MSATTR ("_stdcall", currentLoc ()));
-      ("__stdcall", fun _ -> MSATTR ("__stdcall", currentLoc ()));
-      ("_fastcall", fun _ -> MSATTR ("_fastcall", currentLoc ()));
-      ("__fastcall", fun _ -> MSATTR ("__fastcall", currentLoc ()));
-      ("__w64", fun _ -> MSATTR("__w64", currentLoc ()));
       ("__declspec", fun loc -> DECLSPEC loc);
       ("__forceinline", fun loc -> INLINE loc); (* !! we turn forceinline
                                                  * into inline *)
-      ("__try", fun loc -> TRY loc);
-      ("__except", fun loc -> EXCEPT loc);
-      ("__finally", fun loc -> FINALLY loc);
       (* weimer: some files produced by 'GCC -E' expect this type to be
        * defined *)
       ("__builtin_va_list",
@@ -280,6 +266,9 @@ let init ~(filename: string) : Lexing.lexbuf =
   init_lexicon ();
   (* Inititialize the pointer in Errormsg *)
   Lexerhack.add_type := add_type;
+  (* add some built-in types which are handled as Tnamed in cabs2cil *)
+  add_type "__int128_t"; (* __int128 *)
+  add_type "__uint128_t"; (* unsigned __int128 *)
   Lexerhack.push_context := push_context;
   Lexerhack.pop_context := pop_context;
   Lexerhack.add_identifier := add_identifier;
@@ -297,7 +286,7 @@ let error msg =
 (*** escape character management ***)
 let scan_escape (char: char) : int64 =
   let result = match char with
-    'n' -> '\n'
+  | 'n' -> '\n'
   | 'r' -> '\r'
   | 't' -> '\t'
   | 'b' -> '\b'
@@ -305,15 +294,8 @@ let scan_escape (char: char) : int64 =
   | 'v' -> '\011'  (* ASCII code 11 *)
   | 'a' -> '\007'  (* ASCII code 7 *)
   | 'e' | 'E' -> '\027'  (* ASCII code 27. This is a GCC extension *)
-  | '\'' -> '\''
-  | '"'-> '"'     (* '"' *)
-  | '?' -> '?'
-  | '(' when not !Cprint.msvcMode -> '('
-  | '{' when not !Cprint.msvcMode -> '{'
-  | '[' when not !Cprint.msvcMode -> '['
-  | '%' when not !Cprint.msvcMode -> '%'
-  | '\\' -> '\\'
-  | other -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 other))
+  | '\'' | '"' | '?' | '(' | '{' | '[' | '%' | '\\' -> char
+  | _ -> error ("Unrecognized escape sequence: \\" ^ (String.make 1 char))
   in
   Int64.of_int (Char.code result)
 
@@ -547,7 +529,7 @@ rule initial =
 |		'|'				{PIPE}
 |		'^'				{CIRC}
 |		'?'				{QUEST}
-|		':'				{COLON}
+|		':'				{COLON (currentLoc ())}
 |		'~'		       {TILDE (currentLoc ())}
 
 |		'{'		       {dbgToken (LBRACE (currentLoc ()))}
@@ -555,14 +537,12 @@ rule initial =
 |		'['				{LBRACKET}
 |		']'				{RBRACKET}
 |		'('		       {dbgToken (LPAREN (currentLoc ())) }
-|		')'				{RPAREN}
+|		')'				{dbgToken (RPAREN (currentLoc ()))}
 |		';'		       {dbgToken (SEMICOLON (currentLoc ())) }
 |		','				{COMMA}
 |		'.'				{DOT}
 |		"sizeof"		{SIZEOF (currentLoc ())}
-|               "__asm"                 { if !Cprint.msvcMode then
-                                             MSASM (msasm lexbuf, currentLoc ())
-                                          else (ASM (currentLoc ())) }
+|               "__asm"                 { (ASM (currentLoc ())) }
 
 (* If we see __pragma we eat it and the matching parentheses as well *)
 |               "__pragma"              { matchingParsOpen := 0;

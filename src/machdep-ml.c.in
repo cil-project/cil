@@ -73,14 +73,6 @@ typedef int bool;
 #define UNDERSCORE_NAME "@UNDERSCORE_NAME@"
 #endif
 
-#ifdef _MSVC
-#define LONGLONG __int64
-#define VERSION "Microsoft C"
-#define VERSION_MAJOR (_MSC_VER / 100)
-#define VERSION_MINOR (_MSC_VER % 100)
-#define __alignof(x) 0
-#define UNDERSCORE_NAME "true"
-#endif
 
 char *underscore(char *s)
 {

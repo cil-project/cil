@@ -67,16 +67,10 @@ srcfile="$1"
 srcfilenoext=`echo $srcfile | sed s/.c\$//`
 tmpname="$srcfilenoext-tmp"
 
-# for GCC, use "# xx foo.c".  For MSVC, use "#line xx foo.c"
-if [ "$_MSVC" != "" ]; then 
-  LINEOPT="line"
-  OUTFLAG="/Fe"
-  OUTEXT=".exe"
-else
-  LINEOPT=""
-  OUTFLAG="-o "
-  OUTEXT=".exe" # So that I can delete the executables
-fi
+# for GCC, use "# xx foo.c".
+LINEOPT=""
+OUTFLAG="-o "
+OUTEXT=".exe" # So that I can delete the executables
 
 # Start it in the right directory
 # cd "$CILLYHOME/test/small2" || exit

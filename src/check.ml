@@ -224,10 +224,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
         (ctx = CTStruct || ctx = CTUnion
          || ctx = CTSizeof || ctx = CTDecl || ctx = CTArray || ctx = CTPtr)
     | TFun _ ->
-        if ctx = CTSizeof && !msvcMode then
-          (ignore(warn "sizeof(function) is not defined in MSVC."); false)
-        else
-          ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
+        ctx = CTPtr || ctx = CTDecl || ctx = CTSizeof
     | TInt _ -> true
     | TFloat _ -> true
     | _ -> ctx <> CTNumeric
@@ -645,8 +642,8 @@ and checkInit  (i: init) : typ =
                 match elen with
                 | None -> 0L
                 | Some e -> (ignore (checkExp true e);
-                match isInteger (constFold true e) with
-                  Some len -> len
+                match getInteger (constFold true e) with
+                  Some len -> Z.to_int64 len (* Z on purpose, we don't want to ignore overflows here *)
                 | None ->
                     ignore (warn "Array length is not a constant");
                     0L)
@@ -656,10 +653,10 @@ and checkInit  (i: init) : typ =
                     if i > len then
                       ignore (warn "Wrong number of initializers in array")
 
-                | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest ->
-                    if i' <> i then
+                | (Index(Const(CInt(i', _, _)), NoOffset), ei) :: rest ->
+                    if Int64.compare (Z.to_int64 i') i <> 0 then
                       ignore (warn "Initializer for index %s when %s was expected"
-                                (Int64.format "%d" i') (Int64.format "%d" i));
+                                (Int64.format "%d" (Z.to_int64 i')) (Int64.format "%d" i));
                     checkInitType ei bt;
                     loopIndex (Int64.succ i) rest
                 | _ :: rest ->
@@ -699,8 +696,6 @@ and checkInit  (i: init) : typ =
                     [(Field(f, NoOffset), ei)] ->
                       if f.fcomp != comp then
                         ignore (bug "Wrong designator for union initializer");
-                      if !msvcMode && f != List.hd comp.cfields then
-                        ignore (warn "On MSVC you can only initialize the first field of a union");
                       checkInitType ei f.ftype
 
                   | _ ->
@@ -731,11 +726,11 @@ and checkStmt (s: stmt) =
             if H.mem labels ln then
               ignore (warn "Multiply defined label %s" ln);
             H.add labels ln ()
-        | Case (e, _) ->
+        | Case (e, _, _) ->
            let t = checkExp true e in
            if not (isIntegralType t) then
                E.s (bug "Type of case expression is not integer");
-        | CaseRange (e1, e2, _) ->
+        | CaseRange (e1, e2, _, _) ->
            let t1 = checkExp true e1 in
            if not (isIntegralType t1) then
                E.s (bug "Type of case expression is not integer");
@@ -777,16 +772,18 @@ and checkStmt (s: stmt) =
           | None, _ -> ignore (warn "Invalid return value")
           | Some re', rt' -> checkExpType false re' rt'
         end
-      | Loop (b, l, _, _) -> checkBlock b
+      | Loop (b, l, el, _, _) -> checkBlock b
       | Block b -> checkBlock b
-      | If (e, bt, bf, l) ->
+      | If (e, bt, bf, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let te = checkExp false e in
           checkScalarType te;
           checkBlock bt;
           checkBlock bf
-      | Switch (e, b, cases, l) ->
+      | Switch (e, b, cases, l, el) ->
           currentLoc := l;
+          currentExpLoc := el;
           let t = checkExp false e in
           if not (isIntegralType t) then
               E.s (bug "Type of switch expression is not integer");
@@ -814,17 +811,6 @@ and checkStmt (s: stmt) =
               in
               findCase !statements)
             cases;
-      | TryFinally (b, h, l) ->
-          currentLoc := l;
-          checkBlock b;
-          checkBlock h
-
-      | TryExcept (b, (il, e), h, l) ->
-          currentLoc := l;
-          checkBlock b;
-          List.iter checkInstr il;
-          checkExpType false e intType;
-          checkBlock h
 
       | Instr il -> List.iter checkInstr il)
     () (* argument of withContext *)
@@ -837,8 +823,9 @@ and checkInstr (i: instr) =
   if !ignoreInstr i then ()
   else
   match i with
-  | Set (dest, e, l) ->
+  | Set (dest, e, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let t = checkLval false false dest in
       (* Not all types can be assigned to *)
       (match unrollType t with
@@ -848,8 +835,9 @@ and checkInstr (i: instr) =
       | _ -> ());
       checkExpType false e t
 
-  | Call(dest, what, args, l) ->
+  | Call(dest, what, args, l, el) ->
       currentLoc := l;
+      currentExpLoc := el;
       let (rt, formals, isva, fnAttrs) =
         match unrollType (checkExp false what) with
           TFun(rt, formals, isva, fnAttrs) -> rt, formals, isva, fnAttrs

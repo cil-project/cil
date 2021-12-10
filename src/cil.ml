@@ -293,6 +293,8 @@ and ikind =
   | ILongLong   (** [long long] (or [_int64] on Microsoft Visual C) *)
   | IULongLong  (** [unsigned long long] (or [unsigned _int64] on Microsoft
                     Visual C) *)
+  | IInt128     (** [__int128] *)
+  | IUInt128    (** [unsigned __int128] *)
 
 (** Various kinds of floating-point numbers*)
 and fkind =
@@ -541,12 +543,10 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of int64 * ikind * string option
+  | CInt of cilint * ikind * string option
                  (** Integer constant. Give the ikind (see ISO9899 6.1.3.2)
                   * and the textual representation, if available. Use
-                  * {!Cil.integer} or {!Cil.kinteger} to create these. Watch
-                  * out for integers that cannot be represented on 64 bits.
-                  * OCAML does not give Overflow exceptions. *)
+                  * {!Cil.integer} or {!Cil.kinteger} to create these. *)
   | CStr of string (** String constant (of pointer type) *)
   | CWStr of int64 list (** Wide string constant (of type "wchar_t *") *)
   | CChr of char (** Character constant.  This has type int, so use
@@ -670,8 +670,7 @@ and init =
              * initializers; the rest are 0-initialized.
              * For unions there must be exactly one initializer. If
              * the initializer is not for the first field then a field
-             * designator is printed, so you better be on GCC since MSVC does
-             * not understand this. You can scan an initializer list with
+             * designator is printed. You can scan an initializer list with
              * {!Cil.foldLeftCompound}. *)
 
 (** We want to be able to update an initializer in a global variable, so we
@@ -745,10 +744,10 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
-                                            range of values *)
-  | Default of location                 (** A default statement *)
+  | Case of exp * location * location             (** A case statement. Second location is just for label. *)
+  | CaseRange of exp * exp * location * location  (** A case statement corresponding to a
+                                            range of values. Second location is just for label. *)
+  | Default of location * location                (** A default statement. Second location is just for label. *)
 
 
 
@@ -769,21 +768,23 @@ and stmtkind =
                                              enclosing Loop or Switch *)
   | Continue of location                (** A continue to the start of the
                                             nearest enclosing [Loop] *)
-  | If of exp * block * block * location (** A conditional.
+  | If of exp * block * block * location * location (** A conditional.
                                              Two successors, the "then" and
                                              the "else" branches. Both
                                              branches  fall-through to the
-                                             successor of the If statement *)
-  | Switch of exp * block * (stmt list) * location
+                                             successor of the If statement.
+                                             Second location is just for expression. *)
+  | Switch of exp * block * (stmt list) * location * location
                                        (** A switch statement. The block
                                            contains within all of the cases.
                                            We also have direct pointers to the
                                            statements that implement the
                                            cases. Which cases they implement
                                            you can get from the labels of the
-                                           statement *)
+                                           statement.
+                                           Second location is just for expression. *)
 
-  | Loop of block * location * (stmt option) * (stmt option)
+  | Loop of block * location * location * (stmt option) * (stmt option)
                                            (** A [while(1)] loop. The
                                             * termination test is implemented
                                             * in the body of a loop using a
@@ -794,46 +795,27 @@ and stmtkind =
                                             * continue label for this loop
                                             * and the second will point to
                                             * the stmt containing the break
-                                            * label for this loop. *)
+                                            * label for this loop.
+                                            * Second location is just for expression. *)
 
   | Block of block                      (** Just a block of statements. Use it
                                             as a way to keep some attributes
                                             local *)
-  | TryFinally of block * block * location
-    (** On MSVC we support structured exception handling. This is what you
-     * might expect. Control can get into the finally block either from the
-     * end of the body block, or if an exception is thrown. The location
-     * corresponds to the try keyword. *)
-  | TryExcept of block * (instr list * exp) * block * location
-    (** On MSVC we support structured exception handling. The try/except
-     * statement is a bit tricky:
-         __try { blk }
-         __except (e) {
-            handler
-         }
-
-         The argument to __except  must be an expression. However, we keep a
-         list of instructions AND an expression in case you need to make
-         function calls. We'll print those as a comma expression. The control
-         can get to the __except expression only if an exception is thrown.
-         After that, depending on the value of the expression the control
-         goes to the handler, propagates the exception, or retries the
-         exception !!! The location corresponds to the try keyword.
-     *)
 
 (** Instructions. They may cause effects directly but may not have control
     flow.*)
 and instr =
-    Set        of lval * exp * location  (** An assignment. A cast is present
+    Set        of lval * exp * location * location  (** An assignment. A cast is present
                                              if the exp has different type
-                                             from lval *)
+                                             from lval.
+                                             Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location     (** "Instruction" in the location where a varinfo was declared.
                                              All varinfos for which such a VarDecl instruction exists have
                                              vhasdeclinstruction set to true.
                                              The motivation for the addition of this instruction was to
                                              support VLAs for which declarations can not be pulled up like
                                              CIL used to do. *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
  			 (** optional: result is an lval. A cast might be
                              necessary if the declared result type of the
                              function is not the same as that of the
@@ -844,7 +826,8 @@ and instr =
                              than the declared number of arguments. C allows
                              this.) If the type of the result variable is not
                              the same as the declared type of the function
-                             result then an implicit cast exists. *)
+                             result then an implicit cast exists.
+                             Second location is just for expression when inside condition. *)
 
                          (* See the GCC specification for the meaning of ASM.
                           * If the source is MS VC then only the templates
@@ -880,12 +863,15 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
+    endLine: int;          (** End line number. Negative means unknown. *)
+    endByte: int;          (** End byte position. Negative means unknown. *)
+    endColumn: int;        (** End column number. Negative means unknown. *)
 }
 
 (* Type signatures. Two types are identical iff they have identical
  * signatures *)
 and typsig =
-    TSArray of typsig * int64 option * attribute list
+    TSArray of typsig * cilint option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * typsig list option * bool * attribute list
@@ -895,10 +881,15 @@ and typsig =
 let locUnknown = { line = -1;
 		   file = "";
 		   byte = -1;
-       column = -1}
+       column = -1;
+       endLine = -1;
+       endByte = -1;
+       endColumn = -1;}
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
+(* A reference to the current expression location *)
+let currentExpLoc : location ref = ref locUnknown
 
 (* A reference to the current global being visited *)
 let currentGlobal: global ref = ref (GText "dummy")
@@ -916,7 +907,19 @@ let compareLoc (a: location) (b: location) : int =
       let columncmp = a.column - b.column in
       if columncmp != 0
       then columncmp
-      else a.byte - b.byte
+      else
+        let bytecmp = a.byte - b.byte in
+        if bytecmp != 0
+        then bytecmp
+        else
+          let endLinecmp = a.endLine - b.endLine in
+          if endLinecmp != 0
+          then endLinecmp
+          else
+            let endColumncmp = a.endColumn - b.endColumn in
+            if endColumncmp != 0
+            then endColumncmp
+            else a.endByte - b.endByte
 
 let argsToList : (string * typ * attributes) list option
                   -> (string * typ * attributes) list
@@ -1106,8 +1109,8 @@ let stripUnderscores (s: string) : string =
 
 let get_instrLoc (inst : instr) =
   match inst with
-      Set(_, _, loc) -> loc
-    | Call(_, _, _, loc) -> loc
+      Set(_, _, loc, _) -> loc
+    | Call(_, _, _, loc, _) -> loc
     | Asm(_, _, _, _, _, loc) -> loc
     | VarDecl(_,loc) -> loc
 let get_globalLoc (g : global) =
@@ -1133,13 +1136,11 @@ let rec get_stmtLoc (statement : stmtkind) =
     | ComputedGoto(_, loc) -> loc
     | Break(loc) -> loc
     | Continue(loc) -> loc
-    | If(_, _, _, loc) -> loc
-    | Switch (_, _, _, loc) -> loc
-    | Loop (_, loc, _, _) -> loc
+    | If(_, _, _, loc, _) -> loc
+    | Switch (_, _, _, loc, _) -> loc
+    | Loop (_, loc, _, _, _) -> loc
     | Block b -> if b.bstmts == [] then lu
                  else get_stmtLoc ((List.hd b.bstmts).skind)
-    | TryFinally (_, _, l) -> l
-    | TryExcept (_, _, _, l) -> l
 
 
 (* The next variable identifier to use. Counts up *)
@@ -1238,20 +1239,20 @@ let warnLoc (loc: location) (fmt : ('a,unit,doc) format) : 'a =
   in
   Pretty.gprintf f fmt
 
-let zero      = Const(CInt64(Int64.zero, IInt, None))
+let zero      = Const(CInt(zero_cilint, IInt, None))
 
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extended c, IInt, None) *)
+  Returns CInt(sign-extended c, IInt, None) *)
 let charConstToInt (c: char) : constant =
   let c' = Char.code c in
   let value =
     if c' < 128
-    then Int64.of_int c'
-    else Int64.of_int (c' - 256)
+    then cilint_of_int c'
+    else cilint_of_int (c' - 256)
   in
-  CInt64(value, IInt, None)
+  CInt(value, IInt, None)
 
 
 (** Convert a 64-bit int to an OCaml int, or raise an exception if that
@@ -1310,13 +1311,15 @@ let isSigned = function
   | IUShort
   | IUInt
   | IULong
-  | IULongLong ->
+  | IULongLong
+  | IUInt128 ->
       false
   | ISChar
   | IShort
   | IInt
   | ILong
-  | ILongLong ->
+  | ILongLong
+  | IInt128 ->
       true
   | IChar ->
       not !M.theMachine.M.char_is_unsigned
@@ -1399,14 +1402,8 @@ let hasAttribute s al =
 
 
 type attributeClass =
-    AttrName of bool
-        (* Attribute of a name. If argument is true and we are on MSVC then
-         * the attribute is printed using __declspec as part of the storage
-         * specifier  *)
-  | AttrFunType of bool
-        (* Attribute of a function type. If argument is true and we are on
-         * MSVC then the attribute is printed just before the function name *)
-
+    AttrName  (* Attribute of a name. *)
+  | AttrFunType  (* Attribute of a function type. *)
   | AttrType  (* Attribute of a type *)
 
 (* This table contains the mapping of predefined attributes to classes.
@@ -1415,26 +1412,25 @@ type attributeClass =
  * conversion *)
 let attributeHash: (string, attributeClass) H.t =
   let table = H.create 13 in
-  List.iter (fun a -> H.add table a (AttrName false))
+  List.iter (fun a -> H.add table a AttrName)
     [ "section"; "constructor"; "destructor"; "unused"; "used"; "weak";
       "no_instrument_function"; "alias"; "no_check_memory_usage";
       "exception"; "model"; (* "restrict"; *)
       "aconst"; "__asm__" (* Gcc uses this to specify the name to be used in
                            * assembly for a global  *)];
 
-  (* Now come the MSVC declspec attributes *)
-  List.iter (fun a -> H.add table a (AttrName true))
+  (* MSVC declspec attributes that are also supported by GCC *)
+  List.iter (fun a -> H.add table a AttrName)
     [ "thread"; "naked"; "dllimport"; "dllexport";
-      "selectany"; "allocate"; "nothrow"; "novtable"; "property";  "noreturn";
-      "uuid"; "align" ];
+      "selectany"; "nothrow"; "property";  "noreturn"; "align" ];
 
-  List.iter (fun a -> H.add table a (AttrFunType false))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "format"; "regparm"; "longcall";
       "noinline"; "always_inline"; "gnu_inline"; "leaf";
       "artificial"; "warn_unused_result"; "nonnull";
     ];
 
-  List.iter (fun a -> H.add table a (AttrFunType true))
+  List.iter (fun a -> H.add table a AttrFunType)
     [ "stdcall";"cdecl"; "fastcall" ];
 
   List.iter (fun a -> H.add table a AttrType)
@@ -1451,8 +1447,8 @@ let partitionAttributes
       [] -> n, f, t
     | (Attr(an, _) as a) :: rest ->
         match (try H.find attributeHash an with Not_found -> default) with
-          AttrName _ -> loop (addAttribute a n, f, t) rest
-        | AttrFunType _ ->
+          AttrName -> loop (addAttribute a n, f, t) rest
+        | AttrFunType ->
             loop (n, addAttribute a f, t) rest
         | AttrType -> loop (n, f, addAttribute a t) rest
   in
@@ -1674,8 +1670,8 @@ let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
   (* Do it like this so that the pretty printer recognizes it *)
   [ mkStmt (Loop (mkBlock (mkStmt (If(guard,
                                       mkBlock [ mkEmptyStmt () ],
-                                      mkBlock [ mkStmt (Break lu)], lu)) ::
-                           body), lu, None, None)) ]
+                                      mkBlock [ mkStmt (Break lu)], lu, lu)) ::
+                           body), lu, lu, None, None)) ]
 
 
 
@@ -1694,11 +1690,11 @@ let mkForIncr ~(iter : varinfo) ~(first: exp) ~stopat:(past: exp) ~(incr: exp)
     | _ -> Lt, PlusA
   in
   mkFor
-    ~start:[ mkStmt (Instr [(Set (var iter, first, lu))]) ]
+    ~start:[ mkStmt (Instr [(Set (var iter, first, lu, lu))]) ]
     ~guard:(BinOp(compop, Lval(var iter), past, intType))
     ~next:[ mkStmt (Instr [(Set (var iter,
                            (BinOp(nextop, Lval(var iter), incr, iter.vtype)),
-                           lu))])]
+                           lu, lu))])]
     ~body:body
 
 
@@ -1725,11 +1721,10 @@ let d_ikind () = function
   | IUShort -> text "unsigned short"
   | ILong -> text "long"
   | IULong -> text "unsigned long"
-  | ILongLong ->
-      if !msvcMode then text "__int64" else text "long long"
-  | IULongLong ->
-      if !msvcMode then text "unsigned __int64"
-      else text "unsigned long long"
+  | ILongLong -> text "long long"
+  | IULongLong -> text "unsigned long long"
+  | IInt128 -> text "__int128"
+  | IUInt128 -> text "unsigned __int128"
 
 let d_fkind () = function
     FFloat -> text "float"
@@ -1746,8 +1741,8 @@ let d_storage () = function
   | Register -> text "register "
 
 (* sm: need this value below *)
-let mostNeg32BitInt : int64 = (Int64.of_string "-0x80000000")
-let mostNeg64BitInt : int64 = (Int64.of_string "-0x8000000000000000")
+let mostNeg32BitInt : cilint = cilint_of_string "-0x80000000"
+let mostNeg64BitInt : cilint = cilint_of_string "-0x8000000000000000"
 
 let bytesSizeOfInt (ik: ikind): int =
   match ik with
@@ -1757,12 +1752,13 @@ let bytesSizeOfInt (ik: ikind): int =
   | IShort | IUShort -> !M.theMachine.M.sizeof_short
   | ILong | IULong -> !M.theMachine.M.sizeof_long
   | ILongLong | IULongLong -> !M.theMachine.M.sizeof_longlong
+  | IInt128 | IUInt128 -> 16
 
 (* constant *)
 let d_const () c =
   match c with
-    CInt64(_, _, Some s) -> text s (* Always print the text if there is one *)
-  | CInt64(i, ik, None) ->
+    CInt(_, _, Some s) -> text s (* Always print the text if there is one *)
+  | CInt(i, ik, None) ->
       (* We must make sure to capture the type of the constant. For some
        * constants this is done with a suffix, for others with a cast prefix.*)
       let suffix : string =
@@ -1770,9 +1766,14 @@ let d_const () c =
           IUInt -> "U"
         | ILong -> "L"
         | IULong -> "UL"
-        | ILongLong -> if !msvcMode then "L" else "LL"
-        | IULongLong -> if !msvcMode then "UL" else "ULL"
+        | ILongLong -> "LL"
+        | IULongLong -> "ULL"
+        (* if long long is 128 bit we can use its suffix, otherwise unsupported by GCC, see https://github.com/goblint/cil/issues/41#issuecomment-893291878 *)
+        | IInt128  when !M.theMachine.M.sizeof_longlong = 16 -> "LL"
+        | IUInt128 when !M.theMachine.M.sizeof_longlong = 16 -> "ULL"
         | _ -> ""
+          (* TODO warn/fail? *)
+          (* E.s (E.bug "unknown/unsupported suffix") *)
       in
       let prefix : string =
         if suffix <> "" then ""
@@ -1781,26 +1782,26 @@ let d_const () c =
       in
       (* Watch out here for negative integers that we should be printing as
        * large positive ones *)
-      if i < Int64.zero && (not (isSigned ik)) then
+      if compare_cilint i zero_cilint < 0 && (not (isSigned ik)) then
         if bytesSizeOfInt ik <> 8 then
           (* I am convinced that we shall never store smaller than 64-bits
            * integers in negative form. -- Gabriel *)
           E.s (E.bug "unexpected negative unsigned integer (please report this bug)")
         else
-          text (prefix ^ "0x" ^ Int64.format "%x" i ^ suffix)
+          text (prefix ^ "0x" ^ Z.format "%x" i ^ suffix)
       else (
-        if (i = mostNeg32BitInt) then
+        if (compare_cilint i mostNeg32BitInt = 0) then
           (* sm: quirk here: if you print -2147483648 then this is two tokens *)
           (* in C, and the second one is too large to represent in a signed *)
           (* int.. so we do what's done in limits.h, and print (-2147483467-1); *)
           (* in gcc this avoids a warning, but it might avoid a real problem *)
           (* on another compiler or a 64-bit architecture *)
           text (prefix ^ "(-0x7FFFFFFF-1)")
-        else if (i = mostNeg64BitInt) then
+        else if (compare_cilint i mostNeg64BitInt = 0) then
           (* The same is true of the largest 64-bit negative. *)
           text (prefix ^ "(-0x7FFFFFFFFFFFFFFF-1)")
         else
-          text (prefix ^ (Int64.to_string i ^ suffix))
+          text (prefix ^ (string_of_cilint i ^ suffix))
       )
 
   | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
@@ -1897,27 +1898,6 @@ let getParenthLevelAttrParam (a: attrparam) =
   | AQuestion _ -> questionLevel
 
 
-(* Separate out the storage-modifier name attributes *)
-let separateStorageModifiers (al: attribute list) =
-  let isstoragemod (Attr(an, _): attribute) : bool =
-    try
-      match H.find attributeHash an with
-        AttrName issm -> issm
-      | _ -> false
-    with Not_found -> false
-  in
-    let stom, rest = List.partition isstoragemod al in
-    if not !msvcMode then
-      stom, rest
-    else
-      (* Put back the declspec. Put it without the leading __ since these will
-       * be added later *)
-      let stom' =
-	Util.list_map (fun (Attr(an, args)) ->
-          Attr("declspec", [ACons(an, args)])) stom in
-      stom', rest
-
-
 let isIntegralType t =
   match unrollType t with
     (TInt _ | TEnum _) -> true
@@ -1945,7 +1925,7 @@ let isFunctionType t =
 (**** Compute the type of an expression ****)
 let rec typeOf (e: exp) : typ =
   match e with
-  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt (_, ik, _)) -> TInt(ik, [])
 
     (* Character constants have type int.  ISO/IEC 9899:1999 (E),
      * section 6.4.4.4 [Character constants], paragraph 10, if you
@@ -1995,7 +1975,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -2030,6 +2010,7 @@ let unsignedVersionOf (ik:ikind): ikind =
   | IInt -> IUInt
   | ILong -> IULong
   | ILongLong -> IULongLong
+  | IInt128 -> IUInt128
   | _ -> ik
 
 let signedVersionOf (ik:ikind): ikind =
@@ -2039,6 +2020,7 @@ let signedVersionOf (ik:ikind): ikind =
   | IUInt -> IInt
   | IULong -> ILong
   | IULongLong -> ILongLong
+  | IUInt128 -> IInt128
   | _ -> ik
 
 (* Return the integer conversion rank of an integer kind *)
@@ -2050,6 +2032,7 @@ let intRank (ik:ikind) : int =
   | IInt | IUInt -> 3
   | ILong | IULong -> 4
   | ILongLong | IULongLong -> 5
+  | IInt128 | IUInt128 -> 6
 
 (* Return the common integer kind of the two integer arguments, as
    defined in ISO C 6.3.1.8 ("Usual arithmetic conversions") *)
@@ -2082,6 +2065,7 @@ let intKindForSize (s:int) (unsigned:bool) : ikind =
     else if s = !M.theMachine.M.sizeof_long then IULong
     else if s = !M.theMachine.M.sizeof_short then IUShort
     else if s = !M.theMachine.M.sizeof_longlong then IULongLong
+    else if s = 16 then IUInt128
     else raise Not_found
   else
     (* Test the most common sizes first *)
@@ -2090,6 +2074,7 @@ let intKindForSize (s:int) (unsigned:bool) : ikind =
     else if s = !M.theMachine.M.sizeof_long then ILong
     else if s = !M.theMachine.M.sizeof_short then IShort
     else if s = !M.theMachine.M.sizeof_longlong then ILongLong
+    else if s = 16 then IInt128
     else raise Not_found
 
 let floatKindForSize (s:int) =
@@ -2116,25 +2101,23 @@ let truncateCilint (k: ikind) (i: cilint) : cilint * truncation =
     else
       truncate_unsigned_cilint i nrBits
 
+let mkCilintIk (ik:ikind) (i:cilint) : cilint =
+  fst (truncateCilint ik i)
+
 let mkCilint (ik:ikind) (i:int64) : cilint =
-  fst (truncateCilint ik (cilint_of_int64 i))
+ mkCilintIk ik (cilint_of_int64 i)
+
 
 (* Construct an integer constant with possible truncation *)
-let kintegerCilint (k: ikind) (i: cilint) : exp =
+let kintegerCilintString (k: ikind) (i: cilint) (s:string option): exp =
   let i', truncated = truncateCilint k i in
   if truncated = BitTruncation && !warnTruncate then
     ignore (warnOpt "Truncating integer %s to %s"
               (string_of_cilint i) (string_of_cilint i'));
-  let str =
-    let int64_min = cilint_of_int64 Int64.min_int in
-    let int64_max = cilint_of_int64 Int64.max_int in
-    (* if the resulting value can not be represented by an Int64, store its string representation *)
-    if Cilint.compare_cilint i' int64_min < 0 || Cilint.compare_cilint int64_max i' < 0 then (
-      Some (string_of_cilint i')
-    )
-    else None
-  in
-  Const (CInt64(int64_of_cilint i', k, str))
+  Const (CInt(i', k, s))
+
+let kintegerCilint (k: ikind) (i: cilint) : exp =
+  kintegerCilintString k i None
 
 (* Construct an integer constant with possible truncation *)
 let kinteger64 (k: ikind) (i: int64) : exp =
@@ -2167,20 +2150,22 @@ let intKindForValue (i: cilint) (unsigned: bool) =
     else if fitsInInt IUShort i then IUShort
     else if fitsInInt IUInt i then IUInt
     else if fitsInInt IULong i then IULong
-    else IULongLong
+    else if fitsInInt IUInt128 i then IUInt128
+    else IULongLong (* warn, IUInt128? *)
   else
     if fitsInInt ISChar i then ISChar
     else if fitsInInt IShort i then IShort
     else if fitsInInt IInt i then IInt
     else if fitsInInt ILong i then ILong
-    else ILongLong
+    else if fitsInInt IInt128 i then IInt128
+    else ILongLong (* warn, IInt128? *)
 
 (** If the given expression is an integer constant or a CastE'd
     integer constant, return that constant's value as an ikind, int64 pair.
     Otherwise return None. *)
 let rec getInteger (e:exp) : cilint option =
   match e with
-  | Const(CInt64 (n, ik, _)) -> Some (mkCilint ik n)
+  | Const(CInt (n, ik, _)) -> Some (mkCilintIk ik n)
   | Const(CChr c) -> getInteger (Const (charConstToInt c))
   | Const(CEnum(v, _, _)) -> getInteger v
   | CastE(t, e) -> begin
@@ -2228,6 +2213,7 @@ let rec alignOf_int t =
     | TInt((IInt|IUInt), _) -> !M.theMachine.M.alignof_int
     | TInt((ILong|IULong), _) -> !M.theMachine.M.alignof_long
     | TInt((ILongLong|IULongLong), _) -> !M.theMachine.M.alignof_longlong
+    | TInt((IInt128|IUInt128), _) -> 16 (* not generated since not all architectures support 128bit ints and the value should be the same for those that do *)
     | TEnum(ei, _) -> alignOf_int (TInt(ei.ekind, []))
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
@@ -2241,10 +2227,7 @@ let rec alignOf_int t =
 
     (* For composite types get the maximum alignment of any field inside *)
     | TComp (c, _) ->
-        (* On GCC the zero-width fields do not contribute to the alignment.
-         * On MSVC only those zero-width that _do_ appear after other
-         * bitfields contribute to the alignment. So we drop those that
-         * do not occur after the bitfields *)
+        (* On GCC the zero-width fields do not contribute to the alignment. *)
         let rec dropZeros (afterbitfield: bool) = function
           | f :: rest when f.fbitfield = Some 0 && not afterbitfield ->
               dropZeros afterbitfield rest
@@ -2256,12 +2239,10 @@ let rec alignOf_int t =
           (fun sofar f ->
              (* Bitfields with zero width do not contribute to the alignment in
               * GCC *)
-             if not !msvcMode && f.fbitfield = Some 0 then sofar else
+             if f.fbitfield = Some 0 then sofar else
                max sofar (alignOfField f)) 1 fields
           (* These are some error cases *)
-    | TFun _ when not !msvcMode -> !M.theMachine.M.alignof_fun
-
-    | TFun _ as t -> raise (SizeOfError ("function", t))
+    | TFun _ -> !M.theMachine.M.alignof_fun
     | TVoid _ as t -> raise (SizeOfError ("void", t))
   in
   match filterAttributes "aligned" (typeAttrs t) with
@@ -2380,110 +2361,9 @@ and offsetOfFieldAcc_GCC
         oaPrevBitPack = None;
       }
 
-(* MSVC version *)
-and offsetOfFieldAcc_MSVC (fi: fieldinfo)
-                              (sofar: offsetAcc) : offsetAcc =
-  (* field type *)
-  let ftype = unrollType fi.ftype in
-  let ftypeAlign = 8 * alignOf_int ftype in
-  let ftypeBits = bitsSizeOf ftype in
-(*
-  ignore (E.log "offsetOfFieldAcc_MSVC(%s of %s:%a%a,firstFree=%d, pack=%a)\n"
-            fi.fname fi.fcomp.cname
-            d_type ftype
-            insert
-            (match fi.fbitfield with
-              None -> nil
-            | Some wdthis -> dprintf ":%d" wdthis)
-            sofar.oaFirstFree
-            insert
-            (match sofar.oaPrevBitPack with
-              None -> text "None"
-            | Some (prevpack, _, wdpack) -> dprintf "Some(prev=%d,wd=%d)"
-                  prevpack wdpack));
-*)
-  match ftype, fi.fbitfield, sofar.oaPrevBitPack with
-    (* Ignore zero-width bitfields that come after non-bitfields *)
-  | TInt (ikthis, _), Some 0, None ->
-      let firstFree      = sofar.oaFirstFree in
-      { oaFirstFree      = firstFree;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = 0;
-        oaPrevBitPack    = None }
-
-    (* If we are in a bitpack and we see a bitfield for a type with the
-     * different width than the pack, then we finish the pack and retry *)
-  | _, Some _, Some (packstart, _, wdpack) when wdpack != ftypeBits ->
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      offsetOfFieldAcc_MSVC fi
-        { oaFirstFree      = addTrailing firstFree ftypeAlign;
-          oaLastFieldStart = sofar.oaLastFieldStart;
-          oaLastFieldWidth = sofar.oaLastFieldWidth;
-          oaPrevBitPack    = None }
-
-    (* A width of 0 means that we must end the current packing. *)
-  | TInt (ikthis, _), Some 0, Some (packstart, _, wdpack) ->
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      let firstFree      = addTrailing firstFree ftypeAlign in
-      { oaFirstFree      = firstFree;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = 0;
-        oaPrevBitPack    = Some (firstFree, ikthis, ftypeBits) }
-
-   (* Check for a bitfield that fits in the current pack after some other
-    * bitfields *)
-  | TInt(ikthis, _), Some wdthis, Some (packstart, ikprev, wdpack)
-      when  packstart + wdpack >= sofar.oaFirstFree + wdthis ->
-              { oaFirstFree = sofar.oaFirstFree + wdthis;
-                oaLastFieldStart = sofar.oaFirstFree;
-                oaLastFieldWidth = wdthis;
-                oaPrevBitPack = sofar.oaPrevBitPack
-              }
-
-
-  | _, _, Some (packstart, _, wdpack) -> (* Finish up the bitfield pack and
-                                          * restart. *)
-      let firstFree =
-        if sofar.oaFirstFree = packstart then packstart else
-        packstart + wdpack
-      in
-      offsetOfFieldAcc_MSVC fi
-        { oaFirstFree      = addTrailing firstFree ftypeAlign;
-          oaLastFieldStart = sofar.oaLastFieldStart;
-          oaLastFieldWidth = sofar.oaLastFieldWidth;
-          oaPrevBitPack    = None }
-
-        (* No active bitfield pack. But we are seeing a bitfield. *)
-  | TInt(ikthis, _), Some wdthis, None ->
-      let firstFree     = addTrailing sofar.oaFirstFree ftypeAlign in
-      { oaFirstFree     = firstFree + wdthis;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = wdthis;
-        oaPrevBitPack = Some (firstFree, ikthis, ftypeBits); }
-
-     (* No active bitfield pack. Non-bitfield *)
-  | _, None, None ->
-      (* Align this field *)
-      let firstFree = addTrailing sofar.oaFirstFree ftypeAlign  in
-      { oaFirstFree = firstFree + ftypeBits;
-        oaLastFieldStart = firstFree;
-        oaLastFieldWidth = ftypeBits;
-        oaPrevBitPack = None;
-      }
-
-  | _, Some _, None -> E.s (E.bug "offsetAcc")
-
-
 and offsetOfFieldAcc ~(fi: fieldinfo)
                      ~(sofar: offsetAcc) : offsetAcc =
-  if !msvcMode then offsetOfFieldAcc_MSVC fi sofar
-  else offsetOfFieldAcc_GCC fi sofar
+  offsetOfFieldAcc_GCC fi sofar
 
 (* The size of a type, in bits. If a struct or array, then trailing padding is
  * added *)
@@ -2503,8 +2383,7 @@ and bitsSizeOf t =
   | TBuiltin_va_list _ -> 8 * !M.theMachine.M.sizeof_ptr
   | TNamed (t, _) -> bitsSizeOf t.ttype
   | TComp (comp, _) when comp.cfields == [] -> begin
-      (* Empty structs are allowed in msvc mode *)
-      if not comp.cdefined && not !msvcMode then
+      if not comp.cdefined then
         raise (SizeOfError ("abstract type", t)) (*abstract type*)
       else
         0
@@ -2522,17 +2401,11 @@ and bitsSizeOf t =
         List.fold_left (fun acc fi -> offsetOfFieldAcc ~fi ~sofar:acc)
           startAcc comp.cfields
       in
-      if !msvcMode && lastoff.oaFirstFree = 0 && comp.cfields <> [] then
-          (* On MSVC if we have just a zero-width bitfields then the length
-           * is 32 and is not padded  *)
-        32
-      else begin
-        (* Drop e.g. the align attribute from t.  For this purpose,
-           consider only the attributes on comp itself.*)
-        let structAlign = 8 * alignOf_int
-                            (TComp (comp, [])) in
-        addTrailing lastoff.oaFirstFree structAlign
-      end
+      (* Drop e.g. the align attribute from t.  For this purpose,
+          consider only the attributes on comp itself.*)
+      let structAlign = 8 * alignOf_int
+                          (TComp (comp, [])) in
+      addTrailing lastoff.oaFirstFree structAlign
 
   | TComp (comp, _) -> (* when not comp.cstruct *)
         (* Get the maximum of all fields *)
@@ -2552,8 +2425,8 @@ and bitsSizeOf t =
 
   | TArray(bt, Some len, _) -> begin
       match constFold true len with
-        Const(CInt64(l,lk,_)) ->
-	  let sz = mul_cilint (mkCilint lk l) (cilint_of_int  (bitsSizeOf bt)) in
+        Const(CInt(l,lk,_)) ->
+	  let sz = mul_cilint (mkCilintIk lk l) (cilint_of_int (bitsSizeOf bt)) in
           (* Check for overflow.
              There are other places in these cil.ml that overflow can occur,
              but this multiplication is the most likely to be a problem. *)
@@ -2567,14 +2440,12 @@ and bitsSizeOf t =
 
 
   | TVoid _ -> 8 * !M.theMachine.M.sizeof_void
-  | TFun _ when not !msvcMode -> (* On GCC the size of a function is defined *)
+  | TFun _ -> (* On GCC the size of a function is defined *)
       8 * !M.theMachine.M.sizeof_fun
 
   | TArray (_, None, _) -> (* it seems that on GCC the size of such an
                             * array is 0 *)
       0
-
-  | TFun _ -> raise (SizeOfError ("function", t))
 
 
 and addTrailing nrbits roundto =
@@ -2652,8 +2523,8 @@ and constFold (machdep: bool) (e: exp) : exp =
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt64(i,ik,_)) -> begin
-	    let ic = mkCilint ik i in
+          Const(CInt(i,ik,_)) -> begin
+	    let ic = mkCilintIk ik i in
             match unop with
               Neg -> kintegerCilint tk (neg_cilint ic)
             | BNot -> kintegerCilint tk (lognot_cilint ic)
@@ -2678,7 +2549,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       (* The alignment of an expression is not always the alignment of its
        * type. I know that for strings this is not true *)
       match e with
-        Const (CStr _) when not !msvcMode ->
+        Const (CStr _) ->
           kinteger !kindOfSizeOf !M.theMachine.M.alignof_str
             (* For an array, it is the alignment of the array ! *)
       | _ -> constFold machdep (AlignOf (typeOf e))
@@ -2699,12 +2570,12 @@ and constFold (machdep: bool) (e: exp) : exp =
   | CastE (t, e) -> begin
       match constFold machdep e, unrollType t with
         (* Might truncate silently *)
-      | Const(CInt64(i,k,_)), TInt(nk,a)
+      | Const(CInt(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
           when (dropAttributes ["const"] a) = [] ->
-          let i', _ = truncateCilint nk (mkCilint k i) in
-          Const(CInt64(int64_of_cilint i', nk, None))
+          let i', _ = truncateCilint nk (mkCilintIk k i) in
+          Const(CInt(i', nk, None))
       | e', _ -> CastE (t, e')
   end
   | Lval lv -> Lval (constFoldLval machdep lv)
@@ -2851,11 +2722,10 @@ and isConstantOffset = function
   | Index(e, off) -> isConstant e && isConstantOffset off
 
 let parseInt (str: string) : exp =
-  let hasSuffix str =
+  let hasSuffix str suff =
     let l = String.length str in
-    fun s ->
-      let ls = String.length s in
-      l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
+    let lsuff = String.length suff in
+    l >= lsuff && suff = String.uppercase_ascii (String.sub str (l - lsuff) lsuff)
   in
   let l = String.length str in
   (* See if it is octal or hex *)
@@ -2863,7 +2733,7 @@ let parseInt (str: string) : exp =
   (* The length of the suffix and a list of possible kinds. See ISO
   * 6.4.4.1 *)
   let hasSuffix = hasSuffix str in
-  let suffixlen, kinds =
+  let suffixlen, kinds = (* 128bit constants are only supported if long long is also 128bit, so we can parse those as long long *)
     if hasSuffix "ULL" || hasSuffix "LLU" then
       3, [IULongLong]
     else if hasSuffix "LL" then
@@ -2875,10 +2745,6 @@ let parseInt (str: string) : exp =
       else [ILong; ILongLong]
     else if hasSuffix "U" then
       1, [IUInt; IULong; IULongLong]
-    else if (!msvcMode && hasSuffix "UI64") then
-      4, [IULongLong]
-    else if (!msvcMode && hasSuffix "I64") then
-      3, [ILongLong]
     else
       0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
       else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
@@ -2891,57 +2757,24 @@ let parseInt (str: string) : exp =
           b) for constants bigger than long long producing a "Unimplemented: Cannot represent the integer"
              warning in C99 mode vs. unsigned long long if c99mode is off. *)
   in
-    (* Convert to integer. To prevent overflow we do the arithmetic on
-     * cilints. We work only with positive integers since the lexer
-     * takes care of the sign *)
-  let rec toInt (base: cilint) (acc: cilint) (idx: int) : cilint =
-    let doAcc (what: int) =
-      let acc' = add_cilint (mul_cilint base acc)  (cilint_of_int what) in
-      toInt base acc' (idx + 1)
-    in
-    if idx >= l - suffixlen then begin
-      acc
-    end else
-      let ch = String.get str idx in
-      if ch >= '0' && ch <= '9' then
-        doAcc (Char.code ch - Char.code '0')
-      else if  ch >= 'a' && ch <= 'f'  then
-        doAcc (10 + Char.code ch - Char.code 'a')
-      else if  ch >= 'A' && ch <= 'F'  then
-        doAcc (10 + Char.code ch - Char.code 'A')
-      else
-        E.s (bug "Invalid integer constant: %s (char %c at idx=%d)"
-               str ch idx)
-  in
-  let i =
+  let start, base =
     if octalhex then
-      if l >= 2 &&
-        (let c = String.get str 1 in c = 'x' || c = 'X') then
-          toInt (cilint_of_int 16) zero_cilint 2
+      if l >= 2 && (let c = String.get str 1 in c = 'x' || c = 'X') then
+        2, 16
       else
-        toInt (cilint_of_int 8) zero_cilint 1
+        1, 8
     else
-      toInt (cilint_of_int 10) zero_cilint 0
+     0, 10
   in
-  (* Construct an integer of the first kinds that fits. i must be
-   * POSITIVE  *)
-  let res =
-    let rec loop = function
-        k::rest ->
-	  if fitsInInt k i then kintegerCilint k i
-	  else loop rest
-        | [] -> E.s (E.unimp "Cannot represent the integer %s\n"
-                       (string_of_cilint i))
-    in
-    loop kinds
-    in
-  res
-(* with e -> begin *)
-(*   ignore (E.log "int_of_string %s (%s)\n" str  *)
-(*             (Printexc.to_string e)); *)
-(*     zero *)
-(*   end *)
-
+  let t = String.sub str start (String.length str - start - suffixlen) in
+  (* Normal Z.of_string does not work here as 0 is not recognized as the prefix for octal here *)
+  let i = Z.of_string_base base t in
+  try
+    (* Construct an integer of the first kinds that fits. i must be POSITIVE  *)
+    let ik = List.find (fun ik -> fitsInInt ik i) kinds in
+    kintegerCilintString ik i (Some str)
+  with Not_found ->
+    E.s (E.unimp "Cannot represent the integer %s\n" (string_of_cilint i))
 
 
 let d_unop () u =
@@ -3306,22 +3139,15 @@ let initGccBuiltins () : unit =
   H.add h "__builtin_va_arg_pack_len" (intType, [ ], false);
   ()
 
-(** Construct a hash with the builtins *)
-let initMsvcBuiltins () : unit =
-  if not !initCIL_called then
-    E.s (bug "Call initCIL before initGccBuiltins");
-  if H.length builtinFunctions <> 0 then
-    E.s (bug "builtins already initialized.");
-  let h = builtinFunctions in
-  (* Take a number of wide string literals *)
-  H.add h "__annotation" (voidType, [ ], true);
-  ()
 
 (** This is used as the location of the prototypes of builtin functions. *)
 let builtinLoc: location = { line = 1;
                              file = "<compiler builtins>";
                              byte = 0;
-                             column = 0}
+                             column = 0;
+                             endLine = -1;
+                             endByte = -1;
+                             endColumn = -1;}
 
 
 
@@ -3446,14 +3272,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
   (* variable declaration *)
   method pVDecl () (v:varinfo) =
-    let stom, rest = separateStorageModifiers v.vattr in
     (* First the storage modifiers *)
     text (if v.vinline then "__inline " else "")
       ++ d_storage () v.vstorage
-      ++ (self#pAttrs () stom)
       ++ (self#pType (Some (text v.vname)) () v.vtype)
       ++ text " "
-      ++ self#pAttrs () rest
+      ++ self#pAttrs () v.vattr
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
@@ -3576,18 +3400,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (docList ~sep:(chr ',' ++ break) dinit) initl
 *)
         let printDesignator =
-          if not !msvcMode then begin
-            (* Print only for union when we do not initialize the first field *)
-            match unrollType t, initl with
-              TComp(ci, _), [(Field(f, NoOffset), _)] ->
-                if not (ci.cstruct) && ci.cfields != [] &&
-                  (List.hd ci.cfields) != f then
-                  true
-                else
-                  false
-            | _ -> false
-          end else
-            false
+          (* Print only for union when we do not initialize the first field *)
+          match unrollType t, initl with
+            TComp(ci, _), [(Field(f, NoOffset), _)] ->
+              if not (ci.cstruct) && ci.cfields != [] &&
+                (List.hd ci.cfields) != f then
+                true
+              else
+                false
+          | _ -> false
         in
         let d_oneInit = function
             Field(f, NoOffset), i ->
@@ -3669,24 +3490,24 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   (*** INSTRUCTIONS ****)
   method pInstr () (i:instr) =       (* imperative instruction *)
     match i with
-    | Set(lv,e,l) -> begin
+    | Set(lv,e,l,el) -> begin
         (* Be nice to some special cases *)
         match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(one,_,_)),_)
+            when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
                 ++ text (" ++" ^ printInstrTerminator)
 
         | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _)
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+                Const(CInt(one,_,_)), _)
+            when Util.equals lv lv' && compare_cilint one one_cilint = 0 && not !printCilAsIs ->
                   self#pLineDirective l
                     ++ self#pLvalPrec indexLevel () lv
                     ++ text (" --" ^ printInstrTerminator)
 
-        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when Util.equals lv lv' && mone = Int64.minus_one
+        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt(mone,_,_)),_)
+            when Util.equals lv lv' && compare_cilint mone mone_cilint = 0
                 && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
@@ -3721,7 +3542,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       (* In cabs2cil we have turned the call to builtin_va_arg into a
        * three-argument call: the last argument is the address of the
        * destination *)
-    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l)
+    | Call(None, Lval(Var vi, NoOffset), [dest; SizeOf t; adest], l, el)
         when vi.vname = "__builtin_va_arg" && not !printCilAsIs ->
           let destlv = match stripCasts adest with
             AddrOf destlv -> destlv
@@ -3746,12 +3567,12 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_va_start and __builtin_stdarg_start. *)
-    | Call(None, Lval(Var vi, NoOffset), [marker], l)
+    | Call(None, Lval(Var vi, NoOffset), [marker], l, el)
         when ((vi.vname = "__builtin_stdarg_start" ||
                vi.vname = "__builtin_va_start") && not !printCilAsIs) ->
         if currentFormals <> [] then begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l))
+          self#pInstr () (Call(None,Lval(Var vi,NoOffset),[marker; last],l,el))
         end
         else begin
           (* We can't print this call because someone called pInstr outside
@@ -3766,10 +3587,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         end
       (* In cabs2cil we have dropped the last argument in the call to
        * __builtin_next_arg. *)
-    | Call(res, Lval(Var vi, NoOffset), [ ], l)
+    | Call(res, Lval(Var vi, NoOffset), [ ], l, el)
         when vi.vname = "__builtin_next_arg" && not !printCilAsIs -> begin
           let last = self#getLastNamedArgument vi.vname in
-          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l))
+          self#pInstr () (Call(res,Lval(Var vi,NoOffset),[last],l, el))
         end
 
       (* In cparser we have turned the call to
@@ -3777,7 +3598,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
        * __builtin_types_compatible_p(sizeof t1, sizeof t2), so that we can
        * represent the types as expressions.
        * Remove the sizeofs when printing. *)
-    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l)
+    | Call(dest, Lval(Var vi, NoOffset), [SizeOf t1; SizeOf t2], l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         self#pLineDirective l
           (* Print the destination *)
@@ -3788,11 +3609,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         ++ dprintf "%s(%a, %a)" vi.vname
              (self#pType None) t1  (self#pType None) t2
         ++ text printInstrTerminator
-    | Call(_, Lval(Var vi, NoOffset), _, l)
+    | Call(_, Lval(Var vi, NoOffset), _, l, el)
         when vi.vname = "__builtin_types_compatible_p" && not !printCilAsIs ->
         E.s (bug "__builtin_types_compatible_p: cabs2cil should have added sizeof to the arguments.")
 
-    | Call(dest,e,args,l) ->
+    | Call(dest,e,args,l,el) ->
         let rec patchTypeNotVLA t =
           match t with
           | TPtr(t, args) -> TPtr(patchTypeNotVLA t, args)
@@ -3833,60 +3654,52 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         ++ text (")" ^ printInstrTerminator)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
-        if !msvcMode then
-          self#pLineDirective l
-            ++ text "__asm {"
-            ++ (align
-                  ++ (docList ~sep:line text () tmpls)
-                  ++ unalign)
-            ++ text ("}" ^ printInstrTerminator)
-        else
-          self#pLineDirective l
-            ++ text ("__asm__ ")
-            ++ self#pAttrs () attrs
-            ++ text " ("
-            ++ (align
-                  ++ (docList ~sep:line
-                        (fun x -> text ("\"" ^ escape_string x ^ "\""))
-                        () tmpls)
-                  ++
-                  (if outs = [] && ins = [] && clobs = [] then
-                    chr ':'
+        self#pLineDirective l
+          ++ text ("__asm__ ")
+          ++ self#pAttrs () attrs
+          ++ text " ("
+          ++ (align
+                ++ (docList ~sep:line
+                      (fun x -> text ("\"" ^ escape_string x ^ "\""))
+                      () tmpls)
+                ++
+                (if outs = [] && ins = [] && clobs = [] then
+                  chr ':'
+              else
+                (text ": "
+                    ++ (docList ~sep:(chr ',' ++ break)
+                          (fun (idopt, c, lv) ->
+                          text(match idopt with
+                                None -> ""
+                              | Some id -> "[" ^ id ^ "] "
+                          ) ++
+                            text ("\"" ^ escape_string c ^ "\" (")
+                              ++ self#pLval () lv
+                              ++ text ")") () outs)))
+              ++
+                (if ins = [] && clobs = [] then
+                  nil
                 else
                   (text ": "
-                     ++ (docList ~sep:(chr ',' ++ break)
-                           (fun (idopt, c, lv) ->
-                            text(match idopt with
-                                 None -> ""
-                               | Some id -> "[" ^ id ^ "] "
-                            ) ++
-                             text ("\"" ^ escape_string c ^ "\" (")
-                               ++ self#pLval () lv
-                               ++ text ")") () outs)))
+                      ++ (docList ~sep:(chr ',' ++ break)
+                            (fun (idopt, c, e) ->
+                              text(match idopt with
+                                    None -> ""
+                                  | Some id -> "[" ^ id ^ "] "
+                              ) ++
+                              text ("\"" ^ escape_string c ^ "\" (")
+                                ++ self#pExp () e
+                                ++ text ")") () ins)))
                 ++
-                  (if ins = [] && clobs = [] then
-                    nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun (idopt, c, e) ->
-                                text(match idopt with
-                                     None -> ""
-                                   | Some id -> "[" ^ id ^ "] "
-                                ) ++
-                               text ("\"" ^ escape_string c ^ "\" (")
-                                 ++ self#pExp () e
-                                 ++ text ")") () ins)))
-                  ++
-                  (if clobs = [] then nil
-                  else
-                    (text ": "
-                       ++ (docList ~sep:(chr ',' ++ break)
-                             (fun c -> text ("\"" ^ escape_string c ^ "\""))
-                             ()
-                             clobs)))
-                  ++ unalign)
-            ++ text (")" ^ printInstrTerminator)
+                (if clobs = [] then nil
+                else
+                  (text ": "
+                      ++ (docList ~sep:(chr ',' ++ break)
+                            (fun c -> text ("\"" ^ escape_string c ^ "\""))
+                            ()
+                            clobs)))
+                ++ unalign)
+          ++ text (")" ^ printInstrTerminator)
 
 
   (**** STATEMENTS ****)
@@ -3920,8 +3733,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method private pLabel () = function
       Label (s, _, true) -> text (s ^ ": ")
     | Label (s, _, false) -> text (s ^ ": /* CIL Label */ ")
-    | Case (e, _) -> text "case " ++ self#pExp () e ++ text ": "
-    | CaseRange (e1, e2, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
+    | Case (e, _, _) -> text "case " ++ self#pExp () e ++ text ": "
+    | CaseRange (e1, e2, _, _) -> text "case " ++ self#pExp () e1 ++ text " ... "
         ++ self#pExp () e2 ++ text ": "
     | Default _ -> text "default: "
 
@@ -3968,8 +3781,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 	let directive =
 	  match style with
 	  | LineComment | LineCommentSparse -> text "//#line "
-	  | LinePreprocessorOutput when not !msvcMode -> chr '#'
-	  | LinePreprocessorOutput | LinePreprocessorInput -> text "#line"
+	  | LinePreprocessorOutput -> chr '#'
+	  | LinePreprocessorInput -> text "#line"
 	in
         lastLineNumber <- l.line;
 	let filename =
@@ -4036,23 +3849,23 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ (docList ~sep:line (fun i -> self#pInstr () i) () il)
           ++ unalign
 
-    | If(be,t,{bstmts=[];battrs=[]},l) when not !printCilAsIs ->
+    | If(be,t,{bstmts=[];battrs=[]},l,el) when not !printCilAsIs ->
         self#pIfConditionThen l be t
 
     | If(be,t,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-                battrs=[]},l)
+                battrs=[]},l,el)
      when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l be t
 
-    | If(be,{bstmts=[];battrs=[]},e,l) when not !printCilAsIs ->
+    | If(be,{bstmts=[];battrs=[]},e,l,el) when not !printCilAsIs ->
           self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
     | If(be,{bstmts=[{skind=Goto(gref,_);labels=[]; _}];
-           battrs=[]},e,l)
+           battrs=[]},e,l,el)
       when !gref == next && not !printCilAsIs ->
         self#pIfConditionThen l (UnOp(LNot,be,intType)) e
 
-    | If(be,t,e,l) ->
+    | If(be,t,e,l,el) ->
         self#pIfConditionThen l be t
           ++ (match e with
                 { bstmts=[{skind=If _; _} as elsif]; battrs=[] } ->
@@ -4065,14 +3878,14 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                     ++ text "else "
                     ++ self#pBlock () e)
 
-    | Switch(e,b,_,l) ->
+    | Switch(e,b,_,l,el) ->
         self#pLineDirective l
           ++ (align
                 ++ text "switch ("
                 ++ self#pExp () e
                 ++ text ") "
                 ++ self#pBlock () b)
-    | Loop(b, l, _, _) -> begin
+    | Loop(b, l, el, _, _) -> begin
         (* Maybe the first thing is a conditional. Turn it into a WHILE *)
         try
           let term, bodystmts =
@@ -4083,7 +3896,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             in
             (* Bill McCloskey: Do not remove the If if it has labels *)
             match skipEmpty b.bstmts with
-              {skind=If(e,tb,fb,_); labels=[]; _} :: rest
+              {skind=If(e,tb,fb,_,_); labels=[]; _} :: rest
                                               when not !printCilAsIs -> begin
                 match skipEmpty tb.bstmts, skipEmpty fb.bstmts with
                   [], {skind=Break _; labels=[]; _} :: _  -> e, rest
@@ -4109,34 +3922,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                   ++ self#pBlock () b)
     end
     | Block b -> align ++ self#pBlock () b
-
-    | TryFinally (b, h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __fin" ++ align ++ text "ally "
-          ++ self#pBlock () h
-
-    | TryExcept (b, (il, e), h, l) ->
-        self#pLineDirective l
-          ++ text "__try "
-          ++ align
-          ++ self#pBlock () b
-          ++ text " __e" ++ align ++ text "xcept(" ++ line
-          ++ align
-          (* Print the instructions but with a comma at the end, instead of
-           * semicolon *)
-          ++ (printInstrTerminator <- ",";
-              let res =
-                (docList ~sep:line (self#pInstr ())
-                   () il)
-              in
-              printInstrTerminator <- ";";
-              res)
-          ++ self#pExp () e
-          ++ text ") " ++ unalign
-          ++ self#pBlock () h
 
 
   (*** GLOBALS ***)
@@ -4188,24 +3973,22 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           if comp.cstruct then "struct", "str", "uct"
           else "union",  "uni", "on"
         in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective ~forcefile:true l ++
-          text su1 ++ (align ++ text su2 ++ chr ' ' ++ (self#pAttrs () sto_mod)
+          text su1 ++ (align ++ text su2 ++ chr ' '
                          ++ text n
                          ++ text " {" ++ line
                          ++ ((docList ~sep:line (self#pFieldDecl ())) ()
                                comp.cfields)
                          ++ unalign)
           ++ line ++ text "}" ++
-          (self#pAttrs () rest_attr) ++ text ";\n"
+          (self#pAttrs () comp.cattr) ++ text ";\n"
 
     | GCompTagDecl (comp, l) -> (* This is a declaration of a tag *)
         let su = if comp.cstruct then "struct " else "union " in
-        let sto_mod, rest_attr = separateStorageModifiers comp.cattr in
         self#pLineDirective l
-          ++ text su ++ self#pAttrs () sto_mod
+          ++ text su
           ++ text comp.cname ++ chr ' '
-          ++ self#pAttrs () rest_attr ++ text ";\n"
+          ++ self#pAttrs () comp.cattr ++ text ";\n"
 
     | GVar (vi, io, l) ->
         self#pLineDirective ~forcefile:true l ++
@@ -4250,7 +4033,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
         (* nor 'cilnoremove' *)
         let suppress =
           not !print_CIL_Input &&
-          not !msvcMode &&
           ((startsWith "box" an) ||
            (startsWith "ccured" an) ||
            (an = "merger") ||
@@ -4361,10 +4143,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     let printAttributes (a: attributes) =
       let pa = self#pAttrs () a in
       match nameOpt with
-      | None when not !print_CIL_Input && not !msvcMode ->
+      | None when not !print_CIL_Input ->
           (* Cannot print the attributes in this case because gcc does not
-           * like them here, except if we are printing for CIL, or for MSVC.
-           * In fact, for MSVC we MUST print attributes such as __stdcall *)
+           * like them here, except if we are printing for CIL. *)
           if pa = nil then nil else
           text "/*" ++ pa ++ text "*/"
       | _ -> pa
@@ -4400,19 +4181,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           ++ name
     | TPtr (bt, a)  ->
         (* Parenthesize the ( * attr name) if a pointer to a function or an
-         * array. However, on MSVC the __stdcall modifier must appear right
-         * before the pointer constructor "(__stdcall *f)". We push them into
-         * the parenthesis. *)
+         * array. *)
         let (paren: doc option), (bt': typ) =
           match bt with
-            TFun(rt, args, isva, fa) when !msvcMode ->
-              let an, af', at = partitionAttributes ~default:AttrType fa in
-              (* We take the af' and we put them into the parentheses *)
-              Some (text "(" ++ printAttributes af'),
-              TFun(rt, args, isva, addAttributes an at)
-
           | TFun _ | TArray _ -> Some (text "("), bt
-
           | _ -> None, bt
         in
         let name' = text "*" ++ printAttributes a ++ name in
@@ -4461,12 +4233,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
                         else if args = Some [] then text "void"
                         else
                           let pArg (aname, atype, aattr) =
-                            let stom, rest = separateStorageModifiers aattr in
-                            (* First the storage modifiers *)
-                            (self#pAttrs () stom)
-                              ++ (self#pType (Some (text aname)) () atype)
+                            (self#pType (Some (text aname)) () atype)
                               ++ text " "
-                              ++ self#pAttrs () rest
+                              ++ self#pAttrs () aattr
                           in
                           (docList ~sep:(chr ',' ++ break) pArg) ()
                             (argsToList args))
@@ -4500,23 +4269,15 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
     | "complex", [] when !c99Mode -> text "_Complex", false
-    | "complex", [] when not !msvcMode -> text "__complex__", false
-    | "aconst", [] when not !msvcMode -> text "__const__", true
-    | "thread", [] when not !msvcMode -> text "__thread", false
+    | "complex", [] -> text "__complex__", false
+    | "aconst", [] -> text "__const__", true
+    | "thread", [] -> text "__thread", false
 (*
     | "used", [] when not !msvcMode -> text "__attribute_used__", false
 *)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
-    | "cdecl", [] when !msvcMode -> text "__cdecl", false
-    | "stdcall", [] when !msvcMode -> text "__stdcall", false
-    | "fastcall", [] when !msvcMode -> text "__fastcall", false
-    | "declspec", args when !msvcMode ->
-        text "__declspec("
-          ++ docList (self#pAttrParam ()) () args
-          ++ text ")", false
-    | "w64", [] when !msvcMode -> text "__w64", false
     | "asm", args ->
         text "__asm__("
           ++ docList (self#pAttrParam ()) () args
@@ -4544,7 +4305,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | _ -> (* This is the default case *)
         (* Add underscores to the name *)
-        let an' = if !msvcMode then "__" ^ an else "__" ^ an ^ "__" in
+        let an' =  "__" ^ an ^ "__" in
         if args = [] then
           text an', true
         else
@@ -4828,10 +4589,10 @@ class plainCilPrinterClass =
     Const(c) ->
       let d_plainconst () c =
         match c with
-          CInt64(i, ik, so) ->
+          CInt(i, ik, so) ->
 	    let fmt = if isSigned ik then "%d" else "%x" in
-            dprintf "Int64(%s,%a,%s)"
-              (Int64.format fmt i)
+            dprintf "Int(%s,%a,%s)"
+              (Z.format fmt i)
               d_ikind ik
               (match so with Some s -> s | _ -> "None")
         | CStr(s) ->
@@ -5032,7 +4793,7 @@ let rec d_typsig () = function
       dprintf "TSArray(@[%a,@?%a,@?%a@])"
         d_typsig ts
         insert (text (match eo with None -> "None"
-                       | Some e -> "Some " ^ Int64.to_string e))
+                       | Some e -> "Some " ^ string_of_cilint e))
         d_attrlist al
   | TSPtr (ts, al) ->
       dprintf "TSPtr(@[%a,@?%a@])"
@@ -5496,17 +5257,17 @@ and childrenInstr (vis: cilVisitor) (i: instr) : instr =
   let fLval lv = visitCilLval vis lv in
   match i with
   | VarDecl(v,l) -> i
-  | Set(lv,e,l) ->
+  | Set(lv,e,l,el) ->
       let lv' = fLval lv in let e' = fExp e in
-      if lv' != lv || e' != e then Set(lv',e',l) else i
-  | Call(None,f,args,l) ->
+      if lv' != lv || e' != e then Set(lv',e',l,el) else i
+  | Call(None,f,args,l,el) ->
       let f' = fExp f in let args' = mapNoCopy fExp args in
-      if f' != f || args' != args then Call(None,f',args',l) else i
-  | Call(Some lv,fn,args,l) ->
+      if f' != f || args' != args then Call(None,f',args',l,el) else i
+  | Call(Some lv,fn,args,l,el) ->
       let lv' = fLval lv in let fn' = fExp fn in
       let args' = mapNoCopy fExp args in
       if lv' != lv || fn' != fn || args' != args
-      then Call(Some lv', fn', args', l) else i
+      then Call(Some lv', fn', args', l, el) else i
 
   | Asm(sl,isvol,outs,ins,clobs,l) ->
       let outs' = mapNoCopy (fun ((id,s,lv) as pair) ->
@@ -5553,10 +5314,10 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
     | Return (Some e, l) ->
         let e' = fExp e in
         if e' != e then Return (Some e', l) else s.skind
-    | Loop (b, l, s1, s2) ->
+    | Loop (b, l, el, s1, s2) ->
         let b' = fBlock b in
-        if b' != b then Loop (b', l, s1, s2) else s.skind
-    | If(e, s1, s2, l) ->
+        if b' != b then Loop (b', l, el, s1, s2) else s.skind
+    | If(e, s1, s2, l, el) ->
         let e' = fExp e in
         (*if e queued any instructions, pop them here and remember them so that
           they are inserted before the If stmt, not in the then block. *)
@@ -5565,56 +5326,33 @@ and childrenStmt (toPrepend: instr list ref) : cilVisitor -> stmt -> stmt =
         (* the stmts in the blocks should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         if e' != e || s1' != s1 || s2' != s2 then
-          If(e', s1', s2', l) else s.skind
-    | Switch (e, b, stmts, l) ->
+          If(e', s1', s2', l, el) else s.skind
+    | Switch (e, b, stmts, l, el) ->
         let e' = fExp e in
         toPrepend := vis#unqueueInstr (); (* insert these before the switch *)
         let b' = fBlock b in
         (* the stmts in b should have cleaned up after themselves.*)
         assertEmptyQueue vis;
         (* Don't do stmts, but we better not change those *)
-        if e' != e || b' != b then Switch (e', b', stmts, l) else s.skind
+        if e' != e || b' != b then Switch (e', b', stmts, l, el) else s.skind
     | Instr il ->
         let il' = mapNoCopyList fInst il in
         if il' != il then Instr il' else s.skind
     | Block b ->
         let b' = fBlock b in
         if b' != b then Block b' else s.skind
-    | TryFinally (b, h, l) ->
-        let b' = fBlock b in
-        let h' = fBlock h in
-        if b' != b || h' != h then TryFinally(b', h', l) else s.skind
-    | TryExcept (b, (il, e), h, l) ->
-        let b' = fBlock b in
-        assertEmptyQueue vis;
-        (* visit the instructions *)
-        let il' = mapNoCopyList fInst il in
-        (* Visit the expression *)
-        let e' = fExp e in
-        let il'' =
-          let more = vis#unqueueInstr () in
-          if more != [] then
-            il' @ more
-          else
-            il'
-        in
-        let h' = fBlock h in
-        (* Now collect the instructions *)
-        if b' != b || il'' != il || e' != e || h' != h then
-          TryExcept(b', (il'', e'), h', l)
-        else s.skind
   in
   if skind' != s.skind then s.skind <- skind';
   (* Visit the labels *)
   let labels' =
     let fLabel = function
-        Case (e, l) as lb ->
+        Case (e, l, el) as lb ->
           let e' = fExp e in
-          if e' != e then Case (e', l) else lb
-        | CaseRange (e1, e2, l) as lb ->
+          if e' != e then Case (e', l, el) else lb
+        | CaseRange (e1, e2, l, el) as lb ->
           let e1' = fExp e1 in
           let e2' = fExp e2 in
-          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l) else lb
+          if e1' != e1 || e2' != e2 then CaseRange (e1', e2', l, el) else lb
         | lb -> lb
     in
     mapNoCopy fLabel s.labels
@@ -5857,7 +5595,7 @@ class constFoldVisitorClass (machdep: bool) : cilVisitor = object
     match i with
       (* Skip two functions to which we add Sizeof to the type arguments.
          See the comments for these above. *)
-      Call(_,(Lval (Var vi,NoOffset)),_,_)
+      Call(_,(Lval (Var vi,NoOffset)),_,_,_)
         when ((vi.vname = "__builtin_va_arg")
               || (vi.vname = "__builtin_types_compatible_p")) ->
           SkipChildren
@@ -5989,7 +5727,7 @@ let getGlobInit ?(main_name="main") (fl: file) =
               m.sbody.bstmts <-
                  compactStmts (mkStmt (Instr [Call(None,
                                                    Lval(var f.svar),
-                                                   [], locUnknown)])
+                                                   [], locUnknown, locUnknown)])
                                :: m.sbody.bstmts);
               inserted := true;
               if !E.verboseFlag then
@@ -6051,8 +5789,8 @@ let dumpFile (pp: cilPrinter) (out : out_channel) (outfile: string) file =
 exception NotAnAttrParam of exp
 let rec expToAttrParam (e: exp) : attrparam =
   match e with
-    Const(CInt64(i,k,_)) ->
-      let i' = mkCilint k i in
+    Const(CInt(i,k,_)) ->
+      let i' = mkCilintIk k i in
       if not (is_int_cilint i') then
         raise (NotAnAttrParam e);
       AInt (int_of_cilint i')
@@ -6084,19 +5822,12 @@ let rec peepHole1 (* Process one instruction and possibly replace it *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole1 doone tb.bstmts;
           peepHole1 doone eb.bstmts
-      | Switch (e, b, _, _) -> peepHole1 doone b.bstmts
-      | Loop (b, l, _, _) -> peepHole1 doone b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole1 doone b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole1 doone b.bstmts
       | Block b -> peepHole1 doone b.bstmts
-      | TryFinally (b, h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole1 doone b.bstmts;
-          peepHole1 doone h.bstmts;
-          s.skind <- TryExcept(b, (doInstrList il, e), h, l);
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
 
@@ -6118,18 +5849,12 @@ let rec peepHole2  (* Process two instructions and possibly replace them both *)
     (fun s ->
       match s.skind with
         Instr il -> s.skind <- Instr (doInstrList il)
-      | If (e, tb, eb, _) ->
+      | If (e, tb, eb, _, _) ->
           peepHole2 dotwo tb.bstmts;
           peepHole2 dotwo eb.bstmts
-      | Switch (e, b, _, _) -> peepHole2 dotwo b.bstmts
-      | Loop (b, l, _, _) -> peepHole2 dotwo b.bstmts
+      | Switch (e, b, _, _, _) -> peepHole2 dotwo b.bstmts
+      | Loop (b, l, el, _, _) -> peepHole2 dotwo b.bstmts
       | Block b -> peepHole2 dotwo b.bstmts
-      | TryFinally (b, h, l) -> peepHole2 dotwo b.bstmts;
-                                peepHole2 dotwo h.bstmts
-      | TryExcept (b, (il, e), h, l) ->
-          peepHole2 dotwo b.bstmts;
-          peepHole2 dotwo h.bstmts;
-          s.skind <- TryExcept (b, (doInstrList il, e), h, l)
 
       | Return _ | Goto _ | ComputedGoto _ | Break _ | Continue _ -> ())
     ss
@@ -6182,7 +5907,7 @@ let rec typeSigWithAttrs ?(ignoreSign=false) doattr t =
         match l with
           Some l -> begin
             match constFold true l with
-              Const(CInt64(i, _, _)) -> Some i
+              Const(CInt(i, _, _)) -> Some i
             | e -> None (* Returning None for length in a typesig if the length is not a constant (VLA) *)
           end
         | None -> None
@@ -6296,11 +6021,10 @@ let mkCastT ~(e: exp) ~(oldt: typ) ~(newt: typ) =
     (* Watch out for constants *)
     match newt, e with
       (* Casts to _Bool are special: they behave like "!= 0" ISO C99 6.3.1.2 *)
-      TInt(IBool, []), Const(CInt64(i, _, _)) ->
-        let v = if i = Int64.zero then Int64.zero else Int64.one in
-        Const (CInt64(v, IBool,  None))
-    | TInt(newik, []), Const(CInt64(_, _, Some s)) -> kintegerCilint newik (Cilint.cilint_of_string s)
-    | TInt(newik, []), Const(CInt64(i, _, None)) -> kinteger64 newik i
+      TInt(IBool, []), Const(CInt(i, _, _)) ->
+        let v = if compare i zero_cilint = 0 then zero_cilint else one_cilint in
+        Const (CInt(v, IBool,  None))
+    | TInt(newik, []), Const(CInt(i, _, _)) -> kintegerCilint newik i
     | _ -> CastE(newt,e)
   end
 
@@ -6353,8 +6077,8 @@ let lenOfArray (eo: exp option) : int =
     None -> raise LenOfArray
   | Some e -> begin
       match constFold true e with
-      | Const(CInt64(ni, _, _)) when ni >= Int64.zero ->
-          i64_to_int ni
+      | Const(CInt(ni, _, _)) when compare_cilint ni zero_cilint >= 0 ->
+          cilint_to_int ni
       | e -> raise LenOfArray
   end
 
@@ -6362,7 +6086,7 @@ let lenOfArray (eo: exp option) : int =
 (*** Make an initializer for zeroe-ing a data type ***)
 let rec makeZeroInit (t: typ) : init =
   match unrollType t with
-    TInt (ik, _) -> SingleInit (Const(CInt64(Int64.zero, ik, None)))
+    TInt (ik, _) -> SingleInit (Const(CInt(zero_cilint, ik, None)))
   | TFloat(fk, _) -> SingleInit(Const(CReal(0.0, fk, None)))
   | TEnum (e, _) -> SingleInit (kinteger e.ekind 0)
   | TComp (comp, _) as t' when comp.cstruct ->
@@ -6384,30 +6108,21 @@ let rec makeZeroInit (t: typ) : init =
         | [] -> E.s (unimp "Cannot create init for empty union")
       in
       let fieldToInit =
-        if !msvcMode then
-          (* ISO C99 [6.7.8.10] says that the first field of the union
-             is the one we should initialize. *)
-          fstfield
-        else begin
-          (* gcc initializes the whole union to zero.  So choose the largest
-             field, and set that to zero.  Choose the first field if possible.
-             MSVC also initializes the whole union, but use the ISO behavior
-             for MSVC because it only allows compound initializers to refer
-             to the first union field. *)
-          let fieldSize f = try bitsSizeOf f.ftype with SizeOfError _ -> 0 in
-          let widestField, widestFieldWidth =
-            List.fold_left (fun acc thisField ->
-                              let widestField, widestFieldWidth = acc in
-                              let thisSize = fieldSize thisField in
-                              if thisSize > widestFieldWidth then
-                                thisField, thisSize
-                              else
-                                acc)
-              (fstfield, fieldSize fstfield)
-              rest
-          in
-          widestField
-        end
+        (* gcc initializes the whole union to zero.  So choose the largest
+           field, and set that to zero.  Choose the first field if possible. *)
+        let fieldSize f = try bitsSizeOf f.ftype with SizeOfError _ -> 0 in
+        let widestField, widestFieldWidth =
+          List.fold_left (fun acc thisField ->
+                            let widestField, widestFieldWidth = acc in
+                            let thisSize = fieldSize thisField in
+                            if thisSize > widestFieldWidth then
+                              thisField, thisSize
+                            else
+                              acc)
+            (fstfield, fieldSize fstfield)
+            rest
+        in
+        widestField
       in
       CompoundInit(t, [(Field(fieldToInit, NoOffset),
                         makeZeroInit fieldToInit.ftype)])
@@ -6415,7 +6130,7 @@ let rec makeZeroInit (t: typ) : init =
   | TArray(bt, Some len, _) as t' ->
       let n =
         match constFold true len with
-          Const(CInt64(n, _, _)) -> i64_to_int n
+          Const(CInt(n, _, _)) -> cilint_to_int n
         | _ -> E.s (E.unimp "Cannot understand length of array")
       in
       let initbt = makeZeroInit bt in
@@ -6458,8 +6173,8 @@ let foldLeftCompound
       match leno with
         Some lene when implicit -> begin
           match constFold true lene with
-            Const(CInt64(i, _, _)) ->
-              let len_array = i64_to_int i in
+            Const(CInt(i, _, _)) ->
+              let len_array = cilint_to_int i in
               let len_init = List.length initl in
               if len_array > len_init then
                 let zi = makeZeroInit bt in
@@ -6605,9 +6320,9 @@ class copyFunctionVisitor (newname: string) = object (self)
             (* Make a copy of the reference *)
             let sr' = ref (findStmt !sr.sid) in
             s.skind <- Goto (sr',l)
-        | Switch (e, body, cases, l) ->
+        | Switch (e, body, cases, l, el) ->
             s.skind <- Switch (e, body,
-                               Util.list_map (fun cs -> findStmt cs.sid) cases, l)
+                               Util.list_map (fun cs -> findStmt cs.sid) cases, l, el)
         | _ -> ()
       in
       List.iter patchstmt !patches;
@@ -6725,7 +6440,7 @@ and succpred_stmt s fallthrough rlabels =
   | Switch _ ->
     failwith "computeCFGInfo: cannot be called on functions with break, continue or switch statements. Use prepareCFG first to remove them."
 
-  | If(e1,b1,b2,l) ->
+  | If(e1,b1,b2,l,el) ->
       (match b1.bstmts with
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b1 fallthrough rlabels )) ;
@@ -6733,7 +6448,7 @@ and succpred_stmt s fallthrough rlabels =
         [] -> trylink s fallthrough
       | hd :: tl -> (link s hd ; succpred_block b2 fallthrough rlabels ))
 
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
       begin match b.bstmts with
         [] -> failwith "computeCFGInfo: empty loop"
       | hd :: tl ->
@@ -6746,24 +6461,23 @@ and succpred_stmt s fallthrough rlabels =
                 | hd :: tl -> link s hd ;
                     succpred_block b fallthrough rlabels
                 end
-  | TryExcept _ | TryFinally _ ->
-      failwith "computeCFGInfo: structured exception handling not implemented"
+
 
 let caseRangeFold (l: label list) =
   let rec fold acc = function
   | ((Case _ | Default _ | Label _) as x) :: xs -> fold (x :: acc) xs
-  | CaseRange(el, eh, loc) :: xs ->
+  | CaseRange(el, eh, loc, eloc) :: xs ->
       let il, ih, ik =
         match constFold true el, constFold true eh with
-          Const(CInt64(il, ilk, _)), Const(CInt64(ih, ihk, _)) ->
-            mkCilint ilk il, mkCilint ihk ih, commonIntKind ilk ihk
+          Const(CInt(il, ilk, _)), Const(CInt(ih, ihk, _)) ->
+            mkCilintIk ilk il, mkCilintIk ihk ih, commonIntKind ilk ihk
         | _ -> E.s (error "Cannot understand the constants in case range")
       in
       if compare_cilint il ih > 0 then
         E.s (error "Empty case range");
       let rec mkAll (i: cilint) acc =
         if compare_cilint i ih > 0 then acc
-        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc) :: acc)
+        else mkAll (add_cilint i one_cilint) (Case(kintegerCilint ik i, loc, eloc) :: acc)
       in
       fold (mkAll il acc) xs
    | [] -> List.rev acc
@@ -6801,13 +6515,13 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
   in
   s.labels <- Util.list_map (fun lab -> match lab with
     Label _ -> lab
-  | Case(e,l) ->
+  | Case(e,l,el) ->
       let str = Printf.sprintf "case_%s" (suffix e) in
       Label(freshLabel str,l,false)
-  | CaseRange(e1,e2,l) ->
+  | CaseRange(e1,e2,l,el) ->
       let str = Printf.sprintf "caserange_%s_%s" (suffix e1) (suffix e2) in
       Label(freshLabel str,l,false)
-  | Default(l) -> Label(freshLabel "switch_default",l,false)
+  | Default(l,el) -> Label(freshLabel "switch_default",l,false)
   ) s.labels ;
   match s.skind with
   | Instr _ | Return _ | Goto _ | ComputedGoto _ -> ()
@@ -6823,9 +6537,9 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   ignore (error "prepareCFG: continue: %a@!" d_stmt s) ;
                   raise e
                 end
-  | If(e,b1,b2,l) -> xform_switch_block b1 break_dest cont_dest ;
-                     xform_switch_block b2 break_dest cont_dest
-  | Switch(e,b,sl,l) ->
+  | If(e,b1,b2,l,el) -> xform_switch_block b1 break_dest cont_dest ;
+                        xform_switch_block b2 break_dest cont_dest
+  | Switch(e,b,sl,l,el) ->
       (* change
        * switch (se) {
        *   case 0: s0 ;
@@ -6868,7 +6582,7 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         let cases = List.filter (function Label _ -> false | _ -> true ) stmt.labels in
         try (* is this the default case? *)
           match List.find (function Default _ -> true | _ -> false) cases with
-          | Default dl ->
+          | Default (dl, del) ->
               (* We found a [Default], update the fallthrough goto *)
               goto_break.skind <- Goto(ref stmt, dl);
               []
@@ -6876,14 +6590,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         with
         Not_found -> (* this is a list of specific cases *)
           match cases with
-          | ((Case (_, cl) | CaseRange (_, _, cl)) as lab) :: lab_tl ->
+          | ((Case (_, cl, cel) | CaseRange (_, _, cl, cel)) as lab) :: lab_tl ->
             (* assume that integer promotion and type conversion of cases is
              * performed by cabs2cil. *)
             let comp_case_range e1 e2 =
                   BinOp(Ge, e, e1, intType), BinOp(Le, e, e2, intType) in
             let make_comp lab = begin match lab with
-              | Case (exp, _) -> BinOp(Eq, e, exp, intType)
-              | CaseRange (e1, e2, _) when !useLogicalOperators ->
+              | Case (exp, _, _) -> BinOp(Eq, e, exp, intType)
+              | CaseRange (e1, e2, _, _) when !useLogicalOperators ->
                   let c1, c2 = comp_case_range e1 e2 in
                   BinOp(LAnd, c1, c2, intType)
               | _ -> E.s (bug "Unexpected pattern-matching failure")
@@ -6893,20 +6607,20 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
                   (fun pred label -> BinOp(LOr, pred, make_comp label, intType))
                   (make_comp lab) lab_tl
             in
-            let make_if_stmt pred cl =
+            let make_if_stmt pred cl cel =
               let then_block = mkBlock [ mkStmt (Goto(ref stmt,cl)) ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred,then_block,else_block,cl)) in
-            let make_double_if_stmt (pred1, pred2) cl =
-              let then_block = mkBlock [ make_if_stmt pred2 cl ] in
+              mkStmt(If(pred,then_block,else_block,cl,cel)) in
+            let make_double_if_stmt (pred1, pred2) cl cel =
+              let then_block = mkBlock [ make_if_stmt pred2 cl cel ] in
               let else_block = mkBlock [] in
-              mkStmt(If(pred1,then_block,else_block,cl)) in
+              mkStmt(If(pred1,then_block,else_block,cl,cel)) in
             if !useLogicalOperators then
-              [make_if_stmt (make_or_from_cases ()) cl]
+              [make_if_stmt (make_or_from_cases ()) cl cel]
             else
               List.map (function
-                | Case _ as lab -> make_if_stmt (make_comp lab) cl
-                | CaseRange (e1, e2, _) -> make_double_if_stmt (comp_case_range e1 e2) cl
+                | Case _ as lab -> make_if_stmt (make_comp lab) cl cel
+                | CaseRange (e1, e2, _, _) -> make_double_if_stmt (comp_case_range e1 e2) cl cel
                 | _ -> E.s (bug "Unexpected pattern-matching failure"))
                 cases
           | Default _ :: _ | Label _ :: _ ->
@@ -6920,14 +6634,14 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
         [break_stmt];
       s.skind <- Block b;
       xform_switch_block b (fun () -> ref break_stmt) cont_dest
-  | Loop(b,l,_,_) ->
+  | Loop(b,l,el,_,_) ->
           let break_stmt = mkStmt (Instr []) in
           break_stmt.labels <- [Label(freshLabel "while_break",l,false)] ;
           let cont_stmt = mkStmt (Instr []) in
           cont_stmt.labels <- [Label(freshLabel "while_continue",l,false)] ;
           b.bstmts <- cont_stmt :: b.bstmts ;
           let this_stmt = mkStmt
-            (Loop(b,l,Some(cont_stmt),Some(break_stmt))) in
+            (Loop(b,l,el,Some(cont_stmt),Some(break_stmt))) in
           let break_dest () = ref break_stmt in
           let cont_dest () = ref cont_stmt in
           xform_switch_block b break_dest cont_dest ;
@@ -6936,8 +6650,6 @@ let rec xform_switch_stmt s break_dest cont_dest = begin
           s.skind <- Block new_block
   | Block(b) -> xform_switch_block b break_dest cont_dest
 
-  | TryExcept _ | TryFinally _ ->
-      failwith "xform_switch_statement: structured exception handling not implemented"
 
 end and xform_switch_block b break_dest cont_dest =
   try
@@ -7023,7 +6735,7 @@ let initCIL () =
     begin
       match !envMachine with
         Some machine -> M.theMachine := machine
-      | None -> M.theMachine := if !msvcMode then M.msvc else M.gcc
+      | None -> M.theMachine := M.gcc
     end;
     (* Find the right ikind given the size *)
     let findIkindSz (unsigned: bool) (sz: int) : ikind =
@@ -7045,6 +6757,8 @@ let initCIL () =
       else if name = "unsigned short" then IUShort
       else if name = "char" then IChar
       else if name = "unsigned char" then IUChar
+      else if name = "__int128" then IInt128
+      else if name = "unsigned __int128" then IUInt128
       else E.s(E.unimp "initCIL: cannot find the right ikind for type %s\n" name)
     in
     upointType := TInt(findIkindSz true !M.theMachine.M.sizeof_ptr, []);
@@ -7060,11 +6774,7 @@ let initCIL () =
 (*     nextCompinfoKey := 1; *)
 
     initCIL_called := true;
-    if !msvcMode then
-      initMsvcBuiltins ()
-    else
-      initGccBuiltins ();
-    ()
+    initGccBuiltins ()
   end
 
 
@@ -7203,94 +6913,6 @@ let d_formatarg () = function
 (*                        These will eventually go away                      *)
 (* ------------------------------------------------------------------------- *)
 
-(** Deprecated (can't handle large 64-bit unsigned constants
-    correctly) - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-let rec isInteger : exp -> int64 option = function
-  | Const(CInt64 (n,_,_)) -> Some n
-  | Const(CChr c) -> isInteger (Const (charConstToInt c))  (* sign-extend *)
-  | Const(CEnum(v, s, ei)) -> isInteger v
-  | CastE(_, e) -> isInteger e
-  | _ -> None
-
 (** Deprecated.  For compatibility with older programs, these are
   aliases for {!Cil.builtinFunctions} *)
 let gccBuiltins = builtinFunctions
-let msvcBuiltins = builtinFunctions
-
-(* Deprecated. Represents an integer as for a given kind.
-   Returns a flag saying whether the value was changed
-   during truncation (because it was too large to fit in k). *)
-let truncateInteger64 (k: ikind) (i: int64) : int64 * bool =
-  let nrBits = 8 * (bytesSizeOfInt k) in
-  let signed = isSigned k in
-  if nrBits = 64 then
-    i, false
-  else begin
-    let i1 = Int64.shift_left i (64 - nrBits) in
-    let i2 =
-      if signed then Int64.shift_right i1 (64 - nrBits)
-      else Int64.shift_right_logical i1 (64 - nrBits)
-    in
-    let truncated =
-      if i2 = i then false
-      else
-        (* Examine the bits that we chopped off.  If they are all zero, then
-         * any difference between i2 and i is due to a simple sign-extension.
-         *   e.g. casting the constant 0x80000000 to int makes it
-         *        0xffffffff80000000.
-         * Suppress the truncation warning in this case.      *)
-        let chopped = Int64.shift_right i nrBits in
-        chopped <> Int64.zero
-          (* matth: also suppress the warning if we only chop off 1s.
-             This is probably due to a negative number being cast to an
-             unsigned value.  While potentially a bug, this is almost
-             always what the programmer intended. *)
-        && chopped <> Int64.minus_one
-    in
-    i2, truncated
-  end
-
-(* Convert 2 integer constants to integers with the same type, in preparation
-   for a binary operation.   See ISO C 6.3.1.8p1 *)
-let convertInts (i1:int64) (ik1:ikind) (i2:int64) (ik2:ikind)
-  : int64 * int64 * ikind =
-  if ik1 = ik2 then (* nothing to do *)
-    i1, i2, ik1
-  else begin
-    let rank : ikind -> int = function
-        (* these are just unique numbers representing the integer
-           conversion rank. *)
-      | IBool -> 0
-      | IChar | ISChar | IUChar -> 1
-      | IShort | IUShort -> 2
-      | IInt | IUInt -> 3
-      | ILong | IULong -> 4
-      | ILongLong | IULongLong -> 5
-    in
-    let r1 = rank ik1 in
-    let r2 = rank ik2 in
-    let ik' =
-      if (isSigned ik1) = (isSigned ik2) then begin
-        (* Both signed or both unsigned. *)
-        if r1 > r2 then ik1 else ik2
-      end
-      else begin
-        let signedKind, unsignedKind, signedRank, unsignedRank =
-          if isSigned ik1 then ik1, ik2, r1, r2 else ik2, ik1, r2, r1
-        in
-        (* The rules for signed + unsigned get hairy.
-           (unsigned short + long) is converted to signed long,
-           but (unsigned int + long) is converted to unsigned long.*)
-        if unsignedRank >= signedRank then unsignedKind
-        else if (bytesSizeOfInt signedKind) > (bytesSizeOfInt unsignedKind) then
-          signedKind
-        else
-          unsignedVersionOf signedKind
-      end
-    in
-    let i1',_ = truncateInteger64 ik' i1 in
-    let i2',_ = truncateInteger64 ik' i2 in
-    i1', i2', ik'
-  end

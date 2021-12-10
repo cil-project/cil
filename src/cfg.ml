@@ -84,10 +84,10 @@ class caseLabeledStmtFinder slr = object(self)
         then begin
             slr := s :: (!slr);
             match s.skind with
-            | Switch(_,_,_,_) -> SkipChildren
+            | Switch(_,_,_,_,_) -> SkipChildren
             | _ -> DoChildren
         end else match s.skind with
-        | Switch(_,_,_,_) -> SkipChildren
+        | Switch(_,_,_,_,_) -> SkipChildren
         | _ -> DoChildren
 end
 
@@ -180,10 +180,10 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
     | hd::_ -> addSucc hd
   in
   let instrFallsThrough (i : instr) : bool = match i with
-      Call (_, Lval (Var vf, NoOffset), _, _) ->
+      Call (_, Lval (Var vf, NoOffset), _, _, _) ->
         (* See if this has the noreturn attribute *)
         not (hasAttribute "noreturn" vf.vattr)
-    | Call (_, f, _, _) ->
+    | Call (_, f, _, _, _) ->
         not (hasAttribute "noreturn" (typeAttrs (typeOf f)))
     | _ -> true
   in
@@ -198,7 +198,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
   | ComputedGoto (e,_) -> List.iter addSucc rlabels
   | Break _ -> addOptionSucc break
   | Continue _ -> addOptionSucc cont
-  | If (_, blk1, blk2, _) ->
+  | If (_, blk1, blk2, _, _) ->
       (* The succs of If is [true branch;false branch] *)
       addBlockSucc blk2 next;
       addBlockSucc blk1 next;
@@ -207,7 +207,7 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
   | Block b ->
       addBlockSucc b next;
       cfgBlock b next break cont nodeList rlabels
-  | Switch(_,blk,l,_) ->
+  | Switch(_,blk,l,_,_) ->
       let bl = findCaseLabeledStmts blk in
       List.iter addSucc (List.rev bl(*l*)); (* Add successors in order *)
       (* sfg: if there's no default, need to connect s->next *)
@@ -219,14 +219,12 @@ and cfgStmt (s: stmt) (next:stmt option) (break:stmt option) (cont:stmt option)
       then
         addOptionSucc next;
       cfgBlock blk next next cont nodeList rlabels
-  | Loop(blk, loc, s1, s2) ->
-      s.skind <- Loop(blk, loc, (Some s), next);
+  | Loop(blk, loc, eloc, s1, s2) ->
+      s.skind <- Loop(blk, loc, eloc, (Some s), next);
       addBlockSucc blk (Some s);
       cfgBlock blk (Some s) next (Some s) nodeList rlabels
       (* Since all loops have terminating condition true, we don't put
          any direct successor to stmt following the loop *)
-  | TryExcept _ | TryFinally _ ->
-      E.s (E.unimp "try/except/finally")
 
 (*------------------------------------------------------------*)
 
@@ -246,11 +244,10 @@ and fasStmt (todo) (s : stmt) =
     ignore(todo s);
     match s.skind with
       | Block b -> fasBlock todo b
-      | If (_, tb, fb, _) -> (fasBlock todo tb; fasBlock todo fb)
-      | Switch (_, b, _, _) -> fasBlock todo b
-      | Loop (b, _, _, _) -> fasBlock todo b
+      | If (_, tb, fb, _, _) -> (fasBlock todo tb; fasBlock todo fb)
+      | Switch (_, b, _, _, _) -> fasBlock todo b
+      | Loop (b, _, _, _, _) -> fasBlock todo b
       | (Return _ | Break _ | Continue _ | Goto _ | ComputedGoto _ | Instr _) -> ()
-      | TryExcept _ | TryFinally _ -> E.s (E.unimp "try/except/finally")
   end
 ;;
 
@@ -264,7 +261,7 @@ let d_cfgnodelabel () (s : stmt) =
   let label =
   begin
     match s.skind with
-      | If (e, _, _, _)  -> "if" (*sprint ~width:999 (dprintf "if %a" d_exp e)*)
+      | If (e, _, _, _, _)  -> "if" (*sprint ~width:999 (dprintf "if %a" d_exp e)*)
       | Loop _ -> "loop"
       | Break _ -> "break"
       | Continue _ -> "continue"
@@ -273,8 +270,6 @@ let d_cfgnodelabel () (s : stmt) =
       | Switch _ -> "switch"
       | Block _ -> "block"
       | Return _ -> "return"
-      | TryExcept _ -> "try-except"
-      | TryFinally _ -> "try-finally"
   end in
     dprintf "%d: %s" s.sid label
 

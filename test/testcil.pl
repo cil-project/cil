@@ -40,10 +40,6 @@ my $freebsd = $^O eq 'freebsd';
 my $gcc =       "_GNUCC=1";     # sm: not sure where/why this is needed
 
 
-# am I using egcs?
-my $egcs = $unix && system("gcc -v 2>&1 | grep egcs >/dev/null")==0;
-
-
 my $make;
 if ($solaris || $freebsd) {
     $make = "gmake";
@@ -211,7 +207,7 @@ addTest("testrun/strloop3");
 addTest("testrun/percentm");
 addTest("testrun/percent400");
 addTest("testrun/caserange _GNUCC=1");
-addTest("test/attr");
+
 addTest("test/attr2 _GNUCC=1");
 addTest("test/attr3 _GNUCC=1");
 addTest("testrun/attr4 _GNUCC=1");
@@ -334,9 +330,6 @@ addTest("testrun/vararg1");
 addTest("testrun/vararg2");
 addTest("testrun/vararg3");
 addTest("testrun/vararg4");
-if($win32) {
-  addTest("testrun/vararg11 _MSVC=1");
-}
 addTest("testrun/varargauto1");
 addTest("testrun/vararg5 _GNUCC=1");
 addTest("testrun/vararg6");
@@ -514,18 +507,6 @@ addTest("testrungcc/enum3k _GNUCC=1");
 addTest("testrungcc/enum3l _GNUCC=1");
 
 
-if($win32) {
-    addTest("testrun/extern_init _MSVC=1");
-    addTest("testrun/msvc2 _MSVC=1");
-    addTest("testrun/msvc3 _MSVC=1");
-    addTest("testrun/msvc4 _MSVC=1");
-    addTest("testrun/msvc6 _MSVC=1");
-    addTest("testrun/msvc7 _MSVC=1");
-    addTest("testrun/msvc8 _MSVC=1");
-    addTest("testrun/msvc9 _MSVC=1");
-
-    addTest("test-bad/try1 _MSVC=1");
-}
 addTest("testrun/msvc1 ");
 addTest("testrun/msvc5 ");
 

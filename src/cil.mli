@@ -46,8 +46,7 @@ open Cilint
 
 (** {b CIL API Documentation.} *)
 
-(** Call this function to perform some initialization. Call if after you have
- * set {!Cil.msvcMode}.  *)
+(** Call this function to perform some initialization. *)
 val initCIL: unit -> unit
 
 (** These are the CIL version numbers. A CIL version is a number of the form
@@ -59,13 +58,11 @@ val cilVersionRevision: int
 
 (** This module defines the abstract syntax of CIL. It also provides utility
  * functions for traversing the CIL data structures, and pretty-printing
- * them. The parser for both the GCC and MSVC front-ends can be invoked as
+ * them. The parser can be invoked as
  * [Frontc.parse: string -> unit ->] {!Cil.file}. This function must be given
  * the name of a preprocessed C file and will return the top-level data
- * structure that describes a whole source file. By default the parsing and
- * elaboration into CIL is done as for GCC source. If you want to use MSVC
- * source you must set the {!Cil.msvcMode} to [true] and must also invoke the
- * function [Frontc.setMSVCMode: unit -> unit]. *)
+ * structure that describes a whole source file. The parsing and
+ * elaboration into CIL is done as for GCC source. *)
 
 
 (** {b The Abstract Syntax of CIL} *)
@@ -171,7 +168,7 @@ and global =
  * {!Cil.unrollType} or {!Cil.unrollTypeDeep} to see through the uses of
  * named types. *)
 (** CIL is configured at build-time with the sizes and alignments of the
- * underlying compiler (GCC or MSVC). CIL contains functions that can compute
+ * underlying compiler. CIL contains functions that can compute
  * the size of a type (in bits) {!Cil.bitsSizeOf}, the alignment of a type
  * (in bytes) {!Cil.alignOf_int}, and can convert an offset into a start and
  * width (both in bits) using the function {!Cil.bitsOffset}. At the moment
@@ -287,6 +284,8 @@ and ikind =
   | ILongLong   (** [long long] (or [_int64] on Microsoft Visual C) *)
   | IULongLong  (** [unsigned long long] (or [unsigned _int64] on Microsoft
                     Visual C) *)
+  | IInt128     (** [__int128] *)
+  | IUInt128    (** [unsigned __int128] *)
 
 (** Various kinds of floating-point numbers*)
 and fkind =
@@ -636,12 +635,11 @@ and exp =
 
 (** Literal constants *)
 and constant =
-  | CInt64 of int64 * ikind * string option
+  | CInt of cilint * ikind * string option
     (** Integer constant. Give the ikind (see ISO9899 6.1.3.2) and the
      * textual representation, if available. (This allows us to print a
      * constant as, for example, 0xF instead of 15.) Use {!Cil.integer} or
-     * {!Cil.kinteger} to create these. Watch out for integers that cannot be
-     * represented on 64 bits. OCAML does not give Overflow exceptions. *)
+     * {!Cil.kinteger} to create these. *)
   | CStr of string
     (** String constant. The escape characters inside the string have been
      * already interpreted. This constant has pointer to character type! The
@@ -821,7 +819,7 @@ and init =
      * bitfields), in the proper order. This is necessary since the offsets
      * are not printed. For unions there must be exactly one initializer. If
      * the initializer is not for the first field then a field designator is
-     * printed, so you better be on GCC since MSVC does not understand this.
+     * printed.
      * For arrays, however, we allow you to give only a prefix of the
      * initializers. You can scan an initializer list with
      * {!Cil.foldLeftCompound}. *)
@@ -935,18 +933,20 @@ and label =
           (** A real label. If the bool is "true", the label is from the
            * input source program. If the bool is "false", the label was
            * created by CIL or some other transformation *)
-  | Case of exp * location              (** A case statement. This expression
+  | Case of exp * location * location   (** A case statement. This expression
                                          * is lowered into a constant if
                                          * {!Cil.lowerConstants} is set to
-                                         * true. *)
-  | CaseRange of exp * exp * location   (** A case statement corresponding to a
+                                         * true.
+                                         * Second location is just for label. *)
+  | CaseRange of exp * exp * location * location (** A case statement corresponding to a
                                          * range of values (GCC's extension).
                                          * Both expressions are lowered into
                                          * constants if {!Cil.lowerConstants} is
                                          * set to true. If you want to use
                                          * these, you must set
-                                         * {!Cil.useCaseRange}. *)
-  | Default of location                 (** A default statement *)
+                                         * {!Cil.useCaseRange}.
+                                         * Second location is just for label. *)
+  | Default of location * location      (** A default statement. Second location is just for label. *)
 
 
 
@@ -975,48 +975,29 @@ and stmtkind =
 
   | Continue of location
    (** A continue to the start of the nearest enclosing [Loop] *)
-  | If of exp * block * block * location
+  | If of exp * block * block * location * location
    (** A conditional. Two successors, the "then" and the "else" branches.
-    * Both branches fall-through to the successor of the If statement. *)
+    * Both branches fall-through to the successor of the If statement.
+    * Second location is just for expression. *)
 
-  | Switch of exp * block * (stmt list) * location
+  | Switch of exp * block * (stmt list) * location * location
    (** A switch statement. The statements that implement the cases can be
     * reached through the provided list. For each such target you can find
     * among its labels what cases it implements. The statements that
-    * implement the cases are somewhere within the provided [block]. *)
+    * implement the cases are somewhere within the provided [block].
+    * Second location is just for expression. *)
 
-  | Loop of block * location * (stmt option) * (stmt option)
+  | Loop of block * location * location * (stmt option) * (stmt option)
     (** A [while(1)] loop. The termination test is implemented in the body of
      * a loop using a [Break] statement. If prepareCFG has been called,
      * the first stmt option will point to the stmt containing the continue
      * label for this loop and the second will point to the stmt containing
-     * the break label for this loop. *)
+     * the break label for this loop.
+     * Second location is just for expression. *)
 
   | Block of block
     (** Just a block of statements. Use it as a way to keep some block
      * attributes local *)
-
-  | TryFinally of block * block * location
-    (** On MSVC we support structured exception handling. This is what you
-     * might expect. Control can get into the finally block either from the
-     * end of the body block, or if an exception is thrown. *)
-
-  | TryExcept of block * (instr list * exp) * block * location
-    (** On MSVC we support structured exception handling. The try/except
-     * statement is a bit tricky:
-         [__try { blk }
-         __except (e) {
-            handler
-         }]
-
-         The argument to __except  must be an expression. However, we keep a
-         list of instructions AND an expression in case you need to make
-         function calls. We'll print those as a comma expression. The control
-         can get to the __except expression only if an exception is thrown.
-         After that, depending on the value of the expression the control
-         goes to the handler, propagates the exception, or retries the
-         exception !!!
-     *)
 
 (** {b Instructions}.
  An instruction {!Cil.instr} is a statement that has no local
@@ -1025,9 +1006,10 @@ function call, or an inline assembly instruction. *)
 
 (** Instructions. *)
 and instr =
-  Set        of lval * exp * location
+  Set        of lval * exp * location * location
    (** An assignment. The type of the expression is guaranteed to be the same
-    * with that of the lvalue *)
+    * with that of the lvalue.
+    * Second location is just for expression when inside condition. *)
   | VarDecl    of varinfo * location
    (** "Instruction" in the location where a varinfo was declared.
     *  All varinfos for which such a VarDecl instruction exists have
@@ -1035,7 +1017,7 @@ and instr =
     *  The motivation for the addition of this instruction was to support VLAs
     *  for which declerations can not be pulled up like CIL used to do.
     *)
-  | Call       of lval option * exp * exp list * location
+  | Call       of lval option * exp * exp list * location * location
    (** A function call with the (optional) result placed in an lval. It is
     * possible that the returned type of the function is not identical to
     * that of the lvalue. In that case a cast is printed. The type of the
@@ -1043,7 +1025,8 @@ and instr =
     * number of arguments is the same as that of the declared formals, except
     * for vararg functions. This construct is also used to encode a call to
     * "__builtin_va_arg". In this case the second argument (which should be a
-    * type T) is encoded SizeOf(T) *)
+    * type T) is encoded SizeOf(T).
+    * Second location is just for expression when inside condition. *)
 
   | Asm        of attributes * (* Really only const and volatile can appear
                                * here *)
@@ -1075,8 +1058,7 @@ where the parts are
   - template: a sequence of strings, with %0, %1, %2, etc. in the string to
     refer to the input and output expressions. I think they're numbered
     consecutively, but the docs don't specify. Each string is printed on
-    a separate line. This is the only part that is present for MSVC inline
-    assembly.
+    a separate line.
   - "ci" (oi): pairs of constraint-string and output-lval; the
     constraint specifies that the register used must have some
     property, like being a floating-point register; the constraint
@@ -1115,6 +1097,9 @@ and location = {
     file: string;          (** The name of the source file*)
     byte: int;             (** The byte position in the source file *)
     column: int;           (** The column number *)
+    endLine: int;          (** End line number. Negative means unknown. *)
+    endByte: int;          (** End byte position. Negative means unknown. *)
+    endColumn: int;        (** End column number. Negative means unknown. *)
 }
 
 
@@ -1124,7 +1109,7 @@ and location = {
  * the formal arguments are given the same signature. Also, [TNamed]
  * constructors are unrolled. *)
 and typsig =
-    TSArray of typsig * int64 option * attribute list
+    TSArray of typsig * cilint option * attribute list
   | TSPtr of typsig * attribute list
   | TSComp of bool * string * attribute list
   | TSFun of typsig * typsig list option * bool * attribute list
@@ -1261,8 +1246,8 @@ val pushGlobal: global -> types: global list ref
 val invalidStmt: stmt
 
 
-(** A list of the built-in functions for the current compiler (GCC or
-  * MSVC, depending on [!msvcMode]).  Maps the name to the
+(** A list of the built-in functions for the current compiler.
+  * Maps the name to the
   * result and argument types, and whether it is vararg.
   * Initialized by {!Cil.initCIL}
   *
@@ -1370,16 +1355,16 @@ val uintPtrType: typ
 (** double *)
 val doubleType: typ
 
-(** An unsigned integer type that fits pointers. Depends on {!Cil.msvcMode}
- *  and is set when you call {!Cil.initCIL}. *)
+(** An unsigned integer type that fits pointers.
+ *  Is set when you call {!Cil.initCIL}. *)
 val upointType: typ ref
 
-(** An signed integer type that fits pointer difference. Depends on
- *  {!Cil.msvcMode} and is set when you call {!Cil.initCIL}. *)
+(** An signed integer type that fits pointer difference.
+ *  Is set when you call {!Cil.initCIL}. *)
 val ptrdiffType: typ ref
 
-(** An unsigned integer type that is the type of sizeof. Depends on
- * {!Cil.msvcMode} and is set when you call {!Cil.initCIL}.  *)
+(** An unsigned integer type that is the type of sizeof.
+ *  Is set when you call {!Cil.initCIL}.  *)
 val typeOfSizeOf: typ ref
 
 (** The integer kind of {!Cil.typeOfSizeOf}.
@@ -1432,9 +1417,6 @@ val unrollType: typ -> typ
  * [TPtr], [TFun] or [TArray]. Does not unroll the types of fields in [TComp]
  * types. Will collect all attributes *)
 val unrollTypeDeep: typ -> typ
-
-(** Separate out the storage-modifier name attributes *)
-val separateStorageModifiers: attribute list -> attribute list * attribute list
 
 (** True if the argument is an integral type (i.e. integer or enum) *)
 val isIntegralType: typ -> bool
@@ -1668,7 +1650,7 @@ val isNullPtrConstant: exp -> bool
 (** Given the character c in a (CChr c), sign-extend it to 32 bits.
   (This is the official way of interpreting character constants, according to
   ISO C 6.4.4.4.10, which says that character constants are chars cast to ints)
-  Returns CInt64(sign-extended c, IInt, None) *)
+  Returns CInt(sign-extended c, IInt, None) *)
 val charConstToInt: char -> constant
 
 (** Do constant folding on an expression. If the first argument is true then
@@ -1777,13 +1759,8 @@ val mkFor: start:stmt list -> guard:exp -> next: stmt list ->
 
 (** Various classes of attributes *)
 type attributeClass =
-    AttrName of bool
-        (** Attribute of a name. If argument is true and we are on MSVC then
-            the attribute is printed using __declspec as part of the storage
-            specifier  *)
-  | AttrFunType of bool
-        (** Attribute of a function type. If argument is true and we are on
-            MSVC then the attribute is printed just before the function name *)
+    AttrName (** Attribute of a name. *)
+  | AttrFunType  (** Attribute of a function type. *)
   | AttrType  (** Attribute of a type *)
 
 (** This table contains the mapping of predefined attributes to classes.
@@ -2117,6 +2094,9 @@ val forgcc: string -> string
  * the current location then you can use some built-in logging functions that
  * will print the location. *)
 val currentLoc: location ref
+
+(** A reference to the current expression location *)
+val currentExpLoc: location ref
 
 (** A reference to the current global being visited *)
 val currentGlobal: global ref
@@ -2598,9 +2578,11 @@ val fitsInInt: ikind -> cilint -> bool
 val intKindForValue: cilint -> bool -> ikind
 
 (** Construct a cilint from an integer kind and int64 value. Used for
- * getting the actual constant value from a CInt64(n, ik, _)
+ * getting the actual constant value from a CInt(n, ik, _)
  * constant. *)
 val mkCilint : ikind -> int64 -> cilint
+
+val mkCilintIk : ikind -> cilint -> cilint
 
 (** The size of a type, in bytes. Returns a constant expression or a
  * "sizeof" expression if it cannot compute the size. This function
@@ -2720,24 +2702,6 @@ val envMachine : Machdep.mach option ref
 (*                        These will eventually go away                      *)
 (* ------------------------------------------------------------------------- *)
 
-(** @deprecated. Convert two int64/kind pairs to a common int64/int64/kind triple. *)
-val convertInts: int64 -> ikind -> int64 -> ikind -> int64 * int64 * ikind
-
-(** @deprecated. Can't handle large 64-bit unsigned constants
-    correctly - use getInteger instead. If the given expression
-    is a (possibly cast'ed) character or an integer constant, return
-    that integer.  Otherwise, return None. *)
-val isInteger: exp -> int64 option
-
-(** @deprecated. Use truncateCilint instead. Represents an integer as
- * for a given kind.  Returns a flag saying whether the value was
- * changed during truncation (because it was too large to fit in k). *)
-val truncateInteger64: ikind -> int64 -> int64 * bool
-
-(** @deprecated.  For compatibility with older programs, these are
-    aliases for {!Cil.builtinFunctions} *)
+(** @deprecated.  For compatibility with older programs, this is an
+    alias for {!Cil.builtinFunctions} *)
 val gccBuiltins: (string, typ * typ list * bool) Hashtbl.t
-
-(** @deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
-val msvcBuiltins: (string, typ * typ list * bool) Hashtbl.t

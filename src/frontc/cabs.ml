@@ -52,6 +52,9 @@ type cabsloc = {
  byteno: int;
  columnno: int;
  ident : int;
+ endLineno: int;
+ endByteno: int;
+ endColumnno: int;
 }
 
 type typeSpecifier = (* Merge all specifiers into one type *)
@@ -207,17 +210,17 @@ and statement =
  | COMPUTATION of expression * cabsloc
  | BLOCK of block * cabsloc
  | SEQUENCE of statement * statement * cabsloc
- | IF of expression * statement * statement * cabsloc
- | WHILE of expression * statement * cabsloc
- | DOWHILE of expression * statement * cabsloc
- | FOR of for_clause * expression * expression * statement * cabsloc
+ | IF of expression * statement * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | WHILE of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | DOWHILE of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | FOR of for_clause * expression * expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
  | BREAK of cabsloc
  | CONTINUE of cabsloc
  | RETURN of expression * cabsloc
- | SWITCH of expression * statement * cabsloc
- | CASE of expression * statement * cabsloc
- | CASERANGE of expression * expression * statement * cabsloc
- | DEFAULT of statement * cabsloc
+ | SWITCH of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | CASE of expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | CASERANGE of expression * expression * statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
+ | DEFAULT of statement * cabsloc * cabsloc (* second cabsloc is just for expression *)
  | LABEL of string * statement * cabsloc
  | GOTO of string * cabsloc
  | COMPGOTO of expression * cabsloc (* GCC's "goto *exp" *)
@@ -227,10 +230,6 @@ and statement =
           string list * (* template *)
           asm_details option * (* extra details to guide GCC's optimizer *)
           cabsloc
-
-   (* MS SEH *)
- | TRY_EXCEPT of block * expression * block * cabsloc
- | TRY_FINALLY of block * block * cabsloc
 
 and for_clause =
    FC_EXP of expression

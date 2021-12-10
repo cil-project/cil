@@ -263,7 +263,7 @@ let lvh_kill_addrof_or_global lvh =
 let lvh_handle_inst i lvh =
   if (!ignore_inst) i then lvh else
   match i with
-    Set(lv,e,_) -> begin
+    Set(lv,e,_,_) -> begin
       match lv with
       | (Mem _, _) -> begin
 	  LvExpHash.replace lvh lv e;
@@ -289,7 +289,7 @@ let lvh_handle_inst i lvh =
 	    lvh
       end
     end
-  | Call(Some lv,_,_,_) -> begin
+  | Call(Some lv,_,_,_,_) -> begin
       LvExpHash.remove lvh lv;
       lvh_kill_lval lvh lv;
       if not((!ignore_call) i) then begin
@@ -298,7 +298,7 @@ let lvh_handle_inst i lvh =
       end;
       lvh
   end
-  | Call(_,_,_,_) -> begin
+  | Call(_,_,_,_,_) -> begin
       if not((!ignore_call) i) then begin
 	lvh_kill_mem lvh;
 	lvh_kill_addrof_or_global lvh;

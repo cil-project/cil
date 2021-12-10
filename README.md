@@ -15,6 +15,7 @@ an incomplete list of some of the ways `goblint-cil` improves upon CIL:
 - Large integer constants that do not fit in an OCaml `int` are represented as a
   `string` instead of getting truncated
 - Syntactic search extension ([#21][pr21])
+- More precise locations (with columns)
 - Some warnings were made optional
 - Unmaintained extensions ([#30][pr30]) were removed
 - Many bug fixes
@@ -35,12 +36,14 @@ Install the latest release of `goblint-cil` with [opam][]:
     opam install goblint-cil
 
 Read the excellent [CIL tutorial][tuto] by Zachary Anderson, much of which
-still applies to `goblint-cil`.
+still applies to `goblint-cil`. The repository referenced in that document has now moved [here][repo].
 
 **ATTENTION:** Don't install the `cil` package. This is the unmaintained
 original version of CIL.
 
+
 [tuto]: https://web.eecs.umich.edu/~weimerw/2011-6610/reading/ciltut.pdf
+[repo]: https://github.com/zanderso/cil-template
 
 Installation from Source
 ------------------------
@@ -96,7 +99,7 @@ instance in the OCaml toplevel using [Findlib][findlib]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;
-    - : string = "1.8.1"
+    - : string = "1.8.2"
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 

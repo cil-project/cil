@@ -165,7 +165,7 @@ let test () =
                                     false, []), []),
                           Lval (var fptr))),
                NoOffset),
-         [  ], locUnknown)
+         [  ], locUnknown, locUnknown)
   in
   let times = 100000 in
   (* Make the instruction the regular way *)

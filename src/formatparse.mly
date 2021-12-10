@@ -115,7 +115,7 @@ let rec checkSameFormat (fl1: formatArg list) (fl2: formatArg list) =
 
       and checkExpEq e1 e2 =
         match e1, e2 with
-          Const(CInt64(n1, _, _)), Const(CInt64(n2, _, _)) -> n1 = n2
+          Const(CInt(n1, _, _)), Const(CInt(n2, _, _)) -> n1 = n2
         | Lval l1, Lval l2 -> checkLvalEq l1 l2
         | UnOp(uo1, e1, _), UnOp(uo2, e2, _) ->
             uo1 = uo2 && checkExpEq e1 e2
@@ -152,7 +152,7 @@ let rec checkSameFormat (fl1: formatArg list) (fl2: formatArg list) =
 
 let matchBinopEq (bopeq: binop -> bool) lvt et =
   (fun i -> match i with
-    Set (lv, BinOp(bop', Lval (lv'), e', _), l) when bopeq bop' -> begin
+    Set (lv, BinOp(bop', Lval (lv'), e', _), l, el) when bopeq bop' -> begin
       match lvt lv, lvt lv', et e' with
         Some m1, Some m1', Some m2 ->
           (* Must check that m1 and m2 are the same *)
@@ -167,7 +167,7 @@ let matchBinopEq (bopeq: binop -> bool) lvt et =
 let doBinopEq bop lvt et =
   ((fun loc args ->
     let l = (fst lvt) args in
-    Set(l, BinOp(bop, (Lval l), (fst et) args, typeOfLval l), loc)),
+    Set(l, BinOp(bop, (Lval l), (fst et) args, typeOfLval l), loc, locUnknown)), (* TODO: better eloc? *)
 
    matchBinopEq (fun bop' -> bop = bop') (snd lvt) (snd et))
 
@@ -238,7 +238,7 @@ type maybeInit =
 %token EOF
 %token CHAR INT DOUBLE FLOAT VOID INT64 INT32
 %token ENUM STRUCT TYPEDEF UNION
-%token SIGNED UNSIGNED LONG SHORT
+%token SIGNED UNSIGNED LONG SHORT INT128
 %token VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
 
 %token <string> ARG_e ARG_eo ARG_E ARG_u ARG_b ARG_t ARG_d ARG_lo ARG_l ARG_i
@@ -273,7 +273,6 @@ type maybeInit =
 %token BUILTIN_VA_ARG BUILTIN_VA_LIST
 %token BLOCKATTRIBUTE
 %token DECLSPEC
-%token <string> MSASM MSATTR
 %token PRAGMA
 
 
@@ -552,8 +551,8 @@ constant:
                               | a -> wrongArgType currentArg "integer" a),
 
                             fun e -> match e with
-                              Const(CInt64(n, _, _)) ->
-                                Some [ Fd (Int64.to_int n) ]
+                              Const(CInt(n, _, _)) ->
+                                Some [ Fd (Cilint.int_of_cilint n) ]
                             | _ -> None)
                          }
 
@@ -572,8 +571,8 @@ constant:
                            ((fun args -> n),
 
                             (fun e -> match e, n with
-                              Const(CInt64(e', _, _)),
-                              Const(CInt64(n', _, _)) when e' = n' -> Some []
+                              Const(CInt(e', _, _)),
+                              Const(CInt(n', _, _)) when e' = n' -> Some []
                             | _ -> None))
                          }
 ;
@@ -815,6 +814,15 @@ type_spec:
 |   UNSIGNED LONG LONG    { ((fun al args -> TInt(IULongLong, al)),
 
                              matchIntType IULongLong)
+                           }
+
+|   INT128          { ((fun al args -> TInt(IInt128, al)),
+
+                          matchIntType IInt128)
+                        }
+|   UNSIGNED INT128    { ((fun al args -> TInt(IUInt128, al)),
+
+                             matchIntType IUInt128)
                            }
 
 |   FLOAT           { ((fun al args -> TFloat(FFloat, al)),
@@ -1153,10 +1161,10 @@ instr:
 
 |		lval EQ expression SEMICOLON
 			{ ((fun loc args ->
-                              Set((fst $1) args, (fst $3) args, loc)),
+                              Set((fst $1) args, (fst $3) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Set (lv, e, l) -> begin
+                             Set (lv, e, l, el) -> begin
                                match (snd $1) lv, (snd $3) e with
                                  Some m1, Some m2 -> Some (m1 @ m2)
                                | _, _ -> None
@@ -1167,7 +1175,7 @@ instr:
 |		lval PLUS_EQ expression SEMICOLON
 			{ ((fun loc args ->
                               let l = (fst $1) args in
-                              Set(l, buildPlus (Lval l) ((fst $3) args), loc)),
+                              Set(l, buildPlus (Lval l) ((fst $3) args), loc, locUnknown)), (* TODO: better eloc? *)
 
                            matchBinopEq
                              (fun bop -> bop = PlusPI || bop = PlusA)
@@ -1178,7 +1186,7 @@ instr:
 			{ ((fun loc args ->
                               let l = (fst $1) args in
                               Set(l,
-                                  buildMinus (Lval l) ((fst $3) args), loc)),
+                                  buildMinus (Lval l) ((fst $3) args), loc, locUnknown)), (* TODO: better eloc? *)
 
                            matchBinopEq (fun bop -> bop = MinusA
                                                || bop = MinusPP
@@ -1214,10 +1222,10 @@ instr:
 |		lval EQ lval LPAREN arguments RPAREN  SEMICOLON
 			{ ((fun loc args ->
                               Call(Some ((fst $1) args), Lval ((fst $3) args),
-                                     (fst $5) args, loc)),
+                                     (fst $5) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Call(Some l, Lval f, args, loc) -> begin
+                             Call(Some l, Lval f, args, loc, eloc) -> begin
                                match (snd $1) l, (snd $3) f, (snd $5) args with
                                  Some m1, Some m2, Some m3 ->
                                    Some (m1 @ m2 @ m3)
@@ -1229,10 +1237,10 @@ instr:
 |		        lval LPAREN arguments RPAREN  SEMICOLON
 			{ ((fun loc args ->
                               Call(None, Lval ((fst $1) args),
-                                     (fst $3) args, loc)),
+                                     (fst $3) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                            (fun i -> match i with
-                             Call(None, Lval f, args, loc) -> begin
+                             Call(None, Lval f, args, loc, eloc) -> begin
                                match (snd $1) f, (snd $3) args with
                                  Some m1, Some m2 -> Some (m1 @ m2)
                                | _, _ -> None
@@ -1243,10 +1251,10 @@ instr:
 |                 arglo lval LPAREN arguments RPAREN  SEMICOLON
 		     { ((fun loc args ->
                        Call((fst $1) args, Lval ((fst $2) args),
-                            (fst $4) args, loc)),
+                            (fst $4) args, loc, locUnknown)), (* TODO: better eloc? *)
 
                         (fun i -> match i with
-                          Call(lo, Lval f, args, loc) -> begin
+                          Call(lo, Lval f, args, loc, eloc) -> begin
                             match (snd $1) lo, (snd $2) f, (snd $4) args with
                               Some m1, Some m2, Some m3 ->
                                 Some (m1 @ m2 @ m3)
@@ -1318,13 +1326,13 @@ stmt:
                   { (fun mkTemp loc args ->
                          mkStmt (If((fst $3) args,
                                     mkBlock [ $5 mkTemp loc args ],
-                                    mkBlock [], loc)))
+                                    mkBlock [], loc, locUnknown))) (* TODO: better eloc *)
                   }
 |   IF LPAREN expression RPAREN stmt ELSE stmt
                   { (fun mkTemp loc args ->
                          mkStmt (If((fst $3) args,
                                     mkBlock [ $5 mkTemp loc args ],
-                                    mkBlock [ $7 mkTemp loc args], loc)))
+                                    mkBlock [ $7 mkTemp loc args], loc, locUnknown))) (* TODO: better eloc *)
                   }
 |   RETURN exp_opt SEMICOLON
                   { (fun mkTemp loc args ->
@@ -1357,9 +1365,9 @@ stmt:
                                                  mkBlock [],
                                                  mkBlock [ mkStmt
                                                              (Break loc) ],
-                                                 loc));
+                                                 loc, locUnknown)); (* TODO: better eloc *)
                                            $5 mkTemp loc args ],
-                                 loc, None, None)))
+                                 loc, locUnknown, None, None))) (* TODO: better eloc *)
                    }
 |   instr_list    { (fun mkTemp loc args ->
                        mkStmt (Instr ($1 loc args)))
@@ -1401,11 +1409,11 @@ stmt_list:
                      match init with
                        NoInit -> rest
                      | InitExp e ->
-                         mkStmtOneInstr (Set((Var v, NoOffset), e, loc))
+                         mkStmtOneInstr (Set((Var v, NoOffset), e, loc, locUnknown)) (* TODO: better eloc? *)
                          :: rest
                      | InitCall (f, args) ->
                          mkStmtOneInstr (Call(Some (Var v, NoOffset),
-                                              Lval f, args, loc))
+                                              Lval f, args, loc, locUnknown)) (* TODO: better eloc? *)
                          :: rest
 
                                                            )

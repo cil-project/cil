@@ -3,13 +3,16 @@
 (** The cilint type is public and not just big_int to make life with ocamldebug
     easier. Please do not rely on this representation, use the ..._of_cilint
     functions to get at a cilint's value. *)
-type cilint = Small of int | Big of Big_int_Z.big_int
+type cilint = Big_int_Z.big_int
 
 (** 0 as a cilint *)
 val zero_cilint : cilint
 
 (** 1 as a cilint *)
 val one_cilint : cilint
+
+(** -1 as a cilint *)
+val mone_cilint : cilint
 
 (** Result type for truncate_... functions *)
 type truncation = NoTruncation | ValueTruncation | BitTruncation

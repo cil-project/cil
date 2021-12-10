@@ -10,11 +10,7 @@ int error_level, anerror;
 void myexit(int n) {
   exit(n);
 }
-#ifdef _MSVC
-#define random rand
-#else
-/* weimer: not needed: extern int random(void); */
-#endif
+
 int __mmId;
 int debugMM;
 int debug;
