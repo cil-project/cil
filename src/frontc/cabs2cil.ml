@@ -2870,10 +2870,10 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                        (cabsTypeAddAttributes a1f tf), ap)
           | _ ->
               if a1f <> [] && not a1fadded then
-                E.s (error "Invalid position for (prefix) function type attributes:%a"
+                ignore (warn "Invalid position for (prefix) function type attributes:%a"
                        d_attrlist a1f);
               if a2f <> [] then
-                E.s (error "Invalid position for (post) function type attributes:%a"
+                ignore (warn "Invalid position for (post) function type attributes:%a"
                        d_attrlist a2f);
               restyp
         in
