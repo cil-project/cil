@@ -1332,6 +1332,9 @@ val charType: typ
 (** char * *)
 val charPtrType: typ
 
+(** Type of string literals *)
+val stringLiteralType: typ
+
 (** wchar_t (depends on architecture) and is set when you call
  * {!Cil.initCIL}. *)
 val wcharKind: ikind ref
@@ -1799,6 +1802,9 @@ val hasAttribute: string -> attributes -> bool
     of the type structure, in case of composite, enumeration and named types *)
 val typeAttrs: typ -> attribute list
 
+(** [typeAttrs], which doesn't add inner attributes. *)
+val typeAttrsOuter: typ -> attribute list
+
 val setTypeAttrs: typ -> attributes -> typ (* Resets the attributes *)
 
 
@@ -1809,6 +1815,13 @@ val typeAddAttributes: attribute list -> typ -> typ
     does not remove attributes from typedef and tag definitions, just from
     their uses *)
 val typeRemoveAttributes: string list -> typ -> typ
+
+
+(** Partition attributes into type qualifiers and non type qualifiers. *)
+val partitionQualifierAttributes: attribute list -> attribute list * attribute list
+
+(** Remove top-level type qualifiers from type. *)
+val removeOuterQualifierAttributes: typ -> typ
 
 
 (** Convert an expression into an attrparam, if possible. Otherwise raise

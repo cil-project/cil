@@ -83,6 +83,7 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tenum of string * enum_item list option * attribute list
   | TtypeofE of expression                      (* GCC __typeof__ *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
+  | Tdefault (** "default" in generic associations *)
 
 and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER
@@ -280,6 +281,7 @@ and expression =
   | MEMBEROFPTR of expression * string
   | GNU_BODY of block
   | EXPR_PATTERN of string     (* pattern variable, and name *)
+  | GENERIC of expression * (((specifier * decl_type) * expression) list)
 
 and constant =
   | CONST_INT of string   (* the textual representation *)

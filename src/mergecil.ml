@@ -437,9 +437,18 @@ type combineWhat =
   | CombineOther
 
 
+(** Construct the composite type of [oldt] and [t] if they are compatible.
+    Raise [Failure] if they are incompatible. *)
 let rec combineTypes (what: combineWhat)
                      (oldfidx: int)  (oldt: typ)
                      (fidx: int) (t: typ)  : typ =
+  let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
+  let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
+  if oldq <> q then
+    raise (Failure (P.sprint ~width:80 (P.dprintf "(different type qualifiers %a and %a)" d_attrlist oldq d_attrlist q)))
+  else if q <> [] then
+    typeAddAttributes q (combineTypes what oldfidx (setTypeAttrs oldt olda) fidx (setTypeAttrs t a))
+  else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (addAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) ->
@@ -552,7 +561,7 @@ let rec combineTypes (what: combineWhat)
                    combineTypes
                      (if what = CombineFundef then
                        CombineFunarg else CombineOther)
-                     oldfidx ot fidx at
+                     oldfidx (removeOuterQualifierAttributes ot) fidx (removeOuterQualifierAttributes at)
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
@@ -811,8 +820,10 @@ let oneFilePass1 (f:file) : unit =
        * can happen if one file declares the variable a non-const while
        * others declare it as "const". *)
       if hasAttribute "const" (typeAttrs vi.vtype) !=
-         hasAttribute "const" (typeAttrs oldvi.vtype) then begin
-        newrep.ndata.vtype <- typeRemoveAttributes ["const"] newtype;
+         hasAttribute "const" (typeAttrs oldvi.vtype) ||
+         hasAttribute "pconst" (typeAttrs vi.vtype) !=
+         hasAttribute "pconst" (typeAttrs oldvi.vtype) then begin
+        newrep.ndata.vtype <- typeRemoveAttributes ["const"; "pconst"] newtype;
       end else begin
         newrep.ndata.vtype <- newtype;
       end;

@@ -211,6 +211,7 @@ let init_lexicon _ =
                          THREAD loc
                        else
                          IDENT ("__thread", loc));
+      ("_Generic", fun loc -> GENERIC loc);
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will

@@ -603,11 +603,7 @@ let alphaConvertVarAndAddToEnv (addtoenv: bool) (vi: varinfo) : varinfo =
  * a struct we must recursively strip the "const" from fields and array
  * elements. *)
 let rec stripConstLocalType (t: typ) : typ =
-  let dc a =
-    if hasAttribute "const" a then
-      dropAttribute "const" a
-    else a
-  in
+  let dc = dropAttribute "pconst" in
   match t with
   | TPtr (bt, a) ->
       (* We want to be able to detect by pointer equality if the type has
@@ -1570,7 +1566,16 @@ type combineWhat =
  * that are known to be equal *)
 let isomorphicStructs : (string * string, bool) H.t = H.create 15
 
+(** Construct the composite type of [oldt] and [t] if they are compatible.
+    Raise [Failure] if they are incompatible. *)
 let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
+  let (oldq, olda) = partitionQualifierAttributes (typeAttrsOuter oldt) in
+  let (q, a) = partitionQualifierAttributes (typeAttrsOuter t) in
+  if oldq <> q then
+    raise (Failure "different type qualifiers")
+  else if q <> [] then
+    cabsTypeAddAttributes q (combineTypes what (setTypeAttrs oldt olda) (setTypeAttrs t a))
+  else
   match oldt, t with
   | TVoid olda, TVoid a -> TVoid (cabsAddAttributes olda a)
   | TInt (oldik, olda), TInt (ik, a) ->
@@ -1743,7 +1748,7 @@ let rec combineTypes (what: combineWhat) (oldt: typ) (t: typ) : typ =
                    combineTypes
                      (if what = CombineFundef then
                        CombineFunarg else CombineOther)
-                     ot' at
+                     (removeOuterQualifierAttributes ot') (removeOuterQualifierAttributes at)
                  in
                  let a = addAttributes oa aa in
                  (n, t, a))
@@ -1883,19 +1888,33 @@ let conditionalConversion (t2: typ) (t3: typ) (e2: exp option) (e3:exp) : typ =
         arithmeticConversion t2 t3
     | TComp (comp2,_), TComp (comp3,_), _
           when comp2.ckey = comp3.ckey -> t2
-    | TPtr(_, _), TPtr(TVoid _, _), _ ->
-      if isNullPtrConstant e3 then t2 else t3
-    | TPtr(TVoid _, _), TPtr(_, _), Some e2' ->
-      if isNullPtrConstant e2' then t3 else t2
+    | TVoid [], TVoid [], _ -> TVoid [] (* TODO: what about qualifiers? standard says nothing *)
+    | TPtr(_, _), _, _ when isNullPtrConstant e3 -> t2
+    | _, TPtr(_, _), Some e2' when isNullPtrConstant e2' -> t3
+    | TPtr(b2, _), TPtr(TVoid _ as b3, _), _
+    | TPtr(TVoid _ as b2, _), TPtr(b3, _), _ ->
+        let a2 = typeAttrsOuter b2 in
+        let a3 = typeAttrsOuter b3 in
+        let (q2, _) = partitionQualifierAttributes a2 in
+        let (q3, _) = partitionQualifierAttributes a3 in
+        let q = cabsAddAttributes q2 q3 in
+        TPtr (TVoid q, [])
     | TPtr _, TPtr _, _ when Util.equals (typeSig t2) (typeSig t3) -> t2
-    | TPtr _, TInt _, _  -> t2 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
-    | TInt _, TPtr _, _ -> t3 (* most likely comparison with int constant 0, if it isn't it would not be valid C *)
+    | TPtr _, TInt _, _  -> t2 (* not "null pointer constant", not allowed by standard, works in gcc/clang with warning *)
+    | TInt _, TPtr _, _ -> t3 (* not "null pointer constant", not allowed by standard, works in gcc/clang with warning *)
 
           (* When we compare two pointers of different type, we combine them
            * using the same algorithm when combining multiple declarations of
            * a global *)
-    | (TPtr _) as t2', (TPtr _ as t3'), _ -> begin
-        try combineTypes CombineOther t2' t3'
+    | TPtr (b2, _), TPtr (b3, _), _ -> begin
+        try
+          let a2 = typeAttrsOuter b2 in
+          let a3 = typeAttrsOuter b3 in
+          let (q2, a2') = partitionQualifierAttributes a2 in
+          let (q3, a3') = partitionQualifierAttributes a3 in
+          let b = combineTypes CombineOther (setTypeAttrs b2 a2') (setTypeAttrs b2 a3') in
+          let q = cabsAddAttributes q2 q3 in
+          TPtr (cabsTypeAddAttributes q b, [])
         with Failure msg -> begin
           ignore (warn "A.QUESTION: %a does not match %a (%s)"
                     d_type (unrollType t2) d_type (unrollType t3) msg);
@@ -2443,6 +2462,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)
 
      (* Now the other type specifiers *)
+    | [A.Tdefault] -> E.s (error "Default outside generic associations")
     | [A.Tnamed n] -> begin
         if n = "__builtin_va_list" &&
           !Machdep.theMachine.Machdep.__builtin_va_list then begin
@@ -2629,7 +2649,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
 and convertCVtoAttr (src: A.cvspec list) : A.attribute list =
   match src with
   | [] -> []
-  | CV_CONST    :: tl -> ("const",[])    :: (convertCVtoAttr tl)
+  | CV_CONST    :: tl -> ("const",[]) :: ("pconst",[])    :: (convertCVtoAttr tl)
   | CV_VOLATILE :: tl -> ("volatile",[]) :: (convertCVtoAttr tl)
   | CV_RESTRICT :: tl -> ("restrict",[]) :: (convertCVtoAttr tl)
   | CV_COMPLEX  :: tl -> ("complex",[]) ::  (convertCVtoAttr tl)
@@ -4797,6 +4817,35 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     end
 
     | A.EXPR_PATTERN _ -> E.s (E.bug "EXPR_PATTERN in cabs2cil input")
+
+    | A.GENERIC (e, al) ->
+        let is_default = function
+          | ([SpecType Tdefault], JUSTBASE) -> true (* exactly matches cparser *)
+          | _ -> false
+        in
+        let (al_default, al_nondefault) = List.partition (fun (at, _) -> is_default at) al in
+
+        let typ_compatible t1 t2 =
+          match combineTypes CombineOther t1 t2 with (* combineTypes does "compatible types" check *)
+          | _ -> true
+          | exception (Failure _) -> false
+        in
+        let (_, _, e_typ) = doExp false e (AExp None) in (* doExp with AExp handles array and function types for "lvalue conversions" (AType would not!) *)
+        let e_typ = removeOuterQualifierAttributes e_typ in (* removeOuterQualifierAttributes handles qualifiers for "lvalue conversions" *)
+        let al_compatible = List.filter (fun ((ast, adt), _) -> typ_compatible e_typ (doOnlyType ast adt)) al_nondefault in
+
+        (* TODO: error when multiple compatible associations or defaults even when unused? *)
+
+        begin match al_compatible with
+          | [(_, ae)] -> doExp false ae (AExp None)
+          | [] ->
+            begin match al_default with
+              | [(_, ae)] -> doExp false ae (AExp None)
+              | [] -> E.s (error "No compatible associations or default in generic")
+              | _ -> E.s (error "Multiple defaults in generic")
+            end
+          | _ -> E.s (error "Multiple compatible associations in generic")
+        end
 
   with e when continueOnError -> begin
     (*ignore (E.log "error in doExp (%s)" (Printexc.to_string e));*)
