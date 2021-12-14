@@ -1,4 +1,4 @@
-\documentclass[letterpaper]{article} 
+\documentclass[letterpaper]{article}
 
 \setlength{\pdfpagewidth}{\paperwidth}
 \setlength{\pdfpageheight}{\paperheight}
@@ -84,9 +84,9 @@ function loadTop(url) {
 
 \section{Introduction}
 
-CIL has a Source Forge page: 
+CIL has a Source Forge page:
    \ahreftop{http://sourceforge.net/projects/cil}
-            {http://sourceforge.net/projects/cil}. 
+            {http://sourceforge.net/projects/cil}.
 
  CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation
 along with a set of tools that permit easy analysis and source-to-source
@@ -125,7 +125,7 @@ information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow
 analyses). CIL also supports even lower-level representations (e.g.,
-three-address code), see \secref{Extension}. 
+three-address code), see \secref{Extension}.
 
  CIL comes accompanied by a number of Perl scripts that perform generally
 useful operations on code:
@@ -166,19 +166,19 @@ versions of these compilers that we have used CIL for.)
  The largest application we have used CIL for is
 \ahreftop{../ccured/index.html}{CCured}, a compiler that compiles C code into
 type-safe code by analyzing your pointer usage and inserting runtime checks in
-the places that cannot be guaranteed statically to be type safe.  
+the places that cannot be guaranteed statically to be type safe.
 
  You can also use CIL to ``compile'' code that uses GCC extensions (e.g. the
 Linux kernel) into standard C code.
 
  CIL also comes accompanies by a growing library of extensions (see
 \secref{Extension}). You can use these for your projects or as examples of
-using CIL. 
+using CIL.
 
 \t{PDF} versions of \ahref{CIL.pdf}{this manual} and the
 \ahref{CIL-API.pdf}{CIL API} are available. However, we recommend the
 \t{HTML} versions because the postprocessed code examples are easier to
-view. 
+view.
 
  If you use CIL in your project, we would appreciate letting us know. If you
 want to cite CIL in your research writings, please refer to the paper ``CIL:
@@ -226,7 +226,7 @@ However, the Git version may be less stable than the released
 version.
 
 \end{itemize}
-\item Enter the \t{cil} directory and run the \t{configure} script and then 
+\item Enter the \t{cil} directory and run the \t{configure} script and then
       GNU make to build the distribution. If you are on Windows, at least the
       \t{configure} step must be run from within \t{bash}. \\
       \hsp\verb!cd cil!\\
@@ -259,7 +259,7 @@ We have tested CIL on the following compilers:
 \begin{itemize}
 \item On Windows, \t{cl} compiler version 12.00.8168 (MSVC 6),
   13.00.9466 (MSVC .Net), and 13.10.3077 (MSVC .Net 2003).  Run \t{cl}
-  with no arguments to get the compiler version.  
+  with no arguments to get the compiler version.
 \item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0,
   3.2, 3.3, and 3.4.
 \item On Linux, using \t{gcc} version 2.95.3, 3.0, 3.2, 3.3, 4.0, and 4.1.
@@ -281,7 +281,7 @@ the build process only. Here is how we do it
 \item Start with a clean CIL directory
 \item Start a command-line window setup with the environment variables for
   Microsoft Visual Studio. You can do this by choosing Programs/Microsoft
-  Visual Studio/Tools/Command Prompt. Check that you can run \t{cl}. 
+  Visual Studio/Tools/Command Prompt. Check that you can run \t{cl}.
 \item Ensure that \t{ocamlc} refers to a Win32 version of ocaml. Run \t{ocamlc
   -v} and look at the path to the standard library.
 
@@ -296,20 +296,20 @@ the build process only. Here is how we do it
 last step will create a subdirectory \t{TEMP\_cil-bindistrib} that contains
 everything that you need to run CIL on another machine. You will have to edit
 manually some of the files in the \t{bin} directory to replace \t{CILHOME}.
-The resulting CIL can be run with ActiveState Perl also. 
+The resulting CIL can be run with ActiveState Perl also.
 
 
   \section{Distribution Contents}
 
-The file \ahrefurl{distrib/cil-\cilversion.tar.gz} 
-contains the complete source CIL distribution, 
+The file \ahrefurl{distrib/cil-\cilversion.tar.gz}
+contains the complete source CIL distribution,
 consisting of the following files:
 
 \begin{longtable}{lp{4in}}
 \emph{Filename}   & \emph{Description} \\
 \endhead
 \endfoot
-\t{Makefile.in}                 & \t{configure} source for the 
+\t{Makefile.in}                 & \t{configure} source for the
                                   Makefile that builds CIL/ \\
 \t{configure}                   & The configure script. \\
 \t{configure.ac}                & The \t{autoconf} source for \t{configure}. \\
@@ -321,7 +321,7 @@ consisting of the following files:
 \t{\_build/}                        & Directory that will contain the compiled
                                    CIL modules and executables.\\
 \t{bin/cilly.in}                & The \t{configure} source for a Perl script
-                                  that can be invoked with the 
+                                  that can be invoked with the
                                   same arguments as either \t{gcc} or
                                   Microsoft Visual C and will convert the
                                   program to CIL, perform some simple
@@ -335,13 +335,7 @@ consisting of the following files:
                                    utilities for manipulating it.\\
 \t{src/clist.ml,mli}            & Utilities for efficiently managing lists
                                    that need to be concatenated often.\\
-\t{src/errormsg.ml,mli}         & Utilities for error reporting. \\
-\t{src/ext/heapify.ml}          & A CIL transformation that moves array local
-                                   variables from the stack to the heap. \\
-\t{src/ext/logcalls.ml,mli}     & A CIL transformation that logs every
-                                   function call. \\
-\t{src/ext/sfi.ml}              & A CIL transformation that can log every
-                                   memory read and write. \\
+\t{src/errormsg.ml,mli}         & Utilities for error reporting. \\\
 \t{src/frontc/clexer.mll}       & The lexer. \\
 \t{src/frontc/cparser.mly}      & The parser. \\
 \t{src/frontc/cabs.ml}          & The abstract syntax. \\
@@ -398,7 +392,7 @@ long static int long y;
 int main() { return x + y; }
 \end{cilcode}
 
-\item Anonymous structure and union declarations are given a name. 
+\item Anonymous structure and union declarations are given a name.
 \begin{cilcode}[global]
  struct { int x; } s;
 \end{cilcode}
@@ -409,8 +403,8 @@ structure tag definitions can be found by a simple scan of the globals.
 \begin{cilcode}[global]
 struct foo {
    struct bar {
-      union baz { 
-          int x1; 
+      union baz {
+          int x1;
           double x2;
       } u1;
       int y;
@@ -425,14 +419,14 @@ facilitates moving around of the references to these entities.
 
 \begin{cilcode}[global]
 int main() {
-  struct foo { 
-        int x; } foo; 
+  struct foo {
+        int x; } foo;
   {
-     struct foo { 
+     struct foo {
         double d;
      };
      return foo.x;
-  }      
+  }
 }
 \end{cilcode}
 
@@ -447,7 +441,7 @@ functions that are neither declared nor defined (but are used!).
   }
   int g(double x) {
      return x;
-  } 
+  }
 \end{cilcode}
 
 \item Array lengths are computed based on the initializers or by constant
@@ -460,10 +454,10 @@ folding.
 \item Enumeration tags are computed using constant folding:
 \begin{cilcode}[global]
 int main() {
-  enum { 
-     FIVE = 5, 
-     SIX, SEVEN, 
-     FOUR = FIVE - 1, 
+  enum {
+     FIVE = 5,
+     SIX, SEVEN,
+     FOUR = FIVE - 1,
      EIGHT = sizeof(double)
   } x = FIVE;
  return x;
@@ -481,10 +475,10 @@ missing elements:
 \item Initializer designators are interpreted and eliminated. Subobjects are
 properly marked with braces. CIL implements
 the whole ISO C99 specification for initializer (neither GCC nor MSVC do) and
-a few GCC extensions. 
+a few GCC extensions.
 \begin{cilcode}[global]
-  struct foo { 
-     int x, y; 
+  struct foo {
+     int x, y;
      int a[5];
      struct inner {
         int z;
@@ -510,7 +504,7 @@ statements. This has the unfortunate effect that we have to drop the \t{const}
 qualifier from local variables !
 
 \begin{cilcode}[local]
-  int x = 5; 
+  int x = 5;
   struct foo { int f1, f2; } a [] = {1, 2, 3, 4, 5 };
 \end{cilcode}
 
@@ -519,28 +513,28 @@ appropriate renaming). Local scopes thus disappear. This makes it easy to find
 and operate on all local variables in a function.
 
 \begin{cilcode}[global]
-  int x = 5; 
+  int x = 5;
   int main() {
     int x = 6;
-    { 
+    {
       int x = 7;
       return x;
     }
     return x;
-  } 
+  }
 \end{cilcode}
 
 \item Global declarations in local scopes are moved to global scope:
 \begin{cilcode}[global]
-  int x = 5; 
+  int x = 5;
   int main() {
     int x = 6;
-    { 
+    {
       static int x = 7;
       return x;
     }
     return x;
-  } 
+  }
 \end{cilcode}
 
 \item Return statements are added for functions that are missing them. If the
@@ -551,11 +545,11 @@ returning from a function.
 \begin{cilcode}[global]
   int foo() {
     int x = 5;
-  } 
+  }
 \end{cilcode}
 
 \item One of the most significant transformations is that expressions that
-contain side-effects are separated into statements. 
+contain side-effects are separated into statements.
 
 \begin{cilcode}[local]
    int x, f(int);
@@ -574,7 +568,7 @@ compiled into explicit conditionals:
   int z = x || y;
   // Here we duplicate the return statement
   if(x && y) { return 0; } else { return 1; }
-  // To avoid excessive duplication, CIL uses goto's for 
+  // To avoid excessive duplication, CIL uses goto's for
   // statement that have more than 5 instructions
   if(x && y || z) { x ++; y ++; z ++; x ++; y ++; return z; }
 \end{cilcode}
@@ -596,7 +590,7 @@ able to print back the original:
       if(i == 5) continue;
       if(i == 4) break;
       i += 2;
-   } 
+   }
    while(x < 5) {
      if(x == 3) continue;
      x ++;
@@ -631,14 +625,14 @@ new-style definitions. This will make the compiler less forgiving when
 checking function calls, and will catch for example cases when a function is
 called with too few arguments. This happens in old-style code for the purpose
 of implementing variable argument functions.
- 
+
 \item Since CIL sees the source after preprocessing the code after CIL does
 not contain the comments and the preprocessing directives.
 
 \item CIL will remove from the source file those type declarations, local
 variables and inline functions that are not used in the file. This means that
 your analysis does not have to see all the ugly stuff that comes from the
-header files: 
+header files:
 \begin{cilcode}[global]
 #include <stdio.h>
 
@@ -648,7 +642,7 @@ static char unused_static (void) { return 0; }
 
 int main() {
   int unused_local;
-  printf("Hello world\n"); // Only printf will be kept from stdio.h     
+  printf("Hello world\n"); // Only printf will be kept from stdio.h
 }
 \end{cilcode}
 
@@ -659,7 +653,7 @@ int main() {
 There are two predominant ways to use CIL to write a program analysis or
 transformation. The first is to phrase your analysis as a module that is
 called by our existing driver. The second is to use CIL as a stand-alone
-library. We highly recommend that you use \t{cilly}, our driver. 
+library. We highly recommend that you use \t{cilly}, our driver.
 
 \subsection{Using \t{cilly}, the CIL driver}
 
@@ -674,38 +668,38 @@ distributed with CIL and whose purpose is to instrument code to print the
 addresses of memory locations being written. (We plan to release a
 C-language interface to CIL so that you can write your analyses in C
 instead of Ocaml.) See \secref{Extension} for a survey of other example
-modules. 
+modules.
 
-Assuming that you have written \t{/home/necula/logwrites.ml}, 
-here is how you use it: 
+Assuming that you have written \t{/home/necula/logwrites.ml},
+here is how you use it:
 
  \begin{enumerate}
 
  \item Modify \t{logwrites.ml} so that it includes a CIL ``feature
- descriptor'' like this: 
+ descriptor'' like this:
 \begin{verbatim}
-let feature : featureDescr = 
-  { fd_name = "logwrites";              
+let feature : featureDescr =
+  { fd_name = "logwrites";
     fd_enabled = ref false;
     fd_description = "generation of code to log memory writes";
     fd_extraopt = [];
-    fd_doit = 
-    (function (f: file) -> 
+    fd_doit =
+    (function (f: file) ->
       let lwVisitor = new logWriteVisitor in
       visitCilFileSameGlobals lwVisitor f)
-  } 
+  }
 \end{verbatim}
   The \t{fd\_name} field names the feature and its associated
   command-line arguments. The \t{fd\_enabled} field is a \t{bool ref}.
   ``\t{fd\_doit}'' will be invoked if \t{!fd\_enabled} is true after
   argument parsing, so initialize the ref cell to true if you want
   this feature to be enabled by default.
-  
+
   When the user passes the \t{-{}-{}dologwrites}
   command-line option to \t{cilly}, the variable associated with the
   \t{fd\_enabled} flag is set and the \t{fd\_doit} function is called
   on the \t{Cil.file} that represents the merger (see \secref{merger}) of
-  all C files listed as arguments. 
+  all C files listed as arguments.
 
  \item Invoke \t{configure} with the arguments
 \begin{verbatim}
@@ -726,7 +720,7 @@ feature is split across multiple files.
  directory.  Alternately, you can create a symlink from \t{src} or
  \t{src/ext} to your file.
 
- \item Modify the \t{Makefile.in} and add your module to the 
+ \item Modify the \t{Makefile.in} and add your module to the
  \t{CILLY\_MODULES} or
  \t{CILLY\_LIBRARY\_MODULES} variables. The order of the modules matters. Add
  your modules somewhere after \t{cil} and before \t{main}.
@@ -747,19 +741,14 @@ CILLY_MODULES = $(CILLY_LIBRARY_MODULES) \
  \t{MLYS}.
 
  \item Modify \t{main.ml} so that your new feature descriptor appears in
- the global list of CIL features. 
+ the global list of CIL features.
 \begin{verbatim}
-let features : C.featureDescr list = 
-  [ Logcalls.feature;
-    Oneret.feature;    
-    Heapify.feature1;  
-    Heapify.feature2;
-    makeCFGFeature; 
-    Partial.feature;
-    Simplemem.feature;
+let features : C.featureDescr list =
+  [
+    makeCFGFeature;
     Logwrites.feature;  (* add this line to include the logwrites feature! *)
-  ] 
-  @ Feature_config.features 
+  ]
+  @ Feature_config.features
 \end{verbatim}
 
  Features are processed in the order they appear on this list.  Put
@@ -769,15 +758,15 @@ let features : C.featureDescr list =
 \end{enumerate}
 
  Standard code in \t{cilly} takes care of adding command-line arguments,
- printing the description, and calling your function automatically. 
+ printing the description, and calling your function automatically.
  Note: do not worry about introducing new bugs into CIL by adding a single
- line to the feature list. 
+ line to the feature list.
 
  \item Now you can invoke the \t{cilly} application on a preprocessed file, or
  instead use the \t{cilly} driver which provides a convenient compiler-like
  interface to \t{cilly}. See \secref{driver} for details using \t{cilly}.
  Remember to enable your analysis by passing the right argument (e.g.,
- \t{-{}-{}dologwrites}).   
+ \t{-{}-{}dologwrites}).
 
 \end{enumerate}
 
@@ -788,7 +777,7 @@ application. Add \t{cil/src}, \t{cil/src/frontc}, \t{cil/obj/x86\_LINUX}
 (or \t{cil/obj/x86\_WIN32}) to your Ocaml project \t{-I} include paths.
 Building CIL will also build the library \t{cil/obj/*/cil.cma} (or
 \t{cil/obj/*/cil.cmxa}). You can then link your application against that
-library. 
+library.
 
 You can call the \t{Frontc.parse: string -> unit -> Cil.file} function with
 the name of a file containing the output of the C preprocessor.
@@ -799,37 +788,37 @@ multiple files. You can then invoke your analysis function on the resulting
 that are not used. Then you can call the function \t{Cil.dumpFile:
 cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a
 given output channel. A good \t{cilPrinter} to use is
-\t{defaultCilPrinter}. 
+\t{defaultCilPrinter}.
 
 Check out \t{src/main.ml} and \t{bin/cilly} for other good ideas
 about high-level file processing. Again, we highly recommend that you just
 our \t{cilly} driver so that you can avoid spending time re-inventing the
-wheel to provide drop-in support for standard \t{makefile}s. 
+wheel to provide drop-in support for standard \t{makefile}s.
 
 Here is a concrete example of compiling and linking your project against
 CIL. Imagine that your program analysis or transformation is contained in
-the single file \t{main.ml}. 
+the single file \t{main.ml}.
 
 \begin{verbatim}
 $ ocamlopt -c -I $(CIL)/obj/x86_LINUX/ main.ml
-$ ocamlopt -ccopt -L$(CIL)/obj/x86_LINUX/ -o main unix.cmxa str.cmxa \ 
+$ ocamlopt -ccopt -L$(CIL)/obj/x86_LINUX/ -o main unix.cmxa str.cmxa \
         $(CIL)/obj/x86_LINUX/cil.cmxa main.cmx
 \end{verbatim} % $
 
 The first line compiles your analysis, the second line links it against CIL
 (as a library) and the Ocaml Unix library. For more information about
 compiling and linking Ocaml programs, see the Ocaml home page
-at \ahreftop{http://caml.inria.fr/ocaml/}{http://caml.inria.fr/ocaml/}. 
+at \ahreftop{http://caml.inria.fr/ocaml/}{http://caml.inria.fr/ocaml/}.
 
 In the next section we give an overview of the API that you can use
-to write your analysis and transformation. 
- 
-\section{CIL API Documentation}\label{sec-api} 
+to write your analysis and transformation.
+
+\section{CIL API Documentation}\label{sec-api}
 
  The CIL API is documented in the file \t{src/cil.mli}. We also have an
 \ahref{api/index.html}{online documentation} extracted from
 \t{cil.mli} and other useful modules. We
-index below the main types that are used to represent C programs in CIL: 
+index below the main types that are used to represent C programs in CIL:
 
 \begin{itemize}
 \item \ahref{api/index\_types.html}{An index of all types}
@@ -837,25 +826,25 @@ index below the main types that are used to represent C programs in CIL:
 \item \ciltyperef{file} is the representation of a file.
 \item \ciltyperef{global} is the representation of a global declaration or
 definitions. Values for \ahref{api/Cil.html\#VALemptyFunction}{operating on globals}.
-\item \ciltyperef{typ} is the representation of a type.  
+\item \ciltyperef{typ} is the representation of a type.
 Values for \ahref{api/Cil.html\#VALvoidType}{operating on types}.
 \item \ciltyperef{compinfo} is the representation of a structure or a union
 type
 \item \ciltyperef{fieldinfo} is the representation of a field in a structure
 or a union
-\item \ciltyperef{enuminfo} is the representation of an enumeration type. 
-\item \ciltyperef{varinfo} is the representation of a variable 
+\item \ciltyperef{enuminfo} is the representation of an enumeration type.
+\item \ciltyperef{varinfo} is the representation of a variable
 \item \ciltyperef{fundec} is the representation of a function
 \item \ciltyperef{lval} is the representation of an lvalue.
 Values for \ahref{api/Cil.html\#VALmakeVarinfo}{operating on lvalues}.
 \item \ciltyperef{exp} is the representation of an expression without
-side-effects. 
+side-effects.
 Values for \ahref{api/Cil.html\#VALzero}{operating on expressions}.
 \item \ciltyperef{instr} is the representation of an instruction (with
 side-effects but without control-flow)
-\item \ciltyperef{stmt} is the representation of a control-flow statements. 
+\item \ciltyperef{stmt} is the representation of a control-flow statements.
 Values for \ahref{api/Cil.html\#VALmkStmt}{operating on statements}.
-\item \ciltyperef{attribute} is the representation of attributes. 
+\item \ciltyperef{attribute} is the representation of attributes.
 Values for \ahref{api/Cil.html\#TYPEattributeClass}{operating on attributes}.
 \end{itemize}
 
@@ -865,30 +854,29 @@ Values for \ahref{api/Cil.html\#TYPEattributeClass}{operating on attributes}.
  One of the most useful tools exported by the CIL API is an implementation of
 the visitor pattern for CIL programs. The visiting engine scans depth-first
 the structure of a CIL program and at each node it queries a user-provided
-visitor structure whether it should do one of the following operations: 
+visitor structure whether it should do one of the following operations:
 \begin{itemize}
 \item Ignore this node and all its descendants
 \item Descend into all of the children and when done rebuild the node if any
-of the children have changed. 
+of the children have changed.
 \item Replace the subtree rooted at the node with another tree.
 \item Replace the subtree with another tree, then descend into the children
-and rebuild the node if necessary and then invoke a user-specified function. 
+and rebuild the node if necessary and then invoke a user-specified function.
 \item In addition to all of the above actions the visitor can specify that
 some instructions should be queued to be inserted before the current
-instruction or statement being visited. 
+instruction or statement being visited.
 \end{itemize}
 
  By writing visitors you can customize the program traversal and
 transformation. One major limitation of the visiting engine is that it does
 not propagate information from one node to another. Each visitor must use its
-own private data to achieve this effect if necessary. 
+own private data to achieve this effect if necessary.
 
  Each visitor is an object that is an instance of a class of type \cilvisit{}.
 The most convenient way to obtain such classes is to specialize the
 \apiref{Cil.nopCilVisitor}{} class (which just traverses the tree doing
 nothing). Any given specialization typically overrides only a few of the
-methods. Take a look for example at the visitor defined in the module
-\t{logwrites.ml}. Another, more elaborate example of a visitor is the
+methods. Take a look for example at the
 [copyFunctionVisitor] defined in \t{cil.ml}.
 
  Once you have defined a visitor you can invoke it with one of the functions:
@@ -910,7 +898,7 @@ instructions before statements and instructions. To do so, pass a list of
 instructions to the  \cilvalref{queueInstr} method of the specialized
 object. The instructions will automatically be inserted before that
 instruction in the transformed code. The \cilvalref{unqueueInstr} method
-should not normally be called by the user. 
+should not normally be called by the user.
 
  \subsection{Interpreted Constructors and Deconstructors}
 
@@ -924,14 +912,14 @@ Formatcil.cType "void * const (*)(int x)"
 \end{verbatim}\end{code}
 
  is an alternative way to construct the internal representation of the type of pointer to function
-with an integer argument and a {void * const} as result: 
+with an integer argument and a {void * const} as result:
 \begin{code}
 TPtr(TFun(TVoid [Attr("const", [])],
           [ ("x", TInt(IInt, []), []) ], false, []), [])
 \end{verbatim}\end{code}
 
  The advantage of the interpreted constructors is that you can use familiar C
-syntax to construct CIL abstract-syntax trees. 
+syntax to construct CIL abstract-syntax trees.
 
  You can construct this way types, lvalues, expressions, instructions and
 statements. The pattern string can also contain a number of placeholders that
@@ -951,7 +939,7 @@ Formatcil.cInstr "%v:x = %v:x + %e:something"
 \begin{code}
 Set((Var some_varinfo, NoOffset),
     BinOp(PlusA, Lval (Var some_varinfo, NoOffset),
-          some_exp, intType), 
+          some_exp, intType),
     loc)
 \end{verbatim}\end{code}
 
@@ -967,7 +955,7 @@ Formatcil.dType "void * const (*)(int x)" t
  will test whether the actual argument \t{t} is indeed a function pointer of
 the required type. If it is then the result is \t{Some []} otherwise it is
 \t{None}. Furthermore, for the purpose of the interpreted deconstructors
-placeholders in patterns match anything of the right type. For example, 
+placeholders in patterns match anything of the right type. For example,
 \begin{code}
 Formatcil.dType "void * (*)(%F:t)" t
 \end{verbatim}\end{code}
@@ -983,19 +971,19 @@ syntax, but only a substantial fragment chosen to simplify the parsing. The
 following is the syntax that is supported:
 \begin{verbatim}
 Expressions:
-  E ::= %e:ID | %d:ID | %g:ID | n | L | ( E ) | Unop E | E Binop E 
-        | sizeof E | sizeof ( T ) | alignof E  | alignof ( T ) 
-        | & L | ( T ) E 
+  E ::= %e:ID | %d:ID | %g:ID | n | L | ( E ) | Unop E | E Binop E
+        | sizeof E | sizeof ( T ) | alignof E  | alignof ( T )
+        | & L | ( T ) E
 
 Unary operators:
   Unop ::= + | - | ~ | %u:ID
 
 Binary operators:
-  Binop ::= + | - | * | / | << | >> | & | ``|'' | ^ 
+  Binop ::= + | - | * | / | << | >> | & | ``|'' | ^
           | == | != | < | > | <= | >= | %b:ID
 
 Lvalues:
-  L ::= %l:ID | %v:ID Offset | * E | (* E) Offset | E -> ident Offset 
+  L ::= %l:ID | %v:ID Offset | * E | (* E) Offset | E -> ident Offset
 
 Offsets:
   Offset ::= empty | %o:ID | . ident Offset | [ E ] Offset
@@ -1005,8 +993,8 @@ Types:
 
 Type specifiers:
   Type_spec ::= void | char | unsigned char | short | unsigned short
-            | int | unsigned int | long | unsigned long | %k:ID | float 
-            | double | struct %c:ID | union %c:ID 
+            | int | unsigned int | long | unsigned long | %k:ID | float
+            | double | struct %c:ID | union %c:ID
 
 
 Declarators:
@@ -1014,7 +1002,7 @@ Declarators:
 
 
 Direct declarators:
-  Direct_decl ::= empty | ident | ( Attrs Decl ) 
+  Direct_decl ::= empty | ident | ( Attrs Decl )
                  | Direct_decl [ Exp_opt ]
                  | ( Attrs Decl )( Parameters )
 
@@ -1036,7 +1024,7 @@ GCC Attributes
 Lists of GCC Attribute arguments:
   AttrArg_List ::= AttrArg | %P:ID | AttrArg , AttrArg_List
 
-GCC Attribute arguments  
+GCC Attribute arguments
   AttrArg ::= %p:ID | ident | ident ( AttrArg_List )
 
 Instructions
@@ -1050,11 +1038,11 @@ Call destination
 
 Statements
   Stmt ::= %s:ID | if ( E ) then Stmt ; | if ( E ) then Stmt else Stmt ;
-       | return Exp_opt | break ; | continue ; | { Stmt_list } 
-       | while (E ) Stmt | Instr_list 
+       | return Exp_opt | break ; | continue ; | { Stmt_list }
+       | while (E ) Stmt | Instr_list
 
 Lists of statements
-   Stmt_list ::= empty | %S:ID | Stmt Stmt_list  
+   Stmt_list ::= empty | %S:ID | Stmt Stmt_list
                 | Type_spec Attrs Decl ; Stmt_list
                 | Type_spec Attrs Decl = E ; Stmt_list
                 | Type_spec Attrs Decl = L (Args) ; Stmt_list
@@ -1082,23 +1070,23 @@ of expressions (as in the actual arguments of a call).
 
 \item The two-letter patterns whose second letter is ``o'' designate an
 optional element. E.g. \%eo designates an optional expression (as in the
-length of an array). 
+length of an array).
 
-\item Unlike in calls to \t{printf}, the pattern \%g is used for strings. 
+\item Unlike in calls to \t{printf}, the pattern \%g is used for strings.
 
-\item The usual precedence and associativity rules as in C apply 
+\item The usual precedence and associativity rules as in C apply
 
 \item The pattern string can contain newlines and comments, using both the
-\t{/* ... */} style as well as the \t{//} one. 
+\t{/* ... */} style as well as the \t{//} one.
 
 \item When matching a ``cast'' pattern of the form \t{( T ) E}, the
 deconstructor will match even expressions that do not have the actual cast but
 in that case the type is matched against the type of the expression. E.g. the
 patters \t{"(int)\%e"} will match any expression of type \t{int} whether it
-has an explicit cast or not. 
+has an explicit cast or not.
 
 \item The \%k pattern is used to construct and deconstruct an integer type of
-any kind. 
+any kind.
 
 \item Notice that the syntax of types and declaration are the same (in order
 to simplify the parser). This means that technically you can write a whole
@@ -1106,18 +1094,18 @@ declaration instead of a type in the cast. In this case the name that you
 declare is ignored.
 
 \item In lists of formal parameters and lists of attributes, an empty list in
-the pattern matches any formal parameters or attributes. 
+the pattern matches any formal parameters or attributes.
 
 \item When matching types, uses of named types are unrolled to expose a real
-type before matching. 
+type before matching.
 
 \item The order of the attributes is ignored during matching. The the pattern
 for a list of attributes contains \%A then the resulting \t{formatArg} will be
 bound to {\bf all} attributes in the list. For example, the pattern \t{"const
 \%A"} matches any list of attributes that contains \t{const} and binds the
 corresponding placeholder to the entire list of attributes, including
-\t{const}. 
- 
+\t{const}.
+
 \item All instruction-patterns must be terminated by semicolon
 
 \item The autoincrement and autodecrement instructions are not supported. Also
@@ -1160,24 +1148,24 @@ Formatcil.cStmts
    while(idx >= 0) {
      // Some statements to be run for all the elements of the array
      %S:init
-     if(! (idx & 1)) 
+     if(! (idx & 1))
        array[idx] = %e:init_even;
      /* Do not forget to decrement the index variable */
      idx = idx - 1;
    }"
   (fun n t -> makeTempVar myfunc ~name:n t)
   loc
-  [ ("array", Fv myarray); 
+  [ ("array", Fv myarray);
     ("init", FS [stmt1; stmt2; stmt3]);
     ("init_even", Fe init_expr_for_even_elements) ]
 \end{verbatim}\end{code}
 
  To write the same CIL statement directly in CIL would take much more effort.
 Note that the pattern is parsed only once and the result (a function that
-takes the arguments and constructs the statement) is memoized. 
+takes the arguments and constructs the statement) is memoized.
 
   \subsubsection{Performance considerations for interpreted constructors}
- 
+
  Parsing the patterns is done with a LALR parser and it takes some time. To
 improve performance the constructors and deconstructors memoize the parsed
 patterns and will only compile a pattern once. Also all construction and
@@ -1191,10 +1179,10 @@ when performance is not paramount (e.g. prototyping).
 
 
  \subsection{Printing and Debugging support}
- 
+
 The Modules \moduleref{Pretty} and \moduleref{Errormsg} contain respectively
 utilities for pretty printing and reporting errors and provide a convenient
-\t{printf}-like interface. 
+\t{printf}-like interface.
 
  Additionally, CIL defines for each major type a pretty-printing function that
 you can use in conjunction with the \moduleref{Pretty} interface. The
@@ -1240,7 +1228,7 @@ ensures that one can rename the variable by changing the name in the
 is also a consistency checker in file \t{src/check.ml}. If you suspect that
 your transformation is breaking these constraints then you can pass the
 \t{-{}-check} option to cilly and this will ensure that the consistency checker
-is run after each transformation. 
+is run after each transformation.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 \subsection{Attributes}\label{sec-attrib}\cutname{attributes.html}
@@ -1258,7 +1246,7 @@ a type (and return the new type).
 
  GCC already has extensive support for attributes, and CIL extends this
 support to user-defined attributes. A GCC attribute has the syntax:
- 
+
 \begin{verbatim}
  gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
 \end{verbatim}
@@ -1268,7 +1256,7 @@ without leading or trailing \_) we first strip ALL leading and trailing \_
 from the attribute name (but not the identified in [ACons] parameters in
 \ciltyperef{attrparam}). When we print attributes, for GCC we add two leading
 and two trailing \_; for MSVC we add just two leading \_.
- 
+
  There is support in CIL so that you can control the printing of attributes
 (see \cilvalref{setCustomPrintAttribute} and
 \cilvalref{setCustomPrintAttributeScope}). This custom-printing support is now
@@ -1280,7 +1268,7 @@ used to print the "const" qualifier as "\t{const}" and not as
 syntax for declarations is already quite complicated and after writing the
 parser and elaborator for declarations I am convinced that few C programmers
 understand it completely. Anyway, this seems to be the easiest way to support
-attributes. 
+attributes.
 
  Name attributes must be specified at the very end of the declaration, just
 before the \t{=} for the initializer or before the \t{,} that separates a
@@ -1300,7 +1288,7 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
 
 
  Type attributes can be specified along with the type using the following
- rules: 
+ rules:
 \begin{enumerate}
  \item The type attributes for a base type (int, float, named type, reference
     to struct or union or enum) must be specified immediately following the
@@ -1313,7 +1301,7 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
                    "even" restricting the type int to even values. */
   struct foo A1 A2 x; // Both A1 and A2 apply to the struct foo type
 \end{verbatim}\end{code}
- 
+
  \item The type attributes for a pointer type must be specified immediately
  after the * symbol.
 \begin{code}
@@ -1326,7 +1314,7 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
 
  Note: The attributes for base types and for pointer types are a strict
  extension of the ANSI C type qualifiers (const, volatile and restrict). In
- fact CIL treats these qualifiers as attributes. 
+ fact CIL treats these qualifiers as attributes.
 
   \item The attributes for a function type or for an array type can be
      specified using parenthesized declarators.
@@ -1342,17 +1330,17 @@ and \t{N} is a name attribute (each of these uses the \t{\_\_attribute\_\_} synt
    /* An array (A1) of int (A2) */
    int A2 (A1 x0)[]
 
-   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and 
+   /* Array (A1) of pointers (A2) to functions (A3) that take an int (A4) and
     * return a pointer (A5) to int (A6)  */
    int A6 * A5 (A3 * A2 (A1 x1)[5])(int A4);
 
 
-   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+   /* A function (A4) that takes a float (A5) and returns a pointer (A6) to an
     * int (A7) */
    extern int A7 * A6 (A4 x2)(float A5 x);
 
-   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to 
-    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an 
+   /* A function (A1) that takes a int (A2) and that returns a pointer (A3) to
+    * a function (A4) that takes a float (A5) and returns a pointer (A6) to an
     * int (A7) */
    int A7 * A6 (A4 * A3 (A1 x3)(int A2 x))(float A5) {
       return & x2;
@@ -1370,8 +1358,8 @@ the placement of attributes for function and array types will seem intuitive.
 a type (in a cast for example) then you leave the name out. But this leads to
 strange conflicts due to the parentheses that we introduce to scope the
 attributes. Take for example the type of x0 from above. It should be written
-as: 
- 
+as:
+
 \begin{code}
         int A2 (A1 )[]
 \end{verbatim}\end{code}
@@ -1391,7 +1379,7 @@ compiler. For example, here is how we would print the above type:
 
  GCC already supports attributes in a lot of places in declarations. The only
 place where we support attributes and GCC does not is right before the \{ that
-starts a function body. 
+starts a function body.
 
  GCC classifies its attributes in attributes for functions, for variables and
 for types, although the latter category is only usable in definition of struct
@@ -1401,15 +1389,15 @@ have made an effort to reclassify GCC attributes as name and type attributes
 
 \begin{itemize}
   \item GCC name attributes:
-   
+
    section, constructor, destructor, unused, weak, no\_instrument\_function,
    noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
    model
 
       Note: the "noreturn" attribute would be more appropriately qualified as a
       function type attribute. But we classify it as a name attribute to make
-      it easier to support a similarly named MSVC attribute. 
-  
+      it easier to support a similarly named MSVC attribute.
+
   \item GCC function type attributes:
 
     fconst (printed as "const"), format, regparm, stdcall,
@@ -1417,10 +1405,10 @@ have made an effort to reclassify GCC attributes as name and type attributes
 
   I was not able to completely decipher the position in which these attributes
   must go. So, the CIL elaborator knows these names and applies the following
-  rules: 
+  rules:
   \begin{itemize}
   \item All of the name attributes that appear in the specifier part (i.e. at
-  the beginning) of a declaration are associated with all declared names. 
+  the beginning) of a declaration are associated with all declared names.
 
   \item All of the name attributes that appear at the end of a declarator are
   associated with the particular name being declared.
@@ -1431,7 +1419,7 @@ have made an effort to reclassify GCC attributes as name and type attributes
      GCC handles this, I attach the function type attribute to the "nearest"
      function. This means that if a pointer to a function is "nearby" the
      attribute will be correctly associated with the function. In truth I pray
-     that nobody uses declarations as that of x3 above. 
+     that nobody uses declarations as that of x3 above.
   \end{itemize}
 \end{itemize}
 
@@ -1440,29 +1428,27 @@ have made an effort to reclassify GCC attributes as name and type attributes
   MSVC has two kinds of attributes, declaration modifiers to be printed before
   the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
   function type attributes, printed almost as our CIL function type
-  attributes. 
+  attributes.
 
    The following are the name attributes that are printed using
    \t{\_\_declspec} right before the storage designator of the declaration:
    thread, naked, dllimport, dllexport, noreturn
 
 
-   The following are the function type attributes supported by MSVC: 
+   The following are the function type attributes supported by MSVC:
    fastcall, cdecl, stdcall
 
    It is not worth going into the obscure details of where MSVC accepts these
    type attributes. The parser thinks it knows these details and it pulls
    these attributes from wherever they might be placed. The important thing
    is that MSVC will accept if we print them according to the rules of the CIL
-   attributes ! 
+   attributes !
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The CIL Driver}\label{sec-driver}
 
  We have packaged CIL as an application \t{cilly} that contains certain
-example modules, such as \t{logwrites.ml} (a module
-that instruments code to print the addresses of memory locations being
-written). Normally, you write another module like that, add command-line
+example modules. Normally, you write another module like that, add command-line
 options and an invocation of your module in \t{src/main.ml}. Once you compile
 CIL you will obtain the file \t{obj/cilly.native.exe}.
 
@@ -1470,7 +1456,7 @@ CIL you will obtain the file \t{obj/cilly.native.exe}.
 analysis on existing C code with very little manual intervention. This driver
 is \t{bin/cilly} and is quite powerful. Note that the \t{cilly} script
 is configured during installation with the path where CIL resides. This means
-that you can move it to any place you want. 
+that you can move it to any place you want.
 
  A simple use of the driver is:
 \begin{verbatim}
@@ -1482,31 +1468,22 @@ current directory.  Otherwise, they'll be put in \t{/tmp} and deleted
 automatically.  Not that this is the only CIL-specific flag in the
 list -- the other flags use \t{gcc}'s syntax.
 
-This performs the following actions: 
+This performs the following actions:
 \begin{itemize}
-\item preprocessing using the -D and -I arguments with the resulting 
-  file left in \t{hello.i}, 
+\item preprocessing using the -D and -I arguments with the resulting
+  file left in \t{hello.i},
 \item the invocation of the \t{cilly.native} application which parses \t{hello.i}
   converts it to CIL and the pretty-prints it to \t{hello.cil.c}
 \item another round of preprocessing with the result placed in \t{hello.cil.i}
 \item the true compilation with the result in \t{hello.cil.o}
 \item a linking phase with the result in \t{hello}
 \end{itemize}
- 
+
  Note that \t{cilly} behaves like the \t{gcc} compiler. This makes it
 easy to use it with existing \t{Makefiles}:
 \begin{verbatim}
 make CC="bin/cilly" LD="bin/cilly"
 \end{verbatim}
-
- \t{cilly} can also behave as the Microsoft Visual C compiler, if the first
- argument is \t{-{}-mode=MSVC}:
-\begin{verbatim}
-bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
-\end{verbatim}
-
- (This in turn will pass a \t{-{}-MSVC} flag to the underlying \t{cilly.native}
- process which will make it understand the Microsoft Visual C extensions)
 
  \t{cilly} can also behave as the archiver \t{ar}, if it is passed an
  argument \t{-{}-mode=AR}. Note that only the \t{cr} mode is supported
@@ -1518,31 +1495,24 @@ bin/cilly --mode=MSVC /D HAPPY_MOOD /I myincludes hello.c /Fe hello.exe
 
  Furthermore, \t{cilly} allows you to pass some arguments on to the
 underlying \t{cilly.native} process. As a general rule all arguments that start
-with \t{-{}-} and that \t{cilly} itself does not process, are passed on. For
-example, 
-\begin{verbatim}
-bin/cilly --dologwrites -D HAPPY_MOOD -I myincludes hello.c -o hello.exe
-\end{verbatim}
-
- will produce a file \t{hello.cil.c} that prints all the memory addresses
-written by the application. 
+with \t{-{}-} and that \t{cilly} itself does not process, are passed on.
 
  The most powerful feature of \t{cilly} is that it can collect all the
 sources in your project, merge them into one file and then apply CIL. This
 makes it a breeze to do whole-program analysis and transformation. All you
 have to do is to pass the \t{-{}-merge} flag to \t{cilly}:
 \begin{verbatim}
-make CC="bin/cilly --save-temps --dologwrites --merge"
+make CC="bin/cilly --save-temps --merge"
 \end{verbatim}
 
  You can even leave some files untouched:
 \begin{verbatim}
-make CC="bin/cilly --save-temps --dologwrites --merge --leavealone=foo --leavealone=bar"
+make CC="bin/cilly --save-temps --merge --leavealone=foo --leavealone=bar"
 \end{verbatim}
 
  This will merge all the files except those with the basename \t{foo} and
 \t{bar}. Those files will be compiled as usual and then linked in at the very
-end. 
+end.
 
  The sequence of actions performed by \t{cilly} depends on whether merging
 is turned on or not:
@@ -1551,7 +1521,7 @@ is turned on or not:
   \begin{enumerate}
     \item For every file \t{file.c} to compile
          \begin{enumerate}
-            \item Preprocess the file with the given arguments to 
+            \item Preprocess the file with the given arguments to
                   produce \t{file.i}
             \item Invoke \t{cilly.native} to produce a \t{file.cil.c}
             \item Preprocess to \t{file.cil.i}
@@ -1563,13 +1533,13 @@ is turned on or not:
   \begin{enumerate}
     \item For every file \t{file.c} to compile
          \begin{enumerate}
-            \item Preprocess the file with the given arguments to 
+            \item Preprocess the file with the given arguments to
                   produce \t{file.i}
             \item Save the preprocessed source as \t{file.o}
          \end{enumerate}
-    \item When linking executable \t{hello.exe}, look at every object 
-          file that must be linked and see if it actually 
-          contains preprocessed source. Pass all those files to a 
+    \item When linking executable \t{hello.exe}, look at every object
+          file that must be linked and see if it actually
+          contains preprocessed source. Pass all those files to a
           special merging application (described in
           \secref{merger}) to produce \t{hello.exe\_comb.c}
     \item Invoke \t{cilly.native} to produce a \t{hello.exe\_comb.cil.c}
@@ -1581,7 +1551,7 @@ is turned on or not:
 
  Note that files that you specify with \t{-{}-leavealone} are not merged and
 never presented to CIL. They are compiled as usual and then are linked in at
-the end. 
+the end.
 
  And a final feature of \t{cilly} is that it can substitute copies of the
 system's include files:
@@ -1610,18 +1580,18 @@ up-to-date list can always be obtained by running \t{cilly -{}-help}):
   the \t{-{}-envmachine} option below that tells CIL to assume a
   different machine model.
 \item \t{-{}-mode=mode} This must be the first argument if present. It makes
-\t{cilly} behave as a given compiled. The following modes are recognized: 
+\t{cilly} behave as a given compiled. The following modes are recognized:
      \begin{itemize}
         \item GNUCC - the GNU C Compiler. This is the default.
         \item MSVC - the Microsoft Visual C compiler. Of course, you should
-                     pass only MSVC valid options in this case. 
+                     pass only MSVC valid options in this case.
         \item AR - the archiver \t{ar}. Only the mode \t{cr} is supported and
-                   the original version of the archive is lost. 
+                   the original version of the archive is lost.
      \end{itemize}
 \item \t{-{}-help} Prints a list of the options supported.
 \item \t{-{}-verbose} Prints lots of messages about what is going on.
 \item \t{-{}-stages} Less than \t{-{}-verbose} but lets you see what \t{cilly}
-                   is doing. 
+                   is doing.
 \item \t{-{}-merge} This tells \t{cilly} to first attempt to collect into one
 source file all of the sources that make your application, and then to apply
 \t{cilly.native} on the resulting source. The sequence of actions in this case is
@@ -1629,23 +1599,23 @@ described above and the merger itself is described in \secref{merger}.
 
 \item \t{-{}-leavealone=xxx}. Do not merge and do not present to CIL the files
 whose basename is "xxx". These files are compiled as usual and linked in at
-the end. 
+the end.
 \item \t{-{}-includedir=xxx}. Override the include files with those in the given
 directory. The given directory is the same name that was given an an argument
 to the patcher (see \secref{patcher}). In particular this means that
 that directory contains subdirectories named based on the current compiler
-version. The patcher creates those directories. 
+version. The patcher creates those directories.
 \item \t{-{}-usecabs}. Do not CIL, but instead just parse the source and print
 its AST out. This should looked like the preprocessed file. This is useful
 when you suspect that the conversion to CIL phase changes the meaning of the
-program. 
+program.
 \item \t{-{}-save-temps=xxx}. Temporary files are preserved in the xxx
   directory.  For example, the output of CIL will be put in a file
   named \t{*.cil.c}.
 \item \t{-{}-save-temps}. Temporay files are preserved in the current directory.
 \end{itemize}
- 
- 
+
+
   \subsection{\t{cilly.native} Options}
   \label{sec-cilly.native-options}
 
@@ -1694,7 +1664,7 @@ the default, as in ``\t{-{}-nowarnall}''.
     stats.  This is very precise, but results in ``wall-clock time.''
     To report only user-mode time, find the call to \t{Stats.reset} in
     \t{main.ml}, and change it to \t{Stats.reset Stats.SoftwareTimer}.
-  
+
   \item \t{-{}-envmachine}. Use machine model specified in
     \t{CIL\_MACHINE} environment variable, rather than the one
     compiled into CIL. Note that you should not pass gcc's 32/64-bit
@@ -1711,7 +1681,7 @@ the default, as in ``\t{-{}-nowarnall}''.
   \item \t{-{}-disallowDuplication} Prevent small chunks of code from being duplicated.
   \item \t{-{}-keepunused} Do not remove the unused variables and types.
   \item \t{-{}-rmUnusedInlines} Delete any unused inline functions.  This is the default in MSVC mode.
-   
+
   {\bf Output Options:}
   \item \t{-{}-printCilAsIs} Do not try to simplify the CIL when
   printing.  Without this flag, CIL will attempt to produce prettier
@@ -1727,21 +1697,8 @@ the default, as in ``\t{-{}-nowarnall}''.
 %%   \item \t{-{}-printProtos : print prototypes to safec.proto.h after parsing
 
   {\bf Selected features.}  See \secref{Extension} for more information.
-\item \t{-{}-dologcalls}. Insert code in the processed source to print the name of
-functions as are called. Implemented in \t{src/ext/logcalls.ml}.
-\item \t{-{}-dologwrites}. Insert code in the processed source to print the
-address of all memory writes. Implemented in \t{src/ext/logwrites.ml}.
-\item \t{-{}-dooneRet}. Make each function have at most one 'return'.
-Implemented in \t{src/ext/oneret.ml}. 
-\item \t{-{}-dostackGuard}. Instrument function calls and returns to
-maintain a separate stack for return addresses. Implemeted in
-\t{src/ext/heapify.ml}. 
 \item \t{-{}-domakeCFG}. Make the program look more like a CFG. Implemented
-in \t{src/cil.ml}. 
-\item \t{-{}-dopartial}. Do interprocedural partial evaluation and
-constant folding. Implemented in \t{src/ext/partial.ml}. 
-\item \t{-{}-dosimpleMem}. Simplify all memory expressions. Implemented in
-\t{src/ext/simplemem.ml}. 
+in \t{src/cil.ml}.
 
 For an up-to-date list of available options, run \t{cilly.native -{}-help}.
 
@@ -1753,7 +1710,7 @@ For an up-to-date list of available options, run \t{cilly.native -{}-help}.
 All of the \t{cilly.native} options described above can be set
 programmatically -- see \t{src/ciloptions.ml} or the individual
 extensions to see how.  Some options should be set before parsing to
-be effective.  
+be effective.
 
 Additionally, a few CIL options have no command-line flag and can only
 be set programmatically.  These options may be useful for certain
@@ -1778,7 +1735,7 @@ temporary and you can more easily determine the allocation type from
 calls to \t{malloc}.
 
 You should set \t{Cabs2cil.doCollapseCallCast} in the module requiring it,
-as part of \t{fd\_extraopt}. Here is an example taken from \t{ext/cqualann.ml}:
+as part of \t{fd\_extraopt}. Here is an example:
 \begin{verbatim}
     fd_extraopt = [ "--doCollapseCallCast",
                     Arg.Set Cabs2cil.doCollapseCallCast,
@@ -1833,7 +1790,7 @@ keys are ignored. The following keys must be defined:
 
 Some notes:
 \begin{itemize}
-\item Values cannot contain spaces as spaces separate key/value pairs. 
+\item Values cannot contain spaces as spaces separate key/value pairs.
 \item The value of size\_t is the text for the type defined as
   size\_t, e.g. \t{unsigned long}. As spaces are not allowed in values,
   CIL will replace underscores by spaces: \t{size\_t=unsigned\_long}.
@@ -1850,9 +1807,9 @@ an x86-based Mac OS X machine:
 \begin{verbatim}
   short=2,2 int=4,4 long=8,8 long_long=8,8 pointer=8,8 enum=4,4
   float=4,4 double=8,8 long_double=16,16 void=1 bool=1,1 fun=1,1
-  alignof_string=1 max_alignment=16 size_t=unsigned_long 
-  wchar_t=int char_signed=true 
-  big_endian=false __thread_is_keyword=true 
+  alignof_string=1 max_alignment=16 size_t=unsigned_long
+  wchar_t=int char_signed=true
+  big_endian=false __thread_is_keyword=true
   __builtin_va_list=true underscore_name=true
 \end{verbatim}
 
@@ -1898,7 +1855,7 @@ to compute the CFG information and find the successor and predecessor
 of each statement.
 
 For a concrete example, you can see how \t{cilly -{}-domakeCFG}
-transforms the following code (note the fall-through in case 1): 
+transforms the following code (note the fall-through in case 1):
 
 \begin{cilcode}[global] --domakeCFG
   int foo (int predicate) {
@@ -1922,15 +1879,10 @@ analyses. You provide the transfer functions and this module does the
 analysis.  You must compute control-flow information (\secref{cfg})
 before invoking the Dataflow module.
 
+\subsection{Dominators}
 
-\subsection{Inliner}
-
- The file ext/inliner.ml contains a function inliner. 
-
-\subsection{Dominators} 
- 
  The module \moduleref{Dominators} contains the computation of immediate
- dominators. It uses the \moduleref{Dataflow} module. 
+ dominators. It uses the \moduleref{Dataflow} module.
 
 \subsection{Points-to Analysis}
 
@@ -1943,7 +1895,7 @@ The analyses have the following characteristics:
 \begin{itemize}
 \item Not based on C types (inferred pointer relationships are sound
   despite most kinds of C casts)
-\item One level of subtyping 
+\item One level of subtyping
 \item One level of context sensitivity (Golf only)
 \item Monomorphic type structures
 \item Field insensitive (fields of structs are conflated)
@@ -2007,7 +1959,7 @@ of several flags:
 \end{itemize}
 
 In practice, the best precision/efficiency tradeoff is achieved by
-setting 
+setting
 \begin{verbatim}
   Ptranal.no_sub = false
   Ptranal.analyze_mono = true
@@ -2046,151 +1998,13 @@ the results of the analysis.
   points-to graph.
 \end{itemize}
 
-\subsection{StackGuard}
-
-The module \t{heapify.ml} contains a transformation similar to the one
-described in ``StackGuard: Automatic Adaptive Detection and Prevention of
-Buffer-Overflow Attacks'', {\em Proceedings of the 7th USENIX Security
-Conference}. In essence it modifies the program to maintain a separate
-stack for return addresses. Even if a buffer overrun attack occurs the
-actual correct return address will be taken from the special stack. 
-
-Although it does work, this CIL module is provided mainly as an example of
-how to perform a simple source-to-source program analysis and
-transformation. As an optimization only functions that contain a dangerous
-local array make use of the special return address stack. 
-
-For a concrete example, you can see how \t{cilly -{}-dostackGuard}
-transforms the following dangerous code: 
-
-\begin{cilcode}[global] --dostackGuard
-  int dangerous() {
-    char array[10];
-    scanf("%s",array); // possible buffer overrun!
-  }
-
-  int main () {
-    return dangerous();
-  }
-\end{cilcode}
-
-
-\subsection{Heapify}
- 
-The module \t{heapify.ml} also contains a transformation that moves all
-dangerous local arrays to the heap. This also prevents a number of buffer
-overruns. 
-
-For a concrete example, you can see how \t{cilly -{}-doheapify}
-transforms the following dangerous code: 
-
-\begin{cilcode}[global] --doheapify
-  int dangerous() {
-    char array[10];
-    scanf("%s",array); // possible buffer overrun!
-  }
-
-  int main () {
-    return dangerous();
-  }
-\end{cilcode}
-
-\subsection{One Return}
-
-The module \t{oneret.ml} contains a transformation the ensures that all
-function bodies have at most one return statement. This simplifies a number
-of analyses by providing a canonical exit-point. 
-
-For a concrete example, you can see how \t{cilly -{}-dooneRet}
-transforms the following code: 
-
-\begin{cilcode}[global] --dooneRet
-  int foo (int predicate) {
-    if (predicate <= 0) {
-      return 1;
-    } else {
-      if (predicate > 5)
-        return 2;
-      return 3;
-    }
-  }
-\end{cilcode}
-
-\subsection{Partial Evaluation and Constant Folding}
-
-The \t{partial.ml} module provides a simple interprocedural partial
-evaluation and constant folding data-flow analysis and transformation.
-This transformation always requires the \t{-{}-domakeCFG} option.  It
-performs:
-\begin{itemize}
-\item Constant folding even of compiler-dependent constants as, for
-  example \t{sizeof(T)}.
-\item \t{if}-statement simplification for conditional expressions that
-  evaluate to a constant.  The \t{if}-statement gets replaced with the
-  taken branch.
-\item Call elimination for
-  \begin{enumerate}
-  \item\label{enum:partial-empty-proc} empty functions and
-  \item\label{enum:partial-const-func} functions that return a
-    constant.
-  \end{enumerate}
-  In case~\ref{enum:partial-empty-proc} the call disappears completely
-  and in case~\ref{enum:partial-const-func} it is replaced by the
-  constant the function returns.
-\end{itemize}
-
-Several commandline options control the behavior of the feature.
-\begin{itemize}
-\item \t{-{}-partial\_no\_global\_const}:
- Treat global constants as unknown values.  This is the default.
-\item \t{-{}-partial\_global\_const}:
- Treat global constants as initialized.  Let global constants
- participate in the partial evaluation.
-\item \t{-{}-partial\_root\_function} \i{function-name}:
-  Name of the function where the simplification starts.  Default:
-  \t{main}.
-\item \t{-{}-partial\_use\_easy\_alias}
-  Use Partial's built-in easy alias to analyze pointers.  This is the
-  default.
-\item \t{-{}-partial\_use\_ptranal\_alias}
-  Use feature Ptranal to analyze pointers.  Setting this option
-  requires \t{-{}-doptranal}.
-\end{itemize}
-
-For a concrete example, you can see how \t{cilly -{}-domakeCFG -{}-dopartial}
-transforms the following code (note the eliminated \t{if}-branch and the
-partial optimization of \t{foo}):
-
-\begin{cilcode}[global] --domakeCFG --dopartial
-  int foo(int x, int y) {
-    int unknown;
-    if (unknown)
-      return y + 2;
-    return x + 3;
-  }
-
-  int bar(void) {
-    return -1;
-  }
-
-  int main(void) {
-    int a, b, c;
-    a = foo(5, 7) + foo(6, 7) + bar();
-    b = 4;
-    c = b * b;
-    if (b > c)
-      return b - c;
-    else
-      return b + c;
-  }
-\end{cilcode}
 
 \subsection{Reaching Definitions}
 
 The \t{reachingdefs.ml} module uses the dataflow framework and CFG
 information to calculate the definitions that reach each
 statement. After computing the CFG (\secref{cfg}) and calling
-\t{computeRDs} on a 
+\t{computeRDs} on a
 function declaration, \t{ReachingDef.stmtStartData} will contain a
 mapping from statement IDs to data about which definitions reach each
 statement. In particular, it is a mapping from statement IDs to a
@@ -2305,119 +2119,6 @@ entire file. Requires that CFG information has already
 been computed.
 \end{itemize}
 
-\subsection{Simple Memory Operations} 
-
-The \t{simplemem.ml} module allows CIL lvalues that contain memory
-accesses to be even futher simplified via the introduction of
-well-typed temporaries. After this transformation all lvalues involve
-at most one memory reference.
-
-For a concrete example, you can see how \t{cilly -{}-dosimpleMem} 
-transforms the following code:
-
-\begin{cilcode}[global] --dosimpleMem
-  int main () {
-    int ***three;
-    int **two;
-    ***three = **two; 
-  } 
-\end{cilcode}
-
-\subsection{Simple Three-Address Code} 
-
-The \t{simplify.ml} module further reduces the complexity of program
-expressions and gives you a form of three-address code. After this
-transformation all expressions will adhere to the following grammar: 
-\begin{verbatim}
- basic::=
-    Const _ 
-    Addrof(Var v, NoOffset)
-    StartOf(Var v, NoOffset)
-    Lval(Var v, off), where v is a variable whose address is not taken
-                      and off contains only "basic"
-
- exp::=
-    basic
-    Lval(Mem basic, NoOffset)
-    BinOp(bop, basic, basic)
-    UnOp(uop, basic)
-    CastE(t, basic)
-   
- lval ::= 
-    Mem basic, NoOffset
-    Var v, off, where v is a variable whose address is not taken and off
-                contains only "basic"
-\end{verbatim}
-In addition, all \t{sizeof} and \t{alignof} forms are turned into
-constants. Accesses to arrays and variables whose address is taken are
-turned into "Mem" accesses. All field and index computations are turned
-into address arithmetic.
-
-For a concrete example, you can see how \t{cilly -{}-dosimplify} 
-transforms the following code:
-
-\begin{cilcode}[global] --dosimplify
-  int main() {
-    struct mystruct {
-      int a;
-      int b;
-    } m;
-    int local;
-    int arr[3];
-    int *ptr;
-
-    ptr = &local;
-    m.a = local + sizeof(m) + arr[2];
-    return m.a; 
-  } 
-\end{cilcode}
-
-\subsection{Converting C to C++}
-
-The module canonicalize.ml performs several transformations to correct
-differences between C and C++, so that the output is (hopefully) valid
-C++ code.  This may be incomplete --- certain fixes which are necessary
-for some programs are not yet implemented.
-
-Using the \t{-{}-doCanonicalize} option with CIL will perform the
-following changes to your program:
-
-\begin{enumerate}
-\item Any variables that use C++ keywords as identifiers are renamed.
-\item C allows global variables to have multiple declarations and
-      multiple (equivalent) definitions.  This transformation removes
-      all but one declaration and all but one definition.
-\item \t{\_\_inline} is \#defined to \t{inline}, and \t{\_\_restrict} 
-      is \#defined to nothing.
-\item C allows function pointers with no specified arguments to be used on
-      any argument list.  To make C++ accept this code, we insert a cast
-      from the function pointer to a type that matches the arguments.  Of
-      course, this does nothing to guarantee that the pointer actually has
-      that type.
-\item Makes casts from int to enum types explicit.  (CIL changes enum
-      constants to int constants, but doesn't use a cast.)
-\end{enumerate}
-
-
-\subsection{Generating LLVM code (new in 1.3.7)}
-
-The llvm.ml module generates LLVM (``Low Level Virtual Machine'',
-\ahreftop{http://llvm.org}{http://llvm.org}) code from a CIL file. The
-current version only targets 32-bit x86 code (as of version 2.5,
-LLVM's 64-bit x86 support is still incomplete), and has a few significant
-limitations:
-\begin{itemize}
-\item No support for bitfields.
-\item No support for inline assembly.
-\item Ignores gcc pragmas and attributes (except those explicitly handled by CIL).
-\item No support for variable-sized types.
-\end{itemize}
-
-LLVM support is enabled by running \t{configure} with the
-\t{--with-llvm} option before compiling CIL. You can then convert C
-code to LLVM assembly with \t{cilly --dollvm somefile.c}. Or you can
-call \t{Llvm.generate} on a CIL file to get LLVM assembly as a \t{doc}
-string.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Controlling CIL}
@@ -2425,7 +2126,7 @@ string.
  In the process of converting a C file to CIL we drop the unused prototypes
 and even inline function definitions. This results in much smaller files. If
 you do not want this behavior then you must pass the \t{-{}-keepunused} argument
-to the CIL application. 
+to the CIL application.
 
  Alternatively you can put the following pragma in the code (instructing CIL
 to specifically keep the declarations and definitions of the function
@@ -2461,9 +2162,9 @@ without encountering these):
 specification (see \secref{attrib}) of how attributes are interpreted. The
 specification extends that of \t{gcc}.
 \item Old-style function definitions and prototypes. These are translated to
-new-style. 
+new-style.
 \item Locally-declared labels. As part of the translation to CIL, we generate
-new labels as needed. 
+new labels as needed.
 \item Labels as values and computed goto. This allows a program to take the
 address of a label and to manipulate it as any value and also to perform a
 computed goto. We compile this by assigning each label whose address is taken
@@ -2472,7 +2173,7 @@ of the function is replaced with a \t{switch} statement. If you want to invoke
 the label from another function, you are on your own (the \t{gcc}
 documentation says the same.)
 \item Generalized lvalues. You can write code like \t{(a, b) += 5} and it gets
-translated to CIL. 
+translated to CIL.
 \item Conditionals with omitted operands. Things like \t{x ? : y} are
 translated to CIL.
 \item Double word integers. The type \t{long long} and the \t{LL} suffix on
@@ -2480,9 +2181,9 @@ constants is understood. This is currently interpreted as 64-bit integers.
 \item Local arrays of variable length. These are converted to uses of
 \t{alloca}, the array variable is replaced with a pointer to the allocated
 array and the instances of \t{sizeof(a)} are adjusted to return the size of
-the array and not the size of the pointer. 
+the array and not the size of the pointer.
 \item Non-constant local initializers. Like all local initializers these are
-compiled into assignments. 
+compiled into assignments.
 \item Compound literals. These are also turned into assignments.
 \item Designated initializers. The CIL parser actually supports the full ISO
 syntax for initializers, which is more than both \t{gcc} and \t{MSVC}. I
@@ -2495,15 +2196,15 @@ a function whose formal argument has a (tranparent) union type, but the
 argument is called as if it were the first element of the union. This is
 compiled away by saying that the type of the formal argument is that of the
 first field, and the first thing in the function body we copy the formal into
-a union. 
+a union.
 
 \item Inline assembly-language. The full syntax is supported and it is carried
 as such in CIL.
 
 \item Function names as strings. The identifiers \t{\_\_FUNCTION\_\_} and
-\t{\_\_PRETTY\_FUNCTION\_\_} are replaced with string literals. 
+\t{\_\_PRETTY\_FUNCTION\_\_} are replaced with string literals.
 
-\item Keywords \t{typeof}, \t{alignof}, \t{inline} are supported. 
+\item Keywords \t{typeof}, \t{alignof}, \t{inline} are supported.
 \end{enumerate}
 
 \section{CIL Limitations}
@@ -2516,11 +2217,11 @@ as such in CIL.
 example, you cannot use CIL. But you can use attributes and pragmas instead.
 And there is some support to help you patch the include files before they are
 seen by the preprocessor. For example, this is how we turn some
-\t{\#define}s that we don't like into function calls. 
+\t{\#define}s that we don't like into function calls.
 
 \item CIL does transform the code in a non-trivial way. This is done in order
 to make most analyses easier. But if you want to see the code \t{e1, e2++}
-exactly as it appears in the code, then you should not use CIL. 
+exactly as it appears in the code, then you should not use CIL.
 
 \item CIL removes all local scopes and moves all variables to function
 scope. It also separates a declaration with an initializer into a declaration
@@ -2528,7 +2229,7 @@ plus an assignment. The unfortunate effect of this transformation is that
 local variables cannot have the \t{const} qualifier.
 
 \end{itemize}
- 
+
 \section{Known Bugs and Limitations}
 
 \subsection{Code that CIL won't compile}
@@ -2596,14 +2297,14 @@ int globalArray[(1.0 < 2.0) ? 5 : 50]
 \item GCC has a strange feature called ``extern inline''. Such a function can
 be defined twice: first with the ``extern inline'' specifier and the second
 time without it. If optimizations are turned off then the ``extern inline''
-definition is considered a prototype (its body is ignored). 
+definition is considered a prototype (its body is ignored).
 
 With old versions of gcc, if optimizations
 are turned on then the extern inline function is inlined at all of its
 occurrences from the point of its definition all the way to the point where the
 (optional) second definition appears. No body is generated for an extern
 inline function. A body is generated for the real definition and that one is
-used in the rest of the file. 
+used in the rest of the file.
 
 With new versions of gcc, the extern inline function is used only if there is no
 actual (non-extern) second definition (i.e. the second definition is used in the
@@ -2633,7 +2334,7 @@ bad because GCC itself would not like it.
   than gcc's one, and either way is correct (since the behavior is unspecified
   in this case). Similarly, if you write \t{x = x ++;} then CIL will perform
   the increment before the assignment, whereas GCC and MSVC will perform it
-  after the assignment. 
+  after the assignment.
 
 \item Because CIL uses 64-bit floating point numbers in its internal
   representation of floating point numbers, \t{long double} constants
@@ -2665,14 +2366,14 @@ bad because GCC itself would not like it.
 \begin{verbatim}
   mytype x = __builtin_va_arg(marker, mytype)
 \end{verbatim}
- into 
+ into
 \begin{verbatim}
  mytype x;
  __builtin_va_arg(marker, sizeof(mytype), &x);
 \end{verbatim}
 
  The latter form is used internally in CIL. However, the CIL pretty printer
- will try to emit the original code. 
+ will try to emit the original code.
 
  Similarly, \t{\_\_builtin\_types\_compatible\_p(t1, t2)}, which takes
  types as arguments, is represented internally as
@@ -2696,7 +2397,7 @@ into a single C file. There are two tasks that a merger must perform:
 \item Detect what are all the sources that make a project and with what
 compiler arguments they are compiled.
 
-\item Merge all of the source files into a single file. 
+\item Merge all of the source files into a single file.
 \end{enumerate}
 
  For the first task the merger impersonates a compiler and a linker (both a
@@ -2716,14 +2417,14 @@ linking must be the same for all source files.
 sources with care to rename conflicting file-local declarations (we call this
 process alpha-conversion of a file). The merger also attempts to remove
 duplicate global declarations and definitions. Specifically the following
-actions are taken: 
+actions are taken:
 
 \begin{itemize}
 \item File-scope names (\t{static} globals, names of types defined with
 \t{typedef}, and structure/union/enumeration tags) are given new names if they
 conflict with declarations from previously processed sources. The new name is
 formed by appending the suffix \t{\_\_\_n}, where \t{n} is a unique integer
-identifier. Then the new names are applied to their occurrences in the file. 
+identifier. Then the new names are applied to their occurrences in the file.
 
 \item Non-static declarations and definitions of globals are never renamed.
 But we try to remove duplicate ones. Equality of globals is detected by
@@ -2737,19 +2438,19 @@ include file. Similarly, we try to eliminate duplicate definitions of
 are compared for type isomorphism. During this process, the merger detects all
 those isomorphisms between structures and type definitions that are {\bf
 required} for the merged program to be legal. Such structure tags and
-typenames are coalesced and given the same name. 
+typenames are coalesced and given the same name.
 
 \item Besides the structure tags and type names that are required to be
 isomorphic, the merger also tries to coalesce definitions of structures and
 types with the same name from different file. However, in this case the merger
 will not give an error if such definitions are not isomorphic; it will just
-use different names for them. 
+use different names for them.
 
 \item In rare situations, it can happen that a file-local global in
 encountered first and it is not renamed, only to discover later when
 processing another file that there is an external symbol with the same name.
 In this case, a second pass is made over the merged file to rename the
-file-local symbol. 
+file-local symbol.
 \end{itemize}
 
  Here is an example of using the merger:
@@ -2784,14 +2485,14 @@ files:
 gcc file1.c file2.c -o a.out
 \end{verbatim}
 
-\item 
+\item
 \begin{verbatim}
 gcc -c file1.c -o file1.o
 gcc -c file2.c -o file2.o
 ld file1.o file2.o -o a.out
 \end{verbatim}
 
-\item 
+\item
 \begin{verbatim}
 gcc -c file1.c -o file1.o
 gcc -c file2.c -o file2.o
@@ -2799,7 +2500,7 @@ ar r libfile2.a file2.o
 gcc file1.o libfile2.a -o a.out
 \end{verbatim}
 
-\item 
+\item
 \begin{verbatim}
 gcc -c file1.c -o file1.o
 gcc -c file2.c -o file2.o
@@ -2812,7 +2513,7 @@ gcc file1.o -lfile2 -o a.out
 \t{ld} with \t{cilly -{}-merge}, and all occurrences of \t{ar} with \t{cilly
 -{}-merge -{}-mode=AR}. It is very important that the \t{-{}-merge} flag be used
 throughout the build process. If you want to see the merged source file you
-must also pass the \t{-{}-keepmerged} flag to the linking phase. 
+must also pass the \t{-{}-keepmerged} flag to the linking phase.
 
  The result of merging file1.c and file2.c is:
 \begin{code}
@@ -2839,14 +2540,14 @@ of the include files and use them instead of the standard ones. For this
 purpose we specify a patch file and we run a program caller Patcher which
 makes modified copies of include files and applies the patch.
 
- The patcher is invoked as follows: 
+ The patcher is invoked as follows:
 \begin{verbatim}
 bin/patcher [options]
 
 Options:
   --help       Prints this help message
   --verbose    Prints a lot of information about what is being done
-  --mode=xxx   What tool to emulate: 
+  --mode=xxx   What tool to emulate:
                 GNUCC     - GNU CC
                 MSVC      - MS VC cl compiler
 
@@ -2857,7 +2558,7 @@ Options:
 
   --ufile=xxx  A user-include file to be patched (treated as \#include "xxx")
   --sfile=xxx  A system-include file to be patched (treated as \#include <xxx>)
- 
+
   --clean       Remove all files in the destination directory
   --dumpversion Print the version name used for the current compiler
 
@@ -2875,7 +2576,7 @@ will create a subdirectory of the \t{dest} directory, such as:
 
  In that file the patcher will copy the modified versions of the include files
 specified with the \t{ufile} and \t{sfile} options. Each of these options can
-be specified multiple times. 
+be specified multiple times.
 
  The patch file (specified with the \t{patch} option) has a format inspired by
 the Unix \t{patch} tool. The file has the following grammar:
@@ -2892,32 +2593,32 @@ the Unix \t{patch} tool. The file has the following grammar:
 keyword = value. The following flags are supported:
 \begin{itemize}
 \item \t{file=foo.h} - will only apply the patch on files whose name is
-                       \t{foo.h}. 
+                       \t{foo.h}.
 \item \t{optional} - this means that it is Ok if the current patch does not
-match any of the processed files. 
+match any of the processed files.
 \item \t{group=foo} - will add this patch to the named group. If this is not
 specified then a unique group is created to contain just the current patch.
 When all files specified in the command line have been patched, an error
 message is generated for all groups for whom no member patch was used. We use
 this mechanism to receive notice when the patch triggers are out-dated with
-respect to the new include files. 
+respect to the new include files.
 \item \t{system=sysname} - will only consider this pattern on a given
 operating system. The ``sysname'' is reported by the ``\$\^O'' variable in
 Perl, except that Windows is always considered to have sysname
 ``cygwin.'' For Linux use ``linux'' (capitalization matters).
 \item \t{ateof} - In this case the patterns are ignored and the replacement
 text is placed at the end of the patched file. Use the \t{file} flag if you
-want to restrict the files in which this replacement is performed. 
+want to restrict the files in which this replacement is performed.
 \item \t{atsof} - The patterns are ignored and the replacement text is placed
 at the start of the patched file. Uf the \t{file} flag to restrict the
-application of this patch to a certain file. 
+application of this patch to a certain file.
 \item \t{disabled} - Use this flag if you want to disable the pattern.
 \end{itemize}
 
 
  The patterns can consist of several groups of lines separated by the \t{|||}
 marker. Each of these group of lines is a multi-line pattern that if found in
-the file will be replaced with the text given at the end of the block. 
+the file will be replaced with the text given at the end of the block.
 
  The matching is space-insensitive.
 
@@ -2926,7 +2627,7 @@ beginning of a line but they can be followed by arbitrary text (which is
 ignored).
 
  The replacement text can contain the special keyword \t{@\_\_pattern\_\_@},
-which is substituted with the pattern that matched. 
+which is substituted with the pattern that matched.
 
 
 \section{Debugging support}\label{sec-debugger}
@@ -2936,7 +2637,7 @@ pretty printer. But if you want to use the Ocaml debugger here is an easy way
 to do it. Say that you want to debug the invocation of cilly that arises out
 of the following command:
 \begin{verbatim}
-cilly -c hello.c 
+cilly -c hello.c
 \end{verbatim}
 
  You must follow the installation \ahref{../ccured/setup.html}{instructions}
@@ -2950,13 +2651,13 @@ ALT-X my-camldebug
 (initially the default will be ``ocamldebug'' or the last command you
 introduced). You use the following command:
 \begin{verbatim}
-cilly --ocamldebug -c hello.c 
+cilly --ocamldebug -c hello.c
 \end{verbatim}
 
  This will run \t{cilly} as usual and invoke the Ocaml debugger when the cilly
 engine starts. The advantage of this way of invoking the debugger is that the
 directory search paths are set automatically and the right set or arguments is
-passed to the debugger. 
+passed to the debugger.
 
 
 \section{Who Says C is Simple?}\label{sec-simplec}
@@ -2969,16 +2670,16 @@ how many dark corners this language has, especially if you want to parse
 real-world programs such as those written for GCC or if you are more ambitious
 and you want to parse the Linux or Windows NT sources (both of these were
 written without any respect for the standard and with the expectation that
-compilers will be changed to accommodate the program). 
+compilers will be changed to accommodate the program).
 
  The following examples were actually encountered either in real programs or
 are taken from the ISO C99 standard or from the GCC's testcases. My first
 reaction when I saw these was: {\em Is this C?}. The second one was : {\em
-What the hell does it mean?}. 
+What the hell does it mean?}.
 
  If you are contemplating doing program analysis for C on abstract-syntax
 trees then your analysis ought to be able to handle these things. Or, you can
-use CIL and let CIL translate them into clean C code. 
+use CIL and let CIL translate them into clean C code.
 
 %
 % Note: the cilcode environment is bogus. You should preprocess this source
@@ -3018,7 +2719,7 @@ int f() {
 }
 \end{cilcode}
 
-\item Functions and function pointers are implicitly converted to each other. 
+\item Functions and function pointers are implicitly converted to each other.
 
 \begin{cilcode}[global]
 int (*pf)(void);
@@ -3026,24 +2727,24 @@ int f(void) {
 
    pf = &f; // This looks ok
    pf = ***f; // Dereference a function?
-   pf(); // Invoke a function pointer?     
+   pf(); // Invoke a function pointer?
    (****pf)();  // Looks strange but Ok
-   (***************f)(); // Also Ok             
+   (***************f)(); // Also Ok
 }
 \end{cilcode}
 
 \item Initializer with designators are one of the hardest parts about ISO C.
 Neither MSVC or GCC implement them fully. GCC comes close though. What is the
 final value of \t{i.nested.y} and \t{i.nested.z}? (Answer: 2 and respectively
-6). 
+6).
 
 \begin{cilcode}[global]
-struct { 
-   int x; 
-   struct { 
-       int y, z; 
+struct {
+   int x;
+   struct {
+       int y, z;
    } nested;
-} i = { .nested.y = 5, 6, .x = 1, 2 };               
+} i = { .nested.y = 5, 6, .x = 1, 2 };
 \end{cilcode}
 
 \item This is from c-torture. This function returns 1.
@@ -3084,7 +2785,7 @@ code returns 2.
 
 \item In the example below there is one copy of ``bar'' and two copies of
   ``pbar'' (static prototypes at block scope have file scope, while for all
-  other types they have block scope).  
+  other types they have block scope).
 
 \begin{cilcode}[global]
   int foo() {
@@ -3093,7 +2794,7 @@ code returns 2.
 
   }
 
-  static bar() { 
+  static bar() {
     return 1;
   }
 
@@ -3112,9 +2813,9 @@ code returns 2.
 
   The correct interpretation is \t{((unsigned long) - 1) / 8}, which is a
   relatively large number, as opposed to \t{(unsigned long) (- 1 / 8)}, which
-  is 0. 
+  is 0.
 
-\item An example with \t{typedef} wierdness. Example due to James Cheney. 
+\item An example with \t{typedef} wierdness. Example due to James Cheney.
 \begin{cilcode}[global]
 typedef int int_t;
 typedef int int2_t;
@@ -3155,7 +2856,7 @@ way but you are on your own if you try to jump into another function this way.
 \begin{cilcode}[global]
 static void *jtab[2]; // A jump table
 static int doit(int x){
- 
+
   static int jtab_init = 0;
   if(!jtab_init) { // Initialize the jump table
     jtab[0] = &&lbl1;
@@ -3168,7 +2869,7 @@ lbl1:
 lbl2:
   return 1;
 }
- 
+
 int main(void){
   if (doit(0) != 0) exit(1);
   if (doit(1) != 1) exit(1);
@@ -3178,7 +2879,7 @@ int main(void){
 
 
 \item A cute little example that we made up. What is the returned value?
-(Answer: 1); 
+(Answer: 1);
 \begin{cilcode}[local]
  return ({goto L; 0;}) && ({L: 5;});
 \end{cilcode}
@@ -3201,7 +2902,7 @@ int main() {
  The answer depends on whether the optimizations are turned on. If they are
 then the answer is 3 (the first definition is inlined at all occurrences until
 the second definition). If the optimizations are off, then the first
-definition is ignore (treated like a prototype) and the answer is 4. 
+definition is ignore (treated like a prototype) and the answer is 4.
 
  CIL will misbehave on this example, if the optimizations are turned off (it
  always returns 3).
@@ -3209,9 +2910,9 @@ definition is ignore (treated like a prototype) and the answer is 4.
 \item GCC allows you to cast an object of a type T into a union as long as the
 union has a field of that type:
 \begin{cilcode}[global]
-union u { 
-   int i; 
-   struct s { 
+union u {
+   int i;
+   struct s {
       int i1, i2;
    } s;
 };
@@ -3292,7 +2993,7 @@ stage are all written from scratch. The main author is
 contributions from \ahref{mailto:smcpeak@cs.berkeley.edu}{Scott McPeak},
 \ahref{mailto:weimer@cs.berkeley.edu}{Westley Weimer},
 \ahref{mailto:liblit@cs.wisc.edu}{Ben Liblit},
-\ahreftop{http://www.cs.berkeley.edu/\~{}matth/}{Matt Harren}, 
+\ahreftop{http://www.cs.berkeley.edu/\~{}matth/}{Matt Harren},
 Raymond To and Aman Bhargava.
 
  This work is based upon work supported in part by the National Science
@@ -3346,16 +3047,16 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 \section{Bug reports}
- 
+
  We are certain that there are still some remaining bugs in CIL. If you find
-one please file a bug report in our Source Forge space 
+one please file a bug report in our Source Forge space
 \ahreftop{http://sourceforge.net/projects/cil}
-         {http://sourceforge.net/projects/cil}. 
+         {http://sourceforge.net/projects/cil}.
 
   You can find there the latest announcements, a source distribution,
 bug report submission instructions and a mailing list: cil-users[at
 sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
-as it will ensure your message is viewed by a broad audience. 
+as it will ensure your message is viewed by a broad audience.
 
 \end{document}
 
