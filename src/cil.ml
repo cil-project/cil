@@ -2573,7 +2573,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       | Const(CInt(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
-          when (dropAttributes ["const"] a) = [] ->
+          when (dropAttributes ["const"; "pconst"] a) = [] ->
           let i', _ = truncateCilint nk (mkCilintIk k i) in
           Const(CInt(i', nk, None))
       | e', _ -> CastE (t, e')
@@ -6471,7 +6471,7 @@ let caseRangeFold (l: label list) =
         match constFold true el, constFold true eh with
           Const(CInt(il, ilk, _)), Const(CInt(ih, ihk, _)) ->
             mkCilintIk ilk il, mkCilintIk ihk ih, commonIntKind ilk ihk
-        | _ -> E.s (error "Cannot understand the constants in case range")
+        | _ -> E.s (error "Cannot understand the constants in case range (%a and %a)" d_exp el d_exp eh)
       in
       if compare_cilint il ih > 0 then
         E.s (error "Empty case range");
