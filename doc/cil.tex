@@ -84,7 +84,7 @@ function loadTop(url) {
 
 \section{Introduction}
 
-{\bf This a fork of the CIL tool} maintained by the team behind the static analyzer Goblint, {\bf which we refer to as goblint-CIL (CIL for short).}
+{\bf This a fork of the CIL tool} maintained by the team behind the static analyzer \ahreftop{https://goblint.in.tum.de}{Goblint}, {\bf which we refer to as goblint-CIL (CIL for short).}
 
 CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation along with a set of tools that permit easy analysis and source-to-source
 transformation of C programs.
@@ -116,7 +116,7 @@ close relationship with the source program. The main advantage of CIL is that
 it compiles all valid C programs into a few core constructs with a very clean
 semantics. Also CIL has a syntax-directed type system that makes it easy to
 analyze and manipulate C programs. Furthermore, the CIL front-end is able to
-process not only ANSI-C programs but also those using Microsoft C or GNU C
+process not only ANSI-C programs but also those using GNU C
 extensions. If you do not use CIL and want instead to use just a C parser and
 analyze programs expressed as abstract-syntax trees then your analysis will
 have to handle a lot of ugly corners of the language (let alone the fact that
@@ -158,18 +158,8 @@ copies of the system include files. The CIL driver can then be told to use
 these patched copies instead of the standard ones.
 \end{itemize}
 
- CIL has been tested very extensively. It is able to process the SPECINT95
-benchmarks, the Linux kernel, GIMP and other open-source projects. All of
-these programs are compiled to the simple CIL and then passed to \t{gcc} and
-they still run! We consider the compilation of Linux a major feat especially
-since Linux contains many of the ugly GCC extensions (see \secref{ugly-gcc}).
-This adds to about 1,000,000 lines of code that we tested it on. It is also
-able to process the few Microsoft NT device drivers that we have had access
-to. A
-total of 1400 regression test cases are run automatically on each change to
-the CIL sources.
 
- CIL is relatively independent on the underlying machine and compiler. When
+CIL is relatively independent on the underlying machine and compiler. When
 you build it CIL will configure itself according to the underlying compiler.
 However, CIL has only been tested on Intel x86 using the gcc compiler on Linux
 and cygwin and using the MS Visual C compiler. (See below for specific
@@ -180,7 +170,7 @@ The largest application the authors of the original CIL have used CIL for is
 type-safe code by analyzing your pointer usage and inserting runtime checks in
 the places that cannot be guaranteed statically to be type safe.
 
- You can also use CIL to ``compile'' code that uses GCC extensions (e.g. the
+You can also use CIL to ``compile'' code that uses GCC extensions (e.g. the
 Linux kernel) into standard C code.
 
 If you want to cite CIL in your research writings, please refer to the paper ``CIL:
@@ -239,71 +229,6 @@ architecture and compiler dependent configuration parameters, such as the size
 of a pointer or the particular alignment rules for structure fields. (This
 means, of course, that you should re-run \t{./configure} when you move CIL to
 another machine.)
-
-  \section{Distribution Contents}
-
-The file \ahrefurl{distrib/cil-\cilversion.tar.gz}
-contains the complete source CIL distribution,
-consisting of the following files:
-
-\begin{longtable}{lp{4in}}
-\emph{Filename}   & \emph{Description} \\
-\endhead
-\endfoot
-\t{Makefile.in}                 & \t{configure} source for the
-                                  Makefile that builds CIL/ \\
-\t{configure}                   & The configure script. \\
-\t{configure.ac}                & The \t{autoconf} source for \t{configure}. \\
-\t{config.guess} 		& Stuff required by \t{configure}. \\
-\t{config.sub} 			& idem \\
-\t{install-sh}	 		& idem \\
-\\
-\t{doc/}                        & HTML documentation of the CIL API. \\
-\t{\_build/}                        & Directory that will contain the compiled
-                                   CIL modules and executables.\\
-\t{bin/cilly.in}                & The \t{configure} source for a Perl script
-                                  that can be invoked with the
-                                  same arguments as either \t{gcc} or
-                                  Microsoft Visual C and will convert the
-                                  program to CIL, perform some simple
-                                  transformations, emit it and compile it as
-                                  usual. \\
-\t{lib/patcher}              & A Perl script that applies specified patches
-                                  to standard include files.\\
-\\
-\t{src/check.ml,mli}            & Checks the well-formedness of a CIL file. \\
-\t{src/cil.ml,mli}              & Definition of CIL abstract syntax and
-                                   utilities for manipulating it.\\
-\t{src/clist.ml,mli}            & Utilities for efficiently managing lists
-                                   that need to be concatenated often.\\
-\t{src/errormsg.ml,mli}         & Utilities for error reporting. \\\
-\t{src/frontc/clexer.mll}       & The lexer. \\
-\t{src/frontc/cparser.mly}      & The parser. \\
-\t{src/frontc/cabs.ml}          & The abstract syntax. \\
-\t{src/frontc/cprint.ml}        & The pretty printer for CABS. \\
-\t{src/frontc/cabs2cil.ml}      & The elaborator to CIL. \\
-\t{src/main.ml}                 & The \t{cilly} application. \\
-\t{src/pretty.ml,mli}           & Utilities for pretty printing. \\
-\t{src/rmtmps.ml,mli}           & A CIL tranformation that removes unused
-                                  types, variables and inlined functions. \\
-\t{src/stats.ml,mli}            & Utilities for maintaining timing statistics.
-\\
-\t{src/trace.ml,mli}            & Utilities useful for printing debugging
-                                   information.\\
-\\
-\t{ocamlutil/}                  & Miscellaneous libraries that are not
-                                  specific to CIL. \\
-\\
-\t{\_build/feature\_config.ml}  & File generated by the Makefile
-                                      describing which extra ``features''
-                                      to compile. See \secref{cil}. \\
-\t{\_build/machdep.ml}     & File generated by the Makefile containing
-                                  information about your architecture,
-                                  such as the size of a pointer. \\
-\t{src/machdep-ml.c}            & C program that generates
-                                  \t{machdep.ml} files. \\
-\end{longtable}
-
 
 \section{Compiling C to CIL}\label{sec-cabs2cil}
 
@@ -2264,11 +2189,6 @@ bad because GCC itself would not like it.
   warnings, compile your program with your favorite compiler before
   using CIL.
 
-\item When you use variable-length arrays, CIL turns them into calls
-  to \t{alloca}. This means that they are deallocated when the
-  function returns and not when the local scope ends.
-
-  Variable-length arrays are not supported as fields of a struct or union.
 
 \item In the new versions of \t{glibc} there is a function
   \t{\_\_builtin\_va\_arg} that takes a type as its second argument. CIL
