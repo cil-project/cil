@@ -104,6 +104,7 @@ Compared with the original CIL there are some \emph{breaking} changes:
   \item More precise locations (with columns)
   \item Some warnings were made optional
   \item Unmaintained extensions were removed
+  \item Dropped MSVC support
   \item Many bug fixes
 \end{itemize}
 
@@ -238,23 +239,6 @@ architecture and compiler dependent configuration parameters, such as the size
 of a pointer or the particular alignment rules for structure fields. (This
 means, of course, that you should re-run \t{./configure} when you move CIL to
 another machine.)
-
-We have tested CIL on the following compilers:
-
-\begin{itemize}
-\item On Windows, \t{cl} compiler version 12.00.8168 (MSVC 6),
-  13.00.9466 (MSVC .Net), and 13.10.3077 (MSVC .Net 2003).  Run \t{cl}
-  with no arguments to get the compiler version.
-\item On Windows, using \t{cygwin} and \t{gcc} version 2.95.3, 3.0,
-  3.2, 3.3, and 3.4.
-\item On Linux, using \t{gcc} version 2.95.3, 3.0, 3.2, 3.3, 4.0, and 4.1.
-\end{itemize}
-
-Others have successfully used CIL on x86 processors with Mac OS X,
-FreeBSD and OpenBSD; on amd64 processors with FreeBSD; on SPARC
-processors with Solaris; and on PowerPC processors with Mac OS X.  If
-you make any changes to the build system in order to run CIL on your
-platform, please send us a patch.
 
   \section{Distribution Contents}
 
@@ -563,8 +547,7 @@ infinite loop in this code.)
    return ({ goto L; 0; });
 \end{cilcode}
 
-\item CIL contains support for both MSVC and GCC inline assembly (both in one
-internal construct)
+\item CIL contains support for GCC inline assembly
 
 \item CIL compiles away the GCC extension that allows many kinds of constructs
 to be used as lvalues:
@@ -617,7 +600,7 @@ library. We highly recommend that you use \t{cilly}, our driver.
 The most common way to use CIL is to write an Ocaml module containing your
 analysis and transformation, which you then link into our boilerplate
 driver application called \t{cilly}. \t{cilly} is a Perl script that
-processes and mimics \t{GCC} and \t{MSVC} command-line arguments and then
+processes and mimics \t{GCC} command-line arguments and then
 calls \t{cilly.byte.exe} or \t{cilly.native.exe} (CIL's Ocaml executable).
 
 An example of such module is \t{logwrites.ml}, a transformation that is
@@ -1208,11 +1191,10 @@ support to user-defined attributes. A GCC attribute has the syntax:
  gccattribute ::= __attribute__((attribute))    (Note the double parentheses)
 \end{verbatim}
 
- Since GCC and MSVC both support various flavors of each attribute (with or
-without leading or trailing \_) we first strip ALL leading and trailing \_
+We first strip ALL leading and trailing \_
 from the attribute name (but not the identified in [ACons] parameters in
-\ciltyperef{attrparam}). When we print attributes, for GCC we add two leading
-and two trailing \_; for MSVC we add just two leading \_.
+\ciltyperef{attrparam}). When we print attributes, we add two leading
+and two trailing \_.
 
  There is support in CIL so that you can control the printing of attributes
 (see \cilvalref{setCustomPrintAttribute} and
@@ -1351,10 +1333,6 @@ have made an effort to reclassify GCC attributes as name and type attributes
    noreturn, alias, no\_check\_memory\_usage, dllinport, dllexport, exception,
    model
 
-      Note: the "noreturn" attribute would be more appropriately qualified as a
-      function type attribute. But we classify it as a name attribute to make
-      it easier to support a similarly named MSVC attribute.
-
   \item GCC function type attributes:
 
     fconst (printed as "const"), format, regparm, stdcall,
@@ -1379,27 +1357,6 @@ have made an effort to reclassify GCC attributes as name and type attributes
      that nobody uses declarations as that of x3 above.
   \end{itemize}
 \end{itemize}
-
-\paragraph{Handling of predefined MSVC attributes}
-
-  MSVC has two kinds of attributes, declaration modifiers to be printed before
-  the storage specifier using the notation "\t{\_\_declspec(...)}" and a few
-  function type attributes, printed almost as our CIL function type
-  attributes.
-
-   The following are the name attributes that are printed using
-   \t{\_\_declspec} right before the storage designator of the declaration:
-   thread, naked, dllimport, dllexport, noreturn
-
-
-   The following are the function type attributes supported by MSVC:
-   fastcall, cdecl, stdcall
-
-   It is not worth going into the obscure details of where MSVC accepts these
-   type attributes. The parser thinks it knows these details and it pulls
-   these attributes from wherever they might be placed. The important thing
-   is that MSVC will accept if we print them according to the rules of the CIL
-   attributes !
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{The CIL Driver}\label{sec-driver}
@@ -1540,8 +1497,6 @@ up-to-date list can always be obtained by running \t{cilly -{}-help}):
 \t{cilly} behave as a given compiled. The following modes are recognized:
      \begin{itemize}
         \item GNUCC - the GNU C Compiler. This is the default.
-        \item MSVC - the Microsoft Visual C compiler. Of course, you should
-                     pass only MSVC valid options in this case.
         \item AR - the archiver \t{ar}. Only the mode \t{cr} is supported and
                    the original version of the archive is lost.
      \end{itemize}
@@ -1577,8 +1532,8 @@ program.
   \label{sec-cilly.native-options}
 
  All of the options that start with \t{-{}-} and are not understood by
-\t{cilly} are passed on to \t{cilly.native}.   \t{cilly} also passes along to
-\t{cilly.native} flags such as \t{-{}-MSVC} that both need to know
+\t{cilly} are passed on to \t{cilly.native}. \t{cilly} also passes along to
+\t{cilly.native} flags that both need to know
 about.  The following options are supported.  Many of these flags also
 have corresponding ``\t{-{}-no}*'' versions if you need to go back to
 the default, as in ``\t{-{}-nowarnall}''.
@@ -1601,7 +1556,6 @@ the default, as in ``\t{-{}-nowarnall}''.
   \item \t{-{}-commPrintLnSparse} Like \t{-{}-commPrintLn} but print only new
          line numbers.
   \item \t{-{}-log=xxx} Set the name of the log file.  By default stderr is used
-  \item \t{-{}-MSVC} Enable MSVC compatibility. Default is GNU.
   %\item \t{-{}-testcil} test CIL using the given compiler
   \item \t{-{}-ignore-merge-conflicts} ignore merging conflicts.
   %\item \t{-{}-sliceGlobal} output is the slice of #pragma cilnoremove(sym) symbols
@@ -1637,7 +1591,7 @@ the default, as in ``\t{-{}-nowarnall}''.
   %\item \t{-{}-nocil=n} Do not compile to CIL the global with the given index.
   \item \t{-{}-disallowDuplication} Prevent small chunks of code from being duplicated.
   \item \t{-{}-keepunused} Do not remove the unused variables and types.
-  \item \t{-{}-rmUnusedInlines} Delete any unused inline functions.  This is the default in MSVC mode.
+  \item \t{-{}-rmUnusedInlines} Delete any unused inline functions.
 
   {\bf Output Options:}
   \item \t{-{}-printCilAsIs} Do not try to simplify the CIL when
@@ -2281,7 +2235,7 @@ bad because GCC itself would not like it.
 
 \item The implementation of \t{bitsSizeOf} does not take into account the
   packing pragmas. However it was tested to be accurate on cygwin/gcc-2.95.3,
-  Linux/gcc-2.95.3 and on Windows/MSVC.
+  Linux/gcc-2.95.3.
 
 \item \t{-malign-double} is ignored.
 
@@ -2290,7 +2244,7 @@ bad because GCC itself would not like it.
   assignment. It turned out that this behavior is much easier to implement
   than gcc's one, and either way is correct (since the behavior is unspecified
   in this case). Similarly, if you write \t{x = x ++;} then CIL will perform
-  the increment before the assignment, whereas GCC and MSVC will perform it
+  the increment before the assignment, whereas GCC will perform it
   after the assignment.
 
 \item Because CIL uses 64-bit floating point numbers in its internal
