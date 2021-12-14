@@ -77,20 +77,36 @@ function loadTop(url) {
 
 \begin{document}
 \begin{latexonly}
-\title{CIL: Infrastructure for C Program Analysis and Transformation}
+\title{goblint-CIL: Infrastructure for C Program Analysis and Transformation}
 \end{latexonly}
 \maketitle
 
 
 \section{Introduction}
 
-CIL has a Source Forge page:
-   \ahreftop{http://sourceforge.net/projects/cil}
-            {http://sourceforge.net/projects/cil}.
+{\bf This a fork of the CIL tool maintained by the team behind the static analyzer Goblint, which we refer to as goblint-CIL (CIL for short).}
 
- CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation
-along with a set of tools that permit easy analysis and source-to-source
+CIL ({\bf C} {\bf I}ntermediate {\bf L}anguage) is a high-level representation along with a set of tools that permit easy analysis and source-to-source
 transformation of C programs.
+
+The original CIL has a Source Forge page: \ahreftop{http://sourceforge.net/projects/cil}{http://sourceforge.net/projects/cil}.
+
+goblint-cil is developed on Github:  \ahreftop{https://github.com/goblint/cil/}{https://github.com/goblint/cil/}.
+
+Compared with the original CIL there are some \emph{breaking} changes:
+
+\begin{itemize}
+  \item Proper support for C99 and VLAs in particular
+  \item It uses Zarith instead of the deprecated Num
+  \item Support for more recent OCaml versions (>= 4.06)
+  \item Large integer constants are represented by Zarith
+  \item Syntactic search extension
+  \item More precise locations (with columns)
+  \item Some warnings were made optional
+  \item Unmaintained extensions were removed
+  \item Many bug fixes
+\end{itemize}
+
 
  CIL is both lower-level than abstract-syntax trees, by clarifying ambiguous
 constructs and removing redundant ones, and also higher-level than typical
@@ -117,21 +133,19 @@ program. CIL also separates type declarations from code and flattens scopes
 within function bodies. This structures the program in a manner more amenable
 to rapid analysis and transformation. CIL computes the types of all program
 expressions, and makes all type promotions and casts explicit. CIL supports
-all GCC and MSVC extensions except for nested functions and complex numbers.
+some GCC extensions (a notable exception being nested functions).
 Finally, CIL organizes C's imperative features into expressions, instructions
 and statements based on the presence and absence of side-effects and
 control-flow. Every statement can be annotated with successor and predecessor
 information. Thus CIL provides an integrated program representation that can
 be used with routines that require an AST (e.g. type-based analyses and
 pretty-printers), as well as with routines that require a CFG (e.g., dataflow
-analyses). CIL also supports even lower-level representations (e.g.,
-three-address code), see \secref{Extension}.
+analyses).
 
  CIL comes accompanied by a number of Perl scripts that perform generally
 useful operations on code:
 \begin{itemize}
-\item A \ahrefloc{sec-driver}{driver} which behaves as either the \t{gcc} or
-Microsoft VC compiler and can invoke the preprocessor followed by the CIL
+\item A \ahrefloc{sec-driver}{driver} which behaves as the \t{gcc} compiler and can invoke the preprocessor followed by the CIL
 application. The advantage of this script is that you can easily use CIL and
 the analyses written for CIL with existing make files.
 \item A \ahrefloc {sec-merger}{whole-program merger} that you can use as a
@@ -150,10 +164,7 @@ they still run! We consider the compilation of Linux a major feat especially
 since Linux contains many of the ugly GCC extensions (see \secref{ugly-gcc}).
 This adds to about 1,000,000 lines of code that we tested it on. It is also
 able to process the few Microsoft NT device drivers that we have had access
-to. CIL was tested against GCC's c-torture testsuite and (except for the tests
-involving complex numbers and inner functions, which CIL does not currently
-implement) CIL passes most of the tests. Specifically CIL fails 23 tests out
-of the 904 c-torture tests that it should pass. GCC itself fails 19 tests. A
+to. A
 total of 1400 regression test cases are run automatically on each change to
 the CIL sources.
 
@@ -163,67 +174,41 @@ However, CIL has only been tested on Intel x86 using the gcc compiler on Linux
 and cygwin and using the MS Visual C compiler. (See below for specific
 versions of these compilers that we have used CIL for.)
 
- The largest application we have used CIL for is
-\ahreftop{../ccured/index.html}{CCured}, a compiler that compiles C code into
+The largest application the authors of the original CIL have used CIL for is
+\ahreftop{https://dl.acm.org/doi/10.1145/1065887.1065892}{CCured}, a compiler that compiles C code into
 type-safe code by analyzing your pointer usage and inserting runtime checks in
 the places that cannot be guaranteed statically to be type safe.
 
  You can also use CIL to ``compile'' code that uses GCC extensions (e.g. the
 Linux kernel) into standard C code.
 
- CIL also comes accompanies by a growing library of extensions (see
-\secref{Extension}). You can use these for your projects or as examples of
-using CIL.
-
-\t{PDF} versions of \ahref{CIL.pdf}{this manual} and the
-\ahref{CIL-API.pdf}{CIL API} are available. However, we recommend the
-\t{HTML} versions because the postprocessed code examples are easier to
-view.
-
- If you use CIL in your project, we would appreciate letting us know. If you
-want to cite CIL in your research writings, please refer to the paper ``CIL:
+If you want to cite CIL in your research writings, please refer to the paper ``CIL:
 Intermediate Language and Tools for Analysis and Transformation of C
 Programs'' by George C. Necula, Scott McPeak, S.P. Rahul and Westley Weimer,
-in ``Proceedings of Conference on Compilier Construction'', 2002.
+in ``Proceedings of Conference on Compiler Construction'', 2002
+by the authors of the original CIL.
 
 \section{Installation}
 
- You need the following tools to build CIL:
+\emph{The recommended way to install goblint-cil is via the goblint-cil OPAM package}
+
+You need the following tools to build CIL:
 \begin{itemize}
 \item A Unix-like shell environment (with bash, perl, make, mv, cp,
-  etc.). On Windows, you will need cygwin with those packages.
-\item An ocaml compiler. You will need OCaml release 3.08 or higher to build
-CIL. CIL has been tested on Linux and on Windows (where it can behave as
-either Microsoft Visual C or gcc). On Windows, you can build CIL both with the
-cygwin version of ocaml (preferred) and with the Win32 version of ocaml.
-\item An underlying C compiler, which can be either gcc or Microsoft Visual C.
+  etc.).
+\item An ocaml compiler. You will need OCaml release 4.05 or higher to build
+CIL. CIL has been tested on Linux and MacOS. On Windows, please use WSL.
+\item An underlying C compiler (gcc)
 \end{itemize}
 
 \begin{enumerate}
 \item Get the source code.
 \begin{itemize}
-\item {\em Official distribution} (Recommended):
-\begin{enumerate}
-\item Download the CIL
-    \ahref{http://sourceforge.net/projects/cil/files/cil/}{distribution}
-    (latest version is\\
-    \ahrefurl{http://sourceforge.net/projects/cil/files/cil/cil-\cilversion.tar.gz}).
-\item Unzip and untar the source distribution. This will create a directory
-      called \t{cil} whose structure is explained below. \\
-      \t{~~~~tar xvfz cil-\cilversion.tar.gz}
-\end{enumerate}
 \item {\em Git Repository}: \\
-  Alternately, you can download an up to the minute version of CIL
-  from our git repository at:
+  Alternately, you can download an up to the minute version of CIL from our git repository at:
 \begin{verbatim}
-    git clone git://git.code.sf.net/p/cil/code cil
+  git clone https://github.com/goblint/cil.git
 \end{verbatim}
-There is also a Github mirror:
-\begin{verbatim}
-    git clone git://github.com/kerneis/cil.git
-\end{verbatim}
-However, the Git version may be less stable than the released
-version.
 
 \end{itemize}
 \item Enter the \t{cil} directory and run the \t{configure} script and then
@@ -270,34 +255,6 @@ FreeBSD and OpenBSD; on amd64 processors with FreeBSD; on SPARC
 processors with Solaris; and on PowerPC processors with Mac OS X.  If
 you make any changes to the build system in order to run CIL on your
 platform, please send us a patch.
-
-  \subsection{Building CIL on Windows with Microsoft Visual C}
-
- Some users might want to build a standalone CIL executable on Windows (an
-executable that does not require cygwin.dll to run). You will need cygwin for
-the build process only. Here is how we do it
-
-\begin{enumerate}
-\item Start with a clean CIL directory
-\item Start a command-line window setup with the environment variables for
-  Microsoft Visual Studio. You can do this by choosing Programs/Microsoft
-  Visual Studio/Tools/Command Prompt. Check that you can run \t{cl}.
-\item Ensure that \t{ocamlc} refers to a Win32 version of ocaml. Run \t{ocamlc
-  -v} and look at the path to the standard library.
-
-\item Run \t{bash -c "./configure CC=cl"}.
-\item Run \t{bash -c "make WIN32=1 quickbuild"}
-\item Run \t{bash -c "make WIN32=1 NATIVECAML=1 cilly}
-\item Run \t{bash -c "make WIN32=1 doc}
-\item Run \t{bash -c "make WIN32=1 bindistrib-nocheck}
-\end{enumerate}
-
- The above steps do not build the CIL library, but just the executable. The
-last step will create a subdirectory \t{TEMP\_cil-bindistrib} that contains
-everything that you need to run CIL on another machine. You will have to edit
-manually some of the files in the \t{bin} directory to replace \t{CILHOME}.
-The resulting CIL can be run with ActiveState Perl also.
-
 
   \section{Distribution Contents}
 
@@ -2949,40 +2906,6 @@ int __attribute__ ((__mode__ (  __DI__ ))) i64;
 
 \end{enumerate}
 
- \subsection{Microsoft VC ugliness}
-
- This compiler has few extensions, so there is not much to say here.
-
-\begin{enumerate}
-\item Why does the following code return 0 and not -1? (Answer: because of a
-bug in Microsoft Visual C. It thinks that the shift is unsigned just because
-the second operator is unsigned. CIL reproduces this bug when in MSVC mode.)
-
-\begin{code}
- return -3 >> (8 * sizeof(int));
-\end{verbatim}\end{code}
-
-\item Unnamed fields in a structure seem really strange at first. It seems
-that Microsoft Visual C introduced this extension, then GCC picked it up (but
-in the process implemented it wrongly: in GCC the field \t{y} overlaps with
-\t{x}!).
-
-\begin{cilcode}[local]
-struct {
-  int x;
-  struct {
-     int y, z;
-     struct {
-       int u, v;
-     };
- };
-} a;
-return a.x + a.y + a.z + a.u + a.v;
-\end{cilcode}
-
-
-\end{enumerate}
-
 \section{Authors}
 
  The CIL parser was developed starting from Hugues Casse's \t{frontc}
@@ -3002,13 +2925,15 @@ Microsoft Research. Any opinions, findings, and conclusions or recommendations
 expressed in this material are those of the author(s) and do not necessarily
 reflect the views of the National Science Foundation or the other sponsors.
 
-Starting with version 1.4.0, CIL is maintained by
+Starting with version 1.4.0, CIL was maintained by
 \ahref{mailto:kerneis@pps.univ-paris-diderot.fr}{Gabriel Kerneis} since the UC
 Berkeley does have time anymore to support it.
 
+Goblint-CIL is maintained by the \ahref{https://goblint.in.tum.de}{Goblint} team at the University of Tartu and the Technical University of Munich.
+
 \section{License}
 
-Copyright (c) 2001-2011,
+Copyright (c) 2001-2021,
 \begin{itemize}
 \item George C. Necula    <necula@cs.berkeley.edu>
 \item Scott McPeak        <smcpeak@cs.berkeley.edu>
@@ -3016,6 +2941,9 @@ Copyright (c) 2001-2011,
 \item Ben Liblit          <liblit@cs.wisc.edu>
 \item Matt Harren         <matth@cs.berkeley.edu>
 \item Gabriel Kerneis     <kerneis@pps.univ-paris-diderot.fr>
+\item Ralf Vogler         <ralf.vogler@gmail.com>
+\item Michael Schwarz     <michael.schwarz93@gmail.com>
+\item Simmo Saan          <simmo.saan@gmail.com>
 \item and the CIL contributors for various patches.
 \end{itemize}
 All rights reserved.
@@ -3049,14 +2977,9 @@ POSSIBILITY OF SUCH DAMAGE.
 \section{Bug reports}
 
  We are certain that there are still some remaining bugs in CIL. If you find
-one please file a bug report in our Source Forge space
-\ahreftop{http://sourceforge.net/projects/cil}
-         {http://sourceforge.net/projects/cil}.
-
-  You can find there the latest announcements, a source distribution,
-bug report submission instructions and a mailing list: cil-users[at
-sign]lists.sourceforge.net. Please use this list to ask questions about CIL,
-as it will ensure your message is viewed by a broad audience.
+one please file a bug report in our Github
+\ahreftop{https://github.com/goblint/cil}
+         {https://github.com/goblint/cil}.
 
 \end{document}
 
