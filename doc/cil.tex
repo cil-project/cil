@@ -181,45 +181,33 @@ by the authors of the original CIL.
 
 \section{Installation}
 
-\emph{The recommended way to install goblint-cil is via the goblint-cil OPAM package}
+{\bf The recommended way to install goblint-cil is via the \t{goblint-cil} OPAM package }
 
-You need the following tools to build CIL:
-\begin{itemize}
-\item A Unix-like shell environment (with bash, perl, make, mv, cp,
-  etc.).
-\item An ocaml compiler. You will need OCaml release 4.05 or higher to build
-CIL. CIL has been tested on Linux and MacOS. On Windows, please use WSL.
-\item An underlying C compiler (gcc)
-\end{itemize}
+Alternately, you can download an up to the minute version of CIL from our git repository at:
 
-\begin{enumerate}
-\item Get the source code.
-\begin{itemize}
-\item {\em Git Repository}: \\
-  Alternately, you can download an up to the minute version of CIL from our git repository at:
-\begin{verbatim}
-  git clone https://github.com/goblint/cil.git
-\end{verbatim}
+\hsp\verb!git clone https://github.com/goblint/cil.git!
 
-\end{itemize}
-\item Enter the \t{cil} directory and run the \t{configure} script and then
-      GNU make to build the distribution. If you are on Windows, at least the
-      \t{configure} step must be run from within \t{bash}. \\
-      \hsp\verb!cd cil!\\
-      \hsp\verb!./configure!\\
-      \hsp\verb!make!\\
-      \hsp\verb!make quicktest!\\
+\item First create a local opam switch and install all dependencies:
 
-\item You should now find \t{cilly.native.exe} in \t{bin}.
-\end{enumerate}
+\hsp\verb!opam switch create .!
+\item Then, run the following commands to build and install \t{goblint-cil}:
+
+\hsp\verb!./configure!\\
+\hsp\verb!make!\\
+\hsp\verb!make test       # runs the regression test suite, optional!\\
+\hsp\verb!make install    # as root or using sudo!\\
+
+If you want to install to some other directory, you can tweak the prefix
+during the configure step.  For instance, to install in your local directory:
+
+    \t{./configure --prefix=`opam config var prefix`}
+
 
  The \t{configure} script tries to find appropriate defaults for your system.
 You can control its actions by passing the following arguments:
 \begin{itemize}
 \item \t{CC=foo} Specifies the path for the \t{gcc} executable. By default
-whichever version is in the PATH is used. If \t{CC} specifies the Microsoft
-\t{cl} compiler, then that compiler will be set as the default one. Otherwise,
-the \t{gcc} compiler will be the default.
+whichever version is in the PATH is used.
 \end{itemize}
 
  CIL requires an underlying C compiler and preprocessor. CIL depends on the
