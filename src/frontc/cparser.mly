@@ -1361,7 +1361,9 @@ pragma:
 /* (* We want to allow certain strange things that occur in pragmas, so we
     * cannot use directly the language of expressions *) */
 primary_attr:
-    IDENT				{ VARIABLE (fst $1) }
+    IDENT				                        { VARIABLE (fst $1) }
+    /* (* This is just so code such as __attribute(_NoReturn) is not rejected, which may arise when combining GCC noreturn attribute and including C11 stdnoreturn.h *) */
+|   NORETURN                            { VARIABLE ("__noreturn__") }
     /*(* The NAMED_TYPE here creates conflicts with IDENT *)*/
 |   NAMED_TYPE				{ VARIABLE (fst $1) }
 |   LPAREN attr RPAREN                  { $2 }
