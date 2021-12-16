@@ -135,6 +135,7 @@ let rec print_specifiers (specs: spec_elem list) =
   let print_spec_elem = function
       SpecTypedef -> print "typedef"
     | SpecInline -> printu "inline"
+    | SpecNoreturn -> printu "_Noreturn"
     | SpecStorage sto ->
         printu (match sto with
           NO_STORAGE -> (comstring "/*no storage*/")
@@ -532,11 +533,11 @@ and print_expression_level (lvl: int) (exp : expression) =
       print ")"
   | GENERIC (exp, lst) ->
       let rec print_generic_list l =
-        match l with 
+        match l with
         [] -> ()
         | (t, e) :: tl ->
           print ", ";
-          print_onlytype t; 
+          print_onlytype t;
           print ": ";
           print_expression_level 0 e;
           print_generic_list tl

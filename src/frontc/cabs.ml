@@ -105,6 +105,7 @@ and spec_elem =
   | SpecAttr of attribute       (* __attribute__ *)
   | SpecStorage of storage
   | SpecInline
+  | SpecNoreturn
   | SpecType of typeSpecifier
   | SpecPattern of string       (* specifier pattern variable *)
 

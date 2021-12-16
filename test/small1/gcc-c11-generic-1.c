@@ -1,7 +1,7 @@
 // https://github.com/gcc-mirror/gcc/blob/16e2427f50c208dfe07d07f18009969502c25dc8/gcc/testsuite/gcc.dg/c11-generic-1.c
 #include "testharness.h"
 
-// _Noreturn extern void abort (void);
+_Noreturn extern void abort (void);
 
 int e = 0;
 
@@ -50,9 +50,8 @@ main (void)
   check (n);
 
   /* _Noreturn is not part of the function type.  */
-  // TODO: add back when C11 _Noreturn supported
-  /* check (_Generic (&abort, void (*) (void): 0, default: n++));
-  check (n); */
+  check (_Generic (&abort, void (*) (void): 0, default: n++));
+  check (n);
 
   /* Integer promotions do not occur.  */
   short s;

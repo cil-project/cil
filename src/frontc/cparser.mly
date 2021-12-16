@@ -252,7 +252,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token EOF
 %token<Cabs.cabsloc> CHAR INT BOOL DOUBLE FLOAT VOID INT64 INT32
 %token<Cabs.cabsloc> INT128 FLOAT128 COMPLEX /* C99 */
-%token<Cabs.cabsloc> GENERIC /* C11 */
+%token<Cabs.cabsloc> GENERIC NORETURN /* C11 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
 %token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
@@ -474,7 +474,7 @@ primary_expression:                     /*(* 6.5.1. *)*/
 ;
 
 /* (specifier, expression) list */
-generic_assoc_list: 
+generic_assoc_list:
 | generic_association {[$1]}
 | generic_assoc_list COMMA generic_association {$3 :: $1}
 
@@ -951,6 +951,7 @@ decl_spec_list:                         /* ISO 6.7 */
 |   type_spec decl_spec_list_opt_no_named { SpecType (fst $1) :: $2, snd $1 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
+|   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
 |   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
@@ -1360,7 +1361,9 @@ pragma:
 /* (* We want to allow certain strange things that occur in pragmas, so we
     * cannot use directly the language of expressions *) */
 primary_attr:
-    IDENT				{ VARIABLE (fst $1) }
+    IDENT				                        { VARIABLE (fst $1) }
+    /* (* This is just so code such as __attribute(_NoReturn) is not rejected, which may arise when combining GCC noreturn attribute and including C11 stdnoreturn.h *) */
+|   NORETURN                            { VARIABLE ("__noreturn__") }
     /*(* The NAMED_TYPE here creates conflicts with IDENT *)*/
 |   NAMED_TYPE				{ VARIABLE (fst $1) }
 |   LPAREN attr RPAREN                  { $2 }
