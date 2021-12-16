@@ -2,17 +2,17 @@
 #include <stdnoreturn.h>
 
 _Noreturn int fun() {
-    return 5;
+    SUCCESS;
 }
 
 noreturn int blub() {
-    return 7;
+    SUCCESS;
 }
 
 int blabla() __attribute__((noreturn));
 
 int blabla() {
-    return 8;
+    SUCCESS;
 }
 
 int main() {
