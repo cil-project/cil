@@ -67,7 +67,6 @@ typedef int bool;
 
 #ifdef _GNUCC
 #define LONGLONG long long
-#define CONST_STRING_LITERALS "true"
 #define VERSION __VERSION__
 #define VERSION_MAJOR __GNUC__
 #define VERSION_MINOR __GNUC_MINOR__
@@ -253,7 +252,7 @@ int main(int argc, char **argv)
       printf("short=%d,%d int=%d,%d long=%d,%d long_long=%d,%d pointer=%d,%d "
 	     "alignof_enum=%d float=%d,%d double=%d,%d long_double=%d,%d float_complex=%d,%d double_complex=%d,%d long_double_complex=%d,%d void=%d "
 	     "bool=%d,%d fun=%d,%d alignof_string=%d max_alignment=%d size_t=%s "
-	     "wchar_t=%s char_signed=%s const_string_literals=%s "
+	     "wchar_t=%s char_signed=%s "
 	     "big_endian=%s __thread_is_keyword=%s __builtin_va_list=%s "
 	     "underscore_name=%s\n",
 	     (int)sizeof(short), alignof_short, (int)sizeof(int), alignof_int,
@@ -265,7 +264,7 @@ int main(int argc, char **argv)
 	     (int)sizeof(bool), alignof_bool,
 	     sizeof_fun, alignof_fun, alignof_str, alignof_aligned, 
 	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T), 
-	     char_is_unsigned ? "false" : "true", CONST_STRING_LITERALS, 
+	     char_is_unsigned ? "false" : "true", 
 	     little_endian ? "false" : "true",
 	     THREAD_IS_KEYWORD, HAVE_BUILTIN_VA_LIST, UNDERSCORE_NAME);
     }
@@ -312,7 +311,6 @@ int main(int argc, char **argv)
       printf("\t alignof_fun                = %d;\n", alignof_fun);
       printf("\t alignof_aligned            = %d;\n", alignof_aligned);
       printf("\t char_is_unsigned           = %s;\n", char_is_unsigned ? "true" : "false");
-      printf("\t const_string_literals      = %s;\n", CONST_STRING_LITERALS);
       printf("\t underscore_name            = %s;\n", UNDERSCORE_NAME);
       printf("\t __builtin_va_list          = %s;\n", HAVE_BUILTIN_VA_LIST);
       printf("\t __thread_is_keyword        = %s;\n", THREAD_IS_KEYWORD);

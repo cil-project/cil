@@ -404,7 +404,6 @@ addTest("testrun/addrof3 _GNUCC=1");
 addTest("testrun/lval1 _GNUCC=1");
 #MIA: addTest("test/bind2 EXTRAARGS=--allowInlineAssembly");
 #addToGroup("test/bind2", "slow");
-addTest("testrun/decl1 _GNUCC=1");
 addTest("testrun/addr-array");
 addTest("testrun/addr-string");
 addTest("combine1 ");
@@ -694,6 +693,25 @@ addTest("testrunc99/c99-float-pragma");
 addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
+addTest("testrunc11/c11-generic");
+addTest("testrunc11/c11-caserange");
+addTest("testrunc11/c11-noreturn");
+addTest("testrunc11/gcc-c11-generic-1");
+# TODO: these messages are not even checked?
+addTestFail("testc11/gcc-c11-generic-2-1", "Multiple defaults in generic");
+# addTestFail("testc11/gcc-c11-generic-2-2", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-3", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-4", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-5", "TODO");
+# addTestFail("testc11/gcc-c11-generic-2-6", "TODO");
+addTestFail("testc11/gcc-c11-generic-2-7", "No compatible associations or default in generic");
+addTest("testc11/gcc-c11-generic-3-1");
+addTestFail("testc11/gcc-c11-generic-3-2", "No compatible associations or default in generic");
+addTestFail("testc11/gcc-c11-generic-3-3", "No compatible associations or default in generic");
+addTestFail("testc11/gcc-c11-generic-3-4", "No compatible associations or default in generic");
+addTestFail("testc11/clang-c11-generic-1-1", "Multiple compatible associations in generic");
+addTestFail("testc11/clang-c11-generic-1-2", "No compatible associations or default in generic");
+addTest("testc11/clang-c11-generic-2");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them

@@ -163,6 +163,7 @@ let init_lexicon _ =
       ("inline", fun loc -> INLINE loc);
       ("__inline", fun loc -> INLINE loc);
       ("_inline", fun loc -> IDENT ("_inline", loc));
+      ("_Noreturn", fun loc -> NORETURN loc);
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*
@@ -211,6 +212,7 @@ let init_lexicon _ =
                          THREAD loc
                        else
                          IDENT ("__thread", loc));
+      ("_Generic", fun loc -> GENERIC loc);
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will

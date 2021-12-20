@@ -1276,8 +1276,8 @@ let charType = TInt(IChar, [])
 let boolType = TInt(IBool, [])
 
 let charPtrType = TPtr(charType,[])
-let charConstPtrType = TPtr(TInt(IChar, [Attr("const", [])]),[])
-let stringLiteralType = ref charPtrType
+let charConstPtrType = TPtr(TInt(IChar, [Attr("const", []); Attr("pconst", [])]),[])
+let stringLiteralType = charPtrType
 
 let voidPtrType = TPtr(voidType, [])
 let intPtrType = TPtr(intType, [])
@@ -1523,6 +1523,18 @@ let rec typeAttrs = function
   | TFun (_, _, _, a) -> a
   | TBuiltin_va_list a -> a
 
+(** [typeAttrs], which doesn't add inner attributes. *)
+let typeAttrsOuter = function
+  | TVoid a -> a
+  | TInt (_, a) -> a
+  | TFloat (_, a) -> a
+  | TNamed (_, a) -> a
+  | TPtr (_, a) -> a
+  | TArray (_, _, a) -> a
+  | TComp (_, a) -> a
+  | TEnum (_, a) -> a
+  | TFun (_, _, _, a) -> a
+  | TBuiltin_va_list a -> a
 
 let setTypeAttrs t a =
   match t with
@@ -1573,6 +1585,19 @@ let typeRemoveAttributes (anl: string list) t =
   | TComp (comp, a) -> TComp (comp, drop a)
   | TNamed (t, a) -> TNamed (t, drop a)
   | TBuiltin_va_list a -> TBuiltin_va_list (drop a)
+
+(** Partition attributes into type qualifiers and non type qualifiers. *)
+let partitionQualifierAttributes al =
+  List.partition (function
+      | Attr (("const" | "volatile" | "restrict"), []) -> true
+      | _ -> false
+    ) al
+
+(** Remove top-level type qualifiers from type. *)
+let removeOuterQualifierAttributes t =
+  let a = typeAttrsOuter t in
+  let (_, a') = partitionQualifierAttributes a in
+  setTypeAttrs t a'
 
 let unrollType (t: typ) : typ =
   let rec withAttrs (al: attributes) (t: typ) : typ =
@@ -1910,7 +1935,7 @@ let rec typeOf (e: exp) : typ =
     (* The type of a string is a pointer to characters ! The only case when
      * you would want it to be an array is as an argument to sizeof, but we
      * have SizeOfStr for that *)
-  | Const(CStr s) -> !stringLiteralType
+  | Const(CStr s) -> stringLiteralType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
@@ -2149,11 +2174,7 @@ let rec getInteger (e:exp) : cilint option =
       let mkInt ik n = Some (fst (truncateCilint ik n)) in
       match unrollType t, getInteger e with
       | TInt (ik, _), Some n -> mkInt ik n
-      | TPtr _, Some n -> begin
-	  match !upointType with
-	    TInt (ik, _) -> mkInt ik n
-	  | _ -> raise (Failure "pointer size unknown")
-        end
+      (* "integer constant expressions" may not cast to ptr *)
       | TEnum (ei, _), Some n -> mkInt ei.ekind n
       | TFloat _, v -> v
       | _, _ -> None
@@ -2552,7 +2573,7 @@ and constFold (machdep: bool) (e: exp) : exp =
       | Const(CInt(i,k,_)), TInt(nk,a)
           (* It's okay to drop a cast to const.
              If the cast has any other attributes, leave the cast alone. *)
-          when (dropAttributes ["const"] a) = [] ->
+          when (dropAttributes ["const"; "pconst"] a) = [] ->
           let i', _ = truncateCilint nk (mkCilintIk k i) in
           Const(CInt(i', nk, None))
       | e', _ -> CastE (t, e')
@@ -2682,9 +2703,12 @@ let isArrayType t =
 
 (** 6.3.2.3 subsection 3
  *  An integer constant expr with value 0, or such an expr cast to void *, is called a null pointer constant. *)
-let isNullPtrConstant = function
-  | CastE(TPtr(TVoid _,_), e) -> isZero @@ constFold true e
-  | e -> isZero @@ constFold true e
+let isNullPtrConstant e =
+  let rec isNullPtrConstant = function
+    | CastE (TPtr (TVoid [], []), e) -> isNullPtrConstant e (* no qualifiers allowed on void or ptr *)
+    | e -> isZero e
+  in
+  isNullPtrConstant (constFold true e)
 
 let rec isConstant = function
   | Const _ -> true
@@ -2809,7 +2833,7 @@ let initGccBuiltins () : unit =
   let ulongLongType = TInt(IULongLong, []) in
   let floatType = TFloat(FFloat, []) in
   let longDoubleType = TFloat (FLongDouble, []) in
-  let voidConstPtrType = TPtr(TVoid [Attr ("const", [])], []) in
+  let voidConstPtrType = TPtr(TVoid [Attr ("const", []); Attr ("pconst", [])], []) in
   let sizeType = !typeOfSizeOf in
   let v4sfType = TFloat (FFloat,[Attr("__vector_size__", [AInt 16])]) in
 
@@ -4187,7 +4211,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | TArray (elemt, lo, a) ->
         (* ignore the const attribute for arrays *)
-        let a' = dropAttributes [ "const" ] a in
+        let a' = dropAttributes [ "pconst" ] a in
         let name' =
           if a' == [] then name else
           if nameOpt == None then printAttributes a' else
@@ -4252,7 +4276,8 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pAttr (Attr(an, args): attribute) : doc * bool =
     (* Recognize and take care of some known cases *)
     match an, args with
-      "const", [] -> text "const", false
+      "const", [] -> nil, false (* don't print const directly, because of split local declarations *)
+    | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
     | "complex", [] when !c99Mode -> text "_Complex", false
     | "complex", [] -> text "__complex__", false
@@ -4816,7 +4841,7 @@ let makeVarinfo global name ?init typ =
     { vname = name;
       vid   = newVID ();
       vglob = global;
-      vtype = if global then typ else typeRemoveAttributes ["const"] typ;
+      vtype = if global then typ else typeRemoveAttributes ["pconst"] typ;
       vdecl = lu;
       vinit = {init=init};
       vinline = false;
@@ -6457,7 +6482,7 @@ let caseRangeFold (l: label list) =
         match constFold true el, constFold true eh with
           Const(CInt(il, ilk, _)), Const(CInt(ih, ihk, _)) ->
             mkCilintIk ilk il, mkCilintIk ihk ih, commonIntKind ilk ihk
-        | _ -> E.s (error "Cannot understand the constants in case range")
+        | _ -> E.s (error "Cannot understand the constants in case range (%a and %a)" d_exp el d_exp eh)
       in
       if compare_cilint il ih > 0 then
         E.s (error "Empty case range");
@@ -6723,11 +6748,6 @@ let initCIL () =
         Some machine -> M.theMachine := machine
       | None -> M.theMachine := M.gcc
     end;
-    (* Pick type for string literals *)
-    stringLiteralType := if !M.theMachine.M.const_string_literals then
-      charConstPtrType
-    else
-      charPtrType;
     (* Find the right ikind given the size *)
     let findIkindSz (unsigned: bool) (sz: int) : ikind =
       try

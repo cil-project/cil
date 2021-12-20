@@ -135,6 +135,7 @@ let rec print_specifiers (specs: spec_elem list) =
   let print_spec_elem = function
       SpecTypedef -> print "typedef"
     | SpecInline -> printu "inline"
+    | SpecNoreturn -> printu "_Noreturn"
     | SpecStorage sto ->
         printu (match sto with
           NO_STORAGE -> (comstring "/*no storage*/")
@@ -186,6 +187,7 @@ and print_type_spec = function
       (print_enum_items enum_items)
   | TtypeofE e -> printl ["__typeof__";"("]; print_expression e; print ") "
   | TtypeofT (s,d) -> printl ["__typeof__";"("]; print_onlytype (s, d); print ") "
+  | Tdefault -> print "default " (* TODO: is this right? *)
 
 
 (* print "struct foo", but with specified keyword and a list of
@@ -393,6 +395,7 @@ and get_operator exp =
   | TYPE_SIZEOF _ -> ("", 16)
   | EXPR_ALIGNOF exp -> ("", 16)
   | TYPE_ALIGNOF _ -> ("", 16)
+  | GENERIC _ -> ("", 16) (* TODO: is this right? *)
   | IMAG exp -> ("", 16)
   | REAL exp -> ("", 16)
   | CLASSIFYTYPE exp -> ("", 16)
@@ -527,6 +530,21 @@ and print_expression_level (lvl: int) (exp : expression) =
   | TYPE_ALIGNOF (bt,dt) ->
       printl ["__alignof__";"("];
       print_onlytype (bt, dt);
+      print ")"
+  | GENERIC (exp, lst) ->
+      let rec print_generic_list l =
+        match l with
+        [] -> ()
+        | (t, e) :: tl ->
+          print ", ";
+          print_onlytype t;
+          print ": ";
+          print_expression_level 0 e;
+          print_generic_list tl
+      in
+      printl ["_Generic";"("];
+      print_expression_level 0 exp;
+      print_generic_list lst;
       print ")"
   | IMAG exp ->
       printl ["__imag__";"("];

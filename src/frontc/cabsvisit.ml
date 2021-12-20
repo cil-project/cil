@@ -217,7 +217,7 @@ and childrenTypeSpecifier vis ts =
 
 and childrenSpecElem (vis: cabsVisitor) (se: spec_elem) : spec_elem =
   match se with
-    SpecTypedef | SpecInline | SpecStorage _ | SpecPattern _ -> se
+    SpecTypedef | SpecInline | SpecStorage _ | SpecPattern _ | SpecNoreturn -> se
   | SpecCV _ -> se    (* cop out *)
   | SpecAttr a -> begin
       let al' = visitCabsAttribute vis a in
@@ -526,6 +526,17 @@ and childrenExpression vis e =
       let b' = visitCabsBlock vis b in
       if b' != b then GNU_BODY b' else e
   | EXPR_PATTERN _ -> e
+  | GENERIC (e1, al) ->
+      let e1' = ve e1 in
+      let al' = mapNoCopy (fun (((ast, adt), ae) as a) ->
+          let ast' = visitCabsSpecifier vis ast in
+          let adt' = visitCabsDeclType vis false adt in
+          let ae' = ve ae in
+          if ast' != ast || adt' != adt || ae' != ae then ((ast', adt'), ae') else a
+        ) al
+      in
+      if e1' != e1 || al' != al then GENERIC (e1', al') else e
+
 
 and visitCabsInitExpression vis (ie: init_expression) : init_expression =
   doVisit vis vis#vinitexpr childrenInitExpression ie
