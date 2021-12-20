@@ -2584,6 +2584,8 @@ val mkCilint : ikind -> int64 -> cilint
 
 val mkCilintIk : ikind -> cilint -> cilint
 
+val const_if_not_overflow : exp -> ikind -> cilint -> exp
+
 (** The size of a type, in bytes. Returns a constant expression or a
  * "sizeof" expression if it cannot compute the size. This function
  * is architecture dependent, so you should only call this after you

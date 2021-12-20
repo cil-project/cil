@@ -3805,10 +3805,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let (se, e', t) = doExp asconst e (AExp None) in
         if isIntegralType t then
           let tres = integralPromotion t in
+          let fallback = UnOp(Neg, makeCastT ~e:e' ~oldt:t ~newt:tres, tres) in
           let e'' =
             match e', tres with
-            | Const(CInt(i, _, _)), TInt(ik, _) -> kintegerCilint ik (neg_cilint i)
-            | _ -> UnOp(Neg, makeCastT ~e:e' ~oldt:t ~newt:tres, tres)
+            | Const(CInt(i, _, _)), TInt(ik, _) -> const_if_not_overflow fallback ik (neg_cilint i)
+            | _ -> fallback
           in
           finishExp se e'' tres
         else
