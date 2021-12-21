@@ -2181,6 +2181,18 @@ let rec getInteger (e:exp) : cilint option =
     end
   | _ -> None
 
+(** Return the (wrapped) constant i if it fits into ik without any signed overflow,
+    otherwise return fallback  *)
+let const_if_not_overflow fallback ik i =
+  if not (isSigned ik) then
+    kintegerCilint ik i
+  else
+    let i', trunc = truncateCilint ik i in
+    if trunc = NoTruncation then
+      kintegerCilint ik i
+    else
+      fallback
+
 let isZero (e: exp) : bool =
   match getInteger e with
   | Some n -> is_zero_cilint n
@@ -2518,16 +2530,16 @@ and constFold (machdep: bool) (e: exp) : exp =
       try
         let tk =
           match unrollType tres with
-            TInt(ik, _) -> ik
+          | TInt(ik, _) -> ik
           | TEnum (ei, _) -> ei.ekind
           | _ -> raise Not_found (* probably a float *)
         in
         match constFold machdep e1 with
-          Const(CInt(i,ik,_)) -> begin
-	    let ic = mkCilintIk ik i in
+        |  Const(CInt(i,ik,s)) -> begin
+	         let ic = mkCilintIk ik i in
             match unop with
-              Neg -> kintegerCilint tk (neg_cilint ic)
-            | BNot -> kintegerCilint tk (lognot_cilint ic)
+              Neg -> const_if_not_overflow (UnOp(Neg,Const(CInt(i,ik,s)),tres)) tk (neg_cilint ic)
+            | BNot -> const_if_not_overflow (UnOp(BNot,Const(CInt(i,ik,s)),tres)) tk (lognot_cilint ic)
             | LNot -> if is_zero_cilint ic then one else zero
             end
         | e1c -> UnOp(unop, e1c, tres)
@@ -2622,27 +2634,28 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
           with SizeOfError _ -> false
         else false
       in
+      let no_ov = const_if_not_overflow (BinOp(bop, e1', e2', tres)) tk in
       (* Assume that the necessary promotions have been done *)
       match bop, getInteger e1', getInteger e2' with
-      | PlusA, Some i1, Some i2 -> kintegerCilint tk (add_cilint i1 i2)
+      | PlusA, Some i1, Some i2 -> no_ov (add_cilint i1 i2)
       | PlusA, Some z, _ when is_zero_cilint z -> collapse e2'
       | PlusA, _, Some z when is_zero_cilint z -> collapse e1'
-      | MinusA, Some i1, Some i2 -> kintegerCilint tk (sub_cilint i1 i2)
+      | MinusA, Some i1, Some i2 -> no_ov (sub_cilint i1 i2)
       | MinusA, _, Some z when is_zero_cilint z -> collapse e1'
-      | Mult, Some i1, Some i2 -> kintegerCilint tk (mul_cilint i1 i2)
+      | Mult, Some i1, Some i2 -> no_ov (mul_cilint i1 i2)
       | Mult, Some z, _ when is_zero_cilint z -> collapse0 ()
       | Mult, _, Some z when is_zero_cilint z -> collapse0 ()
       | Mult, Some o, _ when compare_cilint o one_cilint = 0 -> collapse e2'
       | Mult, _, Some o when compare_cilint o one_cilint = 0 -> collapse e1'
       | Div, Some i1, Some i2 -> begin
-          try kintegerCilint tk (div0_cilint i1 i2)
+          try no_ov (div0_cilint i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
-	end
+	      end
       | Div, _, Some o when compare_cilint o one_cilint = 0 -> collapse e1'
       | Mod, Some i1, Some i2 -> begin
-          try kintegerCilint tk (rem_cilint i1 i2)
+          try no_ov (rem_cilint i1 i2)
           with Division_by_zero -> BinOp(bop, e1', e2', tres)
-	end
+	      end
       | Mod, _, Some o when compare_cilint o one_cilint = 0 -> collapse0 ()
 
       | BAnd, Some i1, Some i2 -> kintegerCilint tk (logand_cilint i1 i2)
