@@ -170,6 +170,8 @@ and print_type_spec = function
   | Tfloat32 -> print "_Float32"
   | Tfloat64 -> print "_Float64"
   | Tfloat128 -> print "__float128"
+  | Tfloat32x -> print "_Float32x"
+  | Tfloat64x -> print "_Float64x"
   | Tdouble -> print "double "
   | Tsigned -> printu "signed"
   | Tunsigned -> print "unsigned "

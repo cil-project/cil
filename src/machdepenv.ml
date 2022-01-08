@@ -9,7 +9,7 @@ let preparse (s:string) : (string, string list) H.t =
   let spaceRegexp = R.regexp "[ \t]+" in
   let specRegexp = R.regexp "^\\([a-zA-Z_0-9]+\\)[ \t]*=\\(.*\\)$" in
   let specs = R.split spaceRegexp s in
-  let addSpec spec = 
+  let addSpec spec =
     if R.string_match specRegexp spec 0 then begin
       let name = R.matched_group 1 spec in
       let value = R.matched_group 2 spec in
@@ -22,19 +22,19 @@ let preparse (s:string) : (string, string list) H.t =
   specTable
 
 let errorWrap name f =
-  try 
+  try
     f name
   with Not_found -> raise (Failure (name ^ " not specified"))
   | _ -> raise (Failure ("invalid format for " ^ name))
 
-let getNthString n specTable name = 
+let getNthString n specTable name =
   let l = H.find specTable name in
   L.nth l n
 
 let getNthInt n specTable name =
   errorWrap name (fun name -> int_of_string (getNthString n specTable name))
 
-let getNthBool n specTable name = 
+let getNthBool n specTable name =
   errorWrap name (fun name -> bool_of_string (getNthString n specTable name))
 
 let getBool = getNthBool 0
@@ -44,10 +44,10 @@ let getAlignof = getNthInt 1
 
 let respace = Str.global_replace (Str.regexp "_") " "
 
-let modelParse (s:string) : mach = 
+let modelParse (s:string) : mach =
   let entries =
     try
-      preparse s 
+      preparse s
     with Failure msg -> raise (Failure msg)
     | _ -> raise (Failure "invalid machine specification")
   in
@@ -71,6 +71,10 @@ let modelParse (s:string) : mach =
     alignof_enum = getInt entries "alignof_enum";
     sizeof_float = getSizeof entries "float";
     alignof_float = getAlignof entries "float";
+    sizeof_float32x = getSizeof entries "float32x";
+    alignof_float32x = getAlignof entries "float32x";
+    sizeof_float64x = getSizeof entries "float64x";
+    alignof_float64x = getAlignof entries "float64x";
     sizeof_floatcomplex = getSizeof entries "float_complex";
     alignof_floatcomplex = getAlignof entries "float_complex";
     sizeof_double = getSizeof entries "double";
