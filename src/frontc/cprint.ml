@@ -167,6 +167,8 @@ and print_type_spec = function
   | Tint64 -> print "__int64 "
   | Tint128 -> print "__int128 "
   | Tfloat -> print "float "
+  | Tfloat32 -> print "_Float32"
+  | Tfloat64 -> print "_Float64"
   | Tfloat128 -> print "__float128"
   | Tdouble -> print "double "
   | Tsigned -> printu "signed"

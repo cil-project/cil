@@ -2457,7 +2457,17 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.Tunsigned; A.Tint128] -> TInt(IUInt128, [])
 
     | [A.Tfloat] -> TFloat(FFloat, [])
+    | [A.Tfloat32] ->
+      if !Machdep.theMachine.Machdep.sizeof_float = 4 then
+        TFloat(FFloat, [])
+      else
+        E.s (error "float32 only supported on machines where it is an alias for float")
     | [A.Tdouble] -> TFloat(FDouble, [])
+    | [A.Tfloat64] ->
+      if !Machdep.theMachine.Machdep.sizeof_double = 8 then
+        TFloat(FDouble, [])
+      else
+        E.s (error "float64 only supported on machines where it is an alias for double")
 
     | [A.Tlong; A.Tdouble] -> TFloat(FLongDouble, [])
     | [A.Tfloat128] -> TFloat(FLongDouble, []) (* TODO: Correct? *)

@@ -695,6 +695,7 @@ addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
 addTest("testrunc11/c11-generic");
 addTest("testrunc11/c11-caserange");
+addTest("testrunc11/c11-extendedFloat");
 addTest("testrunc11/c11-noreturn");
 addTest("testrunc11/gcc-c11-generic-1");
 # TODO: these messages are not even checked?
