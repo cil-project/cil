@@ -2704,6 +2704,7 @@ and convertCVtoAttr (src: A.cvspec list) : A.attribute list =
   | CV_VOLATILE :: tl -> ("volatile",[]) :: (convertCVtoAttr tl)
   | CV_RESTRICT :: tl -> ("restrict",[]) :: (convertCVtoAttr tl)
   | CV_COMPLEX  :: tl -> ("complex",[]) ::  (convertCVtoAttr tl)
+  | CV_ATOMIC   :: tl -> ("atomic",[]) ::  (convertCVtoAttr tl)
 
 
 and makeVarInfoCabs

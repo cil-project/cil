@@ -96,7 +96,7 @@ and funspec =
     INLINE | VIRTUAL | EXPLICIT
 
 and cvspec =
-    CV_CONST | CV_VOLATILE | CV_RESTRICT | CV_COMPLEX
+    CV_CONST | CV_VOLATILE | CV_RESTRICT | CV_COMPLEX | CV_ATOMIC
 
 (* Type specifier elements. These appear at the start of a declaration *)
 (* Everywhere they appear in this file, they appear as a 'spec_elem list', *)

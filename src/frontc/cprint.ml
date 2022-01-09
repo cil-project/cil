@@ -148,7 +148,9 @@ let rec print_specifiers (specs: spec_elem list) =
         | CV_CONST -> "const"
         | CV_VOLATILE -> "volatile"
         | CV_RESTRICT -> "restrict"
-        | CV_COMPLEX -> "complex")
+        | CV_COMPLEX -> "complex"
+        | CV_ATOMIC -> "_Atomic"
+        )
     | SpecAttr al -> print_attribute al; space ()
     | SpecType bt -> print_type_spec bt
     | SpecPattern name -> printl ["@specifier";"(";name;")"]
