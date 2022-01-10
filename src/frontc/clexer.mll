@@ -119,6 +119,7 @@ let init_lexicon _ =
       ("const", fun loc -> CONST loc);
       ("__const", fun loc -> CONST loc);
       ("__const__", fun loc -> CONST loc);
+      ("_Atomic", fun loc -> ATOMIC loc);
       ("_Complex", fun loc -> COMPLEX loc);
       ("__complex__", fun loc -> COMPLEX loc);
       ("static", fun loc -> STATIC loc);

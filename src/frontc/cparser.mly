@@ -257,7 +257,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> GENERIC NORETURN /* C11 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
-%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
+%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST ATOMIC RESTRICT AUTO REGISTER
 %token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
@@ -323,7 +323,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left	INF SUP INF_EQ SUP_EQ
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
-%left	STAR SLASH PERCENT CONST RESTRICT VOLATILE COMPLEX
+%left	STAR SLASH PERCENT CONST RESTRICT ATOMIC VOLATILE COMPLEX
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF IMAG REAL CLASSIFYTYPE
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
@@ -951,9 +951,11 @@ decl_spec_list:                         /* ISO 6.7 */
 |   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2, $1}
                                         /* ISO 6.7.2 */
 |   type_spec decl_spec_list_opt_no_named { SpecType (fst $1) :: $2, snd $1 }
+|   ATOMIC LPAREN decl_spec_list RPAREN decl_spec_list_opt_no_named { (fst $3) @ SpecCV(CV_ATOMIC) :: $5, $1 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
+
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
 |   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
@@ -1294,6 +1296,7 @@ cvspec:
 |   VOLATILE                            { SpecCV(CV_VOLATILE), $1 }
 |   RESTRICT                            { SpecCV(CV_RESTRICT), $1 }
 |   COMPLEX                             { SpecCV(CV_COMPLEX), $1 }
+|   ATOMIC                              { SpecCV(CV_ATOMIC), $1 }
 ;
 
 /*** GCC attributes ***/
