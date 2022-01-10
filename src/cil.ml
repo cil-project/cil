@@ -4278,7 +4278,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pAttr (Attr(an, args): attribute) : doc * bool =
     (* Recognize and take care of some known cases *)
     match an, args with
-      "atomic", [] -> text "_Atomic", false (* don't print atomic here *)
+      "atomic", [] -> text "_Atomic", false
     | "const", [] -> nil, false (* don't print const directly, because of split local declarations *)
     | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
