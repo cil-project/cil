@@ -4164,7 +4164,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
       | _ -> pa
     in
     let printAtomic (a:attributes) =
-      if List.exists (function Attr ("atomic", _) -> true | _ -> false) a then
+      if hasAttribute "atomic" a then
         text "_Atomic "
       else
         text ""
