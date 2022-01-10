@@ -935,7 +935,7 @@ declaration:                                /* ISO 6.7.*/
 
 static_assert_declaration:
 
-|   STATIC_ASSERT LPAREN expression RPAREN
+|   STATIC_ASSERT LPAREN expression RPAREN /* C23 */
       {
         (fst $3, "", $1)
       }
