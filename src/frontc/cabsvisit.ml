@@ -325,7 +325,8 @@ and childrenDefinition vis d =
   | LINKAGE (n, l, dl) ->
       let dl' = mapNoCopyList (visitCabsDefinition vis) dl in
       if dl' != dl then LINKAGE (n, l, dl') else d
-
+  
+  | STATIC_ASSERT _ -> d
   | TRANSFORMER _ -> d
   | EXPRTRANSFORMER _ -> d
 

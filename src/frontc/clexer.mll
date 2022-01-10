@@ -169,6 +169,7 @@ let init_lexicon _ =
       ("__inline", fun loc -> INLINE loc);
       ("_inline", fun loc -> IDENT ("_inline", loc));
       ("_Noreturn", fun loc -> NORETURN loc);
+      ("_Static_assert", fun loc -> STATIC_ASSERT loc);
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*
