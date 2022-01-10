@@ -185,6 +185,7 @@ and definition =
  | TRANSFORMER of definition * definition list * cabsloc
  (* expression transformer: source and destination *)
  | EXPRTRANSFORMER of expression * expression * cabsloc
+ | STATIC_ASSERT of expression * string * cabsloc
 
 
 (* the string is a file name, and then the list of toplevel forms *)

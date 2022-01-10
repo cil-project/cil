@@ -899,6 +899,13 @@ and print_def def =
       print " }";
       force_new_line()
 
+  | STATIC_ASSERT(e,str,loc) ->
+      setLoc(loc);
+      print "_Static_assert(";
+      print_expression e;
+      print ",";
+      print_string str;
+      print ");";
 
 (* sm: print a comment if the printComments flag is set *)
 and comprint (str : string) : unit =
