@@ -4163,29 +4163,20 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           text "/*" ++ pa ++ text "*/"
       | _ -> pa
     in
-    let printAtomic (a:attributes) =
-      if hasAttribute "atomic" a then
-        text "_Atomic "
-      else
-        text ""
-    in
     match t with
       TVoid a ->
-        printAtomic a ++
         text "void"
           ++ self#pAttrs () a
           ++ text " "
           ++ name
 
     | TInt (ikind,a) ->
-        printAtomic a ++
         d_ikind () ikind
           ++ self#pAttrs () a
           ++ text " "
           ++ name
 
     | TFloat(fkind, a) ->
-        printAtomic a ++
         d_fkind () fkind
           ++ self#pAttrs () a
           ++ text " "
@@ -4193,13 +4184,11 @@ class defaultCilPrinterClass : cilPrinter = object (self)
 
     | TComp (comp, a) -> (* A reference to a struct *)
         let su = if comp.cstruct then "struct" else "union" in
-        printAtomic a ++
         text (su ^ " " ^ comp.cname ^ " ")
           ++ self#pAttrs () a
           ++ name
 
     | TEnum (enum, a) ->
-        printAtomic a ++
         text ("enum " ^ enum.ename ^ " ")
           ++ self#pAttrs () a
           ++ name
@@ -4217,7 +4206,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
             Some p -> p ++ name' ++ text ")"
           | _ -> name'
         in
-        printAtomic a ++
         self#pType
           (Some name'')
           ()
@@ -4271,11 +4259,9 @@ class defaultCilPrinterClass : cilPrinter = object (self)
           restyp
 
   | TNamed (t, a) ->
-      printAtomic a ++
       text t.tname ++ self#pAttrs () a ++ text " " ++ name
 
   | TBuiltin_va_list a ->
-      printAtomic a ++
       text "__builtin_va_list"
        ++ self#pAttrs () a
         ++ text " "
@@ -4292,7 +4278,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
   method pAttr (Attr(an, args): attribute) : doc * bool =
     (* Recognize and take care of some known cases *)
     match an, args with
-      "atomic", [] -> nil, false (* don't print atomic here *)
+      "atomic", [] -> text "_Atomic", false (* don't print atomic here *)
     | "const", [] -> nil, false (* don't print const directly, because of split local declarations *)
     | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
