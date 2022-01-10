@@ -119,6 +119,7 @@ let init_lexicon _ =
       ("const", fun loc -> CONST loc);
       ("__const", fun loc -> CONST loc);
       ("__const__", fun loc -> CONST loc);
+      ("_Atomic", fun loc -> ATOMIC loc);
       ("_Complex", fun loc -> COMPLEX loc);
       ("__complex__", fun loc -> COMPLEX loc);
       ("static", fun loc -> STATIC loc);
@@ -168,6 +169,7 @@ let init_lexicon _ =
       ("__inline", fun loc -> INLINE loc);
       ("_inline", fun loc -> IDENT ("_inline", loc));
       ("_Noreturn", fun loc -> NORETURN loc);
+      ("_Static_assert", fun loc -> STATIC_ASSERT loc);
       ("__attribute__", fun loc -> ATTRIBUTE loc);
       ("__attribute", fun loc -> ATTRIBUTE loc);
 (*

@@ -96,7 +96,7 @@ and funspec =
     INLINE | VIRTUAL | EXPLICIT
 
 and cvspec =
-    CV_CONST | CV_VOLATILE | CV_RESTRICT | CV_COMPLEX
+    CV_CONST | CV_VOLATILE | CV_RESTRICT | CV_COMPLEX | CV_ATOMIC
 
 (* Type specifier elements. These appear at the start of a declaration *)
 (* Everywhere they appear in this file, they appear as a 'spec_elem list', *)
@@ -185,6 +185,7 @@ and definition =
  | TRANSFORMER of definition * definition list * cabsloc
  (* expression transformer: source and destination *)
  | EXPRTRANSFORMER of expression * expression * cabsloc
+ | STATIC_ASSERT of expression * string * cabsloc
 
 
 (* the string is a file name, and then the list of toplevel forms *)

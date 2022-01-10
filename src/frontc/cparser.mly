@@ -257,7 +257,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> GENERIC NORETURN /* C11 */
 %token<Cabs.cabsloc> ENUM STRUCT TYPEDEF UNION
 %token<Cabs.cabsloc> SIGNED UNSIGNED LONG SHORT
-%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST RESTRICT AUTO REGISTER
+%token<Cabs.cabsloc> VOLATILE EXTERN STATIC CONST ATOMIC RESTRICT AUTO REGISTER
 %token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
@@ -290,7 +290,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> IF
 %token ELSE
 
-%token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
+%token<Cabs.cabsloc> ATTRIBUTE INLINE STATIC_ASSERT ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
 %token LABEL__
 %token<Cabs.cabsloc> BUILTIN_VA_ARG ATTRIBUTE_USED
 %token BUILTIN_VA_LIST
@@ -323,7 +323,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left	INF SUP INF_EQ SUP_EQ
 %left	INF_INF SUP_SUP
 %left	PLUS MINUS
-%left	STAR SLASH PERCENT CONST RESTRICT VOLATILE COMPLEX
+%left	STAR SLASH PERCENT CONST RESTRICT ATOMIC VOLATILE COMPLEX
 %right	EXCLAM TILDE PLUS_PLUS MINUS_MINUS CAST RPAREN ADDROF SIZEOF ALIGNOF IMAG REAL CLASSIFYTYPE
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
@@ -930,6 +930,21 @@ declaration:                                /* ISO 6.7.*/
                                        { doDeclaration (joinLoc (snd $1) $3) (fst $1) $2 }
 |   decl_spec_list SEMICOLON
                                        { doDeclaration (joinLoc (snd $1) $2) (fst $1) [] }
+|   static_assert_declaration          { let (e, m, loc) = $1 in STATIC_ASSERT (e, m, loc) }
+;
+
+static_assert_declaration:
+
+|   STATIC_ASSERT LPAREN expression RPAREN /* C23 */
+      {
+        (fst $3, "", $1)
+      }
+|   STATIC_ASSERT LPAREN expression COMMA string_constant RPAREN
+      {
+        (fst $3, fst $5, $1)
+      }
+;
+
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -951,9 +966,11 @@ decl_spec_list:                         /* ISO 6.7 */
 |   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2, $1}
                                         /* ISO 6.7.2 */
 |   type_spec decl_spec_list_opt_no_named { SpecType (fst $1) :: $2, snd $1 }
+|   ATOMIC LPAREN decl_spec_list RPAREN decl_spec_list_opt_no_named { (fst $3) @ SpecCV(CV_ATOMIC) :: $5, $1 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
+
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
 |   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
@@ -1049,6 +1066,15 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
 
 |  error                          SEMICOLON struct_decl_list
                                           { $3 }
+/*(* C11 allows static_assert-declaration *)*/
+|  static_assert_declaration             {
+       []
+   }
+
+|  static_assert_declaration      SEMICOLON struct_decl_list  {
+       $3
+   }
+
 ;
 field_decl_list: /* (* ISO 6.7.2 *) */
     field_decl                           { [$1] }
@@ -1294,6 +1320,7 @@ cvspec:
 |   VOLATILE                            { SpecCV(CV_VOLATILE), $1 }
 |   RESTRICT                            { SpecCV(CV_RESTRICT), $1 }
 |   COMPLEX                             { SpecCV(CV_COMPLEX), $1 }
+|   ATOMIC                              { SpecCV(CV_ATOMIC), $1 }
 ;
 
 /*** GCC attributes ***/

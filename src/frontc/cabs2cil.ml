@@ -2704,6 +2704,7 @@ and convertCVtoAttr (src: A.cvspec list) : A.attribute list =
   | CV_VOLATILE :: tl -> ("volatile",[]) :: (convertCVtoAttr tl)
   | CV_RESTRICT :: tl -> ("restrict",[]) :: (convertCVtoAttr tl)
   | CV_COMPLEX  :: tl -> ("complex",[]) ::  (convertCVtoAttr tl)
+  | CV_ATOMIC   :: tl -> ("atomic",[]) ::  (convertCVtoAttr tl)
 
 
 and makeVarInfoCabs
@@ -6393,7 +6394,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             E.s (bug "doDecl returns non-empty statement for global"))
         dl;
       empty
-
+  | STATIC_ASSERT _ -> empty
   | _ -> E.s (error "unexpected form of declaration")
 
 and doTypedef ((specs, nl): A.name_group) =

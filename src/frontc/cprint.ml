@@ -148,7 +148,9 @@ let rec print_specifiers (specs: spec_elem list) =
         | CV_CONST -> "const"
         | CV_VOLATILE -> "volatile"
         | CV_RESTRICT -> "restrict"
-        | CV_COMPLEX -> "complex")
+        | CV_COMPLEX -> "complex"
+        | CV_ATOMIC -> "_Atomic"
+        )
     | SpecAttr al -> print_attribute al; space ()
     | SpecType bt -> print_type_spec bt
     | SpecPattern name -> printl ["@specifier";"(";name;")"]
@@ -897,6 +899,13 @@ and print_def def =
       print " }";
       force_new_line()
 
+  | STATIC_ASSERT(e,str,loc) ->
+      setLoc(loc);
+      print "_Static_assert(";
+      print_expression e;
+      print ",";
+      print_string str;
+      print ");";
 
 (* sm: print a comment if the printComments flag is set *)
 and comprint (str : string) : unit =
