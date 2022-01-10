@@ -954,6 +954,7 @@ decl_spec_list:                         /* ISO 6.7 */
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
+|   ATOMIC LPAREN decl_spec_list_opt RPAREN { SpecCV(CV_ATOMIC) :: $3, $1 }
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
 |   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
