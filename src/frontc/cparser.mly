@@ -290,7 +290,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> IF
 %token ELSE
 
-%token<Cabs.cabsloc> ATTRIBUTE INLINE ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
+%token<Cabs.cabsloc> ATTRIBUTE INLINE STATIC_ASSERT ASM TYPEOF REAL IMAG FUNCTION__ PRETTY_FUNCTION__ CLASSIFYTYPE
 %token LABEL__
 %token<Cabs.cabsloc> BUILTIN_VA_ARG ATTRIBUTE_USED
 %token BUILTIN_VA_LIST
@@ -930,6 +930,21 @@ declaration:                                /* ISO 6.7.*/
                                        { doDeclaration (joinLoc (snd $1) $3) (fst $1) $2 }
 |   decl_spec_list SEMICOLON
                                        { doDeclaration (joinLoc (snd $1) $2) (fst $1) [] }
+|   static_assert_declaration          { let (e, m, loc) = $1 in STATIC_ASSERT (e, m, loc) }
+;
+
+static_assert_declaration:
+
+|   STATIC_ASSERT LPAREN expression RPAREN /* C23 */
+      {
+        (fst $3, "", $1)
+      }
+|   STATIC_ASSERT LPAREN expression COMMA string_constant RPAREN
+      {
+        (fst $3, fst $5, $1)
+      }
+;
+
 ;
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
@@ -1051,6 +1066,15 @@ struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
 
 |  error                          SEMICOLON struct_decl_list
                                           { $3 }
+/*(* C11 allows static_assert-declaration *)*/
+|  static_assert_declaration             {
+       []
+   }
+
+|  static_assert_declaration      SEMICOLON struct_decl_list  {
+       $3
+   }
+
 ;
 field_decl_list: /* (* ISO 6.7.2 *) */
     field_decl                           { [$1] }

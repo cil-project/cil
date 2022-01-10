@@ -6394,7 +6394,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
             E.s (bug "doDecl returns non-empty statement for global"))
         dl;
       empty
-
+  | STATIC_ASSERT _ -> empty
   | _ -> E.s (error "unexpected form of declaration")
 
 and doTypedef ((specs, nl): A.name_group) =
