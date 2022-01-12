@@ -5886,7 +5886,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       let doOneDeclarator (acc: chunk) (name: init_name) =
         let (n,ndt,a,l),_ = name in
         if isglobal then begin
-          let spec_res = Option.get spec_res in
+          let spec_res = match spec_res with Some s -> s | _ -> failwith "Option.get" in
           let bt,_,_,attrs = spec_res in
           let vtype, nattr = doType AttrName bt (A.PARENTYPE(attrs, ndt, a)) in
           (match filterAttributes "alias" nattr with
