@@ -6,10 +6,16 @@ typedef _Atomic _Bool atomic_bool;
 
 
 int main() {
-    atomic_int atomic;
-    int* ptr = &atomic;
+    atomic_int ato;
+    _Atomic int* ptr = &ato;
+
+    __extension__ ({
+        __auto_type blub = ato;
+        ato = 8;
+    });
+
 
     atomic_store(ptr,17);
-    atomic_store_explicit(ptr,17,memory_order_consume);
+    atomic_store_explicit(ptr,17,memory_order_relaxed);
     SUCCESS;
 }

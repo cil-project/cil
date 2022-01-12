@@ -88,6 +88,7 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | TtypeofE of expression                      (* GCC __typeof__ *)
   | TtypeofT of specifier * decl_type       (* GCC __typeof__ *)
   | Tdefault (** "default" in generic associations *)
+  | Tauto (** GCC __auto_type *)
 
 and storage =
     NO_STORAGE | AUTO | STATIC | EXTERN | REGISTER

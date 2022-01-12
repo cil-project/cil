@@ -194,6 +194,7 @@ and print_type_spec = function
   | TtypeofE e -> printl ["__typeof__";"("]; print_expression e; print ") "
   | TtypeofT (s,d) -> printl ["__typeof__";"("]; print_onlytype (s, d); print ") "
   | Tdefault -> print "default " (* TODO: is this right? *)
+  | Tauto -> print "__auto_type"
 
 
 (* print "struct foo", but with specified keyword and a list of

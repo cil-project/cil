@@ -53,6 +53,8 @@ open Cil
 open Cilint
 open Trace
 
+(* This exception is thrown if there is an attempt to transform Tauto into a CIL type *)
+exception TautoEncountered
 
 let mydebugfunction () =
   E.s (error "mydebugfunction")
@@ -2327,9 +2329,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
   let attrs : A.attribute list ref = ref [] in      (* __attribute__, etc. *)
   let cvattrs : A.cvspec list ref = ref [] in       (* const/volatile *)
 
-  let doSpecElem (se: A.spec_elem)
-                 (acc: A.typeSpecifier list)
-                  : A.typeSpecifier list =
+  let doSpecElem (se: A.spec_elem) (acc: A.typeSpecifier list): A.typeSpecifier list =
     match se with
       A.SpecTypedef -> acc
     | A.SpecInline -> isinline := true; acc
@@ -2360,14 +2360,12 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     (* GCC allows a named type that appears first to be followed by things
      * like "short", "signed", "unsigned" or "long". *)
     match tspecs with
-      A.Tnamed n :: (_ :: _ as rest) ->
-        (* If rest contains "short" or "long" then drop the Tnamed *)
-        if List.exists (function A.Tshort -> true
-                               | A.Tlong -> true | _ -> false) rest then
-          rest
-        else
-          tspecs
-
+    | A.Tnamed n :: (_ :: _ as rest) ->
+      (* If rest contains "short" or "long" then drop the Tnamed *)
+      if List.exists (function A.Tshort -> true | A.Tlong -> true | _ -> false) rest then
+        rest
+      else
+        tspecs
     | _ -> tspecs
   in
   (* Sort the type specifiers *)
@@ -2574,37 +2572,37 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let a = extraAttrs @ (getTypeAttrs ()) in
         enum.eattr <- doAttributes a;
         let res = TEnum (enum, []) in
-	let smallest = ref zero_cilint in
-	let largest = ref zero_cilint in
+	      let smallest = ref zero_cilint in
+	      let largest = ref zero_cilint in
 
-	(* Life is fun here. ANSI says: enum constants are ints,
-	   and there's an implementation-dependent underlying integer
-	   type for the enum, which must be capable of holding all the
-	   enum's values.
-	   GCC allows enum constants that don't fit in int: the enum
-	   constant's type is the smallest type (but at least int) that
-	   will hold the value, with a preference for signed types.
-	   The underlying type EI of the enum is picked as follows:
-	   - let T be the smallest integer type that holds all the enum's
-	     values; T is signed if any enum value is negative, unsigned otherwise
-	   - if the enum is packed or sizeof(T) >= sizeof(int), then EI = T
-	   - otherwise EI = int if T is signed and unsigned int otherwise
-	   Note that these rules make the enum unsigned if possible (as
-	   opposed the enum constants which tend towards being signed...) *)
+        (* Life is fun here. ANSI says: enum constants are ints,
+          and there's an implementation-dependent underlying integer
+          type for the enum, which must be capable of holding all the
+          enum's values.
+          GCC allows enum constants that don't fit in int: the enum
+          constant's type is the smallest type (but at least int) that
+          will hold the value, with a preference for signed types.
+          The underlying type EI of the enum is picked as follows:
+          - let T be the smallest integer type that holds all the enum's
+            values; T is signed if any enum value is negative, unsigned otherwise
+          - if the enum is packed or sizeof(T) >= sizeof(int), then EI = T
+          - otherwise EI = int if T is signed and unsigned int otherwise
+          Note that these rules make the enum unsigned if possible (as
+          opposed the enum constants which tend towards being signed...) *)
 
-	let updateEnum (i:cilint) : ikind =
-	  if compare_cilint i !smallest < 0 then
-	    smallest := i;
-	  if compare_cilint i !largest > 0 then
-	    largest := i;
-	    (* This matches gcc's behaviour *)
-    if fitsInInt IInt i then IInt
-    else if fitsInInt IUInt i then IUInt
-    else if fitsInInt ILong i then ILong
-    else if fitsInInt IULong i then IULong
-    else if fitsInInt ILongLong i then ILongLong
-    else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
-  in
+        let updateEnum (i:cilint) : ikind =
+          if compare_cilint i !smallest < 0 then
+            smallest := i;
+          if compare_cilint i !largest > 0 then
+            largest := i;
+            (* This matches gcc's behaviour *)
+          if fitsInInt IInt i then IInt
+          else if fitsInInt IUInt i then IUInt
+          else if fitsInInt ILong i then ILong
+          else if fitsInInt IULong i then IULong
+          else if fitsInInt ILongLong i then ILongLong
+          else IULongLong (* assume there can be not enum constants that don't fit in long long since there can only be 128bit constants if long long is also 128bit *)
+        in
         (* as each name,value pair is determined, this is called *)
         let rec processName kname (i: exp) loc rest = begin
           (* add the name to the environment, but with a faked 'typ' field;
@@ -2641,25 +2639,24 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
         let fields = loop zero eil in
         (* Now set the right set of items *)
         enum.eitems <- Util.list_map (fun (_, x) -> x) fields;
-	(* Pick the enum's kind - see discussion above *)
-  let unsigned = compare_cilint !smallest zero_cilint >= 0 in
-  let smallKind = intKindForValue !smallest unsigned in
-  let largeKind = intKindForValue !largest unsigned in
-  let ekind =
-    if (bytesSizeOfInt smallKind) > (bytesSizeOfInt largeKind) then
-      smallKind
-    else
-      largeKind
-  in
-  enum.ekind <-
-    if bytesSizeOfInt ekind < bytesSizeOfInt IInt then
-      if hasAttribute "packed" enum.eattr then
-  ekind
-      else
-  if unsigned then IUInt else IInt
-    else
-      ekind
-	;
+        (* Pick the enum's kind - see discussion above *)
+        let unsigned = compare_cilint !smallest zero_cilint >= 0 in
+        let smallKind = intKindForValue !smallest unsigned in
+        let largeKind = intKindForValue !largest unsigned in
+        let ekind =
+          if (bytesSizeOfInt smallKind) > (bytesSizeOfInt largeKind) then
+            smallKind
+          else
+            largeKind
+        in
+        enum.ekind <-
+          if bytesSizeOfInt ekind < bytesSizeOfInt IInt then
+            if hasAttribute "packed" enum.eattr then ekind
+            else if unsigned then IUInt
+            else IInt
+          else
+            ekind
+        ;
         (* Record the enum name in the environment *)
         addLocalToEnv (kindPlusName "enum" n'') (EnvTyp res);
         (* And define the tag *)
@@ -2689,6 +2686,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.TtypeofT (specs, dt)] ->
         let typ = doOnlyType specs dt in
         typ
+    | [A.Tauto] -> raise TautoEncountered
 
     | _ ->
         E.s (error "Invalid combination of type specifiers")
@@ -3008,7 +3006,7 @@ and doType (nameortype: attributeClass) (* This is AttrName if we are doing
                 None
             end
         in
-	let al' = doAttributes al in
+	      let al' = doAttributes al in
         doDeclType (TArray(bt, lo, al')) acc d
 
     | A.PROTO (d, args, isva) ->
@@ -5685,7 +5683,29 @@ and createGlobal (specs : (typ * storage * bool * A.attribute list))
           ignore (E.log "Alpha after processing global %s is:@!%t@!"
                     n docAlphaTable)
 *)
-
+and createAutoLocal ((((n, ndt, a, cloc) : A.name), (inite: A.init_expression)) as name):chunk =
+  let rec isProto (dt: decl_type) : bool =
+    match dt with
+    | PROTO (JUSTBASE, _, _) -> true
+    | PROTO (x, _, _) -> isProto x
+    | PARENTYPE (_, x, _) -> isProto x
+    | ARRAY (x, _, _) -> isProto x
+    | PTR (_, x) -> isProto x
+    | _ -> false
+  in
+  if isProto ndt then
+    E.s (error "__auto_type for prototype unsupported")
+  else
+    match inite with
+    | SINGLE_INIT exp ->
+      (match doPureExp exp with
+      | Some exp ->
+        let t = Cil.typeOf exp in
+        let specs = t,NoStorage,false,[] in
+        createLocal specs name
+      | None -> E.s (error "__auto_type but init not pure")
+      )
+    | _ -> E.s (error "__auto_type but not SINGLE_INIT")
 (* Must catch the Static local variables. Make them global *)
 and createLocal ?allow_var_decl:(allow_var_decl=true) ((_, sto, _, _) as specs)
                 ((((n, ndt, a, cloc) : A.name),
@@ -5853,14 +5873,22 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
           [] -> ""
         | ((n, _, _, _), _) :: _ -> n
       in
-      let spec_res = doSpecList sugg s in
+      let spec_res = try Some (doSpecList sugg s) with
+        TautoEncountered ->
+          if List.length nl <> 1 then
+            E.s (error "__auto_type but not exactly one initializer")
+          else if isglobal then
+            E.s (error "__auto_type unsupported for globals")
+          else
+            None
+      in
       (* Do all the variables and concatenate the resulting statements *)
       let doOneDeclarator (acc: chunk) (name: init_name) =
         let (n,ndt,a,l),_ = name in
         if isglobal then begin
+          let spec_res = Option.get spec_res in
           let bt,_,_,attrs = spec_res in
-          let vtype, nattr =
-            doType AttrName bt (A.PARENTYPE(attrs, ndt, a)) in
+          let vtype, nattr = doType AttrName bt (A.PARENTYPE(attrs, ndt, a)) in
           (match filterAttributes "alias" nattr with
              [] -> (* ordinary prototype. *)
                ignore (createGlobal spec_res name)
@@ -5873,10 +5901,13 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                  ignore (createGlobal spec_res name)
                end else
                  doAliasFun vtype n othername (s, (n,ndt,a,l)) loc
-           | _ -> E.s (error "Bad alias attribute at %a" d_loc !currentLoc));
+           | _ -> E.s (error "Bad alias attribute at %a" d_loc !currentLoc)
+          );
           acc
         end else
-          acc @@ createLocal spec_res name
+          match spec_res with
+          | Some spec_res -> acc @@ createLocal spec_res name
+          | None -> acc @@ createAutoLocal name
       in
       let res = List.fold_left doOneDeclarator empty nl in
 (*
