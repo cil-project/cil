@@ -4,7 +4,9 @@
 _Float32 f32;
 _Float64 f64;
 _Float32x f32x;
+#ifdef __HAVE_FLOAT64X
 _Float64x f64x;
+#endif
 
 
 int main() {
@@ -12,9 +14,11 @@ int main() {
         E(1);
     }
 
+#ifdef __HAVE_FLOAT64X
     if(sizeof(f64) != 8) {
         E(2);
     }
+#endif
 
     SUCCESS;
 }
