@@ -178,6 +178,7 @@ int main(int argc, char **argv)
     alignof_float32x = (intptr_t)(&((struct floatstruct*)0)->f);
   }
 
+#ifdef __HAVE_FLOAT64X
   // The alignment of a _Float64x
   {
     struct floatstruct {
@@ -186,6 +187,7 @@ int main(int argc, char **argv)
     };
     alignof_float64x = (intptr_t)(&((struct floatstruct*)0)->f);
   }
+#endif
 
   // The alignment of double
   {
@@ -278,7 +280,11 @@ int main(int argc, char **argv)
 	     (int)sizeof(int *), alignof_ptr,
 	     alignof_enum,
 	     (int)sizeof(_Float32x), alignof_float32x,
+#ifdef __HAVE_FLOAT64X
 	     (int)sizeof(_Float64x), alignof_float64x,
+#else
+             0, 0,
+#endif
 	     (int)sizeof(float), alignof_float, (int)sizeof(double), alignof_double,
 	     (int)sizeof(long double), alignof_longdouble, (int)sizeof(float _Complex), alignof_floatcomplex, (int)sizeof(double _Complex), alignof_doublecomplex,
 	     (int)sizeof(long double _Complex), alignof_longdoublecomplex, (int)sizeof(void),
@@ -307,7 +313,11 @@ int main(int argc, char **argv)
       printf("\t sizeof_ptr                 = %d;\n", (int)sizeof(int *));
       printf("\t sizeof_float               = %d;\n", (int)sizeof(float));
       printf("\t sizeof_float32x            = %d;\n", (int)sizeof(_Float32x));
+#ifdef __HAVE_FLOAT64X
       printf("\t sizeof_float64x            = %d;\n", (int)sizeof(_Float64x));
+#else
+      printf("\t sizeof_float64x            = %d;\n", 0);
+#endif
       printf("\t sizeof_double              = %d;\n", (int)sizeof(double));
       printf("\t sizeof_longdouble          = %d;\n", (int)sizeof(long double));
       printf("\t sizeof_floatcomplex        = %d;\n", (int)sizeof(float _Complex));
@@ -326,7 +336,11 @@ int main(int argc, char **argv)
       printf("\t alignof_enum               = %d;\n", alignof_enum);
       printf("\t alignof_float              = %d;\n", alignof_float);
       printf("\t alignof_float32x           = %d;\n", alignof_float32x);
+#ifdef __HAVE_FLOAT64X
       printf("\t alignof_float64x           = %d;\n", alignof_float64x);
+#else
+      printf("\t alignof_float64x           = %d;\n", 0);
+#endif
       printf("\t alignof_double             = %d;\n", alignof_double);
       printf("\t alignof_longdouble         = %d;\n", alignof_longdouble);
       printf("\t alignof_floatcomplex       = %d;\n", alignof_floatcomplex);
