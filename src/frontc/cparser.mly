@@ -1046,7 +1046,7 @@ type_spec:   /* ISO 6.7.2 */
 |   ENUM   just_attributes                LBRACE enum_list maybecomma RBRACE
                                                    { Tenum   ("", Some $4, $2), $1 }
 |   NAMED_TYPE      { Tnamed (fst $1), snd $1 }
-|   TYPEOF LPAREN expression RPAREN     { TtypeofE (fst $3), $1 }
+|   TYPEOF LPAREN comma_expression RPAREN     { TtypeofE (smooth_expression (fst $3)), $1 }
 |   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
                                           TtypeofT (s, d), $1 }
 ;
