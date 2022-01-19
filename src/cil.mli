@@ -2654,6 +2654,8 @@ val endsWith: string -> string -> bool
 (** If string has leading and trailing __, strip them. *)
 val stripUnderscores: string -> string
 
+(** To generate new labels which do not provoke collision *)
+val freshLabel: string -> string
 
 (** {b An Interpreter for constructing CIL constructs} *)
 
