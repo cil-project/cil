@@ -198,6 +198,7 @@ let init_lexicon _ =
       ("__restrict", fun loc -> RESTRICT loc);
       ("__restrict__", fun loc -> RESTRICT loc);
       ("restrict", fun loc -> RESTRICT loc);
+      ("__auto_type", fun loc -> AUTOTYPE loc);
 (*      ("__extension__", EXTENSION); *)
       (**** MS VC ***)
       ("__int32", fun loc -> INT loc);

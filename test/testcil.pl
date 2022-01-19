@@ -698,6 +698,7 @@ addTest("testrunc11/c11-caserange");
 addTest("testrunc11/c11-extendedFloat");
 addTest("testrunc11/c11-noreturn");
 addTest("testrunc11/c11-atomic");
+addTest("testrunc11/c11-atomic-store");
 addTest("testrunc11/c11-static-assert");
 addTest("testrunc11/c11-align-of");
 addTest("testrunc11/gcc-c11-generic-1");
