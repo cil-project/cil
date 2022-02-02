@@ -65,7 +65,7 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple
  * files and we would like them all to be the same. This can slow down the
  * merger an order of magnitude !!! *)
-let mergeInlines = true
+let mergeInlines = false
 
 let mergeInlinesRepeat = mergeInlines && true
 
@@ -296,7 +296,7 @@ let tEq: (int * string, typeinfo node) H.t = H.create 111 (* Type names*)
 let iEq: (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
 
 (* Sometimes we want to merge synonyms. We keep some tables indexed by names.
- * Each name is mapped to multiple exntries *)
+ * Each name is mapped to multiple entries *)
 let vSyn: (string, varinfo node) H.t = H.create 111 (* Not actually used *)
 let iSyn: (string, varinfo node) H.t = H.create 111 (* Inlines *)
 let sSyn: (string, compinfo node) H.t = H.create 111
