@@ -43,7 +43,7 @@
 
 
 val init: filename:string -> Lexing.lexbuf
-val finish: unit -> string list (* Return the list filenames encountered during lexing *)
+val finish: unit -> string list (* Return the list of filenames encountered during lexing *)
 
 (* This is the main parser function *)
 val initial: Lexing.lexbuf -> Cparser.token
@@ -59,4 +59,3 @@ val get_extra_lexeme: unit -> string
 val clear_white: unit -> unit
 val clear_lexeme: unit -> unit
 val currentLoc : unit -> Cabs.cabsloc
-
