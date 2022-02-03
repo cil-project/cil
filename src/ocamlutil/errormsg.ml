@@ -298,7 +298,7 @@ let setCurrentLine (i: int) =
 let setCurrentFile (n: string) =
   let cn = cleanFileName n in
   Hashtbl.replace files cn ();
-  !current.fileName <- cleanFileName cn
+  !current.fileName <- cn
 
 
 let max_errors = 20  (* Stop after 20 errors *)
