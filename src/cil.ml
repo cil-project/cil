@@ -157,6 +157,7 @@ type file =
           you create a global initialization CIL will try to insert code in
           main to call it. *)
       files: string list;
+      (** A list of those files that were encountered during parsing of this CIL file. *)
     }
 
 and comment = location * string

@@ -94,6 +94,7 @@ type file =
        * to call it. This will not happen if your file does not contain a
        * function called "main" *)
       files: string list;
+      (** A list of those files that were encountered during parsing of this CIL file. *)
     }
 (** Top-level representation of a C source file *)
 
