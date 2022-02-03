@@ -1788,7 +1788,7 @@ let merge (files: file list) (newname: string) : file =
       globals  = revonto (revonto [] !theFile) !theFileTypes;
       globinit = None;
       globinitcalled = false;
-      files = List.of_seq @@ Hashtbl.to_seq_keys filesH;}
+      files = Hashtbl.fold (fun k v acc -> k::acc) filesH []; (* keys are unique *)}
   in
   init (); (* Make the GC happy *)
   (* We have made many renaming changes and sometimes we have just guessed a

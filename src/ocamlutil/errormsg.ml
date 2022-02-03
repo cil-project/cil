@@ -278,7 +278,8 @@ let finishParsing () =
   let i = !current in
   (match i.inchan with Some c -> close_in c | _ -> ());
   current := dummyinfo;
-  List.of_seq @@ Hashtbl.to_seq_keys files
+  (* keys are unique *)
+  Hashtbl.fold (fun k v acc -> k::acc) files []
 
 
 (* Call this function to announce a new line *)
