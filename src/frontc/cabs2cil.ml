@@ -5996,7 +5996,7 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                  sformals = []; (* Not final yet *)
                  smaxid   = 0;
                  sbody    = dummyFunDec.sbody; (* Not final yet *)
-		             smaxstmtid = None;
+                 smaxstmtid = None;
                  sallstmts = [];
                };
 	    !currentFunctionFDEC.svar.vdecl <- funloc;
