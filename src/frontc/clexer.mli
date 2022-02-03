@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -36,14 +36,14 @@
  *)
 
 
-(* This interface is generated manually. The corresponding .ml file is 
- * generated automatically and is placed in ../obj/clexer.ml. The reason we 
- * want this interface is to avoid confusing make with freshly generated 
+(* This interface is generated manually. The corresponding .ml file is
+ * generated automatically and is placed in ../obj/clexer.ml. The reason we
+ * want this interface is to avoid confusing make with freshly generated
  * interface files *)
 
 
 val init: filename:string -> Lexing.lexbuf
-val finish: unit -> unit
+val finish: unit -> string list (* Return the list filenames encountered during lexing *)
 
 (* This is the main parser function *)
 val initial: Lexing.lexbuf -> Cparser.token

@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -40,7 +40,7 @@
 val logChannel : out_channel ref
 
 (** If set then print debugging info *)
-val debugFlag  : bool ref               
+val debugFlag  : bool ref
 
 val verboseFlag : bool ref
 
@@ -63,12 +63,12 @@ val warnFlag: bool ref
 exception Error
 
 
-   (* Error reporting. All of these functions take same arguments as a 
-    * Pretty.eprintf. They set the hadErrors flag, but do not raise an 
+   (* Error reporting. All of these functions take same arguments as a
+    * Pretty.eprintf. They set the hadErrors flag, but do not raise an
     * exception. Their return type is unit.
     *)
 
-(** Prints an error message of the form [Error: ...]. 
+(** Prints an error message of the form [Error: ...].
     Use in conjunction with s, for example: [E.s (E.error ... )]. *)
 val error:         ('a,unit,Pretty.doc,unit) format4 -> 'a
 
@@ -83,13 +83,13 @@ val s:             'a -> 'b
 
 (** This is set whenever one of the above error functions are called. It must
     be cleared manually *)
-val hadErrors: bool ref  
+val hadErrors: bool ref
 
-(** Like {!Errormsg.error} but does not raise the {!Errormsg.Error} 
+(** Like {!Errormsg.error} but does not raise the {!Errormsg.Error}
  * exception. Return type is unit. *)
 val warn:    ('a,unit,Pretty.doc,unit) format4 -> 'a
 
-(** Like {!Errormsg.warn} but optional. Printed only if the 
+(** Like {!Errormsg.warn} but optional. Printed only if the
  * {!Errormsg.warnFlag} is set *)
 val warnOpt: ('a,unit,Pretty.doc,unit) format4 -> 'a
 
@@ -99,10 +99,10 @@ val log:           ('a,unit,Pretty.doc,unit) format4 -> 'a
 (** same as {!Errormsg.log} but do not wrap lines *)
 val logg:          ('a,unit,Pretty.doc,unit) format4 -> 'a
 
-   (* All of the error and warning reporting functions can also print a 
-    * context. To register a context printing function use "pushContext". To 
-    * remove the last registered one use "popContext". If one of the error 
-    * reporting functions is called it will invoke all currently registered 
+   (* All of the error and warning reporting functions can also print a
+    * context. To register a context printing function use "pushContext". To
+    * remove the last registered one use "popContext". If one of the error
+    * reporting functions is called it will invoke all currently registered
     * context reporting functions in the reverse order they were registered. *)
 
 (** Do not actually print (i.e. print to /dev/null) *)
@@ -117,14 +117,14 @@ val popContext   : unit -> unit
 (** Show the context stack to stderr *)
 val showContext : unit -> unit
 
-(** To ensure that the context is registered and removed properly, use the 
+(** To ensure that the context is registered and removed properly, use the
     function below *)
 val withContext  : (unit -> Pretty.doc) -> ('a -> 'b) -> 'a -> 'b
 
 
 
 val newline: unit -> unit  (* Call this function to announce a new line *)
-val newHline: unit -> unit 
+val newHline: unit -> unit
 
 val getPosition: unit -> int * string * int * int (* Line number, file name,
                                                      current byte count in file,
@@ -138,19 +138,19 @@ val setCurrentLine: int -> unit
 val setCurrentFile: string -> unit
 
 (** Type for source-file locations *)
-type location = 
+type location =
     { file: string; (** The file name *)
       line: int;    (** The line number *)
       hfile: string; (** The high-level file name, or "" if not present *)
       hline: int;    (** The high-level line number, or 0 if not present *)
-    } 
+    }
 
 val d_loc: unit -> location -> Pretty.doc
 val d_hloc: unit -> location -> Pretty.doc
-    
+
 val getLocation: unit -> location
 
-val parse_error: string -> (* A message *) 
+val parse_error: string -> (* A message *)
                  'a
 
 (** An unknown location for use when you need one but you don't have one *)
@@ -161,16 +161,15 @@ val locUnknown: location
 val readingFromStdin: bool ref
 
 
-(* Call this function to start parsing. useBasename is by default "true", 
- * meaning that the error information maintains only the basename. If the 
+(* Call this function to start parsing. useBasename is by default "true",
+ * meaning that the error information maintains only the basename. If the
  * file name is - then it reads from stdin. *)
-val startParsing:  ?useBasename:bool -> string -> 
-  Lexing.lexbuf 
+val startParsing:  ?useBasename:bool -> string ->
+  Lexing.lexbuf
 
 val startParsingFromString: ?file:string -> ?line:int -> string
                             -> Lexing.lexbuf
 
-val finishParsing: unit -> unit (* Call this function to finish parsing and 
-                                 * close the input channel *)
-
-
+val finishParsing: unit -> string list (* Call this function to finish parsing and
+                                        * close the input channel, returns a list of
+                                        * all encountered filenames *)

@@ -9,4 +9,5 @@ B _build/src/ext/
 B _build/src/ext/pta/
 B _build/src/frontc/
 B _build/src/ocamlutil/
-PKG findlib, zarith
+PKG findlib
+PKG zarith

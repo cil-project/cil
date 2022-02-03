@@ -170,7 +170,8 @@ let theLexbuf = ref (Lexing.from_string "")
 let fail format = Pretty.gprintf (fun x -> Pretty.fprint stderr ~width:80 x;
                                            raise (Failure "")) format
 
-
+(***** Keep track of encountered files ******)
+let files = Hashtbl.create 10
 
 (***** Handling parsing errors ********)
 type parseinfo =
@@ -256,6 +257,7 @@ let startParsing ?(useBasename=true) (fname: string) =
       num_errors = 0 } in
 
   current := i;
+  Hashtbl.clear files;
   lexbuf
 
 let startParsingFromString ?(file="<string>") ?(line=1) (str: string) =
@@ -269,12 +271,14 @@ let startParsingFromString ?(file="<string>") ?(line=1) (str: string) =
       num_errors = 0 }
   in
   current := i;
+  Hashtbl.clear files;
   lexbuf
 
 let finishParsing () =
   let i = !current in
   (match i.inchan with Some c -> close_in c | _ -> ());
-  current := dummyinfo
+  current := dummyinfo;
+  List.of_seq @@ Hashtbl.to_seq_keys files
 
 
 (* Call this function to announce a new line *)
@@ -291,7 +295,9 @@ let setCurrentLine (i: int) =
   !current.linenum <- i
 
 let setCurrentFile (n: string) =
-  !current.fileName <- cleanFileName n
+  let cn = cleanFileName n in
+  Hashtbl.replace files cn ();
+  !current.fileName <- cleanFileName cn
 
 
 let max_errors = 20  (* Stop after 20 errors *)

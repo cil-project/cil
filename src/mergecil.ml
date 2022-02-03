@@ -1775,6 +1775,9 @@ let merge (files: file list) (newname: string) : file =
   currentFidx := 0;
   List.iter (fun f -> oneFilePass2 f; incr currentFidx) files;
 
+  let filesH = Hashtbl.create 50 in
+  List.iter (fun f -> List.iter (fun f -> Hashtbl.replace filesH f ()) f.files) files;
+
   (* Now reverse the result and return the resulting file *)
   let rec revonto acc = function
       [] -> acc
@@ -1784,7 +1787,9 @@ let merge (files: file list) (newname: string) : file =
     { fileName = newname;
       globals  = revonto (revonto [] !theFile) !theFileTypes;
       globinit = None;
-      globinitcalled = false;} in
+      globinitcalled = false;
+      files = List.of_seq @@ Hashtbl.to_seq_keys filesH;}
+  in
   init (); (* Make the GC happy *)
   (* We have made many renaming changes and sometimes we have just guessed a
    * name wrong. Make sure now that the local names are unique. *)

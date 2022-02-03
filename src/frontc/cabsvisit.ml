@@ -582,7 +582,7 @@ and childrenAttribute vis ((n, el) as input) =
 and visitCabsAttributes vis (al: attribute list) : attribute list =
   mapNoCopyList (visitCabsAttribute vis) al
 
-let visitCabsFile (vis: cabsVisitor) ((fname, f): file) : file =
-  (fname, mapNoCopyList (visitCabsDefinition vis) f)
+let visitCabsFile (vis: cabsVisitor) ((fname, f, files): file) : file =
+  (fname, mapNoCopyList (visitCabsDefinition vis) f, files)
 
     (* end of file *)

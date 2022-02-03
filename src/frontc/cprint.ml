@@ -933,7 +933,7 @@ end
 (*  print abstrac_syntax -> ()
 **		Pretty printing the given abstract syntax program.
 *)
-let printFile (result : out_channel) ((fname, defs) : file) =
+let printFile (result : out_channel) ((fname, defs, _) : file) =
   Whitetrack.setOutput result;
   print_defs defs;
   Whitetrack.printEOF ();
