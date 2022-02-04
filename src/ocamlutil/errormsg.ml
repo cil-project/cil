@@ -279,7 +279,7 @@ let finishParsing () =
   (match i.inchan with Some c -> close_in c | _ -> ());
   current := dummyinfo;
   (* keys are unique *)
-  Hashtbl.fold (fun k v acc -> k::acc) files []
+  Hashtbl.fold (fun k v acc -> (k,v)::acc) files []
 
 
 (* Call this function to announce a new line *)
@@ -295,9 +295,9 @@ let newHline () =
 let setCurrentLine (i: int) =
   !current.linenum <- i
 
-let setCurrentFile (n: string) =
+let setCurrentFile (n: string) (system_header: bool) =
   let cn = cleanFileName n in
-  Hashtbl.replace files cn ();
+  Hashtbl.replace files cn system_header;
   !current.fileName <- cn
 
 

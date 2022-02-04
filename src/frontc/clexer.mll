@@ -634,11 +634,9 @@ and hash = parse
 and file =  parse
         '\n'		        {addWhite lexbuf; E.newline (); initial lexbuf}
 |	blank			{addWhite lexbuf; file lexbuf}
-|	'"' [^ '\012' '\t' '"']* '"' 	{ addWhite lexbuf;  (* '"' *)
-                                   let n = Lexing.lexeme lexbuf in
-                                   let n1 = String.sub n 1
-                                       ((String.length n) - 2) in
-                                   E.setCurrentFile n1;
+|	'"' ([^ '\012' '\t' '"']* as filename) '"' ((' ' ['1' -'4'])* as flags)
+       { addWhite lexbuf;  (* '"' *)
+         E.setCurrentFile filename (String.contains flags '4');
 				 endline lexbuf}
 
 |	_			{addWhite lexbuf; endline lexbuf}

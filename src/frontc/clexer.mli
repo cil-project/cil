@@ -43,7 +43,8 @@
 
 
 val init: filename:string -> Lexing.lexbuf
-val finish: unit -> string list (* Return the list of filenames encountered during lexing *)
+val finish: unit -> (string * bool) list (* Return the list of filenames encountered during lexing
+                                            and whether they are system headers *)
 
 (* This is the main parser function *)
 val initial: Lexing.lexbuf -> Cparser.token

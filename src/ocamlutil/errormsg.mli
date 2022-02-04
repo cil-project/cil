@@ -135,7 +135,7 @@ val setHLine: int -> unit
 val setHFile: string -> unit
 
 val setCurrentLine: int -> unit
-val setCurrentFile: string -> unit
+val setCurrentFile: string -> bool -> unit
 
 (** Type for source-file locations *)
 type location =
@@ -170,6 +170,6 @@ val startParsing:  ?useBasename:bool -> string ->
 val startParsingFromString: ?file:string -> ?line:int -> string
                             -> Lexing.lexbuf
 
-val finishParsing: unit -> string list (* Call this function to finish parsing and
-                                        * close the input channel, returns a list of
-                                        * all encountered filenames *)
+val finishParsing: unit -> (string * bool) list (* Call this function to finish parsing and
+                                        * close the input channel, returns a list of all
+                                        * encountered filenames and whether they are system headers *)
