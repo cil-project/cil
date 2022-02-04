@@ -636,7 +636,7 @@ and file =  parse
 |	blank			{addWhite lexbuf; file lexbuf}
 |	'"' ([^ '\012' '\t' '"']* as filename) '"' ((' ' ['1' -'4'])* as flags)
        { addWhite lexbuf;  (* '"' *)
-         E.setCurrentFile filename (String.contains flags '4');
+         E.setCurrentFile filename (String.contains flags '3');
 				 endline lexbuf}
 
 |	_			{addWhite lexbuf; endline lexbuf}
