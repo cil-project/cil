@@ -65,11 +65,11 @@ let usePathCompression = false
 (* Try to merge definitions of inline functions. They can appear in multiple
  * files and we would like them all to be the same. This can slow down the
  * merger an order of magnitude !!! *)
-let mergeInlines = false
+let merge_inlines = ref false
 
-let mergeInlinesRepeat = mergeInlines && true
+let mergeInlinesRepeat = !merge_inlines && true
 
-let mergeInlinesWithAlphaConvert = mergeInlines && true
+let mergeInlinesWithAlphaConvert = !merge_inlines && true
 
 (* when true, merge duplicate definitions of externally-visible functions;
  * this uses a mechanism which is faster than the one for inline functions,
@@ -540,7 +540,7 @@ let rec combineTypes (what: combineWhat)
           oldfidx oldrt fidx rt
       in
       if oldva != va then
-        raise (Failure "(diferent vararg specifiers)");
+        raise (Failure "(different vararg specifiers)");
       (* If one does not have arguments, believe the one with the
       * arguments *)
       let newargs =
@@ -879,7 +879,7 @@ let oneFilePass1 (f:file) : unit =
           if fdec.svar.vstorage <> Static then begin
             matchVarinfo fdec.svar (l, !currentDeclIdx)
           end else begin
-            if fdec.svar.vinline && mergeInlines then
+            if fdec.svar.vinline && !merge_inlines then
               (* Just create the nodes for inline functions *)
               ignore (getNode iEq iSyn !currentFidx
                         fdec.svar.vname fdec.svar (Some (l, !currentDeclIdx)))
@@ -1455,7 +1455,7 @@ let oneFilePass2 (f: file) =
             setFormals fdec fdec.sformals
           end;
           (* See if we can remove this inline function *)
-          if fdec'.svar.vinline && mergeInlines then begin
+          if fdec'.svar.vinline && !merge_inlines then begin
             let printout =
               (* Temporarily turn of printing of lines *)
               let oldprintln = !lineDirectiveStyle in
@@ -1754,7 +1754,7 @@ let merge (files: file list) (newname: string) : file =
     doMergeSynonyms sSyn sEq matchCompInfo;
     doMergeSynonyms eSyn eEq matchEnumInfo;
     doMergeSynonyms tSyn tEq matchTypeInfo;
-    if mergeInlines then begin
+    if !merge_inlines then begin
       (* Copy all the nodes from the iEq to vEq as well. This is needed
        * because vEq will be used for variable renaming *)
       H.iter (fun k n -> H.add vEq k n) iEq;
@@ -1768,7 +1768,7 @@ let merge (files: file list) (newname: string) : file =
     dumpGraph "struct and union" sEq;
     dumpGraph "enum" eEq;
     dumpGraph "variable" vEq;
-    if mergeInlines then dumpGraph "inline" iEq;
+    if !merge_inlines then dumpGraph "inline" iEq;
   end;
   (* Make the second pass over the files. This is when we start rewriting the
    * file *)

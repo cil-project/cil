@@ -1,11 +1,11 @@
 (*
  *
- * Copyright (c) 2001-2002, 
+ * Copyright (c) 2001-2002,
  *  George C. Necula    <necula@cs.berkeley.edu>
  *  Scott McPeak        <smcpeak@cs.berkeley.edu>
  *  Wes Weimer          <weimer@cs.berkeley.edu>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -37,6 +37,11 @@
 
 (** Set this to true to ignore the merge conflicts *)
 val ignore_merge_conflicts: bool ref
+
+(** Try to merge definitions of inline functions. They can appear in multiple
+ * files and we would like them all to be the same. This can slow down the
+ * merger an order of magnitude !!! *)
+val merge_inlines: bool ref
 
 (** Merge a number of CIL files *)
 val merge: Cil.file list -> string -> Cil.file
