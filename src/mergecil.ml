@@ -67,9 +67,9 @@ let usePathCompression = false
  * merger an order of magnitude !!! *)
 let merge_inlines = ref false
 
-let mergeInlinesRepeat = !merge_inlines && true
+let mergeInlinesRepeat () = !merge_inlines && true
 
-let mergeInlinesWithAlphaConvert = !merge_inlines && true
+let mergeInlinesWithAlphaConvert () = !merge_inlines && true
 
 (* when true, merge duplicate definitions of externally-visible functions;
  * this uses a mechanism which is faster than the one for inline functions,
@@ -1481,7 +1481,7 @@ let oneFilePass2 (f: file) =
               in
               (* Remember the original type *)
               let origType = fdec'.svar.vtype in
-              if mergeInlinesWithAlphaConvert then begin
+              if mergeInlinesWithAlphaConvert () then begin
                 (* Rename the formals *)
                 List.iter renameOne fdec'.sformals;
                 (* Reflect in the type *)
@@ -1493,7 +1493,7 @@ let oneFilePass2 (f: file) =
               let res = d_global () g' in
               lineDirectiveStyle := oldprintln;
               fdec'.svar.vname <- newname;
-              if mergeInlinesWithAlphaConvert then begin
+              if mergeInlinesWithAlphaConvert () then begin
                 (* Do the locals in reverse order *)
                 List.iter undoRenameOne (List.rev fdec'.slocals);
                 (* Do the formals in reverse order *)
@@ -1526,7 +1526,7 @@ let oneFilePass2 (f: file) =
                * We should reuse this, but watch for the case when the inline
                * was already used. *)
               if H.mem varUsedAlready fdec'.svar.vname then begin
-                if mergeInlinesRepeat then begin
+                if mergeInlinesRepeat () then begin
                   repeatPass2 := true
                 end else begin
                   ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
@@ -1708,7 +1708,7 @@ let oneFilePass2 (f: file) =
   (* See if we must re-visit the globals in this file because an inline that
    * is being removed was used before we saw the definition and we decided to
    * remove it *)
-  if mergeInlinesRepeat && !repeatPass2 then begin
+  if mergeInlinesRepeat () && !repeatPass2 then begin
     if debugMerge || !E.verboseFlag then
       ignore (E.log "Repeat final merging phase (%d): %s\n"
                 !currentFidx f.fileName);
