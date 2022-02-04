@@ -1457,7 +1457,7 @@ let oneFilePass2 (f: file) =
           (* See if we can remove this inline function *)
           if fdec'.svar.vinline && !merge_inlines then begin
             let printout =
-              (* Temporarily turn of printing of lines *)
+              (* Temporarily turn off printing of lines *)
               let oldprintln = !lineDirectiveStyle in
               lineDirectiveStyle := None;
               (* Temporarily set the name to all functions in the same way *)
