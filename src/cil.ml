@@ -156,6 +156,9 @@ type file =
           should always be false if there is no global initializer. When
           you create a global initialization CIL will try to insert code in
           main to call it. *)
+      files: (string * bool) list;
+      (** A list of those files that were encountered during parsing of this CIL file,
+          and whether they are system header files  *)
     }
 
 and comment = location * string
@@ -5001,7 +5004,8 @@ let dummyFile =
   { globals = [];
     fileName = "<dummy>";
     globinit = None;
-    globinitcalled = false;}
+    globinitcalled = false;
+    files = []; }
 
 (***** Load and store files as unmarshalled Ocaml binary data. ****)
 type savedFile =
