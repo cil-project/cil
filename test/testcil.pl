@@ -376,6 +376,8 @@ addTest("test/constrexpr ");
 addTest("testrun/flexible-array-member ");
 addTest("test-bad1/flexible-array-member-bad ");
 
+addTest("testrun/fallthrough-label");
+
 addTest("testrun/label1");
 addTest("testrun/label2");
 addTest("testrun/label3");

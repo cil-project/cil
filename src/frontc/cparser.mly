@@ -874,11 +874,12 @@ local_label_names:
 |  IDENT COMMA local_label_names         { fst $1 :: $3 }
 ;
 
-
-
 statement:
-    SEMICOLON		{NOP ((*handleLoc*) $1) }
-|   comma_expression SEMICOLON
+|  attribute_nocv_list SEMICOLON {NOP ((*handleLoc*) $2) }
+|  statement_no_null { $1 }
+
+statement_no_null:
+    comma_expression SEMICOLON
 	        	{COMPUTATION (smooth_expression (fst $1), joinLoc (snd $1) $2)}
 |   block               {BLOCK (fst3 $1, joinLoc (snd3 $1) (trd3 $1))}
 |   IF paren_comma_expression location statement location                   %prec IF
@@ -894,12 +895,18 @@ statement:
 |   FOR LPAREN for_clause opt_expression
 	        SEMICOLON opt_expression RPAREN statement location
 	                         {FOR ($3, $4, $6, $8, joinLoc $1 $9, joinLoc $2 $7)}
-|   IDENT COLON attribute_nocv_list location statement
+|   IDENT COLON attribute_nocv_list location statement_no_null
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
                                      floor, since unused labels are usually
                                      removed anyways by Rmtmps. *)
                                   LABEL (fst $1, $5, joinLoc (snd $1) $4)}
+|   IDENT COLON attribute_nocv_list location SEMICOLON
+		                 {(* The only attribute that should appear here
+                                     is "unused". For now, we drop this on the
+                                     floor, since unused labels are usually
+                                     removed anyways by Rmtmps. *)
+                                  LABEL (fst $1, NOP ($5), joinLoc (snd $1) $4)}
 |   CASE expression COLON statement location
 	                         {CASE (fst $2, $4, joinLoc $1 $5, joinLoc $1 $3)}
 |   CASE expression ELLIPSIS expression COLON statement location
