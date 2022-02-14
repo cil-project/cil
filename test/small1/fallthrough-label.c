@@ -3,9 +3,12 @@ int main() {
 
   switch(a) {
       case 5:
-          __attribute__((__fallthrough__));
+        a = 8;
+        __attribute__((__fallthrough__));
+      case 10:
+        __attribute__((__fallthrough__));
       default:
-          a = 8;
+        a = 8;
   }
 
   return 0;
