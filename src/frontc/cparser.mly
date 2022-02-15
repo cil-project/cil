@@ -936,7 +936,7 @@ for_clause:
 declaration:                                /* ISO 6.7.*/
     decl_spec_list init_declarator_list SEMICOLON
                                        { doDeclaration (joinLoc (snd $1) $3) (fst $1) $2 }
-|   decl_spec_list SEMICOLON
+|   decl_spec_list_no_attr_only SEMICOLON
                                        { doDeclaration (joinLoc (snd $1) $2) (fst $1) [] }
 |   static_assert_declaration          { let (e, m, loc) = $1 in STATIC_ASSERT (e, m, loc) }
 ;
@@ -965,7 +965,7 @@ init_declarator:                             /* ISO 6.7 */
                                         { ($1, $3) }
 ;
 
-decl_spec_list:                         /* ISO 6.7 */
+decl_spec_list_common:                  /* ISO 6.7 */
                                         /* ISO 6.7.1 */
 |   TYPEDEF decl_spec_list_opt          { SpecTypedef :: $2, $1  }
 |   EXTERN decl_spec_list_opt           { SpecStorage EXTERN :: $2, $1 }
@@ -980,9 +980,17 @@ decl_spec_list:                         /* ISO 6.7 */
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
 
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
-|   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
 |   AT_SPECIFIER LPAREN IDENT RPAREN    { [ SpecPattern(fst $3) ], $1 }
+
+decl_spec_list_no_attr_only:
+|   decl_spec_list_common               { $1 }
+|   attribute_nocv decl_spec_list       { SpecAttr (fst $1) :: (fst $2), snd $1 }
+;
+
+decl_spec_list:
+|   decl_spec_list_common               { $1 }
+|   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 ;
 /* (* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare
     * NAMED_TYPE to have right associativity  *) */
