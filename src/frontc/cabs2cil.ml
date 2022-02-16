@@ -4192,15 +4192,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     end
 
     | A.CALL(f, args) ->
-        if asconst then
-          ignore (warnOpt "CALL in constant");
+        if asconst then ignore (warnOpt "CALL in constant");
         let (sf, f', ft') =
           match f with                  (* Treat the VARIABLE case separate
                                          * because we might be calling a
                                          * function that does not have a
                                          * prototype. In that case assume it
                                          * takes INTs as arguments  *)
-            A.VARIABLE n -> begin
+          | A.VARIABLE n -> begin
               try
                 let vi, _ = lookupVar n in
                 (empty, Lval(var vi), vi.vtype) (* Found. Do not use
@@ -4226,28 +4225,23 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Get the result type and the argument types *)
         let (resType, argTypes, isvar, f'') =
           match unrollType ft' with
-            TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
+          | TFun(rt,at,isvar,a) -> (rt,at,isvar,f')
           | TPtr (t, _) -> begin
               match unrollType t with
-                TFun(rt,at,isvar,a) -> (* Make the function pointer
-                                            * explicit  *)
-                  let f'' =
-                    match f' with
-                      AddrOf lv -> Lval(lv)
+              | TFun(rt,at,isvar,a) -> (* Make the function pointer explicit  *)
+                  let f'' = match f' with
+                    | AddrOf lv -> Lval(lv)
                     | _ -> Lval(mkMem ~addr:f' ~off:NoOffset)
                   in
                   (rt,at,isvar, f'')
               | x ->
-                  E.s (error "Unexpected type of the called function %a: %a"
-                         d_exp f' d_type x)
+                  E.s (error "Unexpected type of the called function %a: %a" d_exp f' d_type x)
           end
-          | x ->  E.s (error "Unexpected type of the called function %a: %a"
-                         d_exp f' d_type x)
+          | x ->  E.s (error "Unexpected type of the called function %a: %a" d_exp f' d_type x)
         in
         let argTypesList = argsToList argTypes in
         (* Drop certain qualifiers from the result type *)
-        let resType' =
-          ref (typeRemoveAttributes ["warn_unused_result"] resType) in
+        let resType' = ref (typeRemoveAttributes ["warn_unused_result"] resType) in
         (* Before we do the arguments we try to intercept a few builtins. For
          * these we have defined then with a different type, so we do not
          * want to give warnings. We'll just leave the arguments of these
@@ -4269,76 +4263,75 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               fv.vname = "__builtin_choose_expr" || fv.vname = "__builtin_tgmath"
             | _ -> false
         in
-
+        let isBuiltinNan =
+          match f'' with
+          | Lval (Var fv, NoOffset) -> fv.vname = "__builtin_nan" || fv.vname = "__builtin_nanf" ||
+            fv.vname = "__builtin_nanl" || fv.vname = "__builtin_nans" || fv.vname = "__builtin_nansf" || fv.vname = "__builtin_nansl"
+          | _ -> false
+        in
+        if isBuiltinNan then
+          (* Replace call to builtin nan with computation yielding NaN *)
+          let onef = Const(CReal(1.0,FDouble,None)) in
+          let zerodivzero = mkCast (BinOp(Div,onef,onef,doubleType)) resType in
+          (empty,zerodivzero,resType)
+        else (
         (* If the "--forceRLArgEval" flag was used, make sure
           we evaluate args right-to-left.
           Added by Nathan Cooprider. **)
         let force_right_to_left_evaluation (c, e, t) =
-	  (* If chunk is empty then it is not already evaluated *)
-	  (* constants don't need to be pulled out *)
-          if (!forceRLArgEval && (not (isConstant e)) &&
-	      (not isSpecialBuiltin)) then
-	    (* create a temporary *)
-	    let tmp = newTempVar (dd_exp () e) true t in
-	    (* create an instruction to give the e to the temporary *)
-	    let i = Set(var tmp, e, !currentLoc, !currentExpLoc) in
-	    (* add the instruction to the chunk *)
-	    (* change the expression to be the temporary *)
-	    (c +++ i, (Lval(var tmp)), t)
+          (* If chunk is empty then it is not already evaluated *)
+          (* constants don't need to be pulled out *)
+          if (!forceRLArgEval && (not (isConstant e)) && (not isSpecialBuiltin)) then
+            (* create a temporary *)
+            let tmp = newTempVar (dd_exp () e) true t in
+            (* create an instruction to give the e to the temporary *)
+            let i = Set(var tmp, e, !currentLoc, !currentExpLoc) in
+            (* add the instruction to the chunk *)
+            (* change the expression to be the temporary *)
+            (c +++ i, (Lval(var tmp)), t)
           else
-	    (c, e, t)
+	          (c, e, t)
         in
         (* Do the arguments. In REVERSE order !!! Both GCC and MSVC do this *)
-        let rec loopArgs
-            : (string * typ * attributes) list * A.expression list
-          -> (chunk list * exp list) = function
+        let rec loopArgs: (string * typ * attributes) list * A.expression list -> (chunk list * exp list) =
+          function
             | ([], []) -> ([], [])
-
             | args, [] ->
-                if not isSpecialBuiltin then
-                  ignore (warnOpt
-                            "Too few arguments in call to %a."
-                            d_exp f');
-		([], [])
-
+              if not isSpecialBuiltin then ignore (warnOpt "Too few arguments in call to %a." d_exp f');
+              ([], [])
             | ((_, at, _) :: atypes, a :: args) ->
-                let (ss, args') = loopArgs (atypes, args) in
-                (* Do not cast as part of translating the argument. We let
-                 * the castTo do this work. This was necessary for
-                 * test/small1/union5, in which a transparent union is passed
-                 * as an argument *)
-                let (sa, a', att) = force_right_to_left_evaluation
-                                      (doExp false a (AExp None)) in
-                let (_, a'') = castTo att at a' in
-                (sa :: ss, a'' :: args')
-
+              let (ss, args') = loopArgs (atypes, args) in
+              (* Do not cast as part of translating the argument. We let
+                * the castTo do this work. This was necessary for
+                * test/small1/union5, in which a transparent union is passed
+                * as an argument *)
+              let (sa, a', att) = force_right_to_left_evaluation (doExp false a (AExp None)) in
+              let (_, a'') = castTo att at a' in
+              (sa :: ss, a'' :: args')
             | ([], args) -> (* No more types *)
-                if not isvar && argTypes != None && not isSpecialBuiltin then
-                  (* Do not give a warning for functions without a prototype*)
-                  ignore (warnOpt "Too many arguments in call to %a" d_exp f');
-                let rec loop = function
-                    [] -> ([], [])
-                  | a :: args ->
-                      let (ss, args') = loop args in
-                      let (sa, a', at) = force_right_to_left_evaluation
-                          (doExp false a (AExp None)) in
-                      if isBuiltinChooseExprOrTgmath then
-                          (* This built-in function is analogous to the `? :'
-                           * operator in C, except that the expression returned
-                           * has its type unaltered by promotion rules.
-                           * -- gcc manual *)
-                          (sa :: ss, a' :: args')
-                      else
-                          let promoted_type = defaultArgumentPromotion at in
-                          let _, a'' = castTo at promoted_type a' in
-                          (sa :: ss, a'' :: args')
-                in
-                loop args
+              (* Do not give a warning for functions without a prototype*)
+              if not isvar && argTypes != None && not isSpecialBuiltin then ignore (warnOpt "Too many arguments in call to %a" d_exp f');
+              let rec loop = function
+                | [] -> ([], [])
+                | a :: args ->
+                    let (ss, args') = loop args in
+                    let (sa, a', at) = force_right_to_left_evaluation (doExp false a (AExp None)) in
+                    if isBuiltinChooseExprOrTgmath then
+                      (* This built-in function is analogous to the `? :'
+                        * operator in C, except that the expression returned
+                        * has its type unaltered by promotion rules.
+                        * -- gcc manual *)
+                      (sa :: ss, a' :: args')
+                    else
+                      let promoted_type = defaultArgumentPromotion at in
+                      let _, a'' = castTo at promoted_type a' in
+                      (sa :: ss, a'' :: args')
+              in
+              loop args
         in
         let (sargsl, args') = loopArgs (argTypesList, args) in
-        (* Setup some pointer to the elements of the call. We may change
-         * these below *)
-	let sideEffects () = sf @@ (List.fold_left (@@) empty (List.rev sargsl)) in
+        (* Setup some pointer to the elements of the call. We may change these below *)
+	      let sideEffects () = sf @@ (List.fold_left (@@) empty (List.rev sargsl)) in
         let prechunk: (unit -> chunk) ref = ref sideEffects in (* comes before *)
 
         (* Do we actually have a call, or an expression? *)
@@ -4349,15 +4342,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let pis__builtin_va_arg: bool ref = ref false in
         let pwhat: expAction ref = ref what in (* what to do with result *)
 
-        let pres: exp ref = ref zero in (* If we do not have a call, this is
-                                        * the result *)
+        let pres: exp ref = ref zero in (* If we do not have a call, this is the result *)
         let prestype: typ ref = ref intType in
 
         let rec dropCasts = function CastE (_, e) -> dropCasts e | e -> e in
         (* Get the name of the last formal *)
-        let getNameLastFormal () : string =
+        let getNameLastFormal () =
           match !currentFunctionFDEC.svar.vtype with
-            TFun(_, Some args, true, _) -> begin
+          | TFun(_, Some args, true, _) -> begin
               match List.rev args with
                 (last_par_name, _, _) :: _ -> last_par_name
               | _ -> ""
@@ -4367,271 +4359,273 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
 
         (* Try to intercept some builtins *)
         (match !pf with
-          Lval(Var fv, NoOffset) -> begin
-            (* Most atomic builtins are overloaded: check the type of the
-               first argument and fix the return type accordingly for those
-               annotated with "overloaded" in src/cil.ml.
-               Some consistency checks are left to the compiler, we do
-               as few as we can here to ensure a correct translation.
-               References:
-               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
-               http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
-             *)
-            if !resType' = TVoid[Attr("overloaded",[])] then
-              if fv.vname = "__builtin_tgmath" then
-                match !pargs with
-                | ptr :: _ ->
-                  begin match typeOf ptr with
-                  (* as per https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html *)
-                  | TPtr (TFun (r, args,  _, _), _) ->
-                    (* the first pointer to a function determines how many arguments all functions take *)
-                    let numArgs = List.length (argsToList args) in
-                    if numArgs = 0 then
-                      ignore (warn "Invalid call to %s" fv.vname)
-                    else
-                      let rec lastn n list acc =
-                        if n = 0 then
-                          acc
+          | Lval(Var fv, NoOffset) ->
+            begin
+              (* Most atomic builtins are overloaded: check the type of the
+                first argument and fix the return type accordingly for those
+                annotated with "overloaded" in src/cil.ml.
+                Some consistency checks are left to the compiler, we do
+                as few as we can here to ensure a correct translation.
+                References:
+                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fsync-Builtins.html#g_t_005f_005fsync-Builtins
+                http://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
+              *)
+              if !resType' = TVoid[Attr("overloaded",[])] then
+                if fv.vname = "__builtin_tgmath" then
+                  match !pargs with
+                  | ptr :: _ ->
+                    begin
+                      (* as per https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html *)
+                      match typeOf ptr with
+                      | TPtr (TFun (r, args,  _, _), _) ->
+                        (* the first pointer to a function determines how many arguments all functions take *)
+                        let numArgs = List.length (argsToList args) in
+                        if numArgs = 0 then
+                          ignore (warn "Invalid call to %s" fv.vname)
                         else
-                          lastn (n-1) list ((List.nth list (List.length list -n)) :: acc)
-                      in
-                      let rec firstn n list acc =
-                        if n = 0 then
-                          acc
-                        else
-                        match list with
-                        | l::ls -> firstn (n-1) ls (l :: acc)
-                        | [] -> acc
-                      in
-                      (* to determine the return type, there are several options: *)
-                      let retTypes e = match typeOf e with | TPtr(TFun(r, _, _ , _), _) ->  r | _ -> E.s("Invalid call to __builtin_tgmath") in
-                      let retTypes = List.map retTypes (firstn (List.length !pargs - numArgs) !pargs []) in
-                      if List.for_all (fun x -> typeSig x = typeSig r) retTypes then
-                        (* a) all function pointers have the same return type     *)
-                        resType' := r
-                      else
-                        (* b) all function pointers have return type t, so we need to determine which one is called *)
-                        (*    to get the correct return type *)
-                        (* the arguments passed to the function are the last numArgs arguments. Get their types  *)
-                        let argTypes = List.map typeOf (lastn numArgs !pargs []) in
-                        (* the return type is determined by the resulting arithmetic conversion of the argument types       *)
-                        (* at least for the uses of this to realize tgmath.h. This could be potentially incorrect for other *)
-                        (* uses of __builtin_tgmath *)
-                        let r = List.fold_left arithmeticConversion (List.nth argTypes 0) argTypes in
-                        (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
-                        (* type should not be complex *)
-                        let isComplex t = match t with
-                          | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
-                          | _ -> false
-                        in
-                        if List.for_all (fun x -> not (isComplex x)) retTypes then
-                          resType' := typeOfRealAndImagComponents r
-                        else
-                          resType' := r
-                  | _ ->
-                    ignore (warn "Invalid call to %s" fv.vname)
+                          let rec lastn n list acc =
+                            if n = 0 then
+                              acc
+                            else
+                              lastn (n-1) list ((List.nth list (List.length list -n)) :: acc)
+                          in
+                          let rec firstn n list acc =
+                            if n = 0 then
+                              acc
+                            else
+                            match list with
+                            | l::ls -> firstn (n-1) ls (l :: acc)
+                            | [] -> acc
+                          in
+                          (* to determine the return type, there are several options: *)
+                          let retTypes e = match typeOf e with | TPtr(TFun(r, _, _ , _), _) ->  r | _ -> E.s("Invalid call to __builtin_tgmath") in
+                          let retTypes = List.map retTypes (firstn (List.length !pargs - numArgs) !pargs []) in
+                          if List.for_all (fun x -> typeSig x = typeSig r) retTypes then
+                            (* a) all function pointers have the same return type     *)
+                            resType' := r
+                          else
+                            (* b) all function pointers have return type t, so we need to determine which one is called *)
+                            (*    to get the correct return type *)
+                            (* the arguments passed to the function are the last numArgs arguments. Get their types  *)
+                            let argTypes = List.map typeOf (lastn numArgs !pargs []) in
+                            (* the return type is determined by the resulting arithmetic conversion of the argument types       *)
+                            (* at least for the uses of this to realize tgmath.h. This could be potentially incorrect for other *)
+                            (* uses of __builtin_tgmath *)
+                            let r = List.fold_left arithmeticConversion (List.nth argTypes 0) argTypes in
+                            (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
+                            (* type should not be complex *)
+                            let isComplex t = match t with
+                              | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
+                              | _ -> false
+                            in
+                            if List.for_all (fun x -> not (isComplex x)) retTypes then
+                              resType' := typeOfRealAndImagComponents r
+                            else
+                              resType' := r
+                      | _ -> ignore (warn "Invalid call to %s" fv.vname)
+                    end
+                  | _ -> ignore (warn "Invalid call to %s" fv.vname)
+                else
+                  begin
+                    match !pargs  with
+                    | ptr :: _ ->
+                      begin
+                        match typeOf ptr with
+                        | TPtr (vtype, _) -> resType' := vtype
+                        | _ -> ignore (warn "Invalid call to %s" fv.vname)
+                      end
+                    | _ -> ignore (warn "Invalid call to %s" fv.vname)
                   end
-                | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname)
-              else
-              begin
-              match !pargs  with
-                ptr :: _ -> begin match typeOf ptr with
-                TPtr (vtype, _) ->
-                    resType' := vtype
-                | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname) end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname)
-            end
+              (* Builtins for va_arg functions *)
+              else if fv.vname = "__builtin_va_arg" then
+                begin
+                  match !pargs with
+                  | [ marker ; SizeOf resTyp ] ->
+                    begin
+                      (* Make a variable of the desired type *)
+                      let destlv, destlvtyp =
+                        match !pwhat with
+                        | ASet (lv, lvt) -> lv, lvt
+                        | _ -> var (newTempVar nil true resTyp), resTyp
+                      in
+                      pwhat := (ASet (destlv, destlvtyp));
+                      pis__builtin_va_arg := true;
+                    end
+                  | _ -> ignore (warn "Invalid call to %s" fv.vname);
+                end
+              else if fv.vname = "__builtin_stdarg_start" || fv.vname = "__builtin_va_start" then
+                begin
+                  match !pargs with
+                  | marker :: last :: [] ->
+                    begin
+                      let isOk =
+                        match dropCasts last with
+                        | Lval (Var lastv, NoOffset) -> lastv.vname = getNameLastFormal ()
+                        | _ -> false
+                      in
+                      if not isOk then ignore (warn "The second argument in call to %s should be the last formal argument" fv.vname);
+                      (* Check that "lastv" is indeed the last variable in the
+                      * prototype and then drop it *)
+                      pargs := [ marker ]
+                    end
+                  | _ ->
+                    ignore (warn "Invalid call to %s" fv.vname);
 
-            (* Builtins for va_arg functions *)
-            else if fv.vname = "__builtin_va_arg" then begin
-              match !pargs with
-                [ marker ; SizeOf resTyp ] -> begin
-                  (* Make a variable of the desired type *)
-                  let destlv, destlvtyp =
-                    match !pwhat with
-                      ASet (lv, lvt) -> lv, lvt
-                    | _ -> var (newTempVar nil true resTyp), resTyp
+                    (* We have to turn uses of __builtin_varargs_start into uses
+                    * of __builtin_stdarg_start (because we have dropped the
+                    * __builtin_va_alist argument from this function) *)
+                end
+              else if fv.vname = "__builtin_varargs_start" then
+                begin
+                  (* Lookup the prototype for the replacement *)
+                  let v, _  =
+                    try lookupGlobalVar "__builtin_stdarg_start"
+                    with Not_found -> E.s (bug "Cannot find __builtin_stdarg_start to replace %s\n" fv.vname)
                   in
-                  pwhat := (ASet (destlv, destlvtyp));
-                  pis__builtin_va_arg := true;
+                  pf := Lval (var v)
                 end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname);
-            end else if fv.vname = "__builtin_stdarg_start" ||
-                        fv.vname = "__builtin_va_start" then begin
-              match !pargs with
-                marker :: last :: [] -> begin
-                  let isOk =
-                    match dropCasts last with
-                      Lval (Var lastv, NoOffset) ->
-                        lastv.vname = getNameLastFormal ()
-                    | _ -> false
-                  in
-                  if not isOk then
-                    ignore (warn "The second argument in call to %s should be the last formal argument" fv.vname);
-
-                  (* Check that "lastv" is indeed the last variable in the
-                   * prototype and then drop it *)
-                  pargs := [ marker ]
+              else if fv.vname = "__builtin_next_arg" then
+                begin
+                  match !pargs with
+                  | last :: [] ->
+                    begin
+                      let isOk = match dropCasts last with
+                        | Lval (Var lastv, NoOffset) -> lastv.vname = getNameLastFormal ()
+                        | _ -> false
+                      in
+                      if not isOk then ignore (warn "The argument in call to %s should be the last formal argument" fv.vname);
+                      pargs := [ ]
+                    end
+                  | _ -> ignore (warn "Invalid call to %s" fv.vname);
                 end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname);
-
-                  (* We have to turn uses of __builtin_varargs_start into uses
-                   * of __builtin_stdarg_start (because we have dropped the
-                   * __builtin_va_alist argument from this function) *)
-
-            end else if fv.vname = "__builtin_varargs_start" then begin
-              (* Lookup the prototype for the replacement *)
-              let v, _  =
-                try lookupGlobalVar "__builtin_stdarg_start"
-                with Not_found -> E.s (bug "Cannot find __builtin_stdarg_start to replace %s\n" fv.vname)
-              in
-              pf := Lval (var v)
-            end else if fv.vname = "__builtin_next_arg" then begin
-              match !pargs with
-                last :: [] -> begin
-                  let isOk =
-                    match dropCasts last with
-                      Lval (Var lastv, NoOffset) ->
-                        lastv.vname = getNameLastFormal ()
-                    | _ -> false
-                  in
-                  if not isOk then
-                    ignore (warn "The argument in call to %s should be the last formal argument" fv.vname);
-
-                  pargs := [ ]
-                end
-              | _ ->
-                  ignore (warn "Invalid call to %s" fv.vname);
-            end else if fv.vname = "__builtin_va_arg_pack" then begin
-
-              (match !pargs with
-                [  ] -> begin
-                  piscall := false;
-		  pres := SizeOfE !pf;
-		  prestype := !typeOfSizeOf
-                end
-              | _ ->
-                  ignore (warn "Invalid call to builtin_va_arg_pack"));
-            end
-
-            (* More weird builtins *)
-            else if fv.vname = "__builtin_object_size" then begin
-              (* Side-effects make __builtin_object_size return -1 or 0 *)
-              if (not (isEmpty (!prechunk ()))) then
-              (match !pargs with
-                [ ptr; typ ] -> begin
-                  match constFold true typ with
-                  | Const (CInt (a,_,_)) when is_zero_cilint a || compare_cilint one_cilint a = 0 ->
+              else if fv.vname = "__builtin_va_arg_pack" then
+                begin
+                  (match !pargs with
+                    [ ] -> begin
+                      piscall := false;
+                      pres := SizeOfE !pf;
+                      prestype := !typeOfSizeOf
+                    end
+                  | _ -> ignore (warn "Invalid call to builtin_va_arg_pack"));
+               end
+              (* More weird builtins *)
+              else if fv.vname = "__builtin_object_size" then
+                begin
+                  (* Side-effects make __builtin_object_size return -1 or 0 *)
+                  if (not (isEmpty (!prechunk ()))) then
+                  (match !pargs with
+                    [ ptr; typ ] -> begin
+                      match constFold true typ with
+                      | Const (CInt (a,_,_)) when is_zero_cilint a || compare_cilint one_cilint a = 0 ->
                           piscall := false;
                           pres := kinteger !kindOfSizeOf (-1);
                           prestype := !typeOfSizeOf
-                  | Const (CInt (a,_,_)) when compare_cilint (cilint_of_int 2) a = 0  || compare_cilint (cilint_of_int 3) a = 0  ->
-                          piscall := false;
-                          pres := kinteger !kindOfSizeOf 0;
-                          prestype := !typeOfSizeOf
+                      | Const (CInt (a,_,_)) when compare_cilint (cilint_of_int 2) a = 0  || compare_cilint (cilint_of_int 3) a = 0  ->
+                              piscall := false;
+                              pres := kinteger !kindOfSizeOf 0;
+                              prestype := !typeOfSizeOf
+                      | _ ->
+                              ignore (warn "Invalid call to builtin_object_size")
+                    end
                   | _ ->
-                          ignore (warn "Invalid call to builtin_object_size")
-                end
-              | _ ->
-                  ignore (warn "Invalid call to builtin_object_size"));
-              (* Drop the side-effects *)
-              prechunk := (fun _ -> empty);
-            end else if fv.vname = "__builtin_constant_p" then begin
-              (* Drop the side-effects *)
-              prechunk := (fun _ -> empty);
-
-              (* Constant-fold the argument and see if it is a constant *)
-              (match !pargs with
-                [ arg ] -> begin
-                  match constFold true arg with
-                    Const _ -> piscall := false;
-                               pres := integer 1;
-                               prestype := intType
-
-                  | _ -> piscall := false;
-                         pres := integer 0;
-                         prestype := intType
-                end
-              | _ ->
-                  ignore (warn "Invalid call to builtin_constant_p"));
-            end else if fv.vname = "__builtin_choose_expr" then begin
-
-              (* Constant-fold the argument and see if it is a constant *)
-              (match !pargs with
-                [ arg; e1; e2 ] -> begin
-                  match constFold true arg with
-                    (Const _) as x ->
-	              piscall := false;
-	              if isZero x then begin
-                        (* Keep only 3rd arg side effects *)
-	                prechunk := (fun _ -> sf @@ (List.nth sargsl 2));
-                        pres := e2;
-                        prestype := typeOf e2
-	              end else begin
-                        (* Keep only 2nd arg side effects *)
-	                prechunk := (fun _ -> sf @@ (List.nth sargsl 1));
-                        pres := e1;
-                        prestype := typeOf e1
-	              end
-                  | _ -> ignore (warn "builtin_choose_expr expects a constant first argument")
-                end
-              | _ ->
-                  ignore (warn "Invalid call to builtin_choose_expr"));
-            end else if fv.vname = "__builtin_types_compatible_p" then begin
-              (* Constant-fold the argument and see if it is a constant *)
-              (match !pargs with
-                [ SizeOf t1; SizeOf t2 ] -> begin
+                      ignore (warn "Invalid call to builtin_object_size"));
                   (* Drop the side-effects *)
                   prechunk := (fun _ -> empty);
-	          piscall := false;
-            let compatible =
-              try ignore(combineTypes CombineOther t1 t2); true
-              with Failure _ -> false
-            in if compatible then
-	            pres := integer 1
-	          else
-                    pres := integer 0;
-                  prestype := intType
                 end
-              | _ ->
-                  ignore (warn "Invalid call to builtin_types_compatible_p"));
-	    end
-          end
-        | _ -> ());
+              else if fv.vname = "__builtin_constant_p" then
+                begin
+                  (* Drop the side-effects *)
+                  prechunk := (fun _ -> empty);
+                  (* Constant-fold the argument and see if it is a constant *)
+                  match !pargs with
+                    [ arg ] -> begin
+                      match constFold true arg with
+                      | Const _ ->
+                        piscall := false;
+                        pres := integer 1;
+                        prestype := intType
+                      | _ ->
+                        piscall := false;
+                        pres := integer 0;
+                        prestype := intType
+                    end
+                  | _ ->
+                      ignore (warn "Invalid call to builtin_constant_p");
+                end
+              else if fv.vname = "__builtin_choose_expr" then
+                begin
+                  (* Constant-fold the argument and see if it is a constant *)
+                  (match !pargs with
+                    [ arg; e1; e2 ] -> begin
+                      match constFold true arg with
+                      | (Const _) as x ->
+                        piscall := false;
+                        if isZero x then
+                          begin
+                            (* Keep only 3rd arg side effects *)
+                            prechunk := (fun _ -> sf @@ (List.nth sargsl 2));
+                            pres := e2;
+                            prestype := typeOf e2
+                          end
+                        else
+                          begin
+                            (* Keep only 2nd arg side effects *)
+                            prechunk := (fun _ -> sf @@ (List.nth sargsl 1));
+                            pres := e1;
+                            prestype := typeOf e1
+                        end
+                      | _ -> ignore (warn "builtin_choose_expr expects a constant first argument")
+                    end
+                  | _ -> ignore (warn "Invalid call to builtin_choose_expr"));
+                end
+              else if fv.vname = "__builtin_types_compatible_p" then
+                begin
+                (* Constant-fold the argument and see if it is a constant *)
+                  match !pargs with
+                    | [ SizeOf t1; SizeOf t2 ] ->
+                        (* Drop the side-effects *)
+                        prechunk := (fun _ -> empty);
+                        piscall := false;
+                        let compatible =
+                          try ignore(combineTypes CombineOther t1 t2); true
+                          with Failure _ -> false
+                        in
+                        if compatible then
+                          pres := integer 1
+                        else
+                          pres := integer 0;
+                          prestype := intType
+                  | _ -> ignore (warn "Invalid call to builtin_types_compatible_p");
+                end
+            end
+          | _ -> ()
+        );
 
 
         (* Now we must finish the call *)
         if !piscall then begin
           let addCall (calldest: lval option) (res: exp) (t: typ) =
-	    let prev = !prechunk () in
-            let dest, args = if !pis__builtin_va_arg then begin
-            (* Make an exception here for __builtin_va_arg:
-               hide calldest as a third parameter.  *)
-            match calldest with
-            | Some destlv -> None, !pargs @ [CastE(voidPtrType, AddrOf destlv)]
-            | None -> E.s (E.bug "__builtin_va_arg should have calldest always set")
-            end
-            else calldest, !pargs in
+	          let prev = !prechunk () in
+            let dest, args =
+              if !pis__builtin_va_arg then
+                (* Make an exception here for __builtin_va_arg:
+                  hide calldest as a third parameter.  *)
+                match calldest with
+                | Some destlv -> None, !pargs @ [CastE(voidPtrType, AddrOf destlv)]
+                | None -> E.s (E.bug "__builtin_va_arg should have calldest always set")
+              else
+                calldest, !pargs
+            in
             prechunk := (fun _ -> prev +++ (Call(dest, !pf, args, !currentLoc, !currentExpLoc)));
             pres := res;
             prestype := t
           in
           match !pwhat with
-            ADrop -> addCall None zero intType
-
+          | ADrop -> addCall None zero intType
           | AType -> prestype := !resType'
-
-          | ASet(lv, vtype) when !doCollapseCallCast ||
-              (Util.equals (typeSig vtype) (typeSig !resType'))
-              ->
+          | ASet(lv, vtype) when !doCollapseCallCast || (Util.equals (typeSig vtype) (typeSig !resType')) ->
               (* We can assign the result directly to lv *)
               addCall (Some lv) (Lval(lv)) vtype
-
           | _ -> begin
               let restype'' =
                 match !pwhat with
@@ -4639,8 +4633,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 | ASet (_, t) when !pis__builtin_va_arg -> t
                 | _ -> !resType'
               in
-              let descr = dprintf "%a(%a)" dd_exp !pf
-                            (docList ~sep:(text ", ") (dd_exp ())) !pargs in
+              let descr = dprintf "%a(%a)" dd_exp !pf (docList ~sep:(text ", ") (dd_exp ())) !pargs in
               let tmp = newTempVar descr false restype'' in
               (* Remember that this variable has been created for this
                * specific call. We will use this in collapseCallCast. *)
@@ -4650,7 +4643,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           end
         end;
 
-        finishExp (!prechunk ()) !pres !prestype
+        finishExp (!prechunk ()) !pres !prestype)
 
 
     | A.COMMA el ->

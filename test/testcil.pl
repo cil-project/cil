@@ -370,6 +370,7 @@ addTest("test/voidstar");
 addTest("testrun/memcpy1");
 addTest("testrun/land_expr");
 
+addTest("testrun/nan-global");
 
 addTest("test/noreturn ");
 
