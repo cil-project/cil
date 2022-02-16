@@ -4269,7 +4269,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             fv.vname = "__builtin_nanl" || fv.vname = "__builtin_nans" || fv.vname = "__builtin_nansf" || fv.vname = "__builtin_nansl"
           | _ -> false
         in
-        if isBuiltinNan then
+        if isBuiltinNan && asconst then
           (* Replace call to builtin nan with computation yielding NaN *)
           let onef = Const(CReal(1.0,FDouble,None)) in
           let zerodivzero = mkCast (BinOp(Div,onef,onef,doubleType)) resType in
