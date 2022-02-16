@@ -4271,7 +4271,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         in
         if isBuiltinNan && asconst then
           (* Replace call to builtin nan with computation yielding NaN *)
-          let onef = Const(CReal(1.0,FDouble,None)) in
+          let onef = Const(CReal(0.0,FDouble,None)) in
           let zerodivzero = mkCast (BinOp(Div,onef,onef,doubleType)) resType in
           (empty,zerodivzero,resType)
         else (
