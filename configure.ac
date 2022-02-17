@@ -146,7 +146,7 @@ AC_MSG_RESULT($UNDERSCORE_NAME)
 # (autoscan is part of the autoconf distribution)
 
 # checks for header files
-AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h stdbool.h)
+AC_CHECK_HEADERS(stdlib.h strings.h sys/time.h unistd.h wchar.h stdbool.h uchar.h)
 
 # checks for typedefs, structures, and compiler characteristics
 AC_C_CONST
@@ -160,6 +160,8 @@ AC_CHECK_FUNCS(mkdir select socket __sysv_signal)
 # Find out the true definitions of some integer types
 CIL_CHECK_INTEGER_TYPE(size_t, TYPE_SIZE_T)
 CIL_CHECK_INTEGER_TYPE(wchar_t, TYPE_WCHAR_T)
+CIL_CHECK_INTEGER_TYPE(char16_t, TYPE_CHAR16_T)
+CIL_CHECK_INTEGER_TYPE(char32_t, TYPE_CHAR32_T)
 
 # ----------------- finish up -------------------
 # names of the variables that get substituted in files; for example,

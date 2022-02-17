@@ -272,7 +272,7 @@ int main(int argc, char **argv)
       printf("short=%d,%d int=%d,%d long=%d,%d long_long=%d,%d pointer=%d,%d "
 	     "alignof_enum=%d float=%d,%d float32x=%d,%d float64x=%d,%d double=%d,%d long_double=%d,%d float_complex=%d,%d double_complex=%d,%d long_double_complex=%d,%d void=%d "
 	     "bool=%d,%d fun=%d,%d alignof_string=%d max_alignment=%d size_t=%s "
-	     "wchar_t=%s char_signed=%s "
+	     "wchar_t=%s char16_t=%s char32_t=%s char_signed=%s "
 	     "big_endian=%s __thread_is_keyword=%s __builtin_va_list=%s "
 	     "underscore_name=%s\n",
 	     (int)sizeof(short), alignof_short, (int)sizeof(int), alignof_int,
@@ -290,7 +290,7 @@ int main(int argc, char **argv)
 	     (int)sizeof(long double _Complex), alignof_longdoublecomplex, (int)sizeof(void),
 	     (int)sizeof(bool), alignof_bool,
 	     sizeof_fun, alignof_fun, alignof_str, alignof_aligned,
-	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T),
+	     underscore(TYPE_SIZE_T), underscore(TYPE_WCHAR_T), underscore(TYPE_CHAR16_T), underscore(TYPE_CHAR32_T),
 	     char_is_unsigned ? "false" : "true",
 	     little_endian ? "false" : "true",
 	     THREAD_IS_KEYWORD, HAVE_BUILTIN_VA_LIST, UNDERSCORE_NAME);
@@ -327,6 +327,8 @@ int main(int argc, char **argv)
       printf("\t sizeof_fun                 = %d;\n", (int)sizeof_fun);
       printf("\t size_t                     = \"%s\";\n", TYPE_SIZE_T);
       printf("\t wchar_t                    = \"%s\";\n", TYPE_WCHAR_T);
+      printf("\t char16_t                   = \"%s\";\n", TYPE_CHAR16_T);
+      printf("\t char32_t                   = \"%s\";\n", TYPE_CHAR32_T);
       printf("\t alignof_short              = %d;\n", alignof_short);
       printf("\t alignof_int                = %d;\n", alignof_int);
       printf("\t alignof_bool               = %d;\n", alignof_bool);

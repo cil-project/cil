@@ -330,6 +330,23 @@ let scan_oct_escape str =
   done;
   !the_value
 
+(* For a given Unicode Code-point of type Int64, calculates the UTF-8 representation and returns the bytes
+ * in a list of 1-4 int64 values in reverse order, such that the first byte is the last element of the list *)
+let utf8_representation value =
+  let generate_bytes n =
+    let first_byte =
+      let first_byte_prefix = match n with 1 -> 0L | 2 -> 0xC0L | 3 -> 0xE0L | 4 -> 0xF0L | _ -> E.s(error "error in utf8_representation"); in
+      Int64.logor first_byte_prefix (Int64.shift_right_logical value (6*(n-1)))
+    in
+    let rec generate_one bytes n =
+      if n = 1 then bytes
+      else generate_one ((Int64.logor 0x80L (Int64.logand (Int64.shift_right_logical value (6*(n-2))) 0x3FL)) :: bytes) (n-1)
+    in
+    generate_one [first_byte] n
+  in
+  let num_bytes = if value <= 127L then 1 else if value <= 2047L then 2 else if value <= 65535L then 3 else 4 in
+  generate_bytes num_bytes
+
 let lex_hex_escape remainder lexbuf =
   let prefix = scan_hex_escape (Lexing.lexeme lexbuf) in
   prefix :: remainder lexbuf
@@ -342,6 +359,14 @@ let lex_simple_escape remainder lexbuf =
   let lexchar = Lexing.lexeme_char lexbuf 1 in
   let prefix = scan_escape lexchar in
   prefix :: remainder lexbuf
+
+let lex_universal_escape ischar remainder lexbuf =
+  let value = scan_hex_escape (Lexing.lexeme lexbuf) in
+  if ischar then
+    value :: remainder lexbuf
+  else
+    let prefix = utf8_representation value in
+    List.rev_append prefix (remainder lexbuf)
 
 let lex_unescaped remainder lexbuf =
   let prefix = Int64.of_int (Char.code (Lexing.lexeme_char lexbuf 0)) in
@@ -432,11 +457,13 @@ let floatnum = (decfloat | hexfloat) floatsuffix?
 let complexnum = (decfloat | hexfloat) ((['i' 'I'] floatsuffix) | (floatsuffix? ['i' 'I']))
 
 
-let ident = (letter|'_'|'$')(letter|decdigit|'_'|'$')*
 let blank = [' ' '\t' '\012' '\r']+
 let escape = '\\' _
 let hex_escape = '\\' ['x' 'X'] hexdigit+
 let oct_escape = '\\' octdigit octdigit? octdigit?
+let hexquad = hexdigit hexdigit hexdigit hexdigit
+let universal_escape = '\\' ('u' hexquad | 'U' hexquad hexquad)
+let ident = (letter|'_'|'$'|universal_escape)(letter|decdigit|'_'|'$'|universal_escape)*
 
 (* Pragmas that are not parsed by CIL.  We lex them as PRAGMA_LINE tokens *)
 let no_parse_pragma =
@@ -480,6 +507,8 @@ rule initial =
 |               "_Pragma" 	        { PRAGMA (currentLoc ()) }
 |		'\''			{ CST_CHAR (chr lexbuf, currentLoc ())}
 |		"L'"			{ CST_WCHAR (chr lexbuf, currentLoc ()) }
+|   "u'"      { CST_CHAR16 (chr lexbuf, currentLoc ()) }
+|   "U'"      { CST_CHAR32 (chr lexbuf, currentLoc ()) }
 |		'"'			{ addLexeme lexbuf; (* '"' *)
 (* matth: BUG:  this could be either a regular string or a wide string.
  *  e.g. if it's the "world" in
@@ -491,12 +520,24 @@ rule initial =
                                              raise (InternalError
                                                      ("str: " ^
                                                       Printexc.to_string e))}
+|   "u8\""    { addLexeme lexbuf; (* '"' *)
+                                          try CST_U8STRING (str lexbuf, currentLoc ())
+                                          with e ->
+                                             raise (InternalError
+                                                     ("str: " ^
+                                                      Printexc.to_string e))}
 |		"L\""			{ (* weimer: wchar_t string literal *)
                                           try CST_WSTRING(str lexbuf, currentLoc ())
                                           with e ->
                                              raise (InternalError
                                                      ("wide string: " ^
                                                       Printexc.to_string e))}
+|   "u\""       {try CST_STRING16(str lexbuf, currentLoc ())
+                  with e ->
+                    raise (InternalError ("wide string: " ^ Printexc.to_string e))}
+|   "U\""       {try CST_STRING32(str lexbuf, currentLoc ())
+                  with e ->
+                    raise (InternalError ("wide string: " ^ Printexc.to_string e))}
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
 |   complexnum  {CST_COMPLEX (Lexing.lexeme lexbuf, currentLoc ())}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
@@ -656,6 +697,7 @@ and str = parse
 |	hex_escape	{addLexeme lexbuf; lex_hex_escape str lexbuf}
 |	oct_escape	{addLexeme lexbuf; lex_oct_escape str lexbuf}
 |	escape		{addLexeme lexbuf; lex_simple_escape str lexbuf}
+| universal_escape {addLexeme lexbuf; lex_universal_escape false str lexbuf}
 |	_		{addLexeme lexbuf; lex_unescaped str lexbuf}
 
 and chr =  parse
@@ -663,6 +705,7 @@ and chr =  parse
 |	hex_escape	{lex_hex_escape chr lexbuf}
 |	oct_escape	{lex_oct_escape chr lexbuf}
 |	escape		{lex_simple_escape chr lexbuf}
+| universal_escape {lex_universal_escape true chr lexbuf}
 |	_		{lex_unescaped chr lexbuf}
 
 and msasm = parse
