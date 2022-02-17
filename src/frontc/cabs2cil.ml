@@ -4248,25 +4248,17 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
          * functions alone*)
         let isSpecialBuiltin =
           match f'' with
-            Lval (Var fv, NoOffset) ->
-              fv.vname = "__builtin_stdarg_start" ||
-              fv.vname = "__builtin_va_arg" ||
-              fv.vname = "__builtin_va_start" ||
-              fv.vname = "__builtin_expect" ||
-              fv.vname = "__builtin_next_arg" ||
-              fv.vname = "__builtin_tgmath"
-            | _ -> false
+          | Lval (Var {vname= ("__builtin_stdarg_start" | "__builtin_va_arg" | "__builtin_va_start" | "__builtin_expect" | "__builtin_next_arg" | "__builtin_tgmath"); _}, NoOffset) -> true
+          | _ -> false
         in
         let isBuiltinChooseExprOrTgmath =
           match f'' with
-            Lval (Var fv, NoOffset) ->
-              fv.vname = "__builtin_choose_expr" || fv.vname = "__builtin_tgmath"
-            | _ -> false
+          | Lval (Var {vname= "__builtin_choose_expr" | "__builtin_tgmath"; _ }, NoOffset) -> true
+          | _ -> false
         in
         let isBuiltinNan =
           match f'' with
-          | Lval (Var fv, NoOffset) -> fv.vname = "__builtin_nan" || fv.vname = "__builtin_nanf" ||
-            fv.vname = "__builtin_nanl" || fv.vname = "__builtin_nans" || fv.vname = "__builtin_nansf" || fv.vname = "__builtin_nansl"
+          | Lval (Var {vname= ("__builtin_nan" | "__builtin_nanf" | "__builtin_nanl" | "__builtin_nans" | "__builtin_nansf" | "__builtin_nansl"); _}, NoOffset) -> true
           | _ -> false
         in
         if isBuiltinNan && asconst then
