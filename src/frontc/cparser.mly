@@ -957,6 +957,8 @@ static_assert_declaration:
 init_declarator_list:                       /* ISO 6.7 */
     init_declarator                              { [$1] }
 |   init_declarator COMMA init_declarator_attr_list   { $1 :: $3 }
+  /* Here we disallow attributes for the declarator. Attributes appearing there are parsed as if they belong to the type.  */
+  /* See also https://gcc.gnu.org/onlinedocs/gcc/Attribute-Syntax.html */
 ;
 
 init_declarator_attr_list:
