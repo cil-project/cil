@@ -363,8 +363,6 @@ let transformOffsetOf (speclist, dtype) member =
 %type <Cabs.expression list * cabsloc> paren_comma_expression
 %type <Cabs.expression list> arguments
 %type <Cabs.expression list> bracket_comma_expression
-/* %type <int64 list Queue.t * cabsloc> string_list */
-/* %type <int64 list * cabsloc> wstring_list */
 
 %type <Cabs.initwhat * Cabs.init_expression> initializer
 %type <(Cabs.initwhat * Cabs.init_expression) list> initializer_list
