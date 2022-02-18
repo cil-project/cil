@@ -296,14 +296,17 @@ and constant =
   | CONST_FLOAT of string (* the textual representaton *)
   | CONST_COMPLEX of string (* the textual representation *)
   | CONST_CHAR of int64 list
-  | CONST_WCHAR of int64 list
-  | CONST_STRING of string
-  | CONST_WSTRING of int64 list
+  | CONST_WCHAR of int64 list * wchar_type
+  | CONST_STRING of string * encoding
+  | CONST_WSTRING of int64 list * wchar_type
     (* ww: wstrings are stored as an int64 list at this point because
      * we might need to feed the wide characters piece-wise into an
      * array initializer (e.g., wchar_t foo[] = L"E\xabcd";). If that
      * doesn't happen we will convert it to an (escaped) string before
      * passing it to Cil. *)
+
+and wchar_type = WCHAR_T | CHAR16_T | CHAR32_T | CHAR | CHAR_UTF8
+and encoding = NO_ENCODING | UTF8
 
 and init_expression =
   | NO_INIT

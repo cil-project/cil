@@ -5299,6 +5299,12 @@ then :
   printf "%s\n" "#define HAVE_STDBOOL_H 1" >>confdefs.h
 
 fi
+ac_fn_c_check_header_compile "$LINENO" "uchar.h" "ac_cv_header_uchar_h" "$ac_includes_default"
+if test "x$ac_cv_header_uchar_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_UCHAR_H 1" >>confdefs.h
+
+fi
 
 
 # checks for typedefs, structures, and compiler characteristics
@@ -5571,6 +5577,16 @@ printf %s "checking for real definition of size_t... " >&6; }
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5591,6 +5607,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5613,6 +5639,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5633,6 +5669,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5655,6 +5701,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5675,6 +5731,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5697,6 +5763,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5717,6 +5793,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5739,6 +5825,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5759,6 +5855,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5794,6 +5900,16 @@ printf %s "checking for real definition of wchar_t... " >&6; }
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5814,6 +5930,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5836,6 +5962,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5856,6 +5992,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5878,6 +6024,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5898,6 +6054,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5920,6 +6086,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5940,6 +6116,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5962,6 +6148,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -5982,6 +6178,16 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */
@@ -6001,6 +6207,652 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
   fi
 
 printf "%s\n" "#define TYPE_WCHAR_T \"$real_type\"" >>confdefs.h
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $real_type" >&5
+printf "%s\n" "$real_type" >&6; }
+
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for real definition of char16_t" >&5
+printf %s "checking for real definition of char16_t... " >&6; }
+  real_type=''
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+int foo(int x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='int'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned int foo(unsigned int x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned int'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+long foo(long x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long foo(unsigned long x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+long long foo(long long x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long long foo(unsigned long long x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+short foo(short x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='short'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned short foo(unsigned short x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned short'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+char foo(char x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='char'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned char foo(unsigned char x);
+char16_t foo(char16_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned char'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    as_fn_error $? "cannot find definition of char16_t" "$LINENO" 5
+  fi
+
+printf "%s\n" "#define TYPE_CHAR16_T \"$real_type\"" >>confdefs.h
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $real_type" >&5
+printf "%s\n" "$real_type" >&6; }
+
+
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for real definition of char32_t" >&5
+printf %s "checking for real definition of char32_t... " >&6; }
+  real_type=''
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+int foo(int x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='int'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned int foo(unsigned int x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned int'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+long foo(long x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long foo(unsigned long x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+long long foo(long long x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned long long foo(unsigned long long x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned long long'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+short foo(short x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='short'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned short foo(unsigned short x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned short'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+char foo(char x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='char'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
+/* We define a prototype with one type and the function with
+   another type.  This will result in compilation error
+   unless the types are really identical. */
+unsigned char foo(unsigned char x);
+char32_t foo(char32_t x) { return x; }
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  real_type='unsigned char'
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  fi
+
+
+  if test -z "$real_type"; then
+    as_fn_error $? "cannot find definition of char32_t" "$LINENO" 5
+  fi
+
+printf "%s\n" "#define TYPE_CHAR32_T \"$real_type\"" >>confdefs.h
 
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $real_type" >&5
 printf "%s\n" "$real_type" >&6; }

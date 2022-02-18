@@ -2670,7 +2670,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           match e' with
             StartOf(lv) -> typeOfLval lv
                 (* If this is a string literal, then we treat it as in sizeof*)
-          | Const (CStr s) -> begin
+          | Const (CStr (s,_)) -> begin
               match typeOf e' with
                 TPtr(bt, _) -> (* This is the type of array elements *)
                   TArray(bt, Some (SizeOfStr s), [])
@@ -2802,7 +2802,7 @@ and doAttr (a: A.attribute) : attribute list =
               | _ -> ACons (n', [])
             with Not_found -> ACons(n', [])
           end
-        | A.CONSTANT (A.CONST_STRING s) -> AStr s
+        | A.CONSTANT (A.CONST_STRING (s,_)) -> AStr s
         | A.CONSTANT (A.CONST_INT str) -> begin
             match parseInt str with
               Const (CInt (v64,_,_)) ->
@@ -3403,7 +3403,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
     | A.PAREN e -> E.s (bug "stripParen")
     | A.NOTHING when what = ADrop -> finishExp empty (integer 0) intType
     | A.NOTHING ->
-        let res = Const(CStr "exp_nothing") in
+        let res = Const(CStr ("exp_nothing", No_encoding)) in
         finishExp empty res (typeOf res)
 
     (* Do the potential lvalues first *)
@@ -3568,11 +3568,16 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               (TPtr(wchar_t, []))
               *)
 
-        | A.CONST_WSTRING (ws: int64 list) ->
-            let res = Const(CWStr ((* intlist_to_wstring *) ws)) in
+        | A.CONST_WSTRING (ws, wst) ->
+            let cil_wst =
+              match wst with
+                WCHAR_T -> Wchar_t | CHAR16_T -> Char16_t | CHAR32_T -> Char32_t
+              | _ -> E.s ("Error in CONST_WSTRING: Not a wchar type");
+            in
+            let res = Const(CWStr ((* intlist_to_wstring *) ws, cil_wst)) in
             finishExp empty res (typeOf res)
 
-        | A.CONST_STRING s ->
+        | A.CONST_STRING (s,enc) ->
             (* Maybe we burried __FUNCTION__ in there *)
             let s' =
               try
@@ -3589,14 +3594,15 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                   s
               with Not_found -> s
             in
-            let res = Const(CStr s') in
+            let enc' = match enc with NO_ENCODING -> No_encoding | UTF8 -> Utf8 in
+            let res = Const(CStr (s', enc')) in
             finishExp empty res (typeOf res)
 
         | A.CONST_CHAR char_list ->
             let a, b = (interpret_character_constant char_list) in
             finishExp empty (Const a) b
 
-        | A.CONST_WCHAR char_list ->
+        | A.CONST_WCHAR (char_list,wct) ->
             (* matth: I can't see a reason for a list of more than one char
              * here, since the kinteger64 below will take only the lower 16
              * bits of value.  ('abc' makes sense, because CHAR constants have
@@ -3604,8 +3610,14 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
              * the value.  But L'abc' has type wchar, and so is equivalent to
              * L'c').  But gcc allows L'abc', so I'll leave this here in case
              * I'm missing some architecture dependent behavior. *)
-	    let value = reduce_multichar !wcharType char_list in
-	    let result = kintegerCilint !wcharKind value in
+            let wcType, wcKind = match wct with
+            | WCHAR_T -> !wcharType, !wcharKind
+            | CHAR16_T -> !char16Type, !char16Kind
+            | CHAR32_T -> !char32Type, !char32Kind
+            | _ -> E.s ("Error in CONST_WCHAR: not a wchar type");
+            in
+            let value = reduce_multichar wcType char_list in
+            let result = kintegerCilint !wcharKind value in
             finishExp empty result (typeOf result)
 
         | A.CONST_FLOAT str -> begin
@@ -3634,7 +3646,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               ignore (E.log "float_of_string %s (%s)\n" str
                         (Printexc.to_string e));
               E.hadErrors := true;
-              let res = Const(CStr "booo CONS_FLOAT") in
+              let res = Const(CStr ("booo CONS_FLOAT", No_encoding)) in
               finishExp empty res (typeOf res)
             end
         end
@@ -3664,7 +3676,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               ignore (E.log "float_of_string_2 %s (%s)\n" baseint
                         (Printexc.to_string e));
               E.hadErrors := true;
-              let res = Const(CStr "booo CONS_FLOAT") in
+              let res = Const(CStr ("booo CONS_FLOAT", No_encoding)) in
               finishExp empty res (typeOf res)
             end
         end
@@ -3675,10 +3687,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         finishExp empty (SizeOf(typ)) !typeOfSizeOf
 
       (* Intercept the sizeof("string") *)
-    | A.EXPR_SIZEOF (A.CONSTANT (A.CONST_STRING s)) -> begin
+    | A.EXPR_SIZEOF (A.CONSTANT (A.CONST_STRING (s,enc))) -> begin
         (* Process the string first *)
-        match doExp asconst (A.CONSTANT (A.CONST_STRING s)) (AExp None) with
-          _, Const(CStr s), _ ->
+        match doExp asconst (A.CONSTANT (A.CONST_STRING (s,enc))) (AExp None) with
+          _, Const(CStr (s,enc)), _ ->
             finishExp empty (SizeOfStr s) !typeOfSizeOf
         | _ -> E.s (bug "cabs2cil: sizeOfStr")
     end
@@ -5215,11 +5227,11 @@ and doInit
          * string into characters *)
   | TArray(bt, leno, _),
       (A.NEXT_INIT,
-       (A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING s))|
+       (A.SINGLE_INIT(A.CONSTANT (A.CONST_STRING (s,enc)))|
        A.COMPOUND_INIT
          [(A.NEXT_INIT,
            A.SINGLE_INIT(A.CONSTANT
-                           (A.CONST_STRING s)))])) :: restil
+                           (A.CONST_STRING (s,enc))))])) :: restil
     when (match unrollType bt with
             TInt((IChar|IUChar|ISChar), _) -> true
           | TInt _ ->
@@ -5267,11 +5279,11 @@ and doInit
    * important. *)
   | TArray(bt, leno, _),
       (A.NEXT_INIT,
-       (A.SINGLE_INIT(A.CONSTANT (A.CONST_WSTRING s)) |
+       (A.SINGLE_INIT(A.CONSTANT (A.CONST_WSTRING (s,enc))) |
        A.COMPOUND_INIT
          [(A.NEXT_INIT,
            A.SINGLE_INIT(A.CONSTANT
-                           (A.CONST_WSTRING s)))])) :: restil
+                           (A.CONST_WSTRING (s,enc))))])) :: restil
     when(let bt' = unrollType bt in
          match bt' with
            (* compare bt to wchar_t, ignoring signed vs. unsigned *)
@@ -5805,7 +5817,7 @@ and createLocal ?allow_var_decl:(allow_var_decl=true) ((_, sto, _, _) as specs)
           TArray(_,None, _), _, TArray(_, Some _, _) -> vi.vtype <- et
             (* Initializing a local array *)
         | TArray(TInt((IChar|IUChar|ISChar), _) as bt, None, a),
-             SingleInit(Const(CStr s)), _ ->
+             SingleInit(Const(CStr (s,enc))), _ ->
                vi.vtype <- TArray(bt,
                                   Some (integer (String.length s + 1)),
                                   a)

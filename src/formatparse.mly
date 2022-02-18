@@ -559,11 +559,11 @@ constant:
 |   ARG_g             { let currentArg = $1 in
                         ((fun args ->
                              match getArg currentArg args with
-                               Fg s -> Const(CStr s)
+                               Fg s -> Const(CStr (s, No_encoding))
                               | a -> wrongArgType currentArg "string" a),
 
                             fun e -> match e with
-                              Const(CStr s) ->
+                              Const(CStr (s,_)) ->
                                 Some [ Fg s ]
                             | _ -> None)
                          }

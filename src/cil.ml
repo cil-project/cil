@@ -543,6 +543,8 @@ and exp =
                           * [TArray(T)] produces an expression of type
                           * [TPtr(T)]. *)
 
+and wstring_type = | Wchar_t | Char16_t | Char32_t
+and encoding = No_encoding | Utf8
 
 (** Literal constants *)
 and constant =
@@ -550,8 +552,8 @@ and constant =
                  (** Integer constant. Give the ikind (see ISO9899 6.1.3.2)
                   * and the textual representation, if available. Use
                   * {!Cil.integer} or {!Cil.kinteger} to create these. *)
-  | CStr of string (** String constant (of pointer type) *)
-  | CWStr of int64 list (** Wide string constant (of type "wchar_t *") *)
+  | CStr of string * encoding (** String constant (of pointer type) *)
+  | CWStr of int64 list * wstring_type (** Wide string constant (of type "wchar_t *") *)
   | CChr of char (** Character constant.  This has type int, so use
                   *  charConstToInt to read the value in case
                   *  sign-extension is needed. *)
@@ -1296,9 +1298,13 @@ let upointType = ref voidType
 (* An integer type that fits a pointer difference. Initialized by initCIL *)
 let ptrdiffType = ref voidType
 
-(* An integer type that fits wchar_t. Initialized by initCIL *)
+(* Integer types that fit wchar_t, char16_t, and char32_t. Initialized by initCIL *)
 let wcharKind = ref IChar
 let wcharType = ref voidType
+let char16Kind = ref IChar
+let char16Type = ref voidType
+let char32Kind = ref IChar
+let char32Type = ref voidType
 
 
 (* An integer type that is the type of sizeof. Initialized by initCIL *)
@@ -1666,7 +1672,7 @@ let getComplexFkind = function
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
 
-let mkString s = Const(CStr s)
+let mkString s = Const(CStr (s, No_encoding))
 
 
 let mkWhile ~(guard:exp) ~(body: stmt list) : stmt list =
@@ -1807,9 +1813,10 @@ let d_const () c =
           text (prefix ^ (string_of_cilint i ^ suffix))
       )
 
-  | CStr(s) -> text ("\"" ^ escape_string s ^ "\"")
-  | CWStr(s) ->
+  | CStr(s, enc) -> let prefix = match enc with No_encoding -> "" | Utf8 -> "u8" in text (prefix ^ "\"" ^ escape_string s ^ "\"")
+  | CWStr(s, st) ->
       (* text ("L\"" ^ escape_string s ^ "\"")  *)
+      let prefix = match st with Wchar_t -> "L" | Char16_t -> "u" | Char32_t -> "U" in
       (List.fold_left (fun acc elt ->
         acc ++
         if (elt >= Int64.zero &&
@@ -1818,7 +1825,7 @@ let d_const () c =
         else
           ( text (Printf.sprintf "\\x%LX\"" elt) ++ break ++
             (text "\""))
-      ) (text "L\"") s ) ++ text "\""
+      ) (text (prefix ^ "\"")) s ) ++ text "\""
       (* we cannot print L"\xabcd" "feedme" as L"\xabcdfeedme" --
        * the former has 7 wide characters and the later has 3. *)
 
@@ -1938,9 +1945,9 @@ let rec typeOf (e: exp) : typ =
     (* The type of a string is a pointer to characters ! The only case when
      * you would want it to be an array is as an argument to sizeof, but we
      * have SizeOfStr for that *)
-  | Const(CStr s) -> stringLiteralType
+  | Const(CStr (_, _)) -> stringLiteralType
 
-  | Const(CWStr s) -> TPtr(!wcharType,[])
+  | Const(CWStr (s,st)) -> TPtr((match st with Wchar_t -> !wcharType | Char16_t -> !char16Type | Char32_t -> !char32Type), [])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
@@ -3364,7 +3371,7 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | Real e ->
         text "__real__(" ++ self#pExp () e ++ chr ')'
     | SizeOfStr s ->
-        text "sizeof(" ++ d_const () (CStr s) ++ chr ')'
+        text "sizeof(" ++ d_const () (CStr (s, No_encoding)) ++ chr ')'
 
     | AlignOf (t) ->
         text "__alignof__(" ++ self#pType None () t ++ chr ')'
@@ -4607,16 +4614,16 @@ class plainCilPrinterClass =
       let d_plainconst () c =
         match c with
           CInt(i, ik, so) ->
-	    let fmt = if isSigned ik then "%d" else "%x" in
+            let fmt = if isSigned ik then "%d" else "%x" in
             dprintf "Int(%s,%a,%s)"
               (Z.format fmt i)
               d_ikind ik
               (match so with Some s -> s | _ -> "None")
-        | CStr(s) ->
-            text ("CStr(\"" ^ escape_string s ^ "\")")
-        | CWStr(s) ->
+        | CStr(s, enc) ->
+            let enc_string = match enc with No_encoding -> "_" | Utf8 -> "UTF8" in
+            text ("CStr(\"" ^ escape_string s ^ "\"," ^ enc_string ^ ")")
+        | CWStr(s,_) ->
             dprintf "CWStr(%a)" d_const c
-
         | CChr(c) -> text ("CChr('" ^ escape_char c ^ "')")
         | CReal(f, fk, so) ->
             dprintf "CReal(%f, %a, %s)"
@@ -4664,7 +4671,7 @@ class plainCilPrinterClass =
   | SizeOfE (e) ->
       text "sizeofE(" ++ self#pExp () e ++ chr ')'
   | SizeOfStr (s) ->
-      text "sizeofStr(" ++ d_const () (CStr s) ++ chr ')'
+      text "sizeofStr(" ++ d_const () (CStr (s, No_encoding)) ++ chr ')'
   | AlignOf (t) ->
       text "__alignof__(" ++ self#pType None () t ++ chr ')'
   | AlignOfE (e) ->
@@ -5965,7 +5972,7 @@ let typeSigAttrs = function
 
 
 let dExp: doc -> exp =
-  fun d -> Const(CStr(sprint ~width:!lineLength d))
+  fun d -> Const(CStr(sprint ~width:!lineLength d, No_encoding))
 
 let dInstr: doc -> location -> instr =
   fun d l -> Asm([], [sprint ~width:!lineLength d], [], [], [], l)

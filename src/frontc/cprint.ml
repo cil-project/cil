@@ -123,8 +123,9 @@ let print_commas nl fct lst =
 let print_string (s:string) =
   print ("\"" ^ escape_string s ^ "\"")
 
-let print_wstring (s: int64 list ) =
-  print ("L\"" ^ escape_wstring s ^ "\"")
+let print_wstring (s: int64 list ) (wst: Cabs.wchar_type) =
+  let prefix = match wst with WCHAR_T -> "L" | CHAR16_T -> "u" | CHAR32_T -> "U" | _ -> Errormsg.s ("Error in print_wstring: not a wchar type") in
+  print (prefix ^ "\"" ^ escape_wstring s ^ "\"")
 
 (*
 ** Base Type Printing
@@ -517,9 +518,11 @@ and print_expression_level (lvl: int) (exp : expression) =
       | CONST_FLOAT r -> print r
       | CONST_COMPLEX r -> print r
       | CONST_CHAR c -> print ("'" ^ escape_wstring c ^ "'")
-      | CONST_WCHAR c -> print ("L'" ^ escape_wstring c ^ "'")
-      | CONST_STRING s -> print_string s
-      | CONST_WSTRING ws -> print_wstring ws)
+      | CONST_WCHAR (c, wct) ->
+        let prefix = match wct with WCHAR_T -> "L'" | CHAR16_T -> "u'" | CHAR32_T -> "U'" | CHAR_UTF8 -> "u8'" | CHAR -> "" in
+        print (prefix ^ escape_wstring c ^ "'")
+      | CONST_STRING (s, enc) -> print_string s
+      | CONST_WSTRING (ws, wst) -> print_wstring ws wst)
   | VARIABLE name ->
       comprint "variable";
       print name

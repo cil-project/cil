@@ -175,6 +175,8 @@ $(OBJDIR)/machdep.ml : src/machdep-ml.c configure.ac Makefile.in
 	@echo "  sizeof_fun: int;        (* Size of function *)"        >> $@
 	@echo "  size_t: string;         (* Type of \"sizeof(T)\" *)"   >> $@
 	@echo "  wchar_t: string;        (* Type of \"wchar_t\" *)"     >> $@
+	@echo "  char16_t: string;       (* Type of \"char16_t\" *)"    >> $@
+	@echo "  char32_t: string;       (* Type of \"char32_t\" *)"    >> $@
 	@echo "  alignof_short: int;     (* Alignment of \"short\" *)"  >> $@
 	@echo "  alignof_int: int;       (* Alignment of \"int\" *)"    >> $@
 	@echo "  alignof_bool: int;      (* Alignment of \"_Bool\" *)"    >> $@

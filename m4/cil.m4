@@ -5,6 +5,16 @@ AC_DEFUN([__CIL_CHECK_INTEGER_TYPE_TYPE], [
     AC_COMPILE_IFELSE([AC_LANG_SOURCE([
 #include <stddef.h>
 #include <wchar.h>
+#include <stdint.h>
+#if __APPLE__
+  // C11 7.28 defines these to be the same as uint_least16_t and uint_least32_t.
+  // The standard mandates a uchar.h file to contain these typedefs, but Mac does
+  // not have that header file
+  typedef uint_least16_t char16_t;
+  typedef uint_least32_t char32_t;
+#else
+  #include <uchar.h>
+#endif
 /* We define a prototype with one type and the function with
    another type.  This will result in compilation error
    unless the types are really identical. */

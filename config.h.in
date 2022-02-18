@@ -42,6 +42,9 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
 
+/* Define to 1 if you have the <uchar.h> header file. */
+#undef HAVE_UCHAR_H
+
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
@@ -73,6 +76,12 @@
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
+
+/* Real integer type corresponding to char16_t. */
+#undef TYPE_CHAR16_T
+
+/* Real integer type corresponding to char32_t. */
+#undef TYPE_CHAR32_T
 
 /* Real integer type corresponding to size_t. */
 #undef TYPE_SIZE_T

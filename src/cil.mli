@@ -636,6 +636,9 @@ and exp =
 
 (** {b Constants.} *)
 
+and wstring_type = | Wchar_t | Char16_t | Char32_t
+and encoding = No_encoding | Utf8
+
 (** Literal constants *)
 and constant =
   | CInt of cilint * ikind * string option
@@ -643,13 +646,13 @@ and constant =
      * textual representation, if available. (This allows us to print a
      * constant as, for example, 0xF instead of 15.) Use {!Cil.integer} or
      * {!Cil.kinteger} to create these. *)
-  | CStr of string
+  | CStr of string * encoding
     (** String constant. The escape characters inside the string have been
      * already interpreted. This constant has pointer to character type! The
      * only case when you would like a string literal to have an array type
      * is when it is an argument to sizeof. In that case you should use
      * SizeOfStr. *)
-  | CWStr of int64 list
+  | CWStr of int64 list * wstring_type
     (** Wide character string constant. Note that the local interpretation
      * of such a literal depends on {!Cil.wcharType} and {!Cil.wcharKind}.
      * Such a constant has type pointer to {!Cil.wcharType}. The
@@ -1338,10 +1341,14 @@ val charPtrType: typ
 (** Type of string literals *)
 val stringLiteralType: typ
 
-(** wchar_t (depends on architecture) and is set when you call
+(** wchar_t, char16_t and char32_t depend on architecture and are set when you call
  * {!Cil.initCIL}. *)
 val wcharKind: ikind ref
 val wcharType: typ ref
+val char16Kind: ikind ref
+val char16Type: typ ref
+val char32Kind: ikind ref
+val char32Type: typ ref
 
 (** char const * *)
 val charConstPtrType: typ

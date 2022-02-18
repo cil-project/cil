@@ -231,7 +231,7 @@ and analyze_expr_as_lval (e : exp) : A.lvalue =
 and analyze_expr (e : exp ) : A.tau =
   let result =
     match e with
-        Const (CStr s) ->
+        Const (CStr (s,_)) ->
           if !model_strings then
             A.address (A.make_lvalue
                          false
