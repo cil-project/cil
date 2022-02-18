@@ -738,7 +738,7 @@ const_raw_string:
         match typ with
         | CHAR -> queue_to_string queue, location
         | CHAR_UTF8 -> queue_to_string queue, location
-        | _ -> parse_error "wstring in illegal place (conmst_raw_string)"; raise Parsing.Parse_error
+        | _ -> parse_error "wstring in illegal place (const_raw_string)"; raise Parsing.Parse_error
     }
 
 one_string_constant:
@@ -1665,8 +1665,8 @@ asmoperandsne:
 ;
 
 asmoperand:
-     asmopname one_string_constant LPAREN expression RPAREN    { ($1, $2, fst $4) }
-|    asmopname one_string_constant LPAREN error RPAREN         { ($1, $2, NOTHING ) }
+     asmopname const_raw_string LPAREN expression RPAREN    { ($1, fst $2, fst $4) }
+|    asmopname const_raw_string LPAREN error RPAREN         { ($1, fst $2, NOTHING ) }
 ;
 
 asminputs:
