@@ -738,7 +738,7 @@ const_raw_string:
         match typ with
         | CHAR -> queue_to_string queue, location
         | CHAR_UTF8 -> queue_to_string queue, location
-        | _ -> parse_error "wstring in illegal place (conmst_raw_string)"; raise Parsing.Parse_error
+        | _ -> parse_error "wstring in illegal place (const_raw_string)"; raise Parsing.Parse_error
     }
 
 one_string_constant:
