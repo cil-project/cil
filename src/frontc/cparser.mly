@@ -732,7 +732,7 @@ constant:
 
 one_string_constant:
 /* Don't concat multiple strings.  For asm templates. */
-    CST_STRING                          {intlist_to_string (fst $1) }
+    CST_STRING                          { intlist_to_string (fst $1) }
 ;
 
 string_constant:
@@ -1654,8 +1654,8 @@ asmoperandsne:
 ;
 
 asmoperand:
-     asmopname string_constant LPAREN expression RPAREN    { let q,t,l = $2 in ($1, queue_to_string q, fst $4) }
-|    asmopname string_constant LPAREN error RPAREN         { let q,t,l = $2 in ($1, queue_to_string q, NOTHING ) }
+     asmopname one_string_constant LPAREN expression RPAREN    { ($1, $2, fst $4) }
+|    asmopname one_string_constant LPAREN error RPAREN         { ($1, $2, NOTHING ) }
 ;
 
 asminputs:
