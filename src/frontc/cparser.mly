@@ -1663,8 +1663,8 @@ asmoperandsne:
 ;
 
 asmoperand:
-     asmopname one_string_constant LPAREN expression RPAREN    { ($1, $2, fst $4) }
-|    asmopname one_string_constant LPAREN error RPAREN         { ($1, $2, NOTHING ) }
+     asmopname const_raw_string LPAREN expression RPAREN    { ($1, fst $2, fst $4) }
+|    asmopname const_raw_string LPAREN error RPAREN         { ($1, fst $2, NOTHING ) }
 ;
 
 asminputs:
