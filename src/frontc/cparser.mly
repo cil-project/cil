@@ -355,7 +355,7 @@ let transformOffsetOf (speclist, dtype) member =
 %type <Cabs.attribute list> attributes attributes_with_asm asmattr
 %type <Cabs.statement> statement
 %type <Cabs.constant * cabsloc> constant
-%type <int64 list Queue.t * Cabs.wchar_type * cabsloc> string_constant
+%type <int64 list Queue.t * Cabs.wchar_type * cabsloc> string_list
 %type <Cabs.expression * cabsloc> expression
 %type <Cabs.expression> opt_expression
 %type <Cabs.init_expression> init_expression
@@ -423,11 +423,11 @@ global:
 | function_def                          { $1 }
 /*(* Some C header files ar shared with the C++ compiler and have linkage
    * specification *)*/
-| EXTERN string_constant declaration { let q,t,l = $2 in LINKAGE (queue_to_string q, (*handleLoc*) l, [ $3 ]) }
-| EXTERN string_constant LBRACE globals RBRACE
-                                        { let q,t,l = $2 in LINKAGE (queue_to_string q, (*handleLoc*) l, $4) }
-| ASM LPAREN string_constant RPAREN SEMICOLON
-                                        { let q,t,l = $3 in GLOBASM (queue_to_string q, (*handleLoc*) $1) }
+| EXTERN const_raw_string declaration { LINKAGE (fst $2, (*handleLoc*) snd $2, [ $3 ]) }
+| EXTERN const_raw_string LBRACE globals RBRACE
+                                        { LINKAGE (fst $2, (*handleLoc*) snd $2, $4) }
+| ASM LPAREN const_raw_string RPAREN SEMICOLON
+                                        { GLOBASM (fst $3, (*handleLoc*) $1) }
 | pragma                                { $1 }
 /* (* Old-style function prototype. This should be somewhere else, like in
     * "declaration". For now we keep it at global scope only because in local
@@ -721,21 +721,34 @@ constant:
 |   CST_WCHAR				{CONST_WCHAR (fst $1, WCHAR_T), snd $1}
 |   CST_CHAR16      {CONST_WCHAR (fst $1, CHAR16_T), snd $1}
 |   CST_CHAR32      {CONST_WCHAR (fst $1, CHAR32_T), snd $1}
-|   string_constant     {
+|   const_string_or_wstring     { $1 }
+;
+
+const_string_or_wstring:
+|   string_list     {
         let queue, typ, location = $1 in
         match typ with
         | CHAR -> CONST_STRING (queue_to_string queue, NO_ENCODING), location
         | CHAR_UTF8 -> CONST_STRING (queue_to_string queue, UTF8), location
         | _ -> CONST_WSTRING (queue_to_int64_list queue, typ), location
     }
-;
+
+const_raw_string:
+/* Allow only CONST_STRING, represent as (string * location) */
+|   string_list     {
+        let queue, typ, location = $1 in
+        match typ with
+        | CHAR -> queue_to_string queue, location
+        | CHAR_UTF8 -> queue_to_string queue, location
+        | _ -> parse_error "wstring in illegal place (conmst_raw_string)"; raise Parsing.Parse_error
+    }
 
 one_string_constant:
-/* Don't concat multiple strings.  For asm templates. */
+/* Don't concat multiple strings, or allow other encoding of string.  For asm templates. */
     CST_STRING                          { intlist_to_string (fst $1) }
 ;
 
-string_constant:
+string_list:
     one_string                          {
       let queue = Queue.create () in
       let str, typ, loc = $1 in
@@ -757,7 +770,7 @@ string_constant:
       Queue.add (fst $1) queue;
       queue, CHAR32_T, snd $1
     }
-|   string_constant one_string              {
+|   string_list one_string              {
       let queue, typ, loc = $1 in
       let str, typ2, _ = $2 in
       Queue.add str queue;
@@ -768,7 +781,7 @@ string_constant:
         let typ3 = if typ2 = CHAR_UTF8 then CHAR_UTF8 else typ in
         queue, typ3, loc
     }
-|   string_constant CST_WSTRING {
+|   string_list CST_WSTRING {
       let queue, typ, loc = $1 in
       Queue.add (fst $2) queue;
       if typ <> CHAR && typ <> WCHAR_T then (
@@ -777,7 +790,7 @@ string_constant:
       else
         queue, WCHAR_T, loc
     }
-|   string_constant CST_STRING16 {
+|   string_list CST_STRING16 {
       let queue, typ, loc = $1 in
       Queue.add (fst $2) queue;
       if typ <> CHAR && typ <> CHAR16_T then (
@@ -786,7 +799,7 @@ string_constant:
       else
         queue, CHAR16_T, loc
     }
-|   string_constant CST_STRING32 {
+|   string_list CST_STRING32 {
       let queue, typ, loc = $1 in
       Queue.add (fst $2) queue;
       if typ <> CHAR && typ <> CHAR32_T then (
@@ -996,10 +1009,9 @@ static_assert_declaration:
       {
         (fst $3, "", $1)
       }
-|   STATIC_ASSERT LPAREN expression COMMA string_constant RPAREN
+|   STATIC_ASSERT LPAREN expression COMMA const_raw_string RPAREN
       {
-        let q,t,l = $5 in
-        (fst $3, queue_to_string q, $1)
+        (fst $3, fst $5, $1)
       }
 ;
 
@@ -1414,9 +1426,8 @@ attributes:
 attributes_with_asm:
     /* empty */                         { [] }
 |   attribute attributes_with_asm       { fst $1 :: $2 }
-|   ASM LPAREN string_constant RPAREN attributes
-                                        { let q,t,l = $3 in ("__asm__",
-					   [CONSTANT(CONST_STRING (queue_to_string q, NO_ENCODING))]) :: $5 }
+|   ASM LPAREN const_string_or_wstring RPAREN attributes
+                                        { ("__asm__", [CONSTANT(fst $3)]) :: $5 }
 ;
 
 /* things like __attribute__, but no const/volatile */
@@ -1482,7 +1493,7 @@ primary_attr:
 |   LPAREN attr RPAREN                  { $2 }
 |   IDENT IDENT                          { CALL(VARIABLE (fst $1), [VARIABLE (fst $2)]) }
 |   CST_INT                              { CONSTANT(CONST_INT (fst $1)) }
-|   string_constant                      { let q,t,l = $1 in CONSTANT(CONST_STRING (queue_to_string q, NO_ENCODING)) }
+|   const_string_or_wstring                 { CONSTANT(fst $1) }
                                            /*(* Const when it appears in
                                             * attribute lists, is translated
                                             * to aconst *)*/
