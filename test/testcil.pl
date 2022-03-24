@@ -610,6 +610,7 @@ addTest("combine_syserr");
 addTest("combine_syserr MERGEINLINES=1");
 addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1");
 addTest("combine_copyptrs WARNINGS_ARE_ERRORS=1 MERGEINLINES=1");
+addTest("combinegnuinline");
 
 addTest("testrun/constfold EXTRAARGS=\"--domakeCFG --dopartial\"");
 addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on sourceforge.");

@@ -1341,7 +1341,7 @@ let oneFilePass2 (f: file) =
         vi (* Already done *)
       else begin
         (* Maybe it is static. Rename it then *)
-        if vi.vstorage = Static then begin
+        if vi.vstorage = Static || (not !merge_inlines && hasAttribute "gnu_inline" (typeAttrs vi.vtype)) then begin
           let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in
           (* Remember the original name *)
           H.add originalVarNames newName vi.vname;
