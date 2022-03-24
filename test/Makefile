@@ -288,6 +288,13 @@ combine%: $(SMALL1)/combine%_1.c
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
+combinegnuinline:
+	cd $(SMALL1); \
+          $(CILLY) --merge $(CFLAGS)  -std=gnu90 -fcommon \
+                    combinegnuinline_1.c combinegnuinline_2.c \
+	            $(EXEOUT)combinegnuinline.exe
+	cd $(SMALL1); ./combinegnuinline.exe
+
 arcombine: mustbegcc
 	cd $(SMALL1); $(CILLY) -c array1.c array2.c
 	cd $(SMALL1); $(CILHOME)/bin/cilly \
