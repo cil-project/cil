@@ -1276,6 +1276,52 @@
    | Some xi, Some yi -> equalInits xi yi
    | _, _ -> false
 
+ (* The comparion of inline functions is based on pretty printing (!?) *)
+ let printInlineForComparison fdec' g' =
+   (* Temporarily turn off printing of lines *)
+   let oldprintln = !lineDirectiveStyle in
+   lineDirectiveStyle := None;
+   (* Temporarily set the name to all functions in the same way *)
+   let newname = fdec'.svar.vname in
+   fdec'.svar.vname <- "@@alphaname@@";
+   (* If we must do alpha conversion then temporarily set the
+    * names of the local variables and formals in a standard way *)
+   let nameId = ref 0 in
+   let oldNames : string list ref = ref [] in
+   let renameOne (v : varinfo) =
+     oldNames := v.vname :: !oldNames;
+     incr nameId;
+     v.vname <- "___alpha" ^ string_of_int !nameId
+   in
+   let undoRenameOne (v : varinfo) =
+     match !oldNames with
+     | n :: rest ->
+         oldNames := rest;
+         v.vname <- n
+     | _ -> E.s (bug "undoRenameOne")
+   in
+   (* Remember the original type *)
+   let origType = fdec'.svar.vtype in
+   if mergeInlinesWithAlphaConvert () then (
+     (* Rename the formals *)
+     List.iter renameOne fdec'.sformals;
+     (* Reflect in the type *)
+     setFormals fdec' fdec'.sformals;
+     (* Now do the locals *)
+     List.iter renameOne fdec'.slocals);
+   (* Now print it *)
+   let res = d_global () g' in
+   lineDirectiveStyle := oldprintln;
+   fdec'.svar.vname <- newname;
+   if mergeInlinesWithAlphaConvert () then (
+     (* Do the locals in reverse order *)
+     List.iter undoRenameOne (List.rev fdec'.slocals);
+     (* Do the formals in reverse order *)
+     List.iter undoRenameOne (List.rev fdec'.sformals);
+     (* Restore the type *)
+     fdec'.svar.vtype <- origType);
+   res
+
  (* Now we go once more through the file and we rename the globals that we
   * keep. We also scan the entire body and we replace references to the
   * representative types or variables. We set the referenced flags once we
@@ -1386,51 +1432,7 @@
            );
            (* See if we can remove this inline function *)
            if fdec'.svar.vinline && !merge_inlines then (
-             let printout =
-               (* Temporarily turn off printing of lines *)
-               let oldprintln = !lineDirectiveStyle in
-               lineDirectiveStyle := None;
-               (* Temporarily set the name to all functions in the same way *)
-               let newname = fdec'.svar.vname in
-               fdec'.svar.vname <- "@@alphaname@@";
-               (* If we must do alpha conversion then temporarily set the
-                * names of the local variables and formals in a standard way *)
-               let nameId = ref 0 in
-               let oldNames : string list ref = ref [] in
-               let renameOne (v : varinfo) =
-                 oldNames := v.vname :: !oldNames;
-                 incr nameId;
-                 v.vname <- "___alpha" ^ string_of_int !nameId
-               in
-               let undoRenameOne (v : varinfo) =
-                 match !oldNames with
-                 | n :: rest ->
-                     oldNames := rest;
-                     v.vname <- n
-                 | _ -> E.s (bug "undoRenameOne")
-               in
-               (* Remember the original type *)
-               let origType = fdec'.svar.vtype in
-               if mergeInlinesWithAlphaConvert () then (
-                 (* Rename the formals *)
-                 List.iter renameOne fdec'.sformals;
-                 (* Reflect in the type *)
-                 setFormals fdec' fdec'.sformals;
-                 (* Now do the locals *)
-                 List.iter renameOne fdec'.slocals);
-               (* Now print it *)
-               let res = d_global () g' in
-               lineDirectiveStyle := oldprintln;
-               fdec'.svar.vname <- newname;
-               if mergeInlinesWithAlphaConvert () then (
-                 (* Do the locals in reverse order *)
-                 List.iter undoRenameOne (List.rev fdec'.slocals);
-                 (* Do the formals in reverse order *)
-                 List.iter undoRenameOne (List.rev fdec'.sformals);
-                 (* Restore the type *)
-                 fdec'.svar.vtype <- origType);
-               res
-             in
+             let printout = printInlineForComparison fdec' g' in
              (* Make a node for this inline function using the original name. *)
              let inode = getNode vEq vSyn !currentFidx origname fdec'.svar (Some (l, !currentDeclIdx))
              in
