@@ -312,14 +312,10 @@
   * names must be different from variable names!! We one alpha table both for
   * variables and types. *)
  let vtAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
- (* Variables and
-                                            * types *)
+ (* Variables and types *)
 
  let sAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
- (* Structures and
-                                            * unions have
-                                            * the same name
-                                            * space *)
+ (* Structures and unions have the same name space *)
 
  let eAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
  (* Enumerations *)
@@ -1159,11 +1155,8 @@
      | ComputedGoto _ -> 131
      | Break _ -> 23
      | Continue _ -> 29
-     | If (_, b1, b2, _, _) ->
-         31 + (37 * stmtListSum b1.bstmts) + (41 * stmtListSum b2.bstmts)
-     | Switch (_, b, _, _, _) ->
-         43 + (47 * stmtListSum b.bstmts)
-         (* don't look at stmt list b/c is not part of tree *)
+     | If (_, b1, b2, _, _) -> 31 + (37 * stmtListSum b1.bstmts) + (41 * stmtListSum b2.bstmts)
+     | Switch (_, b, _, _, _) -> 43 + (47 * stmtListSum b.bstmts) (* don't look at stmt list b/c is not part of tree *)
      | Loop (b, _, _, _, _) -> 49 + (53 * stmtListSum b.bstmts)
      | Block b -> 59 + (61 * stmtListSum b.bstmts)
    in
@@ -1205,8 +1198,7 @@
        (* types need to be identically equal *)
        let rec equalLists xoil yoil : bool =
          match (xoil, yoil) with
-         | (xo, xi) :: xrest, (yo, yi) :: yrest ->
-             equalOffsets xo yo && equalInits xi yi && equalLists xrest yrest
+         | (xo, xi) :: xrest, (yo, yi) :: yrest -> equalOffsets xo yo && equalInits xi yi && equalLists xrest yrest
          | [], [] -> true
          | _, _ -> false
        in
@@ -1231,9 +1223,7 @@
        (* safe to use '=' on literals *)
        (* CIL changes (unsigned)0 into 0U during printing.. *)
        match (xc, yc) with
-       | CInt (a, _, _), CInt (b, _, _)
-         when Cilint.is_zero_cilint a && Cilint.is_zero_cilint b ->
-           true (* ok if they're both 0 *)
+       | CInt (a, _, _), CInt (b, _, _) -> Cilint.is_zero_cilint a && Cilint.is_zero_cilint b (* ok if they're both 0 *)
        | _, _ -> false)
    | Lval xl, Lval yl -> equalLvals xl yl
    | SizeOf xt, SizeOf yt ->
