@@ -1299,17 +1299,17 @@
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
        else if vi.vstorage = Static || (not !merge_inlines) && hasAttribute "gnu_inline" (typeAttrs vi.vtype) then
-       (
+        (
          (* Maybe it is static. Rename it then *)
-         let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc
-         in
+         let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in
          (* Remember the original name *)
          H.add originalVarNames newName vi.vname;
          if debugMerge then ignore (E.log "renaming %s at %a to %s\n" vi.vname d_loc vloc newName);
          vi.vname <- newName;
          vi.vid <- newVID ();
          vi.vreferenced <- true;
-         vi)
+         vi
+        )
        else
          (* Find the representative *)
          match findReplacement true vEq !currentFidx vi.vname with
@@ -1341,50 +1341,32 @@
            let vi' = processVarinfo vi l in
            (* We must keep this definition even if we reuse this varinfo, because maybe the previous one was a declaration *)
            H.add emittedVarDecls vi.vname true;
-
-           (* Remember that we emitted it*)
-           let emitIt : bool =
-             (not mergeGlobals)
-             ||
-             try
-               let prevVar, prevInitOpt, prevLoc =
-                 H.find emittedVarDefn vi'.vname
-               in
-               (* previously defined; same initializer? *)
-               if equalInitOpts prevInitOpt init.init || init.init = None then (
-                 trace "mergeGlob"
-                   (P.dprintf
-                      "dropping global var %s at %a in favor of the one at %a\n"
-                      vi'.vname d_loc l d_loc prevLoc);
-                 false (* do not emit *))
-               else if prevInitOpt = None then
-                 (* We have an initializer, but the previous one didn't.
-                    We should really convert the previous global from GVar
-                    to GVarDecl, but that's not convenient to do here. *)
-                 true
-               else
-                 (* Both GVars have initializers. *)
-                 E.s
-                   (error "global var %s at %a has different initializer than %a"
-                      vi'.vname d_loc l d_loc prevLoc)
-             with Not_found ->
-               (* no previous definition *)
-               H.add emittedVarDefn vi'.vname (vi', init.init, l);
-               true
-             (* emit it *)
-           in
-
-           if emitIt then mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+           if mergeGlobals then
+            match H.find_opt emittedVarDefn vi'.vname with
+            | None ->
+              (* no previous definition *)
+              H.add emittedVarDefn vi'.vname (vi', init.init, l);
+              mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+            | Some (prevVar, prevInitOpt, prevLoc) ->
+              if equalInitOpts prevInitOpt init.init || init.init = None then
+                trace "mergeGlob" (P.dprintf "dropping global var %s at %a in favor of the one at %a\n" vi'.vname d_loc l d_loc prevLoc)
+                (* do not emit *)
+              else if prevInitOpt = None then
+                (* We have an initializer, but the previous one didn't. We should really convert the previous global from GVar to GVarDecl, but that's not convenient to do here. *)
+                mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+              else
+                (* Both GVars have initializers. *)
+                E.s (error "global var %s at %a has different initializer than %a" vi'.vname d_loc l d_loc prevLoc)
+           else
+            (* Not merging globals, nothing to be done*)
+            mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
        | GFun (fdec, l) as g ->
            currentLoc := l;
            incr currentDeclIdx;
            (* We apply the renaming *)
            fdec.svar <- processVarinfo fdec.svar l;
            (* Get the original name. *)
-           let origname =
-             try H.find originalVarNames fdec.svar.vname
-             with Not_found -> fdec.svar.vname
-           in
+           let origname = try H.find originalVarNames fdec.svar.vname with Not_found -> fdec.svar.vname in
            (* Go in there and rename everything as needed *)
            let fdec' = match visitCilGlobal renameVisitor g with
              | [ GFun (fdec', _) ] -> fdec'
@@ -1479,46 +1461,30 @@
                if debugInlines then ignore (E.log " Not found\n");
                H.add inlineBodies printout inode;
                mergePushGlobal g')
-           else if
-             (* either the function is not inline, or we're not attempting to
-              * merge inlines *)
-             mergeGlobals && (not fdec'.svar.vinline)
-             && fdec'.svar.vstorage <> Static
-           then (
-             (* sm: this is a non-inline, non-static function.  I want to
-                * consider dropping it if a same-named function has already
-                * been put into the merged file *)
-             let curSum = functionChecksum fdec' in
-             (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"*)
-             (*                              fdec'.svar.vname curSum));*)
-             try
-               let prevFun, prevLoc, prevSum =
-                 H.find emittedFunDefn fdec'.svar.vname
-               in
-               (* previous was found *)
-               if curSum = prevSum then
-                 trace "mergeGlob"
-                   (P.dprintf
-                      "dropping duplicate def'n of func %s at %a in favor of \
-                       that at %a\n"
-                      fdec'.svar.vname d_loc l d_loc prevLoc)
-               else
-                 (* the checksums differ, so print a warning but keep the
-                  * older one to avoid a link error later.  I think this is
-          * a reasonable approximation of what ld does. *)
-                 ignore
-                   (warn
-                      "def'n of func %s at %a (sum %d) conflicts with the one \
-                       at %a (sum %d); keeping the one at %a."
-                      fdec'.svar.vname d_loc l curSum d_loc prevLoc prevSum d_loc
-                      prevLoc)
-             with Not_found ->
+           else if mergeGlobals && (not fdec'.svar.vinline) && fdec'.svar.vstorage <> Static then (
+             (* either the function is not inline, or we're not attempting to  merge inlines *)
+             (* sm: this is a non-inline, non-static function. I want to consider dropping it if a same-named function has already been put into the merged file *)
+             let sum = functionChecksum fdec' in
+             (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n" fdec'.svar.vname curSum));*)
+             match H.find_opt emittedFunDefn fdec'.svar.vname with
+             | None ->
                (* there was no previous definition *)
                mergePushGlobal g';
-               H.add emittedFunDefn fdec'.svar.vname (fdec', l, curSum))
+               H.add emittedFunDefn fdec'.svar.vname (fdec', l, sum)
+             | Some (prevFun, prevLoc, prevSum) ->
+               (* previous was found *)
+               if sum = prevSum then
+                 trace "mergeGlob" (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n" fdec'.svar.vname d_loc l d_loc prevLoc)
+               else
+                 (* the checksums differ, so print a warning but keep the older one to avoid a link error later. *)
+                 (* I think this is a reasonable approximation of what ld does. *)
+                 ignore (warn
+                      "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping the one at %a."
+                      fdec'.svar.vname d_loc l sum d_loc prevLoc prevSum d_loc
+                      prevLoc)
+            )
            else
-             (* not attempting to merge global functions, or it was static
-              * or inline *)
+             (* not attempting to merge global functions, or it was static or inline *)
              mergePushGlobal g'
        | GCompTag (ci, l) as g -> (
            currentLoc := l;
