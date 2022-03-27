@@ -964,7 +964,7 @@ let rec checkGlobal = function
       let vi = fd.svar in
       let fname = vi.vname in
       if H.mem fundecForVarIds vi.vid then
-        ignore (warn "There already is a different fundec for vid %d is already defined (%s)" vi.vid vi.vname);
+        ignore (warn "There already is a different fundec for vid %d (%s)" vi.vid vi.vname);
 
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
         (fun _ ->
