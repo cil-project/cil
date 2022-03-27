@@ -1344,9 +1344,9 @@
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
-       else if vi.vstorage = Static || (not !merge_inlines) && hasAttribute "gnu_inline" (typeAttrs vi.vtype) then
+       else if vi.vstorage = Static || (vi.vinline && not (!merge_inlines)) then
         (
-         (* Maybe it is static. Rename it then *)
+         (* Maybe it is static or inline and we are not merging inlines. Rename it then *)
          let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in
          (* Remember the original name *)
          H.add originalVarNames newName vi.vname;
