@@ -1298,20 +1298,14 @@
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
-       else if
+       else if vi.vstorage = Static || (not !merge_inlines) && hasAttribute "gnu_inline" (typeAttrs vi.vtype) then
+       (
          (* Maybe it is static. Rename it then *)
-         vi.vstorage = Static
-         || (not !merge_inlines)
-            && hasAttribute "gnu_inline" (typeAttrs vi.vtype)
-       then (
-         let newName, _ =
-           A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname
-             ~data:!currentLoc
+         let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc
          in
          (* Remember the original name *)
          H.add originalVarNames newName vi.vname;
-         if debugMerge then
-           ignore (E.log "renaming %s at %a to %s\n" vi.vname d_loc vloc newName);
+         if debugMerge then ignore (E.log "renaming %s at %a to %s\n" vi.vname d_loc vloc newName);
          vi.vname <- newName;
          vi.vid <- newVID ();
          vi.vreferenced <- true;
@@ -1339,15 +1333,13 @@
              ()
            else (
              H.add emittedVarDecls vi'.vname true;
-             (* Remember that we emitted
-              * it *)
+             (* Remember that we emitted it *)
              mergePushGlobals (visitCilGlobal renameVisitor g))
        | GVar (vi, init, l) ->
            currentLoc := l;
            incr currentDeclIdx;
            let vi' = processVarinfo vi l in
-           (* We must keep this definition even if we reuse this varinfo,
-            * because maybe the previous one was a declaration *)
+           (* We must keep this definition even if we reuse this varinfo, because maybe the previous one was a declaration *)
            H.add emittedVarDecls vi.vname true;
 
            (* Remember that we emitted it*)
@@ -1382,9 +1374,7 @@
              (* emit it *)
            in
 
-           if emitIt then
-             mergePushGlobals
-               (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+           if emitIt then mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
        | GFun (fdec, l) as g ->
            currentLoc := l;
            incr currentDeclIdx;
@@ -1396,29 +1386,22 @@
              with Not_found -> fdec.svar.vname
            in
            (* Go in there and rename everything as needed *)
-           let fdec' =
-             match visitCilGlobal renameVisitor g with
+           let fdec' = match visitCilGlobal renameVisitor g with
              | [ GFun (fdec', _) ] -> fdec'
              | _ -> E.s (unimp "renameVisitor for GFun returned something else")
            in
            let g' = GFun (fdec', l) in
            (* Now restore the parameter names *)
            let _, args, _, _ = splitFunctionTypeVI fdec'.svar in
-           let oldnames, foundthem =
-             try (H.find formalNames (!currentFidx, origname), true)
-             with Not_found ->
-               ignore (warnOpt "Cannot find %s in formalNames" origname);
-               ([], false)
-           in
-           if foundthem then (
-             let argl = argsToList args in
-             if List.length oldnames <> List.length argl then
-               E.s (unimp "After merging the function has more arguments");
-             List.iter2
-               (fun oldn a -> if oldn <> "" then a.vname <- oldn)
-               oldnames fdec.sformals;
-             (* Reflect them in the type *)
-             setFormals fdec fdec.sformals);
+           (match H.find_opt formalNames (!currentFidx, origname) with
+            | Some oldnames ->
+               let argl = argsToList args in
+               if List.length oldnames <> List.length argl then E.s (unimp "After merging the function has more arguments");
+               List.iter2 (fun oldn a -> if oldn <> "" then a.vname <- oldn) oldnames fdec.sformals;
+               (* Reflect them in the type *)
+               setFormals fdec fdec.sformals
+            | None -> ignore (warnOpt "Cannot find %s in formalNames" origname)
+           );
            (* See if we can remove this inline function *)
            if fdec'.svar.vinline && !merge_inlines then (
              let printout =
@@ -1467,33 +1450,22 @@
                res
              in
              (* Make a node for this inline function using the original name. *)
-             let inode =
-               getNode vEq vSyn !currentFidx origname fdec'.svar
-                 (Some (l, !currentDeclIdx))
+             let inode = getNode vEq vSyn !currentFidx origname fdec'.svar (Some (l, !currentDeclIdx))
              in
              if debugInlines then (
-               ignore
-                 (E.log "getNode %s(%d) with loc=%a. declidx=%d\n" inode.nname
-                    inode.nfidx d_nloc inode.nloc !currentDeclIdx);
-               ignore
-                 (E.log "Looking for previous definition of inline %s(%d)\n"
-                    origname !currentFidx));
+               ignore (E.log "getNode %s(%d) with loc=%a. declidx=%d\n" inode.nname inode.nfidx d_nloc inode.nloc !currentDeclIdx);
+               ignore (E.log "Looking for previous definition of inline %s(%d)\n" origname !currentFidx)
+             );
              try
                let oldinode = H.find inlineBodies printout in
-               if debugInlines then
-                 ignore
-                   (E.log "  Matches %s(%d)\n" oldinode.nname oldinode.nfidx);
+               if debugInlines then ignore (E.log "  Matches %s(%d)\n" oldinode.nname oldinode.nfidx);
                (* There is some other inline function with the same printout.
                 * We should reuse this, but watch for the case when the inline
                 * was already used. *)
                if H.mem varUsedAlready fdec'.svar.vname then
                  if mergeInlinesRepeat () then repeatPass2 := true
                  else (
-                   ignore
-                     (warn
-                        "Inline function %s because it is used before it is \
-                         defined"
-                        fdec'.svar.vname);
+                   ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
                    raise Not_found);
                let _ = union oldinode inode in
                (* Clean up the vreferenced bit in the new inline, so that we
