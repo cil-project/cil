@@ -1378,24 +1378,24 @@
            (* We must keep this definition even if we reuse this varinfo, because maybe the previous one was a declaration *)
            H.add emittedVarDecls vi.vname true;
            if mergeGlobals then
-            match H.find_opt emittedVarDefn vi'.vname with
-            | None ->
-              (* no previous definition *)
-              H.add emittedVarDefn vi'.vname (vi', init.init, l);
-              mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
-            | Some (prevVar, prevInitOpt, prevLoc) ->
-              if equalInitOpts prevInitOpt init.init || init.init = None then
-                trace "mergeGlob" (P.dprintf "dropping global var %s at %a in favor of the one at %a\n" vi'.vname d_loc l d_loc prevLoc)
-                (* do not emit *)
-              else if prevInitOpt = None then
-                (* We have an initializer, but the previous one didn't. We should really convert the previous global from GVar to GVarDecl, but that's not convenient to do here. *)
-                mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
-              else
-                (* Both GVars have initializers. *)
-                E.s (error "global var %s at %a has different initializer than %a" vi'.vname d_loc l d_loc prevLoc)
+             match H.find_opt emittedVarDefn vi'.vname with
+             | None ->
+               (* no previous definition *)
+               H.add emittedVarDefn vi'.vname (vi', init.init, l);
+               mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+             | Some (prevVar, prevInitOpt, prevLoc) ->
+               if equalInitOpts prevInitOpt init.init || init.init = None then
+                 trace "mergeGlob" (P.dprintf "dropping global var %s at %a in favor of the one at %a\n" vi'.vname d_loc l d_loc prevLoc)
+                 (* do not emit *)
+               else if prevInitOpt = None then
+                 (* We have an initializer, but the previous one didn't. We should really convert the previous global from GVar to GVarDecl, but that's not convenient to do here. *)
+                 mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+               else
+                 (* Both GVars have initializers. *)
+                 E.s (error "global var %s at %a has different initializer than %a" vi'.vname d_loc l d_loc prevLoc)
            else
-            (* Not merging globals, nothing to be done*)
-            mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+             (* Not merging globals, nothing to be done*)
+             mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
        | GFun (fdec, l) as g ->
            currentLoc := l;
            incr currentDeclIdx;
