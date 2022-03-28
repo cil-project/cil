@@ -93,6 +93,8 @@ let varIdsEnv: (int, varinfo) H.t = H.create 117
    * identifiers *)
 let allVarIds: (int, varinfo) H.t = H.create 117
 
+let fundecForVarIds: (int,unit) H.t = H.create 117
+
  (* Also keep a list of environments. We place an empty string in the list to
   * mark the start of a local environment (i.e. a function) *)
 let varNamesList : (string * int) list ref = ref []
@@ -961,6 +963,9 @@ let rec checkGlobal = function
       (* Check if this is the first occurrence *)
       let vi = fd.svar in
       let fname = vi.vname in
+      if H.mem fundecForVarIds vi.vid then
+        ignore (warn "There already is a different fundec for vid %d (%s)" vi.vid vi.vname);
+
       E.withContext (fun _ -> dprintf "GFun(%s)" fname)
         (fun _ ->
           checkGlobal (GVarDecl (vi, l));
@@ -1072,6 +1077,7 @@ let checkFile flags fl =
   H.clear varNamesEnv;
   H.clear varIdsEnv;
   H.clear allVarIds;
+  H.clear fundecForVarIds;
   H.clear compNames;
   H.clear compUsed;
   H.clear enumUsed;

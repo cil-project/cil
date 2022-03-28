@@ -312,14 +312,10 @@
   * names must be different from variable names!! We one alpha table both for
   * variables and types. *)
  let vtAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
- (* Variables and
-                                            * types *)
+ (* Variables and types *)
 
  let sAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
- (* Structures and
-                                            * unions have
-                                            * the same name
-                                            * space *)
+ (* Structures and unions have the same name space *)
 
  let eAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
  (* Enumerations *)
@@ -1159,11 +1155,8 @@
      | ComputedGoto _ -> 131
      | Break _ -> 23
      | Continue _ -> 29
-     | If (_, b1, b2, _, _) ->
-         31 + (37 * stmtListSum b1.bstmts) + (41 * stmtListSum b2.bstmts)
-     | Switch (_, b, _, _, _) ->
-         43 + (47 * stmtListSum b.bstmts)
-         (* don't look at stmt list b/c is not part of tree *)
+     | If (_, b1, b2, _, _) -> 31 + (37 * stmtListSum b1.bstmts) + (41 * stmtListSum b2.bstmts)
+     | Switch (_, b, _, _, _) -> 43 + (47 * stmtListSum b.bstmts) (* don't look at stmt list b/c is not part of tree *)
      | Loop (b, _, _, _, _) -> 49 + (53 * stmtListSum b.bstmts)
      | Block b -> 59 + (61 * stmtListSum b.bstmts)
    in
@@ -1205,8 +1198,7 @@
        (* types need to be identically equal *)
        let rec equalLists xoil yoil : bool =
          match (xoil, yoil) with
-         | (xo, xi) :: xrest, (yo, yi) :: yrest ->
-             equalOffsets xo yo && equalInits xi yi && equalLists xrest yrest
+         | (xo, xi) :: xrest, (yo, yi) :: yrest -> equalOffsets xo yo && equalInits xi yi && equalLists xrest yrest
          | [], [] -> true
          | _, _ -> false
        in
@@ -1231,9 +1223,7 @@
        (* safe to use '=' on literals *)
        (* CIL changes (unsigned)0 into 0U during printing.. *)
        match (xc, yc) with
-       | CInt (a, _, _), CInt (b, _, _)
-         when Cilint.is_zero_cilint a && Cilint.is_zero_cilint b ->
-           true (* ok if they're both 0 *)
+       | CInt (a, _, _), CInt (b, _, _) -> Cilint.is_zero_cilint a && Cilint.is_zero_cilint b (* ok if they're both 0 *)
        | _, _ -> false)
    | Lval xl, Lval yl -> equalLvals xl yl
    | SizeOf xt, SizeOf yt ->
@@ -1276,6 +1266,52 @@
    | Some xi, Some yi -> equalInits xi yi
    | _, _ -> false
 
+ (* The comparion of inline functions is based on pretty printing (!?) *)
+ let printInlineForComparison fdec' g' =
+   (* Temporarily turn off printing of lines *)
+   let oldprintln = !lineDirectiveStyle in
+   lineDirectiveStyle := None;
+   (* Temporarily set the name to all functions in the same way *)
+   let newname = fdec'.svar.vname in
+   fdec'.svar.vname <- "@@alphaname@@";
+   (* If we must do alpha conversion then temporarily set the
+    * names of the local variables and formals in a standard way *)
+   let nameId = ref 0 in
+   let oldNames : string list ref = ref [] in
+   let renameOne (v : varinfo) =
+     oldNames := v.vname :: !oldNames;
+     incr nameId;
+     v.vname <- "___alpha" ^ string_of_int !nameId
+   in
+   let undoRenameOne (v : varinfo) =
+     match !oldNames with
+     | n :: rest ->
+         oldNames := rest;
+         v.vname <- n
+     | _ -> E.s (bug "undoRenameOne")
+   in
+   (* Remember the original type *)
+   let origType = fdec'.svar.vtype in
+   if mergeInlinesWithAlphaConvert () then (
+     (* Rename the formals *)
+     List.iter renameOne fdec'.sformals;
+     (* Reflect in the type *)
+     setFormals fdec' fdec'.sformals;
+     (* Now do the locals *)
+     List.iter renameOne fdec'.slocals);
+   (* Now print it *)
+   let res = d_global () g' in
+   lineDirectiveStyle := oldprintln;
+   fdec'.svar.vname <- newname;
+   if mergeInlinesWithAlphaConvert () then (
+     (* Do the locals in reverse order *)
+     List.iter undoRenameOne (List.rev fdec'.slocals);
+     (* Do the formals in reverse order *)
+     List.iter undoRenameOne (List.rev fdec'.sformals);
+     (* Restore the type *)
+     fdec'.svar.vtype <- origType);
+   res
+
  (* Now we go once more through the file and we rename the globals that we
   * keep. We also scan the entire body and we replace references to the
   * representative types or variables. We set the referenced flags once we
@@ -1298,24 +1334,18 @@
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
-       else if
-         (* Maybe it is static. Rename it then *)
-         vi.vstorage = Static
-         || (not !merge_inlines)
-            && hasAttribute "gnu_inline" (typeAttrs vi.vtype)
-       then (
-         let newName, _ =
-           A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname
-             ~data:!currentLoc
-         in
+       else if vi.vstorage = Static || (vi.vinline && not (!merge_inlines)) then
+        (
+         (* Maybe it is static or inline and we are not merging inlines. Rename it then *)
+         let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in
          (* Remember the original name *)
          H.add originalVarNames newName vi.vname;
-         if debugMerge then
-           ignore (E.log "renaming %s at %a to %s\n" vi.vname d_loc vloc newName);
+         if debugMerge then ignore (E.log "renaming %s at %a to %s\n" vi.vname d_loc vloc newName);
          vi.vname <- newName;
          vi.vid <- newVID ();
          vi.vreferenced <- true;
-         vi)
+         vi
+        )
        else
          (* Find the representative *)
          match findReplacement true vEq !currentFidx vi.vname with
@@ -1339,161 +1369,77 @@
              ()
            else (
              H.add emittedVarDecls vi'.vname true;
-             (* Remember that we emitted
-              * it *)
+             (* Remember that we emitted it *)
              mergePushGlobals (visitCilGlobal renameVisitor g))
        | GVar (vi, init, l) ->
            currentLoc := l;
            incr currentDeclIdx;
            let vi' = processVarinfo vi l in
-           (* We must keep this definition even if we reuse this varinfo,
-            * because maybe the previous one was a declaration *)
+           (* We must keep this definition even if we reuse this varinfo, because maybe the previous one was a declaration *)
            H.add emittedVarDecls vi.vname true;
-
-           (* Remember that we emitted it*)
-           let emitIt : bool =
-             (not mergeGlobals)
-             ||
-             try
-               let prevVar, prevInitOpt, prevLoc =
-                 H.find emittedVarDefn vi'.vname
-               in
-               (* previously defined; same initializer? *)
-               if equalInitOpts prevInitOpt init.init || init.init = None then (
-                 trace "mergeGlob"
-                   (P.dprintf
-                      "dropping global var %s at %a in favor of the one at %a\n"
-                      vi'.vname d_loc l d_loc prevLoc);
-                 false (* do not emit *))
-               else if prevInitOpt = None then
-                 (* We have an initializer, but the previous one didn't.
-                    We should really convert the previous global from GVar
-                    to GVarDecl, but that's not convenient to do here. *)
-                 true
-               else
-                 (* Both GVars have initializers. *)
-                 E.s
-                   (error "global var %s at %a has different initializer than %a"
-                      vi'.vname d_loc l d_loc prevLoc)
-             with Not_found ->
+           if mergeGlobals then
+             match H.find_opt emittedVarDefn vi'.vname with
+             | None ->
                (* no previous definition *)
                H.add emittedVarDefn vi'.vname (vi', init.init, l);
-               true
-             (* emit it *)
-           in
-
-           if emitIt then
-             mergePushGlobals
-               (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+               mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+             | Some (prevVar, prevInitOpt, prevLoc) ->
+               if equalInitOpts prevInitOpt init.init || init.init = None then
+                 trace "mergeGlob" (P.dprintf "dropping global var %s at %a in favor of the one at %a\n" vi'.vname d_loc l d_loc prevLoc)
+                 (* do not emit *)
+               else if prevInitOpt = None then
+                 (* We have an initializer, but the previous one didn't. We should really convert the previous global from GVar to GVarDecl, but that's not convenient to do here. *)
+                 mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
+               else
+                 (* Both GVars have initializers. *)
+                 E.s (error "global var %s at %a has different initializer than %a" vi'.vname d_loc l d_loc prevLoc)
+           else
+             (* Not merging globals, nothing to be done*)
+             mergePushGlobals (visitCilGlobal renameVisitor (GVar (vi', init, l)))
        | GFun (fdec, l) as g ->
            currentLoc := l;
            incr currentDeclIdx;
            (* We apply the renaming *)
            fdec.svar <- processVarinfo fdec.svar l;
            (* Get the original name. *)
-           let origname =
-             try H.find originalVarNames fdec.svar.vname
-             with Not_found -> fdec.svar.vname
-           in
+           let origname = try H.find originalVarNames fdec.svar.vname with Not_found -> fdec.svar.vname in
            (* Go in there and rename everything as needed *)
-           let fdec' =
-             match visitCilGlobal renameVisitor g with
+           let fdec' = match visitCilGlobal renameVisitor g with
              | [ GFun (fdec', _) ] -> fdec'
              | _ -> E.s (unimp "renameVisitor for GFun returned something else")
            in
            let g' = GFun (fdec', l) in
            (* Now restore the parameter names *)
            let _, args, _, _ = splitFunctionTypeVI fdec'.svar in
-           let oldnames, foundthem =
-             try (H.find formalNames (!currentFidx, origname), true)
-             with Not_found ->
-               ignore (warnOpt "Cannot find %s in formalNames" origname);
-               ([], false)
-           in
-           if foundthem then (
-             let argl = argsToList args in
-             if List.length oldnames <> List.length argl then
-               E.s (unimp "After merging the function has more arguments");
-             List.iter2
-               (fun oldn a -> if oldn <> "" then a.vname <- oldn)
-               oldnames fdec.sformals;
-             (* Reflect them in the type *)
-             setFormals fdec fdec.sformals);
+           (match H.find_opt formalNames (!currentFidx, origname) with
+            | Some oldnames ->
+               let argl = argsToList args in
+               if List.length oldnames <> List.length argl then E.s (unimp "After merging the function has more arguments");
+               List.iter2 (fun oldn a -> if oldn <> "" then a.vname <- oldn) oldnames fdec.sformals;
+               (* Reflect them in the type *)
+               setFormals fdec fdec.sformals
+            | None -> ignore (warnOpt "Cannot find %s in formalNames" origname)
+           );
            (* See if we can remove this inline function *)
            if fdec'.svar.vinline && !merge_inlines then (
-             let printout =
-               (* Temporarily turn off printing of lines *)
-               let oldprintln = !lineDirectiveStyle in
-               lineDirectiveStyle := None;
-               (* Temporarily set the name to all functions in the same way *)
-               let newname = fdec'.svar.vname in
-               fdec'.svar.vname <- "@@alphaname@@";
-               (* If we must do alpha conversion then temporarily set the
-                * names of the local variables and formals in a standard way *)
-               let nameId = ref 0 in
-               let oldNames : string list ref = ref [] in
-               let renameOne (v : varinfo) =
-                 oldNames := v.vname :: !oldNames;
-                 incr nameId;
-                 v.vname <- "___alpha" ^ string_of_int !nameId
-               in
-               let undoRenameOne (v : varinfo) =
-                 match !oldNames with
-                 | n :: rest ->
-                     oldNames := rest;
-                     v.vname <- n
-                 | _ -> E.s (bug "undoRenameOne")
-               in
-               (* Remember the original type *)
-               let origType = fdec'.svar.vtype in
-               if mergeInlinesWithAlphaConvert () then (
-                 (* Rename the formals *)
-                 List.iter renameOne fdec'.sformals;
-                 (* Reflect in the type *)
-                 setFormals fdec' fdec'.sformals;
-                 (* Now do the locals *)
-                 List.iter renameOne fdec'.slocals);
-               (* Now print it *)
-               let res = d_global () g' in
-               lineDirectiveStyle := oldprintln;
-               fdec'.svar.vname <- newname;
-               if mergeInlinesWithAlphaConvert () then (
-                 (* Do the locals in reverse order *)
-                 List.iter undoRenameOne (List.rev fdec'.slocals);
-                 (* Do the formals in reverse order *)
-                 List.iter undoRenameOne (List.rev fdec'.sformals);
-                 (* Restore the type *)
-                 fdec'.svar.vtype <- origType);
-               res
-             in
+             let printout = printInlineForComparison fdec' g' in
              (* Make a node for this inline function using the original name. *)
-             let inode =
-               getNode vEq vSyn !currentFidx origname fdec'.svar
-                 (Some (l, !currentDeclIdx))
+             let inode = getNode vEq vSyn !currentFidx origname fdec'.svar (Some (l, !currentDeclIdx))
              in
              if debugInlines then (
-               ignore
-                 (E.log "getNode %s(%d) with loc=%a. declidx=%d\n" inode.nname
-                    inode.nfidx d_nloc inode.nloc !currentDeclIdx);
-               ignore
-                 (E.log "Looking for previous definition of inline %s(%d)\n"
-                    origname !currentFidx));
+               ignore (E.log "getNode %s(%d) with loc=%a. declidx=%d\n" inode.nname inode.nfidx d_nloc inode.nloc !currentDeclIdx);
+               ignore (E.log "Looking for previous definition of inline %s(%d)\n" origname !currentFidx)
+             );
              try
                let oldinode = H.find inlineBodies printout in
-               if debugInlines then
-                 ignore
-                   (E.log "  Matches %s(%d)\n" oldinode.nname oldinode.nfidx);
+               if debugInlines then ignore (E.log "  Matches %s(%d)\n" oldinode.nname oldinode.nfidx);
                (* There is some other inline function with the same printout.
                 * We should reuse this, but watch for the case when the inline
                 * was already used. *)
                if H.mem varUsedAlready fdec'.svar.vname then
                  if mergeInlinesRepeat () then repeatPass2 := true
                  else (
-                   ignore
-                     (warn
-                        "Inline function %s because it is used before it is \
-                         defined"
-                        fdec'.svar.vname);
+                   ignore (warn "Inline function %s because it is used before it is defined" fdec'.svar.vname);
                    raise Not_found);
                let _ = union oldinode inode in
                (* Clean up the vreferenced bit in the new inline, so that we
@@ -1507,46 +1453,30 @@
                if debugInlines then ignore (E.log " Not found\n");
                H.add inlineBodies printout inode;
                mergePushGlobal g')
-           else if
-             (* either the function is not inline, or we're not attempting to
-              * merge inlines *)
-             mergeGlobals && (not fdec'.svar.vinline)
-             && fdec'.svar.vstorage <> Static
-           then (
-             (* sm: this is a non-inline, non-static function.  I want to
-                * consider dropping it if a same-named function has already
-                * been put into the merged file *)
-             let curSum = functionChecksum fdec' in
-             (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n"*)
-             (*                              fdec'.svar.vname curSum));*)
-             try
-               let prevFun, prevLoc, prevSum =
-                 H.find emittedFunDefn fdec'.svar.vname
-               in
-               (* previous was found *)
-               if curSum = prevSum then
-                 trace "mergeGlob"
-                   (P.dprintf
-                      "dropping duplicate def'n of func %s at %a in favor of \
-                       that at %a\n"
-                      fdec'.svar.vname d_loc l d_loc prevLoc)
-               else
-                 (* the checksums differ, so print a warning but keep the
-                  * older one to avoid a link error later.  I think this is
-          * a reasonable approximation of what ld does. *)
-                 ignore
-                   (warn
-                      "def'n of func %s at %a (sum %d) conflicts with the one \
-                       at %a (sum %d); keeping the one at %a."
-                      fdec'.svar.vname d_loc l curSum d_loc prevLoc prevSum d_loc
-                      prevLoc)
-             with Not_found ->
+           else if mergeGlobals && not (fdec'.svar.vstorage = Static || fdec'.svar.vinline) then ( (* !merge_inlines is false here anyway *)
+             (* either the function is not inline, or we're not attempting to  merge inlines *)
+             (* sm: this is a non-inline, non-static function. I want to consider dropping it if a same-named function has already been put into the merged file *)
+             let sum = functionChecksum fdec' in
+             (*(trace "mergeGlob" (P.dprintf "I see extern function %s, sum is %d\n" fdec'.svar.vname curSum));*)
+             match H.find_opt emittedFunDefn fdec'.svar.vname with
+             | None ->
                (* there was no previous definition *)
                mergePushGlobal g';
-               H.add emittedFunDefn fdec'.svar.vname (fdec', l, curSum))
+               H.add emittedFunDefn fdec'.svar.vname (fdec', l, sum)
+             | Some (prevFun, prevLoc, prevSum) ->
+               (* previous was found *)
+               if sum = prevSum then
+                 trace "mergeGlob" (P.dprintf "dropping duplicate def'n of func %s at %a in favor of that at %a\n" fdec'.svar.vname d_loc l d_loc prevLoc)
+               else
+                 (* the checksums differ, so print a warning but keep the older one to avoid a link error later. *)
+                 (* I think this is a reasonable approximation of what ld does. *)
+                 ignore (warn
+                      "def'n of func %s at %a (sum %d) conflicts with the one at %a (sum %d); keeping the one at %a."
+                      fdec'.svar.vname d_loc l sum d_loc prevLoc prevSum d_loc
+                      prevLoc)
+            )
            else
-             (* not attempting to merge global functions, or it was static
-              * or inline *)
+             (* not attempting to merge global functions, or it was static or inline *)
              mergePushGlobal g'
        | GCompTag (ci, l) as g -> (
            currentLoc := l;
