@@ -1453,7 +1453,7 @@
                if debugInlines then ignore (E.log " Not found\n");
                H.add inlineBodies printout inode;
                mergePushGlobal g')
-           else if mergeGlobals && (not fdec'.svar.vinline) && fdec'.svar.vstorage <> Static then (
+           else if mergeGlobals && not (fdec'.svar.vstorage = Static || fdec'.svar.vinline) then ( (* !merge_inlines is false here anyway *)
              (* either the function is not inline, or we're not attempting to  merge inlines *)
              (* sm: this is a non-inline, non-static function. I want to consider dropping it if a same-named function has already been put into the merged file *)
              let sum = functionChecksum fdec' in
