@@ -696,6 +696,7 @@ addTest("testrunc99/c99-universal-character-names");
 
 addTest("testrunc99/c99-tgmath");
 addTest("testrunc99/c99-float-pragma");
+addTest("testrunc99/c99-fixed-width-int");
 addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
 
