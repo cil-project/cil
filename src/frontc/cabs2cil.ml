@@ -481,7 +481,8 @@ let startFile () =
   H.clear env;
   H.clear genv;
   H.clear alphaTable;
-  structIds := []
+  structIds := [];
+  constrExprId := 0
 
 
 
