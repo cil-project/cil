@@ -295,15 +295,17 @@ let newHline () =
 let transformLocation = ref (fun ~file ~line -> Some (file, line))
 
 let setCurrent ~file ~line =
-  !transformLocation ~file ~line
-  |> BatOption.may (fun (file, line) ->
-      BatOption.may (fun (n, system_header) ->
-          let cn = cleanFileName n in
-          Hashtbl.replace files cn system_header;
-          !current.fileName <- cn
-        ) file;
-      !current.linenum <- line
-    )
+  match !transformLocation ~file ~line with
+  | Some (file, line) ->
+    begin match file with
+      | Some (n, system_header) ->
+        let cn = cleanFileName n in
+        Hashtbl.replace files cn system_header;
+        !current.fileName <- cn
+      | None -> ()
+    end;
+    !current.linenum <- line
+  | None -> ()
 
 
 let max_errors = 20  (* Stop after 20 errors *)
