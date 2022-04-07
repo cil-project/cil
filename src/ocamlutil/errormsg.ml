@@ -292,13 +292,18 @@ let newHline () =
   let i = !current in
   i.hline <- 1 + i.hline
 
+let transformLocation = ref (fun ~file ~line -> Some (file, line))
+
 let setCurrent ~file ~line =
-  BatOption.may (fun (n, system_header) ->
-      let cn = cleanFileName n in
-      Hashtbl.replace files cn system_header;
-      !current.fileName <- cn
-    ) file;
-  !current.linenum <- line
+  !transformLocation ~file ~line
+  |> BatOption.may (fun (file, line) ->
+      BatOption.may (fun (n, system_header) ->
+          let cn = cleanFileName n in
+          Hashtbl.replace files cn system_header;
+          !current.fileName <- cn
+        ) file;
+      !current.linenum <- line
+    )
 
 
 let max_errors = 20  (* Stop after 20 errors *)

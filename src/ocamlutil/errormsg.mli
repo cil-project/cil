@@ -134,6 +134,7 @@ val getHPosition: unit -> int * string (** high-level position *)
 val setHLine: int -> unit
 val setHFile: string -> unit
 
+val transformLocation: (file:(string * bool) option -> line:int -> ((string * bool) option * int) option) ref
 val setCurrent: file:(string * bool) option -> line:int -> unit
 
 (** Type for source-file locations *)
