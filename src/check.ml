@@ -658,7 +658,7 @@ and checkInit  (i: init) : typ =
                 | (Index(Const(CInt(i', _, _)), NoOffset), ei) :: rest ->
                     if Int64.compare (Z.to_int64 i') i <> 0 then
                       ignore (warn "Initializer for index %s when %s was expected"
-                                (Int64.format "%d" (Z.to_int64 i')) (Int64.format "%d" i));
+                                (Printf.sprintf "%Ld" (Z.to_int64 i')) (Printf.sprintf "%Ld" i));
                     checkInitType ei bt;
                     loopIndex (Int64.succ i) rest
                 | _ :: rest ->
