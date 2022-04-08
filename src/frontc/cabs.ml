@@ -189,9 +189,8 @@ and definition =
  | STATIC_ASSERT of expression * string * cabsloc
 
 
-(* the string is a file name, then the list of toplevel forms, and finally a list of filenames
-   encountered during parsing and whether they are system headers *)
-and file = string * definition list * (string * bool) list
+(* the string is a file name, and then the list of toplevel forms *)
+and file = string * definition list
 
 
 (*

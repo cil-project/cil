@@ -188,17 +188,17 @@ and parse_to_cabs_inner (fname : string) =
     let lexbuf = Clexer.init ~filename:fname in
     let cabs = Stats.time "parse" (Cparser.interpret (Whitetrack.wraplexer clexer)) lexbuf in
     Whitetrack.setFinalWhite (Clexer.get_white ());
-    let files = Clexer.finish () in
-    (fname, cabs, files)
+    Clexer.finish ();
+    (fname, cabs)
   with (Sys_error msg) -> begin
     ignore (E.log "Cannot open %s : %s\n" fname msg);
-    ignore @@ Clexer.finish ();
+    Clexer.finish ();
     close_output ();
     raise (ParseError("Cannot open " ^ fname ^ ": " ^ msg ^ "\n"))
   end
   | Parsing.Parse_error -> begin
       ignore (E.log "Parsing error");
-      ignore @@ Clexer.finish ();
+      Clexer.finish ();
       close_output ();
       (* raise (ParseError("Parse error")) *)
       let backtrace = Printexc.get_raw_backtrace () in
@@ -206,13 +206,13 @@ and parse_to_cabs_inner (fname : string) =
   end
   | e -> begin
       ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
-      ignore @@ Clexer.finish ();
+      Clexer.finish ();
       raise e
   end
 
 
 (* print to safec.proto.h the prototypes of all functions that are defined *)
-let printPrototypes ((fname, file, _) : Cabs.file) : unit =
+let printPrototypes ((fname, file) : Cabs.file) : unit =
 begin
   (*ignore (E.log "file has %d defns\n" (List.length file));*)
 

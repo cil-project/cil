@@ -6897,7 +6897,7 @@ let convFile (f : A.file) : Cil.file =
   Cil.initCIL (); (* make sure we have initialized CIL *)
 
   (* remove parentheses from the Cabs *)
-  let fname,dl,files = stripParenFile f in
+  let fname,dl = stripParenFile f in
 
   (* Clean up the global types *)
   initGlobals();
@@ -6986,5 +6986,4 @@ let convFile (f : A.file) : Cil.file =
     globals  = !globals;
     globinit = None;
     globinitcalled = false;
-    files = files;
   }

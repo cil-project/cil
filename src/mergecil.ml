@@ -1675,11 +1675,6 @@
        incr currentFidx)
      files;
 
-   let filesH = Hashtbl.create 50 in
-   List.iter
-     (fun f -> List.iter (fun f -> Hashtbl.replace filesH f ()) f.files)
-     files;
-
    (* Now reverse the result and return the resulting file *)
    let rec revonto acc = function [] -> acc | x :: t -> revonto (x :: acc) t in
    let res =
@@ -1688,8 +1683,6 @@
        globals = revonto (revonto [] !theFile) !theFileTypes;
        globinit = None;
        globinitcalled = false;
-       files =
-         Hashtbl.fold (fun k v acc -> k :: acc) filesH [] (* keys are unique *);
      }
    in
    init ();

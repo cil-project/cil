@@ -93,9 +93,6 @@ type file =
        * create a global initialization CIL will try to insert code in main
        * to call it. This will not happen if your file does not contain a
        * function called "main" *)
-       files: (string * bool) list;
-       (** A list of those files that were encountered during parsing of this CIL file,
-        * and whether they are system header files *)
     }
 (** Top-level representation of a C source file *)
 

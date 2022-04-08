@@ -333,8 +333,9 @@ let gettime () : float =
 
 let rec applyPatch (patchFile : file) (srcFile : file) : file =
 begin
-  let (_, patch, _) = patchFile in
-  let (srcFname, src, srcFiles) = srcFile in
+  let patch : definition list = (snd patchFile) in
+  let srcFname : string = (fst srcFile) in
+  let src : definition list = (snd srcFile) in
 
   (trace "patchTime" (dprintf "applyPatch start: %f\n" (gettime ())));
   if (traceActive "patchDebug") then
@@ -416,7 +417,7 @@ begin
   );
 
   (trace "patchTime" (dprintf "applyPatch finish: %f\n" (gettime ())));
-  (srcFname, result, srcFiles)
+  (srcFname, result)
 end
 
 
