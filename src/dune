@@ -4,7 +4,7 @@
   (public_name goblint-cil)
   (name cil)
   (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
-  (libraries zarith findlib dynlink unix str stdlib-shims)
+  (libraries zarith findlib dynlink unix str stdlib-shims batteries.unthreaded) ; batteries shouldn't be needed, but tests fail on MacOS otherwise: https://github.com/goblint/cil/pull/89#issuecomment-1092610041
   (modules (:standard \ main))
 )
 
