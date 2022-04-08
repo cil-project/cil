@@ -46,3 +46,10 @@ jobs:
       - run: opam install . --deps-only --with-doc --with-test
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
+
+      - name: Upload test log
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: ${{ matrix.os }}-${{ matrix.ocaml-version }}
+          path: _build/default/test/cil.log
