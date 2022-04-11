@@ -80,15 +80,15 @@ let doParse (prog: string)
       Formatparse.initialize Formatlex.initial lexbuf;
       let res = theParser Formatlex.initial lexbuf in
       H.add memoTable prog res;
-      ignore @@ Formatlex.finish ();
+      Formatlex.finish ();
       res
     with Parsing.Parse_error -> begin
-      ignore @@ Formatlex.finish ();
+      Formatlex.finish ();
       E.s (E.error "Parsing error: %s" prog)
     end
     | e -> begin
         ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
-        ignore @@ Formatlex.finish ();
+        Formatlex.finish ();
         raise e
     end
   end

@@ -134,8 +134,8 @@ val getHPosition: unit -> int * string (** high-level position *)
 val setHLine: int -> unit
 val setHFile: string -> unit
 
-val setCurrentLine: int -> unit
-val setCurrentFile: string -> bool -> unit
+val transformLocation: (file:(string * bool) option -> line:int -> ((string * bool) option * int) option) ref
+val setCurrent: file:(string * bool) option -> line:int -> unit
 
 (** Type for source-file locations *)
 type location =
@@ -170,6 +170,7 @@ val startParsing:  ?useBasename:bool -> string ->
 val startParsingFromString: ?file:string -> ?line:int -> string
                             -> Lexing.lexbuf
 
-val finishParsing: unit -> (string * bool) list (* Call this function to finish parsing and
-                                        * close the input channel, returns a list of all
-                                        * encountered filenames and whether they are system headers *)
+val finishParsing: unit -> unit (* Call this function to finish parsing and 
+                                 * close the input channel *)
+
+

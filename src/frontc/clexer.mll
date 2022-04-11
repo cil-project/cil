@@ -659,9 +659,8 @@ and hash = parse
                    E.warn "Bad line number in preprocessed file: %s" s;
                    (-1)
                  in
-                  E.setCurrentLine (lineno - 1);
                   (* A file name may follow *)
-		  file lexbuf }
+		  file (lineno - 1) lexbuf }
 | "line"        { addWhite lexbuf; hash lexbuf } (* MSVC line number info *)
                 (* For pragmas with irregular syntax, like #pragma warning,
                  * we parse them as a whole line. *)
@@ -672,15 +671,15 @@ and hash = parse
 | "pragma"      { pragmaLine := true; PRAGMA (currentLoc ()) }
 | _	        { addWhite lexbuf; endline lexbuf}
 
-and file =  parse
-        '\n'		        {addWhite lexbuf; E.newline (); initial lexbuf}
-|	blank			{addWhite lexbuf; file lexbuf}
+and file lineno =  parse
+        '\n'		        {addWhite lexbuf; E.setCurrent ~file:None ~line:lineno; E.newline (); initial lexbuf}
+|	blank			{addWhite lexbuf; file lineno lexbuf}
 |	'"' ([^ '\012' '\t' '"']* as filename) '"' ((' ' ['1' -'4'])* as flags)
        { addWhite lexbuf;  (* '"' *)
-         E.setCurrentFile filename (String.contains flags '3');
+         E.setCurrent ~file:(Some (filename, String.contains flags '3')) ~line:lineno;
 				 endline lexbuf}
 
-|	_			{addWhite lexbuf; endline lexbuf}
+|	_			{addWhite lexbuf; E.setCurrent ~file:None ~line:lineno; endline lexbuf}
 
 and endline = parse
         '\n' 			{ addWhite lexbuf; E.newline (); initial lexbuf}
