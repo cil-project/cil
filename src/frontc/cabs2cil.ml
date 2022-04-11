@@ -6697,6 +6697,7 @@ and doStatement (s : A.statement) : chunk =
     | A.RETURN (e, loc) ->
         let loc' = convLoc loc in
         currentLoc := loc';
+        currentExpLoc := loc'; (* TODO: separate expression loc *)
         (* Sometimes we return the result of a void function call *)
         if isVoidType !currentReturnType then begin
           ignore (warnOpt "Return statement with a value in function returning void");
