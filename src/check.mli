@@ -45,3 +45,5 @@ type checkFlags =
                        (** Ignore the specified instructions *)
  
 val checkFile: checkFlags list -> Cil.file -> bool
+
+val checkStandaloneExp: vars:Cil.varinfo list -> Cil.exp -> bool
