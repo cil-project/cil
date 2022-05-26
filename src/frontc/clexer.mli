@@ -43,6 +43,7 @@
 
 
 val init: filename:string -> Lexing.lexbuf
+val initFromString: string -> Lexing.lexbuf
 val finish: unit -> unit
 
 (* This is the main parser function *)

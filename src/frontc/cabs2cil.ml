@@ -332,6 +332,7 @@ let env : (string, envdata * location) H.t = H.create 307
 (* Just like env, except that it simply collects all the information (i.e. entries
  * are never removed and it is also not emptied after every file). *)
 let environment : (string, envdata * location) H.t = H.create 307
+let genvironment : (string, envdata * location) H.t = H.create 307
 
 (* We also keep a global environment. This is always a subset of the env *)
 let genv : (string, envdata * location) H.t = H.create 307
@@ -373,7 +374,8 @@ let addGlobalToEnv (k: string) (d: envdata) : unit =
   H.add env k (d, !currentLoc);
   H.add environment k (d, !currentLoc);
   (* Also add it to the global environment *)
-  H.add genv k (d, !currentLoc)
+  H.add genv k (d, !currentLoc);
+  H.add genvironment k (d, !currentLoc)
 
 
 
@@ -6988,3 +6990,45 @@ let convFile (f : A.file) : Cil.file =
     globinit = None;
     globinitcalled = false;
   }
+
+
+let convStandaloneExp ~genv:genv' ~env:env' (e : A.expression) : Cil.exp option =
+  Cil.initCIL (); (* make sure we have initialized CIL *)
+
+  (* remove parentheses from the Cabs *)
+  let e = V.visitCabsExpression (new stripParenClass) e in
+
+  (* Clean up the global types *)
+  initGlobals();
+  startFile ();
+  IH.clear noProtoFunctions;
+  H.clear compInfoNameEnv;
+  H.clear enumInfoNameEnv;
+  IH.clear mustTurnIntoDef;
+  H.clear alreadyDefined;
+  H.clear staticLocals;
+  H.clear typedefs;
+  H.clear isomorphicStructs;
+  annonCompFieldNameId := 0;
+  if !E.verboseFlag || !Cilutil.printStages then
+    ignore (E.log "Converting CABS->CIL\n");
+
+  H.iter (H.add genv) genv';
+  H.iter (H.add env) env';
+
+  let cil_exp = doPureExp e in
+
+  IH.clear noProtoFunctions;
+  IH.clear mustTurnIntoDef;
+  H.clear alreadyDefined;
+  H.clear compInfoNameEnv;
+  H.clear enumInfoNameEnv;
+  H.clear isomorphicStructs;
+  H.clear staticLocals;
+  H.clear typedefs;
+  H.clear env;
+  H.clear genv;
+  IH.clear callTempVars;
+
+  (* We are done *)
+  cil_exp
