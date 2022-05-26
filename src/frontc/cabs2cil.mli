@@ -109,3 +109,5 @@ val environment : (string, envdata * Cil.location) Hashtbl.t
 val genvironment : (string, envdata * Cil.location) Hashtbl.t
 
 val convStandaloneExp: genv:(string, envdata * Cil.location) Hashtbl.t -> env:(string, envdata * Cil.location) Hashtbl.t -> Cabs.expression -> Cil.exp option
+
+val currentFunctionFDEC: Cil.fundec ref
