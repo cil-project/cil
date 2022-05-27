@@ -79,7 +79,7 @@ let checkAttributes (attrs: attribute list) : unit =
 
 
   (* Keep track of defined types *)
-let typeDefs : (string, typ) H.t = H.create 117
+let typeDefs : (string, typ) H.t = H.create 117 (* TODO: unused *)
 
 
   (* Keep track of all variables names, enum tags and type names *)
@@ -1085,4 +1085,27 @@ let checkFile flags fl =
   varNamesList := [];
   if !E.verboseFlag then
     ignore (E.log "Finished checking file %s\n" fl.fileName);
+  !valid
+
+
+let checkStandaloneExp ~(vars: varinfo list) (exp: exp) =
+  if !E.verboseFlag then ignore (E.log "Checking exp %a\n" d_exp exp);
+  valid := true;
+  List.iter defineVariable vars;
+
+  (try ignore (checkExp false exp) with _ -> ());
+
+  (* Clean the hashes to let the GC do its job *)
+  H.clear typeDefs;
+  H.clear varNamesEnv;
+  H.clear varIdsEnv;
+  H.clear allVarIds;
+  H.clear fundecForVarIds;
+  H.clear compNames;
+  H.clear compUsed;
+  H.clear enumUsed;
+  H.clear typUsed;
+  varNamesList := [];
+  if !E.verboseFlag then
+    ignore (E.log "Finished checking exp %a\n" d_exp exp);
   !valid
