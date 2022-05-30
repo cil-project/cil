@@ -346,7 +346,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left   IDENT
 
 /* Non-terminals informations */
-%start interpret file
+%start interpret file expression
 %type <Cabs.definition list> file interpret globals
 
 %type <Cabs.definition> global
@@ -356,7 +356,7 @@ let transformOffsetOf (speclist, dtype) member =
 %type <Cabs.statement> statement
 %type <Cabs.constant * cabsloc> constant
 %type <int64 list Queue.t * Cabs.wchar_type * cabsloc> string_list
-%type <Cabs.expression * cabsloc> expression
+%type <Cabs.expression * Cabs.cabsloc> expression
 %type <Cabs.expression> opt_expression
 %type <Cabs.init_expression> init_expression
 %type <Cabs.expression list * cabsloc> comma_expression

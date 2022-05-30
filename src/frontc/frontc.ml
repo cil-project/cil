@@ -264,3 +264,28 @@ let parse_helper fname =
 let parse fname = (fun () -> snd(parse_helper fname ()))
 
 let parse_with_cabs fname = (fun () -> parse_helper fname ())
+
+let parse_standalone_exp s =
+  try
+    if !E.verboseFlag then ignore (E.log "Frontc is parsing string: %s\n" s);
+    flush !E.logChannel;
+    (* if !E.verboseFlag then ignore @@ Parsing.set_trace true; *)
+    let lexbuf = Clexer.initFromString s in
+    let (cabs, _) = Stats.time "parse" (Cparser.expression (Whitetrack.wraplexer clexer)) lexbuf in
+    Whitetrack.setFinalWhite (Clexer.get_white ());
+    Clexer.finish ();
+    cabs
+  with
+  | Parsing.Parse_error -> begin
+      ignore (E.log "Parsing error");
+      Clexer.finish ();
+      close_output ();
+      (* raise (ParseError("Parse error")) *)
+      let backtrace = Printexc.get_raw_backtrace () in
+      Printexc.raise_with_backtrace (ParseError("Parse error")) backtrace (* re-raise with captured inner backtrace *)
+  end
+  | e -> begin
+      ignore (E.log "Caught %s while parsing\n" (Printexc.to_string e));
+      Clexer.finish ();
+      raise e
+  end
