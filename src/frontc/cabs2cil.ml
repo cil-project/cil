@@ -5124,8 +5124,8 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
     compileCondExp (doCondExp isconst e) st sf
 
 (* Returns pure expression if there exists one, None otherwise. *)
-and doPureExp (e : A.expression) : exp option =
-  let (se, e', _) = doExp true e (AExp None) in
+and doPureExp ?(asconst=true) (e : A.expression) : exp option =
+  let (se, e', _) = doExp asconst e (AExp None) in
   if isEmpty se then Some e' else None
 
 and doInitializer
@@ -7016,7 +7016,7 @@ let convStandaloneExp ~genv:genv' ~env:env' (e : A.expression) : Cil.exp option 
   H.iter (H.add genv) genv';
   H.iter (H.add env) env';
 
-  let cil_exp = doPureExp e in
+  let cil_exp = doPureExp ~asconst:false e in
 
   IH.clear noProtoFunctions;
   IH.clear mustTurnIntoDef;
