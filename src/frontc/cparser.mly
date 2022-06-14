@@ -1036,8 +1036,8 @@ init_declarator_attr:
 ;
 init_declarator:                             /* ISO 6.7 */
     declarator                          { ($1, NO_INIT) }
-|   declarator EQ init_expression
-                                        { ($1, $3) }
+|   declarator EQ init_expression location
+                                        { let (n, d, a, l) = $1 in ((n, d, a, joinLoc l $4), $3) }
 ;
 
 decl_spec_list_common:                  /* ISO 6.7 */

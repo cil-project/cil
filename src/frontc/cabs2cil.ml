@@ -5885,6 +5885,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       (* Do all the variables and concatenate the resulting statements *)
       let doOneDeclarator (acc: chunk) (name: init_name) =
         let (n,ndt,a,l),_ = name in
+        currentLoc := convLoc l;
+        currentExpLoc := convLoc l; (* eloc for local initializer assignment instruction *)
+        (* Do the specifiers exactly once *)
         if isglobal then begin
           let spec_res = match spec_res with Some s -> s | _ -> failwith "Option.get" in
           let bt,_,_,attrs = spec_res in
