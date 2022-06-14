@@ -879,8 +879,9 @@ module BlockChunk =
             Switch (e, b, s, doLoc loc, doLoc eloc)
           | Loop (b, loc, eloc, s1, s2) ->
             doBlock ~first:false b;
-            Option.iter (doStmt ~first:false) s1;
-            Option.iter (doStmt ~first:false) s2;
+            let option_iter f = function Some v -> f v | None -> () in (* Option.iter for older OCaml versions *)
+            option_iter (doStmt ~first:false) s1;
+            option_iter (doStmt ~first:false) s2;
             Loop (b, doLoc loc, doLoc eloc, s1, s2)
           | Block b ->
             doBlock ~first b;
