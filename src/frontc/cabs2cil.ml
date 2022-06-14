@@ -859,32 +859,46 @@ module BlockChunk =
         | x :: xs when first -> x :: List.map doInstr xs
         | xs -> List.map doInstr xs
       in
-      let rec doStmt ~first s =
-        let skind' =
-          let doLoc = if first then doLoc else Fun.id in
-          match s.skind with
+      (* must mutate stmts in order to not break refs (for gotos) *)
+      let rec doStmt ~first s: unit =
+        let doLoc = if first then doLoc else Fun.id in
+        s.skind <- match s.skind with
           | Instr xs -> Instr (doInstrs ~first xs)
           | Return (e, loc) -> Return (e, doLoc loc)
           | Goto (s, loc) -> Goto (s, doLoc loc)
           | ComputedGoto (e, loc) -> ComputedGoto (e, doLoc loc)
           | Break loc -> Break (doLoc loc)
           | Continue loc -> Continue (doLoc loc)
-          | If (c, t, f, loc, eloc) -> If (c, doBlock ~first:false t, doBlock ~first:false f, doLoc loc, doLoc eloc)
-          | Switch (e, b, s, loc, eloc) -> Switch (e, doBlock ~first:false b, doStmts ~first:false s, doLoc loc, doLoc eloc)
-          | Loop (b, loc, eloc, s1, s2) -> Loop (doBlock ~first:false b, doLoc loc, doLoc eloc, Option.map (doStmt ~first:false) s1, Option.map (doStmt ~first:false) s2)
-          | Block b -> Block (doBlock ~first b)
-        in
-        {s with skind = skind'}
+          | If (c, t, f, loc, eloc) ->
+            doBlock ~first:false t;
+            doBlock ~first:false f;
+            If (c, t, f, doLoc loc, doLoc eloc)
+          | Switch (e, b, s, loc, eloc) ->
+            doBlock ~first:false b;
+            doStmts ~first:false s;
+            Switch (e, b, s, doLoc loc, doLoc eloc)
+          | Loop (b, loc, eloc, s1, s2) ->
+            doBlock ~first:false b;
+            Option.iter (doStmt ~first:false) s1;
+            Option.iter (doStmt ~first:false) s2;
+            Loop (b, doLoc loc, doLoc eloc, s1, s2)
+          | Block b ->
+            doBlock ~first b;
+            s.skind
       and doBlock ~first b =
-        {b with bstmts = doStmts ~first b.bstmts}
+        doStmts ~first b.bstmts
       and doStmts ~first = function
-        | [] -> []
-        | x :: xs -> doStmt ~first x :: List.map (doStmt ~first:false) xs
+        | [] -> ()
+        | x :: xs ->
+          doStmt ~first x;
+          List.iter (doStmt ~first:false) xs
       in
       match c.stmts, c.postins with
       | [], [] -> c
       | [], postins -> {c with postins = List.rev (doInstrs ~first:true (List.rev postins))}
-      | stmts, postins -> {c with stmts = doStmts ~first:true stmts; postins = List.rev (doInstrs ~first:false (List.rev postins))}
+      | stmts, postins ->
+        doStmts ~first:true stmts;
+        {c with postins = List.rev (doInstrs ~first:false (List.rev postins))}
 
     let i2c (i: instr) =
       { empty with postins = [i] }
