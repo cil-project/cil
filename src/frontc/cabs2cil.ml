@@ -6652,8 +6652,8 @@ and doStatement (s : A.statement) : chunk =
     | A.FOR(fc1,e2,e3,s,loc,eloc) -> begin
         let loc' = convLoc loc in
         let eloc' = convLoc eloc in
-        currentLoc := loc';
-        currentExpLoc := eloc';
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         enterScope (); (* Just in case we have a declaration *)
         let (se1, _, _) =
           match fc1 with
@@ -6662,9 +6662,11 @@ and doStatement (s : A.statement) : chunk =
         in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
-        let s' = doStatement s in
         currentLoc := loc';
         currentExpLoc := eloc';
+        let s' = doStatement s in
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         let s'' = consLabContinue se3 in
         let break_cond = breakChunk loc' in (* TODO: use eloc'? *)
         exitLoop ();
