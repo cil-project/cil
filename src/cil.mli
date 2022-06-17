@@ -1103,6 +1103,8 @@ and location = {
     endLine: int;          (** End line number. Negative means unknown. *)
     endByte: int;          (** End byte position. Negative means unknown. *)
     endColumn: int;        (** End column number. Negative means unknown. *)
+    synthetic: bool;       (** Synthetic location, doesn't necessarily precisely correspond to a location in original source code, e.g. due to CIL transformations.
+                               @see <https://github.com/goblint/cil/pull/98> for some examples. *)
 }
 
 

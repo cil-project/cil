@@ -29,6 +29,8 @@ let string_of_loc l =
 let joinLoc l1 l2 = match l1, l2 with
   | l1, l2 when l1.filename = l2.filename && l1.endByteno < 0 && l2.endByteno < 0 && l1.byteno <= l2.byteno ->
     {l1 with endLineno = l2.lineno; endByteno = l2.byteno; endColumnno = l2.columnno}
+  | l1, l2 when l1.filename = l2.filename && l1.endByteno < l2.byteno && l2.endByteno < 0 && l1.byteno <= l2.byteno ->
+    {l1 with endLineno = l2.lineno; endByteno = l2.byteno; endColumnno = l2.columnno}
   | l1, l2 when l1.filename = l2.filename && l1.endByteno = l2.endByteno && l1.byteno = l2.byteno ->
     l1 (* alias fundefs *)
   | _, _ ->

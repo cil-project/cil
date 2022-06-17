@@ -190,7 +190,7 @@ let debugLoc = false
 let convLoc (l : cabsloc) =
   if debugLoc then
     ignore (E.log "convLoc at %s: line %d, byte %d, column %d\n" l.filename l.lineno l.byteno l.columnno);
-  {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno; endLine = l.endLineno; endByte = l.endByteno; endColumn = l.endColumnno;}
+  {line = l.lineno; file = l.filename; byte = l.byteno; column = l.columnno; endLine = l.endLineno; endByte = l.endByteno; endColumn = l.endColumnno; synthetic = false;}
 
 
 let isOldStyleVarArgName n = n = "__builtin_va_alist"
@@ -839,6 +839,67 @@ module BlockChunk =
       c.postins == [] && c.stmts == []
 
     let isNotEmpty (c: chunk) = not (isEmpty c)
+
+    (** Change all stmt and instr locs to synthetic, except the first one.
+        Expressions/initializers that expand to multiple instructions cannot have intermediate locations referenced. *)
+    let synthesizeLocs (c: chunk): chunk =
+      (* ignore (Pretty.eprintf "synthesizeLocs %a\n" d_chunk c); *)
+      let doLoc l =
+        (* ignore (Pretty.eprintf "synthesizeLoc %a in %a\n" d_loc l d_chunk c); *)
+        {l with synthetic = true}
+      in
+      let doInstr: instr -> instr = function
+        | Set (l, e, loc, eloc) -> Set (l, e, doLoc loc, doLoc eloc)
+        | VarDecl (v, loc) -> VarDecl (v, doLoc loc)
+        | Call (l, f, a, loc, eloc) -> Call (l, f, a, doLoc loc, doLoc eloc)
+        | Asm (a, b, c, d, e, loc) -> Asm (a, b, c, d, e, doLoc loc)
+      in
+      let doInstrs ~first = function
+        | [] -> []
+        | x :: xs when first -> x :: List.map doInstr xs
+        | xs -> List.map doInstr xs
+      in
+      (* must mutate stmts in order to not break refs (for gotos) *)
+      let rec doStmt ~first s: unit =
+        let doLoc = if first then doLoc else fun x -> x in
+        s.skind <- match s.skind with
+          | Instr xs -> Instr (doInstrs ~first xs)
+          | Return (e, loc) -> Return (e, doLoc loc)
+          | Goto (s, loc) -> Goto (s, doLoc loc)
+          | ComputedGoto (e, loc) -> ComputedGoto (e, doLoc loc)
+          | Break loc -> Break (doLoc loc)
+          | Continue loc -> Continue (doLoc loc)
+          | If (c, t, f, loc, eloc) ->
+            doBlock ~first:false t;
+            doBlock ~first:false f;
+            If (c, t, f, doLoc loc, doLoc eloc)
+          | Switch (e, b, s, loc, eloc) ->
+            doBlock ~first:false b;
+            doStmts ~first:false s;
+            Switch (e, b, s, doLoc loc, doLoc eloc)
+          | Loop (b, loc, eloc, s1, s2) ->
+            doBlock ~first:false b;
+            let option_iter f = function Some v -> f v | None -> () in (* Option.iter for older OCaml versions *)
+            option_iter (doStmt ~first:false) s1;
+            option_iter (doStmt ~first:false) s2;
+            Loop (b, doLoc loc, doLoc eloc, s1, s2)
+          | Block b ->
+            doBlock ~first b;
+            s.skind
+      and doBlock ~first b =
+        doStmts ~first b.bstmts
+      and doStmts ~first = function
+        | [] -> ()
+        | x :: xs ->
+          doStmt ~first x;
+          List.iter (doStmt ~first:false) xs
+      in
+      match c.stmts, c.postins with
+      | [], [] -> c
+      | [], postins -> {c with postins = List.rev (doInstrs ~first:true (List.rev postins))}
+      | stmts, postins ->
+        doStmts ~first:true stmts;
+        {c with postins = List.rev (doInstrs ~first:false (List.rev postins))}
 
     let i2c (i: instr) =
       { empty with postins = [i] }
@@ -3352,9 +3413,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                 (se: chunk) (e: exp) (t: typ) : chunk * exp * typ =
     match newWhat with
       ADrop
-    | AType -> (se, e, t)
+    | AType -> (synthesizeLocs se, e, t)
     | AExpLeaveArrayFun ->
-        (se, e, t) (* It is important that we do not do "processArrayFun" in
+        (synthesizeLocs se, e, t) (* It is important that we do not do "processArrayFun" in
                     * this case. We exploit this when we process the typeOf
                     * construct *)
     | AExp _ ->
@@ -3363,20 +3424,20 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         ignore (E.log "finishExp: e'=%a, t'=%a\n"
            d_exp e' d_type t');
 *)
-        (se, e', t')
+        (synthesizeLocs se, e', t')
 
     | ASet (lv, lvt) -> begin
         (* See if the set was done already *)
         match e with
           Lval(lv') when lv == lv' ->
-            (se, e, t)
+            (synthesizeLocs se, e, t)
         | _ ->
             let (e', t') = processArrayFun e t in
             let (t'', e'') = castTo t' lvt e' in
 (*
             ignore (E.log "finishExp: e = %a\n  e'' = %a\n" d_plainexp e d_plainexp e'');
 *)
-            (se +++ (Set(lv, e'', !currentLoc, !currentExpLoc)), e'', t'')
+            (synthesizeLocs (se +++ (Set(lv, e'', !currentLoc, !currentExpLoc))), e'', t'')
     end
   in
   let findField (n: string) (fidlist: fieldinfo list) : offset =
@@ -5885,6 +5946,9 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
       (* Do all the variables and concatenate the resulting statements *)
       let doOneDeclarator (acc: chunk) (name: init_name) =
         let (n,ndt,a,l),_ = name in
+        currentLoc := convLoc l;
+        currentExpLoc := convLoc l; (* eloc for local initializer assignment instruction *)
+        (* Do the specifiers exactly once *)
         if isglobal then begin
           let spec_res = match spec_res with Some s -> s | _ -> failwith "Option.get" in
           let bt,_,_,attrs = spec_res in
@@ -5906,8 +5970,8 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
           acc
         end else
           match spec_res with
-          | Some spec_res -> acc @@ createLocal spec_res name
-          | None -> acc @@ createAutoLocal name
+          | Some spec_res -> acc @@ synthesizeLocs (createLocal spec_res name)
+          | None -> acc @@ synthesizeLocs (createAutoLocal name)
       in
       let res = List.fold_left doOneDeclarator empty nl in
 (*
@@ -6652,8 +6716,8 @@ and doStatement (s : A.statement) : chunk =
     | A.FOR(fc1,e2,e3,s,loc,eloc) -> begin
         let loc' = convLoc loc in
         let eloc' = convLoc eloc in
-        currentLoc := loc';
-        currentExpLoc := eloc';
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         enterScope (); (* Just in case we have a declaration *)
         let (se1, _, _) =
           match fc1 with
@@ -6662,9 +6726,11 @@ and doStatement (s : A.statement) : chunk =
         in
         let (se3, _, _) = doExp false e3 ADrop in
         startLoop false;
-        let s' = doStatement s in
         currentLoc := loc';
         currentExpLoc := eloc';
+        let s' = doStatement s in
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         let s'' = consLabContinue se3 in
         let break_cond = breakChunk loc' in (* TODO: use eloc'? *)
         exitLoop ();

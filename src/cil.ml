@@ -868,6 +868,8 @@ and location = {
     endLine: int;          (** End line number. Negative means unknown. *)
     endByte: int;          (** End byte position. Negative means unknown. *)
     endColumn: int;        (** End column number. Negative means unknown. *)
+    synthetic: bool;       (** Synthetic location, doesn't necessarily precisely correspond to a location in original source code, e.g. due to CIL transformations.
+                               @see <https://github.com/goblint/cil/pull/98> for some examples. *)
 }
 
 (* Type signatures. Two types are identical iff they have identical
@@ -886,7 +888,8 @@ let locUnknown = { line = -1;
        column = -1;
        endLine = -1;
        endByte = -1;
-       endColumn = -1;}
+       endColumn = -1;
+       synthetic = true;}
 
 (* A reference to the current location *)
 let currentLoc : location ref = ref locUnknown
@@ -3167,7 +3170,8 @@ let builtinLoc: location = { line = 1;
                              column = 0;
                              endLine = -1;
                              endByte = -1;
-                             endColumn = -1;}
+                             endColumn = -1;
+                             synthetic = true;}
 
 
 
