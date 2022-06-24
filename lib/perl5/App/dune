@@ -1,0 +1,5 @@
+(rule
+ (deps
+  ../../../configure.ac ../../../config.status ../../../configure ../../../Makefile ../../../Makefile.in ../../../install-sh ../../../config.sub ../../../config.guess ../../../config.h.in ../../../stamp-h.in ../../../src/cil.mli ../../../src/machdep-ml.c.in ../../../src/machdep-ml.c ../../../src/cilversion.ml.in ../../../aclocal.m4 ../../../config.h Cilly.pm.in ../../../config.mk.in)
+ (targets Cilly.pm)
+ (action (chdir ../../.. (progn (run mkdir -p _build) (run make lib/perl5/App/Cilly.pm)))))

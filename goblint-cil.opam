@@ -39,6 +39,7 @@ depends: [
 ]
 conflicts: ["cil"]
 build: [
+  ["./configure"]
   ["dune" "subst"] {dev}
   [
     "dune"
