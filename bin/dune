@@ -1,9 +1,9 @@
 (install
  (section bin)
- (files cilly cilly.native))
+ (files
+  cilly
+  cilly.native))
 
 (rule
- (deps ../src/main.exe)
- (targets cilly.native)
+ (alias cilly)
  (action (copy ../src/main.exe cilly.native)))
-

@@ -8,53 +8,33 @@
   (modules (:standard \ main))
 )
 
+; HACK: workaround for https://github.com/ocaml/dune/issues/3374
+(rule (action (copy ../src__machdep-ml.c machdep-ml.c)))
+(rule (action (copy ../src__cilversion.ml cilversion.ml)))
+
 (rule
  (alias machdep)
- (deps
-  ../configure.ac ../config.status ../configure ../Makefile ../Makefile.in ../install-sh ../config.sub ../config.guess ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in ../aclocal.m4 machdep-ml.c ../config.h)
+ (deps (alias ../configure) machdep-ml.c)
  (targets machdep.ml)
- (locks make)
+ (locks ../make)
  (action (chdir .. (progn
   (run make machdep)
-  (run cp _build/machdep.ml src)
-  ))))
+  (run cp _build/machdep.ml src)))))
 
 (rule
- (deps (package goblint-cil) ../src/main.exe (source_tree ../lib/perl5/App/Cilly) ../bin/cilly ../configure.ac ../Makefile.in ../install-sh ../config.sub ../config.guess ../lib/perl5/App/Cilly.pm.in ../lib/perl5/Makefile.PL  ../config.h.in ../stamp-h.in cil.mli machdep-ml.c.in cilversion.ml.in ../config.mk.in)
- (locks make)
- (action (chdir ..  (progn
-    (run ./configure)
-    (run make machdep)
-    (run make lib/perl5/App/Cilly.pm)
-    (chdir lib/perl5 (progn
-      (run perl Makefile.PL)
-      (run make)
-    ))
-    (run cp src/main.exe bin/cilly.native)
-    (bash "mkdir -p share/cil && echo $(cd ../install/default/lib; pwd) > share/cil/ocamlpath") ; TODO: what is this?
- )))
  (alias cilly)
-)
-
-(rule
- (deps (package goblint-cil) (alias cilly) (source_tree ../test))
- (locks make)
- (action (chdir ..  (progn
-    (run make test)
- )))
- (alias runtest)
-)
+ (deps (package goblint-cil))
+ (action (chdir .. (bash "mkdir -p share/cil && echo $(cd ../install/default/lib; pwd) > share/cil/ocamlpath")))) ; TODO: what is this?
 
 (ocamllex formatlex)
 (ocamlyacc formatparse)
 
 (executable
-   (public_name main) ; TODO: remove
-   (modes exe)
-   (modules main)
-   (libraries goblint-cil)
-   (link_flags (-linkall))
-)
+ (name main)
+ (modules main)
+ (modes native)
+ (libraries goblint-cil)
+ (flags :standard -linkall))
 
 (env
   (dev
