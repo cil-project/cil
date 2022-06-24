@@ -1,5 +1,5 @@
 (rule
  (alias runtest)
- (deps (alias_rec ../cilly) (source_tree .))
+ (deps (alias_rec ../cilly) (package goblint-cil) (source_tree .))
  (locks ../make)
  (action (chdir .. (run make test))))

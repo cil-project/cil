@@ -21,11 +21,6 @@
   (run make machdep)
   (run cp _build/machdep.ml src)))))
 
-(rule
- (alias cilly)
- (deps (package goblint-cil))
- (action (chdir .. (bash "mkdir -p share/cil && echo $(cd ../install/default/lib; pwd) > share/cil/ocamlpath")))) ; TODO: what is this?
-
 (ocamllex formatlex)
 (ocamlyacc formatparse)
 
