@@ -1,0 +1,18 @@
+(rule
+ (alias cilly)
+ (deps (alias ../../../configure) Cilly.pm.in)
+ (targets Cilly.pm)
+ (locks ../../../make)
+ (action (chdir ../../.. (progn
+  (run mkdir -p _build)
+  (run make lib/perl5/App/Cilly.pm)))))
+
+(install
+ (section lib_root)
+ (files
+  (Cilly.pm as perl5/App/Cilly.pm)
+  (Cilly/CilCompiler.pm as perl5/App/Cilly/CilCompiler.pm)
+  (Cilly/CilConfig.pm as perl5/App/Cilly/CilConfig.pm)
+  (Cilly/KeptFile.pm as perl5/App/Cilly/KeptFile.pm)
+  (Cilly/OutputFile.pm as perl5/App/Cilly/OutputFile.pm)
+  (Cilly/TempFile.pm as perl5/App/Cilly/TempFile.pm)))

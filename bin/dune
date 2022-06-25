@@ -1,0 +1,9 @@
+(install
+ (section bin)
+ (files
+  cilly
+  cilly.native))
+
+(rule
+ (alias cilly)
+ (action (copy ../src/main.exe cilly.native)))
