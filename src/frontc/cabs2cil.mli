@@ -111,3 +111,12 @@ val genvironment : (string, envdata * Cil.location) Hashtbl.t
 val convStandaloneExp: genv:(string, envdata * Cil.location) Hashtbl.t -> env:(string, envdata * Cil.location) Hashtbl.t -> Cabs.expression -> Cil.exp option
 
 val currentFunctionFDEC: Cil.fundec ref
+
+(** c.f. ISO 6.3.1.1 *)
+val integralPromotion: Cil.typ -> Cil.typ
+
+(** c.f. ISO 6.3.1.8 *)
+val arithmeticConversion: Cil.typ -> Cil.typ -> Cil.typ
+
+(** Construct {!Cil.BinOp} with correct implicit casts inserted.  *)
+val doBinOp: Cil.binop -> Cil.exp -> Cil.typ -> Cil.exp -> Cil.typ -> Cil.typ * Cil.exp
