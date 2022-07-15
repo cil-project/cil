@@ -13,13 +13,18 @@
 (rule (action (copy ../src__cilversion.ml cilversion.ml)))
 
 (rule
- (alias machdep)
  (deps (alias ../configure) machdep-ml.c)
- (targets machdep.ml)
- (locks ../make)
- (action (chdir .. (progn
-  (run make machdep)
-  (run cp _build/machdep.ml src)))))
+ (target machdep-ml.exe)
+ (action (run %{cc} -D_GNUCC machdep-ml.c -o %{target})))
+
+(rule
+ (target machdep.ml)
+ (action (with-stdout-to %{target} (progn
+  (echo "include Machdep0\n")
+  (echo "let gcc = {\n")
+  (run ./machdep-ml.exe)
+  (echo "}\n")
+  (echo "let theMachine : mach ref = ref gcc\n")))))
 
 (ocamllex formatlex)
 (ocamlyacc formatparse)
