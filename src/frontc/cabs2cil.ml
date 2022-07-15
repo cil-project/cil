@@ -5167,8 +5167,8 @@ and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
 
   | CEExp (se, e) -> begin
       match e with
-        Const(CInt(i,_,_)) when not (is_zero_cilint i) && canDrop sf -> se @@ st
-      | Const(CInt(z,_,_)) when is_zero_cilint z && canDrop st -> se @@ sf
+        Const(CInt(i,_,_)) when not (is_zero_cilint i) && canDrop sf && !Cil.removeBranchingOnConstants -> se @@ st
+      | Const(CInt(z,_,_)) when is_zero_cilint z && canDrop st && !Cil.removeBranchingOnConstants -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc !currentExpLoc st sf
   end
 

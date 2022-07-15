@@ -1128,6 +1128,9 @@ and typsig =
 val lowerConstants: bool ref
     (** Do lower constants (default true) *)
 
+val removeBranchingOnConstants: bool ref
+    (** Remove branches of the form if(const) ... else ... (default true) *)
+
 val insertImplicitCasts: bool ref
     (** Do insert implicit casts (default true) *)
 

@@ -97,6 +97,9 @@ let envMachine : M.mach option ref = ref None
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
 
+let removeBranchingOnConstants: bool ref = ref true
+    (** Remove branches of the form if(const) ... else ... (default true) *)
+
 let insertImplicitCasts: bool ref = ref true
     (** Do insert implicit casts (default true) *)
 
