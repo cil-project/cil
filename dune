@@ -19,13 +19,11 @@
   config.mk
   stamp-h
   ; HACK: workaround for https://github.com/ocaml/dune/issues/3374
-  src__machdep-ml.c
   src__cilversion.ml
   lib__perl5__App__Cilly__CilConfig.pm)
  (action (progn
   (run ./configure)
   ; HACK: workaround for https://github.com/ocaml/dune/issues/3374
   ; HACK: use "run cp" instead of "copy" to avoid implicit unsupported subdir deps
-  (run cp src/machdep-ml.c src__machdep-ml.c)
   (run cp src/cilversion.ml src__cilversion.ml)
   (run cp lib/perl5/App/Cilly/CilConfig.pm lib__perl5__App__Cilly__CilConfig.pm))))
