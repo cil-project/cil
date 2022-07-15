@@ -1,5 +1,14 @@
 module C = Configurator.V1
 
+let has_header_code f =
+  Format.sprintf {|
+#include <%s>
+int main() { return 0; } // Just so that dune-configurator linking works
+  |} f
+
+let has_header c f =
+  C.c_test c (has_header_code f)
+
 let builtin_va_list_code = {|
 int
 main (void)
@@ -70,6 +79,12 @@ let () =
       let underscore_name = C.c_test c underscore_name_code in
 
       C.C_define.gen_header_file c ~fname:"machdep-config.h" [
+        ("HAVE_STDLIB_H", Switch (has_header c "stdlib.h"));
+        ("HAVE_WCHAR_H", Switch (has_header c "wchar.h"));
+        ("HAVE_STDBOOL_H", Switch (has_header c "stdbool.h"));
+        ("HAVE_INTTYPES_H", Switch (has_header c "inttypes.h"));
+        ("HAVE_STDINT_H", Switch (has_header c "stdint.h"));
+
         ("HAVE_BUILTIN_VA_LIST_DEF", Switch have_builtin_va_list);
         ("THREAD_IS_KEYWORD_DEF", Switch thread_is_keyword);
         ("UNDERSCORE_NAME_DEF", Switch underscore_name);

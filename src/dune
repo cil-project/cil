@@ -21,8 +21,7 @@
  (action (run ./machdepConfigure.exe)))
 
 (rule
- (deps (alias ../configure) machdep-config.h machdep-ml2.c) ; ../configure generates ../config.h
- ; machdep-ml2.c because configure overwrites machdep-ml.c
+ (deps machdep-config.h machdep-ml2.c) ; machdep-ml2.c because configure overwrites machdep-ml.c
  (target machdep-ml.exe)
  (action (run %{cc} -D_GNUCC machdep-ml2.c -o %{target})))
 

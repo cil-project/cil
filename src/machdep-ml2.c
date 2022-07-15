@@ -35,7 +35,6 @@
  *
  */
 
-#include "../config.h"
 #include "machdep-config.h"
 
 #include <stdio.h>
