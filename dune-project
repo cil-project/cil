@@ -30,6 +30,7 @@ Changes:
     zarith
     (hevea :with-doc)
     dune
+    dune-configurator
     (odoc :with-doc)
     stdlib-shims
     (ppx_deriving_yojson (>= 3.2))
