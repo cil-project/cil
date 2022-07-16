@@ -1,8 +1,7 @@
 (rule
- (targets cilpp.tex (dir ./__html__cil__examples))
- (deps (alias_rec ../cilly) ../bin/cilly (package goblint-cil) (sandbox always)) ; TODO: why bin cilly separate?
+ (targets cilpp.tex ./__html__cil__examples)
+ (deps (alias_rec ../cilly) ../bin/cilly (package goblint-cil)) ; TODO: why bin cilly separate?
  (action (progn
   (system "mkdir -p ./html/cil/examples")
   (with-stdout-to cilpp.tex (run %{bin:perl} %{dep:cilcode.pl} %{dep:cil.tex}))
-  (system "cp -r ./html/cil/examples ./__html__cil__examples")
-  )))
+  (system "mv ./html/cil/examples ./__html__cil__examples"))))

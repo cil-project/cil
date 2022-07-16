@@ -29,7 +29,7 @@ depends: [
   "ocamlfind"
   "zarith"
   "hevea" {with-doc}
-  "dune" {>= "3.0"}
+  "dune" {>= "2.7"}
   "odoc" {with-doc}
   "stdlib-shims"
   "ppx_deriving_yojson" {>= "3.2"}
