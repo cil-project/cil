@@ -26,7 +26,7 @@ Changes:
 - Many bug fixes")
   (depends
     (ocaml (>= 4.05.0))
-    ocamlfind
+    (ocamlfind :with-test)
     zarith
     (hevea :with-doc)
     dune

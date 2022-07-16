@@ -26,7 +26,7 @@ homepage: "https://github.com/goblint/cil"
 bug-reports: "https://github.com/goblint/cil/issues"
 depends: [
   "ocaml" {>= "4.05.0"}
-  "ocamlfind"
+  "ocamlfind" {with-test}
   "zarith"
   "hevea" {with-doc}
   "dune" {>= "2.7"}
