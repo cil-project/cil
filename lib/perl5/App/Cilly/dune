@@ -1,0 +1,3 @@
+(rule
+ (target CilConfig.pm)
+ (action (write-file %{target} "package App::Cilly::CilConfig;\n\n$::cc        = \"%{ocaml-config:c_compiler}\";\n$::default_mode = \"GNUCC\";\n")))
