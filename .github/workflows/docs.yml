@@ -1,11 +1,11 @@
-name: Build and Deploy Docs
+name: docs
 on:
   push:
 
 permissions:
   contents: write
 jobs:
-  build-and-deploy:
+  build:
     concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
     runs-on: ubuntu-latest
     steps:
@@ -26,8 +26,21 @@ jobs:
           opam exec -- dune subst
           opam exec -- dune build @heveadoc
 
+      - uses: actions/upload-artifact@v3
+        with:
+          name: doc-html
+          path: _build/default/doc/html/cil
+
+  deploy:
+    if: github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: doc-html
+
       - name: Deploy 🚀
-        if: github.ref == 'refs/heads/develop'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: _build/default/doc/html/cil # The folder the action should deploy.
