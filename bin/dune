@@ -7,3 +7,7 @@
 (rule
  (alias cilly)
  (action (copy ../src/main.exe cilly.native)))
+
+(alias
+ (name cilly)
+ (deps cilly))
