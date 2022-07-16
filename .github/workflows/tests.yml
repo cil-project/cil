@@ -41,9 +41,8 @@ jobs:
 
       - run: opam pin add goblint-cil.dev . --no-action
       - run: opam depext goblint-cil --yes
-      - run: opam depext goblint-cil --yes --with-doc
       - run: opam depext goblint-cil --yes --with-test
-      - run: opam install . --deps-only --with-doc --with-test
+      - run: opam install . --deps-only --with-test
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
 
