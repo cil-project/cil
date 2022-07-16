@@ -8,9 +8,6 @@
   (modules (:standard \ main machdepConfigure))
 )
 
-; HACK: workaround for https://github.com/ocaml/dune/issues/3374
-(rule (action (copy ../src__cilversion.ml cilversion.ml)))
-
 (executable
  (name machdepConfigure)
  (modules machdepConfigure)
