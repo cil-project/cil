@@ -108,8 +108,6 @@ src/.merlin
 # /src/
 /src/*.output
 /src/ChangeLog
-/src/machdep-ml.c
-/src/cilversion.ml
 /src/feature_config.ml
 /src/machdep.ml
 

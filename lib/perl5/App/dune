@@ -1,16 +1,6 @@
 (rule
  (alias cilly)
- (deps (alias ../../../configure) Cilly.pm.in)
- (targets Cilly.pm)
- (locks ../../../make)
- (action (chdir ../../.. (progn
-  (run mkdir -p _build)
-  (run make lib/perl5/App/Cilly.pm)))))
-
-; TODO: rename to actually use
-(rule
- (alias cilly)
- (target Cilly2.pm)
+ (target Cilly.pm)
  (action (progn
   (copy %{dep:Cilly.pm.in} %{target})
   (bash "sed -i -e \"s|nogcc32model|`./%{dep:../../../src/machdep-ml32.exe} --env`|\" %{target}")

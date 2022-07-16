@@ -1,7 +1,3 @@
-; HACK: workaround for https://github.com/ocaml/dune/issues/3374
-(rule (action (copy ../../../../lib__perl5__App__Cilly__CilConfig.pm CilConfig.pm)))
-
-; TODO: rename to actually use
 (rule
- (target CilConfig2.pm)
+ (target CilConfig.pm)
  (action (write-file %{target} "package App::Cilly::CilConfig;\n\n$::cc        = \"%{ocaml-config:c_compiler}\";\n$::default_mode = \"GNUCC\";\n")))

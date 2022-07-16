@@ -18,21 +18,21 @@
  (action (run ./machdepConfigure.exe)))
 
 (rule
- (deps machdep-config.h machdep-ml2.c) ; machdep-ml2.c because configure overwrites machdep-ml.c
+ (deps machdep-config.h machdep-ml.c)
  (target machdep-ml.exe)
- (action (run %{cc} -D_GNUCC machdep-ml2.c -o %{target})))
+ (action (run %{cc} -D_GNUCC machdep-ml.c -o %{target})))
 
 ; for Cilly.pm
 (rule
- (deps machdep-config.h machdep-ml2.c) ; machdep-ml2.c because configure overwrites machdep-ml.c
+ (deps machdep-config.h machdep-ml.c)
  (target machdep-ml32.exe)
- (action (run %{cc} -D_GNUCC -m32 machdep-ml2.c -o %{target})))
+ (action (run %{cc} -D_GNUCC -m32 machdep-ml.c -o %{target})))
 
 ; for Cilly.pm
 (rule
- (deps machdep-config.h machdep-ml2.c) ; machdep-ml2.c because configure overwrites machdep-ml.c
+ (deps machdep-config.h machdep-ml.c)
  (target machdep-ml64.exe)
- (action (run %{cc} -D_GNUCC -m64 machdep-ml2.c -o %{target})))
+ (action (run %{cc} -D_GNUCC -m64 machdep-ml.c -o %{target})))
 
 (rule
  (target machdep.ml)
