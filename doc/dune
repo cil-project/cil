@@ -4,5 +4,5 @@
  (action (progn
   (system "mkdir -p ./html/cil/examples")
   (with-stdout-to cilpp.tex (run %{bin:perl} %{dep:cilcode.pl} %{dep:cil.tex}))
-  (system "rm -r ./__html__cil__examples")
+  (system "rm -r ./__html__cil__examples || true")
   (system "mv ./html/cil/examples ./__html__cil__examples"))))
