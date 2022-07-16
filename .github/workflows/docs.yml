@@ -1,8 +1,7 @@
 name: Build and Deploy Docs
 on:
   push:
-    branches:
-      - develop
+
 permissions:
   contents: write
 jobs:
@@ -28,6 +27,7 @@ jobs:
           opam exec -- dune build @heveadoc
 
       - name: Deploy 🚀
+        if: github.ref == 'refs/heads/develop'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: _build/default/doc/html/cil # The folder the action should deploy.
