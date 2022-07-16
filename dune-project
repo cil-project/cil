@@ -36,6 +36,7 @@ Changes:
     yojson
     (batteries (>= 3.2.0))
     conf-perl
+    cppo
   )
   (conflicts cil)
 )

@@ -47,3 +47,9 @@ type mach = {
   __thread_is_keyword: bool; (* whether __thread is a keyword *)
   __builtin_va_list: bool; (* whether __builtin_va_list is builtin (gccism) *)
 }
+
+let gcc = {
+#ext machdep
+#endext
+}
+let theMachine : mach ref = ref gcc

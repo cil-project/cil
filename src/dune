@@ -27,12 +27,9 @@
 
 (rule
  (target machdep.ml)
- (action (with-stdout-to %{target} (progn
-  (echo "include Machdep0\n")
-  (echo "let gcc = {\n")
-  (run ./machdep-ml.exe)
-  (echo "}\n")
-  (echo "let theMachine : mach ref = ref gcc\n")))))
+ (action (run %{bin:cppo} -V OCAML:%{ocaml_version}
+              %{dep:machdep.cppo.ml} -x machdep:./%{dep:machdep-ml.exe}
+              -o %{target})))
 
 (ocamllex formatlex)
 (ocamlyacc formatparse)
