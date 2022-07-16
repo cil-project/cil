@@ -12,7 +12,6 @@
  (alias heveadoc)
  (deps ../../cilpp.tex ./examples ./api)
  (action (progn
-  (write-file cil.version.tex "\\def\\cilversion{$(CIL_VERSION)}\n") ; TODO: actual version
   (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
   (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
   (system "mv cilpp.html cil.html")
