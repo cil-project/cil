@@ -17,8 +17,6 @@
 % Use this to refer to a Cil type/val
 \def\ciltyperef#1{\apiref{Cil}{type-}{#1}}
 \def\cilvalref#1{\apiref{Cil}{val-}{#1}}
-\def\cilvisit#1{\apiref{Cil.cilVisitor}{#1}}
-\def\cilprinter#1{\apiref{Cil.cilPrinter}{#1}}
 
 % Use this to refer to a type/val in the Pretty module
 \def\ptyperef#1{\apiref{Pretty}{type-}{#1}}
@@ -722,9 +720,9 @@ transformation. One major limitation of the visiting engine is that it does
 not propagate information from one node to another. Each visitor must use its
 own private data to achieve this effect if necessary.
 
- Each visitor is an object that is an instance of a class of type \cilvisit{}.
+ Each visitor is an object that is an instance of a class of type \apiref{Cil}{class-type-}{cilVisitor}.
 The most convenient way to obtain such classes is to specialize the
-\apiref{Cil.nopCilVisitor}{} class (which just traverses the tree doing
+\apiref{Cil}{class-}{nopCilVisitor} class (which just traverses the tree doing
 nothing). Any given specialization typically overrides only a few of the
 methods. Take a look for example at the
 [copyFunctionVisitor] defined in \t{cil.ml}.
@@ -1055,7 +1053,7 @@ following are some of the pretty-printing functions:
 \end{itemize}
 
  You can even customize the pretty-printer by creating instances of
-\cilprinter{}. Typically such an instance extends
+\apiref{Cil}{class-type-}{cilPrinter}. Typically such an instance extends
 \cilvalref{defaultCilPrinter}. Once you have a customized pretty-printer you
 can use the following printing functions:
 \begin{itemize}
