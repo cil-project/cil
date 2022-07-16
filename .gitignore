@@ -78,7 +78,6 @@ src/.merlin
 /doc/ocamldoc.sty
 
 # /lib/perl5/
-/lib/perl5/App/Cilly/CilConfig.pm
 /lib/perl5/App/Cilly.pm
 /lib/perl5/Makefile
 /lib/perl5/Makefile.old
