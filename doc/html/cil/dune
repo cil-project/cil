@@ -1,0 +1,24 @@
+(rule
+ (deps (alias_rec ../../../doc) (glob_files ../../../_doc/_html/**) (sandbox always)) ; sandbox for directory targets
+ (targets (dir ./api))
+ (action (progn
+  (system "mkdir -p ./api")
+  (system "cp -rL ../../../_doc/_html/* ./api"))))
+
+(rule
+ (deps (glob_files ../../__html__cil__examples/**) (sandbox always))
+ (targets (dir ./examples))
+ (action (system "cp -rL ../../__html__cil__examples ./examples")))
+
+(rule
+ (alias heveadoc)
+ (deps ../../cilpp.tex (sandbox none) (glob_files examples/**) (glob_files api/**))
+ (action (progn
+  (write-file cil.version.tex "\\def\\cilversion{$(CIL_VERSION)}\n") ; TODO: actual version
+  (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
+  (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
+  (system "mv cilpp.html cil.html")
+  (run %{bin:hacha} -o ciltoc.html cil.html)
+  (copy ../../index.html index.html)
+  (copy ../../header.html header.html))))
+ 
