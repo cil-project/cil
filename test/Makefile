@@ -7,8 +7,7 @@
 # this Makefile makes use of several GNU Make extensions; see
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
-# pull in definitions from ./configure
-include ../config.mk
+export _GNUCC=1
 
 TESTDIR := .
 
