@@ -1,2 +1,0 @@
-# A bunch of variables  -*- Mode: makefile -*-
-export @DEFAULT_COMPILER@=1
