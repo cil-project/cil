@@ -10,12 +10,10 @@
 
 (rule
  (alias heveadoc)
- (deps ../../cilpp.tex ./examples ./api)
+ (deps ../../cilpp.tex ./examples ./api index.html header.html)
  (action (progn
   (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
   (run %{bin:hevea} -exec xxdate.exe ../../cilpp)
   (system "mv cilpp.html cil.html")
-  (run %{bin:hacha} -o ciltoc.html cil.html)
-  (copy ../../index.html index.html)
-  (copy ../../header.html header.html))))
+  (run %{bin:hacha} -o ciltoc.html cil.html))))
  
