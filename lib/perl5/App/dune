@@ -7,6 +7,15 @@
   (run mkdir -p _build)
   (run make lib/perl5/App/Cilly.pm)))))
 
+; TODO: rename to actually use
+(rule
+ (alias cilly)
+ (target Cilly2.pm)
+ (action (progn
+  (copy %{dep:Cilly.pm.in} %{target})
+  (bash "sed -i -e \"s|nogcc32model|`./%{dep:../../../src/machdep-ml32.exe} --env`|\" %{target}")
+  (bash "sed -i -e \"s|nogcc64model|`./%{dep:../../../src/machdep-ml64.exe} --env`|\" %{target}"))))
+
 (install
  (section lib_root)
  (files
