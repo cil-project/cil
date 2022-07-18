@@ -4256,7 +4256,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         | _ ->
           let tmp = var (newTempVar (text "<boolean expression>") true intType)
           in
-          finishExp (compileCondExp ce
+          finishExp (compileCondExp asconst ce
                       (empty +++ (Set(tmp, integer 1,
                                       !currentLoc, !currentExpLoc)))
                       (empty +++ (Set(tmp, integer 0,
@@ -4763,9 +4763,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Compute the type of the result *)
         let tresult = conditionalConversion t2 t3 e_of_t2 e3' in
         match ce1 with
-          CEExp (se1, e1') when isConstFalse e1' && canDrop se2 && !Cil.removeBranchingOnConstants ->
+          CEExp (se1, e1') when isConstFalse e1' && canDrop se2 && (!Cil.removeBranchingOnConstants || asconst) ->
              finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult
-        | CEExp (se1, e1') when isConstTrue e1' && canDrop se3 && !Cil.removeBranchingOnConstants ->
+        | CEExp (se1, e1') when isConstTrue e1' && canDrop se3 && (!Cil.removeBranchingOnConstants || asconst) ->
            begin
              match e2'o with
                None -> (* use e1' *)
@@ -5079,7 +5079,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
       match ce1, ce2 with
-      | CEExp (se1, ((Const _) as ci1)), _  when !Cil.removeBranchingOnConstants ->
+      | CEExp (se1, ((Const _) as ci1)), _  when (!Cil.removeBranchingOnConstants || asconst) ->
           if isConstTrue ci1 then
             addChunkBeforeCE se1 ce2
           else
@@ -5097,7 +5097,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
       match ce1, ce2 with
-      | CEExp (se1, (Const(CInt _) as ci1)), _ when !Cil.removeBranchingOnConstants ->
+      | CEExp (se1, (Const(CInt _) as ci1)), _ when (!Cil.removeBranchingOnConstants || asconst) ->
           if isConstFalse ci1 then
             addChunkBeforeCE se1 ce2
           else
@@ -5133,7 +5133,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       ignore (checkBool t e);
       CEExp (se, if !lowerConstants then constFold asconst e else e)
 
-and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
+and compileCondExp (asconst:bool) (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
   match ce with
   | CEAnd (ce1, ce2) ->
       let (sf1, sf2) =
@@ -5143,9 +5143,9 @@ and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
           let lab = newLabelName "_L" in
           (gotoChunk lab !currentLoc, consLabel lab sf !currentLoc false)
       in
-      let st' = compileCondExp ce2 st sf1 in
+      let st' = compileCondExp asconst ce2 st sf1 in
       let sf' = sf2 in
-      compileCondExp ce1 st' sf'
+      compileCondExp asconst ce1 st' sf'
 
   | CEOr (ce1, ce2) ->
       let (st1, st2) =
@@ -5156,15 +5156,15 @@ and compileCondExp (ce: condExpRes) (st: chunk) (sf: chunk) : chunk =
           (gotoChunk lab !currentLoc, consLabel lab st !currentLoc false)
       in
       let st' = st1 in
-      let sf' = compileCondExp ce2 st2 sf in
-      compileCondExp ce1 st' sf'
+      let sf' = compileCondExp asconst ce2 st2 sf in
+      compileCondExp asconst ce1 st' sf'
 
-  | CENot ce1 -> compileCondExp ce1 sf st
+  | CENot ce1 -> compileCondExp asconst ce1 sf st
 
   | CEExp (se, e) -> begin
       match e with
-        Const(CInt(i,_,_)) when not (is_zero_cilint i) && canDrop sf && !Cil.removeBranchingOnConstants -> se @@ st
-      | Const(CInt(z,_,_)) when is_zero_cilint z && canDrop st && !Cil.removeBranchingOnConstants -> se @@ sf
+        Const(CInt(i,_,_)) when not (is_zero_cilint i) && canDrop sf && (!Cil.removeBranchingOnConstants  || asconst)-> se @@ st
+      | Const(CInt(z,_,_)) when is_zero_cilint z && canDrop st && (!Cil.removeBranchingOnConstants || asconst) -> se @@ sf
       | _ -> se @@ ifChunk e !currentLoc !currentExpLoc st sf
   end
 
@@ -5178,7 +5178,7 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
   if isEmpty st && isEmpty sf then
     let se,_,_ = doExp isconst e ADrop in se
   else
-    compileCondExp (doCondExp isconst e) st sf
+    compileCondExp isconst (doCondExp isconst e) st sf
 
 (* Returns pure expression if there exists one, None otherwise. *)
 and doPureExp ?(asconst=true) (e : A.expression) : exp option =
