@@ -1,6 +1,6 @@
 # -*- Mode: makefile -*-
 # Makefile.in for running the test cases for the CIL compiler
-# Use from the test directory !!!
+# Use from the test directory inside the _build folder (e.g. cil/_build/default/test), by running e.g. `dune exec -- make test/array1`
 # author: George Necula
 # hacks here and there by Wes and Scott
 
