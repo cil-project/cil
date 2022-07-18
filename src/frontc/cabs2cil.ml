@@ -4242,30 +4242,28 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         let ce = doCondExp asconst e in
         (* We must normalize the result to 0 or 1 *)
         match ce with
-          CEExp (se, ((Const _) as c)) ->
-            finishExp se (if isConstTrue c then one else zero) intType
-	| CEExp (se, ((UnOp(LNot, _, _)|BinOp((Lt|Gt|Le|Ge|Eq|Ne|LAnd|LOr), _, _, _)) as e)) ->
-	    (* already normalized to 0 or 1 *)
-	    finishExp se e intType
+        | CEExp (se, ((Const _) as c)) -> finishExp se (if isConstTrue c then one else zero) intType
+	      | CEExp (se, ((UnOp(LNot, _, _)|BinOp((Lt|Gt|Le|Ge|Eq|Ne|LAnd|LOr), _, _, _)) as e)) ->
+          (* already normalized to 0 or 1 *)
+          finishExp se e intType
         | CEExp (se, e) ->
-            let e' =
-              let te = typeOf e in
-              let _, zte = castTo intType te zero in
-              BinOp(Ne, e, zte, intType)
-            in
-            finishExp se e' intType
+          let e' =
+            let te = typeOf e in
+            let _, zte = castTo intType te zero in
+            BinOp(Ne, e, zte, intType)
+          in
+          finishExp se e' intType
         | _ ->
-            let tmp =
-              var (newTempVar (text "<boolean expression>") true intType)
-            in
-            finishExp (compileCondExp ce
-                         (empty +++ (Set(tmp, integer 1,
-                                         !currentLoc, !currentExpLoc)))
-                         (empty +++ (Set(tmp, integer 0,
-                                         !currentLoc, !currentExpLoc))))
-              (Lval tmp)
-              intType
-    end
+          let tmp = var (newTempVar (text "<boolean expression>") true intType)
+          in
+          finishExp (compileCondExp ce
+                      (empty +++ (Set(tmp, integer 1,
+                                      !currentLoc, !currentExpLoc)))
+                      (empty +++ (Set(tmp, integer 0,
+                                      !currentLoc, !currentExpLoc))))
+            (Lval tmp)
+            intType
+      end
 
     | A.CALL(f, args) ->
         if asconst then ignore (warnOpt "CALL in constant");
@@ -4765,9 +4763,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
         (* Compute the type of the result *)
         let tresult = conditionalConversion t2 t3 e_of_t2 e3' in
         match ce1 with
-          CEExp (se1, e1') when isConstFalse e1' && canDrop se2 ->
+          CEExp (se1, e1') when isConstFalse e1' && canDrop se2 && !Cil.removeBranchingOnConstants ->
              finishExp (se1 @@ se3) (snd (castTo t3 tresult e3')) tresult
-        | CEExp (se1, e1') when isConstTrue e1' && canDrop se3 ->
+        | CEExp (se1, e1') when isConstTrue e1' && canDrop se3 && !Cil.removeBranchingOnConstants ->
            begin
              match e2'o with
                None -> (* use e1' *)
@@ -5081,7 +5079,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
       match ce1, ce2 with
-        CEExp (se1, ((Const _) as ci1)), _ ->
+      | CEExp (se1, ((Const _) as ci1)), _  when !Cil.removeBranchingOnConstants ->
           if isConstTrue ci1 then
             addChunkBeforeCE se1 ce2
           else
@@ -5090,8 +5088,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
               ce1
             else
               CEAnd (ce1, ce2)
-      | CEExp(se1, e1'), CEExp (se2, e2') when
-              !useLogicalOperators && isEmpty se2 ->
+      | CEExp(se1, e1'), CEExp (se2, e2') when !useLogicalOperators && isEmpty se2 ->
           CEExp (se1, BinOp(LAnd, e1', e2', intType))
       | _ -> CEAnd (ce1, ce2)
     end
@@ -5100,7 +5097,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
       let ce1 = doCondExp asconst e1 in
       let ce2 = doCondExp asconst e2 in
       match ce1, ce2 with
-        CEExp (se1, (Const(CInt _) as ci1)), _ ->
+      | CEExp (se1, (Const(CInt _) as ci1)), _ when !Cil.removeBranchingOnConstants ->
           if isConstFalse ci1 then
             addChunkBeforeCE se1 ce2
           else
@@ -5110,8 +5107,7 @@ and doCondExp (asconst: bool)  (* Try to evaluate the conditional expression
             else
               CEOr (ce1, ce2)
 
-      | CEExp (se1, e1'), CEExp (se2, e2') when
-              !useLogicalOperators && isEmpty se2 ->
+      | CEExp (se1, e1'), CEExp (se2, e2') when !useLogicalOperators && isEmpty se2 ->
           CEExp (se1, BinOp(LOr, e1', e2', intType))
       | _ -> CEOr (ce1, ce2)
     end
