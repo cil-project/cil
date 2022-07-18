@@ -97,6 +97,9 @@ let envMachine : M.mach option ref = ref None
 let lowerConstants: bool ref = ref true
     (** Do lower constants (default true) *)
 
+let removeBranchingOnConstants: bool ref = ref true
+    (** Remove branches of the form if(const) ... else ... (default true) *)
+
 let insertImplicitCasts: bool ref = ref true
     (** Do insert implicit casts (default true) *)
 
@@ -2694,10 +2697,10 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | Lt, Some i1, Some i2 -> if compare_cilint i1 i2 < 0 then one else zero
       | Gt, Some i1, Some i2 -> if compare_cilint i1 i2 > 0 then one else zero
 
-      | LAnd, Some i1, _ -> if is_zero_cilint i1 then collapse0 () else collapse e2'
-      | LAnd, _, Some i2 -> if is_zero_cilint i2 then collapse0 () else collapse e1'
-      | LOr, Some i1, _ -> if is_zero_cilint i1 then collapse e2' else one
-      | LOr, _, Some i2 -> if is_zero_cilint i2 then collapse e1' else one
+      | LAnd, Some i1, _  when !removeBranchingOnConstants -> if is_zero_cilint i1 then collapse0 () else collapse e2'
+      | LAnd, _, Some i2 when !removeBranchingOnConstants -> if is_zero_cilint i2 then collapse0 () else collapse e1'
+      | LOr, Some i1, _ when !removeBranchingOnConstants -> if is_zero_cilint i1 then collapse e2' else one
+      | LOr, _, Some i2 when !removeBranchingOnConstants -> if is_zero_cilint i2 then collapse e1' else one
 
       | _ -> BinOp(bop, e1', e2', tres)
     in
