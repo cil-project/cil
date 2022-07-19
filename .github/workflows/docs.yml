@@ -38,6 +38,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3 # check out git repo to make deploy action happy
+
       - uses: actions/download-artifact@v3
         with:
           name: doc-html
