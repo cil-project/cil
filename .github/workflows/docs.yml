@@ -44,8 +44,9 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: doc-html
+          path: _build/default/doc/html/cil
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: .
+          folder: _build/default/doc/html/cil
