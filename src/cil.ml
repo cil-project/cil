@@ -54,9 +54,6 @@ module IH = Inthash
 (* The module Cilversion is generated automatically by Makefile from
  * information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
-let cilVersionMajor    = Cilversion.cilVersionMajor
-let cilVersionMinor    = Cilversion.cilVersionMinor
-let cilVersionRevision = Cilversion.cilVersionRev
 
 (* A few globals that control the interpretation of C source *)
 let msvcMode = ref false              (* Whether the pretty printer should

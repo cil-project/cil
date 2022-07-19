@@ -1,4 +1,0 @@
-<ext> or <ext/*> or <frontc> or <ocamlutil>: include
-
-<feature.ml>: package(findlib)
-<main.{byte,native}>: use_dynlink, use_cil, linkall, package(findlib)

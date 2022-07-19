@@ -7,3 +7,16 @@
 (rule
  (alias cilly)
  (action (copy ../src/main.exe cilly.native)))
+
+(alias
+ (name cilly)
+ (deps cilly))
+
+
+(executable
+ (name realGccConfigure)
+ (libraries dune-configurator str))
+
+(rule
+ (target real-gcc)
+ (action (run ./realGccConfigure.exe)))

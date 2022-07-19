@@ -75,12 +75,7 @@ src/.merlin
 /doc/cilpp.tex
 /doc/cilcode.tmp
 /doc/cil.version
-/doc/header.html
-/doc/index.html
 /doc/ocamldoc.sty
-
-# /doc/html/
-/doc/html/*
 
 # /lib/perl5/
 /lib/perl5/App/Cilly/CilConfig.pm
@@ -108,8 +103,6 @@ src/.merlin
 # /src/
 /src/*.output
 /src/ChangeLog
-/src/machdep-ml.c
-/src/cilversion.ml
 /src/feature_config.ml
 /src/machdep.ml
 

@@ -26,16 +26,18 @@ Changes:
 - Many bug fixes")
   (depends
     (ocaml (>= 4.05.0))
-    ocamlfind
+    (ocamlfind :with-test)
     zarith
     (hevea :with-doc)
     dune
+    dune-configurator
     (odoc :with-doc)
     stdlib-shims
     (ppx_deriving_yojson (>= 3.2))
     yojson
     (batteries (>= 3.2.0))
     conf-perl
+    cppo
   )
   (conflicts cil)
 )

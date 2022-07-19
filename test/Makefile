@@ -1,14 +1,13 @@
 # -*- Mode: makefile -*-
 # Makefile.in for running the test cases for the CIL compiler
-# Use from the test directory !!!
+# Use from the test directory inside the _build folder (e.g. cil/_build/default/test), by running e.g. `dune exec -- make test/array1`
 # author: George Necula
 # hacks here and there by Wes and Scott
 
 # this Makefile makes use of several GNU Make extensions; see
 #   http://www.gnu.org/manual/make/html_chapter/make_toc.html
 
-# pull in definitions from ./configure
-include ../config.mk
+export _GNUCC=1
 
 TESTDIR := .
 

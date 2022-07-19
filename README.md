@@ -57,24 +57,7 @@ First create a local opam switch and install all dependencies:
 
     opam switch create .
 
-Then, run the following commands to build and install `goblint-cil`:
-
-    ./configure
-    make
-    make test       # runs the regression test suite, optional
-    make install    # as root or using sudo
-
-If you want to install to some other directory, you can tweak the prefix
-during the configure step.  For instance, to install in your local [opam][]
-directory:
-
-    ./configure --prefix=`opam config var prefix`
-
-[opam]: https://opam.ocaml.org/
-
-Build with Dune
----------------
-Alternatively, you can use [dune] to build `goblint-cil`. Run the following
+Then, you can use [dune] to build `goblint-cil`. Run the following
 commands to build and test `goblint-cil`:
 
     dune build

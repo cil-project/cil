@@ -5,21 +5,41 @@
   (name cil)
   (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
   (libraries zarith findlib dynlink unix str stdlib-shims batteries.unthreaded) ; batteries shouldn't be needed, but tests fail on MacOS otherwise: https://github.com/goblint/cil/pull/89#issuecomment-1092610041
-  (modules (:standard \ main))
+  (modules (:standard \ main machdepConfigure))
 )
 
-; HACK: workaround for https://github.com/ocaml/dune/issues/3374
-(rule (action (copy ../src__machdep-ml.c machdep-ml.c)))
-(rule (action (copy ../src__cilversion.ml cilversion.ml)))
+(executable
+ (name machdepConfigure)
+ (modules machdepConfigure)
+ (libraries dune-configurator))
 
 (rule
- (alias machdep)
- (deps (alias ../configure) machdep-ml.c)
- (targets machdep.ml)
- (locks ../make)
- (action (chdir .. (progn
-  (run make machdep)
-  (run cp _build/machdep.ml src)))))
+ (target machdep-config.h)
+ (action (run ./machdepConfigure.exe)))
+
+(rule
+ (deps machdep-config.h machdep-ml.c)
+ (target machdep-ml.exe)
+ (action (run %{read-lines:../bin/real-gcc} -D_GNUCC machdep-ml.c -o %{target})))
+
+; for Cilly.pm
+(rule
+ (enabled_if (<> %{ocaml-config:system} macosx)) ; MacOS homebrew gcc cannot assemble -m32, so skip
+ (deps machdep-config.h machdep-ml.c)
+ (target machdep-ml32.exe)
+ (action (run %{read-lines:../bin/real-gcc} -D_GNUCC -m32 machdep-ml.c -o %{target})))
+
+; for Cilly.pm
+(rule
+ (deps machdep-config.h machdep-ml.c)
+ (target machdep-ml64.exe)
+ (action (run %{read-lines:../bin/real-gcc} -D_GNUCC -m64 machdep-ml.c -o %{target})))
+
+(rule
+ (target machdep.ml)
+ (action (run %{bin:cppo} -V OCAML:%{ocaml_version}
+              %{dep:machdep.cppo.ml} -x machdep:./%{dep:machdep-ml.exe}
+              -o %{target})))
 
 (ocamllex formatlex)
 (ocamlyacc formatparse)

@@ -1,17 +1,18 @@
-name: Build and Deploy Docs
+name: docs
 on:
   push:
-    branches:
-      - develop
+
 permissions:
   contents: write
 jobs:
-  build-and-deploy:
+  build:
     concurrency: ci-${{ github.ref }} # Recommended if you intend to make multiple deployments in quick succession.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # fetch all history such that subst gives nice version
 
       - name: Setup OCaml ${{ matrix.ocaml-version }}
         uses: ocaml/setup-ocaml@v2
@@ -21,16 +22,27 @@ jobs:
       - run: opam pin add goblint-cil.dev . --no-action
       - run: opam depext goblint-cil --yes
       - run: opam depext goblint-cil --yes --with-doc
-      - run: opam depext goblint-cil --yes --with-test
-      - run: opam install . --deps-only --with-doc --with-test
-      - run: eval $(opam env)
+      - run: opam install . --deps-only --with-doc
       - name: Install and Build 🔧 # This example project is built using npm and outputs the result to the 'build' folder. Replace with the commands required to build your project, or remove this step entirely if your site is pre-built.
         run: |
-          opam exec -- ./configure
-          opam exec -- make
-          opam exec -- make doc
+          opam exec -- dune subst
+          opam exec -- dune build @heveadoc
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: doc-html
+          path: _build/default/doc/html/cil
+
+  deploy:
+    if: github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: doc-html
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: doc/html/cil # The folder the action should deploy.
+          folder: .

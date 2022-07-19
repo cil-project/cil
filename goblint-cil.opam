@@ -26,16 +26,18 @@ homepage: "https://github.com/goblint/cil"
 bug-reports: "https://github.com/goblint/cil/issues"
 depends: [
   "ocaml" {>= "4.05.0"}
-  "ocamlfind"
+  "ocamlfind" {with-test}
   "zarith"
   "hevea" {with-doc}
   "dune" {>= "2.7"}
+  "dune-configurator"
   "odoc" {with-doc}
   "stdlib-shims"
   "ppx_deriving_yojson" {>= "3.2"}
   "yojson"
   "batteries" {>= "3.2.0"}
   "conf-perl"
+  "cppo"
 ]
 conflicts: ["cil"]
 build: [

@@ -35,7 +35,7 @@
  *
  */
 
-#include "../config.h"
+#include "machdep-config.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -62,15 +62,30 @@ typedef int bool;
 #include <stdint.h>
 #endif
 
-#define THREAD_IS_KEYWORD "@THREAD_IS_KEYWORD@"
-#define HAVE_BUILTIN_VA_LIST "@HAVE_BUILTIN_VA_LIST@"
+#ifdef THREAD_IS_KEYWORD_DEF
+#define THREAD_IS_KEYWORD "true"
+#else
+#define THREAD_IS_KEYWORD "false"
+#endif
+
+#ifdef HAVE_BUILTIN_VA_LIST_DEF
+#define HAVE_BUILTIN_VA_LIST "true"
+#else
+#define HAVE_BUILTIN_VA_LIST "false"
+#endif
 
 #ifdef _GNUCC
 #define LONGLONG long long
 #define VERSION __VERSION__
 #define VERSION_MAJOR __GNUC__
 #define VERSION_MINOR __GNUC_MINOR__
-#define UNDERSCORE_NAME "@UNDERSCORE_NAME@"
+
+#ifdef UNDERSCORE_NAME_DEF
+#define UNDERSCORE_NAME "true"
+#else
+#define UNDERSCORE_NAME "false"
+#endif
+
 #endif
 
 

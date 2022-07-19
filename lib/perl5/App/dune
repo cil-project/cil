@@ -1,11 +1,25 @@
 (rule
+ (target gcc32model)
+ (enabled_if (<> %{ocaml-config:system} macosx))
+ (action (with-stdout-to %{target} (run ../../../src/machdep-ml32.exe --env))))
+
+; MacOS homebrew gcc cannot assemble -m32, so skip
+(rule
+ (target gcc32model)
+ (enabled_if (= %{ocaml-config:system} macosx))
+ (action (write-file %{target} "nogcc32model")))
+
+(rule
+ (target gcc64model)
+ (action (with-stdout-to %{target} (run ../../../src/machdep-ml64.exe --env))))
+
+(rule
  (alias cilly)
- (deps (alias ../../../configure) Cilly.pm.in)
- (targets Cilly.pm)
- (locks ../../../make)
- (action (chdir ../../.. (progn
-  (run mkdir -p _build)
-  (run make lib/perl5/App/Cilly.pm)))))
+ (target Cilly.pm)
+ (action (progn
+  (copy %{dep:Cilly.pm.in} %{target})
+  (bash "sed -i -e \"s|nogcc32model|`cat %{dep:gcc32model}`|\" %{target}")
+  (bash "sed -i -e \"s|nogcc64model|`cat %{dep:gcc64model}`|\" %{target}"))))
 
 (install
  (section lib_root)
