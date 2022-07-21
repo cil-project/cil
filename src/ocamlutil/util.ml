@@ -60,3 +60,15 @@ let list_map_opt f = function
 
 let equals x1 x2 : bool =
   (compare x1 x2) = 0
+
+
+(* copied from OCaml Stdlib *)
+let list_filter_map f =
+  let rec aux accu = function
+    | [] -> List.rev accu
+    | x :: l ->
+        match f x with
+        | None -> aux accu l
+        | Some v -> aux (v :: accu) l
+  in
+  aux []
