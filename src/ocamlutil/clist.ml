@@ -147,14 +147,6 @@ let docCList (sep: doc) (doone: 'a -> doc) () (dl: 'a clist) =
 
 
 (* --------------- testing ----------------- *)
-type boxedInt =
-  | BI of int
-  | SomethingElse
-
-let d_boxedInt () b =
-  match b with
-  | BI(i) -> (dprintf "%d" i)
-  | SomethingElse -> (text "somethingElse")
 
 
 (* sm: some simple tests of CLists 

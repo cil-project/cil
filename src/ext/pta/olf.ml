@@ -42,13 +42,9 @@
 exception Inconsistent (* raised if constraint system is inconsistent *)
 exception WellFormed   (* raised if types are not well-formed *)
 exception NoContents
-exception APFound      (* raised if an alias pair is found, a control
-                          flow exception *)
 exception ReachedTop   (* raised if top (from an undefined function)
                           flows to a c_absloc during the flow step *)
 exception UnknownLocation
-
-let solve_constraints () = () (* only for compatability with Golf *)
 
 open Cil
 
@@ -205,9 +201,6 @@ let debug = ref false
 (** Just debug all the constraints (including induced) *)
 let debug_constraints = ref false
 
-(** Debug the flow step *)
-let debug_flow_step = ref false
-
 (** Compatibility with GOLF *)
 let debug_aliases = ref false
 let smart_aliases = ref false
@@ -222,9 +215,6 @@ let eq_worklist : tconstraint Q.t = Q.create ()
 
 (** A list of leq constraints. *)
 let leq_worklist : tconstraint Q.t = Q.create ()
-
-(** A hashtable containing stamp pairs of c_abslocs that must be aliased. *)
-let cached_aliases : (int * int, unit) H.t = H.create 64
 
 (** A hashtable mapping pairs of tau's to their join node. *)
 let join_cache : (int * int, tau) H.t = H.create 64
@@ -264,14 +254,6 @@ let finished_constraints () =
   solver_state := FinishedConstraints
 
 let find = U.deref
-
-(** return the prefix of the list up to and including the first
-    element satisfying p. if no element satisfies p, return the empty
-    list *)
-let rec keep_until p l =
-  match l with
-      [] -> []
-    | x :: xs -> if p x then [x] else x :: keep_until p xs
 
 
 (** Generate a unique integer. *)
@@ -477,18 +459,6 @@ let string_of_lvalue (lv : lvalue) : string =
     (* do a consistency check *)
     Printf.sprintf "[%s]^(%s)" contents l
 
-(** Print a list of tau elements, comma separated *)
-let print_tau_list (l : tau list) : unit =
-  let rec print_t_strings = function
-      [] -> ()
-    | h :: [] -> print_endline h
-    | h :: t ->
-        print_string h;
-        print_string ", ";
-        print_t_strings t
-  in
-    print_t_strings (Util.list_map string_of_tau l)
-
 let print_constraint (c : tconstraint) =
   match c with
       Unification (t, t') ->
@@ -586,14 +556,6 @@ let copy_toplevel (t : tau) : tau =
                   Util.list_map (fun _ -> fresh_var_i false) f.args,
                   fresh_var_i false)
     | _ -> die "copy_toplevel"
-
-let has_same_structure (t : tau) (t' : tau) =
-  match find t, find t' with
-      Pair _, Pair _ -> true
-    | Ref _, Ref _ -> true
-    | Fun _, Fun _ -> true
-    | Var _, Var _ -> true
-    | _ -> false
 
 let pad_args (fi, tlr : finfo * tau list ref) : unit =
   let padding = List.length fi.args - List.length !tlr
@@ -892,11 +854,6 @@ let proj_fun (t : tau) : tau =
           f
     | _ -> raise WellFormed
 
-let get_args (t : tau) : tau list =
-  match find t with
-      Fun f -> f.args
-    | _ -> raise WellFormed
-
 let get_finfo (t : tau) : finfo =
   match find t with
       Fun f -> f
@@ -987,40 +944,6 @@ module IntHash = Hashtbl.Make (struct
                                  let hash x = x
                                end)
 
-(** todo : reached_top !! *)
-let collect_ptset_fast (l : c_absloc) : abslocset =
-  let onpath : unit IntHash.t = IntHash.create 101 in
-  let path : c_absloc list ref = ref [] in
-  let compute_path (i : int) =
-    keep_until (fun l -> i = get_c_absloc_stamp l) !path in
-  let collapse_cycle (cycle : c_absloc list) =
-    match cycle with
-        l :: ls ->
-          List.iter (fun l' -> unify_c_abslocs (l, l')) ls;
-          C.empty
-      | [] -> die "collapse cycle" in
-  let rec flow_step (l : c_absloc) : abslocset =
-    let stamp = get_c_absloc_stamp l in
-      if IntHash.mem onpath stamp then (* already seen *)
-        collapse_cycle (compute_path stamp)
-      else
-        let li = find l in
-          IntHash.add onpath stamp ();
-          path := l :: !path;
-          B.iter
-            (fun lb -> li.aliases <- C.union li.aliases (flow_step lb.info))
-            li.lbounds;
-          path := List.tl !path;
-          IntHash.remove onpath stamp;
-          li.aliases
-  in
-    insist (can_query_graph ()) "collect_ptset_fast can't query graph";
-    if get_flow_computed l then get_aliases l
-    else
-      begin
-        set_flow_computed l;
-        flow_step l
-      end
 
 (** this is a quadratic flow step. keep it for debugging the fast
     version above. *)

@@ -30,8 +30,6 @@ let cabsloc_to_str cabsloc =
     string_of_int cabsloc.byteno ^ ":" ^ 
     string_of_int cabsloc.ident
 
-let lastline = ref 0
-
 let wraplexer_enabled lexer lexbuf = 
     let white,lexeme,token,cabsloc = lexer lexbuf in
     GrowArray.setg tokens !nextidx (white,lexeme);

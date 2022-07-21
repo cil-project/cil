@@ -270,12 +270,6 @@ and childrenNameGroup vis (kind: nameKind) ((s, nl) as input) =
   let nl' = mapNoCopy (visitCabsName vis kind s') nl in
   if s' != s || nl' != nl then (s', nl') else input
 
-
-and childrenInitNameGroup vis ((s, inl) as input) =
-  let s' = visitCabsSpecifier vis s in
-  let inl' = mapNoCopy (childrenInitName vis s') inl in
-  if s' != s || inl' != inl then (s', inl') else input
-
 and visitCabsName vis (k: nameKind) (s: specifier)
                       (n: name) : name =
   doVisit vis (vis#vname k s) (childrenName s k) n

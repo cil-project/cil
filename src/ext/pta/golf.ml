@@ -366,13 +366,6 @@ let get_stamp (t : tau) : int =
     | Pair p -> p.p_stamp
     | Fun f -> f.f_stamp
 
-(** Negate a polarity. *)
-let negate (p : polarity) : polarity =
-  match p with
-      Pos -> Neg
-    | Neg -> Pos
-    | Sub -> die "negate"
-
 (** Consistency checks for inferred types *)
 let pair_or_var (t : tau) =
   match find t with
@@ -585,18 +578,6 @@ let print_path (p : lblinfo path) : unit =
       (string_of_label p.tail)
       (PathHash.hash p)
 
-(** Print a list of tau elements, comma separated *)
-let print_tau_list (l : tau list) : unit =
-  let rec print_t_strings = function
-      h :: [] -> print_endline h
-    | h :: t ->
-        print_string h;
-        print_string ", ";
-        print_t_strings t
-    | [] -> ()
-  in
-    print_t_strings (Util.list_map string_of_tau l)
-
 let print_constraint (c : tconstraint) =
   match c with
       Unification (t, t') ->
@@ -718,28 +699,6 @@ let copy_toplevel (t : tau) : tau =
           make_fun (fresh_label false,
                     Util.list_map fresh_fn f.args, fresh_var_i false)
     | _ -> die "copy_toplevel"
-
-
-let has_same_structure (t : tau) (t' : tau) =
-  match find t, find t' with
-      Pair _, Pair _ -> true
-    | Ref _, Ref _ -> true
-    | Fun _, Fun _ -> true
-    | Var _, Var _ -> true
-    | _ -> false
-
-
-let pad_args (f, f' : finfo * finfo) : unit =
-  let padding = ref ((List.length f.args) - (List.length f'.args))
-  in
-    if !padding == 0 then ()
-    else
-      let to_pad =
-        if !padding > 0 then f' else (padding := -(!padding); f)
-      in
-        for _ = 1 to !padding do
-          to_pad.args <- to_pad.args @ [fresh_var false]
-        done
 
 
 let pad_args2 (fi, tlr : finfo * tau list ref) : unit =
@@ -1127,11 +1086,6 @@ let proj_fun (t : tau) : tau =
         let p, f = fresh_var false, fresh_var false in
           add_toplev_constraint (Unification (t, make_pair(p, f)));
           f
-    | _ -> raise WellFormed
-
-let get_args (t : tau) : tau list =
-  match U.deref t with
-      Fun f -> f.args
     | _ -> raise WellFormed
 
 let get_finfo (t : tau) : finfo =
