@@ -623,19 +623,6 @@ let pp_exp (fd : fundec) () (e : exp) =
   deputyAttrs := false;
   d
 
-type outfile =
-    { fname : string;
-      fchan : out_channel }
-let outChannel : outfile option ref = ref None
-
-(* Processign of output file arguments *)
-let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
-  if !E.verboseFlag then
-    ignore (Printf.printf "Setting %s to %s\n" what fl);
-  (try takeit {fname = fl; fchan = open_out fl}
-  with _ ->
-    raise (Arg.Bad ("Cannot open " ^ what ^ " file " ^ fl)))
-
 let feature =
   { fd_name = "zrapp";
     fd_enabled = false;

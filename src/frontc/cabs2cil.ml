@@ -56,9 +56,6 @@ open Trace
 (* This exception is thrown if there is an attempt to transform Tauto into a CIL type *)
 exception TautoEncountered
 
-let mydebugfunction () =
-  E.s (error "mydebugfunction")
-
 let debugGlobal = false
 
 let continueOnError = true
@@ -347,9 +344,6 @@ type undoScope =
 
 let scopes :  undoScope list ref list ref = ref []
 
-let isAtTopLevel () =
-  !scopes = []
-
 
 (* When you add to env, you also add it to the current scope *)
 let addLocalToEnv (n: string) (d: envdata) =
@@ -432,16 +426,6 @@ let newAlphaName (globalscope: bool) (* The name should have global scope *)
   stripKind kind newname, oldloc
 
 
-
-
-let explodeString (nullterm: bool) (s: string) : char list =
-  let rec allChars i acc =
-    if i < 0 then acc
-    else allChars (i - 1) ((String.get s i) :: acc)
-  in
-  allChars (-1 + String.length s)
-    (if nullterm then [Char.chr 0] else [])
-
 (*** In order to process GNU_BODY expressions we must record that a given
  *** COMPUTATION is interesting *)
 let gnu_body_result : (A.statement * ((exp * typ) option ref)) ref
@@ -523,18 +507,6 @@ let lookupGlobalVar (n: string) : varinfo * location =
   match H.find genv n with
     (EnvVar vi), loc -> vi, loc
   | _ -> raise Not_found
-
-let docEnv () =
-  let acc : (string * (envdata * location)) list ref = ref [] in
-  let doone () = function
-      EnvVar vi, l ->
-        dprintf "Var(%s,global=%b) (at %a)" vi.vname vi.vglob d_loc l
-    | EnvEnum (tag, typ), l -> dprintf "Enum (at %a)" d_loc l
-    | EnvTyp t, l -> text "typ"
-    | EnvLabel l, _ -> text ("label " ^ l)
-  in
-  H.iter (fun k d -> acc := (k, d) :: !acc) env;
-  docList ~sep:line (fun (k, d) -> dprintf "  %s -> %a" k doone d) () !acc
 
 
 
@@ -1238,13 +1210,6 @@ class registerLabelsVisitor = object
        | _ -> ());
     V.DoChildren
 end
-
-(** ALLOCA ***)
-let allocaFun () =
-  (* Use __builtin_alloca where possible, because this can be used
-      even when gcc is invoked with -fno-builtin *)
-  let alloca, _ = lookupGlobalVar "__builtin_alloca" in
-  alloca
 
 (* Maps local variables that are variable sized arrays to the expression that
  * denotes their length *)
@@ -2000,14 +1965,6 @@ type preInit =
   | SinglePre of exp
   | CompoundPre of int ref (* the maximum used index *)
                  * preInit array ref (* an array with initializers *)
-
-(* Instructions on how to handle designators *)
-type handleDesignators =
-  | Handle (* Handle them yourself *)
-  | DoNotHandle (* Do not handle them your self *)
-  | HandleAsNext (* First behave as if you have a NEXT_INIT. Useful for going
-                  * into nested designators *)
-  | HandleFirst (* Handle only the first designator *)
 
 (* Set an initializer *)
 let rec setOneInit (this: preInit)

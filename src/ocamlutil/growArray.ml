@@ -94,13 +94,6 @@ let copy (ga: 'a t) : 'a t =
 let deep_copy (ga: 'a t) (copy: 'a -> 'a): 'a t = 
   { ga with gaData = LA.map copy ga.gaData } 
 
-(* An accumulating for loop. Used internally. *)
-let fold_for ~(init: 'a) ~(lo: int) ~(hi: int) (f: int -> 'a -> 'a) =
-  let rec forloop i acc =
-    if i > hi then acc
-    else forloop (i+1) (f i acc)
-  in
-  forloop lo init
 
 (** Iterate over the initialized elements of the array *)
 let iter (f: 'a -> unit) (ga: 'a t) = 

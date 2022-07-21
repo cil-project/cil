@@ -34,7 +34,6 @@
  *)
 
 exception Bad_return
-exception Bad_function
 
 
 open Cil
@@ -375,13 +374,8 @@ let analyze_file (f : file) : unit =
 (***********************************************************************)
 
 (* Same as analyze_expr, but no constraints. *)
-let rec traverse_expr (e : exp) : A.tau =
+let traverse_expr (e : exp) : A.tau =
   H.find expressions e
-
-and traverse_expr_as_lval (e : exp) : A.lvalue =
-  match e with
-    | Lval l -> traverse_lval l
-    | _ -> assert false (* todo -- other kinds of expressions? *)
 
 and traverse_lval (lv : lval ) : A.lvalue =
   H.find lvalues lv
@@ -417,11 +411,6 @@ let resolve_funptr (e : exp) : fundec list =
          with Not_found -> fdecs)
       []
       varinfos
-
-let count_hash_elts h =
-  let result = ref 0 in
-    H.iter (fun _ -> fun _ -> incr result) lvalue_hash;
-    !result
 
 let compute_may_aliases (b : bool) : unit =
   let rec compute_may_aliases_aux (exps : exp list) =

@@ -43,7 +43,6 @@
 {
 open Cparser
 open Pretty
-exception Eof
 exception InternalError of string
 module E = Errormsg
 module H = Hashtbl
@@ -390,16 +389,6 @@ let lex_comment remainder lexbuf =
   if ch = '\n' then E.newline();
   prefix :: remainder lexbuf
 
-let make_char (i:int64):char =
-  let min_val = Int64.zero in
-  let max_val = Int64.of_int 255 in
-  (* if i < 0 || i > 255 then error*)
-  if compare i min_val < 0 || compare i max_val > 0 then begin
-    let msg = Printf.sprintf "clexer:make_char: character 0x%Lx too big" i in
-    error msg
-  end;
-  Char.chr (Int64.to_int i)
-
 
 (* ISO standard locale-specific function to convert a wide character
  * into a sequence of normal characters. Here we work on strings.
@@ -718,27 +707,6 @@ and chr =  parse
 |	escape		{lex_simple_escape chr lexbuf}
 | universal_escape {lex_universal_escape true chr lexbuf}
 |	_		{lex_unescaped chr lexbuf}
-
-and msasm = parse
-    blank               { msasm lexbuf }
-|   '{'                 { msasminbrace lexbuf }
-|   _                   { let cur = Lexing.lexeme lexbuf in
-                          cur ^ (msasmnobrace lexbuf) }
-
-and msasminbrace = parse
-    '}'                 { "" }
-|   _                   { let cur = Lexing.lexeme lexbuf in
-                          cur ^ (msasminbrace lexbuf) }
-and msasmnobrace = parse
-   ['}' ';' '\n']       { lexbuf.Lexing.lex_curr_pos <-
-                               lexbuf.Lexing.lex_curr_pos - 1;
-                          "" }
-|  "__asm"              { lexbuf.Lexing.lex_curr_pos <-
-                               lexbuf.Lexing.lex_curr_pos - 5;
-                          "" }
-|  _                    { let cur = Lexing.lexeme lexbuf in
-
-                          cur ^ (msasmnobrace lexbuf) }
 
 {
 

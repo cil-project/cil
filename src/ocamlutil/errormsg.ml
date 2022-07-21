@@ -165,12 +165,6 @@ let null (fmt : ('a,unit,doc,unit) format4) : 'a =
   Pretty.gprintf f fmt
 
 
-let theLexbuf = ref (Lexing.from_string "")
-
-let fail format = Pretty.gprintf (fun x -> Pretty.fprint stderr ~width:80 x;
-                                           raise (Failure "")) format
-
-
 
 (***** Handling parsing errors ********)
 type parseinfo =

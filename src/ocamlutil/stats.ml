@@ -26,7 +26,6 @@ let top = { name = "TOTAL";
                                          * leaf. *)
 let current : t list ref = ref [top]
 
-exception NoPerfCount
 let reset (mode: timerModeEnum) : unit =
   top.sub <- [];
   timerMode := mode

@@ -43,9 +43,6 @@
 
 let debug =  false
 
-(* Choose an algorithm *)
-type algo = George | Aman | Gap
-let  algo = George
 let fastMode       = ref false
 
 
@@ -224,20 +221,6 @@ end
 
 let dbgprintf x = Printf.fprintf stderr x
 
-let rec dbgPrintDoc = function
-    Nil -> dbgprintf "(Nil)"
-  | Text s -> dbgprintf "(Text %s)" s
-  | Concat (d1,d2) -> dbgprintf ""; dbgPrintDoc  d1; dbgprintf " ++\n ";
-      dbgPrintDoc  d2; dbgprintf ""
-  | CText (d,s) -> dbgPrintDoc  d; dbgprintf " ++ \"%s\"" s;
-  | Break -> dbgprintf "(Break)"
-  | Line -> dbgprintf "(Line)"
-  | LeftFlush -> dbgprintf "(LeftFlush)"
-  | Align -> dbgprintf "(Align)"
-  | Unalign -> dbgprintf "(Unalign)"
-  | Mark -> dbgprintf "(Mark)"
-  | Unmark -> dbgprintf "(Unmark)"
-
 (******************************************************************************)
 (* The "george" algorithm *)
 
@@ -340,11 +323,6 @@ let chooseBestGain () : align option =
   in
   loop None !aligns
 
-
-(* Another one that chooses the break associated with the current align only *)
-let chooseLastGain () : align option =
-  let topalign = List.hd !aligns in
-  if topalign.gainBreak > 0 then Some topalign else None
 
 (* We have just advanced to a new column. See if we must take a line break *)
 let movingRight (abscol: int) : int =
@@ -848,17 +826,6 @@ let fprintf chn format =
 
 let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format
-
-
-
-(******************************************************************************)
-let getAlgoName = function
-    George -> "George"
-  | Aman   -> "Aman"
-  | Gap    -> "Gap"
-
-let getAboutString () : string =
-  "(Pretty: ALGO=" ^ (getAlgoName algo) ^ ")"
 
 
 (************************************************)

@@ -51,12 +51,6 @@ type checkFlags =
 let checkGlobalIds = ref true
 let ignoreInstr = ref (fun i -> false)
 
-  (* Attributes must be sorted *)
-type ctxAttr =
-    CALocal                             (* Attribute of a local variable *)
-  | CAGlobal                            (* Attribute of a global variable *)
-  | CAType                              (* Attribute of a type *)
-
 let valid = ref true
 
 let warn fmt =

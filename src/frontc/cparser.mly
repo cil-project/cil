@@ -48,8 +48,6 @@ module E = Errormsg
 let parse_error msg : unit =       (* sm: c++-mode highlight hack: -> ' <- *)
   E.parse_error msg
 
-let print = print_string
-
 (* unit -> string option *)
 (*
 let getComments () =

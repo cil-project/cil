@@ -50,11 +50,9 @@
 (***********************************************************************)
 
 exception Inconsistent of string
-exception Bad_cache
 exception No_contents
 exception Bad_proj
 exception Bad_type_copy
-exception Instantiation_cycle
 
 module U = Uref
 module S = Setp
@@ -160,7 +158,7 @@ and pinfo = {
 }
 
 (** Type constructors discovered by type inference *)
-and tinfo = Wild
+and tinfo =
             | Var of vinfo
 	    | Ref of rinfo
 	    | Fun of finfo
@@ -305,7 +303,6 @@ let lub (p,p' : polarity * polarity) : polarity =
 (** Extract the cache from a type *)
 let get_cache (t : tau) : cache =
   match U.deref t with
-    | Wild -> raise Bad_cache
     | Var v -> v.v_cache
     | Ref r -> r.r_cache
     | Pair p -> p.p_cache
@@ -314,7 +311,6 @@ let get_cache (t : tau) : cache =
 (** Determine whether or not a type is global *)
 let get_global (t : tau) : bool =
   match U.deref t with
-    |  Wild -> false
     | Var v -> v.v_global
     | Ref r -> r.r_global
     | Pair p -> p.p_global
@@ -395,7 +391,6 @@ let string_of_tau (t : tau ) : string =
 	      tau_map := (t,s,so) :: (!tau_map);
 
 	      (match (U.deref t) with
-		| Wild -> s := "_";
 		| Var v -> s := v.v_name;
 		| Pair p ->
 		    begin
@@ -461,16 +456,6 @@ let string_of_lvalue (lv : lvalue) : string =
     assert(pair_or_var(lv.contents));
     Printf.sprintf "[%s]^(%s)" contents l
 
-(** Print a list of tau elements, comma separated *)
-let print_tau_list (l : tau list) : unit =
-  let t_strings = Util.list_map string_of_tau l in
-  let rec print_t_strings = function
-    | h :: [] -> print_string h; print_newline();
-    | h :: t -> print_string h; print_string ", "; print_t_strings t
-    | [] -> ()
-  in
-    print_t_strings t_strings
-
 (** Print a constraint. *)
 let print_constraint (c : su_constraint) =
   match c with
@@ -511,7 +496,6 @@ let set_global (t : tau) (b : bool) : bool =
   begin
     assert ( (not (get_global(t)) ) || b );
     (match U.deref t with
-       | Wild -> ()
        | Var v -> v.v_global <- b
        | Ref r -> r.r_global <- b
        | Pair p -> p.p_global <- b
@@ -535,12 +519,6 @@ let string_of_bounds (is_pos : bool) (l : label) : string =
 (* Type Operations -- these do not create any constraints              *)
 (*                                                                     *)
 (***********************************************************************)
-
-let wild_val = U.uref Wild
-
-(** The wild (don't care) value. *)
-let wild () : tau =
-  wild_val
 
 (** Create an lvalue with label [lbl] and tau contents [t]. *)
 let make_lval (lbl,t : label * tau) : lvalue =
@@ -648,8 +626,6 @@ let pad_args (l,l' : (tau list ref) * (tau list ref)) : unit =
 let wild_constraint (t,t' : tau * tau) : bool =
   let ti,ti' = U.deref t, U.deref t' in
     match ti,ti' with
-      | Wild, _ -> true
-      | _, Wild -> true
       | _ -> false
 
 exception Cycle_found
@@ -706,7 +682,6 @@ let proper_subterm (t,t') =
 	  visited := t :: (!visited);
 	  (
 	    match (U.deref t) with
-	      | Wild -> ()
 	      | Var _ -> ()
 	      | Ref r ->
 		  proper_subterm' r.points_to
@@ -1163,7 +1138,6 @@ let apply (t : tau) (al : tau list) : tau =
 	    (get_args new_fun,new_ret)
       | Ref _ -> raise (Inconsistent ("apply_ref"))
       | Pair _ -> raise (Inconsistent ("apply_pair"))
-      | Wild -> raise (Inconsistent("apply_wild"))
   in
     pad_args(formals,actuals);
     List.iter2 (fun actual -> fun formal ->

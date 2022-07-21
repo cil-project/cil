@@ -1969,11 +1969,6 @@ let rec typeOf (e: exp) : typ =
      | _ -> E.s (E.bug "typeOf: StartOf on a non-array")
   end
 
-and typeOfInit (i: init) : typ =
-  match i with
-    SingleInit e -> typeOf e
-  | CompoundInit (t, _) -> t
-
 and typeOfLval = function
     Var vi, off -> typeOffset vi.vtype off
   | Mem addr, off -> begin
@@ -6838,10 +6833,6 @@ let getVarsInGlobal (g : global) : varinfo list =
   let v : cilVisitor = new getVarsInGlobalClass pacc in
   ignore (visitCilGlobal v g);
   !pacc
-
-let hasPrefix p s =
-  let pl = String.length p in
-  (String.length s >= pl) && String.sub s 0 pl = p
 
 let pushGlobal (g: global)
                ~(types:global list ref)

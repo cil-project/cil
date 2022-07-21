@@ -43,8 +43,6 @@ let mod_cilint = mod_big_int
 let compare_cilint = compare_big_int
 let is_zero_cilint (c:cilint) : bool = sign_big_int c = 0
 
-let negative_cilint (c:cilint) : bool = sign_big_int c < 0
-
 let cilint_of_int = big_int_of_int
 let int_of_cilint = int_of_big_int
 

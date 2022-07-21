@@ -300,16 +300,6 @@ let isPragmaRoot keepers = function
  *)
 
 
-let traceRoot reason global =
-  trace (dprintf "root (%s): %a@!" reason d_shortglobal global);
-  true
-
-
-let traceNonRoot reason global =
-  trace (dprintf "non-root (%s): %a@!" reason d_shortglobal global);
-  false
-
-
 let hasExportingAttribute funvar =
   let isExportingAttribute = function
     | Attr ("constructor", []) -> true

@@ -218,8 +218,6 @@ let doAttr (id: string)
        attrs))
 
 
-type falist = formatArg list
-
 type maybeInit =
     NoInit
   | InitExp of exp
