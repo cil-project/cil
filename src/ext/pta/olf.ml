@@ -47,8 +47,6 @@ exception ReachedTop   (* raised if top (from an undefined function)
                           flows to a c_absloc during the flow step *)
 exception UnknownLocation
 
-open Cil
-
 module U = Uref
 module S = Setp
 module H = Hashtbl

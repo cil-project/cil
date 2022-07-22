@@ -1,7 +1,6 @@
 (* Eliminate assignment instructions whose results are not
    used *)
 open GoblintCil
-open Cil
 open Expcompare
 open Liveness
 

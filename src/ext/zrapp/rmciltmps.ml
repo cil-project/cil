@@ -2,7 +2,6 @@
    temporary variables. Some can be removed immediately,
    others must wait until pretty printing *)
 open GoblintCil
-open Cil
 open Cilint
 open Liveness
 module E = Errormsg

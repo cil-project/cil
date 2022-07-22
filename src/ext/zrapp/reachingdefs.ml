@@ -16,7 +16,6 @@
 
  *)
 open GoblintCil
-open Cil
 open Pretty
 open Liveness
 

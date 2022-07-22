@@ -3,7 +3,6 @@
    lvalues to expressions as opposed to a set of
    expressions *)
 open GoblintCil
-open Cil
 open Pretty
 open Expcompare
 open Liveness

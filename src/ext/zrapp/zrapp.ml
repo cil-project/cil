@@ -1,7 +1,6 @@
 open GoblintCil
 open Escape
 open Pretty
-open Cil
 open Feature
 open Liveness
 

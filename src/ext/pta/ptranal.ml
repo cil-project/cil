@@ -36,7 +36,6 @@ open GoblintCil
 exception Bad_return
 
 
-open Cil
 open Feature
 
 module H = Hashtbl

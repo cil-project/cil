@@ -6,7 +6,6 @@
 
  *)
 open GoblintCil
-open Cil
 open Feature
 open Pretty
 
