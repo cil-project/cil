@@ -20,3 +20,5 @@ val list_map_opt : ('a -> 'b) -> 'a list option -> 'b list option
    name or id in some field that occurs before any fields that have cyclic
    pointers. *)
 val equals: 'a -> 'a -> bool
+
+val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
