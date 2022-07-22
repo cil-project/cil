@@ -5,11 +5,12 @@
 
 
  *)
-
+open GoblintCil
 open Cil
 open Feature
 open Pretty
 
+module Usedef = Usedef
 module DF = Dataflow
 module UD = Usedef
 module IH = Inthash

@@ -2,10 +2,11 @@
    non-traditional way. the abstract state is a mapping from
    lvalues to expressions as opposed to a set of
    expressions *)
-
+open GoblintCil
 open Cil
 open Pretty
 open Expcompare
+open Liveness
 
 module E = Errormsg
 module DF = Dataflow

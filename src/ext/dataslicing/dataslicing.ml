@@ -33,6 +33,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
+open GoblintCil
 open Cil
 open Feature
 module E = Errormsg

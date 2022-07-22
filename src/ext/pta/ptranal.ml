@@ -32,7 +32,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
-
+open GoblintCil
 exception Bad_return
 
 

@@ -33,6 +33,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
+open GoblintCil
 
 (* This feature implements data slicing.  The user annotates base types
    and function types with region(i) annotations, and this transformation

@@ -1,3 +1,4 @@
+open GoblintCil
 open Cil
 
 (* Finds definition of a user-defined type *)

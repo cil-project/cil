@@ -34,7 +34,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
-
+open GoblintCil
 
 (* main.ml *)
 (* this module is the program entry point for the 'cilly' program, *)

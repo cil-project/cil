@@ -1,8 +1,9 @@
-
+open GoblintCil
 open Escape
 open Pretty
 open Cil
 open Feature
+open Liveness
 
 module E = Errormsg
 module H = Hashtbl
