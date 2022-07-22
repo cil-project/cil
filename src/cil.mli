@@ -555,8 +555,7 @@ representable with the given width. Use the functions {!Cil.kinteger},
 expressions. CIL predefines the constants {!Cil.zero},
 {!Cil.one} and {!Cil.mone} (for -1).
 
- Use the functions {!Cil.isConstant} and {!Cil.isInteger} to test if
-an expression is a constant and a constant integer respectively.
+ Use the function {!Cil.isConstant} to test if an expression is a constant.
 
  CIL keeps the type of all unary and binary expressions. You can think of that
 type qualifying the operator. Furthermore there are different operators for
@@ -924,7 +923,7 @@ and stmt = {
     mutable preds: stmt list;
     (** The inverse of the succs function. *)
     mutable fallthrough: stmt option;
-    (** The fallthrough successor statement computed from the context of this statement in {!Cil.computeCFGInto}. Useful for the syntactic successor of Goto and Loop. *)
+    (** The fallthrough successor statement computed from the context of this statement in {!Cil.computeCFGInfo}. Useful for the syntactic successor of Goto and Loop. *)
   }
 
 (** Labels *)
