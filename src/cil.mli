@@ -754,7 +754,8 @@ of offsets.
 - {!Cil.removeOffset} and {!Cil.removeOffsetLval} - shrink sequences
 of offsets.
 
-The following equivalences hold {v
+The following equivalences hold
+ {v
 Mem(AddrOf(Mem a, aoff)), off   = Mem a, aoff + off
 Mem(AddrOf(Var v, aoff)), off   = Var v, aoff + off
 AddrOf (Mem a, NoOffset)        = a
@@ -2114,15 +2115,17 @@ val currentGlobal: global ref
    mechanism is built on top of the pretty-printer mechanism (see
    {!Pretty.doc}) and the error-message modules (see {!Errormsg.error}).
 
- Here is a typical example for printing a log message: {v
+ Here is a typical example for printing a log message:
+ {[
 ignore (Errormsg.log "Expression %a is not positive (at %s:%i)\n"
                         d_exp e loc.file loc.line)
- v}
+ ]}
 
  and here is an example of how you print a fatal error message that stop the
-  execution: {v
+  execution:
+ {[
 Errormsg.s (Errormsg.bug "Why am I here?")
- v}
+ ]}
 
  Notice that you can use C format strings with some extension. The most
 useful extension is "%a" that means to consumer the next two argument from
