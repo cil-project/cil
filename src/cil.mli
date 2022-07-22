@@ -56,7 +56,7 @@ val cilVersion: string
 (** This module defines the abstract syntax of CIL. It also provides utility
    functions for traversing the CIL data structures, and pretty-printing
    them. The parser can be invoked as
-   [Frontc.parse: string -> unit ->] {!Cil.file}. This function must be given
+   [Frontc.parse: string -> unit ->] {!Cil.type-file}. This function must be given
    the name of a preprocessed C file and will return the top-level data
    structure that describes a whole source file. The parsing and
    elaboration into CIL is done as for GCC source. *)
@@ -68,9 +68,9 @@ val cilVersion: string
 (** The top-level representation of a CIL source file (and the result of the
    parsing and elaboration). Its main contents is the list of global
    declarations and definitions. You can iterate over the globals in a
-   {!Cil.file} using the following iterators: {!Cil.mapGlobals},
+   {!Cil.type-file} using the following iterators: {!mapGlobals},
    {!Cil.iterGlobals} and {!Cil.foldGlobals}. You can also use the
-   {!Cil.dummyFile} when you need a {!Cil.file} as a placeholder. For each
+   {!Cil.dummyFile} when you need a {!Cil.type-file} as a placeholder. For each
    global item CIL stores the source location where it appears (using the
    type {!Cil.location}) *)
 
@@ -804,7 +804,7 @@ and offset =
 (** {b Initializers.} A special kind of expressions are those that can appear
    as initializers for global variables (initialization of local variables is
    turned into assignments). The initializers are represented as type
-   {!Cil.init}. You can create initializers with {!Cil.makeZeroInit} and you
+   {!Cil.type-init}. You can create initializers with {!Cil.makeZeroInit} and you
    can conveniently scan compound initializers them with
    {!Cil.foldLeftCompound}.
 
@@ -1165,18 +1165,18 @@ val dummyFunDec: fundec
 (** A dummy file *)
 val dummyFile: file
 
-(** Write a {!Cil.file} in binary form to the filesystem. The file can be
+(** Write a {!Cil.type-file} in binary form to the filesystem. The file can be
    read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
    time. The second argument is the name of the file that should be
    created. *)
 val saveBinaryFile : file -> string -> unit
 
-(** Write a {!Cil.file} in binary form to the filesystem. The file can be
+(** Write a {!Cil.type-file} in binary form to the filesystem. The file can be
    read back in later using {!Cil.loadBinaryFile}, possibly saving parsing
    time. Does not close the channel. *)
 val saveBinaryFileChannel : file -> out_channel -> unit
 
-(** Read a {!Cil.file} in binary form from the filesystem. The first
+(** Read a {!Cil.type-file} in binary form from the filesystem. The first
    argument is the name of a file previously created by
    {!Cil.saveBinaryFile}. Because this also reads some global state,
    this should be called before any other CIL code is parsed or generated. *)

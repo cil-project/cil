@@ -52,7 +52,7 @@ val top : t
 val reset: timerModeEnum -> unit
 
 (** Flag to indicate whether or not to count the number of calls of
-    to {!Stats.repeattime} or {!Stats.time} for each label.
+    to {!Stats.repeattime} or {!Stats.val-time} for each label.
     (default: false) *)
 val countCalls: bool ref
 
@@ -70,7 +70,7 @@ val repeattime : float -> string -> ('a -> 'b) -> 'a -> 'b
 (** Print the current stats preceeded by a message *)
 val print : out_channel -> string -> unit
 
-(** Return the cumulative time of all calls to {!Stats.time} and
+(** Return the cumulative time of all calls to {!Stats.val-time} and
   {!Stats.repeattime} with the given label. *)
 val lookupTime: string -> float
 
