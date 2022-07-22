@@ -11,12 +11,13 @@
 \def\secref#1{Section~\ref{sec-#1}}
 \def\chref#1{Chapter~\ref{ch-#1}}
 
-\def\apiref#1#2#3{\ahref{api/goblint-cil/#1/index.html\##2#3}{#1.#3}}
-\def\moduleref#1{\ahref{api/goblint-cil/#1/index.html}{#1}}
+\def\apireff#1#2#3#4{\ahref{api/goblint-cil/GoblintCil/#4index.html\##2#3}{#1.#3}}
+\def\apiref#1#2#3{\apireff{#1}{#2}{#3}{#1/}}
+\def\moduleref#1{\ahref{api/goblint-cil/GoblintCil/#1/index.html}{#1}}
 
 % Use this to refer to a Cil type/val
-\def\ciltyperef#1{\apiref{Cil}{type-}{#1}}
-\def\cilvalref#1{\apiref{Cil}{val-}{#1}}
+\def\ciltyperef#1{\apireff{GoblintCil}{type-}{#1}{}}
+\def\cilvalref#1{\apireff{GoblintCil}{val-}{#1}{}}
 
 % Use this to refer to a type/val in the Pretty module
 \def\ptyperef#1{\apiref{Pretty}{type-}{#1}}
@@ -673,9 +674,9 @@ index below the main types that are used to represent C programs in CIL:
 % \item \ahref{api/index\_values.html}{An index of all values}
 \item \ciltyperef{file} is the representation of a file.
 \item \ciltyperef{global} is the representation of a global declaration or
-definitions. Values for \ahref{api/goblint-cil/Cil/index.html\#val-emptyFunction}{operating on globals}.
+definitions. Values for \ahref{api/goblint-cil/GoblintCil/index.html\#val-emptyFunction}{operating on globals}.
 \item \ciltyperef{typ} is the representation of a type.
-Values for \ahref{api/goblint-cil/Cil/index.html\#val-voidType}{operating on types}.
+Values for \ahref{api/goblint-cil/GoblintCil/index.html\#val-voidType}{operating on types}.
 \item \ciltyperef{compinfo} is the representation of a structure or a union
 type
 \item \ciltyperef{fieldinfo} is the representation of a field in a structure
@@ -684,16 +685,16 @@ or a union
 \item \ciltyperef{varinfo} is the representation of a variable
 \item \ciltyperef{fundec} is the representation of a function
 \item \ciltyperef{lval} is the representation of an lvalue.
-Values for \ahref{api/goblint-cil/Cil/index.html\#val-makeVarinfo}{operating on lvalues}.
+Values for \ahref{api/goblint-cil/GoblintCil/index.html\#val-makeVarinfo}{operating on lvalues}.
 \item \ciltyperef{exp} is the representation of an expression without
 side-effects.
-Values for \ahref{api/goblint-cil/Cil/index.html\#val-zero}{operating on expressions}.
+Values for \ahref{api/goblint-cil/GoblintCil/index.html\#val-zero}{operating on expressions}.
 \item \ciltyperef{instr} is the representation of an instruction (with
 side-effects but without control-flow)
 \item \ciltyperef{stmt} is the representation of a control-flow statements.
-Values for \ahref{api/goblint-cil/Cil/index.html\#val-mkStmt}{operating on statements}.
+Values for \ahref{api/goblint-cil/GoblintCil/index.html\#val-mkStmt}{operating on statements}.
 \item \ciltyperef{attribute} is the representation of attributes.
-Values for \ahref{api/goblint-cil/Cil/index.html\#type-attributeClass}{operating on attributes}.
+Values for \ahref{api/goblint-cil/GoblintCil/index.html\#type-attributeClass}{operating on attributes}.
 \end{itemize}
 
 
@@ -720,9 +721,9 @@ transformation. One major limitation of the visiting engine is that it does
 not propagate information from one node to another. Each visitor must use its
 own private data to achieve this effect if necessary.
 
- Each visitor is an object that is an instance of a class of type \apiref{Cil}{class-type-}{cilVisitor}.
+ Each visitor is an object that is an instance of a class of type \apireff{GoblintCil}{class-type-}{cilVisitor}{}.
 The most convenient way to obtain such classes is to specialize the
-\apiref{Cil}{class-}{nopCilVisitor} class (which just traverses the tree doing
+\apiref{GoblintCil}{class-}{nopCilVisitor}{} class (which just traverses the tree doing
 nothing). Any given specialization typically overrides only a few of the
 methods. Take a look for example at the
 [copyFunctionVisitor] defined in \t{cil.ml}.
@@ -1053,7 +1054,7 @@ following are some of the pretty-printing functions:
 \end{itemize}
 
  You can even customize the pretty-printer by creating instances of
-\apiref{Cil}{class-type-}{cilPrinter}. Typically such an instance extends
+\apiref{GoblintCil}{class-type-}{cilPrinter}{}. Typically such an instance extends
 \cilvalref{defaultCilPrinter}. Once you have a customized pretty-printer you
 can use the following printing functions:
 \begin{itemize}
