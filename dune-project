@@ -38,5 +38,4 @@ Changes:
     conf-perl
     cppo
   )
-  (conflicts cil)
 )
