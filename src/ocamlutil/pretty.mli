@@ -217,23 +217,23 @@ val dprintf: ('a, unit, doc, doc) format4 -> 'a
     argument (of type [('a, unit, doc) format]; if you insist on 
     understanding what that means see the module [Printf]). The format string 
     is like that for the [printf] function in C, except that it understands a 
-    few more formatting controls, all starting with the @ character. 
+    few more formatting controls, all starting with the \@ character. 
 
     See the gprintf function if you want to pipe the result of dprintf into 
     some other functions.
 
  The following special formatting characters are understood (these do not 
  correspond to arguments of the function):
--  @\[ Inserts an {!Pretty.align}. Every format string must have matching 
+-  \@\[ Inserts an {!Pretty.align}. Every format string must have matching 
         {!Pretty.align} and {!Pretty.unalign}. 
--  @\] Inserts an {!Pretty.unalign}.
--  @!  Inserts a {!Pretty.line}. Just like "\n"
--  @?  Inserts a {!Pretty.break}.
--  @<  Inserts a {!Pretty.mark}. 
--  @>  Inserts a {!Pretty.unmark}.
--  @^  Inserts a {!Pretty.leftflush}
-       Should be used immediately after @! or "\n".
--  @@ : inserts a @ character
+-  \@\] Inserts an {!Pretty.unalign}.
+-  \@!  Inserts a {!Pretty.line}. Just like "\n"
+-  \@?  Inserts a {!Pretty.break}.
+-  \@<  Inserts a {!Pretty.mark}. 
+-  \@>  Inserts a {!Pretty.unmark}.
+-  \@^  Inserts a {!Pretty.leftflush}
+       Should be used immediately after \@! or "\n".
+-  \@\@ : inserts a \@ character
 
  In addition to the usual [printf] % formatting characters the following two 
  new characters are supported:
