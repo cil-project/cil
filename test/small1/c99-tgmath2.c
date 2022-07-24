@@ -10,7 +10,7 @@ typedef struct loc_t
 
 
 void fun(const loc_t* loc) {
-    long l;
+    long l =8;
     int n0 =(int)sqrt(l); // works
     int n1 =(int)sqrt(loc->nloc); // fails
 }
@@ -21,4 +21,5 @@ int main() {
   loc.nloc = 5;
   loc_t* ptr = &loc;
   fun(ptr);
+  SUCCESS;
 }
