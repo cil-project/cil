@@ -1,38 +1,38 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (** Compute dominator information for the statements in a function *)
@@ -65,7 +65,7 @@ module DT = struct
   type t = BS.t
 
    (** For each statement in a function we keep the set of dominator blocks.
-    * Indexed by statement id *)
+      Indexed by statement id *)
   let stmtStartData: t IH.t = IH.create 17
 
   let copy (d: t) = d
@@ -113,7 +113,7 @@ let getIdom (idomInfo: stmt option IH.t) (s: stmt) =
            s.sid)
 
 (** Check whether one block dominates another. This assumes that the "idom"
- * field has been computed. *)
+   field has been computed. *)
 let rec dominates (idomInfo: stmt option IH.t) (s1: stmt) (s2: stmt) =
   s1 == s2 ||
   (let s2idom = getIdom idomInfo s2 in
@@ -178,8 +178,8 @@ let computeIDom ?(doCFG:bool=true) (f: fundec) : stmt option IH.t =
                       None -> Some d
                     | Some sofar' ->
                         (* See if d is dominated by sofar. We know that the
-                         * idom information has been computed for both sofar
-                         * and for d*)
+                           idom information has been computed for both sofar
+                           and for d*)
                         if dominates idomData sofar' d then
                           Some d
                         else
@@ -257,8 +257,8 @@ let computeDomTree ?(doCFG:bool=true) (f: fundec)
                       None -> Some d
                     | Some sofar' ->
                         (* See if d is dominated by sofar. We know that the
-                         * idom information has been computed for both sofar
-                         * and for d*)
+                           idom information has been computed for both sofar
+                           and for d*)
                         if dominates idomData sofar' d then
                           Some d
                         else
@@ -318,16 +318,16 @@ let children (t: tree) (s: stmt) : stmt list =
   | Some bs -> BS.elements bs
 
 (** Compute the start of the natural loops. For each start, keep a list of
- * origin of a back edge. The loop consists of the loop start and all
- * predecessors of the origins of back edges, up to and including the loop
- * start *)
+   origin of a back edge. The loop consists of the loop start and all
+   predecessors of the origins of back edges, up to and including the loop
+   start *)
 let findNaturalLoops (f: fundec)
                      (idomData: stmt option IH.t) : (stmt * stmt list) list =
   let loops =
     List.fold_left
       (fun acc b ->
         (* Iterate over all successors, and see if they are among the
-         * dominators for this block *)
+           dominators for this block *)
         List.fold_left
           (fun acc s ->
             if dominates idomData s b then

@@ -1,39 +1,39 @@
 /*(*
- *
- * Copyright (c) 2001-2003,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- *  Ben Liblit          <liblit@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2003,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+    Ben Liblit          <liblit@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  **)
 (**
 ** 1.0	3.22.99	Hugues Cass�	First version.
@@ -81,7 +81,7 @@ let currentFunctionName = ref "<outside any function>"
 let announceFunctionName ((n, decl, _, _):name) =
   !Lexerhack.add_identifier n;
   (* Start a context that includes the parameter names and the whole body.
-   * Will pop when we finish parsing the function body *)
+     Will pop when we finish parsing the function body *)
   !Lexerhack.push_context ();
   (* Go through all the parameter names and mark them as identifiers *)
   let rec findProto = function
@@ -341,7 +341,7 @@ let transformOffsetOf (speclist, dtype) member =
 %left 	LBRACKET
 %left	DOT ARROW LPAREN LBRACE
 %right  NAMED_TYPE     /* We'll use this to handle redefinitions of
-                        * NAMED_TYPE as variables */
+                          NAMED_TYPE as variables */
 %left   IDENT
 
 /* Non-terminals informations */
@@ -419,7 +419,7 @@ global:
 | declaration                           { $1 }
 | function_def                          { $1 }
 /*(* Some C header files ar shared with the C++ compiler and have linkage
-   * specification *)*/
+     specification *)*/
 | EXTERN const_raw_string declaration { LINKAGE (fst $2, (*handleLoc*) snd $2, [ $3 ]) }
 | EXTERN const_raw_string LBRACE globals RBRACE
                                         { LINKAGE (fst $2, (*handleLoc*) snd $2, $4) }
@@ -427,8 +427,8 @@ global:
                                         { GLOBASM (fst $3, (*handleLoc*) $1) }
 | pragma                                { $1 }
 /* (* Old-style function prototype. This should be somewhere else, like in
-    * "declaration". For now we keep it at global scope only because in local
-    * scope it looks too much like a function call  *) */
+      "declaration". For now we keep it at global scope only because in local
+      scope it looks too much like a function call  *) */
 | IDENT LPAREN old_parameter_list_ne RPAREN old_pardef_list SEMICOLON
                            { (* Convert pardecl to new style *)
                              let pardecl, isva = doOldParDecl $3 $5 in
@@ -675,7 +675,7 @@ conditional_expression:    /*(* 6.5.15 *)*/
 ;
 
 /*(* The C spec says that left-hand sides of assignment expressions are unary
- * expressions. GCC allows cast expressions in there ! *)*/
+   expressions. GCC allows cast expressions in there ! *)*/
 
 assignment_expression:     /*(* 6.5.16 *)*/
 |               conditional_expression
@@ -1069,14 +1069,14 @@ decl_spec_list:
 |   attribute_nocv decl_spec_list_opt   { SpecAttr (fst $1) :: $2, snd $1 }
 ;
 /* (* In most cases if we see a NAMED_TYPE we must shift it. Thus we declare
-    * NAMED_TYPE to have right associativity  *) */
+      NAMED_TYPE to have right associativity  *) */
 decl_spec_list_opt:
     /* empty */                         { [] } %prec NAMED_TYPE
 |   decl_spec_list                      { fst $1 }
 ;
 /* (* We add this separate rule to handle the special case when an appearance
-    * of NAMED_TYPE should not be considered as part of the specifiers but as
-    * part of the declarator. IDENT has higher precedence than NAMED_TYPE  *)
+      of NAMED_TYPE should not be considered as part of the specifiers but as
+      part of the declarator. IDENT has higher precedence than NAMED_TYPE  *)
  */
 decl_spec_list_opt_no_named:
     /* empty */                         { [] } %prec IDENT
@@ -1142,7 +1142,7 @@ type_spec:   /* ISO 6.7.2 */
                                           TtypeofT (s, d), $1 }
 ;
 struct_decl_list: /* (* ISO 6.7.2. Except that we allow empty structs. We
-                      * also allow missing field names. *)
+                        also allow missing field names. *)
                    */
    /* empty */                           { [] }
 |  decl_spec_list                 SEMICOLON struct_decl_list
@@ -1202,7 +1202,7 @@ declarator:  /* (* ISO 6.7.5. Plus Microsoft declarators.*) */
 
 direct_decl: /* (* ISO 6.7.5 *) */
                                    /* (* We want to be able to redefine named
-                                    * types as variable names *) */
+                                      types as variable names *) */
 |   id_or_typename                 { ($1, JUSTBASE) }
 
 |   LPAREN attributes declarator RPAREN
@@ -1326,8 +1326,8 @@ abstract_decl: /* (* ISO 6.7.6. *) */
 ;
 
 abs_direct_decl: /* (* ISO 6.7.6. We do not support optional declarator for
-                     * functions. Plus Microsoft attributes. See the
-                     * discussion for declarator. *) */
+                       functions. Plus Microsoft attributes. See the
+                       discussion for declarator. *) */
 |   LPAREN attributes abstract_decl RPAREN
                                    { let d, a = $3 in
                                      PARENTYPE ($2, d, a)
@@ -1354,7 +1354,7 @@ function_def:  /* (* ISO 6.9.1 *) */
           { let (loc, specs, decl) = $1 in
             currentFunctionName := "<__FUNCTION__ used outside any functions>";
             !Lexerhack.pop_context (); (* The context pushed by
-                                    * announceFunctionName *)
+                                      announceFunctionName *)
             doFunctionDef ((*handleLoc*) loc) (trd3 $2) specs decl (fst3 $2)
           }
 
@@ -1423,7 +1423,7 @@ attributes:
 ;
 
 /* (* In some contexts we can have an inline assembly to specify the name to
-    * be used for a global. We treat this as a name attribute *) */
+      be used for a global. We treat this as a name attribute *) */
 attributes_with_asm:
     /* empty */                         { [] }
 |   attribute attributes_with_asm       { fst $1 :: $2 }
@@ -1460,8 +1460,8 @@ attribute:
 ;
 
 /* (* sm: I need something that just includes __attribute__ and nothing more,
- *  to support them appearing between the 'struct' keyword and the type name.
- * Actually, a declspec can appear there as well (on MSVC) *)  */
+    to support them appearing between the 'struct' keyword and the type name.
+   Actually, a declspec can appear there as well (on MSVC) *)  */
 just_attribute:
     ATTRIBUTE LPAREN paren_attr_list RPAREN
                                         { ("__attribute__", $3) }
@@ -1469,7 +1469,7 @@ just_attribute:
 ;
 
 /* this can't be empty, b/c I folded that possibility into the calling
- * productions to avoid some S/R conflicts */
+   productions to avoid some S/R conflicts */
 just_attributes:
     just_attribute                      { [$1] }
 |   just_attribute just_attributes      { $1 :: $2 }
@@ -1484,7 +1484,7 @@ pragma:
 ;
 
 /* (* We want to allow certain strange things that occur in pragmas, so we
-    * cannot use directly the language of expressions *) */
+      cannot use directly the language of expressions *) */
 primary_attr:
     IDENT				                        { VARIABLE (fst $1) }
     /* (* This is just so code such as __attribute(_NoReturn) is not rejected, which may arise when combining GCC noreturn attribute and including C11 stdnoreturn.h *) */
@@ -1496,28 +1496,28 @@ primary_attr:
 |   CST_INT                              { CONSTANT(CONST_INT (fst $1)) }
 |   const_string_or_wstring                 { CONSTANT(fst $1) }
                                            /*(* Const when it appears in
-                                            * attribute lists, is translated
-                                            * to aconst *)*/
+                                              attribute lists, is translated
+                                              to aconst *)*/
 |   CONST                                { VARIABLE "aconst" }
 
 |   IDENT COLON CST_INT                  { VARIABLE (fst $1 ^ ":" ^ fst $3) }
 
 /*(* The following rule conflicts with the ? : attributes. We give it a very
-   * low priority *)*/
+     low priority *)*/
 |   CST_INT COLON CST_INT                { VARIABLE (fst $1 ^ ":" ^ fst $3) }
 
 |   DEFAULT COLON CST_INT                { VARIABLE ("default:" ^ fst $3) }
 
                                             /*(** GCC allows this as an
-                                             * attribute for functions,
-                                             * synonim for noreturn **)*/
+                                               attribute for functions,
+                                               synonim for noreturn **)*/
 |   VOLATILE                             { VARIABLE ("__noreturn__") }
 ;
 
 postfix_attr:
     primary_attr                         { $1 }
                                          /* (* use a VARIABLE "" so that the
-                                             * parentheses are printed *) */
+                                               parentheses are printed *) */
 |   IDENT LPAREN  RPAREN             { CALL(VARIABLE (fst $1), [VARIABLE ""]) }
 |   IDENT paren_attr_list_ne         { CALL(VARIABLE (fst $1), $2) }
 
@@ -1527,8 +1527,8 @@ postfix_attr:
 ;
 
 /*(* Since in attributes we use both IDENT and NAMED_TYPE as indentifiers,
- * that leads to conflicts for SIZEOF and ALIGNOF. In those cases we require
- * that their arguments be expressions, not attributes *)*/
+   that leads to conflicts for SIZEOF and ALIGNOF. In those cases we require
+   that their arguments be expressions, not attributes *)*/
 unary_attr:
     postfix_attr                         { $1 }
 |   SIZEOF unary_expression              { EXPR_SIZEOF (fst $2) }

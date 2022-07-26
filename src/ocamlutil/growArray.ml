@@ -12,7 +12,7 @@ type 'a t = {
 
     mutable gaMaxInitIndex: int;
             (** Maximum index that was written to. -1 if no writes have 
-             * been made.  *)
+               been made.  *)
 
     mutable gaData: 'a LA.t;
   } 

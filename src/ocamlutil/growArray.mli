@@ -31,7 +31,7 @@ val make : int -> 'a fill -> 'a t
 
 val num_alloc_index: 'a t -> int
 (** [GrowArray.num_alloc_index a] returns the number of allocated entries in 
- * the array **)
+   the array **)
 
 val max_init_index : 'a t -> int
 (** [GrowArray.max_init_index a] returns the maximum index to

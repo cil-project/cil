@@ -1,38 +1,38 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (* A consistency checker for CIL *)
@@ -45,7 +45,7 @@ open Pretty
 (* A few parameters to customize the checking *)
 type checkFlags =
     NoCheckGlobalIds   (* Do not check that the global ids have the proper
-                        * hash value *)
+                          hash value *)
     | IgnoreInstructions of (instr -> bool) (* Ignore the specified instructions *)
 
 let checkGlobalIds = ref true
@@ -80,17 +80,17 @@ let typeDefs : (string, typ) H.t = H.create 117 (* TODO: unused *)
 let varNamesEnv : (string, unit) H.t = H.create 117
 
   (* We also keep a map of variables indexed by id, to ensure that only one
-   * varinfo has a given id *)
+     varinfo has a given id *)
 let varIdsEnv: (int, varinfo) H.t = H.create 117
 
   (* And keep track of all varinfo's to check the uniqueness of the
-   * identifiers *)
+     identifiers *)
 let allVarIds: (int, varinfo) H.t = H.create 117
 
 let fundecForVarIds: (int,unit) H.t = H.create 117
 
  (* Also keep a list of environments. We place an empty string in the list to
-  * mark the start of a local environment (i.e. a function) *)
+    mark the start of a local environment (i.e. a function) *)
 let varNamesList : (string * int) list ref = ref []
 let defineName s =
   if s = "" then
@@ -165,8 +165,8 @@ type ctxType =
   | CTArray                             (* In an array type *)
   | CTPtr                               (* In a pointer type *)
   | CTExp                               (* In an expression, as the type of
-                                         * the result of binary operators, or
-                                         * in a cast *)
+                                           the result of binary operators, or
+                                           in a cast *)
   | CTSizeof                            (* In a sizeof *)
   | CTDecl                              (* In a typedef, or a declaration *)
   | CTNumeric                           (* As an argument to __real__ or __imag__ *)
@@ -185,12 +185,12 @@ let d_context () = function
 
 
 (* Keep track of all tags that we use. For each tag remember also the info
- * structure and a flag whether it was actually defined or just used. A
- * forward declaration acts as a definition. *)
+   structure and a flag whether it was actually defined or just used. A
+   forward declaration acts as a definition. *)
 type defuse =
     Defined (* We actually have seen a definition of this tag *)
   | Forward (* We have seen a forward declaration for it. This is done using
-             * a GType with an empty type name *)
+               a GType with an empty type name *)
   | Used    (* Only uses *)
 let compUsed : (int, compinfo * defuse ref) H.t = H.create 117
 let enumUsed : (string, enuminfo * defuse ref) H.t = H.create 117
@@ -246,7 +246,7 @@ let rec checkType (t: typ) (ctx: ctxType) =
   | TComp (comp, a) ->
       checkAttributes a;
       (* Mark it as a forward. We'll check it later. If we try to check it
-       * now we might encounter undefined types *)
+         now we might encounter undefined types *)
       checkCompInfo Used comp
 
 
@@ -309,7 +309,7 @@ and typeMatch (t1: typ) (t2: typ) =
       | TEnum (ei, _), TInt (ik, _) when ik = ei.ekind -> ()
 
       (* Allow unspecified array lengths - this happens with
-       * flexible array members *)
+         flexible array members *)
       | TArray (t, None, _), TArray (t', _, _)
       | TArray (t, _, _), TArray (t', None, _) -> typeMatch t t'
       | _, _ -> ignore (warn "Type mismatch:@!    %a@!and %a@!"
@@ -343,14 +343,14 @@ and checkCompInfo (isadef: defuse) comp =
     H.add compUsed comp.ckey (comp, ref isadef);
     H.add compNames fullname ();
     (* Do not check the compinfo unless this is a definition. Otherwise you
-     * might run into undefined types. *)
+       might run into undefined types. *)
     if isadef = Defined then begin
       checkAttributes comp.cattr;
       let fctx = if comp.cstruct then CTStruct else CTUnion in
       let checkField f =
         if not
             (f.fcomp == comp &&  (* Each field must share the self cell of
-             * the host *)
+               the host *)
              f.fname <> "") then
           ignore (warn "Self pointer not set in field %s of %s"
                     f.fname fullname);
@@ -416,8 +416,8 @@ and checkTypeInfo (isadef: defuse) ti =
   end
 
 (* Check an lvalue. If isconst then the lvalue appears in a context where
- * only a compile-time constant can appear. Return the type of the lvalue.
- * See the typing rule from cil.mli *)
+   only a compile-time constant can appear. Return the type of the lvalue.
+   See the typing rule from cil.mli *)
 and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ =
   match lv with
     Var vi, off ->
@@ -434,8 +434,8 @@ and checkLval (isconst: bool) (forAddrof: bool) (lv: lval) : typ =
   end
 
 (* Check an offset. The basetype is the type of the object referenced by the
- * base. Return the type of the lvalue constructed from a base value of right
- * type and the offset. See the typing rules from cil.mli *)
+   base. Return the type of the lvalue constructed from a base value of right
+   type and the offset. See the typing rules from cil.mli *)
 and checkOffset basetyp : offset -> typ = function
     NoOffset -> basetyp
   | Index (ei, o) ->
@@ -461,8 +461,8 @@ and checkExpType (isconst: bool) (e: exp) (t: typ) =
   typeMatch t' t
 
 (* Check an expression. isconst specifies if the expression occurs in a
- * context where only a compile-time constant can occur. Return the computed
- * type of the expression *)
+   context where only a compile-time constant can occur. Return the computed
+   type of the expression *)
 and checkExp (isconst: bool) (e: exp) : typ =
   E.withContext
     (fun _ -> dprintf "check%s: %a"
@@ -919,7 +919,7 @@ let rec checkGlobal = function
       E.withContext (fun _ -> dprintf "GVarDecl(%s)" vi.vname)
         (fun _ ->
           (* If we have seen this vid already then it must be for the exact
-           * same varinfo *)
+             same varinfo *)
           if H.mem varIdsEnv vi.vid then
             checkVariable vi
           else begin
@@ -964,7 +964,7 @@ let rec checkGlobal = function
         (fun _ ->
           checkGlobal (GVarDecl (vi, l));
           (* Check that the argument types in the type are identical to the
-           * formals *)
+             formals *)
           let rec loopArgs targs formals =
             match targs, formals with
               [], [] -> ()

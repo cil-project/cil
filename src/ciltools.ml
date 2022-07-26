@@ -23,8 +23,8 @@ let is_volatile_vi vi =
   vi_vol || typ_vol
 
 (*****************************************************************************
- * A collection of useful functions that were not already in CIL as far as I
- * could tell. However, I have been surprised before . . .
+   A collection of useful functions that were not already in CIL as far as I
+   could tell. However, I have been surprised before . . .
  ****************************************************************************)
 
 type sign = Signed | Unsigned
@@ -32,9 +32,9 @@ type sign = Signed | Unsigned
 exception Not_an_integer
 
 (*****************************************************************************
- * A bunch of functions for accessing integers. Originally written for
- * somebody who didn't know CIL and just wanted to mess with it at the
- * OCaml level.
+   A bunch of functions for accessing integers. Originally written for
+   somebody who didn't know CIL and just wanted to mess with it at the
+   OCaml level.
  ****************************************************************************)
 
 let unbox_int_type (ye : typ) : (int * sign) =
@@ -96,7 +96,7 @@ let ocaml_int_to_cil v n s =
   kinteger64 i v
 
 (*****************************************************************************
- * a couple of type functions that I thought would be useful:
+   a couple of type functions that I thought would be useful:
  ****************************************************************************)
 
 let rec isCompositeType tp =
@@ -149,7 +149,7 @@ let deepHasAttribute s t =
 (** Stuff from ptranal, slightly modified ************************************)
 
 (*****************************************************************************
- * A transformation to make every instruction be in its own statement.
+   A transformation to make every instruction be in its own statement.
  ****************************************************************************)
 
 class callBBVisitor = object
@@ -180,7 +180,7 @@ let one_instruction_per_statement f =
   visitCilFileSameGlobals thisVisitor f
 
 (*****************************************************************************
- * A transformation that gives each variable a unique identifier.
+   A transformation that gives each variable a unique identifier.
  ****************************************************************************)
 
 class vidVisitor = object

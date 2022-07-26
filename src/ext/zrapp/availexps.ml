@@ -26,12 +26,12 @@ let time s f a =
   else f a
 
 (*
- * When ignore_inst returns true, then
- * the instruction in question has no
- * effects on the abstract state.
- * When ignore_call returns true, then
- * the instruction only has side-effects
- * from the assignment if there is one.
+   When ignore_inst returns true, then
+   the instruction in question has no
+   effects on the abstract state.
+   When ignore_call returns true, then
+   the instruction only has side-effects
+   from the assignment if there is one.
  *)
 let ignore_inst = ref (fun i -> false)
 let ignore_call = ref (fun i -> false)
@@ -288,7 +288,7 @@ module AvailableExps =
 module AE = DF.ForwardsDataFlow(AvailableExps)
 
 (* make an exp IH.t with everything in it,
- * also, fill in varHash while we're here.
+   also, fill in varHash while we're here.
  *)
 class varHashMakerClass = object(self)
   inherit nopCilVisitor
@@ -310,9 +310,9 @@ let make_var_hash fd =
   ignore(visitCilFunction varHashMaker fd)
 
 (*
- * Computes AEs for function fd.
- *
- *
+   Computes AEs for function fd.
+
+
  *)
 let computeAEs fd =
   try let slst = fd.sbody.bstmts in

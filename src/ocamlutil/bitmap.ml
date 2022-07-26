@@ -6,7 +6,7 @@ type t = { mutable nrWords  : int;
 
 
                                         (* Enlarge a bitmap to contain at
-                                         * least newWords *)
+                                           least newWords *)
 let enlarge b newWords =
   let newbitmap =
     if newWords > b.nrWords then
@@ -201,7 +201,7 @@ let setTo bmp i tv = ignore (testAndSetTo bmp i tv)
 
 
                                         (* Iterate over all elements in a
-                                         * bitmap *)
+                                           bitmap *)
 let fold f bmp arg =
   let a = bmp.bitmap in
   let n = bmp.nrWords in

@@ -1,38 +1,38 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 (** Utility functions for error-reporting *)
 
@@ -64,8 +64,8 @@ exception Error
 
 
    (* Error reporting. All of these functions take same arguments as a
-    * Pretty.eprintf. They set the hadErrors flag, but do not raise an
-    * exception. Their return type is unit.
+      Pretty.eprintf. They set the hadErrors flag, but do not raise an
+      exception. Their return type is unit.
     *)
 
 (** Prints an error message of the form [Error: ...].
@@ -86,11 +86,11 @@ val s:             'a -> 'b
 val hadErrors: bool ref
 
 (** Like {!Errormsg.error} but does not raise the {!Errormsg.Error}
- * exception. Return type is unit. *)
+   exception. Return type is unit. *)
 val warn:    ('a,unit,Pretty.doc,unit) format4 -> 'a
 
 (** Like {!Errormsg.warn} but optional. Printed only if the
- * {!Errormsg.warnFlag} is set *)
+   {!Errormsg.warnFlag} is set *)
 val warnOpt: ('a,unit,Pretty.doc,unit) format4 -> 'a
 
 (** Print something to [logChannel] *)
@@ -100,10 +100,10 @@ val log:           ('a,unit,Pretty.doc,unit) format4 -> 'a
 val logg:          ('a,unit,Pretty.doc,unit) format4 -> 'a
 
    (* All of the error and warning reporting functions can also print a
-    * context. To register a context printing function use "pushContext". To
-    * remove the last registered one use "popContext". If one of the error
-    * reporting functions is called it will invoke all currently registered
-    * context reporting functions in the reverse order they were registered. *)
+      context. To register a context printing function use "pushContext". To
+      remove the last registered one use "popContext". If one of the error
+      reporting functions is called it will invoke all currently registered
+      context reporting functions in the reverse order they were registered. *)
 
 (** Do not actually print (i.e. print to /dev/null) *)
 val null : ('a,unit,Pretty.doc,unit) format4 -> 'a
@@ -162,8 +162,8 @@ val readingFromStdin: bool ref
 
 
 (* Call this function to start parsing. useBasename is by default "true",
- * meaning that the error information maintains only the basename. If the
- * file name is - then it reads from stdin. *)
+   meaning that the error information maintains only the basename. If the
+   file name is - then it reads from stdin. *)
 val startParsing:  ?useBasename:bool -> string ->
   Lexing.lexbuf
 
@@ -171,6 +171,6 @@ val startParsingFromString: ?file:string -> ?line:int -> string
                             -> Lexing.lexbuf
 
 val finishParsing: unit -> unit (* Call this function to finish parsing and 
-                                 * close the input channel *)
+                                   close the input channel *)
 
 

@@ -1,39 +1,39 @@
 (*
- *
- * Copyright (c) 2001-2003,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- *  Ben Liblit          <liblit@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2003,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+    Ben Liblit          <liblit@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 (* FrontC -- lexical analyzer
 **
@@ -132,7 +132,7 @@ let init_lexicon _ =
       ("volatile", fun loc -> VOLATILE loc);
       ("__volatile", fun loc -> VOLATILE loc);
       (* WW: see /usr/include/sys/cdefs.h for why __signed and __volatile
-       * are accepted GCC-isms *)
+         are accepted GCC-isms *)
       ("_Bool", fun loc -> BOOL loc);
       ("char", fun loc -> CHAR loc);
       ("int", fun loc -> INT loc);
@@ -206,9 +206,9 @@ let init_lexicon _ =
       ("__int128", fun _ -> INT128 (currentLoc ()));
       ("__declspec", fun loc -> DECLSPEC loc);
       ("__forceinline", fun loc -> INLINE loc); (* !! we turn forceinline
-                                                 * into inline *)
+                                                   into inline *)
       (* weimer: some files produced by 'GCC -E' expect this type to be
-       * defined *)
+         defined *)
       ("__builtin_va_list",
        fun _ -> NAMED_TYPE ("__builtin_va_list", currentLoc ()));
       ("__builtin_va_arg", fun loc -> BUILTIN_VA_ARG loc);
@@ -224,7 +224,7 @@ let init_lexicon _ =
     ]
 
 (* Mark an identifier as a type name. The old mapping is preserved and will
- * be reinstated when we exit this context *)
+   be reinstated when we exit this context *)
 let add_type name =
    (* ignore (print_string ("adding type name " ^ name ^ "\n"));  *)
    H.add lexicon name (fun loc -> NAMED_TYPE (name, loc))
@@ -243,7 +243,7 @@ let pop_context _ =
                             H.remove lexicon name) con)
 
 (* Mark an identifier as a variable name. The old mapping is preserved and
- * will be reinstated when we exit this context  *)
+   will be reinstated when we exit this context  *)
 let add_identifier name =
   match !context with
     [] -> raise (InternalError "Empty context stack")
@@ -343,7 +343,7 @@ let scan_oct_escape str =
   !the_value
 
 (* For a given Unicode Code-point of type Int64, calculates the UTF-8 representation and returns the bytes
- * in a list of 1-4 int64 values in reverse order, such that the first byte is the last element of the list *)
+   in a list of 1-4 int64 values in reverse order, such that the first byte is the last element of the list *)
 let utf8_representation value =
   let generate_bytes n =
     let first_byte =
@@ -392,8 +392,8 @@ let lex_comment remainder lexbuf =
 
 
 (* ISO standard locale-specific function to convert a wide character
- * into a sequence of normal characters. Here we work on strings.
- * We convert L"Hi" to "H\000i\000"
+   into a sequence of normal characters. Here we work on strings.
+   We convert L"Hi" to "H\000i\000"
   matth: this seems unused.
 let wbtowc wstr =
   let len = String.length wstr in
@@ -417,7 +417,7 @@ let wstr_to_warray wstr =
 *)
 
 (* Pragmas get explicit end-of-line tokens.
- * Elsewhere they are silently discarded as whitespace. *)
+   Elsewhere they are silently discarded as whitespace. *)
 let pragmaLine = ref false
 
 }
@@ -513,10 +513,10 @@ rule initial =
 |   "U'"      { CST_CHAR32 (chr lexbuf, currentLoc ()) }
 |		'"'			{ addLexeme lexbuf; (* '"' *)
 (* matth: BUG:  this could be either a regular string or a wide string.
- *  e.g. if it's the "world" in
- *     L"Hello, " "world"
- *  then it should be treated as wide even though there's no L immediately
- *  preceding it.  See test/small1/wchar5.c for a failure case. *)
+    e.g. if it's the "world" in
+       L"Hello, " "world"
+    then it should be treated as wide even though there's no L immediately
+    preceding it.  See test/small1/wchar5.c for a failure case. *)
                                           try CST_STRING (str lexbuf, currentLoc ())
                                           with e ->
                                              raise (InternalError
@@ -611,7 +611,7 @@ rule initial =
 |               "@name"                 {AT_NAME}
 
 (* __extension__ is a black. The parser runs into some conflicts if we let it
- * pass *)
+   pass *)
 |               "__extension__"         {addWhite lexbuf; initial lexbuf }
 |		ident			{scan_ident (Lexing.lexeme lexbuf)}
 |		eof			{EOF}
@@ -652,7 +652,7 @@ and hash = parse
   '\n'		{ addWhite lexbuf; E.newline (); initial lexbuf}
 | blank		{ addWhite lexbuf; hash lexbuf}
 | intnum	{ addWhite lexbuf; (* We are seeing a line number. This is the number for the
-                   * next line *)
+                     next line *)
                  let s = Lexing.lexeme lexbuf in
                  let lineno = try
                    int_of_string s
@@ -665,7 +665,7 @@ and hash = parse
 		  file (lineno - 1) lexbuf }
 | "line"        { addWhite lexbuf; hash lexbuf } (* MSVC line number info *)
                 (* For pragmas with irregular syntax, like #pragma warning,
-                 * we parse them as a whole line. *)
+                   we parse them as a whole line. *)
 | "pragma" blank (no_parse_pragma as pragmaName)
                 { let here = currentLoc () in
                   PRAGMA_LINE (pragmaName ^ pragma lexbuf, here)

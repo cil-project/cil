@@ -132,7 +132,7 @@ let rec simpl_cond e =
 let get_loop_condition b =
 
   (* returns the first non-empty
-   * statement of a statement list *)
+     statement of a statement list *)
   (* stm list -> stm list *)
   let rec skipEmpty = function
     | [] -> []
@@ -216,10 +216,10 @@ class zraCilPrinterClass : cilPrinter = object (self)
   (*** VARIABLES ***)
 
   (* give the varinfo for the variable to be printed,
-   * returns the varinfo for the varinfo with that name
-   * in the current environment.
-   * Returns argument and prints a warning if the variable
-   * isn't in the environment *)
+     returns the varinfo for the varinfo with that name
+     in the current environment.
+     Returns argument and prints a warning if the variable
+     isn't in the environment *)
   method private getEnvVi (v:varinfo) : varinfo =
     try
       if H.mem lenvHtbl v.vname
@@ -386,7 +386,7 @@ class zraCilPrinterClass : cilPrinter = object (self)
     match g with
     | GFun (fundec, l) ->
         (* If the function has attributes then print a prototype because
-        * GCC cannot accept function attributes in a definition *)
+          GCC cannot accept function attributes in a definition *)
         let oldattr = fundec.svar.vattr in
         (* Always pring the file name before function declarations *)
         let proto =
@@ -516,11 +516,11 @@ class zraCilPrinterClass : cilPrinter = object (self)
 
    method! dGlobal (out: out_channel) (g: global) : unit =
      (* For all except functions and variable with initializers, use the
-      * pGlobal *)
+        pGlobal *)
      match g with
        GFun (fdec, l) ->
          (* If the function has attributes then print a prototype because
-          * GCC cannot accept function attributes in a definition *)
+            GCC cannot accept function attributes in a definition *)
          let oldattr = fdec.svar.vattr in
          let proto =
            if oldattr <> [] then

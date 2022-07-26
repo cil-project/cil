@@ -1,33 +1,33 @@
 (*
- *
- * Copyright (c) 2001 by
- *  George C. Necula	necula@cs.berkeley.edu
- *  Scott McPeak        smcpeak@cs.berkeley.edu
- *  Wes Weimer          weimer@cs.berkeley.edu
- *   
- * All rights reserved.  Permission to use, copy, modify and distribute
- * this software for research purposes only is hereby granted, 
- * provided that the following conditions are met: 
- * 1. Redistributions of source code must retain the above copyright notice, 
- * this list of conditions and the following disclaimer. 
- * 2. Redistributions in binary form must reproduce the above copyright notice, 
- * this list of conditions and the following disclaimer in the documentation 
- * and/or other materials provided with the distribution. 
- * 3. The name of the authors may not be used to endorse or promote products 
- * derived from  this software without specific prior written permission. 
- *
- * DISCLAIMER:
- * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR 
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
- * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001 by
+    George C. Necula	necula@cs.berkeley.edu
+    Scott McPeak        smcpeak@cs.berkeley.edu
+    Wes Weimer          weimer@cs.berkeley.edu
+     
+   All rights reserved.  Permission to use, copy, modify and distribute
+   this software for research purposes only is hereby granted, 
+   provided that the following conditions are met: 
+   1. Redistributions of source code must retain the above copyright notice, 
+   this list of conditions and the following disclaimer. 
+   2. Redistributions in binary form must reproduce the above copyright notice, 
+   this list of conditions and the following disclaimer in the documentation 
+   and/or other materials provided with the distribution. 
+   3. The name of the authors may not be used to endorse or promote products 
+   derived from  this software without specific prior written permission. 
+
+   DISCLAIMER:
+   THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR 
+   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
+   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+   IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
+   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS 
+   OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+   ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (** Utility functions for pretty-printing. The major features provided by 
@@ -53,11 +53,11 @@
 (** API *)
 
 (** The type of unformated documents. Elements of this type can be 
- * constructed in two ways. Either with a number of constructor shown below, 
- * or using the {!Pretty.dprintf} function with a [printf]-like interface. 
- * The {!Pretty.dprintf} method is slightly slower so we do not use it for 
- * large jobs such as the output routines for a compiler. But we use it for 
- * small jobs such as logging and error messages. *)
+   constructed in two ways. Either with a number of constructor shown below, 
+   or using the {!Pretty.dprintf} function with a [printf]-like interface. 
+   The {!Pretty.dprintf} method is slightly slower so we do not use it for 
+   large jobs such as the output routines for a compiler. But we use it for 
+   small jobs such as logging and error messages. *)
 type doc
 
 
@@ -100,7 +100,7 @@ val chr          : char   -> doc
 val line         : doc
 
 (** Use after a {!Pretty.line} to prevent the indentation. Whatever follows 
- * next will be flushed left. Indentation resumes on the next line. *)
+   next will be flushed left. Indentation resumes on the next line. *)
 val leftflush    : doc
 
 
@@ -120,7 +120,7 @@ val unalign: doc
 
 
 (** Mark the beginning of a markup section. The width of a markup section is 
- * considered 0 for the purpose of computing identation *)
+   considered 0 for the purpose of computing identation *)
 val mark: doc
 
 (** The end of a markup section *)
@@ -134,23 +134,23 @@ val unmark: doc
 val indent: int -> doc -> doc
 
 (** Prints a document as markup. The marked document cannot contain line 
- * breaks or alignment constructs. *)
+   breaks or alignment constructs. *)
 val markup: doc -> doc
 
 (** Formats a sequence. [sep] is a separator, [doit] is a function that 
- * converts an element to a document. *)
+   converts an element to a document. *)
 val seq: sep:doc -> doit:('a ->doc) -> elements:'a list -> doc
 
 
 (** An alternative function for printing a list. The [unit] argument is there 
- * to make this function more easily usable with the {!Pretty.dprintf} 
- * interface. The first argument is a separator, by default a comma. *)
+   to make this function more easily usable with the {!Pretty.dprintf} 
+   interface. The first argument is a separator, by default a comma. *)
 val docList: ?sep:doc -> ('a -> doc) -> unit -> 'a list -> doc
 
 (** sm: Yet another list printer.  This one accepts the same kind of
-  * printing function that {!Pretty.dprintf} does, and itself works 
-  * in the dprintf context.  Also accepts
-  * a string as the separator since that's by far the most common.  *)
+    printing function that {!Pretty.dprintf} does, and itself works 
+    in the dprintf context.  Also accepts
+    a string as the separator since that's by far the most common.  *)
 val d_list: string -> (unit -> 'a -> doc) -> unit -> 'a list -> doc
 
 (** Formats an array. A separator and a function that prints an array
@@ -255,11 +255,11 @@ val dprintf: ('a, unit, doc, doc) format4 -> 'a
 *)
 
 (** Like {!Pretty.dprintf} but more general. It also takes a function that is 
- * invoked on the constructed document but before any formatting is done. The 
- * type of the format argument means that 'a is the type of the parameters of 
- * this function, unit is the type of the first argument to %a and %t 
- * formats, doc is the type of the intermediate result, and 'b is the type of 
- * the result of gprintf. *)
+   invoked on the constructed document but before any formatting is done. The 
+   type of the format argument means that 'a is the type of the parameters of 
+   this function, unit is the type of the first argument to %a and %t 
+   formats, doc is the type of the intermediate result, and 'b is the type of 
+   the result of gprintf. *)
 val gprintf: (doc -> 'b) -> ('a, unit, doc, 'b) format4 -> 'a
 
 (** Format the document to the given width and emit it to the given channel *)
@@ -311,11 +311,11 @@ val flattenBeforePrint : bool ref
 
 
 (** Keep a running count of the taken newlines. You can read and write this 
-  * from the client code if you want *)
+    from the client code if you want *)
 val countNewLines : int ref
 
 
 (** A function that when used at top-level in a module will direct 
- * the pa_prtype module generate automatically the printing functions for a 
- * type *)
+   the pa_prtype module generate automatically the printing functions for a 
+   type *)
 val auto_printer: string -> 'b

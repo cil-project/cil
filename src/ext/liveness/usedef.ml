@@ -60,7 +60,7 @@ class useDefVisitorClass : cilVisitor = object (self)
   inherit nopCilVisitor
 
   (** this will be invoked on variable definitions only because we intercept
-   * all uses of variables in expressions ! *)
+     all uses of variables in expressions ! *)
   method! vvrbl (v: varinfo) =
     if (!considerVariableDef) v &&
       not(!onlyNoOffsetsAreDefs) then
@@ -71,11 +71,11 @@ class useDefVisitorClass : cilVisitor = object (self)
     SkipChildren
 
   (** If l is a variable, this means we are in a def, not a use!
-   *  Other cases are handled by vexpr.
-   *
-   *  If onlyNoOffsetsAreDefs is true, then we need to see the
-   *  varinfo in an lval along with the offset. Otherwise just
-   *  DoChildren *)
+      Other cases are handled by vexpr.
+
+      If onlyNoOffsetsAreDefs is true, then we need to see the
+      varinfo in an lval along with the offset. Otherwise just
+      DoChildren *)
   method! vlval (l: lval) =
     if !onlyNoOffsetsAreDefs then
       match l with
@@ -122,8 +122,8 @@ class useDefVisitorClass : cilVisitor = object (self)
   method! vinst i =
     let doCall f desto args =
       (* we will compute the use and def that appear in
-       * this instruction. We also add in the stuff computed by
-       * getUseDefFunctionRef *)
+         this instruction. We also add in the stuff computed by
+         getUseDefFunctionRef *)
       let use, def, args' = !getUseDefFunctionRef f args in
       varUsed := VS.union !varUsed use;
       varDefs := VS.union !varDefs def;
@@ -164,7 +164,7 @@ end
 let useDefVisitor = new useDefVisitorClass
 
 (** Compute the use information for an expression (accumulate to an existing
- * set) *)
+   set) *)
 let computeUseExp ?(acc=VS.empty) (e: exp) : VS.t =
   varUsed := acc;
   ignore (visitCilExpr useDefVisitor e);
@@ -182,7 +182,7 @@ let computeUseDefInstr ?(acc_used=VS.empty)
 
 
 (** Compute the use/def information for a statement kind. Do not descend into
- * the nested blocks. *)
+   the nested blocks. *)
 let computeUseDefStmtKind ?(acc_used=VS.empty)
                           ?(acc_defs=VS.empty)
                           (sk: stmtkind) : VS.t * VS.t =

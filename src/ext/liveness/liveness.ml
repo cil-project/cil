@@ -1,9 +1,9 @@
 
 (* Calculate which variables are live at
- * each statement.
- *
- *
- *
+   each statement.
+
+
+
  *)
 
 open Cil
@@ -18,12 +18,12 @@ module E = Errormsg
 let debug = ref false
 
 (*
- * When ignore_inst returns true, then
- * the instruction in question has no
- * effects on the abstract state.
- * When ignore_call returns true, then
- * the instruction only has side-effects
- * from the assignment if there is one.
+   When ignore_inst returns true, then
+   the instruction in question has no
+   effects on the abstract state.
+   When ignore_call returns true, then
+   the instruction only has side-effects
+   from the assignment if there is one.
  *)
 let ignore_inst = ref (fun i -> false)
 let ignore_call = ref (fun i -> false)
@@ -100,7 +100,7 @@ end
 module L = DF.BackwardsDataFlow(LiveFlow)
 
 (* XXX: This does not compute the best ordering to
- * give to the work-list algorithm.
+   give to the work-list algorithm.
  *)
 let all_stmts = ref []
 class nullAdderClass = object(self)

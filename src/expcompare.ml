@@ -1,37 +1,37 @@
 (*
- *
- * Copyright (c) 2004,
- *  Jeremy Condit       <jcondit@cs.berkeley.edu>
- *  George C. Necula    <necula@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2004,
+    Jeremy Condit       <jcondit@cs.berkeley.edu>
+    George C. Necula    <necula@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 open Cil
@@ -84,15 +84,15 @@ and compareLval (lv1: lval) (lv2: lval) : bool =
   | _ -> false
 
 (* Remove casts that do not effect the value of the expression, such
- * as casts between different pointer types.  Of course, these casts
- * change the type, so don't use this within e.g. an arithmetic
- * expression.
- *
- * We remove casts from pointer types to unsigned int or unsigned long.
- *
- * We also prune casts between equivalent integer types, such as a
- * difference in sign or int vs long.  But we keep other arithmetic casts,
- * since they actually change the value of the expression. *)
+   as casts between different pointer types.  Of course, these casts
+   change the type, so don't use this within e.g. an arithmetic
+   expression.
+
+   We remove casts from pointer types to unsigned int or unsigned long.
+
+   We also prune casts between equivalent integer types, such as a
+   difference in sign or int vs long.  But we keep other arithmetic casts,
+   since they actually change the value of the expression. *)
 let rec stripNopCasts (e:exp): exp =
   match e with
     CastE(t, e') -> begin
@@ -130,8 +130,8 @@ let rec stripCastsForPtrArith (e:exp): exp =
   | CastE(t, e') -> begin
       match unrollType (typeOf e'), unrollType t with
       (* Keep casts from void to something else.  Among other things,
-       * we keep casts from void* to char* that would otherwise be
-       * eliminated. *)
+         we keep casts from void* to char* that would otherwise be
+         eliminated. *)
       | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
           e
       (* Remove casts between pointers with equal-sized base types. *)
@@ -213,8 +213,8 @@ let rec stripCastsDeepForPtrArith (e:exp): exp =
       let e' = stripCastsDeepForPtrArith e' in
       match unrollType (typeOf e'), unrollType t with
       (* Keep casts from void to something else.  Among other things,
-       * we keep casts from void* to char* that would otherwise be
-       * eliminated. *)
+         we keep casts from void* to char* that would otherwise be
+         eliminated. *)
       | TPtr (TVoid _, _), TPtr (bt2, _) when not (isVoidType bt2) ->
           e
       (* Remove casts between pointers with equal-sized base types. *)

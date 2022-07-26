@@ -18,21 +18,21 @@ val mone_cilint : cilint
 type truncation = NoTruncation | ValueTruncation | BitTruncation
 
 (** Truncate a cilint to an n-bit, signed 2's complement
- * integer. Returns the truncated value, and an indication of the loss
- * of precision.  NoTruncation means the truncated value = original
- * value. ValueTruncation means that truncated value <> original value,
- * but the original value was between -2^(n-1) and (2^n)-1, so no
- * "interesting" (not all-0 or all-1) bits were lost. If neither
- * condition holds, the result is BitTruncation. *)
+   integer. Returns the truncated value, and an indication of the loss
+   of precision.  NoTruncation means the truncated value = original
+   value. ValueTruncation means that truncated value <> original value,
+   but the original value was between -2^(n-1) and (2^n)-1, so no
+   "interesting" (not all-0 or all-1) bits were lost. If neither
+   condition holds, the result is BitTruncation. *)
 val truncate_signed_cilint : cilint -> int -> cilint * truncation
 
 (** Truncate a cilint to an n-bit, unsigned integer. Returns the
- * truncated value, and an indication of the loss of precision.
- * NoTruncation means the truncated value = original
- * value. ValueTruncation means that truncated value <> original value,
- * but the original value was between -2^(n-1) and (2^n)-1, so no
- * "interesting" (not all-0 or all-1) bits were lost. If neither
- * condition holds, the result is BitTruncation. *)
+   truncated value, and an indication of the loss of precision.
+   NoTruncation means the truncated value = original
+   value. ValueTruncation means that truncated value <> original value,
+   but the original value was between -2^(n-1) and (2^n)-1, so no
+   "interesting" (not all-0 or all-1) bits were lost. If neither
+   condition holds, the result is BitTruncation. *)
 val truncate_unsigned_cilint : cilint -> int -> cilint * truncation
 
 (** Negate a cilint *)

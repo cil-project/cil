@@ -27,9 +27,9 @@ let time s f a =
   else f a
 
 (* This function should be set by the client if it
- * knows of functions returning a result that have
- * no side effects. If the result is not used, then
- * the call will be eliminated. *)
+   knows of functions returning a result that have
+   no side effects. If the result is not used, then
+   the call will be eliminated. *)
 let callHasNoSideEffects : (instr -> bool) ref =
   ref (fun _ -> false)
 
@@ -38,15 +38,15 @@ let callHasNoSideEffects : (instr -> bool) ref =
 let usedDefsSet = ref IS.empty
 
 (* a mapping d -> {u_1,...,u_n} where d is a
- * definition id, and the u's are definition
- * ids corresponding to definitions in which
- * d was used *)
+   definition id, and the u's are definition
+   ids corresponding to definitions in which
+   d was used *)
 let defUseSetHash = IH.create 100
 
 (* a mapping d -> {sid_1,...,sid_n} where d is
- * a definition id and the sids are statement ids
- * corresponding to non-Instr statements where d
- * was used *)
+   a definition id and the sids are statement ids
+   corresponding to non-Instr statements where d
+   was used *)
 let sidUseSetHash = IH.create 100
 
 (* put used def ids into usedDefsSet *)
@@ -175,12 +175,12 @@ class usedDefsCollectorClass = object(self)
 end
 
 (***************************************************
- * Also need to find reads from volatiles
- * uses two functions I've put in ciltools which
- * are basically what Zach wrote, except one is for
- * types and one is for vars. Another difference is
- * they filter out pointers to volatiles. This
- * handles DMA
+   Also need to find reads from volatiles
+   uses two functions I've put in ciltools which
+   are basically what Zach wrote, except one is for
+   types and one is for vars. Another difference is
+   they filter out pointers to volatiles. This
+   handles DMA
  ***************************************************)
 class hasVolatile flag = object (self)
   inherit nopCilVisitor
@@ -267,7 +267,7 @@ class uselessInstrElim : cilVisitor = object(self)
   method! vstmt stm =
 
     (* give a set of varinfos and an iosh and get
-     * the set of definition ids definining the vars *)
+       the set of definition ids definining the vars *)
     let viSetToDefIdSet iosh vis =
       UD.VS.fold (fun vi s ->
 	if IH.mem iosh vi.vid then
@@ -289,7 +289,7 @@ class uselessInstrElim : cilVisitor = object(self)
 	  true
 	end else begin
 	  (* true if there is something in defuses not in instruses or when
-	   * something from defuses is in instruses and is also used somewhere else *)
+	     something from defuses is in instruses and is also used somewhere else *)
 	  if UD.VS.exists (fun vi -> vi.vglob) instruses then true else
 	  let instruses = viSetToDefIdSet iosh instruses in
 	  IS.fold (fun i' b ->

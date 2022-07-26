@@ -1,42 +1,42 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (** This file was originally part of Hugues Casee's frontc 2.0, and has been
- * extensively changed since.
+   extensively changed since.
 **
 ** 1.0	3.22.99	Hugues Cassé	First version.
 ** 2.0  George Necula 12/12/00: Many extensions
@@ -78,10 +78,10 @@ type typeSpecifier = (* Merge all specifiers into one type *)
   | Tunsigned
   | Tnamed of string
   (* each of the following three kinds of specifiers contains a field
-   * or item list iff it corresponds to a definition (as opposed to
-   * a forward declaration or simple reference to the type); they
-   * also have a list of __attribute__s that appeared between the
-   * keyword and the type name (definitions only) *)
+     or item list iff it corresponds to a definition (as opposed to
+     a forward declaration or simple reference to the type); they
+     also have a list of __attribute__s that appeared between the
+     keyword and the type name (definitions only) *)
   | Tstruct of string * field_group list option * attribute list
   | Tunion of string * field_group list option * attribute list
   | Tenum of string * enum_item list option * attribute list
@@ -119,30 +119,30 @@ and specifier = spec_elem list
 
 
 (* Declarator type. They modify the base type given in the specifier. Keep
- * them in the order as they are printed (this means that the top level
- * constructor for ARRAY and PTR is the inner-level in the meaning of the
- * declared type) *)
+   them in the order as they are printed (this means that the top level
+   constructor for ARRAY and PTR is the inner-level in the meaning of the
+   declared type) *)
 and decl_type =
  | JUSTBASE                               (* Prints the declared name *)
  | PARENTYPE of attribute list * decl_type * attribute list
                                           (* Prints "(attrs1 decl attrs2)".
-                                           * attrs2 are attributes of the
-                                           * declared identifier and it is as
-                                           * if they appeared at the very end
-                                           * of the declarator. attrs1 can
-                                           * contain attributes for the
-                                           * identifier or attributes for the
-                                           * enclosing type.  *)
+                                             attrs2 are attributes of the
+                                             declared identifier and it is as
+                                             if they appeared at the very end
+                                             of the declarator. attrs1 can
+                                             contain attributes for the
+                                             identifier or attributes for the
+                                             enclosing type.  *)
  | ARRAY of decl_type * attribute list * expression
                                           (* Prints "decl [ attrs exp ]".
-                                           * decl is never a PTR. *)
+                                             decl is never a PTR. *)
  | PTR of attribute list * decl_type      (* Prints "* attrs decl" *)
  | PROTO of decl_type * single_name list * bool
                                           (* Prints "decl (args[, ...])".
-                                           * decl is never a PTR.*)
+                                             decl is never a PTR.*)
 
 (* The base type and the storage are common to all names. Each name might
- * contain type or storage modifiers *)
+   contain type or storage modifiers *)
 (* e.g.: int x, y; *)
 and name_group = specifier * name list
 
@@ -154,8 +154,8 @@ and field_group = specifier * (name * expression option) list
 and init_name_group = specifier * init_name list
 
 (* The decl_type is in the order in which they are printed. Only the name of
- * the declared identifier is pulled out. The attributes are those that are
- * printed after the declarator *)
+   the declared identifier is pulled out. The attributes are those that are
+   printed after the declarator *)
 (* e.g: in "int *x", "*x" is the declarator; "x" will be pulled out as *)
 (* the string, and decl_type will be PTR([], JUSTBASE) *)
 and name = string * decl_type * attribute list * cabsloc
@@ -164,7 +164,7 @@ and name = string * decl_type * attribute list * cabsloc
 and init_name = name * init_expression
 
 (* Single names are for declarations that cannot come in groups, like
- * function parameters and functions *)
+   function parameters and functions *)
 and single_name = specifier * name
 
 
@@ -198,7 +198,7 @@ and file = string * definition list
 *)
 
 (* A block contains a list of local label declarations ( GCC's ({ __label__
- * l1, l2; ... }) ) , a list of definitions and a list of statements  *)
+   l1, l2; ... }) ) , a list of definitions and a list of statements  *)
 and block =
     { blabels: string list;
       battrs: attribute list;
@@ -299,10 +299,10 @@ and constant =
   | CONST_STRING of string * encoding
   | CONST_WSTRING of int64 list * wchar_type
     (* ww: wstrings are stored as an int64 list at this point because
-     * we might need to feed the wide characters piece-wise into an
-     * array initializer (e.g., wchar_t foo[] = L"E\xabcd";). If that
-     * doesn't happen we will convert it to an (escaped) string before
-     * passing it to Cil. *)
+       we might need to feed the wide characters piece-wise into an
+       array initializer (e.g., wchar_t foo[] = L"E\xabcd";). If that
+       doesn't happen we will convert it to an (escaped) string before
+       passing it to Cil. *)
 
 and wchar_type = WCHAR_T | CHAR16_T | CHAR32_T | CHAR | CHAR_UTF8
 and encoding = NO_ENCODING | UTF8
@@ -320,5 +320,5 @@ and initwhat =
 
 
                                         (* Each attribute has a name and some
-                                         * optional arguments *)
+                                           optional arguments *)
 and attribute = string * expression list

@@ -22,8 +22,8 @@ let top = { name = "TOTAL";
             sub  = []; }
 
                                         (* The stack of current path through
-                                         * the hierarchy. The first is the
-                                         * leaf. *)
+                                           the hierarchy. The first is the
+                                           leaf. *)
 let current : t list ref = ref [top]
 
 let reset (mode: timerModeEnum) : unit =

@@ -1,45 +1,45 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (* mergecil.ml *)
 (* This module is responsible for merging multiple CIL source trees into
- * a single, coherent CIL tree which contains the union of all the
- * definitions in the source files.  It effectively acts like a linker,
- * but at the source code level instead of the object code level. *)
+   a single, coherent CIL tree which contains the union of all the
+   definitions in the source files.  It effectively acts like a linker,
+   but at the source code level instead of the object code level. *)
 
  module P = Pretty
  open Cil
@@ -53,22 +53,22 @@
  let ignore_merge_conflicts = ref false
 
  (* Try to merge structure with the same name. However, do not complain if
-  * they are not the same *)
+    they are not the same *)
  let mergeSynonyms = true
 
  (** Whether to use path compression *)
  let usePathCompression = false
 
  (* Try to merge definitions of inline functions. They can appear in multiple
-  * files and we would like them all to be the same. This can slow down the
-  * merger an order of magnitude !!! *)
+    files and we would like them all to be the same. This can slow down the
+    merger an order of magnitude !!! *)
  let merge_inlines = ref false
  let mergeInlinesRepeat () = !merge_inlines && true
  let mergeInlinesWithAlphaConvert () = !merge_inlines && true
 
  (* when true, merge duplicate definitions of externally-visible functions;
-  * this uses a mechanism which is faster than the one for inline functions,
-  * but only probabilistically accurate *)
+    this uses a mechanism which is faster than the one for inline functions,
+    but only probabilistically accurate *)
  let mergeGlobals = true
 
  (* Return true if 's' starts with the prefix 'p' *)
@@ -78,8 +78,8 @@
    lp <= ls && String.sub s 0 lp = p
 
  (* A name is identified by the index of the file in which it occurs (starting
-  * at 0 with the first file) and by the actual name. We'll keep name spaces
-  * separate *)
+    at 0 with the first file) and by the actual name. We'll keep name spaces
+    separate *)
 
  (* We define a data structure for the equivalence classes *)
  type 'a node = {
@@ -88,24 +88,24 @@
    ndata : 'a; (* Data associated with the node *)
    mutable nloc : (location * int) option;
    (* location where defined and index within the file of the definition.
-    * If None then it means that this node actually DOES NOT appear in the
-    * given file. In rare occasions we need to talk in a given file about
-    * types that are not defined in that file. This happens with undefined
-    * structures but also due to cross-contamination of types in a few of
-    * the cases of combineType (see the definition of combineTypes). We
-    * try never to choose as representatives nodes without a definition.
-    * We also choose as representative the one that appears earliest *)
+      If None then it means that this node actually DOES NOT appear in the
+      given file. In rare occasions we need to talk in a given file about
+      types that are not defined in that file. This happens with undefined
+      structures but also due to cross-contamination of types in a few of
+      the cases of combineType (see the definition of combineTypes). We
+      try never to choose as representatives nodes without a definition.
+      We also choose as representative the one that appears earliest *)
    mutable nrep : 'a node;
    (* A pointer to another node in its class (one
-    * closer to the representative). The nrep node
-    * is always in an earlier file, except for the
-    * case where a name is undefined in one file
-    * and defined in a later file. If this pointer
-    * points to the node itself then this is the
-    * representative. *)
+      closer to the representative). The nrep node
+      is always in an earlier file, except for the
+      case where a name is undefined in one file
+      and defined in a later file. If this pointer
+      points to the node itself then this is the
+      representative. *)
    mutable nmergedSyns : bool;
        (* Whether we have merged the synonyms for
-        * the node of this name *)
+          the node of this name *)
  }
 
  let d_nloc () (lo : (location * int) option) : P.doc =
@@ -147,19 +147,19 @@
      res
 
  (* Union two nodes and return the new representative. We prefer as the
-  * representative a node defined earlier. We try not to use as
-  * representatives nodes that are not defined in their files. We return a
-  * function for undoing the union. Make sure that between the union and the
-  * undo you do not do path compression *)
+    representative a node defined earlier. We try not to use as
+    representatives nodes that are not defined in their files. We return a
+    function for undoing the union. Make sure that between the union and the
+    undo you do not do path compression *)
  let union (nd1 : 'a node) (nd2 : 'a node) : 'a node * (unit -> unit) =
    (* Move to the representatives *)
    let nd1 = find true nd1 in
    let nd2 = find true nd2 in
    if nd1 == nd2 then
      ( (* It can happen that we are trying to union two nodes that are already
-        * equivalent. This is because between the time we check that two nodes
-        * are not already equivalent and the time we invoke the union operation
-        * we check type isomorphism which might change the equivalence classes *)
+          equivalent. This is because between the time we check that two nodes
+          are not already equivalent and the time we invoke the union operation
+          we check type isomorphism which might change the equivalence classes *)
        (*
      ignore (warn "unioning already equivalent nodes for %s(%d)"
                nd1.nname nd1.nfidx);
@@ -190,10 +190,10 @@
                  (nd1, nd2))
            | _, _ ->
                (* both none. Does not matter which one we choose. Should
-                  * not happen though. *)
+                    not happen though. *)
                (* sm: it does happen quite a bit when, e.g. merging STLport with
-                * some client source; I'm disabling the warning since it supposedly
-                * is harmless anyway, so is useless noise *)
+                  some client source; I'm disabling the warning since it supposedly
+                  is harmless anyway, so is useless noise *)
                (* sm: re-enabling on claim it now will probably not happen *)
                ignore
                  (warn
@@ -239,7 +239,7 @@
      None
 
  (* Make a node if one does not already exist. Otherwise return the
-  * representative *)
+    representative *)
  let getNode (eq : (int * string, 'a node) H.t) (syn : (string, 'a node) H.t)
      (fidx : int) (name : string) (data : 'a) (l : (location * int) option) =
    let debugGetNode = false in
@@ -291,7 +291,7 @@
  let iEq : (int * string, varinfo node) H.t = H.create 111 (* Inlines *)
 
  (* Sometimes we want to merge synonyms. We keep some tables indexed by names.
-  * Each name is mapped to multiple entries *)
+    Each name is mapped to multiple entries *)
  let vSyn : (string, varinfo node) H.t = H.create 111 (* Not actually used *)
 
  let iSyn : (string, varinfo node) H.t = H.create 111 (* Inlines *)
@@ -301,16 +301,16 @@
  let tSyn : (string, typeinfo node) H.t = H.create 111
 
  (** A global environment for variables. Put in here only the non-static
-   * variables, indexed by their name.  *)
+     variables, indexed by their name.  *)
  let vEnv : (string, varinfo node) H.t = H.create 111
 
  (* A set of inline functions indexed by their printout ! *)
  let inlineBodies : (P.doc, varinfo node) H.t = H.create 111
 
  (** A number of alpha conversion tables. We ought to keep one table for each
-  * name space. Unfortunately, because of the way the C lexer works, type
-  * names must be different from variable names!! We one alpha table both for
-  * variables and types. *)
+    name space. Unfortunately, because of the way the C lexer works, type
+    names must be different from variable names!! We one alpha table both for
+    variables and types. *)
  let vtAlpha : (string, location A.alphaTableData ref) H.t = H.create 57
  (* Variables and types *)
 
@@ -321,9 +321,9 @@
  (* Enumerations *)
 
  (** Keep track, for all global function definitions, of the names of the formal
-  * arguments. They might change during merging of function types if the
-  * prototype occurs after the function definition and uses different names.
-  * We'll restore the names at the end *)
+    arguments. They might change during merging of function types if the
+    prototype occurs after the function definition and uses different names.
+    We'll restore the names at the end *)
  let formalNames : (int * string, string list) H.t = H.create 111
 
  (* Accumulate here the globals in the merged file *)
@@ -340,8 +340,8 @@
  let currentFidx = ref 0
  let currentDeclIdx = ref 0
  (* The index of the definition in a file. This is
-  * maintained both in pass 1 and in pass 2. Make
-  * sure you count the same things in both passes. *)
+    maintained both in pass 1 and in pass 2. Make
+    sure you count the same things in both passes. *)
 
  (* Keep here the file names *)
  let fileNames : (int, string) H.t = H.create 113
@@ -353,7 +353,7 @@
  let emittedVarDecls : (string, bool) H.t = H.create 113
 
  (* also keep track of externally-visible function definitions;
-  * name maps to declaration, location, and semantic checksum *)
+    name maps to declaration, location, and semantic checksum *)
  let emittedFunDefn : (string, fundec * location * int) H.t = H.create 113
 
  (* and same for variable definitions; name maps to GVar fields *)
@@ -361,7 +361,7 @@
    H.create 113
 
  (** A mapping from the new names to the original names. Used in PASS2 when we
-  * rename variables. *)
+    rename variables. *)
  let originalVarNames : (string, string) H.t = H.create 113
 
  (* Initialize the module *)
@@ -403,8 +403,8 @@
    H.clear originalVarNames
 
  (* Some enumerations have to be turned into an integer. We implement this by
-  * introducing a special enumeration type which we'll recognize later to be
-  * an integer *)
+    introducing a special enumeration type which we'll recognize later to be
+    an integer *)
  let intEnumInfo =
    {
      ename = "!!!intEnumInfo!!!";
@@ -420,14 +420,14 @@
    getNode eEq eSyn 0 intEnumInfo.ename intEnumInfo (Some (locUnknown, 0))
 
  (* Combine the types. Raises the Failure exception with an error message.
-  * isdef says whether the new type is for a definition *)
+    isdef says whether the new type is for a definition *)
  type combineWhat =
    | CombineFundef (* The new definition is for a function definition. The old
-                    * is for a prototype *)
+                      is for a prototype *)
    | CombineFunarg (* Comparing a function argument type with an old prototype
-                    * arg *)
+                      arg *)
    | CombineFunret (* Comparing the return of a function with that from an old
-                    * prototype *)
+                      prototype *)
    | CombineOther
 
  (** Construct the composite type of [oldt] and [t] if they are compatible.
@@ -454,7 +454,7 @@
            if oldk == k then oldk
            else if
              (* GCC allows a function definition to have a more precise integer
-              * type than a prototype that says "int" *)
+                type than a prototype that says "int" *)
              oldk = IInt
              && bitsSizeOf t <= 32
              && (what = CombineFunarg || what = CombineFunret)
@@ -473,7 +473,7 @@
            if oldk == k then oldk
            else if
              (* GCC allows a function definition to have a more precise integer
-              * type than a prototype that says "double" *)
+                type than a prototype that says "double" *)
              oldk = FDouble && k = FFloat
              && (what = CombineFunarg || what = CombineFunret)
            then k
@@ -482,14 +482,14 @@
          TFloat (combineFK oldfk fk, addAttributes olda a)
      | TEnum (oldei, olda), TEnum (ei, a) ->
          (* Matching enumerations always succeeds. But sometimes it maps both
-          * enumerations to integers *)
+            enumerations to integers *)
          matchEnumInfo oldfidx oldei fidx ei;
          TEnum (oldei, addAttributes olda a)
          (* Strange one. But seems to be handled by GCC *)
      | TEnum (oldei, olda), TInt (IInt, a) ->
          TEnum (oldei, addAttributes olda a)
          (* Strange one. But seems to be handled by GCC. Warning. Here we are
-          * leaking types from new to old *)
+            leaking types from new to old *)
      | TInt (IInt, olda), TEnum (ei, a) -> TEnum (ei, addAttributes olda a)
      | TComp (oldci, olda), TComp (ci, a) ->
          matchCompInfo oldfidx oldci fidx ci;
@@ -527,7 +527,7 @@
          in
          if oldva != va then raise (Failure "(different vararg specifiers)");
          (* If one does not have arguments, believe the one with the
-            * arguments *)
+              arguments *)
          let newargs =
            if oldargs = None then args
            else if args = None then oldargs
@@ -538,7 +538,7 @@
                raise (Failure "(different number of arguments)")
              else
                (* Go over the arguments and update the old ones with the
-                  * adjusted types *)
+                    adjusted types *)
                Some
                  (List.map2
                     (fun (on, ot, oa) (an, at, aa) ->
@@ -587,7 +587,7 @@
      raise (Failure "(different struct/union types)");
    (* See if we have a mapping already *)
    (* Make the nodes if not already made. Actually return the
-      * representatives *)
+        representatives *)
    let oldcinode = getNode sEq sSyn oldfidx oldci.cname oldci None in
    let cinode = getNode sEq sSyn fidx ci.cname ci None in
    if oldcinode == cinode then (* We already know they are the same *)
@@ -602,11 +602,11 @@
      let old_len = List.length oldci.cfields in
      let len = List.length ci.cfields in
      (* It is easy to catch here the case when the new structure is undefined
-      * and the old one was defined. We just reuse the old *)
+        and the old one was defined. We just reuse the old *)
      (* More complicated is the case when the old one is not defined but the
-      * new one is. We still reuse the old one and we'll take care of defining
-      * it later with the new fields.
-      * GN: 7/10/04, I could not find when is "later", so I added it below *)
+        new one is. We still reuse the old one and we'll take care of defining
+        it later with the new fields.
+        GN: 7/10/04, I could not find when is "later", so I added it below *)
      if len <> 0 && old_len <> 0 && old_len <> len then (
        let curLoc = !currentLoc in
        (* d_global blows this away.. *)
@@ -622,13 +622,13 @@
        in
        raise (Failure msg));
      (* We check that they are defined in the same way. While doing this there
-      * might be recursion and we have to watch for going into an infinite
-      * loop. So we add the assumption that they are equal *)
+        might be recursion and we have to watch for going into an infinite
+        loop. So we add the assumption that they are equal *)
      let newrep, undo = union oldcinode cinode in
      (* We check the fields but watch for Failure. We only do the check when
-      * the lengths are the same. Due to the code above this the other
-      * possibility is that one of the length is 0, in which case we reuse the
-      * old compinfo. *)
+        the lengths are the same. Due to the code above this the other
+        possibility is that one of the length is 0, in which case we reuse the
+        old compinfo. *)
      (* But what if the old one is the empty one ? *)
      if old_len = len then (
        try
@@ -660,12 +660,12 @@
          raise (Failure msg))
      else if
        (* We will reuse the old one. One of them is empty. If the old one is
-        * empty, copy over the fields from the new one. Won't this result in
-        * all sorts of undefined types??? *)
+          empty, copy over the fields from the new one. Won't this result in
+          all sorts of undefined types??? *)
        old_len = 0
      then oldci.cfields <- ci.cfields;
      (* We get here when we succeeded checking that they are equal, or one of
-      * them was empty *)
+        them was empty *)
      newrep.ndata.cattr <- addAttributes oldci.cattr ci.cattr;
      ()
 
@@ -687,7 +687,7 @@
        if List.length oldei.eitems <> List.length ei.eitems then
          raise (Failure "(different number of enumeration elements)");
        (* We check that they are defined in the same way. This is a fairly
-          * conservative check. *)
+            conservative check. *)
        List.iter2
          (fun (old_iname, old_iv, _) (iname, iv, _) ->
            if old_iname <> iname then
@@ -745,11 +745,11 @@
 
  (* Scan all files and do two things *)
  (* 1. Initialize the alpha renaming tables with the names of the globals so
-  * that when we come in the second pass to generate new names, we do not run
-  * into conflicts. *)
+    that when we come in the second pass to generate new names, we do not run
+    into conflicts. *)
  (* 2. For all declarations of globals unify their types. In the process
-  * construct a set of equivalence classes on type names, structure and
-  * enumeration tags *)
+    construct a set of equivalence classes on type names, structure and
+    enumeration tags *)
  (* 3. We clean the referenced flags *)
 
  let oneFilePass1 (f : file) : unit =
@@ -761,8 +761,8 @@
      E.s (E.warn "Merging file %s has global initializer" f.fileName);
 
    (* We scan each file and we look at all global varinfo. We see if globals
-    * with the same name have been encountered before and we merge those types
-    * *)
+      with the same name have been encountered before and we merge those types
+      *)
    let matchVarinfo (vi : varinfo) (l : location * int) =
      ignore
        (Alpha.registerAlphaName ~alphaTable:vtAlpha ~undolist:None
@@ -778,7 +778,7 @@
        in
        let oldvi = oldvinode.ndata in
        (* There is an old definition. We must combine the types. Do this first
-        * because it might fail *)
+          because it might fail *)
        let newtype =
          try
            combineTypes CombineOther oldvinode.nfidx oldvi.vtype !currentFidx
@@ -799,8 +799,8 @@
        in
        let newrep, _ = union oldvinode vinode in
        (* We do not want to turn non-"const" globals into "const" one. That
-        * can happen if one file declares the variable a non-const while
-        * others declare it as "const". *)
+          can happen if one file declares the variable a non-const while
+          others declare it as "const". *)
        if
          hasAttribute "const" (typeAttrs vi.vtype)
          != hasAttribute "const" (typeAttrs oldvi.vtype)
@@ -815,7 +815,7 @@
            oldvi.vstorage
          else if oldvi.vstorage = Extern then vi.vstorage
            (* Sometimes we turn the NoStorage specifier into Static for inline
-            * functions *)
+              functions *)
          else if oldvi.vstorage = Static && vi.vstorage = NoStorage then Static
          else (
            ignore
@@ -831,7 +831,7 @@
        ()
      with Not_found ->
        (* Not present in the previous files. Remember it for
-        * later *)
+          later *)
        H.add vEnv vi.vname vinode
    in
 
@@ -853,7 +853,7 @@
            fdec.svar.vreferenced <- false;
            (* Force inline functions to be static. *)
            (* GN: This turns out to be wrong. inline functions are external,
-            * unless specified to be static. *)
+              unless specified to be static. *)
            (*
            if fdec.svar.vinline && fdec.svar.vstorage = NoStorage then
              fdec.svar.vstorage <- Static;
@@ -871,13 +871,13 @@
            t.treferenced <- false;
            if t.tname <> "" then
              (* The empty names are just for introducing
-              * undefined comp tags *)
+                undefined comp tags *)
              ignore
                (getNode tEq tSyn !currentFidx t.tname t
                   (Some (l, !currentDeclIdx)))
            else
              (* Go inside and clean the referenced flag for the
-              * declared tags *)
+                declared tags *)
              match t.ttype with
              | TComp (ci, _) ->
                  ci.creferenced <- false;
@@ -907,7 +907,7 @@
      (eq : (int * string, 'a node) H.t)
      (compare : int -> 'a -> int -> 'a -> unit) : unit =
    (* A comparison function that
-    * throws Failure if no match *)
+      throws Failure if no match *)
    H.iter
      (fun n node ->
        if not node.nmergedSyns then
@@ -915,9 +915,9 @@
          let all = H.find_all syn n in
          let tryone (classes : 'a node list)
              (* A number of representatives
-                  * for this name *) (nd : 'a node) : 'a node list
+                    for this name *) (nd : 'a node) : 'a node list
              (* Returns an expanded set
-              * of classes *) =
+                of classes *) =
            nd.nmergedSyns <- true;
            (* Compare in turn with all the classes we have so far *)
            let rec compareWithClasses = function
@@ -949,26 +949,26 @@
      let i = inode.ndata in
      let fidx = inode.nfidx in
      (* There is an old definition. We must combine the types. Do this first
-      * because it might fail *)
+        because it might fail *)
      oldi.vtype <- combineTypes CombineOther oldfidx oldi.vtype fidx i.vtype;
      (* We get here if we have success *)
      (* Combine the attributes as well *)
      oldi.vattr <- addAttributes oldi.vattr i.vattr;
      (* Do not union them yet because we do not know that they are the same.
-      * We have checked only the types so far *)
+        We have checked only the types so far *)
      ()
 
  (************************************************************
-  *
-  *  PASS 2
-  *
-  *
+
+     PASS 2
+
+
   ************************************************************)
 
  (** Keep track of the functions we have used already in the file. We need
-   * this to avoid removing an inline function that has been used already.
-   * This can only occur if the inline function is defined after it is used
-   * already; a bad style anyway *)
+     this to avoid removing an inline function that has been used already.
+     This can only occur if the inline function is defined after it is used
+     already; a bad style anyway *)
  let varUsedAlready : (string, unit) H.t = H.create 111
 
  (** A visitor that renames uses of variables and types *)
@@ -977,7 +977,7 @@
      inherit nopCilVisitor
 
      (* This is either a global variable which we took care of, or a local
-      * variable. Must do its type and attributes. *)
+        variable. Must do its type and attributes. *)
      method! vvdec (vi : varinfo) = DoChildren
 
      method! vglob (g : global) : global list visitAction =
@@ -1026,7 +1026,7 @@
              ChangeTo vi'
 
      (* The use of a type. Change only those types whose underlying info
-      * is not a root. *)
+        is not a root. *)
      method! vtype (t : typ) =
        match t with
        | TComp (ci, a) when not ci.creferenced -> (
@@ -1093,9 +1093,9 @@
  let renameVisitor = new renameVisitorClass
 
  (** A visitor that renames uses of inline functions that were discovered in
-  * pass 2 to be used before they are defined. This is like the renameVisitor
-  * except it only looks at the variables (thus it is a bit more efficient)
-  * and it also renames forward declarations of the inlines to be removed. *)
+    pass 2 to be used before they are defined. This is like the renameVisitor
+    except it only looks at the variables (thus it is a bit more efficient)
+    and it also renames forward declarations of the inlines to be removed. *)
 
  class renameInlineVisitorClass =
    object (self)
@@ -1118,7 +1118,7 @@
              ChangeTo vi'
 
      (* And rename some declarations of inlines to remove. We cannot drop this
-      * declaration (see small1/combineinline6) *)
+        declaration (see small1/combineinline6) *)
      method! vglob =
        function
        | GVarDecl (vi, l) when vi.vinline -> (
@@ -1136,18 +1136,18 @@
  let renameInlinesVisitor = new renameInlineVisitorClass
 
  (* sm: First attempt at a semantic checksum for function bodies.
-  * Ideally, two function's checksums would be equal only when their
-  * bodies were provably equivalent; but I'm using a much simpler and
-  * less accurate heuristic here.  It should be good enough for the
-  * purpose I have in mind, which is doing duplicate removal of
-  * multiply-instantiated template functions. *)
+    Ideally, two function's checksums would be equal only when their
+    bodies were provably equivalent; but I'm using a much simpler and
+    less accurate heuristic here.  It should be good enough for the
+    purpose I have in mind, which is doing duplicate removal of
+    multiply-instantiated template functions. *)
  let functionChecksum (dec : fundec) : int =
    (* checksum the structure of the statements (only) *)
    let rec stmtListSum (lst : stmt list) : int =
      List.fold_left (fun acc s -> acc + stmtSum s) 0 lst
    and stmtSum (s : stmt) : int =
      (* strategy is to just throw a lot of prime numbers into the
-      * computation in hopes of avoiding accidental collision.. *)
+        computation in hopes of avoiding accidental collision.. *)
      match s.skind with
      | Instr l -> 13 + (67 * List.length l)
      | Return _ -> 17
@@ -1162,9 +1162,9 @@
    in
 
    (* disabled 2nd and 3rd measure because they appear to get different
-    * values, for the same code, depending on whether the code was just
-    * parsed into CIL or had previously been parsed into CIL, printed
-    * out, then re-parsed into CIL *)
+      values, for the same code, depending on whether the code was just
+      parsed into CIL or had previously been parsed into CIL, printed
+      out, then re-parsed into CIL *)
    let a, b, c, d, e =
      ( List.length dec.sformals,
        (* # formals *)
@@ -1182,13 +1182,13 @@
    (2 * a) + (3 * b) + (5 * c) + (7 * d) + (11 * e)
 
  (* sm: equality for initializers, etc.; this is like '=', except
-  * when we reach shared pieces (like references into the type
-  * structure), we use '==', to prevent circularity *)
+    when we reach shared pieces (like references into the type
+    structure), we use '==', to prevent circularity *)
  (* update: that's no good; I'm using this to find things which
-  * are equal but from different CIL trees, so nothing will ever
-  * be '=='.. as a hack I'll just change those places to 'true',
-  * so these functions are not now checking proper equality..
-  * places where equality is not complete are marked "INC" *)
+    are equal but from different CIL trees, so nothing will ever
+    be '=='.. as a hack I'll just change those places to 'true',
+    so these functions are not now checking proper equality..
+    places where equality is not complete are marked "INC" *)
  let rec equalInits (x : init) (y : init) : bool =
    match (x, y) with
    | SingleInit xe, SingleInit ye -> equalExps xe ye
@@ -1244,7 +1244,7 @@
    | AddrOf xl, AddrOf yl -> equalLvals xl yl
    | StartOf xl, StartOf yl -> equalLvals xl yl
    (* initializers that go through CIL multiple times sometimes lose casts they
-    * had the first time; so allow a different of a cast *)
+      had the first time; so allow a different of a cast *)
    | CastE (xt, xe), ye -> equalExps xe ye
    | xe, CastE (yt, ye) -> equalExps xe ye
    | _, _ -> false
@@ -1253,8 +1253,8 @@
    match (x, y) with
    | (Var xv, xo), (Var yv, yo) ->
        (* I tried, I really did.. the problem is I see these names
-        * before merging collapses them, so __T123 != __T456,
-        * so whatever *)
+          before merging collapses them, so __T123 != __T456,
+          so whatever *)
        (*(xv.vname = vy.vname) &&      (* INC: same varinfo names.. *)*)
        equalOffsets xo yo
    | (Mem xe, xo), (Mem ye, yo) -> equalExps xe ye && equalOffsets xo yo
@@ -1275,7 +1275,7 @@
    let newname = fdec'.svar.vname in
    fdec'.svar.vname <- "@@alphaname@@";
    (* If we must do alpha conversion then temporarily set the
-    * names of the local variables and formals in a standard way *)
+      names of the local variables and formals in a standard way *)
    let nameId = ref 0 in
    let oldNames : string list ref = ref [] in
    let renameOne (v : varinfo) =
@@ -1313,9 +1313,9 @@
    res
 
  (* Now we go once more through the file and we rename the globals that we
-  * keep. We also scan the entire body and we replace references to the
-  * representative types or variables. We set the referenced flags once we
-  * have replaced the names. *)
+    keep. We also scan the entire body and we replace references to the
+    representative types or variables. We set the referenced flags once we
+    have replaced the names. *)
  let oneFilePass2 (f : file) =
    if debugMerge || !E.verboseFlag then
      ignore (E.log "Final merging phase (%d): %s\n" !currentFidx f.fileName);
@@ -1324,8 +1324,8 @@
    H.clear varUsedAlready;
    H.clear originalVarNames;
    (* If we find inline functions that are used before being defined, and thus
-    * before knowing that we can throw them away, then we mark this flag so
-    * that we can make another pass over the file *)
+      before knowing that we can throw them away, then we mark this flag so
+      that we can make another pass over the file *)
    let repeatPass2 = ref false in
    (* Keep a pointer to the contents of the file so far *)
    let savedTheFile = !theFile in
@@ -1434,8 +1434,8 @@
                let oldinode = H.find inlineBodies printout in
                if debugInlines then ignore (E.log "  Matches %s(%d)\n" oldinode.nname oldinode.nfidx);
                (* There is some other inline function with the same printout.
-                * We should reuse this, but watch for the case when the inline
-                * was already used. *)
+                  We should reuse this, but watch for the case when the inline
+                  was already used. *)
                if H.mem varUsedAlready fdec'.svar.vname then
                  if mergeInlinesRepeat () then repeatPass2 := true
                  else (
@@ -1443,8 +1443,8 @@
                    raise Not_found);
                let _ = union oldinode inode in
                (* Clean up the vreferenced bit in the new inline, so that we
-                * can rename it. Reset the name to the original one so that
-                * we can find the replacement name. *)
+                  can rename it. Reset the name to the original one so that
+                  we can find the replacement name. *)
                fdec'.svar.vreferenced <- false;
                fdec'.svar.vname <- origname;
                ()
@@ -1511,11 +1511,11 @@
                  (* Now we should visit the fields as well *)
                  H.add emittedCompDecls ci.cname true;
                  (* Remember that we
-                  * emitted it *)
+                    emitted it *)
                  mergePushGlobals (visitCilGlobal renameVisitor g)
              | Some (oldci, oldfidx) ->
                  (* We are not the representative. Drop this declaration
-                  * because we'll not be using it. *)
+                    because we'll not be using it. *)
                  ())
        | GEnumTag (ei, l) as g -> (
            currentLoc := l;
@@ -1532,7 +1532,7 @@
                  ei.ename <- newname;
                  ei.ereferenced <- true;
                  (* And we must rename the items to using the same name space
-                  * as the variables *)
+                    as the variables *)
                  ei.eitems <-
                    Util.list_map
                      (fun (n, i, loc) ->
@@ -1545,15 +1545,15 @@
                  mergePushGlobals (visitCilGlobal renameVisitor g)
              | Some (ei', _) ->
                  (* Drop this since we are reusing it from
-                  * before *)
+                    before *)
                  ())
        | GCompTagDecl (ci, l) ->
            currentLoc := l;
            (* This is here just to introduce an undefined
-            * structure. But maybe the structure was defined
-            * already. *)
+              structure. But maybe the structure was defined
+              already. *)
            (* Do not increment currentDeclIdx because it is not incremented in
-            * pass 1*)
+              pass 1*)
            if H.mem emittedCompDecls ci.cname then ()
              (* It was already declared *)
            else (
@@ -1563,7 +1563,7 @@
        | GEnumTagDecl (ei, l) ->
            currentLoc := l;
            (* Do not increment currentDeclIdx because it is not incremented in
-            * pass 1*)
+              pass 1*)
            (* Keep it as a declaration *)
            mergePushGlobal g
        | GType (ti, l) as g -> (
@@ -1583,7 +1583,7 @@
                  mergePushGlobals (visitCilGlobal renameVisitor g)
              | Some (ti', _) ->
                  (* Drop this since we are reusing it from
-                    * before *)
+                      before *)
                  ())
        | g -> mergePushGlobals (visitCilGlobal renameVisitor g)
      with e ->
@@ -1603,14 +1603,14 @@
    (* Now do the real PASS 2 *)
    List.iter processOneGlobal f.globals;
    (* See if we must re-visit the globals in this file because an inline that
-    * is being removed was used before we saw the definition and we decided to
-    * remove it *)
+      is being removed was used before we saw the definition and we decided to
+      remove it *)
    if mergeInlinesRepeat () && !repeatPass2 then (
      if debugMerge || !E.verboseFlag then
        ignore
          (E.log "Repeat final merging phase (%d): %s\n" !currentFidx f.fileName);
      (* We are going to rescan the globals we have added while processing this
-      * file. *)
+        file. *)
      let theseGlobals : global list ref = ref [] in
      (* Scan a list of globals until we hit a given tail *)
      let rec scanUntil (tail : 'a list) (l : 'a list) =
@@ -1655,7 +1655,7 @@
      doMergeSynonyms tSyn tEq matchTypeInfo;
      if !merge_inlines then (
        (* Copy all the nodes from the iEq to vEq as well. This is needed
-        * because vEq will be used for variable renaming *)
+          because vEq will be used for variable renaming *)
        H.iter (fun k n -> H.add vEq k n) iEq;
        doMergeSynonyms iSyn iEq matchInlines));
 
@@ -1667,7 +1667,7 @@
      dumpGraph "variable" vEq;
      if !merge_inlines then dumpGraph "inline" iEq);
    (* Make the second pass over the files. This is when we start rewriting the
-    * file *)
+      file *)
    currentFidx := 0;
    List.iter
      (fun f ->
@@ -1688,6 +1688,6 @@
    init ();
    (* Make the GC happy *)
    (* We have made many renaming changes and sometimes we have just guessed a
-    * name wrong. Make sure now that the local names are unique. *)
+      name wrong. Make sure now that the local names are unique. *)
    uniqueVarNames res;
    res

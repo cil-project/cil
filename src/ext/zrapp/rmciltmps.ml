@@ -147,9 +147,9 @@ let writes_between f dsid sid =
       from_stm || from_dstm)
 
 (* returns true when the variables in uses
- * have the same definition ids in both curiosh
- * and defiosh or are global and not defined in
- * the current function *)
+   have the same definition ids in both curiosh
+   and defiosh or are global and not defined in
+   the current function *)
 let verify_unmodified uses fdefs curiosh defiosh =
   UD.VS.fold (fun vi b ->
     let curido = RD.iosh_singleton_lookup curiosh vi in
@@ -414,12 +414,12 @@ let forms = [Exact "tmp";
 	     Suffix "__b";]
 
 (* action: 'a -> varinfo -> fundec -> bool -> exp option
- * iosh: 'a
- * fd: fundec
- * nofrm: bool
- *
- * Replace Lval(Var vi, NoOffset) with
- * e where action iosh sid vi fd nofrm returns Some(e) *)
+   iosh: 'a
+   fd: fundec
+   nofrm: bool
+
+   Replace Lval(Var vi, NoOffset) with
+   e where action iosh sid vi fd nofrm returns Some(e) *)
 let varXformClass action data sid fd nofrm = object(self)
     inherit nopCilVisitor
 
@@ -443,12 +443,12 @@ let varXformClass action data sid fd nofrm = object(self)
 end
 
 (* action: 'a -> lval -> fundec -> bool -> exp option
- * lvh: 'a
- * fd: fundec
- * nofrm: bool
- *
- * Replace Lval(lv) with
- * e where action lvh sid lv fd nofrm returns Some(e) *)
+   lvh: 'a
+   fd: fundec
+   nofrm: bool
+
+   Replace Lval(lv) with
+   e where action lvh sid lv fd nofrm returns Some(e) *)
 let lvalXformClass action data sid fd nofrm = object(self)
   inherit nopCilVisitor
 

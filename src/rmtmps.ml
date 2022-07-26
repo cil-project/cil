@@ -1,39 +1,39 @@
 (*
- *
- * Copyright (c) 2001-2002,
- *  George C. Necula    <necula@cs.berkeley.edu>
- *  Scott McPeak        <smcpeak@cs.berkeley.edu>
- *  Wes Weimer          <weimer@cs.berkeley.edu>
- *  Ben Liblit          <liblit@cs.berkeley.edu>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * 1. Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. The names of the contributors may not be used to endorse or promote
- * products derived from this software without specific prior written
- * permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- * PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
- * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+
+   Copyright (c) 2001-2002,
+    George C. Necula    <necula@cs.berkeley.edu>
+    Scott McPeak        <smcpeak@cs.berkeley.edu>
+    Wes Weimer          <weimer@cs.berkeley.edu>
+    Ben Liblit          <liblit@cs.berkeley.edu>
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+   1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   3. The names of the contributors may not be used to endorse or promote
+   products derived from this software without specific prior written
+   permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+   IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+   TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+   PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
  *)
 
 (* rmtmps.ml *)
@@ -55,9 +55,9 @@ let trace = Trace.trace "rmtmps"
 
 
 (***********************************************************************
- *
- *  Clearing of "referenced" bits
- *
+
+    Clearing of "referenced" bits
+
  *)
 
 
@@ -99,9 +99,9 @@ let clearReferencedBits file =
 
 
 (***********************************************************************
- *
- *  Scanning and categorization of pragmas
- *
+
+    Scanning and categorization of pragmas
+
  *)
 
 
@@ -124,8 +124,8 @@ let ccureddeepcopystring = "ccureddeepcopy"
 let ccureddeepcopystring_length = String.length ccureddeepcopystring
 
 (* CIL and CCured define several pragmas which prevent removal of
- * various global symbols.  Here we scan for those pragmas and build
- * up collections of the corresponding symbols' names.
+   various global symbols.  Here we scan for those pragmas and build
+   up collections of the corresponding symbols' names.
  *)
 
 let categorizePragmas file =
@@ -149,7 +149,7 @@ let categorizePragmas file =
     function
       | GPragma (Attr ("cilnoremove" as directive, args), location) ->
 	  (* a very flexible pragma: can retain typedefs, enums,
-	   * structs, unions, or globals (functions or variables) *)
+	     structs, unions, or globals (functions or variables) *)
 	  begin
 	    let processArg arg =
 	      try
@@ -158,9 +158,9 @@ let categorizePragmas file =
 		    (* isolate and categorize one symbol name *)
 		    let collection, name =
 		      (* Two words denotes a typedef, enum, struct, or
-		       * union, as in "type foo" or "enum bar".  A
-		       * single word denotes a global function or
-		       * variable. *)
+		         union, as in "type foo" or "enum bar".  A
+		         single word denotes a global function or
+		         variable. *)
 		      let whitespace = Str.regexp "[ \t]+" in
 		      let words = Str.split whitespace specifier in
 		      match words with
@@ -241,16 +241,16 @@ let categorizePragmas file =
 
 
 (***********************************************************************
- *
- *  Function body elimination from pragmas
- *
+
+    Function body elimination from pragmas
+
  *)
 
 
 (* When performing global slicing, any functions not explicitly marked
- * as pragma roots are reduced to mere declarations.  This leaves one
- * with a reduced source file that still compiles to object code, but
- * which contains the bodies of only explicitly retained functions.
+   as pragma roots are reduced to mere declarations.  This leaves one
+   with a reduced source file that still compiles to object code, but
+   which contains the bodies of only explicitly retained functions.
  *)
 
 let amputateFunctionBodies keptGlobals file =
@@ -267,9 +267,9 @@ let amputateFunctionBodies keptGlobals file =
 
 
 (***********************************************************************
- *
- *  Root collection from pragmas
- *
+
+    Root collection from pragmas
+
  *)
 
 
@@ -294,9 +294,9 @@ let isPragmaRoot keepers = function
 
 
 (***********************************************************************
- *
- *  Common root collecting utilities
- *
+
+    Common root collecting utilities
+
  *)
 
 
@@ -311,22 +311,22 @@ let hasExportingAttribute funvar =
 
 
 (***********************************************************************
- *
- *  Root collection from external linkage
- *
+
+    Root collection from external linkage
+
  *)
 
 
 (* Exported roots are those global symbols which are visible to the
- * linker and dynamic loader.  For variables, this consists of
- * anything that is not "static".  For functions, this consists of:
- *
- * - functions bearing a "constructor" or "destructor" attribute
- * - functions declared extern but not inline
- * - functions declared neither inline nor static
- *
- * gcc incorrectly (according to C99) makes inline functions visible to
- * the linker.
+   linker and dynamic loader.  For variables, this consists of
+   anything that is not "static".  For functions, this consists of:
+
+   - functions bearing a "constructor" or "destructor" attribute
+   - functions declared extern but not inline
+   - functions declared neither inline nor static
+
+   gcc incorrectly (according to C99) makes inline functions visible to
+   the linker.
  *)
 
 let isExportedRoot global =
@@ -358,15 +358,15 @@ let isExportedRoot global =
 
 
 (***********************************************************************
- *
- *  Root collection for complete programs
- *
+
+    Root collection for complete programs
+
  *)
 
 
 (* Exported roots are "main()" and functions bearing a "constructor"
- * or "destructor" attribute.  These are the only things which must be
- * retained in a complete program.
+   or "destructor" attribute.  These are the only things which must be
+   retained in a complete program.
  *)
 
 let isCompleteProgramRoot global =
@@ -384,9 +384,9 @@ let isCompleteProgramRoot global =
 
 
 (***********************************************************************
- *
- *  Transitive reachability closure from roots
- *
+
+    Transitive reachability closure from roots
+
  *)
 
 
@@ -429,7 +429,7 @@ class markReachableVisitor
 	  trace (dprintf "marking transitive use: local %s\n" name);
 
         (* If this is a global, we need to keep everything used in its
-	 * definition and declarations. *)
+	   definition and declarations. *)
 	if v.vglob then
 	  begin
 	    trace (dprintf "descending: global %s\n" name);
@@ -512,7 +512,7 @@ end
 
 let markReachable file isRoot =
   (* build a mapping from global names back to their definitions &
-   * declarations *)
+     declarations *)
   let globalMap = Hashtbl.create 137 in
   let considerGlobal global =
     match global with
@@ -545,16 +545,16 @@ let markReachable file isRoot =
 
 
 (**********************************************************************
- *
- * Marking and removing of unused labels
- *
+
+   Marking and removing of unused labels
+
  **********************************************************************)
 
 (* We keep only one label, preferably one that was not introduced by CIL.
- * Scan a list of labels and return the data for the label that should be
- * kept, and the remaining filtered list of labels. After this cleanup,
- * every statement's labels will be either a single 'Default' or any
- * number of 'Case's, in either case possibly preceded by a single 'Label'. *)
+   Scan a list of labels and return the data for the label that should be
+   kept, and the remaining filtered list of labels. After this cleanup,
+   every statement's labels will be either a single 'Default' or any
+   number of 'Case's, in either case possibly preceded by a single 'Label'. *)
 let labelsToKeep (ll: label list) : (string * location * bool) * label list =
   let rec loop (sofar: string * location * bool) = function
       [] -> sofar, []
@@ -570,7 +570,7 @@ let labelsToKeep (ll: label list) : (string * location * bool) * label list =
               | false, _ -> sofar, false
               | true, (_, _, false) ->
                   (* this is an original label; prefer it to temporary or
-                   * missing labels *)
+                     missing labels *)
                   (ln, lloc, isorig), false
               | true, _ -> sofar, false
           end
@@ -587,8 +587,8 @@ let labelsToKeep (ll: label list) : (string * location * bool) * label list =
       sofar, labels
 
 (* Remove some trivial gotos, typically inserted at the end of for loops,
- * because they are not printed by CIL which might yield an unused label
- * warning. See test/small1/warnings-unused-label.c for a regression test. *)
+   because they are not printed by CIL which might yield an unused label
+   warning. See test/small1/warnings-unused-label.c for a regression test. *)
 
 class removeUnusedGoto = object(self)
   inherit nopCilVisitor
@@ -681,9 +681,9 @@ class removeUnusedLabels (labelMap: (string, unit) H.t) = object
 end
 
 (***********************************************************************
- *
- *  Removal of unused symbols
- *
+
+    Removal of unused symbols
+
  *)
 
 
@@ -748,11 +748,11 @@ let removeUnmarked file =
 	in
 	func.slocals <- List.filter filterLocal func.slocals;
         (* We also want to remove unused labels. We do it all here, including
-         * marking the used labels *)
+           marking the used labels *)
         let usedLabels:(string, unit) H.t = H.create 13 in
         ignore (visitCilFunction (new removeUnusedGoto) func);
         (* scan the function, not only the body, since there might be
-         * AddrOfLabel in initializers *)
+           AddrOfLabel in initializers *)
         ignore (visitCilFunction (new markUsedLabels usedLabels) func);
         (* And now we scan again and we remove them *)
         ignore (visitCilBlock (new removeUnusedLabels usedLabels) func.sbody);
@@ -768,9 +768,9 @@ let removeUnmarked file =
 
 
 (***********************************************************************
- *
- *  Exported interface
- *
+
+    Exported interface
+
  *)
 
 

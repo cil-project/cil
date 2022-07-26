@@ -1,8 +1,8 @@
 (* The Longarray module is designed to work around the maximum array size
- * imposed by OCaml's built-in Array module.  Longarray provides the
- * same interface as Array (well, a portion of it) and is implemented as
- * a list of arrays.  For arrays shorter than the maximum length, the
- * only cost is an additional level of indirection. *)
+   imposed by OCaml's built-in Array module.  Longarray provides the
+   same interface as Array (well, a portion of it) and is implemented as
+   a list of arrays.  For arrays shorter than the maximum length, the
+   only cost is an additional level of indirection. *)
 
 type 'a t
 

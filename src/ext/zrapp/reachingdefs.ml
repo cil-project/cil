@@ -1,19 +1,19 @@
 (* Calculate reaching definitions for each instruction.
- * Determine when it is okay to replace some variables with
- * expressions.
- *
- * After calling computeRDs on a fundec,
- * ReachingDef.stmtStartData will contain a mapping from
- * statement ids to data about which definitions reach each
- * statement. ReachingDef.defIdStmtHash will contain a
- * mapping from definition ids to the statement in which
- * that definition takes place.
- *
- * instrRDs takes a list of instructions, and the
- * definitions that reach the first instruction, and
- * for each instruction figures out which definitions
- * reach into or out of each instruction.
- *
+   Determine when it is okay to replace some variables with
+   expressions.
+
+   After calling computeRDs on a fundec,
+   ReachingDef.stmtStartData will contain a mapping from
+   statement ids to data about which definitions reach each
+   statement. ReachingDef.defIdStmtHash will contain a
+   mapping from definition ids to the statement in which
+   that definition takes place.
+
+   instrRDs takes a list of instructions, and the
+   definitions that reach the first instruction, and
+   for each instruction figures out which definitions
+   reach into or out of each instruction.
+
  *)
 
 open Cil

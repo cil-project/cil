@@ -3,8 +3,8 @@ open Cabs
 open Cabshelper
 
 (* This isn't the most efficient way to do things.
- * It would probably be better to not reparse rather
- * than keep the tokens in memory *)
+   It would probably be better to not reparse rather
+   than keep the tokens in memory *)
  
 (* In particular, most of the tokens we hold will be
    header files that we don't need *)
@@ -14,8 +14,8 @@ open Cabshelper
 (* TODO: gather until end of line, then decide where to split *)
 
 (* NOTE: If you find yourself getting lots of nomatch errors with
- * parens in them, then that may mean you are printing 
- * a cabs file that has had it's parens removed *)
+   parens in them, then that may mean you are printing 
+   a cabs file that has had it's parens removed *)
 
 let tokenmap : ((string * int),int) Hashtbl.t = Hashtbl.create 1000
 let nextidx = ref 0

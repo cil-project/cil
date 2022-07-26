@@ -8,16 +8,16 @@ let alphaSeparator = "___"
 let alphaSeparatorLen = String.length alphaSeparator
 
 (** For each prefix we remember the next integer suffix to use and the list 
- * of suffixes, each with some data assciated with the newAlphaName that 
- * created the suffix. *)
+   of suffixes, each with some data assciated with the newAlphaName that 
+   created the suffix. *)
 type 'a alphaTableData = int * (string * 'a) list
 
 type 'a undoAlphaElement = 
     AlphaChangedSuffix of 'a alphaTableData ref * 'a alphaTableData (* The 
-                                             * reference that was changed and 
-                                             * the old suffix *)
+                                               reference that was changed and 
+                                               the old suffix *)
   | AlphaAddedSuffix of string          (* We added this new entry to the 
-                                         * table *)
+                                           table *)
 
 (* The number of decimal digits that can fit in a 31-bit signed int *)
 let maxSuffixLength = 9
@@ -30,12 +30,12 @@ let maxSuffix = (* "999999999" *)
   
 
 (* Create a new name based on a given name. The new name is formed
- * from a prefix (obtained from the given name by stripping a suffix
- * consisting of the alphaSeparator followed by up to maxSuffixLength
- * digits), followed by alphaSeparator and then by a positive integer
- * suffix. The first argument is a table mapping name prefixes to the
- * largest suffix used so far for that prefix. The largest suffix is
- * one when only the version without suffix has been used. *)
+   from a prefix (obtained from the given name by stripping a suffix
+   consisting of the alphaSeparator followed by up to maxSuffixLength
+   digits), followed by alphaSeparator and then by a positive integer
+   suffix. The first argument is a table mapping name prefixes to the
+   largest suffix used so far for that prefix. The largest suffix is
+   one when only the version without suffix has been used. *)
 let rec newAlphaName ~(alphaTable: (string, 'a alphaTableData ref) H.t)
                      ~(undolist: 'a undoAlphaElement list ref option)
                      ~(lookupname: string) 
@@ -114,12 +114,12 @@ and alphaWorker      ~(alphaTable: (string, 'a alphaTableData ref) H.t)
   newname, olddata
 
 (* Strip the suffix. Return the prefix, the suffix (including the separator 
- * and the numeric value, possibly empty), and the 
- * numeric value of the suffix (possibly -1 if missing) *) 
+   and the numeric value, possibly empty), and the 
+   numeric value of the suffix (possibly -1 if missing) *) 
 and splitNameForAlpha ~(lookupname: string) : (string * string * int) = 
   let len = String.length lookupname in
   (* Search backward for the numeric suffix. Return the first digit of the 
-   * suffix. Returns len if no numeric suffix *)
+     suffix. Returns len if no numeric suffix *)
   let rec skipSuffix (i: int) = 
     if i = -1 then -1 else 
     let c = Char.code (String.get lookupname i) - Char.code '0' in
@@ -135,7 +135,7 @@ and splitNameForAlpha ~(lookupname: string) : (string * string * int) =
         will fit in an int. *)
      (len - startSuffix > maxSuffixLength) ||
      startSuffix <= alphaSeparatorLen     (* Not enough room for a prefix and 
-                                           * the separator before suffix *) ||
+                                             the separator before suffix *) ||
      (* Suffix starts with a 0 and has more characters after that *) 
      (startSuffix < len - 1 && String.get lookupname startSuffix = '0')  ||
      alphaSeparator <> String.sub lookupname 
