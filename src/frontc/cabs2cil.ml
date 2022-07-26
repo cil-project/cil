@@ -1964,7 +1964,7 @@ type preInit =
   | NoInitPre
   | SinglePre of exp
   | CompoundPre of int ref (* the maximum used index *)
-                   preInit array ref (* an array with initializers *)
+                 * preInit array ref (* an array with initializers *)
 
 (* Set an initializer *)
 let rec setOneInit (this: preInit)
