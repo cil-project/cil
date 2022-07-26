@@ -1132,7 +1132,7 @@ val insertImplicitCasts: bool ref
     (** Do insert implicit casts (default true) *)
 
 (** Comparison function for locations.
- ** Compares first by filename, then line, then byte *)
+    Compares first by filename, then line, then byte *)
 val compareLoc: location -> location -> int
 
 (** {b Values for manipulating globals} *)
