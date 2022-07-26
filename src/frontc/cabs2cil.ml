@@ -1416,7 +1416,7 @@ let rec castTo ?(fromsource=false)
         result
 
           (* The expression is evaluated for its side-effects *)
-    | (TInt _ | TEnum _ | TPtr _ ), TVoid _ ->
+    | _ , TVoid _ ->
         (ot, e)
 
           (* Even casts between structs are allowed when we are only
