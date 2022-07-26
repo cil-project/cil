@@ -273,6 +273,7 @@ let transformOffsetOf (speclist, dtype) member =
 %token<Cabs.cabsloc> THREAD
 
 %token<Cabs.cabsloc> SIZEOF ALIGNOF
+%token<Cabs.cabsloc> ALIGNAS
 
 %token EQ PLUS_EQ MINUS_EQ STAR_EQ SLASH_EQ PERCENT_EQ
 %token AND_EQ PIPE_EQ CIRC_EQ INF_INF_EQ SUP_SUP_EQ
@@ -1051,6 +1052,8 @@ decl_spec_list_common:                  /* ISO 6.7 */
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
+|   ALIGNAS LPAREN expression RPAREN decl_spec_list_opt { $5, $1 }
+|   ALIGNAS LPAREN type_name RPAREN decl_spec_list_opt { $5, $1 }
 
 |   cvspec decl_spec_list_opt           { (fst $1) :: $2, snd $1 }
 /* specifier pattern variable (must be last in spec list) */
