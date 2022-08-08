@@ -4,7 +4,7 @@
   (public_name goblint-cil)
   (name goblintCil)
   (libraries zarith findlib dynlink unix str stdlib-shims)
-  (modules (:standard \ main machdepConfigure))
+  (modules (:standard \ main ciloptions machdepConfigure))
 )
 
 (executable
@@ -45,7 +45,7 @@
 
 (executable
  (name main)
- (modules main)
+ (modules main ciloptions)
  (modes native)
  (libraries goblint-cil)
  (flags :standard -linkall))
