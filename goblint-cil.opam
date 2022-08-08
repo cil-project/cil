@@ -38,6 +38,7 @@ depends: [
   "conf-perl"
   "cppo"
 ]
+conflicts: ["cil"]
 build: [
   ["dune" "subst"] {dev}
   [
