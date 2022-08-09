@@ -15,9 +15,9 @@
    reach into or out of each instruction.
 
  *)
-
-open Cil
+open GoblintCil
 open Pretty
+open Liveness
 
 module E = Errormsg
 module DF = Dataflow

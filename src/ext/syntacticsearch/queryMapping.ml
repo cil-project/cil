@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open CodeQuery
 
 (* Default output if the input-query is not supported *)

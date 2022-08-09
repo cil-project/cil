@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Cabs2cil
 
 let is_equal_funname_funid varinfo name id =

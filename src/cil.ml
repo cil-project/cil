@@ -149,7 +149,7 @@ type file =
       (** An optional global initializer function. This is a function where
          you can put stuff that must be executed before the program is
          started. This function, is conceptually at the end of the file,
-         although it is not part of the globals list. Use {!Cil.getGlobInit}
+         although it is not part of the globals list. Use {!getGlobInit}
          to create/get one. *)
       mutable globinitcalled: bool;
       (** Whether the global initialization function is called in main. This
@@ -220,9 +220,9 @@ and global =
 
 
 (** The various types available. Every type is associated with a list of
-   attributes, which are always kept in sorted order. Use {!Cil.addAttribute}
-   and {!Cil.addAttributes} to construct list of attributes. If you want to
-   inspect a type, you should use {!Cil.unrollType} to see through the uses
+   attributes, which are always kept in sorted order. Use {!addAttribute}
+   and {!addAttributes} to construct list of attributes. If you want to
+   inspect a type, you should use {!unrollType} to see through the uses
    of named types. *)
 and typ =
     TVoid of attributes   (** Void type *)
@@ -242,7 +242,7 @@ and typ =
              and name attributes of the formal arguments ([None] if no
              arguments were specified, as in a function whose definition or
              prototype we have not seen; [Some \[\]] means void). Use
-             {!Cil.argsToList} to obtain a list of arguments. The boolean
+             {!argsToList} to obtain a list of arguments. The boolean
              indicates if it is a variable-argument function. If this is the
              type of a varinfo for which we have a function declaration then
              the information for the formals must match that in the
@@ -254,7 +254,7 @@ and typ =
              in the file by a [GType] global. This is printed as just the
              type name. The actual referred type is not printed here and is
              carried only to simplify processing. To see through a sequence
-             of named type references, use {!Cil.unrollType}. The attributes
+             of named type references, use {!unrollType}. The attributes
              are in addition to those given when the type name was defined. *)
 
   | TComp of compinfo * attributes
@@ -338,19 +338,19 @@ and attrparam =
 
 
 (** Information about a composite type (a struct or a union). Use
-    {!Cil.mkCompInfo}
+    {!mkCompInfo}
     to create non-recursive or (potentially) recursive versions of this. Make
     sure you have a [GCompTag] for each one of these.  *)
 and compinfo = {
     mutable cstruct: bool;              (** True if struct, False if union *)
     mutable cname: string;              (** The name. Always non-empty. Use
-                                           {!Cil.compFullName} to get the
+                                           {!compFullName} to get the
                                            full name of a comp (along with
                                            the struct or union) *)
     mutable ckey: int;                  (** A unique integer constructed from
                                            the name. Use {!Hashtbl.hash} on
                                            the string returned by
-                                           {!Cil.compFullName}. All compinfo
+                                           {!compFullName}. All compinfo
                                            for a given key are shared. *)
     mutable cfields: fieldinfo list;    (** Information about the fields *)
     mutable cattr:   attributes;        (** The attributes that are defined at
@@ -370,7 +370,7 @@ and fieldinfo = {
                                             compinfo for a given id *)
     mutable fname: string;              (** The name of the field. Might be
                                            the value of
-                                           {!Cil.missingFieldName} in which
+                                           {!missingFieldName} in which
                                            case it must be a bitfield and is
                                            not printed and it does not
                                            participate in initialization *)
@@ -417,8 +417,8 @@ and typeinfo = {
 
 (** Information about a variable. These structures are shared by all
    references to the variable. So, you can change the name easily, for
-   example. Use one of the {!Cil.makeLocalVar}, {!Cil.makeTempVar} or
-   {!Cil.makeGlobalVar} to create instances of this data structure. *)
+   example. Use one of the {!makeLocalVar}, {!makeTempVar} or
+   {!makeGlobalVar} to create instances of this data structure. *)
 and varinfo = {
     mutable vname: string;		(** The name of the variable. Cannot
                                             be empty. *)
@@ -523,9 +523,9 @@ and exp =
   | Question   of exp * exp * exp * typ
                                         (** (a ? b : c) operation. Includes
                                             the type of the result *)
-  | CastE      of typ * exp            (** Use {!Cil.mkCast} to make casts *)
+  | CastE      of typ * exp            (** Use {!mkCast} to make casts *)
 
-  | AddrOf     of lval                 (** Always use {!Cil.mkAddrOf} to
+  | AddrOf     of lval                 (** Always use {!mkAddrOf} to
                                           construct one of these. Apply to an
                                           lvalue of type [T] yields an
                                           expression of type [TPtr(T)] *)
@@ -548,7 +548,7 @@ and constant =
   | CInt of cilint * ikind * string option
                  (** Integer constant. Give the ikind (see ISO9899 6.1.3.2)
                     and the textual representation, if available. Use
-                    {!Cil.integer} or {!Cil.kinteger} to create these. *)
+                    {!integer} or {!kinteger} to create these. *)
   | CStr of string * encoding (** String constant (of pointer type) *)
   | CWStr of int64 list * wstring_type (** Wide string constant (of type "wchar_t *") *)
   | CChr of char (** Character constant.  This has type int, so use
@@ -560,7 +560,7 @@ and constant =
                                                if available *)
   | CEnum of exp * string * enuminfo
      (** An enumeration constant with the given value, name, from the given
-        enuminfo. This is not used if {!Cil.lowerEnum} is false (default).
+        enuminfo. This is not used if {!lowerEnum} is false (default).
         Use {!Cillower.lowerEnumVisitor} to replace these with integer
         constants. *)
 
@@ -615,7 +615,7 @@ and binop =
 and lval =
     lhost * offset
 
-(** The host part of an {!Cil.lval}. *)
+(** The host part of an {!lval}. *)
 and lhost =
   | Var        of varinfo
     (** The host is a variable. *)
@@ -625,7 +625,7 @@ and lhost =
        [TPtr(T)]. *)
 
 
-(** The offset part of an {!Cil.lval}. Each offset can be applied to certain
+(** The offset part of an {!lval}. Each offset can be applied to certain
     kinds of lvalues and its effect is that it advances the starting address
     of the lvalue and changes the denoted type, essentially focussing to some
     smaller lvalue that is contained in the original one. *)
@@ -658,7 +658,7 @@ and offset =
 (* AddrOf (Mem a, NoOffset)        = a                                *)
 
 (** Initializers for global variables.  You can create an initializer with
-   {!Cil.makeZeroInit}. *)
+   {!makeZeroInit}. *)
 and init =
   | SingleInit   of exp   (** A single initializer *)
   | CompoundInit   of typ * (offset * init) list
@@ -673,7 +673,7 @@ and init =
                For unions there must be exactly one initializer. If
                the initializer is not for the first field then a field
                designator is printed. You can scan an initializer list with
-               {!Cil.foldLeftCompound}. *)
+               {!foldLeftCompound}. *)
 
 (** We want to be able to update an initializer in a global variable, so we
    define it as a mutable field *)
@@ -691,8 +691,8 @@ and fundec =
             varinfo. *)
       mutable sformals: varinfo list;
         (** Formals. These must be shared with the formals that appear in the
-           type of the function. Use {!Cil.setFormals} or
-           {!Cil.setFunctionType} to set these
+           type of the function. Use {!setFormals} or
+           {!setFunctionType} to set these
            formals and ensure that they are reflected in the function type.
            Do not make copies of these because the body refers to them. *)
       mutable slocals: varinfo list;
@@ -704,8 +704,8 @@ and fundec =
                                           in this function, if we have
                                           computed it. range = 0 ...
                                           (smaxstmtid-1). This is computed by
-                                          {!Cil.computeCFGInfo}. *)
-      mutable sallstmts: stmt list;   (** After you call {!Cil.computeCFGInfo}
+                                          {!computeCFGInfo}. *)
+      mutable sallstmts: stmt list;   (** After you call {!computeCFGInfo}
                                         this field is set to contain all
                                         statements in the function *)
     }
@@ -737,7 +737,7 @@ and stmt = {
                                            and the context in which this
                                            statement appears *)
     mutable preds: stmt list;          (** The inverse of the succs function*)
-    mutable fallthrough: stmt option;  (** The fallthrough successor statement computed from the context of this statement in {!Cil.computeCFGInto}. Useful for the syntactic successor of Goto and Loop. *)
+    mutable fallthrough: stmt option;  (** The fallthrough successor statement computed from the context of this statement in {!computeCFGInto}. Useful for the syntactic successor of Goto and Loop. *)
   }
 
 (** Labels *)
@@ -968,7 +968,7 @@ type 'a visitAction =
    one of Change... actions if you want to copy the node *)
 
 (** A visitor interface for traversing CIL trees. Create instantiations of
-   this type by specializing the class {!Cil.nopCilVisitor}. *)
+   this type by specializing the class {!nopCilVisitor}. *)
 class type cilVisitor = object
 
   method vvdec: varinfo -> varinfo visitAction
@@ -2526,7 +2526,7 @@ and bitsOffset (baset: typ) (off: offset) : int * int =
 
 (** Do constant folding on an expression. If the first argument is true then
     will also compute compiler-dependent expressions such as sizeof.
-    See also {!Cil.constFoldVisitor}, which will run constFold on all
+    See also {!constFoldVisitor}, which will run constFold on all
     expressions in a given AST node.*)
 and constFold (machdep: bool) (e: exp) : exp =
   match e with
@@ -3175,7 +3175,7 @@ let pTypeSig : (typ -> typsig) ref =
 
 
 (** A printer interface for CIL trees. Create instantiations of
-   this type by specializing the class {!Cil.defaultCilPrinter}. *)
+   this type by specializing the class {!defaultCilPrinter}. *)
 class type cilPrinter = object
 
   method setCurrentFormals : varinfo list -> unit
@@ -3203,26 +3203,26 @@ class type cilPrinter = object
 
   method pStmt: unit -> stmt -> doc
     (** Control-flow statement. This is used by
-       {!Cil.printGlobal} and by {!Cil.dumpGlobal}. *)
+       {!printGlobal} and by {!dumpGlobal}. *)
 
   method dStmt: out_channel -> int -> stmt -> unit
     (** Dump a control-flow statement to a file with a given indentation. This is used by
-       {!Cil.dumpGlobal}. *)
+       {!dumpGlobal}. *)
 
   method dBlock: out_channel -> int -> block -> unit
     (** Dump a control-flow block to a file with a given indentation. This is
-       used by {!Cil.dumpGlobal}. *)
+       used by {!dumpGlobal}. *)
 
   method pBlock: unit -> block -> Pretty.doc
     (** Print a block. *)
 
   method pGlobal: unit -> global -> doc
     (** Global (vars, types, etc.). This can be slow and is used only by
-       {!Cil.printGlobal} but by {!Cil.dumpGlobal} for everything else except
+       {!printGlobal} but by {!dumpGlobal} for everything else except
        [GVar] and [GFun]. *)
 
   method dGlobal: out_channel -> global -> unit
-    (** Dump a global to a file. This is used by {!Cil.dumpGlobal}. *)
+    (** Dump a global to a file. This is used by {!dumpGlobal}. *)
 
   method pFieldDecl: unit -> fieldinfo -> doc
     (** A field declaration *)
@@ -3256,9 +3256,9 @@ class type cilPrinter = object
 
   method pStmtKind : stmt -> unit -> stmtkind -> Pretty.doc
     (** Print a statement kind. The code to be printed is given in the
-       {!Cil.stmtkind} argument.  The initial {!Cil.stmt} argument
+       {!stmtkind} argument.  The initial {!stmt} argument
        records the statement which follows the one being printed;
-       {!Cil.defaultCilPrinterClass} uses this information to prettify
+       {!defaultCilPrinterClass} uses this information to prettify
        statement printing in certain special cases. *)
 
   method pExp: unit -> exp -> doc
@@ -3266,11 +3266,11 @@ class type cilPrinter = object
 
   method pInit: unit -> init -> doc
     (** Print initializers. This can be slow and is used by
-       {!Cil.printGlobal} but not by {!Cil.dumpGlobal}. *)
+       {!printGlobal} but not by {!dumpGlobal}. *)
 
   method dInit: out_channel -> int -> init -> unit
     (** Dump a global to a file with a given indentation. This is used by
-       {!Cil.dumpGlobal}. *)
+       {!dumpGlobal}. *)
 end
 
 
@@ -5026,9 +5026,9 @@ let saveBinaryFile (cil_file : file) (filename : string) =
   saveBinaryFileChannel cil_file outchan;
   close_out outchan
 
-(** Read a {!Cil.file} in binary form from the filesystem. The first
+(** Read a {!file} in binary form from the filesystem. The first
    argument is the name of a file previously created by
-   {!Cil.saveBinaryFile}. Because this also reads some global state,
+   {!saveBinaryFile}. Because this also reads some global state,
    this should be called before any other CIL code is parsed or generated. *)
 let loadBinaryFile (filename : string) : file =
   let inchan = open_in_bin filename in
@@ -6930,5 +6930,5 @@ let d_formatarg () = function
 (* ------------------------------------------------------------------------- *)
 
 (** Deprecated.  For compatibility with older programs, these are
-  aliases for {!Cil.builtinFunctions} *)
+  aliases for {!builtinFunctions} *)
 let gccBuiltins = builtinFunctions

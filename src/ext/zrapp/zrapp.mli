@@ -1,3 +1,5 @@
+open GoblintCil
+
 val debug : bool ref
 
 val doElimTemps : bool ref

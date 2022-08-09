@@ -32,11 +32,10 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
-
+open GoblintCil
 exception Bad_return
 
 
-open Cil
 open Feature
 
 module H = Hashtbl

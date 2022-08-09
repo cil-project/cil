@@ -1,5 +1,5 @@
 (* See copyright notice at the end of the file *)
-open Cil
+open GoblintCil
 open Feature
 
 (*****************************************************************************

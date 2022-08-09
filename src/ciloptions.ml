@@ -36,7 +36,7 @@
 
  *)
 
-
+open GoblintCil
 module E = Errormsg
 
 let setDebugFlag v name = 

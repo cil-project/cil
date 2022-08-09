@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 (* Finds definition of a user-defined type *)
 let find_def name file =

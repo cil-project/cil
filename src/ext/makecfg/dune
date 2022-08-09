@@ -1,6 +1,5 @@
 (library
   (public_name goblint-cil.makecfg)
   (name makecfg)
-  (wrapped false) ; this should be changed, but then module paths in goblint need to be prefixed
   (libraries goblint-cil)
 )

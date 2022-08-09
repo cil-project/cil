@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 open Cabs2cil
 
 (* Helper functions *)

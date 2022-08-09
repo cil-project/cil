@@ -38,5 +38,5 @@ Changes:
     conf-perl
     cppo
   )
-  (conflicts cil)
+  (conflicts cil) ; only because we both install the cilly executable
 )

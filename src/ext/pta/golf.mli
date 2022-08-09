@@ -32,6 +32,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  *)
+open GoblintCil
+
 type lvalue
 type tau
 type absloc

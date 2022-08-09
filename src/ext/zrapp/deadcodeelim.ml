@@ -1,8 +1,8 @@
 (* Eliminate assignment instructions whose results are not
    used *)
-
-open Cil
+open GoblintCil
 open Expcompare
+open Liveness
 
 module E = Errormsg
 module RD = Reachingdefs

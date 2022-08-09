@@ -1,4 +1,4 @@
-open Cil
+open GoblintCil
 
 ;;
 

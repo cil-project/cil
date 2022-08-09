@@ -1,5 +1,4 @@
-
-open Cil
+open GoblintCil
 
 module E = Errormsg
 
