@@ -41,6 +41,7 @@ depends: [
   "yojson"
   "conf-perl"
   "cppo"
+  "conf-gcc"
 ]
 conflicts: ["cil"]
 build: [
