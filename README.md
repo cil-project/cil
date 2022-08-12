@@ -5,28 +5,17 @@ CIL is a front-end for the C programming language that facilitates
 program analysis and transformation. CIL will parse and typecheck a
 program, and compile it into a simplified subset of C.
 
-`goblint-cil` is a fork of CIL that supports C99 as well as most of the
+`goblint-cil` is a fork of CIL that supports C99, C11 as well as most of the
 extensions of the GNU C. It makes many changes to the original CIL in an effort
 to modernize it and keep up with the latest versions of the C language. Here is
 an incomplete list of some of the ways `goblint-cil` improves upon CIL:
-- Proper support for C99, ([#9][i9]) and VLAs in particular ([#5][i5], [#7][pr7])
-- It uses [Zarith][zarith] instead of the deprecated [Num][num]
-- Support for more recent OCaml versions (≥ 4.06)
-- Large integer constants that do not fit in an OCaml `int` are represented as a
-  `string` instead of getting truncated
-- Syntactic search extension ([#21][pr21])
-- More precise locations (with columns)
-- Some warnings were made optional
-- Unmaintained extensions ([#30][pr30]) were removed
-- Many bug fixes
-
-[zarith]: https://github.com/ocaml/Zarith
-[num]: https://github.com/ocaml/num
-[i5]: https://github.com/goblint/cil/issues/5
-[pr7]: https://github.com/goblint/cil/pull/7
-[i9]: https://github.com/goblint/cil/issues/9
-[pr21]: https://github.com/goblint/cil/pull/21
-[pr30]: https://github.com/goblint/cil/pull/30
+* Support for C99 and C11.
+* Compatibility with modern OCaml versions.
+* Use Zarith instead of Num and use that for integer constants.
+* Improved locations with columns and spans.
+* Removal of unmaintained extensions and MSVC support.
+* Use dune instead of make and ocamlbuild.
+* Many bug fixes.
 
 Quickstart
 ----------
@@ -41,7 +30,7 @@ still applies to `goblint-cil`. The repository referenced in that document has n
 **ATTENTION:** Don't install the `cil` package. This is the unmaintained
 original version of CIL.
 
-
+[opam]: https://opam.ocaml.org/
 [tuto]: https://web.eecs.umich.edu/~weimerw/2011-6610/reading/ciltut.pdf
 [repo]: https://github.com/zanderso/cil-template
 
@@ -50,7 +39,7 @@ Installation from Source
 
 Prerequisites:
 - opam
-- Some C compiler (preferably `gcc`)
+- GCC
 - Perl
 
 First create a local opam switch and install all dependencies:
@@ -63,35 +52,33 @@ commands to build and test `goblint-cil`:
     dune build
     dune runtest    # runs the regression test suite
 
+You can also install `goblint-cil` into the opam switch:
+
+    dune build @install
+    dune install
+
 [dune]: https://github.com/ocaml/dune
 
 Usage
 -----
 
-You can use cilly (installed in `/usr/local/bin` by default) as a drop-in
+You can use cilly (installed in the opam switch) as a drop-in
 replacement for `gcc` to compile and link your programs.
 
 You can also use `goblint-cil` as a library to write your own programs. For
 instance in the OCaml toplevel using [Findlib][findlib]:
 
     $ ocaml
-            Objective Caml version 4.00.1
+    OCaml version 4.14.0
 
     # #use "topfind";;
     [...]
-    # #require "cil";;
+    # #require "goblint-cil";;
     [...]
-    # Cil.cilVersion;;
+    # GoblintCil.cilVersion;;
     - : string = "2.0.0"
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
-
-TODO
-----
-
-- C11 support ([#13][i13])
-
-[i13]: https://github.com/goblint/cil/issues/13
 
 License
 -------
