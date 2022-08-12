@@ -1,4 +1,4 @@
 (rule
  (alias runtest)
  (deps (alias_rec ../cilly) (package goblint-cil) (source_tree .))
- (action (setenv "CC" "\"%{read-lines:../bin/real-gcc}\"" (run ./testcil -r --regrtest))))
+ (action (setenv "CC" "\"%{read-lines:../bin/real-gcc}\"" (run ./testcil -r --regrtest --showoutput))))
