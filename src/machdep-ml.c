@@ -193,7 +193,7 @@ int main(int argc, char **argv)
     alignof_float32x = (intptr_t)(&((struct floatstruct*)0)->f);
   }
 
-#ifdef __HAVE_FLOAT64X
+#if __HAVE_FLOAT64X
   // The alignment of a _Float64x
   {
     struct floatstruct {
@@ -295,7 +295,7 @@ int main(int argc, char **argv)
 	     (int)sizeof(int *), alignof_ptr,
 	     alignof_enum,
 	     (int)sizeof(_Float32x), alignof_float32x,
-#ifdef __HAVE_FLOAT64X
+#if __HAVE_FLOAT64X
 	     (int)sizeof(_Float64x), alignof_float64x,
 #else
              0, 0,
@@ -328,7 +328,7 @@ int main(int argc, char **argv)
       printf("\t sizeof_ptr                 = %d;\n", (int)sizeof(int *));
       printf("\t sizeof_float               = %d;\n", (int)sizeof(float));
       printf("\t sizeof_float32x            = %d;\n", (int)sizeof(_Float32x));
-#ifdef __HAVE_FLOAT64X
+#if __HAVE_FLOAT64X
       printf("\t sizeof_float64x            = %d;\n", (int)sizeof(_Float64x));
 #else
       printf("\t sizeof_float64x            = %d;\n", 0);
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
       printf("\t alignof_enum               = %d;\n", alignof_enum);
       printf("\t alignof_float              = %d;\n", alignof_float);
       printf("\t alignof_float32x           = %d;\n", alignof_float32x);
-#ifdef __HAVE_FLOAT64X
+#if __HAVE_FLOAT64X
       printf("\t alignof_float64x           = %d;\n", alignof_float64x);
 #else
       printf("\t alignof_float64x           = %d;\n", 0);
