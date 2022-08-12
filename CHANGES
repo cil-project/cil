@@ -1,8 +1,28 @@
-## Unreleased
-* Add ends to locations, allowing for ranges.
-* Add additional expression locations to statements, etc.
-* Drop all support for MSVC
-* Add C11 `_Generic` support.
+## 2.0.0
+* Wrap library into `GoblintCil` module (#107).
+* Remove all MSVC support (#52, #88).
+* Port entire build process from configure/make to dune (#104).
+* Add C11 `_Generic` support (#48).
+* Add C11 `_Noreturn` support (#58).
+* Add C11 `_Static_assert` support (#62).
+* Add C11 `_Alignof` support (#66).
+* Add C11 `_Alignas` support (#93, #108).
+* Add partial C11 `_Atomic` support (#61).
+* Add `_Float32`, `_Float64`, `_Float32x` and `_Float64x` type support (#8, #60).
+* Add Universal Character Names, `char16_t` and `char32_t` type support (#80).
+* Change locations to location spans and add additional expression locations (#51).
+* Add synthetic marking for CIL-inserted statement locations (#98).
+* Expose list of files from line control directives (#73).
+* Add parsed location transformation hook (#89).
+* Use Zarith for integer constants (#47, #53).
+* Fix constant folding overflows (#59).
+* Add option to disable constant branch removal (#103).
+* Add standalone expression parsing and checking (#97, #96).
+* Improve inline function merging (#72, #85, #84, #86).
+* Fix some attribute parsing cases (#71, #75, #76, #77).
+* Fix global NaN initializers (#78, #79).
+* Fix `cilly` binary installation (#99, #100, #102).
+* Remove batteries dependency to support OCaml 5 (#106).
 
 ## Older versions
 
