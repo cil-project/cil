@@ -4,7 +4,7 @@
   (public_name goblint-cil)
   (name goblintCil)
   (libraries zarith findlib dynlink unix str stdlib-shims)
-  (modules (:standard \ main ciloptions machdepConfigure))
+  (modules (:standard \ main ciloptions machdepConfigure modelConfigure))
 )
 
 (executable
@@ -22,17 +22,22 @@
  (action (run %{read-lines:../bin/real-gcc} -D_GNUCC machdep-ml.c -o %{target})))
 
 ; for Cilly.pm
-(rule
- (enabled_if (<> %{ocaml-config:system} macosx)) ; MacOS homebrew gcc cannot assemble -m32, so skip
- (deps machdep-config.h machdep-ml.c)
- (target machdep-ml32.exe)
- (action (run %{read-lines:../bin/real-gcc} -D_GNUCC -m32 machdep-ml.c -o %{target})))
+(executable
+ (name modelConfigure)
+ (modules modelConfigure)
+ (libraries dune-configurator))
 
 ; for Cilly.pm
 (rule
  (deps machdep-config.h machdep-ml.c)
- (target machdep-ml64.exe)
- (action (run %{read-lines:../bin/real-gcc} -D_GNUCC -m64 machdep-ml.c -o %{target})))
+ (target gcc32model)
+ (action (with-stdout-to %{target} (run ./modelConfigure.exe --real-gcc %{read-lines:../bin/real-gcc} -m 32))))
+
+; for Cilly.pm
+(rule
+ (deps machdep-config.h machdep-ml.c)
+ (target gcc64model)
+ (action (with-stdout-to %{target} (run ./modelConfigure.exe --real-gcc %{read-lines:../bin/real-gcc} -m 64))))
 
 (rule
  (target machdep.ml)
