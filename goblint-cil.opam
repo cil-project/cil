@@ -16,7 +16,15 @@ maintainer: [
   "Michael Schwarz <michael.schwarz93@gmail.com>"
   "Simmo Saan <simmo.saan@gmail.com>"
 ]
-authors: ["Gabriel Kerneis" "Ralf Vogler" "Michael Schwarz" "Simmo Saan"]
+authors: [
+  "George Necula"
+  "Scott McPeak"
+  "Westley Weimer"
+  "Gabriel Kerneis"
+  "Ralf Vogler"
+  "Michael Schwarz"
+  "Simmo Saan"
+]
 license: "BSD-3-Clause"
 homepage: "https://github.com/goblint/cil"
 bug-reports: "https://github.com/goblint/cil/issues"

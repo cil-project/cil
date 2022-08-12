@@ -5,7 +5,7 @@
 (version 2.0.0)
 (source (github goblint/cil))
 ; (documentation "https://goblint.github.io/cil")
-(authors "Gabriel Kerneis" "Ralf Vogler" "Michael Schwarz" "Simmo Saan")
+(authors "George Necula" "Scott McPeak" "Westley Weimer" "Gabriel Kerneis" "Ralf Vogler" "Michael Schwarz" "Simmo Saan")
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>")
 (license "BSD-3-Clause")
 
