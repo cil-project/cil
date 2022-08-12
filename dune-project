@@ -2,7 +2,7 @@
 (name goblint-cil)
 (implicit_transitive_deps false)
 (generate_opam_files true)
-(version 1.8.2)
+(version 2.0.0)
 (source (github goblint/cil))
 ; (documentation "https://goblint.github.io/cil")
 (authors "Gabriel Kerneis" "Ralf Vogler" "Michael Schwarz" "Simmo Saan")

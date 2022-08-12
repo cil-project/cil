@@ -82,7 +82,7 @@ instance in the OCaml toplevel using [Findlib][findlib]:
     # #require "cil";;
     [...]
     # Cil.cilVersion;;
-    - : string = "1.8.2"
+    - : string = "2.0.0"
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 
