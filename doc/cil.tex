@@ -92,16 +92,13 @@ goblint-cil is developed on Github:  \ahreftop{https://github.com/goblint/cil/}{
 Compared with the original CIL there are some \emph{breaking} changes:
 
 \begin{itemize}
-  \item Proper support for C99 and VLAs in particular
-  \item It uses Zarith instead of the deprecated Num
-  \item Support for more recent OCaml versions (>= 4.06)
-  \item Large integer constants are represented by Zarith
-  \item Syntactic search extension
-  \item More precise locations (with columns)
-  \item Some warnings were made optional
-  \item Unmaintained extensions were removed
-  \item Dropped MSVC support
-  \item Many bug fixes
+  \item Support for C99 and C11.
+  \item Compatibility with modern OCaml versions.
+  \item Use Zarith instead of Num and use that for integer constants.
+  \item Improved locations with columns and spans.
+  \item Removal of unmaintained extensions and MSVC support.
+  \item Use dune instead of make and ocamlbuild.
+  \item Many bug fixes.
 \end{itemize}
 
 
