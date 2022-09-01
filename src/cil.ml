@@ -2092,6 +2092,8 @@ let floatKindForSize (s:int) =
    whether any "interesting" bits were lost during truncation. By
    "interesting", we mean that the lost bits were not all-0 or all-1. *)
 let truncateCilint (k: ikind) (i: cilint) : cilint * truncation =
+  (* TODO: What is this "truncation"? The standard defines no such notion
+     and the _Bool reference is about conversions (casts). *)
   (* Truncations to _Bool are special: they behave like "!= 0"
      ISO C99 6.3.1.2 *)
   if k = IBool then
@@ -2141,8 +2143,14 @@ let mone      = integer (-1)
 
 (* True if the integer fits within the kind's range *)
 let fitsInInt (k: ikind) (i: cilint) : bool =
-  let _, truncated = truncateCilint k i in
-  truncated = NoTruncation
+  if k = IBool then (
+    (* truncateCilint is weirdly defined for IBool, like it always fits *)
+    is_zero_cilint i || compare_cilint i one_cilint = 0 (* only 0 and 1 fit *)
+  )
+  else (
+    let _, truncated = truncateCilint k i in
+    truncated = NoTruncation
+  )
 
 (* Return the smallest kind that will hold the integer's value.  The
    kind will be unsigned if the 2nd argument is true, signed
@@ -2151,7 +2159,8 @@ let fitsInInt (k: ikind) (i: cilint) : bool =
    IULongLong (2nd argument true). *)
 let intKindForValue (i: cilint) (unsigned: bool) =
   if unsigned then
-    if fitsInInt IUChar i then IUChar
+    if fitsInInt IBool i then IBool
+    else if fitsInInt IUChar i then IUChar
     else if fitsInInt IUShort i then IUShort
     else if fitsInInt IUInt i then IUInt
     else if fitsInInt IULong i then IULong
