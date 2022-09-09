@@ -1211,10 +1211,6 @@ class registerLabelsVisitor = object
     V.DoChildren
 end
 
-(* Maps local variables that are variable sized arrays to the expression that
-   denotes their length *)
-let varSizeArrays : exp IH.t = IH.create 17
-
 (**** EXP actions ***)
 type expAction =
     ADrop                               (* Drop the result. Only the
@@ -3738,12 +3734,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                    mean the pointer to the start of the string *)
           | Const(CStr _) -> SizeOf (charPtrType)
 
-                (* Maybe we are taking the sizeof a variable-sized array *)
-          | Lval (Var vi, NoOffset) -> begin
-              try
-                IH.find varSizeArrays vi.vid
-              with Not_found -> SizeOfE e'
-          end
           | _ -> SizeOfE e'
         in
         finishExp empty size !typeOfSizeOf
@@ -6026,8 +6016,6 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                 they need alpha-conv  *)
               enterScope ();  (* Start the scope *)
               (* Scope must be started after doSpecList, which adds enum values declared in return type to outer scope! *)
-
-              IH.clear varSizeArrays;
 
               (* Enter all the function's labels into the alpha conversion table *)
               ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
