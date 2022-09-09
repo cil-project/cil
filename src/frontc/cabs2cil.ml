@@ -6018,24 +6018,25 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                };
 	    !currentFunctionFDEC.svar.vdecl <- funloc;
 
-            (* Setup the environment. Add the formals to the locals. Maybe
-              they need alpha-conv  *)
-            enterScope ();  (* Start the scope *)
-
-            IH.clear varSizeArrays;
-
-            (* Enter all the function's labels into the alpha conversion table *)
-            ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
-            currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
-            (* Visitor doesn't use and touch currentExpLoc, so no need to reset. *)
-
-            (* Do not process transparent unions in function definitions.
-              We'll do it later *)
-            transparentUnionArgs := [];
-
             (* Fix the NAME and the STORAGE *)
             let _ =
               let bt,sto,inl,attrs = doSpecList n specs in
+
+              (* Setup the environment. Add the formals to the locals. Maybe
+                they need alpha-conv  *)
+              enterScope ();  (* Start the scope *)
+              (* Scope must be started after doSpecList, which adds enum values declared in return type to outer scope! *)
+
+              IH.clear varSizeArrays;
+
+              (* Enter all the function's labels into the alpha conversion table *)
+              ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
+              currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
+              (* Visitor doesn't use and touch currentExpLoc, so no need to reset. *)
+
+              (* Do not process transparent unions in function definitions.
+                We'll do it later *)
+              transparentUnionArgs := [];
               !currentFunctionFDEC.svar.vinline <- inl;
 
               let ftyp, funattr =
