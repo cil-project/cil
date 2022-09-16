@@ -254,6 +254,7 @@ addTest("testrun/const16 ");
 addTest("test/deref _GNUCC=1");
 addTest("test_i/empty");
 addTest("test/enum");
+addTest("test/enum-scope");
 addTest("testrun/enum2");
 addTest("test/func");
 addTest("test/funcarg ");

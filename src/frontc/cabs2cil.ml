@@ -1211,10 +1211,6 @@ class registerLabelsVisitor = object
     V.DoChildren
 end
 
-(* Maps local variables that are variable sized arrays to the expression that
-   denotes their length *)
-let varSizeArrays : exp IH.t = IH.create 17
-
 (**** EXP actions ***)
 type expAction =
     ADrop                               (* Drop the result. Only the
@@ -3738,12 +3734,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                    mean the pointer to the start of the string *)
           | Const(CStr _) -> SizeOf (charPtrType)
 
-                (* Maybe we are taking the sizeof a variable-sized array *)
-          | Lval (Var vi, NoOffset) -> begin
-              try
-                IH.find varSizeArrays vi.vid
-              with Not_found -> SizeOfE e'
-          end
           | _ -> SizeOfE e'
         in
         finishExp empty size !typeOfSizeOf
@@ -6018,24 +6008,23 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                };
 	    !currentFunctionFDEC.svar.vdecl <- funloc;
 
-            (* Setup the environment. Add the formals to the locals. Maybe
-              they need alpha-conv  *)
-            enterScope ();  (* Start the scope *)
-
-            IH.clear varSizeArrays;
-
-            (* Enter all the function's labels into the alpha conversion table *)
-            ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
-            currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
-            (* Visitor doesn't use and touch currentExpLoc, so no need to reset. *)
-
-            (* Do not process transparent unions in function definitions.
-              We'll do it later *)
-            transparentUnionArgs := [];
-
             (* Fix the NAME and the STORAGE *)
             let _ =
               let bt,sto,inl,attrs = doSpecList n specs in
+
+              (* Setup the environment. Add the formals to the locals. Maybe
+                they need alpha-conv  *)
+              enterScope ();  (* Start the scope *)
+              (* Scope must be started after doSpecList, which adds enum values declared in return type to outer scope! *)
+
+              (* Enter all the function's labels into the alpha conversion table *)
+              ignore (V.visitCabsBlock (new registerLabelsVisitor) body);
+              currentLoc := funloc; (* registerLabelsVisitor changes currentLoc, so reset it *)
+              (* Visitor doesn't use and touch currentExpLoc, so no need to reset. *)
+
+              (* Do not process transparent unions in function definitions.
+                We'll do it later *)
+              transparentUnionArgs := [];
               !currentFunctionFDEC.svar.vinline <- inl;
 
               let ftyp, funattr =
