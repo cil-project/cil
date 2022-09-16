@@ -22,7 +22,7 @@ let one_cilint = unit_big_int
 let mone_cilint = minus_big_int unit_big_int
 
 (* Precompute useful big_ints *)
-let b30 = power_int_positive_int 2 30
+let b30 = shift_left_big_int unit_big_int 30
 let m1 = minus_big_int unit_big_int
 
 (* True if 'b' is all 0's or all 1's *)
@@ -107,16 +107,17 @@ let logand_cilint = logop (land)
 let logor_cilint = logop (lor)
 let logxor_cilint = logop (lxor)
 
-let shift_right_cilint (c1:cilint) (n:int) : cilint = div_big_int c1 (power_int_positive_int 2 n)
+let shift_right_cilint (c1:cilint) (n:int) : cilint =
+  shift_right_towards_zero_big_int c1 n
 
 let shift_left_cilint (c1:cilint) (n:int) : cilint =
-  mult_big_int c1 (power_int_positive_int 2 n)
+  shift_left_big_int c1 n
 
 let lognot_cilint (c1:cilint) : cilint = (pred_big_int (minus_big_int c1))
 
 let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
-  let max = power_int_positive_int 2 (n - 1) in
-  let truncmax = power_int_positive_int 2 n in
+  let max = shift_left_big_int unit_big_int (n - 1) in
+  let truncmax = shift_left_big_int unit_big_int n in
   let bits = mod_big_int c truncmax in
   let tval = if lt_big_int bits max then
 	    bits
@@ -135,8 +136,8 @@ let truncate_signed_cilint (c:cilint) (n:int) : cilint * truncation =
     tval, trunc
 
 let truncate_unsigned_cilint (c:cilint) (n:int) : cilint * truncation =
-  let max = power_int_positive_int 2 (n - 1) in
-  let truncmax = power_int_positive_int 2 n in
+  let max = shift_left_big_int unit_big_int (n - 1) in
+  let truncmax = shift_left_big_int unit_big_int n in
   let bits = mod_big_int c truncmax in
   let trunc =
     if ge_big_int c truncmax || lt_big_int c zero_big_int then
