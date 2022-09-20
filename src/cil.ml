@@ -194,7 +194,8 @@ and global =
   | GVarDecl of varinfo * location
    (** A variable declaration (not a definition). If the variable has a
        function type then this is a prototype. There can be several
-       declarations and at most one definition for a given variable. If both
+       declarations and at most one definition for a given variable in C, but
+       in CIL there is also only at most one declaration per variable. If both
        forms appear then they must share the same varinfo structure. A
        prototype shares the varinfo with the fundec of the definition. Either
        has storage Extern or there must be a definition in this file *)
