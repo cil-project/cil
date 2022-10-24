@@ -304,10 +304,17 @@ arcombine: mustbegcc
 
 combinec99%: $(SMALL1)/combine-c99%_1.c
 	cd $(SMALL1); \
-          $(CILLY) $(CFLAGS) -std=c99 -fcommon --merge \
+          $(CILLY) $(CFLAGS) -O1 -std=c99 --verbose -fcommon --merge \
                     $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \
 	            $(EXEOUT)combine-c99$*.exe
 	cd $(SMALL1); ./combine-c99$*.exe
+
+combinec99mergeinline%: $(SMALL1)/combine-c99-mergeinline%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -O1 -std=c99 --verbose -fcommon --merge --mergeinlines \
+                    $(notdir $(wildcard $(SMALL1)/combine-c99-mergeinline$*_[1-9].c)) \
+	            $(EXEOUT)combine-c99-mergeinline$*.exe
+	cd $(SMALL1); ./combine-c99-mergeinline$*.exe
 
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju

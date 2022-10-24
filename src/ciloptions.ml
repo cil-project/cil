@@ -6,7 +6,7 @@
     Wes Weimer          <weimer@cs.berkeley.edu>
     Ben Liblit          <liblit@cs.berkeley.edu>
    All rights reserved.
-   
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
    met:
@@ -39,16 +39,16 @@
 open GoblintCil
 module E = Errormsg
 
-let setDebugFlag v name = 
+let setDebugFlag v name =
   E.debugFlag := v;
   if v then Pretty.flushOften := true
 
-type outfile = 
+type outfile =
     { fname: string;
-      fchan: out_channel } 
+      fchan: out_channel }
 
       (* Processign of output file arguments *)
-let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
+let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
   if !E.verboseFlag then
     ignore (Printf.printf "Setting %s to %s\n" what fl);
   (try takeit { fname = fl;
@@ -58,44 +58,44 @@ let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
 
 
 let fileNames : string list ref = ref []
-let recordFile fname = 
-  fileNames := fname :: (!fileNames) 
+let recordFile fname =
+  fileNames := fname :: (!fileNames)
 
                          (* Parsing of files with additional names *)
-let parseExtraFile (s: string) = 
+let parseExtraFile (s: string) =
   try
     let sfile = open_in s in
     while true do
       let line = try input_line sfile with e -> (close_in sfile; raise e) in
       let linelen = String.length line in
       let rec scan (pos: int) (* next char to look at *)
-          (start: int) : unit (* start of the word, 
+          (start: int) : unit (* start of the word,
                                  or -1 if none *) =
-        if pos >= linelen then 
-          if start >= 0 then 
+        if pos >= linelen then
+          if start >= 0 then
             recordFile (String.sub line start (pos - start))
-          else 
+          else
             () (* Just move on to the next line *)
         else
           let c = String.get line pos in
-          match c with 
-            ' ' | '\n' | '\r' | '\t' -> 
+          match c with
+            ' ' | '\n' | '\r' | '\t' ->
               (* whitespace *)
               if start >= 0 then begin
                 recordFile (String.sub line start (pos - start));
               end;
               scan (pos + 1) (-1)
-                
+
           | _ -> (* non-whitespace *)
-              if start >= 0 then 
-                scan (pos + 1) start 
+              if start >= 0 then
+                scan (pos + 1) start
               else
                 scan (pos + 1) pos
       in
         scan 0 (-1)
     done
   with Sys_error _ -> E.s (E.error "Cannot find extra file: %s" s)
-  |  End_of_file -> () 
+  |  End_of_file -> ()
 
 
 let options : (string * Arg.spec * string) list =
@@ -130,7 +130,7 @@ let options : (string * Arg.spec * string) list =
     Arg.Clear E.warnFlag,
     (" Disable optional warnings" ^ is_default (not !E.warnFlag));
 
-    "--noTruncateWarning", 
+    "--noTruncateWarning",
     Arg.Clear Cil.warnTruncate,
     " Suppress warning about truncating integer constants";
 
@@ -167,6 +167,12 @@ let options : (string * Arg.spec * string) list =
                      " Same as --check, but treats problems as errors not warnings.";
     "", Arg.Unit (fun _ -> ()), "";
 
+    "--mergeinlines", Arg.Unit (fun _ -> Cilutil.merge_inlines := true),
+                      " Try to merge definitions of inline functions. They can appear in multiple
+                      files and we would like them all to be the same. This can slow down the
+                      merger an order of magnitude.";
+    "", Arg.Unit (fun _ -> ()), "";
+
     "--noPrintLn",
     Arg.Unit (fun _ ->
                 Cil.lineDirectiveStyle := None;
@@ -179,7 +185,7 @@ let options : (string * Arg.spec * string) list =
                 Cprint.printLnComment := true),
     " Print #line directives in the output, but put them in comments";
 
-    "--commPrintLnSparse", 
+    "--commPrintLnSparse",
     Arg.Unit (fun _ ->
                 Cil.lineDirectiveStyle := Some Cil.LineCommentSparse;
                 Cprint.printLnComment := true),
@@ -204,7 +210,7 @@ let options : (string * Arg.spec * string) list =
      try
        let machineModel = Sys.getenv "CIL_MACHINE" in
        Cil.envMachine := Some (Machdepenv.modelParse machineModel);
-     with 
+     with
        Not_found ->
 	 ignore (E.error "CIL_MACHINE environment variable is not set")
      | Failure msg ->

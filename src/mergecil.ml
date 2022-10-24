@@ -62,7 +62,7 @@
  (* Try to merge definitions of inline functions. They can appear in multiple
     files and we would like them all to be the same. This can slow down the
     merger an order of magnitude !!! *)
- let merge_inlines = ref false
+ let merge_inlines = Cilutil.merge_inlines
  let mergeInlinesRepeat () = !merge_inlines && true
  let mergeInlinesWithAlphaConvert () = !merge_inlines && true
 
