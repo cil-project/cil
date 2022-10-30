@@ -302,6 +302,7 @@ and fkind =
     FFloat              (** [float] *)
   | FDouble             (** [double] *)
   | FLongDouble         (** [long double] *)
+  | FFloat128           (** [float128] *)
   | FComplexFloat       (** [float _Complex] *)
   | FComplexDouble      (** [double _Complex] *)
   | FComplexLongDouble  (** [long double _Complex]*)
@@ -1740,6 +1741,7 @@ let d_fkind () = function
     FFloat -> text "float"
   | FDouble -> text "double"
   | FLongDouble -> text "long double"
+  | FFloat128 -> text "__float128"
   | FComplexFloat -> text "_Complex float"
   | FComplexDouble -> text "_Complex double"
   | FComplexLongDouble -> text "_Complex long double"
@@ -1838,6 +1840,7 @@ let d_const () c =
          FFloat -> chr 'f'
        | FDouble -> nil
        | FLongDouble -> chr 'L'
+       | FFloat128 -> chr 'L' (* TODO: correct? *)
        | FComplexFloat -> text "iF"
        | FComplexDouble -> chr 'i'
        | FComplexLongDouble -> text "iL")
@@ -2087,6 +2090,7 @@ let floatKindForSize (s:int) =
   if s = !M.theMachine.M.sizeof_double then FDouble
   else if s = !M.theMachine.M.sizeof_float then FFloat
   else if s = !M.theMachine.M.sizeof_longdouble then FLongDouble
+  else if s = !M.theMachine.M.sizeof_float128 then FFloat128
   else raise Not_found
 
 (* Represents an integer as for a given kind.  Returns a flag saying
@@ -2245,6 +2249,7 @@ let rec alignOf_int t =
     | TFloat(FFloat, _) -> !M.theMachine.M.alignof_float
     | TFloat(FDouble, _) -> !M.theMachine.M.alignof_double
     | TFloat(FLongDouble, _) -> !M.theMachine.M.alignof_longdouble
+    | TFloat(FFloat128, _) -> !M.theMachine.M.alignof_float128
     | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_floatcomplex
     | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_doublecomplex
     | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdoublecomplex
@@ -2401,6 +2406,7 @@ and bitsSizeOf t =
   | TInt (ik,_) -> 8 * (bytesSizeOfInt ik)
   | TFloat(FDouble, _) -> 8 * !M.theMachine.M.sizeof_double
   | TFloat(FLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdouble
+  | TFloat(FFloat128, _) -> 8 * !M.theMachine.M.sizeof_float128
   | TFloat(FFloat, _) -> 8 * !M.theMachine.M.sizeof_float
   | TFloat(FComplexDouble, _) ->  8 * !M.theMachine.M.sizeof_doublecomplex
   | TFloat(FComplexLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdoublecomplex

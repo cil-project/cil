@@ -1273,6 +1273,18 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     match fkind1, fkind2 with
     | FComplexLongDouble, _ -> t1
     | _, FComplexLongDouble -> t2
+    | FFloat128, other ->
+      if isComplex other then
+        (assert (!Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16);
+        TFloat(FComplexLongDouble, []))
+      else
+        t1
+    | other, FFloat128 ->
+      if isComplex other then
+        (assert (!Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16);
+        TFloat(FComplexLongDouble, []))
+      else
+        t2
     | FLongDouble, other -> if isComplex other then TFloat(FComplexLongDouble, []) else t1
     | other, FLongDouble -> if isComplex other then TFloat(FComplexLongDouble, []) else t2
     | FComplexDouble, other -> t1
@@ -2518,15 +2530,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           )
 
     | [A.Tlong; A.Tdouble] -> TFloat(FLongDouble, [])
-    | [A.Tfloat128] ->
-      (* This is only correct w.r.t. to size and align. If we analyze floats, we need to be careful here *)
-      if !Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16 then
-        TFloat(FLongDouble, [])
-      else
-        E.s (error "float128 only supported on machines where it is an alias (w.r.t. to size and align) of long double: size: %i align: %i "
-        !Machdep.theMachine.Machdep.sizeof_longdouble
-        !Machdep.theMachine.Machdep.alignof_longdouble
-        )
+    | [A.Tfloat128] -> TFloat(FFloat128, [])
      (* Now the other type specifiers *)
     | [A.Tdefault] -> E.s (error "Default outside generic associations")
     | [A.Tnamed n] -> begin
@@ -3759,6 +3763,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match fkind with
           | FFloat
           | FDouble
+          | FFloat128 
           | FLongDouble -> 8
           | FComplexFloat
           | FComplexDouble

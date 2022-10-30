@@ -289,6 +289,7 @@ and fkind =
     FFloat              (** [float] *)
   | FDouble             (** [double] *)
   | FLongDouble         (** [long double] *)
+  | FFloat128           (** [float128] *)
   | FComplexFloat       (** [float _Complex] *)
   | FComplexDouble      (** [double _Complex] *)
   | FComplexLongDouble  (** [long double _Complex]*)
