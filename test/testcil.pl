@@ -701,6 +701,18 @@ addTest("testrunc99/c99-float-pragma");
 addTest("testrunc99/c99-fixed-width-int");
 addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
+addTest("combinec99inline1");
+addTest("combinec99inline2");
+addTest("combinec99inline3");
+addTest("combinec99inline4");
+addTest("combinec99inline5");
+addTest("combinec99inline6");
+addTest("combinec99mergeinline1");
+addTest("combinec99mergeinline2");
+addTest("combinec99mergeinline3");
+addTest("combinec99mergeinline4");
+addTest("combinec99mergeinline5");
+addTest("combinec99mergeinline6");
 
 addTest("testrunc11/c11-generic");
 addTest("testrunc11/c11-caserange");
