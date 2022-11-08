@@ -50,4 +50,4 @@ let sliceGlobal = ref false
 
 let printStages = ref false
 
-let merge_inlines = ref false
+let c99Mode = ref false

@@ -62,7 +62,7 @@
  (* Try to merge definitions of inline functions. They can appear in multiple
     files and we would like them all to be the same. This can slow down the
     merger an order of magnitude !!! *)
- let merge_inlines = Cilutil.merge_inlines
+ let merge_inlines = ref false
  let mergeInlinesRepeat () = !merge_inlines && true
  let mergeInlinesWithAlphaConvert () = !merge_inlines && true
 
@@ -70,6 +70,13 @@
     this uses a mechanism which is faster than the one for inline functions,
     but only probabilistically accurate *)
  let mergeGlobals = true
+
+ (* C99: inline functions are internal unless specified to be external
+    GNU89: inline functions are external unless specified to be static or extern
+    GNU89 inline semantics is used also when gnu_inline attribute is present on all inline declarations *)
+ let externallyVisible vi = vi.vstorage <> Static
+   && ((!Cilutil.c99Mode && (not vi.vinline || vi.vstorage = Extern))
+   || ((not !Cilutil.c99Mode || hasAttribute "gnu_inline" (typeAttrs vi.vtype)) && (not vi.vinline || vi.vstorage <> Extern)))
 
  (* Return true if 's' starts with the prefix 'p' *)
  let prefix p s =
@@ -841,7 +848,7 @@
            currentLoc := l;
            incr currentDeclIdx;
            vi.vreferenced <- false;
-           if vi.vstorage <> Static && (not vi.vinline || vi.vstorage = Extern) then matchVarinfo vi (l, !currentDeclIdx)
+           if externallyVisible vi then matchVarinfo vi (l, !currentDeclIdx)
        | GFun (fdec, l) ->
            currentLoc := l;
            incr currentDeclIdx;
@@ -851,9 +858,7 @@
              (!currentFidx, fdec.svar.vname)
              (Util.list_map (fun (fn, _, _) -> fn) (argsToList args));
            fdec.svar.vreferenced <- false;
-           (* C99: inline functions are internal unless specified to be external *)
-           (* GNU89: inline functions are external unless specified to be static *)
-           if fdec.svar.vstorage <> Static && (not fdec.svar.vinline || fdec.svar.vstorage = Extern) then
+           if externallyVisible fdec.svar then
              (* function with external linkage *)
              matchVarinfo fdec.svar (l, !currentDeclIdx)
            else if fdec.svar.vinline && !merge_inlines then
