@@ -55,10 +55,6 @@ module IH = Inthash
    information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
 
-(* A few globals that control the interpretation of C source *)
-let msvcMode = ref false              (* Whether the pretty printer should
-                                         print output for the MS VC
-                                         compiler. Default is GCC *)
 let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes.
       c99mode only affects parsing of decimal integer constants without suffix
           a) on machines where long and long long do not have the same size
@@ -4302,9 +4298,6 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "complex", [] -> text "__complex__", false
     | "aconst", [] -> text "__const__", true
     | "thread", [] -> text "__thread", false
-(*
-    | "used", [] when not !msvcMode -> text "__attribute_used__", false
-*)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
