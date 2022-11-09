@@ -2665,8 +2665,11 @@ val endsWith: string -> string -> bool
 (** If string has leading and trailing __, strip them. *)
 val stripUnderscores: string -> string
 
-(** To generate new labels which do not provoke collision *)
+(** To generate new labels which do not provoke collision, call {!populateLabelAlphaTable} for the corresponding fundec before *)
 val freshLabel: string -> string
+
+(** Clears the labelAlphaTable and populates it with all label names appearing in the fundec. Needs to be called before {!freshLabel} *)
+val populateLabelAlphaTable: fundec -> unit
 
 (** {b An Interpreter for constructing CIL constructs} *)
 

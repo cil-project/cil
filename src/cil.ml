@@ -6531,6 +6531,7 @@ let caseRangeFold (l: label list) =
 let labelAlphaTable : (string, unit A.alphaTableData ref) H.t =
   H.create 11
 
+(* Compute a fresh label name, call populateLabelAlphaTable with the appropriate fd before *)
 let freshLabel (base:string) =
   fst (A.newAlphaName ~alphaTable:labelAlphaTable ~undolist:None  ~lookupname:base ~data:())
 
@@ -6732,14 +6733,17 @@ let findAddrOfLabelStmts (b : block) : stmt list =
     ignore(visitCilBlock vis b);
     !slr
 
+(* Clears the labelAlphaTable and populates it with all label names appearing in fd *)
+let populateLabelAlphaTable (fd: fundec): unit =
+  ignore (visitCilFunction (new registerLabelsVisitor) fd)
+
 (* prepare a function for computeCFGInfo by removing break, continue,
    default and switch statements/labels and replacing them with Ifs and
    Gotos. *)
 let prepareCFG (fd : fundec) : unit =
   (* Labels are local to a function, so start with a clean slate by
      clearing labelAlphaTable. Then register all labels. *)
-  H.clear labelAlphaTable;
-  ignore (visitCilFunction (new registerLabelsVisitor) fd);
+  populateLabelAlphaTable fd;
   xform_switch_block fd.sbody
       (fun () -> failwith "prepareCFG: break with no enclosing loop")
       (fun () -> failwith "prepareCFG: continue with no enclosing loop")
