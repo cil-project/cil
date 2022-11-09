@@ -6735,6 +6735,7 @@ let findAddrOfLabelStmts (b : block) : stmt list =
 
 (* Clears the labelAlphaTable and populates it with all label names appearing in fd *)
 let populateLabelAlphaTable (fd: fundec): unit =
+  H.clear labelAlphaTable;
   ignore (visitCilFunction (new registerLabelsVisitor) fd)
 
 (* prepare a function for computeCFGInfo by removing break, continue,
