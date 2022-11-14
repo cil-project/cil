@@ -1336,8 +1336,8 @@
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
-       else if vi.vstorage = Static || vi.vinline then
-          (* rename inlines no matter if merge_inlines is enabled or not,
+       else if not (externallyVisible vi) then
+          (* rename static and not-external inline functions no matter if merge_inlines is enabled or not,
           renaming is undone using originalVarNames in case merging is successful *)
         (
          (* Maybe it is static or inline and we are not merging inlines. Rename it then *)
