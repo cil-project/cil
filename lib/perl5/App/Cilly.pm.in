@@ -1529,26 +1529,26 @@ sub new {
       "-ansi" => {
             TYPE => 'ALLARGS',
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--std", "c90";
+                push @{$stub->{CILARGS}}, "--cstd", "c90";
             }},
-      "-std=(c90|c89|iso9899:1990|iso9899:199409|gnu90|gnu89))" => {
+      "-std=(c90|c89|iso9899:1990|iso9899:199409|gnu90|gnu89)" => {
             TYPE => 'ALLARGS',
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--std", "c90";
+                push @{$stub->{CILARGS}}, "--cstd", "c90";
             }},
       "-std=(c99|c9x|iso9899:1999|iso9899:199x|gnu99|gnu9x)" => {
             TYPE => 'ALLARGS',
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--std", "c99";
+                push @{$stub->{CILARGS}}, "--cstd", "c99";
             }},
       "-std=(c1x|iso9899:2011|c17|c18|iso9899:2017|iso9899:2018|c2x|gnu11|gnu1x|gnu17|gnu18|gnu2x)" => {
             TYPE => 'ALLARGS',
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--std", "c11";
+                push @{$stub->{CILARGS}}, "--cstd", "c11";
             }},
       "-fgnu89-inline" => {
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--std", "gnu89inline";
+                push @{$stub->{CILARGS}}, "--cstd", "gnu89inline";
             }},
 	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
             # GCC might define some more macros, eg. for -fPIC, so pass
