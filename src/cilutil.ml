@@ -50,4 +50,11 @@ let sliceGlobal = ref false
 
 let printStages = ref false
 
-let c99Mode = ref false
+type cstd = C90 | C99 | C11 | Gnu89inline
+let cstd_of_string = function
+| "c90" -> C90
+| "c99" -> C99
+| "c11" -> C11
+| "gnu89inline" -> Gnu89inline
+| _ -> failwith "Not a valid c standard argument."
+let cstd = ref C99

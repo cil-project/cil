@@ -66,7 +66,6 @@ options:
   --verbose    Prints a lot of information about what is being done
   --mode=xxx   What tool to emulate:
                 GNUCC   - GNU CC
-
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
 
@@ -94,9 +93,9 @@ my %option;
      "--verbose|v",       # Display information about programs invoked
      "--mode=s",          # The mode (GNUCC)
      "--dest=s",          # The destination directory
-     "--patch=s@",         # Patch files
-     "--ufile=s@",         # User include files
-     "--sfile=s@",         # System include files
+     "--patch=s@",        # Patch files
+     "--ufile=s@",        # User include files
+     "--sfile=s@",        # System include files
      "--stdoutpp",        # pp to stdout
      "--skipmissing",
      "--dumpversion",

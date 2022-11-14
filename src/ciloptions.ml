@@ -167,6 +167,9 @@ let options : (string * Arg.spec * string) list =
                      " Same as --check, but treats problems as errors not warnings.";
     "", Arg.Unit (fun _ -> ()), "";
 
+    "--cstd", Arg.String (fun s -> Cilutil.cstd := Cilutil.cstd_of_string s),
+                      " Specify the c language standard. Choose between c90, c99, c11 and gnu89inline";
+
     "--mergeinlines", Arg.Unit (fun _ -> Mergecil.merge_inlines := true),
                       " Try to merge definitions of inline functions. They can appear in multiple
                       files and we would like them all to be the same. This can slow down the

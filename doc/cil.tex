@@ -2357,7 +2357,11 @@ Options:
   --mode=xxx   What tool to emulate:
                 GNUCC     - GNU CC
                 MSVC      - MS VC cl compiler
-
+  --cstd=xxx   What C standard / GNU dialect to emulate:
+                c90 (also used for c89, iso9899:1990, iso9899:199409, gnu90, gnu89)
+                c99 (also used for c9x, iso9899:1999, iso9899:199x, gnu99, gnu9x)
+                c11 (c1x, iso9899:2011, c17, c18, iso9899:2017, iso9899:2018, c2x, gnu11, gnu1x, gnu17, gnu18, gnu2x)
+                gnu89inline (gnu89 only for inline)
   --dest=xxx   The destination directory. Will make one if it does not exist
   --patch=xxx  Patch file (can be specified multiple times)
   --ppargs=xxx An argument to be passed to the preprocessor (can be specified

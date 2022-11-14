@@ -289,7 +289,7 @@ combine%: $(SMALL1)/combine%_1.c
 
 combinegnuinline:
 	cd $(SMALL1); \
-          $(CILLY) --merge $(CFLAGS)  -std=gnu90 -fcommon \
+          $(CILLY) --merge $(CFLAGS) -std=gnu90 -fcommon \
                     combinegnuinline_1.c combinegnuinline_2.c \
 	            $(EXEOUT)combinegnuinline.exe
 	cd $(SMALL1); ./combinegnuinline.exe
