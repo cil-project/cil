@@ -709,12 +709,15 @@ addTest("combinec99inline4");
 addTest("combinec99inline5");
 addTest("combinec99inline6");
 addTest("combinec99inline7");
+addTest("combinec99inline8");
+addTest("combinec99inline9");
 addTest("combinec99mergeinline1");
 addTest("combinec99mergeinline2");
 addTest("combinec99mergeinline3");
 addTest("combinec99mergeinline4");
 addTest("combinec99mergeinline5");
 addTest("combinec99mergeinline6");
+addTest("combinec99mergeinline7");
 
 addTest("testrunc11/c11-generic");
 addTest("testrunc11/c11-caserange");
