@@ -873,6 +873,53 @@ module BlockChunk =
         doStmts ~first:true stmts;
         {c with postins = List.rev (doInstrs ~first:false (List.rev postins))}
 
+    (** Change first stmt or instr loc to synthetic. *)
+    let synthesizeFirstLoc (c: chunk): chunk =
+      (* ignore (Pretty.eprintf "synthesizeFirstLoc %a\n" d_chunk c); *)
+      let doLoc l =
+        (* ignore (Pretty.eprintf "synthesizeLoc %a in %a\n" d_loc l d_chunk c); *)
+        {l with synthetic = true}
+      in
+      let doInstr: instr -> instr = function
+        | Set (l, e, loc, eloc) -> Set (l, e, doLoc loc, doLoc eloc)
+        | VarDecl (v, loc) -> VarDecl (v, doLoc loc)
+        | Call (l, f, a, loc, eloc) -> Call (l, f, a, doLoc loc, doLoc eloc)
+        | Asm (a, b, c, d, e, loc) -> Asm (a, b, c, d, e, doLoc loc)
+      in
+      let doInstrs = function
+        | [] -> []
+        | x :: xs -> doInstr x :: xs
+      in
+      (* must mutate stmts in order to not break refs (for gotos) *)
+      let rec doStmt s: unit =
+        s.skind <- match s.skind with
+          | Instr xs -> Instr (doInstrs xs)
+          | Return (e, loc) -> Return (e, doLoc loc)
+          | Goto (s, loc) -> Goto (s, doLoc loc)
+          | ComputedGoto (e, loc) -> ComputedGoto (e, doLoc loc)
+          | Break loc -> Break (doLoc loc)
+          | Continue loc -> Continue (doLoc loc)
+          | If _
+          | Switch _
+          | Loop _ ->
+            s.skind
+          | Block b ->
+            doBlock b;
+            s.skind
+      and doBlock b =
+        doStmts b.bstmts
+      and doStmts = function
+        | [] -> ()
+        | x :: xs ->
+          doStmt x
+      in
+      match c.stmts, c.postins with
+      | [], [] -> c
+      | [], postins -> {c with postins = List.rev (doInstrs (List.rev postins))}
+      | stmts, postins ->
+        doStmts stmts;
+        c
+
     let i2c (i: instr) =
       { empty with postins = [i] }
 
@@ -6666,7 +6713,9 @@ and doStatement (s : A.statement) : chunk =
             FC_EXP e1 -> doExp false e1 ADrop
           | FC_DECL d1 -> (doDecl false d1, zero, voidType)
         in
+        let se1 = synthesizeFirstLoc se1 in
         let (se3, _, _) = doExp false e3 ADrop in
+        let se3 = synthesizeFirstLoc se3 in
         startLoop false;
         currentLoc := loc';
         currentExpLoc := eloc';
