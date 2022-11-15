@@ -55,7 +55,7 @@ module IH = Inthash
    information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
 
-let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes.
+let c99Mode = ref (!Cilutil.cstd <> Cilutil.C90) (* True to handle ISO C 99 vs 90 changes.
       c99mode only affects parsing of decimal integer constants without suffix
           a) on machines where long and long long do not have the same size
              (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux):
