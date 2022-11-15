@@ -6684,8 +6684,8 @@ and doStatement (s : A.statement) : chunk =
         let eloc' = convLoc eloc in
         let break_cond = breakChunk loc' in (* TODO: use eloc'? *)
         exitLoop ();
-        currentLoc := loc';
-        currentExpLoc := eloc';
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         loopChunk ((doCondition false e skipChunk break_cond)
                    @@ s')
 
@@ -6694,8 +6694,8 @@ and doStatement (s : A.statement) : chunk =
         let s' = doStatement s in
         let loc' = convLoc loc in
         let eloc' = convLoc eloc in
-        currentLoc := loc';
-        currentExpLoc := eloc';
+        currentLoc := {loc' with synthetic = true};
+        currentExpLoc := {eloc' with synthetic = true};
         let s'' =
           consLabContinue (doCondition false e skipChunk (breakChunk loc')) (* TODO: use eloc'? *)
         in
