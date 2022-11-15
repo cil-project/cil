@@ -616,6 +616,9 @@ addTest("combinegnuinline");
 addTest("testrun/constfold EXTRAARGS=\"--domakeCFG --dopartial\"");
 addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on sourceforge.");
 
+# Check that CIL does not do constant folding in cases where it is undefined
+addTestFail("testrun/constfold2 EXTRAARGS=\"--domakeCFG -Wall -Wshift-overflow=3 -Werror\"", "constfold should not remove undefined behavior");
+
 # tests of things implemented for EDG compatibility
 addTest("mergestruct");
 

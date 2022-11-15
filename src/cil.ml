@@ -2644,8 +2644,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
             compiler sort it out. *)
         if machdep then
           try
-            compare_cilint i2 zero_cilint >= 0 &&
-	    compare_cilint i2 (cilint_of_int (bitsSizeOf (typeOf e1'))) < 0
+            compare_cilint i2 zero_cilint >= 0 && compare_cilint i2 (cilint_of_int (bitsSizeOf (typeOf e1'))) < 0
           with SizeOfError _ -> false
         else false
       in
@@ -2683,10 +2682,14 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | BXor, Some z, _ when is_zero_cilint z -> collapse e2'
       | BXor, _, Some z when is_zero_cilint z -> collapse e1'
 
-      | Shiftlt, Some i1, Some i2 when shiftInBounds i2 ->
+      (* C99 6.5.7 (4) *)
+      | Shiftlt, Some i1, Some i2 when shiftInBounds i2 && not @@ isSigned tk ->
           kintegerCilint tk (shift_left_cilint i1 (int_of_cilint i2))
+      | Shiftlt, Some i1, Some i2 when compare_cilint i1 zero_cilint >= 0 && shiftInBounds i2 ->
+          (* i1 has signed type and is non-negative *)
+          const_if_not_overflow (BinOp(bop, e1', e2', tres)) tk (shift_left_cilint i1 (int_of_cilint i2))
       | Shiftlt, Some z, _ when is_zero_cilint z -> collapse0 ()
-      | Shiftlt, _, Some z when is_zero_cilint z -> collapse e1'
+      | Shiftlt, _, Some z when is_zero_cilint z && not @@ isSigned tk-> collapse e1'
       | Shiftrt, Some i1, Some i2 when shiftInBounds i2 ->
           kintegerCilint tk (shift_right_cilint i1 (int_of_cilint i2))
       | Shiftrt, Some z, _ when is_zero_cilint z -> collapse0 ()
