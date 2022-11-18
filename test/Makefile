@@ -287,6 +287,13 @@ combine%: $(SMALL1)/combine%_1.c
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
+combinemerge%: $(SMALL1)/combinemerge%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -std=gnu90 -fcommon --merge\
+                    $(notdir $(wildcard $(SMALL1)/combinemerge$*_[1-9].c)) \
+	            $(EXEOUT)combinemerge$*.exe
+	cd $(SMALL1); ./combinemerge$*.exe
+
 combinegnuinline:
 	cd $(SMALL1); \
           $(CILLY) --merge $(CFLAGS) -std=gnu90 -fcommon \
