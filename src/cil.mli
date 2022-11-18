@@ -53,6 +53,11 @@ val initCIL: unit -> unit
    M.m.r (major, minor and release) *)
 val cilVersion: string
 
+type cstd = C90 | C99 | C11
+val cstd_of_string: string -> cstd
+val cstd: cstd ref
+val gnu89inline: bool ref
+
 (** This module defines the abstract syntax of CIL. It also provides utility
    functions for traversing the CIL data structures, and pretty-printing
    them. The parser can be invoked as

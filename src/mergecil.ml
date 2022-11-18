@@ -75,8 +75,8 @@
     GNU89: inline functions are external unless specified to be static or extern
     GNU89 inline semantics is used also when gnu_inline attribute is present on all inline declarations *)
  let externallyVisible vi = vi.vstorage <> Static
-   && ((!Cilutil.cstd <> C90 && not !Cilutil.gnu89inline && (not vi.vinline || vi.vstorage = Extern))
-   || ((!Cilutil.cstd == C90 || !Cilutil.gnu89inline || hasAttribute "gnu_inline" (typeAttrs vi.vtype))
+   && ((!Cil.cstd <> Cil.C90 && not !Cil.gnu89inline && (not vi.vinline || vi.vstorage = Extern))
+   || ((!Cil.cstd == Cil.C90 || !Cil.gnu89inline || hasAttribute "gnu_inline" (typeAttrs vi.vtype))
    && (not vi.vinline || vi.vstorage <> Extern)))
 
  (* Return true if 's' starts with the prefix 'p' *)

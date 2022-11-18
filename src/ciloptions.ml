@@ -167,10 +167,10 @@ let options : (string * Arg.spec * string) list =
                      " Same as --check, but treats problems as errors not warnings.";
     "", Arg.Unit (fun _ -> ()), "";
 
-    "--cstd", Arg.String (fun s -> Cilutil.cstd := Cilutil.cstd_of_string s),
+    "--cstd", Arg.String (fun s -> Cil.cstd := Cil.cstd_of_string s),
                       " Specify the c language standard. Choose between c90, c99, c11";
 
-    "--gnu89inline", Arg.Set Cilutil.gnu89inline,
+    "--gnu89inline", Arg.Set Cil.gnu89inline,
                       "Use gnu89 semantic for inlining";
 
     "--mergeinlines", Arg.Unit (fun _ -> Mergecil.merge_inlines := true),

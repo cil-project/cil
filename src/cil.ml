@@ -55,7 +55,15 @@ module IH = Inthash
    information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
 
-let c99Mode () = !Cilutil.cstd <> Cilutil.C90 (* True to handle ISO C 99 vs 90 changes.
+type cstd = C90 | C99 | C11
+let cstd_of_string = function
+| "c90" -> C90
+| "c99" -> C99
+| "c11" -> C11
+| _ -> failwith "Not a valid c standard argument."
+let cstd = ref C99
+let gnu89inline = ref false
+let c99Mode () = !cstd <> C90 (* True to handle ISO C 99 vs 90 changes.
       c99mode only affects parsing of decimal integer constants without suffix
           a) on machines where long and long long do not have the same size
              (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux):
