@@ -369,7 +369,7 @@ Options:
                 c90 (also used for c89, iso9899:1990, iso9899:199409, gnu90, gnu89)
                 c99 (also used for c9x, iso9899:1999, iso9899:199x, gnu99, gnu9x)
                 c11 (c1x, iso9899:2011, c17, c18, iso9899:2017, iso9899:2018, c2x, gnu11, gnu1x, gnu17, gnu18, gnu2x)
-                gnu89inline (gnu89 only for inline)
+  --gnu89inline gnu89 semantic for inline functions
   --help (or -help) Prints this help message.
   --verbose    Prints a lot of information about what is being done.
   --save-temps Keep temporary files in the current directory.
@@ -1548,7 +1548,7 @@ sub new {
             }},
       "-fgnu89-inline" => {
             RUN => sub {
-                push @{$stub->{CILARGS}}, "--cstd", "gnu89inline";
+                push @{$stub->{CILARGS}}, "--gnu89inline";
             }},
 	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
             # GCC might define some more macros, eg. for -fPIC, so pass

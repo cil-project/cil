@@ -168,7 +168,10 @@ let options : (string * Arg.spec * string) list =
     "", Arg.Unit (fun _ -> ()), "";
 
     "--cstd", Arg.String (fun s -> Cilutil.cstd := Cilutil.cstd_of_string s),
-                      " Specify the c language standard. Choose between c90, c99, c11 and gnu89inline";
+                      " Specify the c language standard. Choose between c90, c99, c11";
+
+    "--gnu89inline", Arg.Set Cilutil.gnu89inline,
+                      "Use gnu89 semantic for inlining";
 
     "--mergeinlines", Arg.Unit (fun _ -> Mergecil.merge_inlines := true),
                       " Try to merge definitions of inline functions. They can appear in multiple
