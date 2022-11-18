@@ -165,7 +165,6 @@ let options : (string * Arg.spec * string) list =
     "--strictcheck", Arg.Unit (fun _ -> Cilutil.doCheck := true;
                                         Cilutil.strictChecking := true),
                      " Same as --check, but treats problems as errors not warnings.";
-    "", Arg.Unit (fun _ -> ()), "";
 
     "--cstd", Arg.String (fun s -> Cil.cstd := Cil.cstd_of_string s),
                       " Specify the c language standard. Choose between c90, c99, c11";
@@ -177,7 +176,6 @@ let options : (string * Arg.spec * string) list =
                       " Try to merge definitions of inline functions. They can appear in multiple
                       files and we would like them all to be the same. This can slow down the
                       merger an order of magnitude.";
-    "", Arg.Unit (fun _ -> ()), "";
 
     "--noPrintLn",
     Arg.Unit (fun _ ->

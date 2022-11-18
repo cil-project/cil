@@ -303,6 +303,8 @@ arcombine: mustbegcc
 
 
 combinec99%: $(SMALL1)/combine-c99%_1.c
+# With no optimization gcc does not inline functions in general -> without -O1 calls
+# to inline functions (cilly always inlines) would cause an 'undefined reference error'
 	cd $(SMALL1); \
           $(CILLY) $(CFLAGS) -O1 -std=c99 --verbose -fcommon --merge \
                     $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \

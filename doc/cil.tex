@@ -2106,6 +2106,10 @@ int globalArray[(1.0 < 2.0) ? 5 : 50]
 \subsection{Code that behaves differently under CIL}
 
 \begin{itemize}
+\item Without optimizations GCC generally does not use ``inline'' functions.
+With optimizations they might be inlined. CIL assumes optimization, and also
+assumes that ``inline'' functions are always inlined.
+
 \item GCC has a strange feature called ``extern inline''. Such a function can
 be defined twice: first with the ``extern inline'' specifier and the second
 time without it. If optimizations are turned off then the ``extern inline''
