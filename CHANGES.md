@@ -1,3 +1,12 @@
+## 2.0.1
+* Fix scope of enum definition in return type (#112, #113).
+* Fix signed integer left shift constant folding overflow (#122, #123).
+* Fix `fitsInInt` for booleans (#111).
+* Mark more loop statement locations synthetic (#125).
+* Optimize integer truncation (#115).
+* Fix FrontC and Cabs2cil partial application (#116).
+* Fix external usage of `freshLabel` (#121).
+
 ## 2.0.0
 * Wrap library into `GoblintCil` module (#107).
 * Remove all MSVC support (#52, #88).
