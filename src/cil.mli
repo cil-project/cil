@@ -293,6 +293,7 @@ and fkind =
   | FComplexFloat       (** [float _Complex] *)
   | FComplexDouble      (** [double _Complex] *)
   | FComplexLongDouble  (** [long double _Complex]*)
+  | FComplexFloat128    (** [_float128 _Complex]*)
 
 (** {b Attributes.} *)
 

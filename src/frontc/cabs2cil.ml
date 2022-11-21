@@ -1269,22 +1269,14 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t2: typ) : typ =
   let resultingFType fkind1 t1 fkind2 t2 =
     (* t1 and t2 are the original types before unrollType, so TNamed is preserved if possible *)
-    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble in
+    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble || f = FComplexFloat128 in
     match fkind1, fkind2 with
+    | FComplexFloat128, _ -> t1
+    | _, FComplexFloat128 -> t2
     | FComplexLongDouble, _ -> t1
     | _, FComplexLongDouble -> t2
-    | FFloat128, other ->
-      if isComplex other then
-        (assert (!Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16);
-        TFloat(FComplexLongDouble, []))
-      else
-        t1
-    | other, FFloat128 ->
-      if isComplex other then
-        (assert (!Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16);
-        TFloat(FComplexLongDouble, []))
-      else
-        t2
+    | FFloat128, other -> if isComplex other then TFloat(FComplexFloat128, []) else t1
+    | other, FFloat128 -> if isComplex other then TFloat(FComplexFloat128, []) else t2
     | FLongDouble, other -> if isComplex other then TFloat(FComplexLongDouble, []) else t1
     | other, FLongDouble -> if isComplex other then TFloat(FComplexLongDouble, []) else t2
     | FComplexDouble, other -> t1
@@ -3763,11 +3755,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match fkind with
           | FFloat
           | FDouble
-          | FFloat128 
-          | FLongDouble -> 8
+          | FLongDouble
+          | FFloat128 -> 8
           | FComplexFloat
           | FComplexDouble
-          | FComplexLongDouble -> 9
+          | FComplexLongDouble
+          | FComplexFloat128 -> 9
           end
         | TEnum _ -> 3
         | TPtr _ -> 5
@@ -4433,7 +4426,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                             (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
                             (* type should not be complex *)
                             let isComplex t = match t with
-                              | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
+                              | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble || f = FComplexFloat128
                               | _ -> false
                             in
                             if List.for_all (fun x -> not (isComplex x)) retTypes then

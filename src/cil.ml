@@ -306,6 +306,7 @@ and fkind =
   | FComplexFloat       (** [float _Complex] *)
   | FComplexDouble      (** [double _Complex] *)
   | FComplexLongDouble  (** [long double _Complex]*)
+  | FComplexFloat128    (** [_float128 _Complex]*)
 
 (** An attribute has a name and some optional parameters *)
 and attribute = Attr of string * attrparam list
@@ -1655,9 +1656,11 @@ let typeOfRealAndImagComponents t =
       | FFloat -> FFloat      (* [float] *)
       | FDouble -> FDouble     (* [double] *)
       | FLongDouble -> FLongDouble (* [long double] *)
+      | FFloat128 -> FFloat128
       | FComplexFloat -> FFloat
       | FComplexDouble -> FDouble
       | FComplexLongDouble -> FLongDouble
+      | FComplexFloat128 -> FFloat128
     in
     TFloat (newfkind fkind, attrs)
   | _ -> E.s (E.bug "unexpected non-numerical type for argument to __real__/__imag__ ")
@@ -1667,9 +1670,11 @@ let getComplexFkind = function
   | FFloat -> FComplexFloat
   | FDouble -> FComplexDouble
   | FLongDouble -> FComplexLongDouble
+  | FFloat128 -> FComplexFloat128
   | FComplexFloat -> FComplexFloat
   | FComplexDouble -> FComplexDouble
   | FComplexLongDouble -> FComplexLongDouble
+  | FComplexFloat128 -> FComplexFloat128
 
 let var vi : lval = (Var vi, NoOffset)
 (* let assign vi e = Instrs(Set (var vi, e), lu) *)
@@ -1745,6 +1750,7 @@ let d_fkind () = function
   | FComplexFloat -> text "_Complex float"
   | FComplexDouble -> text "_Complex double"
   | FComplexLongDouble -> text "_Complex long double"
+  | FComplexFloat128 -> text "_Complex __float128"
 
 let d_storage () = function
     NoStorage -> nil
@@ -1843,7 +1849,8 @@ let d_const () c =
        | FFloat128 -> chr 'L' (* TODO: correct? *)
        | FComplexFloat -> text "iF"
        | FComplexDouble -> chr 'i'
-       | FComplexLongDouble -> text "iL")
+       | FComplexLongDouble -> text "iL"
+       | FComplexFloat128 -> text "iL") (* TODO: correct?*)
   | CEnum(_, s, ei) -> text s
 
 
@@ -2253,6 +2260,7 @@ let rec alignOf_int t =
     | TFloat(FComplexFloat, _) -> !M.theMachine.M.alignof_floatcomplex
     | TFloat(FComplexDouble, _) -> !M.theMachine.M.alignof_doublecomplex
     | TFloat(FComplexLongDouble, _) -> !M.theMachine.M.alignof_longdoublecomplex
+    | TFloat(FComplexFloat128, _) -> !M.theMachine.M.alignof_float128complex
     | TNamed (t, _) -> alignOf_int t.ttype
     | TArray (t, _, _) -> alignOf_int t
     | TPtr _ | TBuiltin_va_list _ -> !M.theMachine.M.alignof_ptr
@@ -2410,6 +2418,7 @@ and bitsSizeOf t =
   | TFloat(FFloat, _) -> 8 * !M.theMachine.M.sizeof_float
   | TFloat(FComplexDouble, _) ->  8 * !M.theMachine.M.sizeof_doublecomplex
   | TFloat(FComplexLongDouble, _) -> 8 * !M.theMachine.M.sizeof_longdoublecomplex
+  | TFloat(FComplexFloat128, _) -> 8 * !M.theMachine.M.sizeof_float128complex
   | TFloat(FComplexFloat, _) -> 8 * !M.theMachine.M.sizeof_floatcomplex
   | TEnum (ei, _) -> bitsSizeOf (TInt(ei.ekind, []))
   | TPtr _ -> 8 * !M.theMachine.M.sizeof_ptr
