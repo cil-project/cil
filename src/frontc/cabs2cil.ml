@@ -3637,7 +3637,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
             let baseint, kind =
-              if hasSuffix str "L" then
+              if hasSuffix str "F128" then
+                String.sub str 0 (l - 4), FFloat128
+              else if hasSuffix str "L" then
                 String.sub str 0 (l - 1), FLongDouble
               else if hasSuffix str "F" then
                 String.sub str 0 (l - 1), FFloat
@@ -3646,10 +3648,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               else
                 str, FDouble
             in
-            if kind = FLongDouble then
+            if kind = FLongDouble || kind = FFloat128 then
               (* We only have 64-bit values in Ocaml *)
-              E.log "treating long double constant %s as double constant at %a.\n"
-                str d_loc !currentLoc;
+              E.log "treating %a constant %s as double constant at %a (only relevant if first argument of CReal is used).\n"
+                d_fkind kind str d_loc !currentLoc;
             try
               finishExp empty
                 (Const(CReal(float_of_string baseint, kind,
@@ -3667,7 +3669,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
             let baseint, kind =
-              if hasSuffix str "iL" || hasSuffix str "Li" then
+              if hasSuffix str "iF128" || hasSuffix str "F128i" then
+                String.sub str 0 (l - 4), FComplexFloat128
+              else if hasSuffix str "iL" || hasSuffix str "Li" then
                 String.sub str 0 (l - 2), FComplexLongDouble
               else if hasSuffix str "iF" || hasSuffix str "Fi" then
                 String.sub str 0 (l - 2), FComplexFloat
@@ -3676,10 +3680,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               else (* A.CONST_COMPLEX always has the suffix i *)
                 String.sub str 0 (l - 1), FComplexDouble
             in
-            if kind = FLongDouble then
-              (* We only have 64-bit values in Ocaml *)
-              E.log "treating long double constant %s as double constant at %a.\n"
-                str d_loc !currentLoc;
             try
               finishExp empty
                 (Const(CReal(float_of_string baseint, kind,
