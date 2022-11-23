@@ -76,7 +76,7 @@ instance in the OCaml toplevel using [Findlib][findlib]:
     # #require "goblint-cil";;
     [...]
     # GoblintCil.cilVersion;;
-    - : string = "2.0.0"
+    - : string = "2.0.1"
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 
