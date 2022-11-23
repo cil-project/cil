@@ -71,6 +71,18 @@
     but only probabilistically accurate *)
  let mergeGlobals = true
 
+ (* C99: inline functions are internal unless specified to be external
+    GNU89: inline functions are external unless specified to be static or extern
+    GNU89 inline semantics is used also when gnu_inline attribute is present on all inline declarations *)
+ let externallyVisible vi =
+  match vi.vstorage with
+  | Static -> false
+  | _ -> (match !Cil.cstd, !Cil.gnu89inline, hasAttribute "gnu_inline" (typeAttrs vi.vtype) with
+    | Cil.C90, _, _
+    | _, true, _
+    | _, _, true -> not vi.vinline || vi.vstorage <> Extern
+    | _, _, _ -> not vi.vinline || vi.vstorage = Extern)
+
  (* Return true if 's' starts with the prefix 'p' *)
  let prefix p s =
    let lp = String.length p in
@@ -809,7 +821,7 @@
        then
          newrep.ndata.vtype <- typeRemoveAttributes [ "const"; "pconst" ] newtype
        else newrep.ndata.vtype <- newtype;
-       (* clean up the storage.  *)
+       (* clean up the storage. *)
        let newstorage =
          if vi.vstorage = oldvi.vstorage || vi.vstorage = Extern then
            oldvi.vstorage
@@ -841,7 +853,7 @@
            currentLoc := l;
            incr currentDeclIdx;
            vi.vreferenced <- false;
-           if vi.vstorage <> Static then matchVarinfo vi (l, !currentDeclIdx)
+           if externallyVisible vi then matchVarinfo vi (l, !currentDeclIdx)
        | GFun (fdec, l) ->
            currentLoc := l;
            incr currentDeclIdx;
@@ -851,14 +863,8 @@
              (!currentFidx, fdec.svar.vname)
              (Util.list_map (fun (fn, _, _) -> fn) (argsToList args));
            fdec.svar.vreferenced <- false;
-           (* Force inline functions to be static. *)
-           (* GN: This turns out to be wrong. inline functions are external,
-              unless specified to be static. *)
-           (*
-           if fdec.svar.vinline && fdec.svar.vstorage = NoStorage then
-             fdec.svar.vstorage <- Static;
-           *)
-           if fdec.svar.vstorage <> Static then
+           if externallyVisible fdec.svar then
+             (* function with external linkage *)
              matchVarinfo fdec.svar (l, !currentDeclIdx)
            else if fdec.svar.vinline && !merge_inlines then
              (* Just create the nodes for inline functions *)
@@ -1334,7 +1340,9 @@
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
      let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
-       else if vi.vstorage = Static || (vi.vinline && not (!merge_inlines)) then
+       else if not (externallyVisible vi) then
+          (* rename static and not-external inline functions no matter if merge_inlines is enabled or not,
+          renaming is undone using originalVarNames in case merging is successful *)
         (
          (* Maybe it is static or inline and we are not merging inlines. Rename it then *)
          let newName, _ = A.newAlphaName ~alphaTable:vtAlpha ~undolist:None ~lookupname:vi.vname ~data:!currentLoc in

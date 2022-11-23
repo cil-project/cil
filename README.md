@@ -52,6 +52,10 @@ commands to build and test `goblint-cil`:
     dune build
     dune runtest    # runs the regression test suite
 
+To run a single test go to the build directory (e.g. `_build/default/test`) and run e.g.:
+
+    dune exec -- make test/array1
+
 You can also install `goblint-cil` into the opam switch:
 
     dune build @install
