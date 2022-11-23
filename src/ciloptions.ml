@@ -170,12 +170,10 @@ let options : (string * Arg.spec * string) list =
                       " Specify the c language standard. Choose between c90, c99, c11";
 
     "--gnu89inline", Arg.Set Cil.gnu89inline,
-                      "Use gnu89 semantic for inlining";
+                      " Use gnu89 semantic for inlining";
 
     "--mergeinlines", Arg.Unit (fun _ -> Mergecil.merge_inlines := true),
-                      " Try to merge definitions of inline functions. They can appear in multiple
-                      files and we would like them all to be the same. This can slow down the
-                      merger an order of magnitude.";
+                      " Try to merge definitions of inline functions.";
 
     "--noPrintLn",
     Arg.Unit (fun _ ->
@@ -193,7 +191,7 @@ let options : (string * Arg.spec * string) list =
     Arg.Unit (fun _ ->
                 Cil.lineDirectiveStyle := Some Cil.LineCommentSparse;
                 Cprint.printLnComment := true),
-    " Print commented #line directives in the output only when\n\t\t\t\tthe line number changes.";
+    " Print commented #line directives in the output only when the line number changes.";
 
     "--stats",
     Arg.Set Cilutil.printStats,
@@ -243,7 +241,7 @@ let options : (string * Arg.spec * string) list =
 
     "--extrafiles",
     Arg.String parseExtraFile,
-    "<filename> File that contains a list of additional files to process,\n\t\t\t\tseparated by newlines";
+    "<filename> File that contains a list of additional files to process, separated by newlines";
 
     (* Lowering Options *)
     "", Arg.Unit (fun () -> ()), " \n\t\tLowering Options\n";
@@ -302,13 +300,13 @@ let options : (string * Arg.spec * string) list =
 
     "--useLogicalOperators",
     Arg.Set Cil.useLogicalOperators,
-    (" Where possible (that is, if there are no side-effects),\n\t\t\t\t" ^
+    (" Where possible (that is, if there are no side-effects)," ^
        "retain &&, || and ?: (instead of transforming them to If statements)" ^
        is_default !Cil.useLogicalOperators);
 
     "--noUseLogicalOperators",
     Arg.Clear Cil.useLogicalOperators,
-     ("Transform &&, || and ?: to If statements" ^
+     (" Transform &&, || and ?: to If statements" ^
        is_default (not !Cil.useLogicalOperators));
 
     "--useComputedGoto",
@@ -361,7 +359,7 @@ let options : (string * Arg.spec * string) list =
 
     "--noPrintCilAsIs",
     Arg.Clear Cil.printCilAsIs,
-    (" Simplify the CIL when printing.  This produces prettier output\n\t\t\t\tby e.g. changing while(1) into more meaningful loops  " ^ is_default (not !Cil.printCilAsIs));
+    (" Simplify the CIL when printing. This produces prettier output by e.g. changing while(1) into more meaningful loops" ^ is_default (not !Cil.printCilAsIs));
 
     "--noWrap",
     Arg.Unit (fun _ -> Cil.lineLength := 100_000),

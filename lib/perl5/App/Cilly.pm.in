@@ -215,10 +215,6 @@ sub collectOneArgument {
     if($arg eq "--verbose") {
         $self->{VERBOSE} = 1; return 1;
     }
-    if($arg eq "--cstd=(.+)\$") {
-        push @{$self->{CILARGS}}, $1;
-        return 1;
-    }
     if($arg eq "--flatten_linker_scripts") {
         $self->{FLATTEN_LINKER_SCRIPTS} = 1; return 1;
     }
