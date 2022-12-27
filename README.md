@@ -1,5 +1,9 @@
 C Intermediate Language (CIL)
 ============================
+[![tests workflow status](https://github.com/goblint/cil/actions/workflows/tests.yml/badge.svg)](https://github.com/goblint/cil/actions/workflows/tests.yml)
+[![docs workflow status](https://github.com/goblint/cil/actions/workflows/docs.yml/badge.svg)](https://goblint.github.io/cil/)
+[![GitHub release status](https://img.shields.io/github/v/release/goblint/cil)](https://github.com/goblint/cil/releases)
+[![opam package status](https://badgen.net/opam/v/goblint-cil)](https://opam.ocaml.org/packages/goblint-cil)
 
 CIL is a front-end for the C programming language that facilitates
 program analysis and transformation. CIL will parse and typecheck a
