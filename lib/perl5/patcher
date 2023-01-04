@@ -243,7 +243,10 @@ sub patchOneFile {
 	}
     } else { die "Invalid --mode"; }
 
-    # Now scan the resulting file and get the real name of the file
+	system($preproccmd);
+    # For some reason the gcc returns spurious error codes
+
+	# Now scan the resulting file and get the real name of the file
     my $absname = "";
     open(PPOUT, "<$preprocfile.i") || die "Cannot find $preprocfile.i";
     while(<PPOUT>) {
