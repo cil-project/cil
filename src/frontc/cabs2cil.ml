@@ -6437,8 +6437,14 @@ and doDecl (isglobal: bool) : A.definition -> chunk = function
                     ignore (warn "Body of function %s falls-through and cannot find an appropriate return value" !currentFunctionFDEC.svar.vname);
                     None
               in
-              if not (hasAttribute "noreturn"
-                        !currentFunctionFDEC.svar.vattr) then
+              if
+                (* By default, (addReturnOnNoreturnFallthrough = false), CIL does not add a return statement
+                  in functions marked noreturn. However, unlike functions that are detected to never fall through,
+                  the end of these functions can possibly be reached (perhaps in buggy program code), so with
+                  the option set to true, always add the return statement. *)
+                !addReturnOnNoreturnFallthrough
+                || not (hasAttribute "noreturn" !currentFunctionFDEC.svar.vattr)
+              then
                 !currentFunctionFDEC.sbody.bstmts <-
                   !currentFunctionFDEC.sbody.bstmts
                   @ [mkStmt (Return(retval, endloc))]

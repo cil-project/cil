@@ -88,6 +88,8 @@ let useComputedGoto = ref false
 
 let useCaseRange = ref false
 
+let addReturnOnNoreturnFallthrough = ref false
+
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
    Makefile.cil generates the file src/machdep.ml,
