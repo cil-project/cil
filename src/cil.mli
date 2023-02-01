@@ -57,6 +57,7 @@ type cstd = C90 | C99 | C11
 val cstd_of_string: string -> cstd
 val cstd: cstd ref
 val gnu89inline: bool ref
+val addReturnOnNoreturnFallthrough: bool ref
 
 (** This module defines the abstract syntax of CIL. It also provides utility
    functions for traversing the CIL data structures, and pretty-printing
