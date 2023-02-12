@@ -747,6 +747,7 @@ addTestFail("testc11/clang-c11-generic-1-1", "Multiple compatible associations i
 addTestFail("testc11/clang-c11-generic-1-2", "No compatible associations or default in generic");
 addTest("testc11/clang-c11-generic-2");
 addTest("testc11/alignas");
+addTest("testc11/alignas_proper");
 
 # ---------------- c-torture -------------
 ## if we have the c-torture tests add them
