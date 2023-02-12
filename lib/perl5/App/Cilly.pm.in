@@ -361,6 +361,11 @@ Options:
                 AR      - GNU ar
                This option must be the first one! If it is not found there
                then GNUCC mode is assumed.
+  --cstd=xxx   What C standard / GNU dialect to emulate:
+                c90 (also used for c89, iso9899:1990, iso9899:199409, gnu90, gnu89)
+                c99 (also used for c9x, iso9899:1999, iso9899:199x, gnu99, gnu9x)
+                c11 (c1x, iso9899:2011, c17, c18, iso9899:2017, iso9899:2018, c2x, gnu11, gnu1x, gnu17, gnu18, gnu2x)
+  --gnu89inline gnu89 semantic for inline functions
   --help (or -help) Prints this help message.
   --verbose    Prints a lot of information about what is being done.
   --save-temps Keep temporary files in the current directory.
@@ -1517,12 +1522,34 @@ sub new {
 	    # skipping -###, --help, --target-help, --version
 
 	    # C Language Options
-            "-ansi" => { TYPE => 'ALLARGS' },
-            '-std=' => { TYPE => 'ALLARGS' },
+      "-ansi" => {
+            TYPE => 'ALLARGS',
+            RUN => sub {
+                push @{$stub->{CILARGS}}, "--cstd", "c90";
+            }},
+      "-std=(c90|c89|iso9899:1990|iso9899:199409|gnu90|gnu89)" => {
+            TYPE => 'ALLARGS',
+            RUN => sub {
+                push @{$stub->{CILARGS}}, "--cstd", "c90";
+            }},
+      "-std=(c99|c9x|iso9899:1999|iso9899:199x|gnu99|gnu9x)" => {
+            TYPE => 'ALLARGS',
+            RUN => sub {
+                push @{$stub->{CILARGS}}, "--cstd", "c99";
+            }},
+      "-std=(c1x|iso9899:2011|c17|c18|iso9899:2017|iso9899:2018|c2x|gnu11|gnu1x|gnu17|gnu18|gnu2x)" => {
+            TYPE => 'ALLARGS',
+            RUN => sub {
+                push @{$stub->{CILARGS}}, "--cstd", "c11";
+            }},
+      "-fgnu89-inline" => {
+            RUN => sub {
+                push @{$stub->{CILARGS}}, "--gnu89inline";
+            }},
 	    "-aux-info\$" => { TYPE => 'CC', ONEMORE => 1 },
-             # GCC might define some more macros, eg. for -fPIC, so pass
-             # the -f to the preprocessor and the compiler
-            "-f" => { TYPE => 'ALLARGS' },
+            # GCC might define some more macros, eg. for -fPIC, so pass
+            # the -f to the preprocessor and the compiler
+      "-f" => { TYPE => 'ALLARGS' },
 
 	    # -Wx,blah options (placed before general -W warning options)
             #matth: the handling of -Wp may be wrong.  We may need to

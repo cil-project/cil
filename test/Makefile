@@ -287,9 +287,16 @@ combine%: $(SMALL1)/combine%_1.c
 	            $(EXEOUT)combine$*.exe
 	cd $(SMALL1); ./combine$*.exe
 
+combinemerge%: $(SMALL1)/combinemerge%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -std=gnu90 -fcommon --merge\
+                    $(notdir $(wildcard $(SMALL1)/combinemerge$*_[1-9].c)) \
+	            $(EXEOUT)combinemerge$*.exe
+	cd $(SMALL1); ./combinemerge$*.exe
+
 combinegnuinline:
 	cd $(SMALL1); \
-          $(CILLY) --merge $(CFLAGS)  -std=gnu90 -fcommon \
+          $(CILLY) --merge $(CFLAGS) -std=gnu90 -fcommon \
                     combinegnuinline_1.c combinegnuinline_2.c \
 	            $(EXEOUT)combinegnuinline.exe
 	cd $(SMALL1); ./combinegnuinline.exe
@@ -303,11 +310,20 @@ arcombine: mustbegcc
 
 
 combinec99%: $(SMALL1)/combine-c99%_1.c
+# With no optimization gcc does not inline functions in general -> without -O1 calls
+# to inline functions (cilly always inlines) would cause an 'undefined reference error'
 	cd $(SMALL1); \
-          $(CILLY) $(CFLAGS) -std=c99 -fcommon --merge \
+          $(CILLY) $(CFLAGS) -O1 -std=c99 --verbose -fcommon --merge \
                     $(notdir $(wildcard $(SMALL1)/combine-c99$*_[1-9].c)) \
 	            $(EXEOUT)combine-c99$*.exe
 	cd $(SMALL1); ./combine-c99$*.exe
+
+combinec99mergeinline%: $(SMALL1)/combine-c99-mergeinline%_1.c
+	cd $(SMALL1); \
+          $(CILLY) $(CFLAGS) -O1 -std=c99 --verbose -fcommon --merge --mergeinlines \
+                    $(notdir $(wildcard $(SMALL1)/combine-c99-mergeinline$*_[1-9].c)) \
+	            $(EXEOUT)combine-c99-mergeinline$*.exe
+	cd $(SMALL1); ./combine-c99-mergeinline$*.exe
 
 # ww: Scott's structs-edg-stl.c example
 structs : mustbemanju

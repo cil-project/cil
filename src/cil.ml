@@ -55,11 +55,15 @@ module IH = Inthash
    information in configure.in *)
 let cilVersion         = Cilversion.cilVersion
 
-(* A few globals that control the interpretation of C source *)
-let msvcMode = ref false              (* Whether the pretty printer should
-                                         print output for the MS VC
-                                         compiler. Default is GCC *)
-let c99Mode = ref true (* True to handle ISO C 99 vs 90 changes.
+type cstd = C90 | C99 | C11
+let cstd_of_string = function
+| "c90" -> C90
+| "c99" -> C99
+| "c11" -> C11
+| _ -> failwith "Not a valid c standard argument."
+let cstd = ref C99
+let gnu89inline = ref false
+let c99Mode () = !cstd <> C90 (* True to handle ISO C 99 vs 90 changes.
       c99mode only affects parsing of decimal integer constants without suffix
           a) on machines where long and long long do not have the same size
              (e.g. 32 Bit machines, 64 Bit Windows, not 64 Bit MacOS or (most? all?) 64 Bit Linux):
@@ -83,6 +87,8 @@ let useLogicalOperators = ref false
 let useComputedGoto = ref false
 
 let useCaseRange = ref false
+
+let addReturnOnNoreturnFallthrough = ref false
 
 module M = Machdep
 (* Cil.initCil will set this to the current machine description.
@@ -2659,8 +2665,7 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
             compiler sort it out. *)
         if machdep then
           try
-            compare_cilint i2 zero_cilint >= 0 &&
-	    compare_cilint i2 (cilint_of_int (bitsSizeOf (typeOf e1'))) < 0
+            compare_cilint i2 zero_cilint >= 0 && compare_cilint i2 (cilint_of_int (bitsSizeOf (typeOf e1'))) < 0
           with SizeOfError _ -> false
         else false
       in
@@ -2698,10 +2703,14 @@ and constFoldBinOp (machdep: bool) bop e1 e2 tres =
       | BXor, Some z, _ when is_zero_cilint z -> collapse e2'
       | BXor, _, Some z when is_zero_cilint z -> collapse e1'
 
-      | Shiftlt, Some i1, Some i2 when shiftInBounds i2 ->
+      (* C99 6.5.7 (4) *)
+      | Shiftlt, Some i1, Some i2 when shiftInBounds i2 && not @@ isSigned tk ->
           kintegerCilint tk (shift_left_cilint i1 (int_of_cilint i2))
+      | Shiftlt, Some i1, Some i2 when compare_cilint i1 zero_cilint >= 0 && shiftInBounds i2 ->
+          (* i1 has signed type and is non-negative *)
+          const_if_not_overflow (BinOp(bop, e1', e2', tres)) tk (shift_left_cilint i1 (int_of_cilint i2))
       | Shiftlt, Some z, _ when is_zero_cilint z -> collapse0 ()
-      | Shiftlt, _, Some z when is_zero_cilint z -> collapse e1'
+      | Shiftlt, _, Some z when is_zero_cilint z && not @@ isSigned tk-> collapse e1'
       | Shiftrt, Some i1, Some i2 when shiftInBounds i2 ->
           kintegerCilint tk (shift_right_cilint i1 (int_of_cilint i2))
       | Shiftrt, Some z, _ when is_zero_cilint z -> collapse0 ()
@@ -2790,7 +2799,7 @@ let parseInt (str: string) : exp =
       1, [IUInt; IULong; IULongLong]
     else
       0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
-      else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
+      else if not (c99Mode ()) then [ IInt; ILong; IULong; ILongLong; IULongLong]
       else [IInt; ILong; ILongLong]
       (* c99mode only affects parsing of decimal integer constants without suffix
           a) on machines where long and long long do not have the same size
@@ -4313,13 +4322,10 @@ class defaultCilPrinterClass : cilPrinter = object (self)
     | "const", [] -> nil, false (* don't print const directly, because of split local declarations *)
     | "pconst", [] -> text "const", false (* pconst means print const *)
           (* Put the aconst inside the attribute list *)
-    | "complex", [] when !c99Mode -> text "_Complex", false
+    | "complex", [] when (c99Mode ()) -> text "_Complex", false
     | "complex", [] -> text "__complex__", false
     | "aconst", [] -> text "__const__", true
     | "thread", [] -> text "__thread", false
-(*
-    | "used", [] when not !msvcMode -> text "__attribute_used__", false
-*)
     | "volatile", [] -> text "volatile", false
     | "restrict", [] -> text "__restrict", false
     | "missingproto", [] -> text "/* missing proto */", false
@@ -6546,6 +6552,7 @@ let caseRangeFold (l: label list) =
 let labelAlphaTable : (string, unit A.alphaTableData ref) H.t =
   H.create 11
 
+(* Compute a fresh label name, call populateLabelAlphaTable with the appropriate fd before *)
 let freshLabel (base:string) =
   fst (A.newAlphaName ~alphaTable:labelAlphaTable ~undolist:None  ~lookupname:base ~data:())
 
@@ -6747,14 +6754,18 @@ let findAddrOfLabelStmts (b : block) : stmt list =
     ignore(visitCilBlock vis b);
     !slr
 
+(* Clears the labelAlphaTable and populates it with all label names appearing in fd *)
+let populateLabelAlphaTable (fd: fundec): unit =
+  H.clear labelAlphaTable;
+  ignore (visitCilFunction (new registerLabelsVisitor) fd)
+
 (* prepare a function for computeCFGInfo by removing break, continue,
    default and switch statements/labels and replacing them with Ifs and
    Gotos. *)
 let prepareCFG (fd : fundec) : unit =
   (* Labels are local to a function, so start with a clean slate by
      clearing labelAlphaTable. Then register all labels. *)
-  H.clear labelAlphaTable;
-  ignore (visitCilFunction (new registerLabelsVisitor) fd);
+  populateLabelAlphaTable fd;
   xform_switch_block fd.sbody
       (fun () -> failwith "prepareCFG: break with no enclosing loop")
       (fun () -> failwith "prepareCFG: continue with no enclosing loop")

@@ -446,6 +446,7 @@ addBadComment("combineinline3", "Bug. Outstanding since 1.3.6 at least");
 addTest("combineinline4 ");
 addBadComment("combineinline4", "Bug. Outstanding since 1.3.6 at least");
 addTest("combineinline6 ");
+addTest("combinemerge1");
 addTest("combinestruct1 ");
 addTest("mixedcomb ");
 addTest("testrun/math1 ");
@@ -616,6 +617,9 @@ addTest("combinegnuinline");
 addTest("testrun/constfold EXTRAARGS=\"--domakeCFG --dopartial\"");
 addBadComment("testrun/constfold", "Bug. Wrong constant folding.  #2276515 on sourceforge.");
 
+# Check that CIL does not do constant folding in cases where it is undefined
+addTestFail("testrun/constfold2 EXTRAARGS=\"--domakeCFG -Wall -Wshift-overflow=3 -Werror\"", "constfold should not remove undefined behavior");
+
 # tests of things implemented for EDG compatibility
 addTest("mergestruct");
 
@@ -701,6 +705,22 @@ addTest("testrunc99/c99-float-pragma");
 addTest("testrunc99/c99-fixed-width-int");
 addTest("combinec99inline");
 addBadComment("combinec99inline", "C99 inline semantic not fully supported.");
+addTest("combinec99inline1");
+addTest("combinec99inline2");
+addTest("combinec99inline3");
+addTest("combinec99inline4");
+addTest("combinec99inline5");
+addTest("combinec99inline6");
+addTest("combinec99inline7");
+addTest("combinec99inline8");
+addTest("combinec99inline9");
+addTest("combinec99mergeinline1");
+addTest("combinec99mergeinline2");
+addTest("combinec99mergeinline3");
+addTest("combinec99mergeinline4");
+addTest("combinec99mergeinline5");
+addTest("combinec99mergeinline6");
+addTest("combinec99mergeinline7");
 
 addTest("testrunc11/c11-generic");
 addTest("testrunc11/c11-caserange");

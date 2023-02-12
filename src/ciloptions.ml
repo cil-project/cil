@@ -6,7 +6,7 @@
     Wes Weimer          <weimer@cs.berkeley.edu>
     Ben Liblit          <liblit@cs.berkeley.edu>
    All rights reserved.
-   
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
    met:
@@ -39,16 +39,16 @@
 open GoblintCil
 module E = Errormsg
 
-let setDebugFlag v name = 
+let setDebugFlag v name =
   E.debugFlag := v;
   if v then Pretty.flushOften := true
 
-type outfile = 
+type outfile =
     { fname: string;
-      fchan: out_channel } 
+      fchan: out_channel }
 
       (* Processign of output file arguments *)
-let openFile (what: string) (takeit: outfile -> unit) (fl: string) = 
+let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
   if !E.verboseFlag then
     ignore (Printf.printf "Setting %s to %s\n" what fl);
   (try takeit { fname = fl;
@@ -58,44 +58,44 @@ let openFile (what: string) (takeit: outfile -> unit) (fl: string) =
 
 
 let fileNames : string list ref = ref []
-let recordFile fname = 
-  fileNames := fname :: (!fileNames) 
+let recordFile fname =
+  fileNames := fname :: (!fileNames)
 
                          (* Parsing of files with additional names *)
-let parseExtraFile (s: string) = 
+let parseExtraFile (s: string) =
   try
     let sfile = open_in s in
     while true do
       let line = try input_line sfile with e -> (close_in sfile; raise e) in
       let linelen = String.length line in
       let rec scan (pos: int) (* next char to look at *)
-          (start: int) : unit (* start of the word, 
+          (start: int) : unit (* start of the word,
                                  or -1 if none *) =
-        if pos >= linelen then 
-          if start >= 0 then 
+        if pos >= linelen then
+          if start >= 0 then
             recordFile (String.sub line start (pos - start))
-          else 
+          else
             () (* Just move on to the next line *)
         else
           let c = String.get line pos in
-          match c with 
-            ' ' | '\n' | '\r' | '\t' -> 
+          match c with
+            ' ' | '\n' | '\r' | '\t' ->
               (* whitespace *)
               if start >= 0 then begin
                 recordFile (String.sub line start (pos - start));
               end;
               scan (pos + 1) (-1)
-                
+
           | _ -> (* non-whitespace *)
-              if start >= 0 then 
-                scan (pos + 1) start 
+              if start >= 0 then
+                scan (pos + 1) start
               else
                 scan (pos + 1) pos
       in
         scan 0 (-1)
     done
   with Sys_error _ -> E.s (E.error "Cannot find extra file: %s" s)
-  |  End_of_file -> () 
+  |  End_of_file -> ()
 
 
 let options : (string * Arg.spec * string) list =
@@ -130,7 +130,7 @@ let options : (string * Arg.spec * string) list =
     Arg.Clear E.warnFlag,
     (" Disable optional warnings" ^ is_default (not !E.warnFlag));
 
-    "--noTruncateWarning", 
+    "--noTruncateWarning",
     Arg.Clear Cil.warnTruncate,
     " Suppress warning about truncating integer constants";
 
@@ -165,7 +165,15 @@ let options : (string * Arg.spec * string) list =
     "--strictcheck", Arg.Unit (fun _ -> Cilutil.doCheck := true;
                                         Cilutil.strictChecking := true),
                      " Same as --check, but treats problems as errors not warnings.";
-    "", Arg.Unit (fun _ -> ()), "";
+
+    "--cstd", Arg.String (fun s -> Cil.cstd := Cil.cstd_of_string s),
+                      " Specify the c language standard. Choose between c90, c99, c11";
+
+    "--gnu89inline", Arg.Set Cil.gnu89inline,
+                      " Use gnu89 semantic for inlining";
+
+    "--mergeinlines", Arg.Unit (fun _ -> Mergecil.merge_inlines := true),
+                      " Try to merge definitions of inline functions.";
 
     "--noPrintLn",
     Arg.Unit (fun _ ->
@@ -179,11 +187,11 @@ let options : (string * Arg.spec * string) list =
                 Cprint.printLnComment := true),
     " Print #line directives in the output, but put them in comments";
 
-    "--commPrintLnSparse", 
+    "--commPrintLnSparse",
     Arg.Unit (fun _ ->
                 Cil.lineDirectiveStyle := Some Cil.LineCommentSparse;
                 Cprint.printLnComment := true),
-    " Print commented #line directives in the output only when\n\t\t\t\tthe line number changes.";
+    " Print commented #line directives in the output only when the line number changes.";
 
     "--stats",
     Arg.Set Cilutil.printStats,
@@ -204,7 +212,7 @@ let options : (string * Arg.spec * string) list =
      try
        let machineModel = Sys.getenv "CIL_MACHINE" in
        Cil.envMachine := Some (Machdepenv.modelParse machineModel);
-     with 
+     with
        Not_found ->
 	 ignore (E.error "CIL_MACHINE environment variable is not set")
      | Failure msg ->
@@ -233,7 +241,7 @@ let options : (string * Arg.spec * string) list =
 
     "--extrafiles",
     Arg.String parseExtraFile,
-    "<filename> File that contains a list of additional files to process,\n\t\t\t\tseparated by newlines";
+    "<filename> File that contains a list of additional files to process, separated by newlines";
 
     (* Lowering Options *)
     "", Arg.Unit (fun () -> ()), " \n\t\tLowering Options\n";
@@ -292,13 +300,13 @@ let options : (string * Arg.spec * string) list =
 
     "--useLogicalOperators",
     Arg.Set Cil.useLogicalOperators,
-    (" Where possible (that is, if there are no side-effects),\n\t\t\t\t" ^
+    (" Where possible (that is, if there are no side-effects)," ^
        "retain &&, || and ?: (instead of transforming them to If statements)" ^
        is_default !Cil.useLogicalOperators);
 
     "--noUseLogicalOperators",
     Arg.Clear Cil.useLogicalOperators,
-     ("Transform &&, || and ?: to If statements" ^
+     (" Transform &&, || and ?: to If statements" ^
        is_default (not !Cil.useLogicalOperators));
 
     "--useComputedGoto",
@@ -351,7 +359,7 @@ let options : (string * Arg.spec * string) list =
 
     "--noPrintCilAsIs",
     Arg.Clear Cil.printCilAsIs,
-    (" Simplify the CIL when printing.  This produces prettier output\n\t\t\t\tby e.g. changing while(1) into more meaningful loops  " ^ is_default (not !Cil.printCilAsIs));
+    (" Simplify the CIL when printing. This produces prettier output by e.g. changing while(1) into more meaningful loops" ^ is_default (not !Cil.printCilAsIs));
 
     "--noWrap",
     Arg.Unit (fun _ -> Cil.lineLength := 100_000),

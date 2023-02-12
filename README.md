@@ -1,5 +1,9 @@
 C Intermediate Language (CIL)
 ============================
+[![tests workflow status](https://github.com/goblint/cil/actions/workflows/tests.yml/badge.svg)](https://github.com/goblint/cil/actions/workflows/tests.yml)
+[![docs workflow status](https://github.com/goblint/cil/actions/workflows/docs.yml/badge.svg)](https://goblint.github.io/cil/)
+[![GitHub release status](https://img.shields.io/github/v/release/goblint/cil)](https://github.com/goblint/cil/releases)
+[![opam package status](https://badgen.net/opam/v/goblint-cil)](https://opam.ocaml.org/packages/goblint-cil)
 
 CIL is a front-end for the C programming language that facilitates
 program analysis and transformation. CIL will parse and typecheck a
@@ -52,6 +56,10 @@ commands to build and test `goblint-cil`:
     dune build
     dune runtest    # runs the regression test suite
 
+To run a single test go to the build directory (e.g. `_build/default/test`) and run e.g.:
+
+    dune exec -- make test/array1
+
 You can also install `goblint-cil` into the opam switch:
 
     dune build @install
@@ -76,7 +84,7 @@ instance in the OCaml toplevel using [Findlib][findlib]:
     # #require "goblint-cil";;
     [...]
     # GoblintCil.cilVersion;;
-    - : string = "2.0.0"
+    - : string = "2.0.1"
 
 [findlib]: http://projects.camlcity.org/projects/findlib.html
 
