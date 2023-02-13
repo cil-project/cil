@@ -1752,11 +1752,11 @@ let d_fkind () = function
     FFloat -> text "float"
   | FDouble -> text "double"
   | FLongDouble -> text "long double"
-  | FFloat128 -> text "__float128"
+  | FFloat128 -> text "_Float128"
   | FComplexFloat -> text "_Complex float"
   | FComplexDouble -> text "_Complex double"
   | FComplexLongDouble -> text "_Complex long double"
-  | FComplexFloat128 -> text "_Complex __float128"
+  | FComplexFloat128 -> text "_Complex _Float128"
 
 let d_storage () = function
     NoStorage -> nil
@@ -1852,11 +1852,11 @@ let d_const () c =
          FFloat -> chr 'f'
        | FDouble -> nil
        | FLongDouble -> chr 'L'
-       | FFloat128 -> chr 'L' (* TODO: correct? *)
+       | FFloat128 -> text "F128"
        | FComplexFloat -> text "iF"
        | FComplexDouble -> chr 'i'
        | FComplexLongDouble -> text "iL"
-       | FComplexFloat128 -> text "iL") (* TODO: correct?*)
+       | FComplexFloat128 -> text "iF128")
   | CEnum(_, s, ei) -> text s
 
 

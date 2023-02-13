@@ -3679,6 +3679,8 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             let baseint, kind =
               if hasSuffix str "F128" then
                 String.sub str 0 (l - 4), FFloat128
+              else if hasSuffix str "Q" then
+                String.sub str 0 (l - 1), FFloat128
               else if hasSuffix str "L" then
                 String.sub str 0 (l - 1), FLongDouble
               else if hasSuffix str "F" then
@@ -3710,7 +3712,9 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             let l = String.length str in
             let baseint, kind =
               if hasSuffix str "iF128" || hasSuffix str "F128i" then
-                String.sub str 0 (l - 4), FComplexFloat128
+                String.sub str 0 (l - 5), FComplexFloat128
+              else if hasSuffix str "Qi" || hasSuffix str "iQ" then
+                String.sub str 0 (l - 2), FComplexFloat128
               else if hasSuffix str "iL" || hasSuffix str "Li" then
                 String.sub str 0 (l - 2), FComplexLongDouble
               else if hasSuffix str "iF" || hasSuffix str "Fi" then
