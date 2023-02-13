@@ -453,7 +453,7 @@ let binexponent = ['p' 'P'] ['+' '-']? decdigit+
 let hexfloat = hexprefix hexfraction binexponent
              | hexprefix hexdigit+   binexponent
 
-let floatsuffix = ['f' 'F' 'l' 'L']
+let floatsuffix = ['f' 'F' 'l' 'L' 'q' 'Q'] | "f128" | "F128"
 let floatnum = (decfloat | hexfloat) floatsuffix?
 
 let complexnum = (decfloat | hexfloat) ((['i' 'I'] floatsuffix) | (floatsuffix? ['i' 'I']))

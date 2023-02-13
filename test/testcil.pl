@@ -272,6 +272,7 @@ addTest("test/globals2 ");
 addBadComment("test/globals2", "Bug. we print array size expressions that refer to variables that haven't been defined yet.");
 addTest("testrun/float");
 addTest("testrun/float2 ");
+addTest("test/float3 ");
 addTest("test/huff1");
 addTest("testrun/init");
 addTest("testrun/init1");

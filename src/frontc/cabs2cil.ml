@@ -1309,10 +1309,14 @@ let arithmeticConversion    (* c.f. ISO 6.3.1.8 *)
     (t2: typ) : typ =
   let resultingFType fkind1 t1 fkind2 t2 =
     (* t1 and t2 are the original types before unrollType, so TNamed is preserved if possible *)
-    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble in
+    let isComplex f = f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble || f = FComplexFloat128 in
     match fkind1, fkind2 with
+    | FComplexFloat128, _ -> t1
+    | _, FComplexFloat128 -> t2
     | FComplexLongDouble, _ -> t1
     | _, FComplexLongDouble -> t2
+    | FFloat128, other -> if isComplex other then TFloat(FComplexFloat128, []) else t1
+    | other, FFloat128 -> if isComplex other then TFloat(FComplexFloat128, []) else t2
     | FLongDouble, other -> if isComplex other then TFloat(FComplexLongDouble, []) else t1
     | other, FLongDouble -> if isComplex other then TFloat(FComplexLongDouble, []) else t2
     | FComplexDouble, other -> t1
@@ -2558,15 +2562,7 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
           )
 
     | [A.Tlong; A.Tdouble] -> TFloat(FLongDouble, [])
-    | [A.Tfloat128] ->
-      (* This is only correct w.r.t. to size and align. If we analyze floats, we need to be careful here *)
-      if !Machdep.theMachine.Machdep.sizeof_longdouble = 16 && !Machdep.theMachine.Machdep.alignof_longdouble = 16 then
-        TFloat(FLongDouble, [])
-      else
-        E.s (error "float128 only supported on machines where it is an alias (w.r.t. to size and align) of long double: size: %i align: %i "
-        !Machdep.theMachine.Machdep.sizeof_longdouble
-        !Machdep.theMachine.Machdep.alignof_longdouble
-        )
+    | [A.Tfloat128] -> TFloat(FFloat128, [])
      (* Now the other type specifiers *)
     | [A.Tdefault] -> E.s (error "Default outside generic associations")
     | [A.Tnamed n] -> begin
@@ -3681,7 +3677,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
             let baseint, kind =
-              if hasSuffix str "L" then
+              if hasSuffix str "F128" then
+                String.sub str 0 (l - 4), FFloat128
+              else if hasSuffix str "Q" then
+                String.sub str 0 (l - 1), FFloat128
+              else if hasSuffix str "L" then
                 String.sub str 0 (l - 1), FLongDouble
               else if hasSuffix str "F" then
                 String.sub str 0 (l - 1), FFloat
@@ -3690,10 +3690,10 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               else
                 str, FDouble
             in
-            if kind = FLongDouble then
+            if kind = FLongDouble || kind = FFloat128 then
               (* We only have 64-bit values in Ocaml *)
-              E.log "treating long double constant %s as double constant at %a.\n"
-                str d_loc !currentLoc;
+              E.log "treating %a constant %s as double constant at %a (only relevant if first argument of CReal is used).\n"
+                d_fkind kind str d_loc !currentLoc;
             try
               finishExp empty
                 (Const(CReal(float_of_string baseint, kind,
@@ -3711,7 +3711,11 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
             (* Maybe it ends in U or UL. Strip those *)
             let l = String.length str in
             let baseint, kind =
-              if hasSuffix str "iL" || hasSuffix str "Li" then
+              if hasSuffix str "iF128" || hasSuffix str "F128i" then
+                String.sub str 0 (l - 5), FComplexFloat128
+              else if hasSuffix str "Qi" || hasSuffix str "iQ" then
+                String.sub str 0 (l - 2), FComplexFloat128
+              else if hasSuffix str "iL" || hasSuffix str "Li" then
                 String.sub str 0 (l - 2), FComplexLongDouble
               else if hasSuffix str "iF" || hasSuffix str "Fi" then
                 String.sub str 0 (l - 2), FComplexFloat
@@ -3720,10 +3724,6 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
               else (* A.CONST_COMPLEX always has the suffix i *)
                 String.sub str 0 (l - 1), FComplexDouble
             in
-            if kind = FLongDouble then
-              (* We only have 64-bit values in Ocaml *)
-              E.log "treating long double constant %s as double constant at %a.\n"
-                str d_loc !currentLoc;
             try
               finishExp empty
                 (Const(CReal(float_of_string baseint, kind,
@@ -3799,10 +3799,12 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
           match fkind with
           | FFloat
           | FDouble
-          | FLongDouble -> 8
+          | FLongDouble
+          | FFloat128 -> 8
           | FComplexFloat
           | FComplexDouble
-          | FComplexLongDouble -> 9
+          | FComplexLongDouble
+          | FComplexFloat128 -> 9
           end
         | TEnum _ -> 3
         | TPtr _ -> 5
@@ -4468,7 +4470,7 @@ and doExp (asconst: bool)   (* This expression is used as a constant *)
                             (* if the t we determined here is complex, but the return types of all the fptrs are not, the return *)
                             (* type should not be complex *)
                             let isComplex t = match t with
-                              | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble
+                              | TFloat(f, _) -> f = FComplexFloat || f = FComplexDouble || f = FComplexLongDouble || f = FComplexFloat128
                               | _ -> false
                             in
                             if List.for_all (fun x -> not (isComplex x)) retTypes then
