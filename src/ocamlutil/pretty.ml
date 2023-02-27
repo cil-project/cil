@@ -562,74 +562,72 @@ let emitDoc
   loopCont 0 d (fun x -> ())
 
 
-(* Print a document on a channel *)
-let fprint (chn: out_channel) ~(width: int) doc =
-  let doc = if !flattenBeforePrint then flatten Nil doc else doc in
+let print_with_state ~width f =
   (* Save some parameters, to allow for nested calls of these routines. *)
   let old_maxCol = !maxCol in
   maxCol := width;
   let old_breaks = !breaks in
   breaks := [];
-  let old_alignDepth = !alignDepth in
-  alignDepth := 0;
   let old_activeMarkups = !activeMarkups in
   activeMarkups := [];
+  let old_alignDepth = !alignDepth in
+  alignDepth := 0;
   let old_aligns = !aligns in
   aligns := [{ gainBreak = 0; isTaken = ref false; deltaFromPrev = ref 0; deltaToNext = ref 0; }];
   let old_topAlignAbsCol = !topAlignAbsCol in
   topAlignAbsCol := 0;
   let old_breakAllMode = !breakAllMode in
   breakAllMode := false;
-  ignore (scan 0 doc);
-  breaks := List.rev !breaks;
-  ignore (emitDoc
-            (fun s nrcopies ->
-              for _ = 1 to nrcopies do
-                output_string chn s
-              done) doc);
-  breakAllMode := old_breakAllMode;
-  topAlignAbsCol := old_topAlignAbsCol;
-  aligns := old_aligns;
-  activeMarkups := old_activeMarkups;
-  alignDepth := old_alignDepth;
-  breaks := old_breaks; (* We must do this especially if we don't do emit
-                          (which consumes breaks) because otherwise we waste
-                          memory *)
-  maxCol := old_maxCol
+
+  let finally () =
+    maxCol := old_maxCol;
+    (* We must do this especially if we don't do emit
+       (which consumes breaks) because otherwise we waste
+       memory *)
+    breaks := old_breaks;
+    activeMarkups := old_activeMarkups;
+    alignDepth := old_alignDepth;
+    aligns := old_aligns;
+    topAlignAbsCol := old_topAlignAbsCol;
+    breakAllMode := old_breakAllMode
+  in
+  
+  match f () with
+  | r ->
+    finally ();
+    r
+  | exception e ->
+    let bt = Printexc.get_raw_backtrace () in
+    finally ();
+    Printexc.raise_with_backtrace e bt
+
+(* Print a document on a channel *)
+let fprint (chn: out_channel) ~(width: int) doc =
+  let doc = if !flattenBeforePrint then flatten Nil doc else doc in
+  print_with_state ~width (fun () ->
+      ignore (scan 0 doc);
+      breaks := List.rev !breaks;
+      emitDoc (fun s nrcopies ->
+          for _ = 1 to nrcopies do
+            output_string chn s
+          done
+        ) doc
+    )
 
 (* Print the document to a string *)
 let sprint ~(width : int)  doc : string =
   let doc = if !flattenBeforePrint then flatten Nil doc else doc in
-  let old_maxCol = !maxCol in
-  maxCol := width;
-  let old_breaks = !breaks in
-  breaks := [];
-  let old_activeMarkups = !activeMarkups in
-  activeMarkups := [];
-  let old_alignDepth = !alignDepth in
-  alignDepth := 0;
-  let old_aligns = !aligns in
-  aligns := [{ gainBreak = 0; isTaken = ref false; deltaFromPrev = ref 0; deltaToNext = ref 0; }];
-  let old_topAlignAbsCol = !topAlignAbsCol in
-  topAlignAbsCol := 0;
-  let old_breakAllMode = !breakAllMode in
-  breakAllMode := false;
-  ignore (scan 0 doc);
-  breaks := List.rev !breaks;
-  let buf = Buffer.create 1024 in
-  let rec add_n_strings str num =
-    if num <= 0 then ()
-    else begin Buffer.add_string buf str; add_n_strings str (num - 1) end
-  in
-  emitDoc add_n_strings doc;
-  breakAllMode := old_breakAllMode;
-  topAlignAbsCol := old_topAlignAbsCol;
-  aligns := old_aligns;
-  breaks  := old_breaks;
-  activeMarkups := old_activeMarkups;
-  alignDepth := old_alignDepth;
-  maxCol := old_maxCol;
-  Buffer.contents buf
+  print_with_state ~width (fun () ->
+      ignore (scan 0 doc);
+      breaks := List.rev !breaks;
+      let buf = Buffer.create 1024 in
+      let rec add_n_strings str num =
+        if num <= 0 then ()
+        else begin Buffer.add_string buf str; add_n_strings str (num - 1) end
+      in
+      emitDoc add_n_strings doc;
+      Buffer.contents buf
+    )
 
 
                                         (* The rest is based on printf.ml *)
