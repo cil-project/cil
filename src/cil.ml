@@ -4622,13 +4622,16 @@ class plainCilPrinterClass =
            self#pAttrs comp.cattr
        else begin
          H.add donecomps comp.ckey (); (* Add it before we do the fields *)
-         dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])"
+         let doc = dprintf "TComp(@[%s %s,@?%a,@?%a,@?%a@])"
            (if comp.cstruct then "struct" else "union") comp.cname
            (docList ~sep:(chr ',' ++ break)
               (fun f -> dprintf "%s : %a" f.fname self#pOnlyType f.ftype))
            comp.cfields
            self#pAttrs comp.cattr
            self#pAttrs a
+         in
+         H.remove donecomps comp.ckey; (* Remove it after we do the fields, so printer doesn't have global state *)
+         doc
        end
    | TBuiltin_va_list a ->
        dprintf "TBuiltin_va_list(%a)" self#pAttrs a
