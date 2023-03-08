@@ -36,7 +36,7 @@
 
  *)
 
-(* rmtmps.mli *)
+(* rmUnused.mli *)
 (* remove unused things from cil files:               *)
 (*   - local temporaries introduced but not used      *)
 (*   - global declarations that are not used          *)
@@ -46,18 +46,18 @@
 
 (* Some clients may wish to augment or replace the standard strategy
    for finding the initially reachable roots.  The optional
-   "isRoot" argument to Rmtmps.removeUnusedTemps grants this
+   "isRoot" argument to RmUnused.removeUnused grants this
    flexibility.  If given, it should name a function which will return
    true if a given global should be treated as a retained root.
    
-   Function Rmtmps.isDefaultRoot encapsulates the default root
+   Function RmUnused.isDefaultRoot encapsulates the default root
    collection, which consists of those global variables and functions
    which are visible to the linker and runtime loader.  A client's
    root filter can use this if the goal is to augment rather than
-   replace the standard logic.  Function Rmtmps.isExportedRoot is an
+   replace the standard logic.  Function RmUnused.isExportedRoot is an
    alternate name for this same function.
    
-   Function Rmtmps.isCompleteProgramRoot is an example of an alternate
+   Function RmUnused.isCompleteProgramRoot is an example of an alternate
    root collection.  This function assumes that it is operating on a
    complete program rather than just one object file.  It treats
    "main()" as a root, as well as any function carrying the
@@ -75,8 +75,8 @@ val isExportedRoot : rootsFilter
 val isCompleteProgramRoot : rootsFilter
 
 (* process a complete Cil file *)
-val removeUnusedTemps: ?isRoot:rootsFilter -> Cil.file -> unit
+val removeUnused : ?isRoot:rootsFilter -> Cil.file -> unit
 
 
-val keepUnused: bool ref (* Set this to true to turn off this module *)
-val rmUnusedInlines: bool ref (* Delete unused inline funcs in gcc mode? *)
+val keepUnused : bool ref (* Set this to true to turn off this module *)
+val rmUnusedInlines : bool ref (* Delete unused inline funcs in gcc mode? *)

@@ -42,7 +42,7 @@ let strictChecking= ref false   (* If doCheck is true and warnings are found,
 
 let printStats = ref false
 
-(* when 'sliceGlobal' is set, then when 'rmtmps' runs, only globals*)
+(* when 'sliceGlobal' is set, then when 'rmUnused' runs, only globals*)
 (* marked with #pragma cilnoremove(whatever) are kept; when used with *)
 (* cilly.asm.exe, the effect is to slice the input on the noremove symbols *)
 let sliceGlobal = ref false

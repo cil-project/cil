@@ -487,8 +487,8 @@ addBadComment("testrun/union6",
   "Bug. Unsupported C11 implicit initialization of union padding.");
 addTest("runall/extinline ");
 
-addTest("testrun/rmtmps-attr ");
-addBadComment("testrun/rmtmps-attr",
+addTest("testrun/rmUnused-attr ");
+addBadComment("testrun/rmUnused-attr",
                         "Bug. A limitation of our support for attributes");
 
 addTest("testrun/vsp");

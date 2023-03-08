@@ -630,7 +630,7 @@ the name of a file containing the output of the C preprocessor.
 The \t{Mergecil.merge: Cil.file list -> string -> Cil.file} function merges
 multiple files. You can then invoke your analysis function on the resulting
 \t{Cil.file} data structure.  You might want to call
-\t{Rmtmps.removeUnusedTemps} first to clean up the prototypes and variables
+\t{RmUnused.removeUnused} first to clean up the prototypes and variables
 that are not used. Then you can call the function \t{Cil.dumpFile:
 cilPrinter -> out\_channel -> Cil.file -> unit} to print the file to a
 given output channel. A good \t{cilPrinter} to use is

@@ -518,7 +518,7 @@ and varinfo = {
 
     mutable vreferenced: bool;
     (** True if this variable is ever referenced. This is computed by
-       {!Rmtmps.removeUnusedTemps}. It is safe to just initialize this to False *)
+       {!RmUnused.removeUnused}. It is safe to just initialize this to False *)
 
     mutable vdescr: Pretty.doc;
     (** For most temporary variables, a description of what the var holds.

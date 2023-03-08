@@ -61,9 +61,9 @@ let parseOneFile (fname: string) : C.file =
 
   if (not (Feature.enabled "epicenter")) then (
     (* sm: remove unused temps to cut down on gcc warnings  *)
-    (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
+    (* (Stats.time "usedVar" RmUnused.removeUnused cil);  *)
     (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
-    (Rmtmps.removeUnusedTemps cil)
+    (RmUnused.removeUnused cil)
   );
   cil
 

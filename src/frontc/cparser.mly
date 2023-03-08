@@ -958,13 +958,13 @@ statement_no_null:
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
                                      floor, since unused labels are usually
-                                     removed anyways by Rmtmps. *)
+                                     removed anyways by RmUnused. *)
                                   LABEL (fst $1, $5, joinLoc (snd $1) $4)}
 |   IDENT COLON attribute_nocv_list location SEMICOLON
 		                 {(* The only attribute that should appear here
                                      is "unused". For now, we drop this on the
                                      floor, since unused labels are usually
-                                     removed anyways by Rmtmps. *)
+                                     removed anyways by RmUnused. *)
                                   LABEL (fst $1, NOP ($5), joinLoc (snd $1) $4)}
 |   CASE expression COLON statement location
 	                         {CASE (fst $2, $4, joinLoc $1 $5, joinLoc $1 $3)}
