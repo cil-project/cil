@@ -106,7 +106,7 @@ ocamlbuild:
 META:
 	@rm -f $@
 	@printf "description = \"C Intermediate Language\"\n" >>$@
-	@printf "requires = \"unix str num dynlink findlib\"\n" >>$@
+	@printf "requires = \"unix str dynlink findlib\"\n" >>$@
 	@printf "version = \"$(CIL_VERSION)\"\n\n" >>$@
 	@printf "archive(byte) = \"cil.cma\"\n" >>$@
 	@printf "archive(native) = \"cil.cmxa\"\n\n" >>$@
