@@ -725,8 +725,11 @@ let gprintf (finish : doc -> 'b)
               invalid_arg ("dprintf: unimplemented format " 
 			   ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              String.init 2 (function
+                  | 0 -> '%'
+                  | _ -> fget j') (* format_spec = "%x", etc. *)
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
                          (Int64.format format_spec n))
@@ -735,8 +738,11 @@ let gprintf (finish : doc -> 'b)
 	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              String.init 2 (function
+                  | 0 -> '%'
+                  | _ -> fget j') (* format_spec = "%x", etc. *)
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
                          (Int32.format format_spec n))
@@ -745,8 +751,11 @@ let gprintf (finish : doc -> 'b)
 	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              String.init 2 (function
+                  | 0 -> '%'
+                  | _ -> fget j') (* format_spec = "%x", etc. *)
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
                          (Nativeint.format format_spec n))
