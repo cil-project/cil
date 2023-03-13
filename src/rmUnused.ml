@@ -38,6 +38,7 @@
 
 (* rmUnused.ml *)
 (* implementation for rmUnused.mli *)
+(* previously named Rmtmps, renamed to RmUnused to clarify that not only temporaries are removed *)
 
 open Pretty
 open Cil
