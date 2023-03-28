@@ -36,8 +36,9 @@
 
  *)
 
-(* rmtmps.ml *)
-(* implementation for rmtmps.mli *)
+(* rmUnused.ml *)
+(* implementation for rmUnused.mli *)
+(* previously named Rmtmps, renamed to RmUnused to clarify that not only temporaries are removed *)
 
 open Pretty
 open Cil
@@ -50,7 +51,7 @@ let keepUnused = ref false
 let rmUnusedInlines = ref false
 
 
-let trace = Trace.trace "rmtmps"
+let trace = Trace.trace "rmunused"
 
 
 
@@ -637,7 +638,7 @@ class markUsedLabels (labelMap: (string, unit) H.t) = object
       Goto (dest, _) ->
         let (ln, _, _), _ = labelsToKeep !dest.labels in
         if ln = "" then
-          E.s (E.bug "rmtmps: destination of statement does not have labels");
+          E.s (E.bug "rmUnused: destination of statement does not have labels");
         (* Mark it as used *)
         H.replace labelMap ln ();
         DoChildren
@@ -648,7 +649,7 @@ class markUsedLabels (labelMap: (string, unit) H.t) = object
   | AddrOfLabel dest ->
       let (ln, _, _), _ = labelsToKeep !dest.labels in
       if ln = "" then
-        E.s (E.bug "rmtmps: destination of address of label does not have labels");
+        E.s (E.bug "rmUnused: destination of address of label does not have labels");
       (* Mark it as used *)
       H.replace labelMap ln ();
       SkipChildren
@@ -778,7 +779,7 @@ type rootsFilter = global -> bool
 
 let isDefaultRoot = isExportedRoot
 
-let removeUnusedTemps ?(isRoot : rootsFilter = isDefaultRoot) file =
+let removeUnused ?(isRoot : rootsFilter = isDefaultRoot) file =
   if !keepUnused || Trace.traceActive "disableTmpRemoval" then
     Trace.trace "disableTmpRemoval" (dprintf "temp removal disabled\n")
   else

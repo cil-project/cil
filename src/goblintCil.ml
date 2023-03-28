@@ -19,7 +19,7 @@ module Formatcil = Formatcil
 module Machdep = Machdep
 module Machdepenv = Machdepenv
 module Mergecil = Mergecil
-module Rmtmps = Rmtmps
+module RmUnused = RmUnused
 
 (** {1 FrontC modules} *)
 

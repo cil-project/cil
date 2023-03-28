@@ -59,12 +59,8 @@ let parseOneFile (fname: string) : C.file =
   if !Cilutil.printStages then ignore (E.log "Parsing %s\n" fname);
   let cil = F.parse fname () in
 
-  if (not (Feature.enabled "epicenter")) then (
-    (* sm: remove unused temps to cut down on gcc warnings  *)
-    (* (Stats.time "usedVar" Rmtmps.removeUnusedTemps cil);  *)
-    (* (trace "sm" (dprintf "removing unused temporaries\n")); *)
-    (Rmtmps.removeUnusedTemps cil)
-  );
+  (* remove unused temps and globals to cut down on gcc warnings  *)
+  RmUnused.removeUnused cil;
   cil
 
 let processOneFile (cil: C.file) =

@@ -330,24 +330,24 @@ let options : (string * Arg.spec * string) list =
        is_default (not !Cil.useCaseRange));
 
     "--keepunused",
-    Arg.Set Rmtmps.keepUnused,
+    Arg.Set RmUnused.keepUnused,
     (" Do not remove the unused variables and types" ^
-       is_default !Rmtmps.keepUnused);
+       is_default !RmUnused.keepUnused);
 
     "--nokeepunused",
-    Arg.Clear Rmtmps.keepUnused,
+    Arg.Clear RmUnused.keepUnused,
     (" Remove unused variables and types" ^
-       is_default (not !Rmtmps.keepUnused));
+       is_default (not !RmUnused.keepUnused));
 
     "--rmUnusedInlines",
-    Arg.Set Rmtmps.rmUnusedInlines,
+    Arg.Set RmUnused.rmUnusedInlines,
     (" Delete any unused inline functions" ^
-       is_default !Rmtmps.rmUnusedInlines);
+       is_default !RmUnused.rmUnusedInlines);
 
     "--noRmUnusedInlines",
-    Arg.Clear Rmtmps.rmUnusedInlines,
+    Arg.Clear RmUnused.rmUnusedInlines,
     (" Do not delete any unused inline functions" ^
-       is_default (not !Rmtmps.rmUnusedInlines));
+       is_default (not !RmUnused.rmUnusedInlines));
 
     (* Output Options *)
     "", Arg.Unit (fun () -> ()), " \n\t\tOutput Options\n";

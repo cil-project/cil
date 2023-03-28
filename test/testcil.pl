@@ -469,8 +469,8 @@ addBadComment("testrun/wrongnumargs",
                         "Notbug. Should fail since we don't pad argument lists");
 addTest("test/restrict EXTRAARGS=-std=c9x _GNUCC=1");
 addTest("test/restrict1 _GNUCC=1");
-addTest("testrun/rmtmps1 ");
-addTest("testrun/rmtmps2 _GNUCC=1");
+addTest("testrun/rmUnused1 ");
+addTest("testrun/rmUnused2 _GNUCC=1");
 addTest("test/proto1 ");
 addBadComment("test/proto1",
 	      "Bug. CIL doesn't like pointers to old-style functions...");
@@ -487,8 +487,8 @@ addBadComment("testrun/union6",
   "Bug. Unsupported C11 implicit initialization of union padding.");
 addTest("runall/extinline ");
 
-addTest("testrun/rmtmps-attr ");
-addBadComment("testrun/rmtmps-attr",
+addTest("testrun/rmUnused-attr ");
+addBadComment("testrun/rmUnused-attr",
                         "Bug. A limitation of our support for attributes");
 
 addTest("testrun/vsp");
