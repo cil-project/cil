@@ -1,3 +1,12 @@
+## 2.0.2 (unreleased)
+* Rename `Rmtmps` to `RmUnused` (#135).
+* Add option to add return statement to `noreturn` functions (#129).
+* Fix `_Float128` support (#118, #119).
+* Fix C11 `_Alignas` computation (#130).
+* Fix renaming and merging of `inline` functions based on C standard (#120, #124).
+* Fix `Pretty` not resetting all global state between calls (#133).
+* Fix `cilly` patcher (#128).
+
 ## 2.0.1
 * Fix scope of enum definition in return type (#112, #113).
 * Fix signed integer left shift constant folding overflow (#122, #123).
