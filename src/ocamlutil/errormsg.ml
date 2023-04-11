@@ -225,7 +225,7 @@ let cleanFileName str =
 
 let readingFromStdin = ref false
 
-let startParsing ?(useBasename=true) (fname: string) =
+let startParsing ?(useBasename=false) (fname: string) =
   (* We only support one open file at a time *)
   if !current != dummyinfo then begin
      s (error "Errormsg.startParsing supports only one open file: You want to open %s and %s is still open\n" fname !current.fileName);
