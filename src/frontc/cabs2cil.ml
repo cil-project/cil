@@ -5164,7 +5164,7 @@ and doCondition (isconst: bool) (* If we are in constants, we do our best to
                 (e: A.expression)
                 (st: chunk)
                 (sf: chunk) : chunk =
-  if isEmpty st && isEmpty sf then
+  if (!Cil.removeBranchingOnConstants || isconst) && isEmpty st && isEmpty sf then
     let se,_,_ = doExp isconst e ADrop in se
   else
     compileCondExp isconst (doCondExp isconst e) st sf
