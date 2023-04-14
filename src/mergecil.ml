@@ -1338,7 +1338,7 @@
 
    let processOneGlobal (g : global) : unit =
      (* Process a varinfo. Reuse an old one, or rename it if necessary *)
-     let processVarinfo (vi : varinfo) (vloc : location) : varinfo =
+     let processVarinfo ~isadef (vi : varinfo) (vloc : location) : varinfo =
        if vi.vreferenced then vi (* Already done *)
        else if not (externallyVisible vi) then
           (* rename static and not-external inline functions no matter if merge_inlines is enabled or not,
@@ -1363,6 +1363,8 @@
              vi'.vreferenced <- true;
              (* Mark it as done already *)
              vi'.vaddrof <- vi.vaddrof || vi'.vaddrof;
+             if isadef then
+               vi'.vdecl <- vi.vdecl;
              vi'
      in
      try
@@ -1370,7 +1372,7 @@
        | GVarDecl (vi, l) as g ->
            currentLoc := l;
            incr currentDeclIdx;
-           let vi' = processVarinfo vi l in
+           let vi' = processVarinfo ~isadef:false vi l in
            if vi != vi' then (* Drop this declaration *) ()
            else if H.mem emittedVarDecls vi'.vname then
              (* No need to keep it *)
@@ -1382,7 +1384,7 @@
        | GVar (vi, init, l) ->
            currentLoc := l;
            incr currentDeclIdx;
-           let vi' = processVarinfo vi l in
+           let vi' = processVarinfo ~isadef:(init.init <> None) vi l in
            (* We must keep this definition even if we reuse this varinfo, because maybe the previous one was a declaration *)
            H.add emittedVarDecls vi.vname true;
            if mergeGlobals then
@@ -1408,7 +1410,7 @@
            currentLoc := l;
            incr currentDeclIdx;
            (* We apply the renaming *)
-           fdec.svar <- processVarinfo fdec.svar l;
+           fdec.svar <- processVarinfo ~isadef:true fdec.svar l;
            (* Get the original name. *)
            let origname = try H.find originalVarNames fdec.svar.vname with Not_found -> fdec.svar.vname in
            (* Go in there and rename everything as needed *)
