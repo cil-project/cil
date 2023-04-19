@@ -1,0 +1,9 @@
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+# requires git 2.23
+# (https://www.moxio.com/blog/43/ignoring-bulk-change-commits-with-git-blame)
+
+# Fix Warning 6
+11caf7887851119fa9b553d41c903bce49c302d5
+
+# Normalize whitespace in cabs2cil.ml
+f44b466468869562182d090e3b6453b4a0cd17cf
