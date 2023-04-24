@@ -148,6 +148,7 @@ let default_heapify (f : file) =
   let free_fun = emptyFunction "free" in
   let alloc_exp = (Lval((Var(alloc_fun.svar)),NoOffset)) in
   let free_exp = (Lval((Var(free_fun.svar)),NoOffset)) in
+  f.globals <- GText("#include <stdlib.h>\n") :: f.globals ;
   ignore (heapify f alloc_exp free_exp)
     
 (* StackGuard clone *)
@@ -195,7 +196,9 @@ let default_stackguard (f : file) =
   let get_ra = expify (emptyFunction "stackguard_get_ra") in
   let set_ra = expify (emptyFunction "stackguard_set_ra") in
   let global_decl = 
-"extern void * stackguard_get_ra();
+"#include <stdlib.h>
+
+extern void * stackguard_get_ra();
 extern void stackguard_set_ra(void *new_ra);
 /* You must provide an implementation for functions that get and set the
  * return address. Such code is unfortunately architecture specific.
