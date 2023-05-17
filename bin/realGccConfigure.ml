@@ -13,6 +13,10 @@ let is_real_gcc c gcc =
 
 let gccs = [
   "gcc";
+  "gcc-16";
+  "gcc-15";
+  "gcc-14";
+  "gcc-13";
   "gcc-12";
   "gcc-11";
   "gcc-10";
