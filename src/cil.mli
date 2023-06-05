@@ -1689,7 +1689,7 @@ val increm: exp -> int -> exp
 val var: varinfo -> lval
 
 (** Make an AddrOf. Given an lvalue of type T will give back an expression of
-    type ptr(T). It optimizes somewhat expressions like "& v" and "& v[0]"  *)
+    type ptr(T). It optimizes somewhat expressions like "& v" and "& v\[0\]". *)
 val mkAddrOf: lval -> exp
 
 
