@@ -1,11 +1,14 @@
-## 2.0.2 (unreleased)
+## 2.0.2
 * Rename `Rmtmps` to `RmUnused` (#135).
 * Add option to add return statement to `noreturn` functions (#129).
+* Fix empty `if`s being removed (#140).
 * Fix `_Float128` support (#118, #119).
 * Fix C11 `_Alignas` computation (#130).
 * Fix renaming and merging of `inline` functions based on C standard (#120, #124).
-* Fix `Pretty` not resetting all global state between calls (#133).
+* Fix `Pretty` not resetting all global state between calls (#133, #134).
+* Fix `fundec` location in merger (#139).
 * Fix `cilly` patcher (#128).
+* Disable basename by default in parser.
 
 ## 2.0.1
 * Fix scope of enum definition in return type (#112, #113).
