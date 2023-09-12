@@ -305,7 +305,7 @@ let lvh_handle_inst i lvh =
       end;
       lvh
   end
-  | Asm(_,_,_,_,_,_) -> begin
+  | Asm(_,_,_,_,_,_,_) -> begin
       let _,d = UD.computeUseDefInstr i in
       UD.VS.iter (fun vi ->
 	lvh_kill_vi lvh vi) d;

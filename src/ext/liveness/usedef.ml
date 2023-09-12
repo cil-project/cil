@@ -150,7 +150,7 @@ class useDefVisitorClass : cilVisitor = object (self)
         E.s (bug "bad call to %s" vi.vname)
     | Call (lvo, f, args, _, _) ->
         doCall f lvo args
-    | Asm(_,_,slvl,_,_,_) -> List.iter (fun (_,s,lv) ->
+    | Asm(_,_,slvl,_,_,_,_) -> List.iter (fun (_,s,lv) ->
 	match lv with (Var v, off) ->
 	  if s.[0] = '+' then
 	    varUsed := VS.add v !varUsed;

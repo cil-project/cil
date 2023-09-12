@@ -981,6 +981,9 @@ statement_no_null:
 		                 {GOTO (fst $2, joinLoc $1 $3)}
 |   GOTO STAR comma_expression SEMICOLON
                                  { COMPGOTO (smooth_expression (fst $3), joinLoc $1 $4) }
+|   ASM asmattr GOTO asmattr LPAREN asmtemplate COLON asmoperands COLON asmoperands COLON asmclobberlst COLON asmgotolabelslst RPAREN SEMICOLON
+                        { ASM (("goto",[])::("volatile",[])::($2 @ $4), $6, Some {aoutputs = $8; ainputs = $10; aclobbers = $12; agotolabels = $14 }, joinLoc $1 $16) }
+                         /* 'asm goto' is implicitly considered 'volatile' according to: https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html#GotoLabels */
 |   ASM asmattr LPAREN asmtemplate asmoutputs RPAREN SEMICOLON
                         { ASM ($2, $4, $5, joinLoc $1 $7) }
 |   error location   SEMICOLON   { (NOP $2)}
@@ -1645,6 +1648,7 @@ asmattr:
      /* empty */                        { [] }
 |    VOLATILE  asmattr                  { ("volatile", []) :: $2 }
 |    CONST asmattr                      { ("const", []) :: $2 }
+|    INLINE asmattr                     { ("inline", []) :: $2 }
 ;
 asmtemplate:
     one_string_constant                          { [$1] }
@@ -1654,7 +1658,7 @@ asmoutputs:
   /* empty */           { None }
 | COLON asmoperands asminputs
                         { let (ins, clobs) = $3 in
-                          Some {aoutputs = $2; ainputs = ins; aclobbers = clobs} }
+                          Some {aoutputs = $2; ainputs = ins; aclobbers = clobs; agotolabels = []} }
 ;
 asmoperands:
      /* empty */                        { [] }
@@ -1682,15 +1686,20 @@ asmopname:
 
 asmclobber:
     /* empty */                         { [] }
-| COLON asmcloberlst                    { $2 }
+| COLON asmclobberlst                   { $2 }
 ;
-asmcloberlst:
+asmclobberlst:
     /* empty */                         { [] }
-| asmcloberlst_ne                       { $1 }
+| asmclobberlst_ne                       { $1 }
 ;
-asmcloberlst_ne:
+asmclobberlst_ne:
    one_string_constant                           { [$1] }
-|  one_string_constant COMMA asmcloberlst_ne     { $1 :: $3 }
+|  one_string_constant COMMA asmclobberlst_ne    { $1 :: $3 }
+;
+
+asmgotolabelslst:
+  IDENT                         { [fst $1] }
+| IDENT COMMA asmgotolabelslst  { (fst $1) :: $3 }
 ;
 
 %%

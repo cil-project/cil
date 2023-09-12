@@ -1049,6 +1049,7 @@ and instr =
                   (string option * string * exp) list *
                                         (* inputs with optional names and constraints *)
                   string list *         (* register clobbers *)
+                  string list *         (* GoToLabels *)
                   location
     (** There are for storing inline assembly. They follow the GCC
         specification:

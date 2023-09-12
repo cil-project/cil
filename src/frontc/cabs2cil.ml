@@ -822,7 +822,7 @@ module BlockChunk =
         | Set (l, e, loc, eloc) -> Set (l, e, doLoc loc, doLoc eloc)
         | VarDecl (v, loc) -> VarDecl (v, doLoc loc)
         | Call (l, f, a, loc, eloc) -> Call (l, f, a, doLoc loc, doLoc eloc)
-        | Asm (a, b, c, d, e, loc) -> Asm (a, b, c, d, e, doLoc loc)
+        | Asm (a, b, c, d, e, f, loc) -> Asm (a, b, c, d, e, f, doLoc loc)
 
       (** Change all stmt and instr locs to synthetic, except the first one.
           Expressions/initializers that expand to multiple instructions cannot have intermediate locations referenced. *)
@@ -6893,7 +6893,7 @@ and doStatement (s : A.statement) : chunk =
         currentLoc := loc';
         currentExpLoc := loc'; (* for argument doExp below *)
         let stmts : chunk ref = ref empty in
-	let (tmpls', outs', ins', clobs') =
+	let (tmpls', outs', ins', clobs', gotos') =
 	  match details with
 	  | None ->
 	      let tmpls' =
@@ -6901,8 +6901,8 @@ and doStatement (s : A.statement) : chunk =
 		      let escape = Str.global_replace pattern "%%" in
 		      Util.list_map escape tmpls
 	      in
-	      (tmpls', [], [], [])
-	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs } ->
+	      (tmpls', [], [], [], [])
+	  | Some { aoutputs = outs; ainputs = ins; aclobbers = clobs; agotolabels = gotos } ->
               let outs' =
 		Util.list_map
 		  (fun (id, c, e) ->
@@ -6925,10 +6925,10 @@ and doStatement (s : A.statement) : chunk =
 		    (id, c, e'))
 		  ins
               in
-	      (tmpls, outs', ins', clobs)
+	      (tmpls, outs', ins', clobs, gotos)
 	in
         !stmts @@
-        (i2c (Asm(attr', tmpls', outs', ins', clobs', loc')))
+        (i2c (Asm(attr', tmpls', outs', ins', clobs', gotos', loc')))
 
   with e when continueOnError -> begin
     (ignore (E.log "Error in doStatement (%s)\n" (Printexc.to_string e)));

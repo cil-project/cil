@@ -270,7 +270,7 @@ let getDefRhs didstmh stmdat defId =
 		Set((Var vi',NoOffset),_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
 	      | Call(Some(Var vi',NoOffset),_,_,_,_) -> vi'.vid = vid (* _ -> NoOffset *)
 	      | Call(None,_,_,_,_) -> false
-	      | Asm(_,_,sll,_,_,_) -> List.exists
+	      | Asm(_,_,sll,_,_,_,_) -> List.exists
 		    (function (_,_,(Var vi',NoOffset)) -> vi'.vid = vid | _ -> false) sll
 	      | _ -> false)
 	  | None -> false) iihl in
@@ -284,7 +284,7 @@ let getDefRhs didstmh stmdat defId =
 	| Call(lvo,e,el,_,_) ->
 	    (IH.add rhsHtbl defId (Some(RDCall(i),stm.sid,iosh_in));
 	     Some(RDCall(i), stm.sid, iosh_in))
-	| Asm(a,sl,slvl,sel,sl',_) -> None
+	| Asm(a,sl,slvl,sel,sl',_,_) -> None
   | VarDecl _ -> None
   ) (* ? *)
 	with Not_found ->

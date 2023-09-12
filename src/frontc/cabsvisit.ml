@@ -434,13 +434,13 @@ and childrenStatement vis s =
       in
       let details' = match details with
       | None -> details
-      | Some { aoutputs = outl; ainputs = inl; aclobbers = clobs } ->
+      | Some { aoutputs = outl; ainputs = inl; aclobbers = clobs; agotolabels = gotos } ->
 	  let outl' = mapNoCopy childrenIdentStringExp outl in
 	  let inl' = mapNoCopy childrenIdentStringExp inl in
 	  if outl' == outl && inl' == inl then
 	    details
 	  else
-	    Some { aoutputs = outl'; ainputs = inl'; aclobbers = clobs }
+	    Some { aoutputs = outl'; ainputs = inl'; aclobbers = clobs; agotolabels = gotos }
       in
       if details' != details then
         ASM (sl, b, details', l) else s

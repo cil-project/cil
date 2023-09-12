@@ -243,7 +243,7 @@ let eh_handle_inst i eh =
       (eh_kill_mem eh;
        eh_kill_addrof_or_global eh;
        eh)
-  | Asm(_,_,_,_,_,_) ->
+  | Asm(_,_,_,_,_,_,_) ->
       let _,d = UD.computeUseDefInstr i in
       (UD.VS.iter (fun vi ->
 	eh_kill_vi eh vi) d;

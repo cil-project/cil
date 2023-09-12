@@ -106,6 +106,8 @@ let args : (string * Arg.spec * string) list =
 exception ParseError of string
 exception CabsOnly
 
+let resetErrors () = E.hadErrors := false
+
 (* parse, and apply patching *)
 let rec parse_to_cabs fname =
 begin
