@@ -725,31 +725,55 @@ let gprintf (finish : doc -> 'b)
               invalid_arg ("dprintf: unimplemented format " 
 			   ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              match fget j' with
+              | 'd' -> format_of_string "%Ld"
+              | 'i' -> "%Li"
+              | 'u' -> "%Lu"
+              | 'x' -> "%Lx"
+              | 'X' -> "%LX"
+              | 'o' -> "%Lo"
+              | _ -> assert false
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
-                         (Int64.format format_spec n))
+                         (Printf.sprintf format_spec n))
                 (succ j'))
 	| 'l' ->
 	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              match fget j' with
+              | 'd' -> format_of_string "%ld"
+              | 'i' -> "%li"
+              | 'u' -> "%lu"
+              | 'x' -> "%lx"
+              | 'X' -> "%lX"
+              | 'o' -> "%lo"
+              | _ -> assert false
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
-                         (Int32.format format_spec n))
+                         (Printf.sprintf format_spec n))
                 (succ j'))
 	| 'n' ->
 	    if j != i + 1 then invalid_arg ("dprintf: unimplemented format " 
 					    ^ (String.sub format i (j-i+1)));
 	    let j' = succ j in (* eat the d,i,x etc. *)
-	    let format_spec = "% " in
-	    String.set format_spec 1 (fget j'); (* format_spec = "%x", etc. *)
+	    let format_spec =
+              match fget j' with
+              | 'd' -> format_of_string "%d"
+              | 'i' -> "%i"
+              | 'u' -> "%u"
+              | 'x' -> "%x"
+              | 'X' -> "%X"
+              | 'o' -> "%o"
+              | _ -> assert false
+            in
             Obj.magic(fun n ->
               collect (dctext1 acc
-                         (Nativeint.format format_spec n))
+                         (Printf.sprintf format_spec n))
                 (succ j'))
         | 'f' | 'e' | 'E' | 'g' | 'G' ->
             Obj.magic(fun f ->

@@ -64,7 +64,7 @@ module Bound =
 struct
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) =
-    Pervasives.compare (U.deref x.info) (U.deref y.info)
+    Stdlib.compare (U.deref x.info) (U.deref y.info)
 end
 
 module B = S.Make (Bound)

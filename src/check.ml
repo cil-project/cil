@@ -646,7 +646,7 @@ and checkInit  (i: init) : typ =
                 | (Index(Const(CInt64(i', _, _)), NoOffset), ei) :: rest -> 
                     if i' <> i then 
                       ignore (warn "Initializer for index %s when %s was expected"
-                                (Int64.format "%d" i') (Int64.format "%d" i));
+                                (Int64.to_string i') (Int64.to_string i));
                     checkInitType ei bt;
                     loopIndex (Int64.succ i) rest
                 | _ :: rest -> 

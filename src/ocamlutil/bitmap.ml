@@ -10,7 +10,7 @@ type t = { mutable nrWords  : int;
 let enlarge b newWords = 
   let newbitmap = 
     if newWords > b.nrWords then
-      let a = Array.create newWords Int32.zero in
+      let a = Array.make newWords Int32.zero in
       Array.blit b.bitmap 0 a 0 b.nrWords;
       a
     else

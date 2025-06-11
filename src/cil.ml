@@ -1696,7 +1696,7 @@ let d_const () c =
            * integers in negative form. -- Gabriel *)
           E.s (E.bug "unexpected negative unsigned integer (please report this bug)")
         else
-          text (prefix ^ "0x" ^ Int64.format "%x" i ^ suffix)
+          text (Format.sprintf "%s0x%Lx%s" prefix i suffix)
       else (
         if (i = mostNeg32BitInt) then
           (* sm: quirk here: if you print -2147483648 then this is two tokens *)
@@ -2713,7 +2713,7 @@ let parseInt (str: string) : exp =
     let l = String.length str in
     fun s -> 
       let ls = String.length s in
-      l >= ls && s = String.uppercase (String.sub str (l - ls) ls)
+      l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
   in
   let l = String.length str in
   (* See if it is octal or hex *)
@@ -4643,12 +4643,12 @@ class plainCilPrinterClass =
     Const(c) -> 
       let d_plainconst () c = 
         match c with
-          CInt64(i, ik, so) -> 
-	    let fmt = if isSigned ik then "%d" else "%x" in
-            dprintf "Int64(%s,%a,%s)" 
-              (Int64.format fmt i)
-              d_ikind ik
-              (match so with Some s -> s | _ -> "None")
+          CInt64(i, ik, so) ->
+           let sos = match so with Some s -> s | _ -> "None" in
+           if isSigned ik then
+             dprintf "Int64(%Ld,%a,%s)" i d_ikind ik sos
+           else
+             dprintf "Int64(%Lx,%a,%s)" i d_ikind ik sos              
         | CStr(s) -> 
             text ("CStr(\"" ^ escape_string s ^ "\")")
         | CWStr(s) -> 
@@ -5080,19 +5080,19 @@ let loadBinaryFile (filename : string) : file =
 (* Take the name of a file and make a valid symbol name out of it. There are 
  * a few characters that are not valid in symbols *)
 let makeValidSymbolName (s: string) = 
-  let s = String.copy s in (* So that we can update in place *)
-  let l = String.length s in
+  let s = Bytes.of_string s in (* So that we can update in place *)
+  let l = Bytes.length s in
   for i = 0 to l - 1 do
-    let c = String.get s i in
+    let c = Bytes.get s i in
     let isinvalid = 
       match c with
         '-' | '.' -> true
       | _ -> false
     in
     if isinvalid then 
-      String.set s i '_';
+      Bytes.set s i '_';
   done;
-  s
+  Bytes.to_string s
 
 let rec addOffset (toadd: offset) (off: offset) : offset =
   match off with

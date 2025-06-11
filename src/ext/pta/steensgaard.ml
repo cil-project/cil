@@ -77,7 +77,7 @@ module Bound =
 struct 
   type 'a t = 'a bound
   let compare (x : 'a t) (y : 'a t) = 
-    Pervasives.compare x y
+    Stdlib.compare x y
 end
 
 module B = S.Make(Bound)
@@ -92,7 +92,7 @@ struct
   type t = constant
 
   let compare ((xid,_) : t) ((yid,_) : t) =
-    Pervasives.compare xid yid
+    Stdlib.compare xid yid
 end
 
 module C = Set.Make(Constant)

@@ -24,7 +24,7 @@ let split_idx (idx: int) : int option =
 
 let rec create (len: int) (init: 'a) : 'a t =
   let len1, len2 = split_len len in
-  (Array.create len1 init) :: (if len2 > 0 then create len2 init else [])
+  (Array.make len1 init) :: (if len2 > 0 then create len2 init else [])
 
 let rec init (len: int) (fn: int -> 'a) : 'a t =
   let len1, len2 = split_len len in

@@ -3703,20 +3703,6 @@ $as_echo "version differs from ocamlc; ocamlopt.opt discarded." >&6; }
 
 
 
-  # checking for native dynlink
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dynlink.cmxa" >&5
-$as_echo_n "checking for dynlink.cmxa... " >&6; }
-  if test -f "$OCAMLLIB/dynlink.cmxa" ; then
-     OCAMLNATDYNLINK=yes
-     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-  else
-     OCAMLNATDYNLINK=no
-     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-  fi
-
-
 
   # checking for ocaml toplevel
   if test -n "$ac_tool_prefix"; then
@@ -4683,6 +4669,20 @@ fi
 if test "$OCAMLFIND" = "no"; then
   as_fn_error $? "You must install OCaml findlib (the ocamlfind command)" "$LINENO" 5
 fi
+
+  # checking for native dynlink
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dynlink.cmxa" >&5
+    $as_echo_n "checking for dynlink... " >&6; }
+  $OCAMLFIND query dynlink
+  case $? in
+      0) OCAMLNATDYNLINK=yes
+         { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+	   $as_echo "yes" >&6; };;
+      *) OCAMLNATDYNLINK=no
+         { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+           $as_echo "no" >&6; };;
+  esac
+
 
 # ------------------- Perl ----------------
 

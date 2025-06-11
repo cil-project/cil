@@ -1,18 +1,15 @@
-opam-version: "1.2"
+opam-version: "2.0"
 authors: ["gabriel@kerneis.info"]
 maintainer: "gabriel@kerneis.info"
 homepage: "https://cil-project.github.io/cil/"
 bug-reports: "https://github.com/cil-project/cil/issues/"
+description: "Cil"
 dev-repo: "git+https://github.com/cil-project/cil/"
 build: [
   ["env" "FORCE_PERL_PREFIX=1" "./configure" "--prefix" prefix]
   [make]
-]
-build-test: [
-  ["env" "VERBOSE=1" make "test"]
-]
-build-doc: [
-  [make "doc"]
+  ["env" "VERBOSE=1" make "test"] {with-test}
+  [make "doc"] {with-doc}
 ]
 install: [
   make "install"
@@ -22,8 +19,9 @@ remove: [
   [make "uninstall"]
 ]
 depends: [
+  "ocaml"
   "ocamlfind"
   "ocamlbuild" {build}
-  "hevea" {build & doc}
-  "hevea" {build & test}
+  "hevea" {build & with-doc}
+  "hevea" {build & with-test}
 ]
