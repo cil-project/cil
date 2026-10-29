@@ -404,6 +404,7 @@ let pragmaLine = ref false
 }
 
 let decdigit = ['0'-'9']
+let bindigit = ['0' '1']
 let octdigit = ['0'-'7']
 let hexdigit = ['0'-'9' 'a'-'f' 'A'-'F']
 let letter = ['a'- 'z' 'A'-'Z']
@@ -418,6 +419,7 @@ let intsuffix = lsuffix | usuffix | usuffix lsuffix | lsuffix usuffix
 let hexprefix = '0' ['x' 'X']
 
 let intnum = decdigit+ intsuffix?
+let binnum = '0' ['b' 'B'] bindigit+ intsuffix?
 let octnum = '0' octdigit+ intsuffix?
 let hexnum = hexprefix hexdigit+ intsuffix?
 
@@ -508,6 +510,7 @@ rule initial =
 |		floatnum		{CST_FLOAT (Lexing.lexeme lexbuf, currentLoc ())}
 |   complexnum  {CST_COMPLEX (Lexing.lexeme lexbuf, currentLoc ())}
 |		hexnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
+|		binnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		octnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		intnum			{CST_INT (Lexing.lexeme lexbuf, currentLoc ())}
 |		"!quit!"		{EOF}

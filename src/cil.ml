@@ -2827,8 +2827,8 @@ let parseInt (str: string) : exp =
       l >= ls && s = String.uppercase_ascii (String.sub str (l - ls) ls)
   in
   let l = String.length str in
-  (* See if it is octal or hex *)
-  let octalhex = (l >= 1 && String.get str 0 = '0') in
+  (* Binary, octal and hexadecimal constants share the same candidate types. *)
+  let nondecimal = (l >= 1 && String.get str 0 = '0') in
   (* The length of the suffix and a list of possible kinds. See ISO
   * 6.4.4.1 *)
   let hasSuffix = hasSuffix str in
@@ -2836,11 +2836,11 @@ let parseInt (str: string) : exp =
     if hasSuffix "ULL" || hasSuffix "LLU" then
       3, [IULongLong]
     else if hasSuffix "LL" then
-      2, if octalhex then [ILongLong; IULongLong] else [ILongLong]
+      2, if nondecimal then [ILongLong; IULongLong] else [ILongLong]
     else if hasSuffix "UL" || hasSuffix "LU" then
       2, [IULong; IULongLong]
     else if hasSuffix "L" then
-      1, if octalhex then [ILong; IULong; ILongLong; IULongLong]
+      1, if nondecimal then [ILong; IULong; ILongLong; IULongLong]
       else [ILong; ILongLong]
     else if hasSuffix "U" then
       1, [IUInt; IULong; IULongLong]
@@ -2849,7 +2849,7 @@ let parseInt (str: string) : exp =
     else if (!msvcMode && hasSuffix "I64") then
       3, [ILongLong]
     else
-      0, if octalhex then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
+      0, if nondecimal then [IInt; IUInt; ILong; IULong; ILongLong; IULongLong]
       else if not !c99Mode then [ IInt; ILong; IULong; ILongLong; IULongLong]
       else [IInt; ILong; ILongLong]
       (* c99mode only affects parsing of decimal integer constants without suffix
@@ -2883,10 +2883,13 @@ let parseInt (str: string) : exp =
                str ch idx)
   in
   let i =
-    if octalhex then
+    if nondecimal then
       if l >= 2 &&
         (let c = String.get str 1 in c = 'x' || c = 'X') then
           toInt (cilint_of_int 16) zero_cilint 2
+      else if l >= 2 &&
+        (let c = String.get str 1 in c = 'b' || c = 'B') then
+          toInt (cilint_of_int 2) zero_cilint 2
       else
         toInt (cilint_of_int 8) zero_cilint 1
     else
