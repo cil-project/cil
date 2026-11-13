@@ -1059,7 +1059,6 @@ decl_spec_list_common:                  /* ISO 6.7 */
 |   REGISTER decl_spec_list_opt         { SpecStorage REGISTER :: $2, $1}
                                         /* ISO 6.7.2 */
 |   type_spec decl_spec_list_opt_no_named { SpecType (fst $1) :: $2, snd $1 }
-|   ATOMIC LPAREN decl_spec_list RPAREN decl_spec_list_opt_no_named { (fst $3) @ SpecCV(CV_ATOMIC) :: $5, $1 }
                                         /* ISO 6.7.4 */
 |   INLINE decl_spec_list_opt           { SpecInline :: $2, $1 }
 |   NORETURN decl_spec_list_opt         { SpecNoreturn  :: $2, $1 }
@@ -1149,6 +1148,12 @@ type_spec:   /* ISO 6.7.2 */
 |   ENUM   just_attributes                LBRACE enum_list maybecomma RBRACE
                                                    { Tenum   ("", Some (List.rev $4), $2), $1 }
 |   NAMED_TYPE      { Tnamed (fst $1), snd $1 }
+    /* C11 6.7.2.4: _Atomic accepts a full type-name, including an optional
+       abstract declarator. Restrictions on the operand type are checked
+       in Cabs2cil.doSpecList.
+    */
+|   ATOMIC LPAREN type_name RPAREN      { let s, d = $3 in
+                                          Tatomic (s, d), $1 }
 |   TYPEOF LPAREN comma_expression RPAREN     { TtypeofE (smooth_expression (fst $3)), $1 }
 |   TYPEOF LPAREN type_name RPAREN      { let s, d = $3 in
                                           TtypeofT (s, d), $1 }

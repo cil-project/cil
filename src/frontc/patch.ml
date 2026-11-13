@@ -549,7 +549,8 @@ begin
       (unifyString name1 name2)
   | TtypeofE(exp1), TtypeofE(exp2) ->
       (unifyExpr exp1 exp2)
-  | TtypeofT(spec1, dtype1), TtypeofT(spec2, dtype2) ->
+  | TtypeofT(spec1, dtype1), TtypeofT(spec2, dtype2)
+  | Tatomic(spec1, dtype1), Tatomic(spec2, dtype2) ->
       (unifySpecifiers spec1 spec2) @
       (unifyDeclType dtype1 dtype2)
   | _ -> (

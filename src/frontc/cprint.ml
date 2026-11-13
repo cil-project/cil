@@ -195,6 +195,7 @@ and print_type_spec = function
       (print_enum_items enum_items)
   | TtypeofE e -> printl ["__typeof__";"("]; print_expression e; print ") "
   | TtypeofT (s,d) -> printl ["__typeof__";"("]; print_onlytype (s, d); print ") "
+  | Tatomic (s,d) -> printl ["_Atomic";"("]; print_onlytype (s, d); print ") "
   | Tdefault -> print "default " (* TODO: is this right? *)
   | Tauto -> print "__auto_type"
 

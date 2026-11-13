@@ -223,6 +223,10 @@ and childrenTypeSpecifier vis ts =
       let s' = visitCabsSpecifier vis s in
       let dt' = visitCabsDeclType vis false dt in
       if s != s' || dt != dt' then TtypeofT (s', dt') else ts
+  | Tatomic (s, dt) ->
+      let s' = visitCabsSpecifier vis s in
+      let dt' = visitCabsDeclType vis false dt in
+      if s != s' || dt != dt' then Tatomic (s', dt') else ts
   | ts -> ts
 
 and childrenSpecElem (vis: cabsVisitor) (se: spec_elem) : spec_elem =

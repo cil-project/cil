@@ -13,6 +13,16 @@
  (modules alpha_names)
  (libraries goblint-cil))
 
+(test
+ (name atomic_qualifier)
+ (modules atomic_qualifier)
+ (libraries goblint-cil))
+
+(test
+ (name atomic_specifier)
+ (modules atomic_specifier)
+ (libraries goblint-cil))
+
 (rule
  (alias runtest)
  (deps (alias_rec ../cilly) (package goblint-cil) (source_tree .))

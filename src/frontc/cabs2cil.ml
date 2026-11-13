@@ -2859,6 +2859,20 @@ let rec doSpecList (suggestedAnonName: string) (* This string will be part of
     | [A.TtypeofT (specs, dt)] ->
         let typ = doOnlyType specs dt in
         typ
+    | [A.Tatomic (specs, dt)] ->
+        let typ = doOnlyType specs dt in
+        (* C11 6.7.2.4: the operand may not be an array, function,
+           atomic or qualified type. Only its outermost level matters. *)
+        (match unrollType typ with
+        | TArray _ | TFun _ ->
+            E.s (error "Array or function type in _Atomic type specifier")
+        | _ -> ());
+        let attrs = typeAttrs typ in
+        if List.exists (fun q -> hasAttribute q attrs)
+            ["atomic"; "const"; "volatile"; "restrict"] then
+          E.s (error "Atomic or qualified type in _Atomic type specifier");
+        (* Qualify the completed type, including its abstract declarator. *)
+        typeAddAttributes [Attr ("atomic", [])] typ
     | [A.Tauto] -> raise TautoEncountered
 
     | _ ->
