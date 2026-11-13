@@ -1465,6 +1465,7 @@ attribute:
 |   CONST                               { ("const", []), $1 }
 |   RESTRICT                            { ("restrict",[]), $1 }
 |   VOLATILE                            { ("volatile",[]), $1 }
+|   ATOMIC                              { ("atomic",[]), $1 }
 |   STATIC                              { ("static",[]), $1 }
 ;
 
